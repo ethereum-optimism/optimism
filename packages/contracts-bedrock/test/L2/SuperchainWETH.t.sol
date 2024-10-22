@@ -9,7 +9,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 
 // Interfaces
-import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
 
@@ -25,16 +24,24 @@ contract SuperchainWETH_Test is CommonTest {
     /// @notice Emitted when a withdrawal is made.
     event Withdrawal(address indexed src, uint256 wad);
 
-    /// @notice Emitted when an ERC20 is sent.
-    event SendERC20(address indexed _from, address indexed _to, uint256 _amount, uint256 _chainId);
+    /// @notice Emitted when a crosschain transfer mints tokens.
+    event CrosschainMinted(address indexed to, uint256 amount);
 
-    /// @notice Emitted when an ERC20 send is relayed.
-    event RelayERC20(address indexed _from, address indexed _to, uint256 _amount, uint256 _source);
+    /// @notice Emitted when a crosschain transfer burns tokens.
+    event CrosschainBurnt(address indexed from, uint256 amount);
+
+    address internal constant ZERO_ADDRESS = address(0);
 
     /// @notice Test setup.
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
+    }
+
+    /// @notice Helper function to setup a mock and expect a call to it.
+    function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
+        vm.mockCall(_receiver, _calldata, _returned);
+        vm.expectCall(_receiver, _calldata);
     }
 
     /// @notice Tests that the deposit function can be called on a non-custom gas token chain.
@@ -45,6 +52,7 @@ contract SuperchainWETH_Test is CommonTest {
 
         // Arrange
         vm.deal(alice, _amount);
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(false));
 
         // Act
         vm.expectEmit(address(superchainWeth));
@@ -65,7 +73,7 @@ contract SuperchainWETH_Test is CommonTest {
 
         // Arrange
         vm.deal(address(alice), _amount);
-        vm.mockCall(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
 
         // Act
         vm.prank(alice);
@@ -87,6 +95,7 @@ contract SuperchainWETH_Test is CommonTest {
         vm.deal(alice, _amount);
         vm.prank(alice);
         superchainWeth.deposit{ value: _amount }();
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(false));
 
         // Act
         vm.expectEmit(address(superchainWeth));
@@ -109,7 +118,7 @@ contract SuperchainWETH_Test is CommonTest {
         vm.deal(alice, _amount);
         vm.prank(alice);
         superchainWeth.deposit{ value: _amount }();
-        vm.mockCall(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
 
         // Act
         vm.prank(alice);
@@ -121,237 +130,253 @@ contract SuperchainWETH_Test is CommonTest {
         assertEq(superchainWeth.balanceOf(alice), _amount);
     }
 
-    /// @notice Tests that the sendERC20 function always succeeds when called with a sufficient
-    ///         balance no matter the sender, amount, recipient, or chain ID.
-    /// @param _amount The amount of WETH to send.
-    /// @param _caller The address of the caller.
-    /// @param _recipient The address of the recipient.
-    /// @param _chainId The chain ID to send the WETH to.
-    function testFuzz_sendERC20_sufficientBalance_succeeds(
-        uint256 _amount,
-        address _caller,
-        address _recipient,
-        uint256 _chainId
-    )
-        public
-    {
-        // Assume
-        vm.assume(_chainId != block.chainid);
-        vm.assume(_caller != address(ethLiquidity));
-        vm.assume(_caller != address(superchainWeth));
+    /// @notice Tests the `crosschainMint` function reverts when the caller is not the `SuperchainTokenBridge`.
+    function testFuzz_crosschainMint_callerNotBridge_reverts(address _caller, address _to, uint256 _amount) public {
+        // Ensure the caller is not the bridge
+        vm.assume(_caller != Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(ISuperchainWETH.Unauthorized.selector);
+
+        // Call the `mint` function with the non-bridge caller
+        vm.prank(_caller);
+        superchainWeth.crosschainMint(_to, _amount);
+    }
+
+    /// @notice Tests the `crosschainMint` with non custom gas token succeeds and emits the `CrosschainMinted` event.
+    function testFuzz_crosschainMint_fromBridgeNonCustomGasTokenChain_succeeds(address _to, uint256 _amount) public {
+        // Ensure `_to` is not the zero address
+        vm.assume(_to != ZERO_ADDRESS);
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
-        // Arrange
-        vm.deal(_caller, _amount);
+        // Get the total supply and balance of `_to` before the mint to compare later on the assertions
+        uint256 _totalSupplyBefore = superchainWeth.totalSupply();
+        uint256 _toBalanceBefore = superchainWeth.balanceOf(_to);
+
+        // Look for the emit of the `Transfer` event
+        vm.expectEmit(address(superchainWeth));
+        emit Transfer(ZERO_ADDRESS, _to, _amount);
+
+        // Look for the emit of the `CrosschainMinted` event
+        vm.expectEmit(address(superchainWeth));
+        emit CrosschainMinted(_to, _amount);
+
+        // Mock the `isCustomGasToken` function to return false
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(false));
+
+        // Expect the call to the `mint` function in the `ETHLiquidity` contract
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 1);
+
+        // Call the `mint` function with the bridge caller
+        vm.prank(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        superchainWeth.crosschainMint(_to, _amount);
+
+        // Check the total supply and balance of `_to` after the mint were updated correctly
+        assertEq(superchainWeth.totalSupply(), _totalSupplyBefore + _amount);
+        assertEq(superchainWeth.balanceOf(_to), _toBalanceBefore + _amount);
+        assertEq(superchainWeth.balanceOf(Predeploys.ETH_LIQUIDITY), 0);
+        assertEq(address(superchainWeth).balance, _amount);
+    }
+
+    /// @notice Tests the `crosschainMint` with custom gas token succeeds and emits the `CrosschainMinted` event.
+    function testFuzz_crosschainMint_fromBridgeCustomGasTokenChain_succeeds(address _to, uint256 _amount) public {
+        // Ensure `_to` is not the zero address
+        vm.assume(_to != ZERO_ADDRESS);
+        _amount = bound(_amount, 0, type(uint248).max - 1);
+
+        // Get the balance of `_to` before the mint to compare later on the assertions
+        uint256 _toBalanceBefore = superchainWeth.balanceOf(_to);
+
+        // Look for the emit of the `Transfer` event
+        vm.expectEmit(address(superchainWeth));
+        emit Transfer(ZERO_ADDRESS, _to, _amount);
+
+        // Look for the emit of the `CrosschainMinted` event
+        vm.expectEmit(address(superchainWeth));
+        emit CrosschainMinted(_to, _amount);
+
+        // Mock the `isCustomGasToken` function to return false
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
+
+        // Expect to not call the `mint` function in the `ETHLiquidity` contract
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 0);
+
+        // Call the `mint` function with the bridge caller
+        vm.prank(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        superchainWeth.crosschainMint(_to, _amount);
+
+        // Check the total supply and balance of `_to` after the mint were updated correctly
+        assertEq(superchainWeth.balanceOf(_to), _toBalanceBefore + _amount);
+        assertEq(superchainWeth.balanceOf(Predeploys.ETH_LIQUIDITY), 0);
+        assertEq(superchainWeth.totalSupply(), 0);
+        assertEq(address(superchainWeth).balance, 0);
+    }
+
+    /// @notice Tests the `crosschainBurn` function reverts when the caller is not the `SuperchainTokenBridge`.
+    function testFuzz_crosschainBurn_callerNotBridge_reverts(address _caller, address _from, uint256 _amount) public {
+        // Ensure the caller is not the bridge
+        vm.assume(_caller != Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(ISuperchainWETH.Unauthorized.selector);
+
+        // Call the `burn` function with the non-bridge caller
         vm.prank(_caller);
+        superchainWeth.crosschainBurn(_from, _amount);
+    }
+
+    /// @notice Tests the `crosschainBurn` with non custom gas token burns the amount and emits the `CrosschainBurnt`
+    /// event.
+    function testFuzz_crosschainBurn_fromBridgeNonCustomGasTokenChain_succeeds(address _from, uint256 _amount) public {
+        // Ensure `_from` is not the zero address
+        vm.assume(_from != ZERO_ADDRESS);
+        _amount = bound(_amount, 0, type(uint248).max - 1);
+
+        // Deposit some tokens to `_from` so then they can be burned
+        vm.deal(_from, _amount);
+        vm.prank(_from);
         superchainWeth.deposit{ value: _amount }();
 
-        // Act
+        // Get the total supply and balance of `_from` before the burn to compare later on the assertions
+        uint256 _totalSupplyBefore = superchainWeth.totalSupply();
+        uint256 _fromBalanceBefore = superchainWeth.balanceOf(_from);
+
+        // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainWeth));
-        emit Transfer(_caller, address(0), _amount);
+        emit Transfer(_from, ZERO_ADDRESS, _amount);
+
+        // Look for the emit of the `CrosschainBurnt` event
         vm.expectEmit(address(superchainWeth));
-        emit SendERC20(_caller, _recipient, _amount, _chainId);
+        emit CrosschainBurnt(_from, _amount);
+
+        // Mock the `isCustomGasToken` function to return false
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(false));
+
+        // Expect the call to the `burn` function in the `ETHLiquidity` contract
         vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.burn, ()), 1);
-        vm.expectCall(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(
-                IL2ToL2CrossDomainMessenger.sendMessage,
-                (
-                    _chainId,
-                    address(superchainWeth),
-                    abi.encodeCall(superchainWeth.relayERC20, (_caller, _recipient, _amount))
-                )
-            ),
-            1
-        );
-        vm.prank(_caller);
-        superchainWeth.sendERC20(_recipient, _amount, _chainId);
 
-        // Assert
-        assertEq(_caller.balance, 0);
-        assertEq(superchainWeth.balanceOf(_caller), 0);
+        // Call the `burn` function with the bridge caller
+        vm.prank(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        superchainWeth.crosschainBurn(_from, _amount);
+
+        // Check the total supply and balance of `_from` after the burn were updated correctly
+        assertEq(superchainWeth.totalSupply(), _totalSupplyBefore - _amount);
+        assertEq(superchainWeth.balanceOf(_from), _fromBalanceBefore - _amount);
+        assertEq(address(superchainWeth).balance, 0);
     }
 
-    /// @notice Tests that the sendERC20 function can be called with a sufficient balance on a
-    ///         custom gas token chain. Also tests that the proper calls are made and the proper
-    ///         events are emitted but ETH is not burned via the ETHLiquidity contract.
-    /// @param _amount The amount of WETH to send.
-    /// @param _chainId The chain ID to send the WETH to.
-    function testFuzz_sendERC20_sufficientFromCustomGasTokenChain_succeeds(uint256 _amount, uint256 _chainId) public {
-        // Assume
-        vm.assume(_chainId != block.chainid);
+    /// @notice Tests the `crosschainBurn` with custom gas token burns the amount and emits the `CrosschainBurnt`
+    /// event.
+    function testFuzz_crosschainBurn_fromBridgeCustomGasTokenChain_succeeds(address _from, uint256 _amount) public {
+        // Ensure `_from` is not the zero address
+        vm.assume(_from != ZERO_ADDRESS);
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
-        // Arrange
-        vm.deal(alice, _amount);
-        vm.prank(alice);
-        superchainWeth.deposit{ value: _amount }();
-        vm.mockCall(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
+        // Mock the `isCustomGasToken` function to return false
+        _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
 
-        // Act
+        // Mint some tokens to `_from` so then they can be burned
+        vm.prank(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        superchainWeth.crosschainMint(_from, _amount);
+
+        // Get the total supply and balance of `_from` before the burn to compare later on the assertions
+        uint256 _totalSupplyBefore = superchainWeth.totalSupply();
+        uint256 _fromBalanceBefore = superchainWeth.balanceOf(_from);
+
+        // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainWeth));
-        emit Transfer(alice, address(0), _amount);
+        emit Transfer(_from, ZERO_ADDRESS, _amount);
+
+        // Look for the emit of the `CrosschainBurnt` event
         vm.expectEmit(address(superchainWeth));
-        emit SendERC20(alice, bob, _amount, _chainId);
+        emit CrosschainBurnt(_from, _amount);
+
+        // Expect to not call the `burn` function in the `ETHLiquidity` contract
         vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.burn, ()), 0);
-        vm.expectCall(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(
-                IL2ToL2CrossDomainMessenger.sendMessage,
-                (_chainId, address(superchainWeth), abi.encodeCall(superchainWeth.relayERC20, (alice, bob, _amount)))
-            ),
-            1
-        );
-        vm.prank(alice);
-        superchainWeth.sendERC20(bob, _amount, _chainId);
 
-        // Assert
-        assertEq(alice.balance, 0);
-        assertEq(superchainWeth.balanceOf(alice), 0);
+        // Call the `burn` function with the bridge caller
+        vm.prank(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+        superchainWeth.crosschainBurn(_from, _amount);
+
+        // Check the total supply and balance of `_from` after the burn were updated correctly
+        assertEq(superchainWeth.balanceOf(_from), _fromBalanceBefore - _amount);
+        assertEq(superchainWeth.totalSupply(), _totalSupplyBefore);
+        assertEq(address(superchainWeth).balance, 0);
     }
 
-    /// @notice Tests that the sendERC20 function reverts when called with insufficient balance.
-    /// @param _amount The amount of WETH to send.
-    /// @param _chainId The chain ID to send the WETH to.
-    function testFuzz_sendERC20_insufficientBalance_fails(uint256 _amount, uint256 _chainId) public {
+    /// @notice Tests that the `crosschainBurn` function reverts when called with insufficient balance.
+    function testFuzz_crosschainBurn_insufficientBalance_fails(address _from, uint256 _amount) public {
         // Assume
-        vm.assume(_chainId != block.chainid);
+        vm.assume(_from != ZERO_ADDRESS);
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
-        vm.deal(alice, _amount);
-        vm.prank(alice);
+        vm.deal(_from, _amount);
+        vm.prank(_from);
         superchainWeth.deposit{ value: _amount }();
 
         // Act
         vm.expectRevert();
-        superchainWeth.sendERC20(bob, _amount + 1, _chainId);
+        superchainWeth.crosschainBurn(_from, _amount + 1);
 
         // Assert
-        assertEq(alice.balance, 0);
-        assertEq(superchainWeth.balanceOf(alice), _amount);
+        assertEq(_from.balance, 0);
+        assertEq(superchainWeth.balanceOf(_from), _amount);
     }
 
-    /// @notice Tests that the relayERC20 function can be called from the
-    ///         L2ToL2CrossDomainMessenger as long as the crossDomainMessageSender is the
-    ///         SuperchainWETH contract.
-    /// @param _amount The amount of WETH to send.
-    function testFuzz_relayERC20_fromMessenger_succeeds(address _sender, uint256 _amount, uint256 _chainId) public {
-        // Assume
-        vm.assume(_chainId != block.chainid);
-        vm.assume(_sender != address(ethLiquidity));
-        vm.assume(_sender != address(superchainWeth));
-        _amount = bound(_amount, 0, type(uint248).max - 1);
-
+    /// @notice Test that the internal mint function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_internal_mint_function_reverts(address _caller, address _to, uint256 _amount) public {
         // Arrange
-        vm.mockCall(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSender, ()),
-            abi.encode(address(superchainWeth))
-        );
-        vm.mockCall(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSource, ()),
-            abi.encode(_chainId)
-        );
+        bytes memory _calldata = abi.encodeWithSignature("_mint(address,uint256)", _to, _amount);
+        vm.expectRevert(bytes(""));
 
         // Act
-        vm.expectEmit(address(superchainWeth));
-        emit RelayERC20(_sender, bob, _amount, _chainId);
-        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 1);
-        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        superchainWeth.relayERC20(_sender, bob, _amount);
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
 
         // Assert
-        assertEq(address(superchainWeth).balance, _amount);
-        assertEq(superchainWeth.balanceOf(bob), _amount);
+        assertFalse(success);
     }
 
-    /// @notice Tests that the relayERC20 function can be called from the
-    ///         L2ToL2CrossDomainMessenger as long as the crossDomainMessageSender is the
-    ///         SuperchainWETH contract, even when the chain is a custom gas token chain. Shows
-    ///         that ETH is not minted in this case but the SuperchainWETH balance is updated.
-    /// @param _amount The amount of WETH to send.
-    function testFuzz_relayERC20_fromMessengerCustomGasTokenChain_succeeds(
-        address _sender,
-        uint256 _amount,
-        uint256 _chainId
-    )
-        public
-    {
-        // Assume
-        vm.assume(_chainId != block.chainid);
-        vm.assume(_sender != address(ethLiquidity));
-        vm.assume(_sender != address(superchainWeth));
-        _amount = bound(_amount, 0, type(uint248).max - 1);
-
+    /// @notice Test that the mint function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_mint_function_reverts(address _caller, address _to, uint256 _amount) public {
         // Arrange
-        vm.mockCall(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSender, ()),
-            abi.encode(address(superchainWeth))
-        );
-        vm.mockCall(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSource, ()),
-            abi.encode(_chainId)
-        );
-        vm.mockCall(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
+        bytes memory _calldata = abi.encodeWithSignature("mint(address,uint256)", _to, _amount);
+        vm.expectRevert(bytes(""));
 
         // Act
-        vm.expectEmit(address(superchainWeth));
-        emit RelayERC20(_sender, bob, _amount, _chainId);
-        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 0);
-        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        superchainWeth.relayERC20(_sender, bob, _amount);
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
 
         // Assert
-        assertEq(address(superchainWeth).balance, 0);
-        assertEq(superchainWeth.balanceOf(bob), _amount);
+        assertFalse(success);
     }
 
-    /// @notice Tests that the relayERC20 function reverts when not called from the
-    ///         L2ToL2CrossDomainMessenger.
-    /// @param _amount The amount of WETH to send.
-    function testFuzz_relayERC20_notFromMessenger_fails(address _sender, uint256 _amount) public {
-        // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
-
+    /// @notice Test that the internal burn function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_internal_burn_function_reverts(address _caller, address _from, uint256 _amount) public {
         // Arrange
-        // Nothing to arrange.
+        bytes memory _calldata = abi.encodeWithSignature("_burn(address,uint256)", _from, _amount);
+        vm.expectRevert(bytes(""));
 
         // Act
-        vm.expectRevert(ISuperchainWETH.CallerNotL2ToL2CrossDomainMessenger.selector);
-        vm.prank(alice);
-        superchainWeth.relayERC20(_sender, bob, _amount);
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
 
         // Assert
-        assertEq(address(superchainWeth).balance, 0);
-        assertEq(superchainWeth.balanceOf(bob), 0);
+        assertFalse(success);
     }
 
-    /// @notice Tests that the relayERC20 function reverts when called from the
-    ///         L2ToL2CrossDomainMessenger but the crossDomainMessageSender is not the
-    ///         SuperchainWETH contract.
-    /// @param _amount The amount of WETH to send.
-    function testFuzz_relayERC20_fromMessengerNotFromSuperchainWETH_fails(address _sender, uint256 _amount) public {
-        // Assume
-        _amount = bound(_amount, 0, type(uint248).max - 1);
-
+    /// @notice Test that the burn function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_burn_function_reverts(address _caller, address _from, uint256 _amount) public {
         // Arrange
-        vm.mockCall(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSender, ()),
-            abi.encode(address(alice))
-        );
+        bytes memory _calldata = abi.encodeWithSignature("burn(address,uint256)", _from, _amount);
+        vm.expectRevert(bytes(""));
 
         // Act
-        vm.expectRevert(ISuperchainWETH.InvalidCrossDomainSender.selector);
-        vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        superchainWeth.relayERC20(_sender, bob, _amount);
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
 
         // Assert
-        assertEq(address(superchainWeth).balance, 0);
-        assertEq(superchainWeth.balanceOf(bob), 0);
+        assertFalse(success);
     }
 }
