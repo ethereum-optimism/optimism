@@ -4,7 +4,7 @@ pragma solidity 0.8.25;
 import { ICrosschainERC20 } from "src/L2/interfaces/ICrosschainERC20.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ERC20 } from "@solady/tokens/ERC20.sol";
+import { ERC20 } from "@solady-v0.0.245/tokens/ERC20.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 /// @title SuperchainERC20
@@ -19,9 +19,9 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
+    /// @custom:semver 1.0.0-beta.2
     function version() external view virtual returns (string memory) {
-        return "1.0.0-beta.1";
+        return "1.0.0-beta.2";
     }
 
     /// @notice Allows the SuperchainTokenBridge to mint tokens.
