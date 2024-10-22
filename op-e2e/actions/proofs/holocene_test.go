@@ -17,13 +17,14 @@ import (
 func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 
 	type testCase struct {
-		name                string
-		blocks              []uint // could enhance this to declare either singular or span batches or a mixture
-		isSpanBatch         bool
-		blockModifiers      []actionsHelpers.BlockModifier
-		frames              []uint // ignored if isSpanBatch
-		safeHeadPreHolocene uint64
-		safeHeadHolocene    uint64
+		name                    string
+		blocks                  []uint // could enhance this to declare either singular or span batches or a mixture
+		isSpanBatch             bool
+		blockModifiers          []actionsHelpers.BlockModifier
+		frames                  []uint // ignored if isSpanBatch
+		safeHeadPreHolocene     uint64
+		safeHeadHolocene        uint64
+		breachMaxSequencerDrift bool
 	}
 
 	// invalidPayload invalidates the signature for the second transaction in the block.
@@ -46,6 +47,12 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		headerCopy := block.Header()
 		headerCopy.ParentHash = common.MaxHash
 		return block.WithSeal(headerCopy)
+	}
+
+	k := 2000
+	var twoThousandBlocks = make([]uint, k)
+	for i := 0; i < k; i++ {
+		twoThousandBlocks[i] = uint(i) + 1
 	}
 
 	// testCases is a list of testCases which each specify
@@ -94,7 +101,6 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			safeHeadHolocene:    0, // duplicate batches are silently dropped, so this reduces to case-2b
 		},
 		{name: "case-3a", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
-			frames:              []uint{0, 1, 2},
 			isSpanBatch:         true,
 			safeHeadPreHolocene: 0, // Invalid signature in block 2 causes an invalid _payload_ in the engine queue. Entire span batch is invalidated.
 			safeHeadHolocene:    0, // TODO with full Holocene implementation, we expect the safe head to move to 2 due to creation of an deposit-only block.
@@ -104,6 +110,12 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			isSpanBatch:         false,
 			safeHeadPreHolocene: 1, // Invalid parentHash in block 2 causes an invalid batch to be derived.
 			safeHeadHolocene:    1, // Invalid parentHash in block 2 causes an invalid batch to be derived. This batch + remaining channel is dropped.
+		},
+		{name: "case-3c", blocks: twoThousandBlocks, // if we artificially stall the l1 origin, this should be enough to trigger violation of the max sequencer drift
+			isSpanBatch:             true,
+			safeHeadPreHolocene:     0, // entire span batch invalidated
+			safeHeadHolocene:        0, // TODO we expect partial validity around block 1800
+			breachMaxSequencerDrift: true,
 		},
 	}
 
@@ -125,10 +137,6 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			// Finalize the block with the first channel frame on L1.
 			env.Miner.ActL1SafeNext(t)
 			env.Miner.ActL1FinalizeNext(t)
-
-			// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
-			env.Sequencer.ActL1HeadSignal(t)
-			env.Sequencer.ActL2PipelineFull(t)
 		}
 
 		env.Batcher.ActCreateChannel(t, testCfg.Custom.isSpanBatch)
@@ -145,14 +153,17 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 
 		targetHeadNumber := max(testCfg.Custom.blocks)
 		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
-			// Build a block on L2 with 1 tx.
-			env.Alice.L2.ActResetTxOpts(t)
-			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
-			env.Alice.L2.ActMakeTx(t)
 			env.Sequencer.ActL2StartBlock(t)
-			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+			if testCfg.Custom.breachMaxSequencerDrift {
+				env.Sequencer.ActL2KeepL1Origin(t) // prevent L1 origin from progressing
+			} else {
+				// Send an L2 tx
+				env.Alice.L2.ActResetTxOpts(t)
+				env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
+				env.Alice.L2.ActMakeTx(t)
+				env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+			}
 			env.Sequencer.ActL2EndBlock(t)
-			env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 		}
 
 		// Build up a local list of frames
@@ -186,7 +197,6 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			env.Batcher.ActL2ChannelClose(t)
 			frame := env.Batcher.ReadNextOutputFrame(t)
 			require.NotEmpty(t, frame)
-			t.Log(frame)
 			env.Batcher.ActL2BatchSubmitRaw(t, frame)
 			includeBatchTx()
 		} else {
