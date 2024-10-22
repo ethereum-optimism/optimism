@@ -22,8 +22,8 @@ import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErro
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.7
-    string public constant version = "1.0.0-beta.7";
+    /// @custom:semver 1.0.0-beta.8
+    string public constant version = "1.0.0-beta.8";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {
@@ -66,7 +66,7 @@ contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
             IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(_amount);
         }
 
-        emit CrosschainMinted(_to, _amount);
+        emit CrosschainMint(_to, _amount);
     }
 
     /// @notice Allows the SuperchainTokenBridge to burn tokens.
@@ -82,6 +82,6 @@ contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
             IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: _amount }();
         }
 
-        emit CrosschainBurnt(_from, _amount);
+        emit CrosschainBurn(_from, _amount);
     }
 }

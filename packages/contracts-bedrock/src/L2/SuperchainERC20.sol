@@ -19,9 +19,9 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
+    /// @custom:semver 1.0.0-beta.2
     function version() external view virtual returns (string memory) {
-        return "1.0.0-beta.1";
+        return "1.0.0-beta.2";
     }
 
     /// @notice Allows the SuperchainTokenBridge to mint tokens.
@@ -30,7 +30,7 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     function crosschainMint(address _to, uint256 _amount) external onlySuperchainTokenBridge {
         _mint(_to, _amount);
 
-        emit CrosschainMinted(_to, _amount);
+        emit CrosschainMint(_to, _amount);
     }
 
     /// @notice Allows the SuperchainTokenBridge to burn tokens.
@@ -39,6 +39,6 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     function crosschainBurn(address _from, uint256 _amount) external onlySuperchainTokenBridge {
         _burn(_from, _amount);
 
-        emit CrosschainBurnt(_from, _amount);
+        emit CrosschainBurn(_from, _amount);
     }
 }
