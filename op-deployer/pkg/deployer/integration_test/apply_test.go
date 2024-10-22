@@ -559,7 +559,11 @@ func TestL2BlockTimeOverride(t *testing.T) {
 		st,
 	))
 
-	cfg, err := state.CombineDeployConfig(intent, &state.ChainIntent{}, st, st.Chains[0])
+	chainIntent, err := intent.Chain(l2ChainID.Bytes32())
+	require.NoError(t, err)
+	chainState, err := st.Chain(l2ChainID.Bytes32())
+	require.NoError(t, err)
+	cfg, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
 	require.NoError(t, err)
 
 	require.Equal(t, uint64(3), cfg.L2InitializationConfig.L2CoreDeployConfig.L2BlockTime, "L2 block time should be 3 seconds")
