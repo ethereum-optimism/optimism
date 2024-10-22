@@ -31,7 +31,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         BATCHER,
         FEE_SCALARS,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
+        UNSAFE_BLOCK_SIGNER,
+        EIP_1559_PARAMS
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -123,6 +124,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
     IResourceMetering.ResourceConfig internal _resourceConfig;
 
+    /// @notice The EIP-1559 base fee max change denominator.
+    uint32 public eip1559Denominator;
+
+    /// @notice The EIP-1559 elasticity multiplier.
+    uint32 public eip1559Elasticity;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -130,9 +137,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0-beta.4
+    /// @custom:semver 2.3.0-beta.5
     function version() public pure virtual returns (string memory) {
-        return "2.3.0-beta.4";
+        return "2.3.0-beta.5";
     }
 
     /// @notice Constructs the SystemConfig contract. Cannot set
@@ -418,6 +425,25 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         bytes memory data = abi.encode(_gasLimit);
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
+    }
+
+    /// @notice Updates the EIP-1559 parameters of the chain. Can only be called by the owner.
+    /// @param _denominator EIP-1559 base fee max change denominator.
+    /// @param _elasticity  EIP-1559 elasticity multiplier.
+    function setEIP1559Params(uint32 _denominator, uint32 _elasticity) external onlyOwner {
+        _setEIP1559Params(_denominator, _elasticity);
+    }
+
+    /// @notice Internal function for updating the EIP-1559 parameters.
+    function _setEIP1559Params(uint32 _denominator, uint32 _elasticity) internal {
+        // require the parameters have sane values:
+        require(_denominator >= 1, "SystemConfig: denominator must be >= 1");
+        require(_elasticity >= 1, "SystemConfig: elasticity must be >= 1");
+        eip1559Denominator = _denominator;
+        eip1559Elasticity = _elasticity;
+
+        bytes memory data = abi.encode(uint256(_denominator) << 32 | uint64(_elasticity));
+        emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
