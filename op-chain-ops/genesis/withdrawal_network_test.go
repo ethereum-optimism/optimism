@@ -123,3 +123,24 @@ func TestWithdrawalNetworkInlineJSON(t *testing.T) {
 		require.JSONEq(t, jsonString, string(encoded))
 	})
 }
+
+func TestWithdrawalNetworkMarshalJSON(t *testing.T) {
+	type test struct {
+		Network WithdrawalNetwork
+	}
+
+	tests := []struct {
+		network WithdrawalNetwork
+		exp     string
+	}{
+		{WithdrawalNetwork("local"), `{"Network":1}`},
+		{WithdrawalNetwork("remote"), `{"Network":0}`},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.network), func(t *testing.T) {
+			data, err := json.Marshal(test{tt.network})
+			require.NoError(t, err)
+			require.JSONEq(t, tt.exp, string(data))
+		})
+	}
+}

@@ -72,3 +72,9 @@ func (w *WithdrawalNetwork) UnmarshalJSON(b []byte) error {
 	*w = s
 	return nil
 }
+
+func (w WithdrawalNetwork) MarshalJSON() ([]byte, error) {
+	var out int
+	out = int(w.ToUint8())
+	return json.Marshal(out)
+}
