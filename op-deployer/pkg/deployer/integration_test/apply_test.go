@@ -640,7 +640,7 @@ func TestInvalidL2Genesis(t *testing.T) {
 		overrides map[string]any
 	}{
 		{
-			name: "proxy admin owner not set",
+			name: "L2 proxy admin owner not set",
 			overrides: map[string]any{
 				"proxyAdminOwner": nil,
 			},
