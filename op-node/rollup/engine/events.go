@@ -98,6 +98,15 @@ func (ev PendingSafeUpdateEvent) String() string {
 	return "pending-safe-update"
 }
 
+type InteropPendingSafeChangedEvent struct {
+	Ref         eth.L2BlockRef
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev InteropPendingSafeChangedEvent) String() string {
+	return "interop-pending-safe-changed"
+}
+
 // PromotePendingSafeEvent signals that a block can be marked as pending-safe, and/or safe.
 type PromotePendingSafeEvent struct {
 	Ref         eth.L2BlockRef
@@ -407,6 +416,11 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 				DerivedFrom: x.DerivedFrom,
 			})
 		}
+		// TODO temporary interop work around
+		d.emitter.Emit(InteropPendingSafeChangedEvent{
+			Ref:         x.Ref,
+			DerivedFrom: x.DerivedFrom,
+		})
 	case PromoteLocalSafeEvent:
 		d.ec.SetLocalSafeHead(x.Ref)
 		d.emitter.Emit(LocalSafeUpdateEvent(x))
