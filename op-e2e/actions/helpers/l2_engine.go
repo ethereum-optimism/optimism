@@ -203,10 +203,11 @@ func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built
 func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 	return func(t Testing) {
-		if e.EngineApi.ForcedEmpty() {
-			e.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
-			return
-		}
+		// TODO add a param to control skipping this
+		// if e.EngineApi.ForcedEmpty() {
+		// 	e.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
+		// 	return
+		// }
 
 		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
 		err := e.EngineApi.IncludeTx(tx, from)

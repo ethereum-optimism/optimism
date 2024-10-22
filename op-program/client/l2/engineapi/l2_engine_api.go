@@ -130,11 +130,12 @@ func (ea *L2EngineAPI) IncludeTx(tx *types.Transaction, from common.Address) err
 	if ea.blockProcessor == nil {
 		return ErrNotBuildingBlock
 	}
-	if ea.l2ForceEmpty {
-		ea.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
-		// t.InvalidAction("cannot include any sequencer txs")
-		return nil
-	}
+	// TODO don't hack this
+	// if ea.l2ForceEmpty {
+	// 	ea.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
+	// 	// t.InvalidAction("cannot include any sequencer txs")
+	// 	return nil
+	// }
 
 	err := ea.blockProcessor.CheckTxWithinGasLimit(tx)
 	if err != nil {

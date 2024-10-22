@@ -139,6 +139,10 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			env.Miner.ActL1FinalizeNext(t)
 		}
 
+		if testCfg.Custom.breachMaxSequencerDrift {
+			env.Sequencer.ActL2KeepL1Origin(t)
+		} // prevent L1 origin from progressing
+
 		env.Batcher.ActCreateChannel(t, testCfg.Custom.isSpanBatch)
 
 		var max = func(input []uint) uint {
@@ -154,9 +158,11 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		targetHeadNumber := max(testCfg.Custom.blocks)
 		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
 			env.Sequencer.ActL2StartBlock(t)
-			if testCfg.Custom.breachMaxSequencerDrift {
-				env.Sequencer.ActL2KeepL1Origin(t) // prevent L1 origin from progressing
-			} else {
+
+			if !testCfg.Custom.breachMaxSequencerDrift ||
+				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1799 ||
+				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1800 ||
+				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1801 {
 				// Send an L2 tx
 				env.Alice.L2.ActResetTxOpts(t)
 				env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
@@ -170,7 +176,7 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		orderedFrames := make([][]byte, 0, len(testCfg.Custom.frames))
 
 		blockLogger := func(block *types.Block) *types.Block {
-			t.Log("added block", "num", block.Number(), "txs", block.Transactions())
+			t.Log("added block", "num", block.Number(), "txs", block.Transactions(), "time", block.Time())
 			return block
 		}
 
