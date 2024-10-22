@@ -21,7 +21,7 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		blocks              []uint // could enhance this to declare either singular or span batches or a mixture
 		isSpanBatch         bool
 		blockModifiers      []actionsHelpers.BlockModifier
-		frames              []uint
+		frames              []uint // ignored if isSpanBatch
 		safeHeadPreHolocene uint64
 		safeHeadHolocene    uint64
 	}
@@ -32,7 +32,6 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		alice := types.NewCancunSigner(big.NewInt(901))
 		txs := block.Transactions()
 		newTx, err := txs[1].WithSignature(alice, make([]byte, 65))
-		newTx.IsDepositTx()
 		if err != nil {
 			panic(err)
 		}
@@ -41,7 +40,7 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 	}
 
 	// invalidParentHash invalidates the parentHash of the block.
-	// THis should result in an invalid batch being derived,
+	// This should result in an invalid batch being derived,
 	// but only for singular (not for span) batches.
 	var invalidParentHash = func(block *types.Block) *types.Block {
 		headerCopy := block.Header()
@@ -52,7 +51,9 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 	// testCases is a list of testCases which each specify
 	// an ordered list of blocks (by number) to add to a single channel
 	// and an ordered list of frames to read from the channel and submit
-	// on L1. There will be one frame per block.
+	// on L1. There will be one frame per block unless isSpanBatch=true,
+	// in which case all blocks are added to a single span batch which is
+	// sent as a single frame.
 	// Depending on these lists, whether the channel is built as
 	// as span batch channel, and whether the blocks are modified / invalidated
 	// we expect a different progression of the safe head under Holocene
@@ -92,23 +93,17 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			safeHeadPreHolocene: 3, // duplicate batches are silently dropped, so this reduces to case-2b
 			safeHeadHolocene:    0, // duplicate batches are silently dropped, so this reduces to case-2b
 		},
-		{name: "case-6", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
+		{name: "case-3a", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
 			frames:              []uint{0, 1, 2},
 			isSpanBatch:         true,
 			safeHeadPreHolocene: 0, // Invalid signature in block 2 causes an invalid _payload_ in the engine queue. Entire span batch is invalidated.
 			safeHeadHolocene:    0, // TODO with full Holocene implementation, we expect the safe head to move to 2 due to creation of an deposit-only block.
 		},
-		{name: "case-7", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidParentHash, nil},
+		{name: "case-3b", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidParentHash, nil},
 			frames:              []uint{0, 1, 2},
 			isSpanBatch:         false,
 			safeHeadPreHolocene: 1, // Invalid parentHash in block 2 causes an invalid batch to be derived.
 			safeHeadHolocene:    1, // Invalid parentHash in block 2 causes an invalid batch to be derived. This batch + remaining channel is dropped.
-		},
-		{name: "case-8", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidParentHash, nil},
-			frames:              []uint{0, 1, 2},
-			isSpanBatch:         true,
-			safeHeadPreHolocene: 3, // Invalid parentHash does not affect the span batch due to implicit encoding, so this reduces to case-0
-			safeHeadHolocene:    3, // Invalid parentHash does not affect the span batch due to implicit encoding, so this reduces to case-0
 		},
 	}
 
@@ -176,18 +171,30 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 				blockModifier = testCfg.Custom.blockModifiers[i]
 			}
 			env.Batcher.ActAddBlockByNumber(t, int64(blockNum), blockModifier, blockLogger)
-			if i == len(testCfg.Custom.blocks)-1 {
-				env.Batcher.ActL2ChannelClose(t)
+
+			if !testCfg.Custom.isSpanBatch {
+				if i == len(testCfg.Custom.blocks)-1 {
+					env.Batcher.ActL2ChannelClose(t)
+				}
+				frame := env.Batcher.ReadNextOutputFrame(t)
+				require.NotEmpty(t, frame, "frame %d", i)
+				orderedFrames = append(orderedFrames, frame)
 			}
-			frame := env.Batcher.ReadNextOutputFrame(t)
-			require.NotEmpty(t, frame, "frame %d", i)
-			orderedFrames = append(orderedFrames, frame)
 		}
 
-		// Submit frames in specified order order
-		for _, j := range testCfg.Custom.frames {
-			env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[j])
+		if testCfg.Custom.isSpanBatch { // Make a single frame for the span batch and submit it
+			env.Batcher.ActL2ChannelClose(t)
+			frame := env.Batcher.ReadNextOutputFrame(t)
+			require.NotEmpty(t, frame)
+			t.Log(frame)
+			env.Batcher.ActL2BatchSubmitRaw(t, frame)
 			includeBatchTx()
+		} else {
+			// Submit frames in specified order order
+			for _, j := range testCfg.Custom.frames {
+				env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[j])
+				includeBatchTx()
+			}
 		}
 
 		// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
@@ -201,7 +208,6 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadPreHolocene).Hash()
 			require.Equal(t, expectedHash, l2SafeHead.Hash())
 		} else {
-
 			require.Equal(t, testCfg.Custom.safeHeadHolocene, l2SafeHead.Number.Uint64())
 			expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadHolocene).Hash()
 			require.Equal(t, expectedHash, l2SafeHead.Hash())
