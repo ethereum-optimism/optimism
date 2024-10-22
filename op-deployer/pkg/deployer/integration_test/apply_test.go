@@ -1,7 +1,9 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -9,7 +11,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -370,6 +371,7 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, chainIntent.BaseFeeVaultRecipient)
 		checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, chainIntent.L1FeeVaultRecipient)
 		checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, chainIntent.SequencerFeeVaultRecipient)
+		checkImmutable(t, alloc, predeploys.OptimismMintableERC721FactoryAddr, common.BigToHash(new(big.Int).SetUint64(intent.L1ChainID)))
 
 		// ownership slots
 		var addrAsSlot common.Hash
@@ -393,16 +395,19 @@ func getEIP1967ImplementationAddress(t *testing.T, allocations types.GenesisAllo
 	return common.HexToAddress(storageValue.Hex())
 }
 
-func checkImmutable(t *testing.T, allocations types.GenesisAlloc, proxyContract common.Address, feeRecipient common.Address) {
+type bytesMarshaler interface {
+	Bytes() []byte
+}
+
+func checkImmutable(t *testing.T, allocations types.GenesisAlloc, proxyContract common.Address, thing bytesMarshaler) {
 	implementationAddress := getEIP1967ImplementationAddress(t, allocations, proxyContract)
 	account, ok := allocations[implementationAddress]
-	require.True(t, ok, "%s not found in allocations", implementationAddress.Hex())
-	require.NotEmpty(t, account.Code, "%s should have code", implementationAddress.Hex())
-	require.Contains(
+	require.True(t, ok, "%s not found in allocations", implementationAddress)
+	require.NotEmpty(t, account.Code, "%s should have code", implementationAddress)
+	require.True(
 		t,
-		strings.ToLower(common.Bytes2Hex(account.Code)),
-		strings.ToLower(strings.TrimPrefix(feeRecipient.Hex(), "0x")),
-		"%s code should contain %s immutable", implementationAddress.Hex(), feeRecipient.Hex(),
+		bytes.Contains(account.Code, thing.Bytes()),
+		"%s code should contain %s immutable", implementationAddress, hex.EncodeToString(thing.Bytes()),
 	)
 }
 
