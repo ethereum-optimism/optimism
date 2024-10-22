@@ -201,7 +201,6 @@ func initAllocType(root string, allocType AllocType) {
 		panic(err)
 	}
 
-	
 	// Set the L1 genesis block timestamp to now
 	dc.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
 	dc.FundDevAccounts = true

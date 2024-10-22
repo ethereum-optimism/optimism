@@ -146,7 +146,6 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 
 	extraData := make([]byte, 0)
 
-
 	gasLimit := config.L1GenesisBlockGasLimit
 	if gasLimit == 0 {
 		gasLimit = defaultGasLimit
@@ -163,7 +162,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	if timestamp == 0 {
 		timestamp = hexutil.Uint64(time.Now().Unix())
 	}
-	if  config.L1CancunTimeOffset != nil {
+	if config.L1CancunTimeOffset != nil {
 		cancunTime := uint64(timestamp) + uint64(*config.L1CancunTimeOffset)
 		chainConfig.CancunTime = &cancunTime
 	}
