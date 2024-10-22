@@ -5,7 +5,10 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"regexp"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
@@ -128,9 +131,68 @@ func L2SemversCLI(cliCtx *cli.Context) error {
 		contractsOutput[contract.Name] = string(data[stringStart:stringEnd])
 	}
 
+	erc20Semver, err := findSemverBytecode(host, predeploys.OptimismMintableERC20FactoryAddr)
+	if err == nil {
+		contractsOutput["OptimismMintableERC20"] = erc20Semver
+	} else {
+		l.Warn("failed to find semver for OptimismMintableERC20", "err", err)
+	}
+
+	erc721Semver, err := findSemverBytecode(host, predeploys.OptimismMintableERC721FactoryAddr)
+	if err == nil {
+		contractsOutput["OptimismMintableERC721"] = erc721Semver
+	} else {
+		l.Warn("failed to find semver for OptimismMintableERC721", "err", err)
+	}
+
 	if err := jsonutil.WriteJSON(contractsOutput, ioutil.ToStdOutOrFileOrNoop(cliCfg.Outfile, 0o666)); err != nil {
 		return fmt.Errorf("failed to write rollup config: %w", err)
 	}
 
 	return nil
+}
+
+const patternLen = 24
+
+var semverRegexp = regexp.MustCompile(`^(\d+\.\d+\.\d+([\w.+\-]*))\x00`)
+var codeAddr = common.HexToAddress("0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30000")
+
+func findSemverBytecode(host *script.Host, proxyAddr common.Address) (string, error) {
+	var implAddr common.Address
+	copy(implAddr[:], codeAddr[:])
+	copy(implAddr[18:], proxyAddr[18:])
+
+	bytecode := host.GetCode(implAddr)
+	if len(bytecode) == 0 {
+		return "", fmt.Errorf("failed to get bytecode for factory")
+	}
+
+	versionSelectorIndex := bytes.LastIndex(bytecode, versionSelector)
+	if versionSelectorIndex == -1 {
+		return "", fmt.Errorf("failed to find semver selector in factory bytecode")
+	}
+
+	for i := versionSelectorIndex; i < len(bytecode); i++ {
+		if bytecode[i] == 0 {
+			continue
+		}
+
+		if i+patternLen > len(bytecode) {
+			break
+		}
+
+		slice := bytecode[i : i+patternLen]
+		if slice[0] == 0x00 {
+			continue
+		}
+
+		matches := semverRegexp.FindSubmatch(slice)
+		if len(matches) == 0 {
+			continue
+		}
+
+		return string(matches[1]), nil
+	}
+
+	return "", fmt.Errorf("failed to find semver in factory bytecode")
 }
