@@ -119,9 +119,9 @@ func ManagerOwnerAddrFor(chainID uint64) (common.Address, error) {
 func StandardArtifactsURLForTag(tag string) (*url.URL, error) {
 	switch tag {
 	case "op-contracts/v1.6.0":
-		return url.Parse(standardArtifactsURL("ee07c78c3d8d4cd8f7a933c050f5afeebaa281b57b226cc6f092b19de2a8d61f"))
+		return url.Parse(standardArtifactsURL("5ff7fb7f5d3ff30d165fef6cec22c7af8eceb102dd964034762cf988a6678d51"))
 	case "op-contracts/v1.7.0-beta.1+l2-contracts":
-		return url.Parse(standardArtifactsURL("40ca65dc738f0f5fbb05ec9ec953d9be94bc1c02a09fd871a36b152f6b36c1fe"))
+		return url.Parse(standardArtifactsURL("b0fb1f6f674519d637cff39a22187a5993d7f81a6d7b7be6507a0b50a5e38597"))
 	default:
 		return nil, fmt.Errorf("unsupported tag: %s", tag)
 	}
