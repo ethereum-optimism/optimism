@@ -3,8 +3,9 @@ package state
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
