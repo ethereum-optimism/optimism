@@ -311,7 +311,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     function setUp() public override {
         token = new ERC20("Silly", "SIL");
         super.enableCustomGasToken(address(token));
-        super.enableFaultProofs();
+
         super.setUp();
     }
 
