@@ -41,7 +41,7 @@ func TestEVMSingleStep_Operators64(t *testing.T) {
 		{name: "daddu. 32-bit. expect double-word sized x", funct: 0x2d, isImm: false, rs: Word(^uint32(0)), rt: Word(0x12), expectRes: Word(0x1_00_00_00_11)},        // dadu t0, s1, s2
 		{name: "daddu. doubleword-sized, word-sized", funct: 0x2d, isImm: false, rs: Word(0x0FFFFFFF_00000012), rt: Word(0x20), expectRes: Word(0x0FFFFFFF_00000032)}, // dadu t0, s1, s2
 		{name: "daddu. overflow", funct: 0x2d, isImm: false, rs: Word(12), rt: ^Word(0), expectRes: Word(11)},                                                         // dadu t0, s1, s2
-		{name: "daddu. overflow x", funct: 0x2d, isImm: false, rs: ^Word(0), rt: Word(12), expectRes: Word(11)},                                                       // dadu t0, s1, s2
+		{name: "daddu. overflow swap operands", funct: 0x2d, isImm: false, rs: ^Word(0), rt: Word(12), expectRes: Word(11)},                                           // dadu t0, s1, s2
 		{name: "daddu. doubleword-sized and word-sized", funct: 0x2d, isImm: false, rs: ^Word(20), rt: Word(4), expectRes: ^Word(16)},                                 // dadu t0, s1, s2
 		{name: "daddu. word-sized and doubleword-sized", funct: 0x2d, isImm: false, rs: Word(4), rt: ^Word(20), expectRes: ^Word(16)},                                 // dadu t0, s1, s2
 		{name: "daddu. both doubleword-sized. expect overflow", funct: 0x2d, isImm: false, rs: ^Word(10), rt: ^Word(4), expectRes: ^Word(15)},                         // dadu t0, s1, s2
@@ -101,19 +101,19 @@ func TestEVMSingleStep_Operators64(t *testing.T) {
 			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
 			state := goVm.GetState()
 			var insn uint32
-			var baseReg uint32 = 17
+			var rsReg uint32 = 17
 			var rtReg uint32
 			var rdReg uint32
 			if tt.isImm {
 				rtReg = 8
-				insn = tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
+				insn = tt.opcode<<26 | rsReg<<21 | rtReg<<16 | uint32(tt.imm)
 				state.GetRegistersRef()[rtReg] = tt.rt
-				state.GetRegistersRef()[baseReg] = tt.rs
+				state.GetRegistersRef()[rsReg] = tt.rs
 			} else {
 				rtReg = 18
 				rdReg = 8
-				insn = baseReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
-				state.GetRegistersRef()[baseReg] = tt.rs
+				insn = rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
+				state.GetRegistersRef()[rsReg] = tt.rs
 				state.GetRegistersRef()[rtReg] = tt.rt
 			}
 			state.GetMemory().SetUint32(0, insn)
@@ -173,6 +173,8 @@ func TestEVMSingleStep_Shift(t *testing.T) {
 		{name: "dsrl32", funct: 0x3e, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1), sa: 31, expectRes: Word(0x0)},                                // dsrl32 t8, s2, 31
 		{name: "dsrl32", funct: 0x3e, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), sa: 1, expectRes: Word(0x7F_FF_FF_FF)}, // dsrl32 t8, s2, 1
 		{name: "dsrl32", funct: 0x3e, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), sa: 31, expectRes: Word(0x1)},          // dsrl32 t8, s2, 31
+		{name: "dsrl32", funct: 0x3e, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1_0000_0000), sa: 0, expectRes: Word(0x1)},                       // dsrl32 t8, s2, 0
+		{name: "dsrl32", funct: 0x3e, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1_0000_0000), sa: 31, expectRes: Word(0x0)},                      // dsrl32 t8, s2, 31
 
 		{name: "dsra32", funct: 0x3f, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1), sa: 0, expectRes: Word(0x0)},                                             // dsra32 t8, s2, 0
 		{name: "dsra32", funct: 0x3f, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x1), sa: 1, expectRes: Word(0x0)},                                             // dsra32 t8, s2, 1
@@ -467,24 +469,35 @@ func TestEVMSingleStep_DivMult(t *testing.T) {
 		expectHi Word
 	}{
 		// dmult s1, s2
-		{name: "dmult", funct: 0x1c, rs: 0, rt: 0, expectLo: 0, expectHi: 0},
-		{name: "dmult", funct: 0x1c, rs: 1, rt: 1, expectLo: 1, expectHi: 0},
-		{name: "dmult", funct: 0x1c, rs: 0x01_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00, expectHi: 0},
-		{name: "dmult", funct: 0x1c, rs: 0x01_00_00_00_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00_00_00_00, expectHi: 0},
-		{name: "dmult", funct: 0x1c, rs: 0x40_00_00_00_00_00_00_00, rt: 2, expectLo: 0x80_00_00_00_00_00_00_00, expectHi: 0x0},
-		{name: "dmult", funct: 0x1c, rs: 0x40_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0x4_00},
-		{name: "dmult", funct: 0x1c, rs: 0x80_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0x8_00},
-		{name: "dmult", funct: 0x1c, rs: 0x80_00_00_00_00_00_00_00, rt: 0x80_00_00_00_00_00_00_00, expectLo: 0x0, expectHi: 0x40_00_00_00_00_00_00_00},
+		// expected hi,lo were verified using qemu-mips
+		{name: "dmult 0", funct: 0x1c, rs: 0, rt: 0, expectLo: 0, expectHi: 0},
+		{name: "dmult 1", funct: 0x1c, rs: 1, rt: 1, expectLo: 1, expectHi: 0},
+		{name: "dmult 2", funct: 0x1c, rs: 0x01_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00, expectHi: 0},
+		{name: "dmult 3", funct: 0x1c, rs: 0x01_00_00_00_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00_00_00_00, expectHi: 0},
+		{name: "dmult 4", funct: 0x1c, rs: 0x40_00_00_00_00_00_00_00, rt: 2, expectLo: 0x80_00_00_00_00_00_00_00, expectHi: 0x0},
+		{name: "dmult 5", funct: 0x1c, rs: 0x40_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0x4_00},
+		{name: "dmult 6", funct: 0x1c, rs: 0x80_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0xFF_FF_FF_FF_FF_FF_F8_00},
+		{name: "dmult 7", funct: 0x1c, rs: 0x80_00_00_00_00_00_00_00, rt: 0x80_00_00_00_00_00_00_00, expectLo: 0x0, expectHi: 0x40_00_00_00_00_00_00_00},
+		{name: "dmult 8", funct: 0x1c, rs: 0x40_00_00_00_00_00_00_01, rt: 0x1000, expectLo: 0x1000, expectHi: 0x4_00},
+		{name: "dmult 9", funct: 0x1c, rs: 0x80_00_00_00_00_00_00_80, rt: 0x80_00_00_00_00_00_00_80, expectLo: 0x4000, expectHi: 0x3F_FF_FF_FF_FF_FF_FF_80},
+		{name: "dmult 10", funct: 0x1c, rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), rt: Word(0x1), expectLo: 0xFF_FF_FF_FF_FF_FF_FF_FF, expectHi: 0xFF_FF_FF_FF_FF_FF_FF_FF},
+		{name: "dmult 11", funct: 0x1c, rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), rt: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), expectLo: 0x1, expectHi: Word(0)},
+		{name: "dmult 12", funct: 0x1c, rs: Word(0xFF_FF_FF_FF_FF_FF_FF_D3), rt: Word(0xAA_BB_CC_DD_A1_D1_C1_E0), expectLo: 0xFC_FC_FD_0A_8E_20_EB_A0, expectHi: 0x00_00_00_00_00_00_00_0E},
+		{name: "dmult 13", funct: 0x1c, rs: Word(0x7F_FF_FF_FF_FF_FF_FF_FF), rt: Word(0xAA_BB_CC_DD_A1_D1_C1_E1), expectLo: 0xD5_44_33_22_5E_2E_3E_1F, expectHi: 0xD5_5D_E6_6E_D0_E8_E0_F0},
+		{name: "dmult 14", funct: 0x1c, rs: Word(0x7F_FF_FF_FF_FF_FF_FF_FF), rt: Word(0x8F_FF_FF_FF_FF_FF_FF_FF), expectLo: 0xF0_00_00_00_00_00_00_01, expectHi: 0xC7_FF_FF_FF_FF_FF_FF_FF},
 
 		// dmultu s1, s2
-		{name: "dmultu", funct: 0x1d, rs: 0, rt: 0, expectLo: 0, expectHi: 0},
-		{name: "dmultu", funct: 0x1d, rs: 1, rt: 1, expectLo: 1, expectHi: 0},
-		{name: "dmultu", funct: 0x1d, rs: 0x01_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00, expectHi: 0},
-		{name: "dmultu", funct: 0x1d, rs: 0x01_00_00_00_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00_00_00_00, expectHi: 0},
-		{name: "dmultu", funct: 0x1d, rs: 0x40_00_00_00_00_00_00_00, rt: 2, expectLo: 0x80_00_00_00_00_00_00_00, expectHi: 0x0},
-		{name: "dmultu", funct: 0x1d, rs: 0x40_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0x4_00},
-		{name: "dmultu", funct: 0x1d, rs: 0x80_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0x8_00},
-		{name: "dmultu", funct: 0x1d, rs: 0x80_00_00_00_00_00_00_00, rt: 0x80_00_00_00_00_00_00_00, expectLo: 0x0, expectHi: 0x40_00_00_00_00_00_00_00},
+		{name: "dmultu 0", funct: 0x1d, rs: 0, rt: 0, expectLo: 0, expectHi: 0},
+		{name: "dmultu 1", funct: 0x1d, rs: 1, rt: 1, expectLo: 1, expectHi: 0},
+		{name: "dmultu 2", funct: 0x1d, rs: 0x01_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00, expectHi: 0},
+		{name: "dmultu 3", funct: 0x1d, rs: 0x01_00_00_00_00_00_00_00, rt: 2, expectLo: 0x02_00_00_00_00_00_00_00, expectHi: 0},
+		{name: "dmultu 4", funct: 0x1d, rs: 0x40_00_00_00_00_00_00_00, rt: 2, expectLo: 0x80_00_00_00_00_00_00_00, expectHi: 0x0},
+		{name: "dmultu 5", funct: 0x1d, rs: 0x40_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0x4_00},
+		{name: "dmultu 6", funct: 0x1d, rs: 0x80_00_00_00_00_00_00_00, rt: 0x1000, expectLo: 0x0, expectHi: 0x8_00},
+		{name: "dmultu 7", funct: 0x1d, rs: 0x80_00_00_00_00_00_00_00, rt: 0x80_00_00_00_00_00_00_00, expectLo: 0x0, expectHi: 0x40_00_00_00_00_00_00_00},
+		{name: "dmultu 8", funct: 0x1d, rs: 0x40_00_00_00_00_00_00_01, rt: 0x1000, expectLo: 0x1000, expectHi: 0x4_00},
+		{name: "dmultu 9", funct: 0x1d, rs: 0x80_00_00_00_00_00_00_80, rt: 0x80_00_00_00_00_00_00_80, expectLo: 0x4000, expectHi: 0x40_00_00_00_00_00_00_80},
+		{name: "dmultu 10", funct: 0x1d, rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), rt: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), expectLo: 0x1, expectHi: Word(0xFF_FF_FF_FF_FF_FF_FF_FE)},
 
 		// ddiv rs, rt
 		{name: "ddiv", funct: 0x1e, rs: 0, rt: 1, expectLo: 0, expectHi: 0},
@@ -513,10 +526,9 @@ func TestEVMSingleStep_DivMult(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
 			state := goVm.GetState()
-			var insn uint32
 			var baseReg uint32 = 17
 			var rtReg uint32 = 18
-			insn = baseReg<<21 | rtReg<<16 | tt.funct
+			insn := baseReg<<21 | rtReg<<16 | tt.funct
 			state.GetRegistersRef()[baseReg] = tt.rs
 			state.GetRegistersRef()[rtReg] = tt.rt
 			state.GetMemory().SetUint32(0, insn)

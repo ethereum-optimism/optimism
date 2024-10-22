@@ -353,7 +353,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
 			} else {
 				// similar to the above mips32 implementation but loads are constrained to the nearest 4-byte memory word
-				shift := 32 - (((rs >> 2) & 0x1) << 5)
+				shift := 32 - ((rs & 0x4) << 3)
 				w := uint32(mem >> shift)
 				val := uint64(w << ((rs & 3) * 8))
 				mask := Word(uint32(0xFFFFFFFF) << ((rs & 3) * 8))
@@ -379,7 +379,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
 			} else {
 				// similar to the above mips32 implementation but constrained to the nearest 4-byte memory word
-				shift := 32 - (((rs >> 2) & 0x1) << 5)
+				shift := 32 - ((rs & 0x4) << 3)
 				w := uint32(mem >> shift)
 				val := w >> (24 - (rs&3)*8)
 				mask := uint32(0xFFFFFFFF) >> (24 - (rs&3)*8)
@@ -431,7 +431,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				return (mem & Word(^mask)) | val
 			} else {
 				// similar to the above mips32 implementation but constrained to the nearest 4-byte memory word
-				shift := 32 - (((rs >> 2) & 0x1) << 5)
+				shift := 32 - ((rs & 0x4) << 3)
 				w := uint32(mem >> shift)
 				val := rt << (24 - (rs&3)*8)
 				mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
@@ -571,7 +571,33 @@ func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Wor
 		val = Word(int64(rt) >> (rs & 0x3F))
 	case 0x1c: // dmult
 		assertMips64Fun(fun)
-		hi, lo := bits.Mul64(uint64(rs), uint64(rt))
+		a := int64(rs)
+		b := int64(rt)
+		negative := (a < 0) != (b < 0) // set if operands have different signs
+
+		// Handle special case for most negative value to avoid overflow in negation
+		var absA, absB uint64
+		if a == -0x8000000000000000 {
+			absA = 0x8000000000000000
+		} else {
+			absA = uint64(abs64(a))
+		}
+		if b == -0x8000000000000000 {
+			absB = 0x8000000000000000
+		} else {
+			absB = uint64(abs64(b))
+		}
+
+		hi, lo := bits.Mul64(absA, absB)
+		if negative {
+			// Two's complement negation: flip all bits and add 1
+			hi = ^hi
+			lo = ^lo
+			if lo == 0xFFFFFFFFFFFFFFFF {
+				hi++
+			}
+			lo++
+		}
 		cpu.HI = Word(hi)
 		cpu.LO = Word(lo)
 	case 0x1d: // dmultu
@@ -666,4 +692,12 @@ func calculateSubWordMaskAndOffset(addr Word, byteLength Word) (dataMask, bitOff
 	bitOffset = (maxByteShift - byteIndex) << 3
 
 	return dataMask, bitOffset, bitLength
+}
+
+// abs64 returns the absolute value
+func abs64(x int64) int64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
