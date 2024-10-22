@@ -363,6 +363,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			if arch.IsMips32 {
 				return mem
 			} else {
+				// TODO(#12562): Simplify using LoadSubWord
 				return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
 			}
 		case 0x24: // lbu
