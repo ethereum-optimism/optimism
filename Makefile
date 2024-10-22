@@ -182,13 +182,9 @@ pre-devnet: submodules $(DEVNET_CANNON_PRESTATE_FILES)
 
 devnet-up: pre-devnet ## Starts the local devnet
 	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
-		|| make devnet-allocs
+		|| make devnet-allocs-single
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
-
-devnet-test: pre-devnet ## Runs tests on the local devnet
-	make -C op-e2e test-devnet
-.PHONY: devnet-test
 
 devnet-down: ## Stops the local devnet
 	@(cd ./ops-bedrock && GENESIS_TIMESTAMP=$(shell date +%s) docker compose stop)
@@ -202,22 +198,22 @@ devnet-clean: ## Cleans up local devnet environment
 	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
 
-devnet-allocs: pre-devnet ## Generates allocations for the local devnet
+devnet-allocs-single: pre-devnet ## Generates allocations for the local devnet
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
-.PHONY: devnet-allocs
+.PHONY: devnet-allocs-single
 
-devnet-allocs-tests:
-	DEVNET_L2OO=true make devnet-allocs
+devnet-allocs:
+	DEVNET_L2OO=true make devnet-allocs-single
 	cp -r .devnet/ .devnet-l2oo/
-	DEVNET_ALTDA=true make devnet-allocs
+	DEVNET_ALTDA=true make devnet-allocs-single
 	cp -r .devnet/ .devnet-alt-da/
-	DEVNET_ALTDA=false GENERIC_ALTDA=true make devnet-allocs
+	DEVNET_ALTDA=false GENERIC_ALTDA=true make devnet-allocs-single
 	cp -r .devnet/ .devnet-alt-da-generic/
-	USE_MT_CANNON=true make devnet-allocs
+	USE_MT_CANNON=true make devnet-allocs-single
 	cp -r .devnet/ .devnet-mt-cannon
-	make devnet-allocs
+	make devnet-allocs-single
 	cp -r .devnet/ .devnet-standard/
-.PHONY: devnet-allocs-tests
+.PHONY: devnet-allocs
 
 devnet-logs: ## Displays logs for the local devnet
 	@(cd ./ops-bedrock && docker compose logs -f)

@@ -327,18 +327,21 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			_ = depositContract
 			require.NoError(t, err)
 
-			l2OutputOracle, err := bindings.NewL2OutputOracleCaller(cfg.L1Deployments.L2OutputOracleProxy, l1Client)
-			require.NoError(t, err)
-
-			finalizationPeriod, err := l2OutputOracle.FINALIZATIONPERIODSECONDS(nil)
-			require.NoError(t, err)
-			require.Equal(t, cfg.DeployConfig.FinalizationPeriodSeconds, finalizationPeriod.Uint64())
-
-			disputeGameFactory, err := bindings.NewDisputeGameFactoryCaller(cfg.L1Deployments.DisputeGameFactoryProxy, l1Client)
-			require.NoError(t, err)
-
-			optimismPortal2, err := bindingspreview.NewOptimismPortal2Caller(cfg.L1Deployments.OptimismPortalProxy, l1Client)
-			require.NoError(t, err)
+			var l2OutputOracle *bindings.L2OutputOracleCaller
+			var disputeGameFactory *bindings.DisputeGameFactoryCaller
+			var optimismPortal2 *bindingspreview.OptimismPortal2Caller
+			if allocType.UsesProofs() {
+				disputeGameFactory, err = bindings.NewDisputeGameFactoryCaller(cfg.L1Deployments.DisputeGameFactoryProxy, l1Client)
+				require.NoError(t, err)
+				optimismPortal2, err = bindingspreview.NewOptimismPortal2Caller(cfg.L1Deployments.OptimismPortalProxy, l1Client)
+				require.NoError(t, err)
+			} else {
+				l2OutputOracle, err = bindings.NewL2OutputOracleCaller(cfg.L1Deployments.L2OutputOracleProxy, l1Client)
+				require.NoError(t, err)
+				finalizationPeriod, err := l2OutputOracle.FINALIZATIONPERIODSECONDS(nil)
+				require.NoError(t, err)
+				require.Equal(t, cfg.DeployConfig.FinalizationPeriodSeconds, finalizationPeriod.Uint64())
+			}
 
 			// Create a struct used to track our transactors and their transactions sent.
 			type TestAccountState struct {
@@ -429,7 +432,6 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
-			require.NotEqual(t, cfg.L1Deployments.L2OutputOracleProxy, common.Address{})
 			var blockNumber uint64
 			if allocType.UsesProofs() {
 				blockNumber, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber)

@@ -6,13 +6,12 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Scripts
 import { Executables } from "scripts/libraries/Executables.sol";
-import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Types.sol";
 import "scripts/deploy/Deployer.sol";
 
@@ -47,7 +46,7 @@ contract Initializer_Test is Bridge_Initializer {
 
     function setUp() public override {
         super.enableAltDA();
-        // Run the `Bridge_Initializer`'s `setUp()` function.
+        super.enableLegacyContracts();
         super.setUp();
 
         // Initialize the `contracts` array with the addresses of the contracts to test, the
@@ -394,7 +393,7 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called again.
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
-        string[] memory excludes = new string[](8);
+        string[] memory excludes = new string[](9);
         // TODO: Neither of these contracts are labeled properly in the deployment script. Both are
         //       currently being labeled as their non-interop versions. Remove these exclusions once
         //       the deployment script is fixed.
@@ -413,6 +412,8 @@ contract Initializer_Test is Bridge_Initializer {
         // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
         excludes[6] = "src/L1/OPContractsManager.sol";
         excludes[7] = "src/L1/OPContractsManagerInterop.sol";
+        // The L2OutputOracle is not always deployed (and is no longer being modified)
+        excludes[8] = "src/L1/L2OutputOracle.sol";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);
@@ -472,19 +473,9 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract memory _contract = contracts[i];
             string memory name = _getRealContractName(_contract.name);
 
-            // Grab the value of the "initialized" storage slot. Must handle special case for the
-            // FaultDisputeGame and PermissionedDisputeGame contracts since these have a different
-            // name for the "initialized" storage slot and are currently not properly labeled in
-            // the deployment script.
-            // TODO: Update deployment script to properly label the dispute game contracts.
+            // Grab the value of the "initialized" storage slot.
             uint8 initializedSlotVal;
-            if (LibString.eq(name, "FaultDisputeGame") || LibString.eq(name, "PermissionedDisputeGame")) {
-                StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(name);
-                bytes32 slotVal = vm.load(_contract.target, bytes32(vm.parseUint(slot.slot)));
-                initializedSlotVal = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
-            } else {
-                initializedSlotVal = deploy.loadInitializedSlot(name);
-            }
+            initializedSlotVal = deploy.loadInitializedSlot(name);
 
             // Assert that the contract is already initialized.
             assertTrue(

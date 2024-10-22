@@ -62,18 +62,23 @@ EXCLUDE_CONTRACTS=(
     "ILegacyMintableERC20"
     "IOptimismMintableERC20"
     "IOptimismMintableERC721"
-    "IOptimismSuperchainERC20"
 
     # Doesn't start with "I"
-    "MintableAndBurnable"
     "KontrolCheatsBase"
 
     # Currently inherit from interface, needs to be fixed.
     "IWETH"
     "IDelayedWETH"
+    "ISuperchainWETH"
     "IL2ToL2CrossDomainMessenger"
     "ICrossL2Inbox"
     "ISystemConfigInterop"
+
+    # Enums need to be normalized
+    "ISequencerFeeVault"
+    "IBaseFeeVault"
+    "IL1FeeVault"
+    "IFeeVault"
 
     # Solidity complains about receive but contract doens't have it.
     "IResolvedDelegateProxy"

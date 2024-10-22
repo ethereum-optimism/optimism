@@ -1,6 +1,24 @@
 [
   {
     "inputs": [],
+    "name": "crossDomainMessageContext",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "sender_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "source_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "crossDomainMessageSender",
     "outputs": [
       {
@@ -179,31 +197,6 @@
         "type": "bytes32"
       }
     ],
-    "name": "FailedRelayedMessage",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "source",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "messageNonce",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "messageHash",
-        "type": "bytes32"
-      }
-    ],
     "name": "RelayedMessage",
     "type": "event"
   },
@@ -287,6 +280,11 @@
   {
     "inputs": [],
     "name": "ReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TargetCallFailed",
     "type": "error"
   }
 ]

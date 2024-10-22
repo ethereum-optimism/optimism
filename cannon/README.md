@@ -29,8 +29,8 @@ cd ../cannon
 make cannon
 
 # Transform MIPS op-program client binary into first VM state.
-# This outputs state.json (VM state) and meta.json (for debug symbols).
-./bin/cannon load-elf --type singlethreaded --path=../op-program/bin/op-program-client.elf
+# This outputs state.bin.gz (VM state) and meta.json (for debug symbols).
+./bin/cannon load-elf --type singlethreaded-2 --path=../op-program/bin/op-program-client.elf
 
 # Run cannon emulator (with example inputs)
 # Note that the server-mode op-program command is passed into cannon (after the --),
@@ -45,7 +45,7 @@ make cannon
     --proof-at '=<TRACE_INDEX>' \
     --stop-at '=<STOP_INDEX>' \
     --snapshot-at '%1000000000' \
-    --input ./state.json \
+    --input ./state.bin.gz \
     -- \
     ../op-program/bin/op-program \
     --network op-mainnet \

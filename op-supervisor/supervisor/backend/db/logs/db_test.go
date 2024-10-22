@@ -2,7 +2,6 @@ package logs
 
 import (
 	"encoding/binary"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -90,7 +89,8 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				require.False(t, ok, "empty db expected")
 				require.Zero(t, n)
 				idx, err := db.searchCheckpoint(0, 0)
-				require.ErrorIs(t, err, ErrFuture, "no checkpoint in empty db")
+				require.ErrorIs(t, err, entrydb.ErrFuture, "no checkpoint in empty db")
+				require.ErrorIs(t, err, entrydb.ErrFuture, "no checkpoint in empty db")
 				require.Zero(t, idx)
 			})
 	})
@@ -123,7 +123,8 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				require.NoError(t, err)
 				require.Zero(t, idx, "anchor block as checkpoint 0")
 				_, err = db.searchCheckpoint(0, 0)
-				require.ErrorIs(t, err, ErrSkipped, "no checkpoint before genesis")
+				require.ErrorIs(t, err, entrydb.ErrSkipped, "no checkpoint before genesis")
+				require.ErrorIs(t, err, entrydb.ErrSkipped, "no checkpoint before genesis")
 			})
 	})
 	t.Run("Block 1 case", func(t *testing.T) {
@@ -175,7 +176,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				genesis := eth.BlockID{Hash: createHash(15), Number: 0}
 				err := db.AddLog(createHash(1), genesis, 0, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
 			})
 	})
 
@@ -265,7 +267,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl14 := eth.BlockID{Hash: createHash(14), Number: 14}
 				err := db.SealBlock(createHash(13), bl14, 5000)
-				require.ErrorIs(t, err, ErrConflict)
+				require.ErrorIs(t, err, entrydb.ErrConflict)
+				require.ErrorIs(t, err, entrydb.ErrConflict)
 			})
 	})
 
@@ -282,7 +285,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				onto := eth.BlockID{Hash: createHash(14), Number: 14}
 				err := db.AddLog(createHash(1), onto, 0, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder, "cannot build logs on 14 when 15 is already sealed")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "cannot build logs on 14 when 15 is already sealed")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "cannot build logs on 14 when 15 is already sealed")
 			})
 	})
 
@@ -298,7 +302,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 0, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "already at log index 2")
 			})
 	})
 
@@ -313,7 +318,8 @@ func TestAddLog(t *testing.T) {
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				err := db.AddLog(createHash(1), eth.BlockID{Hash: createHash(16), Number: 16}, 0, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
 			})
 	})
 
@@ -329,7 +335,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 1, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "already at log index 2")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "already at log index 2")
 			})
 	})
 
@@ -345,7 +352,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(16), Number: 16}
 				err := db.AddLog(createHash(1), bl15, 2, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
 			})
 	})
 
@@ -360,7 +368,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 2, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
 			})
 	})
 
@@ -373,7 +382,8 @@ func TestAddLog(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				err := db.AddLog(createHash(1), bl15, 5, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
 			})
 	})
 
@@ -394,7 +404,8 @@ func TestAddLog(t *testing.T) {
 				err = db.SealBlock(bl15.Hash, bl16, 5001)
 				require.NoError(t, err)
 				err = db.AddLog(createHash(1), bl16, 1, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
 			})
 	})
 
@@ -698,9 +709,10 @@ func TestGetBlockInfo(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				bl10 := eth.BlockID{Hash: createHash(10), Number: 10}
-				_, err := db.FindSealedBlock(bl10)
-				require.ErrorIs(t, err, ErrFuture)
+				_, err := db.FindSealedBlock(10)
+				require.ErrorIs(t, err, entrydb.ErrFuture)
+				_, err = db.FindSealedBlock(10)
+				require.ErrorIs(t, err, entrydb.ErrFuture)
 			})
 	})
 
@@ -714,9 +726,10 @@ func TestGetBlockInfo(t *testing.T) {
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				// if the DB starts at 11, then shouldn't find 10
-				bl10 := eth.BlockID{Hash: createHash(10), Number: 10}
-				_, err := db.FindSealedBlock(bl10)
-				require.ErrorIs(t, err, ErrSkipped)
+				_, err := db.FindSealedBlock(10)
+				require.ErrorIs(t, err, entrydb.ErrSkipped)
+				_, err = db.FindSealedBlock(10)
+				require.ErrorIs(t, err, entrydb.ErrSkipped)
 			})
 	})
 
@@ -727,10 +740,14 @@ func TestGetBlockInfo(t *testing.T) {
 				require.NoError(t, db.SealBlock(common.Hash{}, block, 500))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				index, err := db.FindSealedBlock(block)
+				_, err := db.FindSealedBlock(block.Number)
 				require.NoError(t, err)
-				require.Equal(t, entrydb.EntryIdx(2), index,
-					"expecting to continue after search checkpoint that declared the block")
+				seal, err := db.FindSealedBlock(block.Number)
+				require.NoError(t, err)
+				require.Equal(t, block, seal.ID())
+				require.Equal(t, uint64(500), seal.Timestamp)
+				require.Equal(t, block, seal.ID())
+				require.Equal(t, uint64(500), seal.Timestamp)
 			})
 	})
 }
@@ -755,7 +772,8 @@ func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logH
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
 	_, err := db.Contains(blockNum, logIdx, logHash)
-	require.ErrorIs(t, err, ErrConflict, "canonical chain must not include this log")
+	require.ErrorIs(t, err, entrydb.ErrConflict, "canonical chain must not include this log")
+	require.ErrorIs(t, err, entrydb.ErrConflict, "canonical chain must not include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
 
@@ -763,7 +781,8 @@ func requireFuture(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
 	_, err := db.Contains(blockNum, logIdx, logHash)
-	require.ErrorIs(t, err, ErrFuture, "canonical chain does not yet include this log")
+	require.ErrorIs(t, err, entrydb.ErrFuture, "canonical chain does not yet include this log")
+	require.ErrorIs(t, err, entrydb.ErrFuture, "canonical chain does not yet include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
 
@@ -784,16 +803,16 @@ func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint3
 }
 
 func TestRecoverOnCreate(t *testing.T) {
-	createDb := func(t *testing.T, store *stubEntryStore) (*DB, *stubMetrics, error) {
+	createDb := func(t *testing.T, store *entrydb.MemEntryStore[EntryType, Entry]) (*DB, *stubMetrics, error) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		m := &stubMetrics{}
 		db, err := NewFromEntryStore(logger, m, store, true)
 		return db, m, err
 	}
 
-	storeWithEvents := func(evts ...entrydb.Entry) *stubEntryStore {
-		store := &stubEntryStore{}
-		store.entries = append(store.entries, evts...)
+	storeWithEvents := func(evts ...Entry) *entrydb.MemEntryStore[EntryType, Entry] {
+		store := &entrydb.MemEntryStore[EntryType, Entry]{}
+		_ = store.Append(evts...)
 		return store
 	}
 	t.Run("NoTruncateWhenLastEntryIsLogWithNoExecMessageSealed", func(t *testing.T) {
@@ -924,9 +943,11 @@ func TestRewind(t *testing.T) {
 	t.Run("WhenEmpty", func(t *testing.T) {
 		runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.Rewind(100), ErrFuture)
+				require.ErrorIs(t, db.Rewind(100), entrydb.ErrFuture)
+				require.ErrorIs(t, db.Rewind(100), entrydb.ErrFuture)
 				// Genesis is a block to, not present in an empty DB
-				require.ErrorIs(t, db.Rewind(0), ErrFuture)
+				require.ErrorIs(t, db.Rewind(0), entrydb.ErrFuture)
+				require.ErrorIs(t, db.Rewind(0), entrydb.ErrFuture)
 			})
 	})
 
@@ -944,7 +965,8 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.SealBlock(bl51.Hash, bl52, 504))
 				require.NoError(t, db.AddLog(createHash(4), bl52, 0, nil))
 				// cannot rewind to a block that is not sealed yet
-				require.ErrorIs(t, db.Rewind(53), ErrFuture)
+				require.ErrorIs(t, db.Rewind(53), entrydb.ErrFuture)
+				require.ErrorIs(t, db.Rewind(53), entrydb.ErrFuture)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				requireContains(t, db, 51, 0, createHash(1))
@@ -963,7 +985,8 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.AddLog(createHash(1), bl50, 0, nil))
 				require.NoError(t, db.AddLog(createHash(2), bl50, 1, nil))
 				// cannot go back to an unknown block
-				require.ErrorIs(t, db.Rewind(25), ErrSkipped)
+				require.ErrorIs(t, db.Rewind(25), entrydb.ErrSkipped)
+				require.ErrorIs(t, db.Rewind(25), entrydb.ErrSkipped)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				requireContains(t, db, 51, 0, createHash(1))
@@ -1088,12 +1111,14 @@ func TestRewind(t *testing.T) {
 				bl29 := eth.BlockID{Hash: createHash(29), Number: 29}
 				// 29 was deleted
 				err := db.AddLog(createHash(2), bl29, 1, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder, "Cannot add log on removed block")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "Cannot add log on removed block")
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder, "Cannot add log on removed block")
 				// 15 is older, we have up to 16
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				// try to add a third log to 15
 				err = db.AddLog(createHash(10), bl15, 2, nil)
-				require.ErrorIs(t, err, ErrLogOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
+				require.ErrorIs(t, err, entrydb.ErrOutOfOrder)
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
 				// try to add a log to 17, on top of 16
 				err = db.AddLog(createHash(42), bl16, 0, nil)
@@ -1108,7 +1133,7 @@ type stubMetrics struct {
 	entriesReadForSearch int64
 }
 
-func (s *stubMetrics) RecordDBEntryCount(count int64) {
+func (s *stubMetrics) RecordDBEntryCount(kind string, count int64) {
 	s.entryCount = count
 }
 
@@ -1118,37 +1143,4 @@ func (s *stubMetrics) RecordDBSearchEntriesRead(count int64) {
 
 var _ Metrics = (*stubMetrics)(nil)
 
-type stubEntryStore struct {
-	entries []entrydb.Entry
-}
-
-func (s *stubEntryStore) Size() int64 {
-	return int64(len(s.entries))
-}
-
-func (s *stubEntryStore) LastEntryIdx() entrydb.EntryIdx {
-	return entrydb.EntryIdx(s.Size() - 1)
-}
-
-func (s *stubEntryStore) Read(idx entrydb.EntryIdx) (entrydb.Entry, error) {
-	if idx < entrydb.EntryIdx(len(s.entries)) {
-		return s.entries[idx], nil
-	}
-	return entrydb.Entry{}, io.EOF
-}
-
-func (s *stubEntryStore) Append(entries ...entrydb.Entry) error {
-	s.entries = append(s.entries, entries...)
-	return nil
-}
-
-func (s *stubEntryStore) Truncate(idx entrydb.EntryIdx) error {
-	s.entries = s.entries[:min(s.Size()-1, int64(idx+1))]
-	return nil
-}
-
-func (s *stubEntryStore) Close() error {
-	return nil
-}
-
-var _ EntryStore = (*stubEntryStore)(nil)
+var _ entrydb.EntryStore[EntryType, Entry] = (*entrydb.MemEntryStore[EntryType, Entry])(nil)

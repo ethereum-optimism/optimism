@@ -91,9 +91,6 @@ func testPrecompiles(t *testing.T, allocType e2e_config.AllocType) {
 			cfg.AllocType = allocType
 			// We don't need a verifier - just the sequencer is enough
 			delete(cfg.Nodes, "verifier")
-			// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
-			// But not too small to ensure that our claim and subsequent state change is published
-			cfg.DeployConfig.SequencerWindowSize = 16
 
 			sys, err := cfg.Start(t)
 			require.Nil(t, err, "Error starting up system")
@@ -199,9 +196,6 @@ func testGranitePrecompiles(t *testing.T, allocType e2e_config.AllocType) {
 	cfg.AllocType = allocType
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
-	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
-	// But not too small to ensure that our claim and subsequent state change is published
-	cfg.DeployConfig.SequencerWindowSize = 16
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -276,7 +270,7 @@ func runCannon(t *testing.T, ctx context.Context, sys *e2esys.System, inputs uti
 	cannonOpts(&cfg)
 
 	logger := testlog.Logger(t, log.LevelInfo).New("role", "cannon")
-	executor := vm.NewExecutor(logger, metrics.NoopMetrics.VmMetrics("cannon"), cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, inputs)
+	executor := vm.NewExecutor(logger, metrics.NoopMetrics.VmMetrics("cannon"), cfg.Cannon, vm.NewOpProgramServerExecutor(logger), cfg.CannonAbsolutePreState, inputs)
 
 	t.Log("Running cannon")
 	err := executor.DoGenerateProof(ctx, proofsDir, math.MaxUint, math.MaxUint, extraVmArgs...)

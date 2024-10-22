@@ -16,6 +16,7 @@ High-level information about these contracts can be found within this README and
 - [Contributing](#contributing)
   - [Contributing Guide](#contributing-guide)
   - [Style Guide](#style-guide)
+  - [Contract Interfaces](#contract-interfaces)
   - [Solidity Versioning](#solidity-versioning)
 - [Deployment](#deployment)
   - [Deploying Production Networks](#deploying-production-networks)
@@ -71,6 +72,11 @@ Please refer to the [CONTRIBUTING.md](https://github.com/ethereum-optimism/optim
 
 OP Stack smart contracts should be written according to the [STYLE_GUIDE.md](./STYLE_GUIDE.md) found within this repository.
 Maintaining a consistent code style makes code easier to review and maintain, ultimately making the development process safer.
+
+### Contract Interfaces
+
+OP Stack smart contracts use contract interfaces in a relatively unique way. Please refer to
+[INTERFACES.md](./INTERFACES.md) to read more about how the OP Stack uses contract interfaces.
 
 ### Solidity Versioning
 
@@ -132,9 +138,9 @@ Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./
 Use the env var `DEPLOY_CONFIG_PATH` to use a particular deploy config file at runtime.
 
 The script will read the latest active fork from the deploy config and the L2 genesis allocs generated will be
-compatible with this fork. The automatically detected fork can be overwritten by setting the environment variable
-`FORK` either to the lower-case fork name (currently `delta`, `ecotone`, `fjord`, or `granite`) or to `latest`, which
-will select the latest fork available (currently `granite`).
+compatible with this fork. The automatically detected fork can be overwritten by setting the environment variable `FORK`
+either to the lower-case fork name (currently `delta`, `ecotone`, `fjord`, `granite`, or `holocene`) or to `latest`,
+which will select the latest fork available (currently `holocene`).
 
 By default, the script will dump the L2 genesis allocs of the detected or selected fork only, to the file at `STATE_DUMP_PATH`.
 The optional environment variable `OUTPUT_MODE` allows to modify this behavior by setting it to one of the following values:

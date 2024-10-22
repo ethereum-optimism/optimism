@@ -47,6 +47,7 @@ contract GasBenchMark_OptimismPortal is CommonTest {
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
+        super.enableLegacyContracts();
         super.setUp();
         _defaultTx = Types.WithdrawalTransaction({
             nonce: 0,
@@ -204,6 +205,7 @@ contract GasBenchMark_L2OutputOracle is CommonTest {
     uint256 nextBlockNumber;
 
     function setUp() public override {
+        super.enableLegacyContracts();
         super.setUp();
         nextBlockNumber = l2OutputOracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
