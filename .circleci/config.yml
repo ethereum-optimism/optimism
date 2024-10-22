@@ -996,45 +996,11 @@ jobs:
   preimage-reproducibility:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    parameters:
-      version:
-        type: string
     steps:
       - checkout
       - setup_remote_docker
       - run:
-          name: Set expected prestate hash
-          command: |
-            find_prestate_hash() {
-              jq -r --arg version "<<parameters.version>>" '.[] | select(.version == $version) | .hash' "$1"
-            }
-
-            prestate_hash=$(find_prestate_hash "op-program/prestates/releases.json")
-            if [ -z "$prestate_hash" ]; then
-              echo "Unknown prestate version <<parameters.version>>"
-              exit 1
-            fi
-            echo "export EXPECTED_PRESTATE_HASH=$prestate_hash" >> $BASH_ENV
-      - run:
-          name: Switch to tag
-          command: |
-            git fetch
-            git checkout "op-program/v<<parameters.version>>"
-            git submodule update --init --recursive
-      - run:
-          name: Build prestate
-          command: make reproducible-prestate
-      - run:
-          name: Verify prestate
-          command: |
-            ACTUAL=$(jq -r .pre ./op-program/bin/prestate-proof.json)
-            echo "Expected: ${EXPECTED_PRESTATE_HASH}"
-            echo "Actual:   ${ACTUAL}"
-            if [[ "${EXPECTED_PRESTATE_HASH}" != "${ACTUAL}" ]]
-            then
-              echo "Prestate did not match expected"
-              exit 1
-            fi
+          make -C op-program verify-reproducibility
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
@@ -1699,19 +1665,5 @@ workflows:
         - equal: [ true, << pipeline.parameters.reproducibility_dispatch >> ]
     jobs:
       - preimage-reproducibility:
-          matrix:
-            parameters:
-              version:
-                - "0.1.0"
-                - "0.2.0"
-                - "0.3.0"
-                - "1.0.0"
-                - "1.1.0"
-                - "1.2.0"
-                - "1.3.0-rc.1"
-                - "1.3.0-rc.2"
-                - "1.3.0-rc.3"
-                - "1.3.1-rc.1"
-                - "1.3.1-rc.2"
           context:
             slack
