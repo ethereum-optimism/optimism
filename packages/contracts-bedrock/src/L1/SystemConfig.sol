@@ -428,6 +428,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setGasLimit(_gasLimit);
     }
 
+    // TODO: Consolidate these setters into a single function
+    // https://github.com/ethereum-optimism/design-docs/pull/97#discussion_r1809199298
     /// @notice Setter for the BaseFeeVault predeploy configuration.
     /// @param _recipient Address that should receive the funds.
     /// @param _min Minimum withdrawal amount allowed to be processed.
