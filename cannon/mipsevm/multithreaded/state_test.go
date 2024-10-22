@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -14,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
@@ -41,9 +42,11 @@ func TestState_EncodeWitness(t *testing.T) {
 		{exited: true, exitCode: 3},
 	}
 
-	heap := uint32(12)
+	heap := Word(12)
+	llAddress := Word(55)
+	llThreadOwner := Word(99)
 	preimageKey := crypto.Keccak256Hash([]byte{1, 2, 3, 4})
-	preimageOffset := uint32(24)
+	preimageOffset := Word(24)
 	step := uint64(33)
 	stepsSinceContextSwitch := uint64(123)
 	for _, c := range cases {
@@ -53,6 +56,9 @@ func TestState_EncodeWitness(t *testing.T) {
 		state.PreimageKey = preimageKey
 		state.PreimageOffset = preimageOffset
 		state.Heap = heap
+		state.LLReservationStatus = LLStatusActive32bit
+		state.LLAddress = llAddress
+		state.LLOwnerThread = llThreadOwner
 		state.Step = step
 		state.StepsSinceLastContextSwitch = stepsSinceContextSwitch
 
@@ -66,6 +72,9 @@ func TestState_EncodeWitness(t *testing.T) {
 		setWitnessField(expectedWitness, PREIMAGE_KEY_WITNESS_OFFSET, preimageKey[:])
 		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
 		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
+		setWitnessField(expectedWitness, LL_RESERVATION_ACTIVE_OFFSET, []byte{1})
+		setWitnessField(expectedWitness, LL_ADDRESS_OFFSET, []byte{0, 0, 0, byte(llAddress)})
+		setWitnessField(expectedWitness, LL_OWNER_THREAD_OFFSET, []byte{0, 0, 0, byte(llThreadOwner)})
 		setWitnessField(expectedWitness, EXITCODE_WITNESS_OFFSET, []byte{c.exitCode})
 		if c.exited {
 			setWitnessField(expectedWitness, EXITED_WITNESS_OFFSET, []byte{1})
@@ -176,6 +185,9 @@ func TestSerializeStateRoundTrip(t *testing.T) {
 		PreimageKey:                 common.Hash{0xFF},
 		PreimageOffset:              5,
 		Heap:                        0xc0ffee,
+		LLReservationStatus:         LLStatusActive64bit,
+		LLAddress:                   0x12345678,
+		LLOwnerThread:               0x02,
 		ExitCode:                    1,
 		Exited:                      true,
 		Step:                        0xdeadbeef,
@@ -196,7 +208,7 @@ func TestSerializeStateRoundTrip(t *testing.T) {
 					LO:     0xbeef,
 					HI:     0xbabe,
 				},
-				Registers: [32]uint32{
+				Registers: [32]Word{
 					0xdeadbeef,
 					0xdeadbeef,
 					0xc0ffee,
@@ -219,7 +231,7 @@ func TestSerializeStateRoundTrip(t *testing.T) {
 					LO:     0xeeef,
 					HI:     0xeabe,
 				},
-				Registers: [32]uint32{
+				Registers: [32]Word{
 					0xabcdef,
 					0x123456,
 				},
@@ -239,7 +251,7 @@ func TestSerializeStateRoundTrip(t *testing.T) {
 					LO:     0xdeef,
 					HI:     0xdabe,
 				},
-				Registers: [32]uint32{
+				Registers: [32]Word{
 					0x654321,
 				},
 			},
@@ -256,7 +268,7 @@ func TestSerializeStateRoundTrip(t *testing.T) {
 					LO:     0xceef,
 					HI:     0xcabe,
 				},
-				Registers: [32]uint32{
+				Registers: [32]Word{
 					0x987653,
 					0xfedbca,
 				},
@@ -291,7 +303,7 @@ func TestState_EncodeThreadProof_SingleThread(t *testing.T) {
 	activeThread.Cpu.HI = 11
 	activeThread.Cpu.LO = 22
 	for i := 0; i < 32; i++ {
-		activeThread.Registers[i] = uint32(i)
+		activeThread.Registers[i] = Word(i)
 	}
 
 	expectedProof := append([]byte{}, activeThread.serializeThread()[:]...)
@@ -313,12 +325,12 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 	// Set some fields on our threads
 	for i := 0; i < 3; i++ {
 		curThread := state.LeftThreadStack[i]
-		curThread.Cpu.PC = uint32(4 * i)
+		curThread.Cpu.PC = Word(4 * i)
 		curThread.Cpu.NextPC = curThread.Cpu.PC + 4
-		curThread.Cpu.HI = uint32(11 + i)
-		curThread.Cpu.LO = uint32(22 + i)
+		curThread.Cpu.HI = Word(11 + i)
+		curThread.Cpu.LO = Word(22 + i)
 		for j := 0; j < 32; j++ {
-			curThread.Registers[j] = uint32(j + i)
+			curThread.Registers[j] = Word(j + i)
 		}
 	}
 
@@ -344,12 +356,12 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 func TestState_EncodeThreadProof_EmptyThreadStackPanic(t *testing.T) {
 	cases := []struct {
 		name          string
-		wakeupAddr    uint32
+		wakeupAddr    Word
 		traverseRight bool
 	}{
-		{"traverse left during wakeup traversal", uint32(99), false},
+		{"traverse left during wakeup traversal", Word(99), false},
 		{"traverse left during normal traversal", exec.FutexEmptyAddr, false},
-		{"traverse right during wakeup traversal", uint32(99), true},
+		{"traverse right during wakeup traversal", Word(99), true},
 		{"traverse right during normal traversal", exec.FutexEmptyAddr, true},
 	}
 
@@ -370,4 +382,20 @@ func TestState_EncodeThreadProof_EmptyThreadStackPanic(t *testing.T) {
 			assert.PanicsWithValue(t, "Invalid empty thread stack", func() { state.EncodeThreadProof() })
 		})
 	}
+}
+
+func TestStateWitnessSize(t *testing.T) {
+	expectedWitnessSize := 172
+	if !arch.IsMips32 {
+		expectedWitnessSize = 196
+	}
+	require.Equal(t, expectedWitnessSize, STATE_WITNESS_SIZE)
+}
+
+func TestThreadStateWitnessSize(t *testing.T) {
+	expectedWitnessSize := 166
+	if !arch.IsMips32 {
+		expectedWitnessSize = 322
+	}
+	require.Equal(t, expectedWitnessSize, SERIALIZED_THREAD_SIZE)
 }

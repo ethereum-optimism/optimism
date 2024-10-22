@@ -5,110 +5,168 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+type IteratorState interface {
+	NextIndex() entrydb.EntryIdx
+	SealedBlock() (hash common.Hash, num uint64, ok bool)
+	SealedTimestamp() (timestamp uint64, ok bool)
+	InitMessage() (hash common.Hash, logIndex uint32, ok bool)
+	ExecMessage() *types.ExecutingMessage
+}
+
 type Iterator interface {
-	NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error)
-	Index() entrydb.EntryIdx
-	ExecMessage() (types.ExecutingMessage, error)
+	End() error
+	NextInitMsg() error
+	NextExecMsg() error
+	NextBlock() error
+	TraverseConditional(traverseConditionalFn) error
+	IteratorState
 }
 
 type iterator struct {
-	db           *DB
-	nextEntryIdx entrydb.EntryIdx
-
-	current    logContext
-	hasExecMsg bool
-
+	db          *DB
+	current     logContext
 	entriesRead int64
 }
 
-// NextLog returns the next log in the iterator.
-// It scans forward until it finds an initiating event, returning the block number, log index, and event hash.
-func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error) {
-	for i.nextEntryIdx <= i.db.lastEntryIdx() {
-		entryIdx := i.nextEntryIdx
-		entry, err := i.db.store.Read(entryIdx)
+type traverseConditionalFn func(state IteratorState) error
+
+// End traverses the iterator to the end of the DB.
+// It does not return io.EOF or ErrFuture.
+func (i *iterator) End() error {
+	for {
+		_, err := i.next()
+		if errors.Is(err, entrydb.ErrFuture) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+	}
+}
+
+// NextInitMsg returns the next initiating message in the iterator.
+// It scans forward until it finds and fully reads an initiating event, skipping any blocks.
+func (i *iterator) NextInitMsg() error {
+	seenLog := false
+	for {
+		typ, err := i.next()
 		if err != nil {
-			outErr = fmt.Errorf("failed to read entry %v: %w", i, err)
-			return
+			return err
 		}
-		i.nextEntryIdx++
-		i.entriesRead++
-		i.hasExecMsg = false
-		switch entry[0] {
-		case typeSearchCheckpoint:
-			current, err := newSearchCheckpointFromEntry(entry)
-			if err != nil {
-				outErr = fmt.Errorf("failed to parse search checkpoint at idx %v: %w", entryIdx, err)
-				return
-			}
-			i.current.blockNum = current.blockNum
-			i.current.logIdx = current.logIdx
-		case typeInitiatingEvent:
-			evt, err := newInitiatingEventFromEntry(entry)
-			if err != nil {
-				outErr = fmt.Errorf("failed to parse initiating event at idx %v: %w", entryIdx, err)
-				return
-			}
-			i.current = evt.postContext(i.current)
-			blockNum = i.current.blockNum
-			logIdx = i.current.logIdx
-			evtHash = evt.logHash
-			i.hasExecMsg = evt.hasExecMsg
-			return
-		case typeCanonicalHash: // Skip
-		case typeExecutingCheck: // Skip
-		case typeExecutingLink: // Skip
-		default:
-			outErr = fmt.Errorf("unknown entry type at idx %v %v", entryIdx, entry[0])
-			return
+		if typ == TypeInitiatingEvent {
+			seenLog = true
+		}
+		if !i.current.hasCompleteBlock() {
+			continue // must know the block we're building on top of
+		}
+		if i.current.hasIncompleteLog() {
+			continue // didn't finish processing the log yet
+		}
+		if seenLog {
+			return nil
 		}
 	}
-	outErr = io.EOF
-	return
 }
 
-func (i *iterator) Index() entrydb.EntryIdx {
-	return i.nextEntryIdx - 1
-}
-
-func (i *iterator) ExecMessage() (types.ExecutingMessage, error) {
-	if !i.hasExecMsg {
-		return types.ExecutingMessage{}, nil
+// NextExecMsg returns the next executing message in the iterator.
+// It scans forward until it finds and fully reads an initiating event, skipping any blocks.
+// This does not stay at the executing message of the current initiating message, if there is any.
+func (i *iterator) NextExecMsg() error {
+	for {
+		err := i.NextInitMsg()
+		if err != nil {
+			return err
+		}
+		if i.current.execMsg != nil {
+			return nil // found a new executing message!
+		}
 	}
-	// Look ahead to find the exec message info
-	logEntryIdx := i.nextEntryIdx - 1
-	execMsg, err := i.readExecMessage(logEntryIdx)
+}
+
+// NextBlock returns the next block in the iterator.
+// It scans forward until it finds and fully reads a block, skipping any events.
+func (i *iterator) NextBlock() error {
+	seenBlock := false
+	for {
+		typ, err := i.next()
+		if err != nil {
+			return err
+		}
+		if typ == TypeSearchCheckpoint {
+			seenBlock = true
+		}
+		if !i.current.hasCompleteBlock() {
+			continue // need the full block content
+		}
+		if seenBlock {
+			return nil
+		}
+	}
+}
+
+func (i *iterator) TraverseConditional(fn traverseConditionalFn) error {
+	var snapshot logContext
+	for {
+		snapshot = i.current // copy the iterator state
+		_, err := i.next()
+		if err != nil {
+			i.current = snapshot
+			return err
+		}
+		if i.current.need != 0 { // skip intermediate states
+			continue
+		}
+		if err := fn(&i.current); err != nil {
+			i.current = snapshot
+			return err
+		}
+	}
+}
+
+// Read and apply the next entry.
+func (i *iterator) next() (EntryType, error) {
+	index := i.current.nextEntryIndex
+	entry, err := i.db.store.Read(index)
 	if err != nil {
-		return types.ExecutingMessage{}, fmt.Errorf("failed to read exec message for initiating event at %v: %w", logEntryIdx, err)
+		if errors.Is(err, io.EOF) {
+			return 0, entrydb.ErrFuture
+		}
+		return 0, fmt.Errorf("failed to read entry %d: %w", index, err)
 	}
-	return execMsg, nil
+	if err := i.current.ApplyEntry(entry); err != nil {
+		return entry.Type(), fmt.Errorf("failed to apply entry %d to iterator state: %w", index, err)
+	}
+
+	i.entriesRead++
+	return entry.Type(), nil
 }
 
-func (i *iterator) readExecMessage(initEntryIdx entrydb.EntryIdx) (types.ExecutingMessage, error) {
-	linkIdx := initEntryIdx + 1
-	if linkIdx%searchCheckpointFrequency == 0 {
-		linkIdx += 2 // skip the search checkpoint and canonical hash entries
-	}
-	linkEntry, err := i.db.store.Read(linkIdx)
-	if errors.Is(err, io.EOF) {
-		return types.ExecutingMessage{}, fmt.Errorf("%w: missing expected executing link event at idx %v", ErrDataCorruption, linkIdx)
-	} else if err != nil {
-		return types.ExecutingMessage{}, fmt.Errorf("failed to read executing link event at idx %v: %w", linkIdx, err)
-	}
+func (i *iterator) NextIndex() entrydb.EntryIdx {
+	return i.current.NextIndex()
+}
 
-	checkIdx := linkIdx + 1
-	if checkIdx%searchCheckpointFrequency == 0 {
-		checkIdx += 2 // skip the search checkpoint and canonical hash entries
-	}
-	checkEntry, err := i.db.store.Read(checkIdx)
-	if errors.Is(err, io.EOF) {
-		return types.ExecutingMessage{}, fmt.Errorf("%w: missing expected executing check event at idx %v", ErrDataCorruption, checkIdx)
-	} else if err != nil {
-		return types.ExecutingMessage{}, fmt.Errorf("failed to read executing check event at idx %v: %w", checkIdx, err)
-	}
-	return newExecutingMessageFromEntries(linkEntry, checkEntry)
+// SealedBlock returns the sealed block that we are appending logs after, if any is available.
+// I.e. the block is the parent block of the block containing the logs that are currently appending to it.
+func (i *iterator) SealedBlock() (hash common.Hash, num uint64, ok bool) {
+	return i.current.SealedBlock()
+}
+
+// SealedTimestamp returns the timestamp of SealedBlock
+func (i *iterator) SealedTimestamp() (timestamp uint64, ok bool) {
+	return i.current.SealedTimestamp()
+}
+
+// InitMessage returns the current initiating message, if any is available.
+func (i *iterator) InitMessage() (hash common.Hash, logIndex uint32, ok bool) {
+	return i.current.InitMessage()
+}
+
+// ExecMessage returns the current executing message, if any is available.
+func (i *iterator) ExecMessage() *types.ExecutingMessage {
+	return i.current.ExecMessage()
 }

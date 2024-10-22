@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+// Testing
+import { Test } from "forge-std/Test.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Libraries
+import { Burn } from "src/libraries/Burn.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
-
-import { Test } from "forge-std/Test.sol";
-import { DisputeGameFactory, IDisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { Burn } from "src/libraries/Burn.sol";
-import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DelayedWETH_Init is CommonTest {
     event Approval(address indexed src, address indexed guy, uint256 wad);
@@ -20,11 +18,10 @@ contract DelayedWETH_Init is CommonTest {
     event Unwrap(address indexed src, uint256 wad);
 
     function setUp() public virtual override {
-        super.enableFaultProofs();
         super.setUp();
 
         // Transfer ownership of delayed WETH to the test contract.
-        vm.prank(deploy.mustGetAddress("SystemOwnerSafe"));
+        vm.prank(delayedWeth.owner());
         delayedWeth.transferOwnership(address(this));
     }
 }

@@ -65,7 +65,7 @@ func OpenGethDB(dataDirPath string, readOnly bool) (*Cheater, error) {
 		return nil, err
 	}
 	ch, err := core.NewBlockChain(db, nil, nil, nil,
-		beacon.New(ethash.NewFullFaker()), vm.Config{}, nil, nil)
+		beacon.New(ethash.NewFullFaker()), vm.Config{}, nil)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to open blockchain around chain db: %w", err)

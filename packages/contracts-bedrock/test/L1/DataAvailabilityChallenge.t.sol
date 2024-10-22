@@ -8,8 +8,8 @@ import {
     CommitmentType
 } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
 import { computeCommitmentKeccak256 } from "src/L1/DataAvailabilityChallenge.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 contract DataAvailabilityChallengeTest is CommonTest {
     function setUp() public virtual override {
@@ -33,6 +33,8 @@ contract DataAvailabilityChallengeTest is CommonTest {
     function testWithdraw(address sender, uint256 amount) public {
         assumePayable(sender);
         assumeNotPrecompile(sender);
+        // EntryPoint will revert if using amount > type(uint112).max.
+        vm.assume(sender != Preinstalls.EntryPoint_v060);
         vm.assume(sender != address(dataAvailabilityChallenge));
         vm.assume(sender.balance == 0);
         vm.deal(sender, amount);

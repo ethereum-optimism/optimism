@@ -31,7 +31,7 @@ type PreimageSource interface {
 	Close() error
 }
 
-type PreimageSourceCreator func() PreimageSource
+type PreimageSourceCreator func() (PreimageSource, error)
 
 type PreimageLoader struct {
 	makeSource PreimageSourceCreator
@@ -61,7 +61,10 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 	// The key for a blob field element is a keccak hash of commitment++fieldElementIndex.
 	// First retrieve the preimage of the key as a keccak hash so we have the commitment and required field element
 	inputsKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
-	source := l.makeSource()
+	source, err := l.makeSource()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open preimage store: %w", err)
+	}
 	defer source.Close()
 	inputs, err := source.Get(inputsKey)
 	if err != nil {
@@ -111,7 +114,10 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 
 func (l *PreimageLoader) loadPrecompilePreimage(proof *ProofData) (*types.PreimageOracleData, error) {
 	inputKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
-	source := l.makeSource()
+	source, err := l.makeSource()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open preimage store: %w", err)
+	}
 	defer source.Close()
 	input, err := source.Get(inputKey)
 	if err != nil {

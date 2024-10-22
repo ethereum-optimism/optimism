@@ -2,18 +2,20 @@
 pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
+import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
-import { LivenessModule } from "src/Safe/LivenessModule.sol";
-import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
+import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+import { LivenessModule } from "src/safe/LivenessModule.sol";
+import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
@@ -50,7 +52,7 @@ struct GuardianConfig {
     DeputyGuardianModuleConfig deputyGuardianModuleConfig;
 }
 
-/// @title Deploy
+/// @title DeployOwnership
 /// @notice Script used to deploy and configure the Safe contracts which are used to manage the Superchain,
 ///         as the ProxyAdminOwner and other roles in the system. Note that this script is not executable in a
 ///         production environment as some steps depend on having a quorum of signers available. This script is meant to
@@ -110,6 +112,113 @@ contract DeployOwnership is Deploy {
                 fallbackOwner: mustGetAddress("FoundationUpgradeSafe")
             })
         });
+    }
+
+    /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
+    function _callViaSafe(Safe _safe, address _target, bytes memory _data) internal {
+        // This is the signature format used when the caller is also the signer.
+        bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
+
+        _safe.execTransaction({
+            to: _target,
+            value: 0,
+            data: _data,
+            operation: SafeOps.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: signature
+        });
+    }
+
+    /// @notice Deploy the Safe
+    function deploySafe(string memory _name) public broadcast returns (address addr_) {
+        address[] memory owners = new address[](0);
+        addr_ = deploySafe(_name, owners, 1, true);
+    }
+
+    /// @notice Deploy a new Safe contract. If the keepDeployer option is used to enable further setup actions, then
+    ///         the removeDeployerFromSafe() function should be called on that safe after setup is complete.
+    ///         Note this function does not have the broadcast modifier.
+    /// @param _name The name of the Safe to deploy.
+    /// @param _owners The owners of the Safe.
+    /// @param _threshold The threshold of the Safe.
+    /// @param _keepDeployer Wether or not the deployer address will be added as an owner of the Safe.
+    function deploySafe(
+        string memory _name,
+        address[] memory _owners,
+        uint256 _threshold,
+        bool _keepDeployer
+    )
+        public
+        returns (address addr_)
+    {
+        bytes32 salt = keccak256(abi.encode(_name, _implSalt()));
+        console.log("Deploying safe: %s with salt %s", _name, vm.toString(salt));
+        (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
+
+        if (_keepDeployer) {
+            address[] memory expandedOwners = new address[](_owners.length + 1);
+            // By always adding msg.sender first we know that the previousOwner will be SENTINEL_OWNERS, which makes it
+            // easier to call removeOwner later.
+            expandedOwners[0] = msg.sender;
+            for (uint256 i = 0; i < _owners.length; i++) {
+                expandedOwners[i + 1] = _owners[i];
+            }
+            _owners = expandedOwners;
+        }
+
+        bytes memory initData = abi.encodeCall(
+            Safe.setup, (_owners, _threshold, address(0), hex"", address(0), address(0), 0, payable(address(0)))
+        );
+        addr_ = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, uint256(salt)));
+
+        save(_name, addr_);
+        console.log("New safe: %s deployed at %s\n    Note that this safe is owned by the deployer key", _name, addr_);
+    }
+
+    /// @notice If the keepDeployer option was used with deploySafe(), this function can be used to remove the deployer.
+    ///         Note this function does not have the broadcast modifier.
+    function removeDeployerFromSafe(string memory _name, uint256 _newThreshold) public {
+        Safe safe = Safe(mustGetAddress(_name));
+
+        // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
+        address sentinelOwners = address(0x1);
+
+        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
+        // will be sentinelOwners.
+        _callViaSafe({
+            _safe: safe,
+            _target: address(safe),
+            _data: abi.encodeCall(OwnerManager.removeOwner, (sentinelOwners, msg.sender, _newThreshold))
+        });
+        console.log("Removed deployer owner from ", _name);
+    }
+
+    /// @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
+    function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
+        if (getAddress("SafeProxyFactory") != address(0)) {
+            // The SafeProxyFactory is already saved, we can just use it.
+            safeProxyFactory_ = SafeProxyFactory(getAddress("SafeProxyFactory"));
+            safeSingleton_ = Safe(getAddress("SafeSingleton"));
+            return (safeProxyFactory_, safeSingleton_);
+        }
+
+        // These are the standard create2 deployed contracts. First we'll check if they are deployed,
+        // if not we'll deploy new ones, though not at these addresses.
+        address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
+        address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
+
+        safeProxyFactory.code.length == 0
+            ? safeProxyFactory_ = new SafeProxyFactory()
+            : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
+
+        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
+
+        save("SafeProxyFactory", address(safeProxyFactory_));
+        save("SafeSingleton", address(safeSingleton_));
     }
 
     /// @notice Deploys a Safe with a configuration similar to that of the Foundation Safe on Mainnet.
@@ -208,6 +317,22 @@ contract DeployOwnership is Deploy {
         console.log("Deployed and configured the Guardian Safe!");
     }
 
+    /// @notice Deploy the SuperchainConfig contract
+    function deploySuperchainConfig() public broadcast {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SuperchainConfig",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
+            })
+        );
+
+        require(superchainConfig.guardian() == address(0));
+        bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
+        require(initialized != 0);
+    }
+
     /// @notice Configure the Guardian Safe with the DeputyGuardianModule.
     function configureGuardianSafe() public broadcast returns (address addr_) {
         addr_ = mustGetAddress("GuardianSafe");
@@ -248,7 +373,7 @@ contract DeployOwnership is Deploy {
         address[] memory owners = safe.getOwners();
         require(
             safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
-            "Safe threshold must be equal to the LivenessModule's required threshold"
+            "DeployOwnership: safe threshold must be equal to the LivenessModule's required threshold"
         );
 
         addr_ = address(safe);

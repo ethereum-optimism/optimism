@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Test } from "forge-std/Test.sol";
 
-// Target contract dependencies
-import { L1Block } from "src/L2/L1Block.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-
-// Target contract
+// Contracts
 import { L1BlockNumber } from "src/legacy/L1BlockNumber.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 contract L1BlockNumberTest is Test {
     L1Block lb;

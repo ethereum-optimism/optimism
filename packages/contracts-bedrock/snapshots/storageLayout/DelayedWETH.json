@@ -53,7 +53,7 @@
     "label": "withdrawals",
     "offset": 0,
     "slot": "103",
-    "type": "mapping(address => mapping(address => struct IDelayedWETH.WithdrawalRequest))"
+    "type": "mapping(address => mapping(address => struct DelayedWETH.WithdrawalRequest))"
   },
   {
     "bytes": "20",

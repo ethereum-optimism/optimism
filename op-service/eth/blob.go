@@ -9,14 +9,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
-	BlobSize        = 4096 * 32
-	MaxBlobDataSize = (4*31+3)*1024 - 4
-	EncodingVersion = 0
-	VersionOffset   = 1    // offset of the version byte in the blob encoding
-	Rounds          = 1024 // number of encode/decode rounds
+	BlobSize          = 4096 * 32
+	MaxBlobDataSize   = (4*31+3)*1024 - 4
+	EncodingVersion   = 0
+	VersionOffset     = 1    // offset of the version byte in the blob encoding
+	Rounds            = 1024 // number of encode/decode rounds
+	MaxBlobsPerBlobTx = params.MaxBlobGasPerBlock / params.BlobTxBlobGasPerBlob
 )
 
 var (

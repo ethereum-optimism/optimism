@@ -55,8 +55,7 @@ type AsyncGossiper interface {
 // This event is used to prioritize sequencer work over derivation work,
 // by emitting it before e.g. a derivation-pipeline step.
 // A future sequencer in an async world may manage its own execution.
-type SequencerActionEvent struct {
-}
+type SequencerActionEvent struct{}
 
 func (ev SequencerActionEvent) String() string {
 	return "sequencer-action"
@@ -129,7 +128,8 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 	listener SequencerStateListener,
 	conductor conductor.SequencerConductor,
 	asyncGossip AsyncGossiper,
-	metrics Metrics) *Sequencer {
+	metrics Metrics,
+) *Sequencer {
 	return &Sequencer{
 		ctx:              driverCtx,
 		log:              log,
@@ -270,7 +270,8 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	defer cancel()
 	if err := d.conductor.CommitUnsafePayload(ctx, x.Envelope); err != nil {
 		d.emitter.Emit(rollup.EngineTemporaryErrorEvent{
-			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err)})
+			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err),
+		})
 		return
 	}
 
@@ -382,8 +383,7 @@ func (d *Sequencer) onSequencerAction(x SequencerActionEvent) {
 
 func (d *Sequencer) onEngineTemporaryError(x rollup.EngineTemporaryErrorEvent) {
 	if d.latest == (BuildingState{}) {
-		d.log.Debug("Engine reported temporary error, but sequencer is not using engine", "err", x.Err)
-		return
+		d.log.Debug("Engine reported temporary error while building state is empty", "err", x.Err)
 	}
 	d.log.Error("Engine failed temporarily, backing off sequencer", "err", x.Err)
 	if errors.Is(x.Err, engine.ErrEngineSyncing) { // if it is syncing we can back off by more
@@ -617,8 +617,6 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 	d.emitter.Emit(engine.ForkchoiceRequestEvent{})
 
 	if active {
-		// TODO(#11121): should the conductor be checked on startup?
-		// The conductor was previously not being checked in this case, but that may be a bug.
 		return d.forceStart()
 	} else {
 		if err := d.listener.SequencerStopped(); err != nil {
@@ -710,6 +708,10 @@ func (d *Sequencer) SetMaxSafeLag(ctx context.Context, v uint64) error {
 
 func (d *Sequencer) OverrideLeader(ctx context.Context) error {
 	return d.conductor.OverrideLeader(ctx)
+}
+
+func (d *Sequencer) ConductorEnabled(ctx context.Context) bool {
+	return d.conductor.Enabled(ctx)
 }
 
 func (d *Sequencer) Close() {

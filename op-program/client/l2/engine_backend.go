@@ -11,11 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/triedb"
 )
 
 type OracleBackedL2Chain struct {
@@ -38,7 +40,9 @@ type OracleBackedL2Chain struct {
 	db     ethdb.KeyValueStore
 }
 
-var _ engineapi.EngineBackend = (*OracleBackedL2Chain)(nil)
+// Must implement CachingEngineBackend, not just EngineBackend to ensure that blocks are stored when they are created
+// and don't need to be re-executed when sent back via execution_newPayload.
+var _ engineapi.CachingEngineBackend = (*OracleBackedL2Chain)(nil)
 
 func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, precompileOracle engineapi.PrecompileOracle, chainCfg *params.ChainConfig, l2OutputRoot common.Hash) (*OracleBackedL2Chain, error) {
 	output := oracle.OutputByRoot(l2OutputRoot)
@@ -170,7 +174,7 @@ func (o *OracleBackedL2Chain) Engine() consensus.Engine {
 }
 
 func (o *OracleBackedL2Chain) StateAt(root common.Hash) (*state.StateDB, error) {
-	stateDB, err := state.New(root, state.NewDatabase(rawdb.NewDatabase(o.db)), nil)
+	stateDB, err := state.New(root, state.NewDatabase(triedb.NewDatabase(rawdb.NewDatabase(o.db), nil), nil))
 	if err != nil {
 		return nil, err
 	}
@@ -178,30 +182,38 @@ func (o *OracleBackedL2Chain) StateAt(root common.Hash) (*state.StateDB, error) 
 	return stateDB, nil
 }
 
-func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block) error {
+func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block, makeWitness bool) (*stateless.Witness, error) {
 	processor, err := engineapi.NewBlockProcessorFromHeader(o, block.Header())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for i, tx := range block.Transactions() {
 		err = processor.AddTx(tx)
 		if err != nil {
-			return fmt.Errorf("invalid transaction (%d): %w", i, err)
+			return nil, fmt.Errorf("invalid transaction (%d): %w", i, err)
 		}
 	}
-	expected, err := processor.Assemble()
+	expected, err := o.AssembleAndInsertBlockWithoutSetHead(processor)
 	if err != nil {
-		return fmt.Errorf("invalid block: %w", err)
+		return nil, fmt.Errorf("invalid block: %w", err)
 	}
 	if expected.Hash() != block.Hash() {
-		return fmt.Errorf("block root mismatch, expected: %v, actual: %v", expected.Hash(), block.Hash())
+		return nil, fmt.Errorf("block root mismatch, expected: %v, actual: %v", expected.Hash(), block.Hash())
+	}
+	return nil, nil
+}
+
+func (o *OracleBackedL2Chain) AssembleAndInsertBlockWithoutSetHead(processor *engineapi.BlockProcessor) (*types.Block, error) {
+	block, err := processor.Assemble()
+	if err != nil {
+		return nil, fmt.Errorf("invalid block: %w", err)
 	}
 	err = processor.Commit()
 	if err != nil {
-		return fmt.Errorf("commit block: %w", err)
+		return nil, fmt.Errorf("commit block: %w", err)
 	}
 	o.blocks[block.Hash()] = block
-	return nil
+	return block, nil
 }
 
 func (o *OracleBackedL2Chain) SetCanonical(head *types.Block) (common.Hash, error) {

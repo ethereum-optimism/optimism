@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -77,9 +78,10 @@ func NewOpConductor(
 	oc.loopActionFn = oc.loopAction
 
 	// explicitly set all atomic.Bool values
-	oc.leader.Store(false)    // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
-	oc.healthy.Store(true)    // default to healthy unless reported otherwise by health monitor.
-	oc.seqActive.Store(false) // explicitly set to false by default, the real value will be reported after sequencer control initialization.
+	oc.leader.Store(false)         // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
+	oc.leaderOverride.Store(false) // default to no override.
+	oc.healthy.Store(true)         // default to healthy unless reported otherwise by health monitor.
+	oc.seqActive.Store(false)      // explicitly set to false by default, the real value will be reported after sequencer control initialization.
 	oc.paused.Store(cfg.Paused)
 	oc.stopped.Store(false)
 
@@ -139,6 +141,25 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	}
 	node := sources.NewRollupClient(nc)
 	c.ctrl = client.NewSequencerControl(exec, node)
+
+	enabled, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (bool, error) {
+		enabled, err := c.ctrl.ConductorEnabled(ctx)
+		if rpcErr, ok := err.(rpc.Error); ok {
+			errCode := rpcErr.ErrorCode()
+			errText := strings.ToLower(err.Error())
+			if errCode == -32601 || strings.Contains(errText, "method not found") { // method not found error
+				c.log.Warn("Warning: conductorEnabled method not found, please upgrade your op-node to the latest version, continuing...")
+				return true, nil
+			}
+		}
+		return enabled, err
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to connect to sequencer")
+	}
+	if !enabled {
+		return errors.New("conductor is not enabled on sequencer, exiting...")
+	}
 
 	return c.updateSequencerActiveStatus()
 }
@@ -267,11 +288,12 @@ type OpConductor struct {
 	cons consensus.Consensus
 	hmon health.HealthMonitor
 
-	leader    atomic.Bool
-	seqActive atomic.Bool
-	healthy   atomic.Bool
-	hcerr     error // error from health check
-	prevState *state
+	leader         atomic.Bool
+	leaderOverride atomic.Bool
+	seqActive      atomic.Bool
+	healthy        atomic.Bool
+	hcerr          error // error from health check
+	prevState      *state
 
 	healthUpdateCh <-chan error
 	leaderUpdateCh <-chan bool
@@ -452,13 +474,29 @@ func (oc *OpConductor) HTTPEndpoint() string {
 	return fmt.Sprintf("http://%s", oc.rpcServer.Endpoint())
 }
 
+func (oc *OpConductor) OverrideLeader(override bool) {
+	oc.leaderOverride.Store(override)
+}
+
+func (oc *OpConductor) LeaderOverridden() bool {
+	return oc.leaderOverride.Load()
+}
+
 // Leader returns true if OpConductor is the leader.
-func (oc *OpConductor) Leader(_ context.Context) bool {
-	return oc.cons.Leader()
+func (oc *OpConductor) Leader(ctx context.Context) bool {
+	return oc.LeaderOverridden() || oc.cons.Leader()
 }
 
 // LeaderWithID returns the current leader's server ID and address.
-func (oc *OpConductor) LeaderWithID(_ context.Context) *consensus.ServerInfo {
+func (oc *OpConductor) LeaderWithID(ctx context.Context) *consensus.ServerInfo {
+	if oc.LeaderOverridden() {
+		return &consensus.ServerInfo{
+			ID:       "N/A (Leader overridden)",
+			Addr:     "N/A",
+			Suffrage: 0,
+		}
+	}
+
 	return oc.cons.LeaderWithID()
 }
 

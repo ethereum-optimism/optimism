@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -15,17 +14,37 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import "src/libraries/PortalErrors.sol";
-import "src/dispute/lib/Types.sol";
+import {
+    BadTarget,
+    LargeCalldata,
+    SmallGasLimit,
+    TransferFailed,
+    OnlyCustomGasToken,
+    NoValue,
+    Unauthorized,
+    CallPaused,
+    GasEstimation,
+    NonReentrant,
+    InvalidProof,
+    InvalidGameType,
+    InvalidDisputeGame,
+    InvalidMerkleProof,
+    Blacklisted,
+    Unproven,
+    ProposalNotValidated,
+    AlreadyFinalized
+} from "src/libraries/PortalErrors.sol";
+import { GameStatus, GameType, Claim, Timestamp, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal2
@@ -164,9 +183,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.11.0-beta.4
+    /// @custom:semver 3.11.0-beta.6
     function version() public pure virtual returns (string memory) {
-        return "3.11.0-beta.4";
+        return "3.11.0-beta.6";
     }
 
     /// @notice Constructs the OptimismPortal contract.
@@ -606,7 +625,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
                 uint256(0), // value
                 uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+                abi.encodeCall(IL1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
             )
         );
     }

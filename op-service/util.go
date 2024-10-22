@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -130,5 +132,34 @@ func FindMonorepoRoot(startDir string) (string, error) {
 		}
 		dir = parentDir
 	}
-	return "", fmt.Errorf("monorepo root not found")
+	return "", errors.New("monorepo root not found")
+}
+
+// Parse256BitChainID parses a 256-bit chain ID from a string. Chain IDs
+// can be defined as either an integer or a hex string. If the string
+// starts with "0x", it is treated as a hex string, otherwise it is
+// treated as an integer string.
+func Parse256BitChainID(in string) (common.Hash, error) {
+	var chainIDBig *big.Int
+	if strings.HasPrefix(in, "0x") {
+		in = strings.TrimPrefix(in, "0x")
+		var ok bool
+		chainIDBig, ok = new(big.Int).SetString(in, 16)
+		if !ok {
+			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s", in)
+		}
+	} else {
+		inUint, err := strconv.ParseUint(in, 10, 64)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s: %w", in, err)
+		}
+
+		chainIDBig = new(big.Int).SetUint64(inUint)
+	}
+
+	if chainIDBig.BitLen() > 256 {
+		return common.Hash{}, fmt.Errorf("chain ID %s is too large", in)
+	}
+
+	return common.BigToHash(chainIDBig), nil
 }

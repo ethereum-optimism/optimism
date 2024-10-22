@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-
-// Target contract dependencies
-import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
-// Target contract
+// Interfaces
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 
 contract SystemConfig_Init is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
@@ -313,6 +311,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
     function setUp() public override {
         token = new ERC20("Silly", "SIL");
         super.enableCustomGasToken(address(token));
+
         super.setUp();
     }
 
@@ -467,7 +466,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
                 uint256(0), // value
                 uint64(200_000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+                abi.encodeCall(IL1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
             )
         );
 
@@ -527,6 +526,27 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.expectRevert("SystemConfig: gas limit too high");
         systemConfig.setGasLimit(maximumGasLimit + 1);
     }
+
+    /// @dev Tests that `setEIP1559Params` reverts if the caller is not the owner.
+    function test_setEIP1559Params_notOwner_reverts(uint32 _denominator, uint32 _elasticity) external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setEIP1559Params({ _denominator: _denominator, _elasticity: _elasticity });
+    }
+
+    /// @dev Tests that `setEIP1559Params` reverts if the denominator is zero.
+    function test_setEIP1559Params_zeroDenominator_reverts(uint32 _elasticity) external {
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: denominator must be >= 1");
+        systemConfig.setEIP1559Params({ _denominator: 0, _elasticity: _elasticity });
+    }
+
+    /// @dev Tests that `setEIP1559Params` reverts if the elasticity is zero.
+    function test_setEIP1559Params_zeroElasticity_reverts(uint32 _denominator) external {
+        vm.assume(_denominator >= 1);
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: elasticity must be >= 1");
+        systemConfig.setEIP1559Params({ _denominator: _denominator, _elasticity: 0 });
+    }
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
@@ -545,7 +565,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         // always zero out most significant byte
         newScalar = (newScalar << 16) >> 16;
         vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.GAS_CONFIG, abi.encode(newOverhead, newScalar));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(newOverhead, newScalar));
 
         vm.prank(systemConfig.owner());
         systemConfig.setGasConfig(newOverhead, newScalar);
@@ -558,7 +578,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
             ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
 
         vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.GAS_CONFIG, abi.encode(systemConfig.overhead(), encoded));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(systemConfig.overhead(), encoded));
 
         vm.prank(systemConfig.owner());
         systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
@@ -593,5 +613,21 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         vm.prank(systemConfig.owner());
         systemConfig.setUnsafeBlockSigner(newUnsafeSigner);
         assertEq(systemConfig.unsafeBlockSigner(), newUnsafeSigner);
+    }
+
+    /// @dev Tests that `setEIP1559Params` updates the EIP1559 parameters successfully.
+    function testFuzz_setEIP1559Params_succeeds(uint32 _denominator, uint32 _elasticity) external {
+        vm.assume(_denominator > 1);
+        vm.assume(_elasticity > 1);
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(
+            0, ISystemConfig.UpdateType.EIP_1559_PARAMS, abi.encode(uint256(_denominator) << 32 | uint64(_elasticity))
+        );
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setEIP1559Params(_denominator, _elasticity);
+        assertEq(systemConfig.eip1559Denominator(), _denominator);
+        assertEq(systemConfig.eip1559Elasticity(), _elasticity);
     }
 }

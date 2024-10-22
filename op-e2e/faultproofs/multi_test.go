@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,7 +27,7 @@ func TestMultipleGameTypes(t *testing.T) {
 
 	// Start a challenger with both cannon and alphabet support
 	gameFactory.StartChallenger(ctx, "TowerDefense",
-		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg),
+		challenger.WithCannon(t, sys),
 		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)

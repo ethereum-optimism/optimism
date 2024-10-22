@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	kvtypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -45,11 +46,11 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		prestate:  prestate,
 		generator: vm.NewExecutor(logger, m, cfg, vmCfg, prestate, localInputs),
 		gameDepth: gameDepth,
-		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
-			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		preimageLoader: utils.NewPreimageLoader(func() (utils.PreimageSource, error) {
+			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
 		PrestateProvider: prestateProvider,
-		stateConverter:   &StateConverter{},
+		stateConverter:   NewStateConverter(cfg),
 		cfg:              cfg,
 	}
 }
@@ -124,7 +125,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 		// Try opening the file again now and it should exist.
 		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
-			proof, stateStep, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
+			proof, stateStep, exited, err := p.stateConverter.ConvertStateToProof(ctx, vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 			if err != nil {
 				return nil, fmt.Errorf("cannot create proof from final state: %w", err)
 			}
@@ -166,12 +167,12 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		logger:    logger,
 		dir:       dir,
 		prestate:  cfg.CannonAbsolutePreState,
-		generator: vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
+		generator: vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(logger), cfg.CannonAbsolutePreState, localInputs),
 		gameDepth: gameDepth,
-		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
-			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		preimageLoader: utils.NewPreimageLoader(func() (utils.PreimageSource, error) {
+			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
-		stateConverter: NewStateConverter(),
+		stateConverter: NewStateConverter(cfg.Cannon),
 		cfg:            cfg.Cannon,
 	}
 	return &CannonTraceProviderForTest{p}
@@ -184,7 +185,7 @@ func (p *CannonTraceProviderForTest) FindStep(ctx context.Context, start uint64,
 	}
 	// Load the step from the state cannon finished with
 
-	_, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
+	_, step, exited, err := p.stateConverter.ConvertStateToProof(ctx, vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load final state: %w", err)
 	}

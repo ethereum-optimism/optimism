@@ -40,7 +40,7 @@ var (
 		Name:    "data.format",
 		Usage:   fmt.Sprintf("Format to use for preimage data storage. Available formats: %s", openum.EnumString(types.SupportedDataFormats)),
 		EnvVars: prefixEnvVars("DATA_FORMAT"),
-		Value:   string(types.DataFormatFile),
+		Value:   string(types.DataFormatDirectory),
 	}
 	L2NodeAddr = &cli.StringFlag{
 		Name:    "l2",
@@ -157,6 +157,9 @@ func CheckRequired(ctx *cli.Context) error {
 	}
 	if network == "" && ctx.String(L2GenesisPath.Name) == "" {
 		return fmt.Errorf("flag %s is required for custom networks", L2GenesisPath.Name)
+	}
+	if ctx.String(L2GenesisPath.Name) != "" && network != "" {
+		return fmt.Errorf("cannot specify both %s and %s", L2GenesisPath.Name, Network.Name)
 	}
 	for _, flag := range requiredFlags {
 		if !ctx.IsSet(flag.Names()[0]) {

@@ -163,6 +163,12 @@ func TestParseFramesInvalidVer(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestParseFramesOnlyVersion(t *testing.T) {
+	frames, err := ParseFrames([]byte{DerivationVersion0})
+	require.Empty(t, frames)
+	require.Error(t, err)
+}
+
 func TestParseFrames(t *testing.T) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	numFrames := rng.Intn(16) + 1

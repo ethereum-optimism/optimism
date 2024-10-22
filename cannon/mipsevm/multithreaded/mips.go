@@ -9,26 +9,29 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
+
+type Word = arch.Word
 
 func (m *InstrumentedState) handleSyscall() error {
 	thread := m.state.GetCurrentThread()
 
 	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegistersRef())
-	v0 := uint32(0)
-	v1 := uint32(0)
+	v0 := Word(0)
+	v1 := Word(0)
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
-	case exec.SysMmap:
-		var newHeap uint32
+	case arch.SysMmap:
+		var newHeap Word
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
-	case exec.SysBrk:
+	case arch.SysBrk:
 		v0 = program.PROGRAM_BREAK
-	case exec.SysClone: // clone
+	case arch.SysClone: // clone
 		// a0 = flag bitmask, a1 = stack pointer
 		if exec.ValidCloneFlags != a0 {
 			m.state.Exited = true
@@ -56,8 +59,8 @@ func (m *InstrumentedState) handleSyscall() error {
 
 		newThread.Registers[29] = a1
 		// the child will perceive a 0 value as returned value instead, and no error
-		newThread.Registers[2] = 0
-		newThread.Registers[7] = 0
+		newThread.Registers[exec.RegSyscallRet1] = 0
+		newThread.Registers[exec.RegSyscallErrno] = 0
 		m.state.NextThreadId++
 
 		// Preempt this thread for the new one. But not before updating PCs
@@ -69,28 +72,33 @@ func (m *InstrumentedState) handleSyscall() error {
 		// to ensure we are tracking in the context of the new thread
 		m.stackTracker.PushStack(stackCaller, stackTarget)
 		return nil
-	case exec.SysExitGroup:
+	case arch.SysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
 		return nil
-	case exec.SysRead:
-		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
+	case arch.SysRead:
+		var newPreimageOffset Word
+		var memUpdated bool
+		var memAddr Word
+		v0, v1, newPreimageOffset, memUpdated, memAddr = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
-	case exec.SysWrite:
+		if memUpdated {
+			m.handleMemoryUpdate(memAddr)
+		}
+	case arch.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
-		var newPreimageOffset uint32
+		var newPreimageOffset Word
 		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = exec.HandleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker, m.stdOut, m.stdErr)
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey
 		m.state.PreimageOffset = newPreimageOffset
-	case exec.SysFcntl:
+	case arch.SysFcntl:
 		v0, v1 = exec.HandleSysFcntl(a0, a1)
-	case exec.SysGetTID:
+	case arch.SysGetTID:
 		v0 = thread.ThreadId
 		v1 = 0
-	case exec.SysExit:
+	case arch.SysExit:
 		thread.Exited = true
 		thread.ExitCode = uint8(a0)
 		if m.lastThreadRemaining() {
@@ -98,17 +106,18 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.ExitCode = uint8(a0)
 		}
 		return nil
-	case exec.SysFutex:
+	case arch.SysFutex:
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
+		effAddr := a0 & arch.AddressMask
 		switch a1 {
 		case exec.FutexWaitPrivate:
-			m.memoryTracker.TrackMemAccess(a0)
-			mem := m.state.Memory.GetMemory(a0)
+			m.memoryTracker.TrackMemAccess(effAddr)
+			mem := m.state.Memory.GetWord(effAddr)
 			if mem != a2 {
 				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
 			} else {
-				thread.FutexAddr = a0
+				thread.FutexAddr = effAddr
 				thread.FutexVal = a2
 				if a3 == 0 {
 					thread.FutexTimeoutStep = exec.FutexNoTimeout
@@ -121,7 +130,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		case exec.FutexWakePrivate:
 			// Trigger thread traversal starting from the left stack until we find one waiting on the wakeup
 			// address
-			m.state.Wakeup = a0
+			m.state.Wakeup = effAddr
 			// Don't indicate to the program that we've woken up a waiting thread, as there are no guarantees.
 			// The woken up thread should indicate this in userspace.
 			v0 = 0
@@ -134,72 +143,77 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = exec.SysErrorSignal
 			v1 = exec.MipsEINVAL
 		}
-	case exec.SysSchedYield, exec.SysNanosleep:
+	case arch.SysSchedYield, arch.SysNanosleep:
 		v0 = 0
 		v1 = 0
 		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 		m.preemptThread(thread)
 		return nil
-	case exec.SysOpen:
+	case arch.SysOpen:
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsEBADF
-	case exec.SysClockGetTime:
+	case arch.SysClockGetTime:
 		switch a0 {
 		case exec.ClockGettimeRealtimeFlag, exec.ClockGettimeMonotonicFlag:
 			v0, v1 = 0, 0
-			var secs, nsecs uint32
+			var secs, nsecs Word
 			if a0 == exec.ClockGettimeMonotonicFlag {
 				// monotonic clock_gettime is used by Go guest programs for goroutine scheduling and to implement
 				// `time.Sleep` (and other sleep related operations).
-				secs = uint32(m.state.Step / exec.HZ)
-				nsecs = uint32((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
+				secs = Word(m.state.Step / exec.HZ)
+				nsecs = Word((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
 			} // else realtime set to Unix Epoch
 
-			effAddr := a1 & 0xFFffFFfc
+			effAddr := a1 & arch.AddressMask
 			m.memoryTracker.TrackMemAccess(effAddr)
-			m.state.Memory.SetMemory(effAddr, secs)
+			m.state.Memory.SetWord(effAddr, secs)
+			m.handleMemoryUpdate(effAddr)
 			m.memoryTracker.TrackMemAccess2(effAddr + 4)
-			m.state.Memory.SetMemory(effAddr+4, nsecs)
+			m.state.Memory.SetWord(effAddr+4, nsecs)
+			m.handleMemoryUpdate(effAddr + 4)
 		default:
 			v0 = exec.SysErrorSignal
 			v1 = exec.MipsEINVAL
 		}
-	case exec.SysGetpid:
+	case arch.SysGetpid:
 		v0 = 0
 		v1 = 0
-	case exec.SysMunmap:
-	case exec.SysGetAffinity:
-	case exec.SysMadvise:
-	case exec.SysRtSigprocmask:
-	case exec.SysSigaltstack:
-	case exec.SysRtSigaction:
-	case exec.SysPrlimit64:
-	case exec.SysClose:
-	case exec.SysPread64:
-	case exec.SysFstat64:
-	case exec.SysOpenAt:
-	case exec.SysReadlink:
-	case exec.SysReadlinkAt:
-	case exec.SysIoctl:
-	case exec.SysEpollCreate1:
-	case exec.SysPipe2:
-	case exec.SysEpollCtl:
-	case exec.SysEpollPwait:
-	case exec.SysGetRandom:
-	case exec.SysUname:
-	case exec.SysStat64:
-	case exec.SysGetuid:
-	case exec.SysGetgid:
-	case exec.SysLlseek:
-	case exec.SysMinCore:
-	case exec.SysTgkill:
-	case exec.SysSetITimer:
-	case exec.SysTimerCreate:
-	case exec.SysTimerSetTime:
-	case exec.SysTimerDelete:
+	case arch.SysMunmap:
+	case arch.SysGetAffinity:
+	case arch.SysMadvise:
+	case arch.SysRtSigprocmask:
+	case arch.SysSigaltstack:
+	case arch.SysRtSigaction:
+	case arch.SysPrlimit64:
+	case arch.SysClose:
+	case arch.SysPread64:
+	case arch.SysFstat:
+	case arch.SysOpenAt:
+	case arch.SysReadlink:
+	case arch.SysReadlinkAt:
+	case arch.SysIoctl:
+	case arch.SysEpollCreate1:
+	case arch.SysPipe2:
+	case arch.SysEpollCtl:
+	case arch.SysEpollPwait:
+	case arch.SysGetRandom:
+	case arch.SysUname:
+	case arch.SysGetuid:
+	case arch.SysGetgid:
+	case arch.SysMinCore:
+	case arch.SysTgkill:
+	case arch.SysSetITimer:
+	case arch.SysTimerCreate:
+	case arch.SysTimerSetTime:
+	case arch.SysTimerDelete:
 	default:
-		m.Traceback()
-		panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
+		// These syscalls have the same values on 64-bit. So we use if-stmts here to avoid "duplicate case" compiler error for the cannon64 build
+		if arch.IsMips32 && syscallNum == arch.SysFstat64 || syscallNum == arch.SysStat64 || syscallNum == arch.SysLlseek {
+			// noop
+		} else {
+			m.Traceback()
+			panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
+		}
 	}
 
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
@@ -248,8 +262,9 @@ func (m *InstrumentedState) mipsStep() error {
 			m.onWaitComplete(thread, true)
 			return nil
 		} else {
-			m.memoryTracker.TrackMemAccess(thread.FutexAddr)
-			mem := m.state.Memory.GetMemory(thread.FutexAddr)
+			effAddr := thread.FutexAddr & arch.AddressMask
+			m.memoryTracker.TrackMemAccess(effAddr)
+			mem := m.state.Memory.GetWord(effAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
 				m.preemptThread(thread)
@@ -286,27 +301,103 @@ func (m *InstrumentedState) mipsStep() error {
 		return m.handleSyscall()
 	}
 
+	// Handle RMW (read-modify-write) ops
+	if opcode == exec.OpLoadLinked || opcode == exec.OpStoreConditional {
+		return m.handleRMWOps(insn, opcode)
+	}
+	if opcode == exec.OpLoadLinked64 || opcode == exec.OpStoreConditional64 {
+		if arch.IsMips32 {
+			panic(fmt.Sprintf("invalid instruction: %x", insn))
+		}
+		return m.handleRMWOps(insn, opcode)
+	}
+
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	memUpdated, memAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	if err != nil {
+		return err
+	}
+	if memUpdated {
+		m.handleMemoryUpdate(memAddr)
+	}
+
+	return nil
+}
+
+func (m *InstrumentedState) handleMemoryUpdate(memAddr Word) {
+	if memAddr == (arch.AddressMask & m.state.LLAddress) {
+		// Reserved address was modified, clear the reservation
+		m.clearLLMemoryReservation()
+	}
+}
+
+func (m *InstrumentedState) clearLLMemoryReservation() {
+	m.state.LLReservationStatus = LLStatusNone
+	m.state.LLAddress = 0
+	m.state.LLOwnerThread = 0
+}
+
+// handleRMWOps handles LL and SC operations which provide the primitives to implement read-modify-write operations
+func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
+	baseReg := (insn >> 21) & 0x1F
+	base := m.state.GetRegistersRef()[baseReg]
+	rtReg := Word((insn >> 16) & 0x1F)
+	offset := exec.SignExtendImmediate(insn)
+	addr := base + offset
+
+	// Determine some opcode-specific parameters
+	targetStatus := LLStatusActive32bit
+	byteLength := Word(4)
+	if opcode == exec.OpLoadLinked64 || opcode == exec.OpStoreConditional64 {
+		// Use 64-bit params
+		targetStatus = LLStatusActive64bit
+		byteLength = Word(8)
+	}
+
+	var retVal Word
+	threadId := m.state.GetCurrentThread().ThreadId
+	switch opcode {
+	case exec.OpLoadLinked, exec.OpLoadLinked64:
+		retVal = exec.LoadSubWord(m.state.GetMemory(), addr, byteLength, true, m.memoryTracker)
+
+		m.state.LLReservationStatus = targetStatus
+		m.state.LLAddress = addr
+		m.state.LLOwnerThread = threadId
+	case exec.OpStoreConditional, exec.OpStoreConditional64:
+		if m.state.LLReservationStatus == targetStatus && m.state.LLOwnerThread == threadId && m.state.LLAddress == addr {
+			// Complete atomic update: set memory and return 1 for success
+			m.clearLLMemoryReservation()
+
+			val := m.state.GetRegistersRef()[rtReg]
+			exec.StoreSubWord(m.state.GetMemory(), addr, byteLength, val, m.memoryTracker)
+
+			retVal = 1
+		} else {
+			// Atomic update failed, return 0 for failure
+			retVal = 0
+		}
+	default:
+		panic(fmt.Sprintf("Invalid instruction passed to handleRMWOps (opcode %08x)", opcode))
+	}
+
+	return exec.HandleRd(m.state.getCpuRef(), m.state.GetRegistersRef(), rtReg, retVal, true)
 }
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {
+	// Note: no need to reset m.state.Wakeup.  If we're here, the Wakeup field has already been reset
 	// Clear the futex state
 	thread.FutexAddr = exec.FutexEmptyAddr
 	thread.FutexVal = 0
 	thread.FutexTimeoutStep = 0
 
 	// Complete the FUTEX_WAIT syscall
-	v0 := uint32(0)
-	v1 := uint32(0)
+	v0 := Word(0)
+	v1 := Word(0)
 	if isTimedOut {
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsETIMEDOUT
 	}
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-
-	// Clear wakeup signal
-	m.state.Wakeup = exec.FutexEmptyAddr
 }
 
 func (m *InstrumentedState) preemptThread(thread *ThreadState) bool {

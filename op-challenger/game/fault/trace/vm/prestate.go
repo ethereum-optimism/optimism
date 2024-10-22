@@ -25,11 +25,11 @@ func NewPrestateProvider(prestate string, converter StateConverter) *PrestatePro
 	}
 }
 
-func (p *PrestateProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
+func (p *PrestateProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
 	if p.prestateCommitment != (common.Hash{}) {
 		return p.prestateCommitment, nil
 	}
-	proof, _, _, err := p.stateConverter.ConvertStateToProof(p.prestate)
+	proof, _, _, err := p.stateConverter.ConvertStateToProof(ctx, p.prestate)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
 	}

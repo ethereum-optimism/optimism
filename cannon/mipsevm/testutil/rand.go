@@ -1,53 +1,91 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"math/rand"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-func RandHash(r *rand.Rand) common.Hash {
+type RandHelper struct {
+	r *rand.Rand
+}
+
+func NewRandHelper(seed int64) *RandHelper {
+	r := rand.New(rand.NewSource(seed))
+	return &RandHelper{r: r}
+}
+
+func (h *RandHelper) Uint32() uint32 {
+	return h.r.Uint32()
+}
+
+func (h *RandHelper) Word() arch.Word {
+	if arch.IsMips32 {
+		return arch.Word(h.r.Uint32())
+	} else {
+		return arch.Word(h.r.Uint64())
+	}
+}
+
+func (h *RandHelper) Fraction() float64 {
+	return h.r.Float64()
+}
+
+func (h *RandHelper) Intn(n int) int {
+	return h.r.Intn(n)
+}
+
+func (h *RandHelper) RandHash() common.Hash {
 	var bytes [32]byte
-	_, err := r.Read(bytes[:])
+	_, err := h.r.Read(bytes[:])
 	if err != nil {
 		panic(err)
 	}
 	return bytes
 }
 
-func RandHint(r *rand.Rand) []byte {
-	count := r.Intn(10)
+func (h *RandHelper) RandHint() []byte {
 
-	bytes := make([]byte, count)
-	_, err := r.Read(bytes[:])
-	if err != nil {
-		panic(err)
+	bytesCount := h.r.Intn(24)
+	bytes := make([]byte, bytesCount)
+
+	if bytesCount >= 8 {
+		// Set up a reasonable length prefix
+		nextHintLen := uint64(h.r.Intn(30))
+		binary.BigEndian.PutUint64(bytes, nextHintLen)
+
+		_, err := h.r.Read(bytes[8:])
+		if err != nil {
+			panic(err)
+		}
 	}
+
 	return bytes
 }
 
-func RandRegisters(r *rand.Rand) *[32]uint32 {
-	registers := new([32]uint32)
+func (h *RandHelper) RandRegisters() *[32]arch.Word {
+	registers := new([32]arch.Word)
 	for i := 0; i < 32; i++ {
-		registers[i] = r.Uint32()
+		registers[i] = h.Word()
 	}
 	return registers
 }
 
-func RandomBytes(t require.TestingT, seed int64, length uint32) []byte {
-	r := rand.New(rand.NewSource(seed))
+func (h *RandHelper) RandomBytes(t require.TestingT, length int) []byte {
 	randBytes := make([]byte, length)
-	if _, err := r.Read(randBytes); err != nil {
+	if _, err := h.r.Read(randBytes); err != nil {
 		require.NoError(t, err)
 	}
 	return randBytes
 }
 
-func RandPC(r *rand.Rand) uint32 {
-	return AlignPC(r.Uint32())
+func (h *RandHelper) RandPC() arch.Word {
+	return AlignPC(h.Word())
 }
 
-func RandStep(r *rand.Rand) uint64 {
-	return BoundStep(r.Uint64())
+func (h *RandHelper) RandStep() uint64 {
+	return BoundStep(h.r.Uint64())
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
@@ -16,8 +16,8 @@ func FuzzStateSyscallCloneST(f *testing.F) {
 	f.Fuzz(func(t *testing.T, seed int64) {
 		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
 		state := goVm.GetState()
-		state.GetRegistersRef()[2] = exec.SysClone
-		state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysClone
+		state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 		step := state.GetStep()
 
 		expected := testutil.NewExpectedState(state)

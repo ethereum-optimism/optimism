@@ -44,4 +44,6 @@ interface IERC721Bridge {
     function messenger() external view returns (ICrossDomainMessenger);
     function otherBridge() external view returns (IERC721Bridge);
     function paused() external view returns (bool);
+
+    function __constructor__() external;
 }

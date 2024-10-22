@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -42,7 +41,7 @@ func TestGenerateProof(t *testing.T) {
 	}
 	captureExec := func(t *testing.T, cfg Config, proofAt uint64) (string, string, map[string]string) {
 		m := &stubVmMetrics{}
-		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, cfg, NewOpProgramServerExecutor(), prestate, inputs)
+		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, cfg, NewOpProgramServerExecutor(testlog.Logger(t, log.LvlInfo)), prestate, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64, binary bool) (string, error) {
 			return input, nil
 		}
@@ -145,10 +144,12 @@ func TestGenerateProof(t *testing.T) {
 }
 
 type stubVmMetrics struct {
-	metrics.NoopMetricsImpl
 	executionTimeRecordCount int
 }
 
-func (c *stubVmMetrics) RecordVmExecutionTime(_ string, _ time.Duration) {
+func (c *stubVmMetrics) RecordExecutionTime(_ time.Duration) {
 	c.executionTimeRecordCount++
+}
+
+func (c *stubVmMetrics) RecordMemoryUsed(_ uint64) {
 }

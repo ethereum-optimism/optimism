@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,11 +15,11 @@ const maxAttempts = math.MaxInt // Succeed or die trying
 
 type RetryingL1Source struct {
 	logger   log.Logger
-	source   sources.L1Source
+	source   L1Source
 	strategy retry.Strategy
 }
 
-func NewRetryingL1Source(logger log.Logger, source sources.L1Source) *RetryingL1Source {
+func NewRetryingL1Source(logger log.Logger, source L1Source) *RetryingL1Source {
 	return &RetryingL1Source{
 		logger:   logger,
 		source:   source,
@@ -58,15 +57,15 @@ func (s *RetryingL1Source) FetchReceipts(ctx context.Context, blockHash common.H
 	})
 }
 
-var _ sources.L1Source = (*RetryingL1Source)(nil)
+var _ L1Source = (*RetryingL1Source)(nil)
 
 type RetryingL1BlobSource struct {
 	logger   log.Logger
-	source   sources.L1BlobSource
+	source   L1BlobSource
 	strategy retry.Strategy
 }
 
-func NewRetryingL1BlobSource(logger log.Logger, source sources.L1BlobSource) *RetryingL1BlobSource {
+func NewRetryingL1BlobSource(logger log.Logger, source L1BlobSource) *RetryingL1BlobSource {
 	return &RetryingL1BlobSource{
 		logger:   logger,
 		source:   source,
@@ -94,11 +93,11 @@ func (s *RetryingL1BlobSource) GetBlobs(ctx context.Context, ref eth.L1BlockRef,
 	})
 }
 
-var _ sources.L1BlobSource = (*RetryingL1BlobSource)(nil)
+var _ L1BlobSource = (*RetryingL1BlobSource)(nil)
 
 type RetryingL2Source struct {
 	logger   log.Logger
-	source   sources.L2Source
+	source   L2Source
 	strategy retry.Strategy
 }
 
@@ -143,7 +142,7 @@ func (s *RetryingL2Source) OutputByRoot(ctx context.Context, root common.Hash) (
 	})
 }
 
-func NewRetryingL2Source(logger log.Logger, source sources.L2Source) *RetryingL2Source {
+func NewRetryingL2Source(logger log.Logger, source L2Source) *RetryingL2Source {
 	return &RetryingL2Source{
 		logger:   logger,
 		source:   source,
@@ -151,4 +150,4 @@ func NewRetryingL2Source(logger log.Logger, source sources.L2Source) *RetryingL2
 	}
 }
 
-var _ sources.L2Source = (*RetryingL2Source)(nil)
+var _ L2Source = (*RetryingL2Source)(nil)

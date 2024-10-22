@@ -42,6 +42,25 @@ type txRef struct {
 	isBlob   bool
 }
 
+func (r txRef) String() string {
+	return r.string(func(id txID) string { return id.String() })
+}
+
+func (r txRef) TerminalString() string {
+	return r.string(func(id txID) string { return id.TerminalString() })
+}
+
+func (r txRef) string(txIDStringer func(txID) string) string {
+	if r.isCancel {
+		if r.isBlob {
+			return "blob-cancellation"
+		} else {
+			return "calldata-cancellation"
+		}
+	}
+	return txIDStringer(r.id)
+}
+
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
@@ -57,15 +76,16 @@ type RollupClient interface {
 
 // DriverSetup is the collection of input/output interfaces and configuration that the driver operates on.
 type DriverSetup struct {
-	Log              log.Logger
-	Metr             metrics.Metricer
-	RollupConfig     *rollup.Config
-	Config           BatcherConfig
-	Txmgr            *txmgr.SimpleTxManager
-	L1Client         L1Client
-	EndpointProvider dial.L2EndpointProvider
-	ChannelConfig    ChannelConfigProvider
-	AltDA            *altda.DAClient
+	Log               log.Logger
+	Metr              metrics.Metricer
+	RollupConfig      *rollup.Config
+	Config            BatcherConfig
+	Txmgr             txmgr.TxManager
+	L1Client          L1Client
+	EndpointProvider  dial.L2EndpointProvider
+	ChannelConfig     ChannelConfigProvider
+	AltDA             *altda.DAClient
+	ChannelOutFactory ChannelOutFactory
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -96,9 +116,13 @@ type BatchSubmitter struct {
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
 func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
+	state := NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig)
+	if setup.ChannelOutFactory != nil {
+		state.SetChannelOutFactory(setup.ChannelOutFactory)
+	}
 	return &BatchSubmitter{
 		DriverSetup: setup,
-		state:       NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig),
+		state:       state,
 	}
 }
 
@@ -118,6 +142,10 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.clearState(l.shutdownCtx)
 	l.lastStoredBlock = eth.BlockID{}
 
+	if err := l.waitForL2Genesis(); err != nil {
+		return fmt.Errorf("error waiting for L2 genesis: %w", err)
+	}
+
 	if l.Config.WaitNodeSync {
 		err := l.waitNodeSync()
 		if err != nil {
@@ -130,6 +158,36 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 
 	l.Log.Info("Batch Submitter started")
 	return nil
+}
+
+// waitForL2Genesis waits for the L2 genesis time to be reached.
+func (l *BatchSubmitter) waitForL2Genesis() error {
+	genesisTime := time.Unix(int64(l.RollupConfig.Genesis.L2Time), 0)
+	now := time.Now()
+	if now.After(genesisTime) {
+		return nil
+	}
+
+	l.Log.Info("Waiting for L2 genesis", "genesisTime", genesisTime)
+
+	// Create a ticker that fires every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	genesisTrigger := time.After(time.Until(genesisTime))
+
+	for {
+		select {
+		case <-ticker.C:
+			remaining := time.Until(genesisTime)
+			l.Log.Info("Waiting for L2 genesis", "remainingTime", remaining.Round(time.Second))
+		case <-genesisTrigger:
+			l.Log.Info("L2 genesis time reached")
+			return nil
+		case <-l.shutdownCtx.Done():
+			return errors.New("batcher stopped")
+		}
+	}
 }
 
 func (l *BatchSubmitter) StopBatchSubmittingIfRunning(ctx context.Context) error {
@@ -171,10 +229,11 @@ func (l *BatchSubmitter) StopBatchSubmitting(ctx context.Context) error {
 
 // loadBlocksIntoState loads all blocks since the previous stored block
 // It does the following:
-// 1. Fetch the sync status of the sequencer
-// 2. Check if the sync status is valid or if we are all the way up to date
-// 3. Check if it needs to initialize state OR it is lagging (todo: lagging just means race condition?)
-// 4. Load all new blocks into the local state.
+//  1. Fetch the sync status of the sequencer
+//  2. Check if the sync status is valid or if we are all the way up to date
+//  3. Check if it needs to initialize state OR it is lagging (todo: lagging just means race condition?)
+//  4. Load all new blocks into the local state.
+//
 // If there is a reorg, it will reset the last stored block but not clear the internal state so
 // the state can be flushed to L1.
 func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) error {
@@ -243,16 +302,40 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("getting rollup client: %w", err)
 	}
 
-	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
-	defer cancel()
+	var (
+		syncStatus *eth.SyncStatus
+		backoff    = time.Second
+		maxBackoff = 30 * time.Second
+	)
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
 
-	syncStatus, err := rollupClient.SyncStatus(cCtx)
-	// Ensure that we have the sync status
-	if err != nil {
-		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
-	}
-	if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, eth.BlockID{}, errors.New("empty sync status")
+	for {
+		cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
+		syncStatus, err = rollupClient.SyncStatus(cCtx)
+		cancel()
+
+		// Ensure that we have the sync status
+		if err != nil {
+			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
+		}
+
+		// If we have a head, break out of the loop
+		if syncStatus.HeadL1 != (eth.L1BlockRef{}) {
+			break
+		}
+
+		// Empty sync status, implement backoff
+		l.Log.Info("Received empty sync status, backing off", "backoff", backoff)
+		select {
+		case <-timer.C:
+			backoff *= 2
+			backoff = min(backoff, maxBackoff)
+			// Reset timer to tick of the new backoff time again
+			timer.Reset(backoff)
+		case <-ctx.Done():
+			return eth.BlockID{}, eth.BlockID{}, ctx.Err()
+		}
 	}
 
 	// Check last stored to see if it needs to be set on startup OR set if is lagged behind.
@@ -267,7 +350,7 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 
 	// Check if we should even attempt to load any blocks. TODO: May not need this check
 	if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
-		return eth.BlockID{}, eth.BlockID{}, errors.New("L2 safe head ahead of L2 unsafe head")
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("L2 safe head(%d) ahead of L2 unsafe head(%d)", syncStatus.SafeL2.Number, syncStatus.UnsafeL2.Number)
 	}
 
 	return l.lastStoredBlock, syncStatus.UnsafeL2.ID(), nil
@@ -455,7 +538,6 @@ func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txRef], receiptsCh 
 			return
 		}
 		err := l.publishTxToL1(l.killCtx, queue, receiptsCh, daGroup)
-
 		if err != nil {
 			if err != io.EOF {
 				l.Log.Error("Error publishing tx to l1", "err", err)

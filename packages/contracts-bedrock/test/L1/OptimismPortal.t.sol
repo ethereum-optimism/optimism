@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { stdError } from "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
-
+import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+// Contracts
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-// Target contract dependencies
-import { Proxy } from "src/universal/Proxy.sol";
-import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
-import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import "src/libraries/PortalErrors.sol";
+
+// Interfaces
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 contract OptimismPortal_Test is CommonTest {
     address depositor;
@@ -34,6 +34,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function setUp() public virtual override {
+        super.enableLegacyContracts();
         super.setUp();
         depositor = makeAddr("depositor");
     }
@@ -462,7 +463,7 @@ contract OptimismPortal_Test is CommonTest {
                 uint256(0), // value
                 uint64(200_000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+                abi.encodeCall(IL1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
             )
         );
 
@@ -497,7 +498,7 @@ contract OptimismPortal_Test is CommonTest {
             _value: 0,
             _gasLimit: 200_000,
             _isCreation: false,
-            _data: abi.encodeCall(L1Block.setGasPayingToken, (_token, 18, name, symbol))
+            _data: abi.encodeCall(IL1Block.setGasPayingToken, (_token, 18, name, symbol))
         });
 
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
@@ -580,6 +581,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
+        super.enableLegacyContracts();
         super.setUp();
         _defaultTx = Types.WithdrawalTransaction({
             nonce: 0,
@@ -1173,10 +1175,10 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
         vm.startPrank(EIP1967Helper.getAdmin(address(optimismPortal)));
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
-        Proxy(payable(address(optimismPortal))).upgradeToAndCall(
+        IProxy(payable(address(optimismPortal))).upgradeToAndCall(
             address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 2)
         );
-        assertEq(Proxy(payable(address(optimismPortal))).implementation(), address(nextImpl));
+        assertEq(IProxy(payable(address(optimismPortal))).implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected
         bytes32 slot21After = vm.load(address(optimismPortal), bytes32(uint256(21)));

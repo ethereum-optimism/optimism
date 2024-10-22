@@ -10,4 +10,6 @@ interface IAddressManager is IOwnable {
 
     function getAddress(string memory _name) external view returns (address);
     function setAddress(string memory _name, address _address) external;
+
+    function __constructor__() external;
 }

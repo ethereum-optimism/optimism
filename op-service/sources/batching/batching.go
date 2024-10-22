@@ -2,6 +2,7 @@ package batching
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -176,7 +177,7 @@ func (ibc *IterativeBatchCall[K, V]) Result() ([]V, error) {
 	ibc.resetLock.RLock()
 	if atomic.LoadUint32(&ibc.completed) < uint32(len(ibc.requestsKeys)) {
 		ibc.resetLock.RUnlock()
-		return nil, fmt.Errorf("results not available yet, Fetch more first")
+		return nil, errors.New("results not available yet, Fetch more first")
 	}
 	ibc.resetLock.RUnlock()
 	return ibc.requestsValues, nil

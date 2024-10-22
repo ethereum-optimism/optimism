@@ -14,8 +14,10 @@ interface IDelayedVetoable {
 
     function delay() external returns (uint256 delay_);
     function initiator() external returns (address initiator_);
-    function queuedAt(bytes32 callHash) external returns (uint256 queuedAt_);
+    function queuedAt(bytes32 _callHash) external returns (uint256 queuedAt_);
     function target() external returns (address target_);
     function version() external view returns (string memory);
     function vetoer() external returns (address vetoer_);
+
+    function __constructor__(address _vetoer, address _initiator, address _target, uint256 _operatingDelay) external;
 }

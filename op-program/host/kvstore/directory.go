@@ -12,30 +12,30 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// DirectoryKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
-// DirectoryKV is safe for concurrent use with a single DirectoryKV instance.
-// DirectoryKV is safe for concurrent use between different DirectoryKV instances of the same disk directory as long as the
+// directoryKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
+// directoryKV is safe for concurrent use with a single directoryKV instance.
+// directoryKV is safe for concurrent use between different directoryKV instances of the same disk directory as long as the
 // file system supports atomic renames.
-type DirectoryKV struct {
+type directoryKV struct {
 	sync.RWMutex
 	path string
 }
 
-// NewDirectoryKV creates a DirectoryKV that puts/gets pre-images as files in the given directory path.
+// newDirectoryKV creates a directoryKV that puts/gets pre-images as files in the given directory path.
 // The path must exist, or subsequent Put/Get calls will error when it does not.
-func NewDirectoryKV(path string) *DirectoryKV {
-	return &DirectoryKV{path: path}
+func newDirectoryKV(path string) *directoryKV {
+	return &directoryKV{path: path}
 }
 
 // pathKey returns the file path for the given key.
 // This is composed of the first characters of the non-0x-prefixed hex key as a directory, and the rest as the file name.
-func (d *DirectoryKV) pathKey(k common.Hash) string {
+func (d *directoryKV) pathKey(k common.Hash) string {
 	key := k.String()
 	dir, name := key[2:6], key[6:]
 	return path.Join(d.path, dir, name+".txt")
 }
 
-func (d *DirectoryKV) Put(k common.Hash, v []byte) error {
+func (d *directoryKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
 	f, err := openTempFile(d.path, k.String()+".txt.*")
@@ -61,7 +61,7 @@ func (d *DirectoryKV) Put(k common.Hash, v []byte) error {
 	return nil
 }
 
-func (d *DirectoryKV) Get(k common.Hash) ([]byte, error) {
+func (d *directoryKV) Get(k common.Hash) ([]byte, error) {
 	d.RLock()
 	defer d.RUnlock()
 	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, filePermission)
@@ -79,8 +79,8 @@ func (d *DirectoryKV) Get(k common.Hash) ([]byte, error) {
 	return hex.DecodeString(string(dat))
 }
 
-func (d *DirectoryKV) Close() error {
+func (d *directoryKV) Close() error {
 	return nil
 }
 
-var _ KV = (*DirectoryKV)(nil)
+var _ KV = (*directoryKV)(nil)

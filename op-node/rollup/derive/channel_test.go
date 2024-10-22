@@ -18,12 +18,13 @@ type frameValidityTC struct {
 	frames    []Frame
 	shouldErr []bool
 	sizes     []uint64
+	holocene  bool
 }
 
 func (tc *frameValidityTC) Run(t *testing.T) {
 	id := [16]byte{0xff}
 	block := eth.L1BlockRef{}
-	ch := NewChannel(id, block)
+	ch := NewChannel(id, block, tc.holocene)
 
 	if len(tc.frames) != len(tc.shouldErr) || len(tc.frames) != len(tc.sizes) {
 		t.Errorf("lengths should be the same. frames: %d, shouldErr: %d, sizes: %d", len(tc.frames), len(tc.shouldErr), len(tc.sizes))
@@ -32,9 +33,9 @@ func (tc *frameValidityTC) Run(t *testing.T) {
 	for i, frame := range tc.frames {
 		err := ch.AddFrame(frame, block)
 		if tc.shouldErr[i] {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 		require.Equal(t, tc.sizes[i], ch.Size())
 	}
@@ -104,6 +105,36 @@ func TestFrameValidity(t *testing.T) {
 			},
 			shouldErr: []bool{false, false},
 			sizes:     []uint64{207, 411},
+		},
+		{
+			name:     "holocene non first",
+			holocene: true,
+			frames: []Frame{
+				{ID: id, FrameNumber: 2, Data: []byte("four")},
+			},
+			shouldErr: []bool{true},
+			sizes:     []uint64{0},
+		},
+		{
+			name:     "holocene out of order",
+			holocene: true,
+			frames: []Frame{
+				{ID: id, FrameNumber: 0, Data: []byte("four")},
+				{ID: id, FrameNumber: 2, Data: []byte("seven__")},
+			},
+			shouldErr: []bool{false, true},
+			sizes:     []uint64{204, 204},
+		},
+		{
+			name:     "holocene in order",
+			holocene: true,
+			frames: []Frame{
+				{ID: id, FrameNumber: 0, Data: []byte("four")},
+				{ID: id, FrameNumber: 1, Data: []byte("seven__")},
+				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("2_")},
+			},
+			shouldErr: []bool{false, false, false},
+			sizes:     []uint64{204, 411, 613},
 		},
 	}
 

@@ -48,6 +48,10 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 	return dec
 }
 
+// ChannelConfig will perform an estimate of the cost per byte for
+// calldata and for blobs, given current market conditions: it will return
+// the appropriate ChannelConfig depending on which is cheaper. It makes
+// assumptions about the typical makeup of channel data.
 func (dec *DynamicEthChannelConfig) ChannelConfig() ChannelConfig {
 	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
 	defer cancel()

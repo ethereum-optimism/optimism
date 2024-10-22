@@ -20,7 +20,7 @@ VERSION_PATTERN = '^{service}/v\\d+\\.\\d+\\.\\d+(-rc\\.\\d+)?$'
 GIT_TAG_COMMAND = 'git tag -a {tag} -m "{message}"'
 GIT_PUSH_COMMAND = 'git push origin {tag}'
 
-def new_tag(service, version, bump):
+def new_tag(service, version, bump, pre_release):
     if bump == 'major':
         bumped = version.bump_major()
     elif bump == 'minor':
@@ -28,11 +28,18 @@ def new_tag(service, version, bump):
     elif bump == 'patch':
         bumped = version.bump_patch()
     elif bump == 'prerelease':
+        if pre_release:
+            raise Exception('Cannot use --bump=prerelease with --pre-release')
         bumped = version.bump_prerelease()
     elif bump == 'finalize-prerelease':
+        if pre_release:
+            raise Exception('Cannot use --bump=finalize-prerelease with --pre-release')
         bumped = version.finalize_version()
     else:
         raise Exception('Invalid bump type: {}'.format(bump))
+
+    if pre_release:
+        bumped = bumped.bump_prerelease()
     return f'{service}/v{bumped}'
 
 def latest_version(service):
@@ -57,6 +64,7 @@ def main():
     parser = argparse.ArgumentParser(description='Create a new git tag for a service')
     parser.add_argument('--service', type=str, help='The name of the Service')
     parser.add_argument('--bump', type=str, help='The type of bump to apply to the version number')
+    parser.add_argument('--pre-release', help='Treat this tag as a pre-release', action='store_true')
     parser.add_argument('--message', type=str, help='Message to include in git tag', default='[tag-tool-release]')
     args = parser.parse_args()
 
@@ -67,7 +75,7 @@ def main():
     else:
       latest = latest_version(service)
 
-    bumped = new_tag(service, semver.VersionInfo.parse(latest), args.bump)
+    bumped = new_tag(service, semver.VersionInfo.parse(latest), args.bump, args.pre_release)
 
     print(f'latest tag: {latest}')
     print(f'new tag: {bumped}')

@@ -1,6 +1,7 @@
 package batcher_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -98,12 +100,12 @@ func TestBatcherConfig(t *testing.T) {
 			errString: "TargetNumFrames must be at least 1",
 		},
 		{
-			name: "larger 6 TargetNumFrames for blobs",
+			name: fmt.Sprintf("larger %d TargetNumFrames for blobs", eth.MaxBlobsPerBlobTx),
 			override: func(c *batcher.CLIConfig) {
-				c.TargetNumFrames = 7
+				c.TargetNumFrames = eth.MaxBlobsPerBlobTx + 1
 				c.DataAvailabilityType = flags.BlobsType
 			},
-			errString: "too many frames for blob transactions, max 6",
+			errString: fmt.Sprintf("too many frames for blob transactions, max %d", eth.MaxBlobsPerBlobTx),
 		},
 		{
 			name: "invalid compr ratio for ratio compressor",

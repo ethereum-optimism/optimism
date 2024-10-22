@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -35,16 +34,34 @@ var acceleratedPrecompiles = []common.Address{
 	common.BytesToAddress([]byte{0x0a}), // KZG Point Evaluation
 }
 
+type L1Source interface {
+	InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error)
+	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+}
+
+type L1BlobSource interface {
+	GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error)
+	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
+}
+
+type L2Source interface {
+	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
+	CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
+	OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error)
+}
+
 type Prefetcher struct {
 	logger        log.Logger
-	l1Fetcher     sources.L1Source
-	l1BlobFetcher sources.L1BlobSource
-	l2Fetcher     sources.L2Source
+	l1Fetcher     L1Source
+	l1BlobFetcher L1BlobSource
+	l2Fetcher     L2Source
 	lastHint      string
 	kvStore       kvstore.KV
 }
 
-func NewPrefetcher(logger log.Logger, l1Fetcher sources.L1Source, l1BlobFetcher sources.L1BlobSource, l2Fetcher sources.L2Source, kvStore kvstore.KV) *Prefetcher {
+func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l1BlobFetcher L1BlobSource, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
 	return &Prefetcher{
 		logger:        logger,
 		l1Fetcher:     NewRetryingL1Source(logger, l1Fetcher),

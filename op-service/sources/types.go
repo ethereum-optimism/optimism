@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -229,7 +230,7 @@ func (block *RPCBlock) verify() error {
 	}
 	if block.WithdrawalsRoot != nil {
 		if block.Withdrawals == nil {
-			return fmt.Errorf("expected withdrawals")
+			return errors.New("expected withdrawals")
 		}
 		for i, w := range *block.Withdrawals {
 			if w == nil {

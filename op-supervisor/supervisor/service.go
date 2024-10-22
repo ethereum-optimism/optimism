@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -16,6 +14,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
@@ -23,7 +22,6 @@ import (
 
 type Backend interface {
 	frontend.Backend
-	io.Closer
 }
 
 // SupervisorService implements the full-environment bells and whistles around the Supervisor.
@@ -149,6 +147,11 @@ func (su *SupervisorService) initRPCServer(cfg *config.Config) error {
 		Service:       &frontend.QueryFrontend{Supervisor: su.backend},
 		Authenticated: false,
 	})
+	server.AddAPI(rpc.API{
+		Namespace:     "supervisor",
+		Service:       &frontend.UpdatesFrontend{Supervisor: su.backend},
+		Authenticated: false,
+	})
 	su.rpcServer = server
 	return nil
 }
@@ -164,6 +167,7 @@ func (su *SupervisorService) Start(ctx context.Context) error {
 	}
 
 	su.metrics.RecordUp()
+	su.log.Info("JSON-RPC Server started", "endpoint", su.rpcServer.Endpoint())
 	return nil
 }
 
@@ -171,31 +175,41 @@ func (su *SupervisorService) Stop(ctx context.Context) error {
 	if !su.closing.CompareAndSwap(false, true) {
 		return nil // already closing
 	}
-
+	su.log.Info("Stopping JSON-RPC server")
 	var result error
 	if su.rpcServer != nil {
 		if err := su.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}
 	}
+	su.log.Info("Stopped RPC Server")
 	if su.backend != nil {
-		if err := su.backend.Close(); err != nil {
+		if err := su.backend.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close supervisor backend: %w", err))
 		}
 	}
+	su.log.Info("Stopped Backend")
 	if su.pprofService != nil {
 		if err := su.pprofService.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop PProf server: %w", err))
 		}
 	}
+	su.log.Info("Stopped PProf")
 	if su.metricsSrv != nil {
 		if err := su.metricsSrv.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop metrics server: %w", err))
 		}
 	}
+	su.log.Info("JSON-RPC server stopped")
 	return result
 }
 
 func (su *SupervisorService) Stopped() bool {
 	return su.closing.Load()
+}
+
+func (su *SupervisorService) RPC() string {
+	// the RPC endpoint is assumed to be HTTP
+	// TODO(#11032): make this flexible for ws if the server supports it
+	return "http://" + su.rpcServer.Endpoint()
 }

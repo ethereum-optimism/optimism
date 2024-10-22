@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+// Testing
+import { Test } from "forge-std/Test.sol";
+import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
+
+// Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
-
-import { Test } from "forge-std/Test.sol";
-import { FaultDisputeGame_Init, IDisputeGame, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 contract AnchorStateRegistry_Init is FaultDisputeGame_Init {
     function setUp() public virtual override {

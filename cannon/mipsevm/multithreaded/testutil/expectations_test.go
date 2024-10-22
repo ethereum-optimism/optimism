@@ -7,6 +7,7 @@ import (
 	//"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 )
 
@@ -28,6 +29,9 @@ func TestValidate_shouldCatchMutations(t *testing.T) {
 		{name: "PreimageKey", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.PreimageKey = emptyHash }},
 		{name: "PreimageOffset", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.PreimageOffset += 1 }},
 		{name: "Heap", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.Heap += 1 }},
+		{name: "LLReservationStatus", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.LLReservationStatus = e.LLReservationStatus + 1 }},
+		{name: "LLAddress", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.LLAddress += 1 }},
+		{name: "LLOwnerThread", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.LLOwnerThread += 1 }},
 		{name: "ExitCode", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.ExitCode += 1 }},
 		{name: "Exited", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.Exited = !e.Exited }},
 		{name: "Step", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.Step += 1 }},
@@ -42,10 +46,10 @@ func TestValidate_shouldCatchMutations(t *testing.T) {
 		{name: "LeftStackSize", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.LeftStackSize += 1 }},
 		{name: "ActiveThreadId", mut: func(e *ExpectedMTState, st *multithreaded.State) { e.ActiveThreadId += 1 }},
 		{name: "Empty thread expectations", mut: func(e *ExpectedMTState, st *multithreaded.State) {
-			e.threadExpectations = map[uint32]*ExpectedThreadState{}
+			e.threadExpectations = map[arch.Word]*ExpectedThreadState{}
 		}},
 		{name: "Mismatched thread expectations", mut: func(e *ExpectedMTState, st *multithreaded.State) {
-			e.threadExpectations = map[uint32]*ExpectedThreadState{someThread.ThreadId: newExpectedThreadState(someThread)}
+			e.threadExpectations = map[arch.Word]*ExpectedThreadState{someThread.ThreadId: newExpectedThreadState(someThread)}
 		}},
 		{name: "Active threadId", mut: func(e *ExpectedMTState, st *multithreaded.State) {
 			e.threadExpectations[st.GetCurrentThread().ThreadId].ThreadId += 1

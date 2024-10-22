@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -375,4 +374,4 @@ func (m *MockL2Source) ExpectOutputByRoot(root common.Hash, output eth.Output, e
 	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
 }
 
-var _ sources.L2Source = (*MockL2Source)(nil)
+var _ L2Source = (*MockL2Source)(nil)

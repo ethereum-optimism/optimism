@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { console2 as console } from "forge-std/console2.sol";
 import { Script } from "forge-std/Script.sol";
 
-import { LibString } from "solady/src/utils/LibString.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 import { IAutomate as IGelato } from "gelato/interfaces/IAutomate.sol";
 import { LibDataTypes as GelatoDataTypes } from "gelato/libraries/LibDataTypes.sol";
@@ -103,14 +103,14 @@ contract ManageDrippie is Script {
     /// @notice Generates the data for a Gelato task that would trigger a drip.
     /// @param _drippie The drippie contract.
     /// @param _name The name of the drip.
-    /// @return _taskData Gelato task data.
+    /// @return taskData_ Gelato task data.
     function _makeGelatoDripTaskData(
         Drippie _drippie,
         string memory _name
     )
         internal
         view
-        returns (GelatoTaskData memory _taskData)
+        returns (GelatoTaskData memory taskData_)
     {
         // Get the drip interval.
         uint256 dripInterval = _drippie.getDripInterval(_name);
@@ -131,7 +131,7 @@ contract ManageDrippie is Script {
         args[1] = abi.encode(uint128(GelatoDataTypes.TriggerType.TIME), abi.encode(uint128(0), interval));
 
         // Create the task data.
-        _taskData = GelatoTaskData({
+        taskData_ = GelatoTaskData({
             taskCreator: msg.sender,
             execAddress: address(_drippie),
             execData: abi.encodeCall(Drippie.drip, (_name)),
@@ -158,7 +158,7 @@ contract ManageDrippie is Script {
     /// @param _gelato The gelato contract.
     /// @param _drippie The drippie contract.
     /// @param _name The name of the drip being triggered.
-    /// @return _active True if the task is active, false otherwise.
+    /// @return active_ True if the task is active, false otherwise.
     function _isGelatoDripTaskActive(
         IGelato _gelato,
         Drippie _drippie,
@@ -166,7 +166,7 @@ contract ManageDrippie is Script {
     )
         internal
         view
-        returns (bool _active)
+        returns (bool active_)
     {
         GelatoTaskData memory taskData = _makeGelatoDripTaskData({ _drippie: _drippie, _name: _name });
         bytes32 taskId = GelatoTaskId.getTaskId({
@@ -181,7 +181,7 @@ contract ManageDrippie is Script {
         bytes32[] memory taskIds = _gelato.getTaskIdsByUser(taskData.taskCreator);
         for (uint256 i = 0; i < taskIds.length; i++) {
             if (taskIds[i] == taskId) {
-                _active = true;
+                active_ = true;
             }
         }
     }

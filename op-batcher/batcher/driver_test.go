@@ -49,7 +49,8 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 	return NewBatchSubmitter(DriverSetup{
 		Log:              testlog.Logger(t, log.LevelDebug),
 		Metr:             metrics.NoopMetrics,
-		RollupConfig:     &cfg,
+		RollupConfig:     cfg,
+		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
 	}), ep
 }

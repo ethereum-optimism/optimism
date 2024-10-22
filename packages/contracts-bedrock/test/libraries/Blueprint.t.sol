@@ -22,7 +22,7 @@ contract BlueprintHarness {
         return Blueprint.blueprintDeployerBytecode(_initcode);
     }
 
-    function parseBlueprintPreamble(bytes memory _bytecode) public pure returns (Blueprint.Preamble memory) {
+    function parseBlueprintPreamble(bytes memory _bytecode) public view returns (Blueprint.Preamble memory) {
         return Blueprint.parseBlueprintPreamble(_bytecode);
     }
 

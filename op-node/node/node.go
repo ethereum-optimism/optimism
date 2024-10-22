@@ -8,13 +8,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/event"
+	gethevent "github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -24,6 +22,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -51,6 +51,9 @@ type OpNode struct {
 	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+
+	eventSys   event.System
+	eventDrain event.Drainer
 
 	l1Source  *sources.L1Client     // L1 Client to fetch data from
 	l2Driver  *driver.Driver        // L2 Engine to Sync
@@ -126,6 +129,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	if err := n.initTracer(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init the trace: %w", err)
 	}
+	n.initEventSystem()
 	if err := n.initL1(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L1: %w", err)
 	}
@@ -159,6 +163,16 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
+func (n *OpNode) initEventSystem() {
+	// This executor will be configurable in the future, for parallel event processing
+	executor := event.NewGlobalSynchronous(n.resourcesCtx)
+	sys := event.NewSystem(n.log, executor)
+	sys.AddTracer(event.NewMetricsTracer(n.metrics))
+	sys.Register("node", event.DeriverFunc(n.onEvent), event.DefaultRegisterOpts())
+	n.eventSys = sys
+	n.eventDrain = executor
+}
+
 func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
 	if cfg.Tracer != nil {
 		n.tracer = cfg.Tracer
@@ -185,7 +199,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
-	n.l1HeadsSub = event.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
+	n.l1HeadsSub = gethevent.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (gethevent.Subscription, error) {
 		if err != nil {
 			n.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
@@ -248,12 +262,12 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	}
 
 	// initialize the runtime config before unblocking
-	if _, err := retry.Do(ctx, 5, retry.Fixed(time.Second*10), func() (eth.L1BlockRef, error) {
-		ref, err := reload(ctx)
+	if err := retry.Do0(ctx, 5, retry.Fixed(time.Second*10), func() error {
+		_, err := reload(ctx)
 		if errors.Is(err, errNodeHalt) { // don't retry on halt error
 			err = nil
 		}
-		return ref, err
+		return err
 	}); err != nil {
 		return fmt.Errorf("failed to load runtime configuration repeatedly, last error: %w", err)
 	}
@@ -410,7 +424,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	} else {
 		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
+	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
 		n.supervisor, n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA)
 	return nil
 }
@@ -476,7 +490,7 @@ func (n *OpNode) initP2P(cfg *Config) (err error) {
 		panic("p2p node already initialized")
 	}
 	if n.p2pEnabled() {
-		// TODO(protocol-quest/97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
+		// TODO(protocol-quest#97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
 		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.l2Source, n.runCfg, n.metrics, false)
 		if err != nil {
 			return
@@ -507,6 +521,20 @@ func (n *OpNode) Start(ctx context.Context) error {
 	}
 	log.Info("Rollup node started")
 	return nil
+}
+
+// onEvent handles broadcast events.
+// The OpNode itself is a deriver to catch system-critical events.
+// Other event-handling should be encapsulated into standalone derivers.
+func (n *OpNode) onEvent(ev event.Event) bool {
+	switch x := ev.(type) {
+	case rollup.CriticalErrorEvent:
+		n.log.Error("Critical error", "err", x.Err)
+		n.cancel(fmt.Errorf("critical error: %w", x.Err))
+		return true
+	default:
+		return false
+	}
 }
 
 func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
@@ -677,6 +705,10 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		if err := n.l2Driver.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
 		}
+	}
+
+	if n.eventSys != nil {
+		n.eventSys.Stop()
 	}
 
 	if n.safeDB != nil {

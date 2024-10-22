@@ -65,7 +65,7 @@ var LatencyBuckets = []float64{.025, .05, .1, .25, .5, 1, 2.5, 5, 10, 25, 50, 10
 
 func NewPromHTTPRecorder(r *prometheus.Registry, ns string) HTTPRecorder {
 	return &PromHTTPRecorder{
-		// TODO(INF-509): remove this in the future when services opted in to HTTPRequestLatency
+		// TODO: remove this in the future when services opted in to HTTPRequestLatency
 		HTTPRequestDuration: promauto.With(r).NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "http_request_duration_ms",
@@ -104,7 +104,7 @@ func NewPromHTTPRecorder(r *prometheus.Registry, ns string) HTTPRecorder {
 }
 
 func (p *PromHTTPRecorder) RecordHTTPRequestDuration(params *HTTPParams, dur time.Duration) {
-	// TODO(INF-509): remove this in the future when services opted in to new metric
+	// TODO: remove this in the future when services opted in to new metric
 	p.HTTPRequestDuration.WithLabelValues(params.Method, strconv.Itoa(params.StatusCode)).
 		Observe(float64(dur.Milliseconds()))
 

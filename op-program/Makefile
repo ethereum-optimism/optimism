@@ -36,8 +36,10 @@ op-program-client-riscv:
 
 reproducible-prestate:
 	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
-	@echo "Absolute prestate hash:"
+	@echo "Cannon Absolute prestate hash: "
 	@cat ./bin/prestate-proof.json | jq -r .pre
+	@echo "MT-Cannon Absolute prestate hash: "
+	@cat ./bin/prestate-proof-mt.json | jq -r .pre
 .PHONY: reproducible-prestate
 
 clean:
@@ -48,6 +50,9 @@ test:
 
 verify-sepolia: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir /tmp/test-sepolia
+
+verify-devnet: op-program-host op-program-client
+	env GO111MODULE=on go run ./verify/devnet/cmd/devnet.go --l1 http://localhost:8545 --l1.beacon http://localhost:5052 --l2 http://localhost:9545 --datadir /tmp/test-devnet
 
 capture-mainnet-genesis: op-program-host op-program-client
 	rm -rf "$(COMPAT_DIR)/mainnet-genesis" "$(COMPAT_DIR)/mainnet-genesis.tar.bz"
@@ -95,6 +100,7 @@ verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesi
 	test \
 	capture-goerli-verify \
 	verify-sepolia \
+	verify-devnet \
 	capture-mainnet-genesis \
 	capture-sepolia-delta \
 	capture-sepolia-ecotone \

@@ -46,7 +46,7 @@
     "label": "claimData",
     "offset": 0,
     "slot": "2",
-    "type": "struct IFaultDisputeGame.ClaimData[]"
+    "type": "struct FaultDisputeGame.ClaimData[]"
   },
   {
     "bytes": "32",
@@ -81,7 +81,7 @@
     "label": "resolutionCheckpoints",
     "offset": 0,
     "slot": "7",
-    "type": "mapping(uint256 => struct IFaultDisputeGame.ResolutionCheckpoint)"
+    "type": "mapping(uint256 => struct FaultDisputeGame.ResolutionCheckpoint)"
   },
   {
     "bytes": "64",

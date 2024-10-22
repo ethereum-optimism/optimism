@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IOptimismPortalInterop as IOptimismPortal } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
+import { ConfigType } from "src/L2/L1BlockInterop.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -52,8 +52,8 @@ contract SystemConfigInterop is SystemConfig {
         address _dependencyManager
     )
         external
-        initializer
     {
+        // This method has an initializer modifier, and will revert if already initialized.
         initialize({
             _owner: _owner,
             _basefeeScalar: _basefeeScalar,
@@ -68,9 +68,9 @@ contract SystemConfigInterop is SystemConfig {
         Storage.setAddress(DEPENDENCY_MANAGER_SLOT, _dependencyManager);
     }
 
-    /// @custom:semver +interop
+    /// @custom:semver +interop-beta.3
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+interop");
+        return string.concat(super.version(), "+interop-beta.3");
     }
 
     /// @notice Internal setter for the gas paying token address, includes validation.

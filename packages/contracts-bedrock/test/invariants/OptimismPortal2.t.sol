@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-
-import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-import { Constants } from "src/libraries/Constants.sol";
-
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { Types } from "src/libraries/Types.sol";
 
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+// Contracts
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
+import { Types } from "src/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
 import "src/libraries/PortalErrors.sol";
+
+// Interfaces
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
 contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -93,7 +96,6 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
     Types.OutputRootProof internal _outputRootProof;
 
     function setUp() public virtual override {
-        super.enableFaultProofs();
         super.setUp();
 
         _defaultTx = Types.WithdrawalTransaction({
@@ -118,7 +120,7 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
 
         // Create a dispute game with the output root we've proposed.
         _proposedBlockNumber = 0xFF;
-        FaultDisputeGame game = FaultDisputeGame(
+        IFaultDisputeGame game = IFaultDisputeGame(
             payable(
                 address(
                     disputeGameFactory.create(

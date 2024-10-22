@@ -30,9 +30,15 @@ do
     LOG_FILE="${LOGS_DIR}/build-$(echo "${VERSION}" | cut -c 12-).txt"
     echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
     git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
+    rm -rf "${BIN_DIR}"
     make reproducible-prestate >> "${LOG_FILE}" 2>&1
     HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
-    cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
+    if [ -f "${BIN_DIR}/prestate.bin.gz" ]
+    then
+      cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${HASH}.bin.gz"
+    else
+      cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
+    fi
     echo "Built ${VERSION}: ${HASH}"
 done
 

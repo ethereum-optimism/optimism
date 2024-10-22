@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"errors"
 	"io"
 	"math/big"
 	"math/rand"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -86,7 +88,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	require.NoError(t, m.AddL2Block(c))
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
-	require.Equal(t, []*types.Block{a, b, c}, m.blocks)
+	require.Equal(t, queue.Queue[*types.Block]{a, b, c}, m.blocks)
 }
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
@@ -124,7 +126,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
 	cfg.InitRatioCompressor(1, derive.Zlib)
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default
 	require.Empty(m.blocks)
@@ -195,7 +197,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelError)
 	cfg := channelManagerTestConfig(120_000, batchType)
 	cfg.CompressorConfig.TargetOutputSize = 1 // full on first block
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
 	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
@@ -234,7 +236,7 @@ func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		channelManagerTestConfig(10000, batchType),
-		&defaultTestRollupConfig,
+		defaultTestRollupConfig,
 	)
 	m.Clear(eth.BlockID{})
 
@@ -258,7 +260,7 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 	cfg := channelManagerTestConfig(10000, batchType)
 	cfg.CompressorConfig.TargetOutputSize = 1 // full on first block
 	cfg.ChannelTimeout = 1000
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 	a := newMiniL2Block(0)
 	b := newMiniL2BlockWithNumberParent(0, big.NewInt(1), a.Hash())
@@ -294,7 +296,7 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelError)
 	cfg := channelManagerTestConfig(10_000, batchType)
 	cfg.ChannelTimeout = 1000
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
 	numTx := 20 // Adjust number of txs to make 2 frames
@@ -346,7 +348,7 @@ func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
 		TargetNumFrames: 100,
 	}
 	cfg.InitNoneCompressor()
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
 	numTx := 3 // Adjust number of txs to make 2 frames
@@ -398,7 +400,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	cfg := channelManagerTestConfig(100, batchType)
 	cfg.TargetNumFrames = 1000
 	cfg.InitNoneCompressor()
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 	m.Clear(eth.BlockID{})
 
 	a := derivetest.RandomL2BlockWithChainId(rng, 1000, defaultTestRollupConfig.L2ChainID)
@@ -471,7 +473,7 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 	} {
 		test := tt
 		t.Run(test.name, func(t *testing.T) {
-			m := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+			m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
 			m.l1OriginLastClosedChannel = test.safeL1Block
 			require.Nil(t, m.currentChannel)
@@ -482,4 +484,209 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 			require.Equal(t, test.expectedChannelTimeout, m.currentChannel.Timeout())
 		})
 	}
+}
+
+// FakeDynamicEthChannelConfig is a ChannelConfigProvider which always returns
+// either a blob- or calldata-based config depending on its internal chooseBlob
+// switch.
+type FakeDynamicEthChannelConfig struct {
+	DynamicEthChannelConfig
+	chooseBlobs bool
+	assessments int
+}
+
+func (f *FakeDynamicEthChannelConfig) ChannelConfig() ChannelConfig {
+	f.assessments++
+	if f.chooseBlobs {
+		return f.blobConfig
+	}
+	return f.calldataConfig
+}
+
+func newFakeDynamicEthChannelConfig(lgr log.Logger,
+	reqTimeout time.Duration) *FakeDynamicEthChannelConfig {
+
+	calldataCfg := ChannelConfig{
+		MaxFrameSize:    120_000 - 1,
+		TargetNumFrames: 1,
+	}
+	blobCfg := ChannelConfig{
+		MaxFrameSize:    eth.MaxBlobDataSize - 1,
+		TargetNumFrames: 3, // gets closest to amortized fixed tx costs
+		UseBlobs:        true,
+	}
+	calldataCfg.InitNoneCompressor()
+	blobCfg.InitNoneCompressor()
+
+	return &FakeDynamicEthChannelConfig{
+		chooseBlobs: false,
+		DynamicEthChannelConfig: *NewDynamicEthChannelConfig(
+			lgr,
+			reqTimeout,
+			&mockGasPricer{},
+			blobCfg,
+			calldataCfg),
+	}
+}
+
+// TestChannelManager_TxData seeds the channel manager with blocks and triggers the
+// blocks->channels pipeline multiple times. Values are chosen such that a channel
+// is created under one set of market conditions, and then submitted under a different
+// set of market conditions. The test asserts that the DA type is changed at channel
+// submission time.
+func TestChannelManager_TxData(t *testing.T) {
+
+	type TestCase struct {
+		name                            string
+		chooseBlobsWhenChannelCreated   bool
+		chooseBlobsWhenChannelSubmitted bool
+
+		// * One when the channelManager was created
+		// * One when the channel is about to be submitted
+		// * Potentially one more if the replacement channel is about to be submitted,
+		//   this only happens when going from calldata->blobs because
+		//   the channel is no longer ready to send until more data
+		//   is added.
+		numExpectedAssessments int
+	}
+
+	tt := []TestCase{
+		{"blobs->blobs", true, true, 2},
+		{"calldata->calldata", false, false, 2},
+		{"blobs->calldata", true, false, 2},
+		{"calldata->blobs", false, true, 3},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			l := testlog.Logger(t, log.LevelCrit)
+
+			cfg := newFakeDynamicEthChannelConfig(l, 1000)
+
+			cfg.chooseBlobs = tc.chooseBlobsWhenChannelCreated
+			m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+			require.Equal(t, tc.chooseBlobsWhenChannelCreated, m.defaultCfg.UseBlobs)
+
+			// Seed channel manager with a block
+			rng := rand.New(rand.NewSource(99))
+			blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
+			m.blocks = []*types.Block{blockA}
+
+			// Call TxData a first time to trigger blocks->channels pipeline
+			_, err := m.TxData(eth.BlockID{})
+			require.ErrorIs(t, err, io.EOF)
+
+			// The test requires us to have something in the channel queue
+			// at this point, but not yet ready to send and not full
+			require.NotEmpty(t, m.channelQueue)
+			require.False(t, m.channelQueue[0].IsFull())
+
+			// Simulate updated market conditions
+			// by possibly flipping the state of the
+			// fake channel provider
+			l.Info("updating market conditions", "chooseBlobs", tc.chooseBlobsWhenChannelSubmitted)
+			cfg.chooseBlobs = tc.chooseBlobsWhenChannelSubmitted
+
+			// Add a block and call TxData until
+			// we get some data to submit
+			var data txData
+			for {
+				m.blocks = []*types.Block{blockA}
+				data, err = m.TxData(eth.BlockID{})
+				if err == nil && data.Len() > 0 {
+					break
+				}
+				if !errors.Is(err, io.EOF) {
+					require.NoError(t, err)
+				}
+			}
+
+			require.Equal(t, tc.numExpectedAssessments, cfg.assessments)
+			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, data.asBlob)
+			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, m.defaultCfg.UseBlobs)
+		})
+	}
+
+}
+
+// TestChannelManager_Requeue seeds the channel manager with blocks,
+// takes a state snapshot, triggers the blocks->channels pipeline,
+// and then calls Requeue. Finally, it asserts the channel manager's
+// state is equal to the snapshot. It repeats this for a channel
+// which has a pending transaction and verifies that Requeue is then
+// a noop.
+func TestChannelManager_Requeue(t *testing.T) {
+	l := testlog.Logger(t, log.LevelCrit)
+	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+	// Seed channel manager with blocks
+	rng := rand.New(rand.NewSource(99))
+	blockA := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
+	blockB := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
+
+	// This is the snapshot of channel manager state we want to reinstate
+	// when we requeue
+	stateSnapshot := queue.Queue[*types.Block]{blockA, blockB}
+	m.blocks = stateSnapshot
+	require.Empty(t, m.channelQueue)
+
+	// Trigger the blocks -> channelQueue data pipelining
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+	require.NotEmpty(t, m.channelQueue)
+	require.NoError(t, m.processBlocks())
+
+	// Assert that at least one block was processed into the channel
+	require.NotContains(t, m.blocks, blockA)
+
+	// Call the function we are testing
+	m.Requeue(m.defaultCfg)
+
+	// Ensure we got back to the state above
+	require.Equal(t, m.blocks, stateSnapshot)
+	require.Empty(t, m.channelQueue)
+
+	// Trigger the blocks -> channelQueue data pipelining again
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+	require.NotEmpty(t, m.channelQueue)
+	require.NoError(t, m.processBlocks())
+
+	// Assert that at least one block was processed into the channel
+	require.NotContains(t, m.blocks, blockA)
+
+	// Now mark the 0th channel in the queue as already
+	// starting to send on chain
+	channel0 := m.channelQueue[0]
+	channel0.pendingTransactions["foo"] = txData{}
+	require.False(t, channel0.NoneSubmitted())
+
+	// Call the function we are testing
+	m.Requeue(m.defaultCfg)
+
+	// The requeue shouldn't affect the pending channel
+	require.Contains(t, m.channelQueue, channel0)
+
+	require.NotContains(t, m.blocks, blockA)
+}
+func TestChannelManager_ChannelOutFactory(t *testing.T) {
+	type ChannelOutWrapper struct {
+		derive.ChannelOut
+	}
+
+	l := testlog.Logger(t, log.LevelCrit)
+	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+	m.SetChannelOutFactory(func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
+		co, err := NewChannelOut(cfg, rollupCfg)
+		if err != nil {
+			return nil, err
+		}
+		// return a wrapper type, to validate that the factory was correctly used by checking the type below
+		return &ChannelOutWrapper{
+			ChannelOut: co,
+		}, nil
+	})
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+
+	require.IsType(t, &ChannelOutWrapper{}, m.currentChannel.channelBuilder.co)
 }

@@ -2,16 +2,15 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { console } from "forge-std/console.sol";
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Contracts
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
 
 // Interfaces
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
 
 contract TestERC721 is ERC721 {
     constructor() ERC721("Test", "TST") { }
@@ -97,7 +96,7 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
                 (
                     address(l1ERC721Bridge),
                     abi.encodeCall(
-                        L2ERC721Bridge.finalizeBridgeERC721,
+                        IL2ERC721Bridge.finalizeBridgeERC721,
                         (address(remoteToken), address(localToken), alice, alice, tokenId, hex"5678")
                     ),
                     1234

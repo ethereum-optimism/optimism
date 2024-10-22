@@ -6,7 +6,6 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Contracts
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -15,6 +14,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
 
 /// @dev Test ERC721 contract.
 contract TestERC721 is ERC721 {
@@ -96,7 +96,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
                 (
                     address(l2ERC721Bridge),
                     abi.encodeCall(
-                        L2ERC721Bridge.finalizeBridgeERC721,
+                        IL2ERC721Bridge.finalizeBridgeERC721,
                         (address(remoteToken), address(localToken), alice, alice, tokenId, hex"5678")
                     ),
                     1234
@@ -177,7 +177,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
                 (
                     address(Predeploys.L2_ERC721_BRIDGE),
                     abi.encodeCall(
-                        L2ERC721Bridge.finalizeBridgeERC721,
+                        IL2ERC721Bridge.finalizeBridgeERC721,
                         (address(remoteToken), address(localToken), alice, bob, tokenId, hex"5678")
                     ),
                     1234

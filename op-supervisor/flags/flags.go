@@ -3,7 +3,6 @@ package flags
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -11,6 +10,8 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 const EnvVarPrefix = "OP_SUPERVISOR"
@@ -30,6 +31,12 @@ var (
 		Usage:   "Directory to store data generated as part of responding to games",
 		EnvVars: prefixEnvVars("DATADIR"),
 	}
+	DependencySetFlag = &cli.PathFlag{
+		Name:      "dependency-set",
+		Usage:     "Dependency-set configuration, point at JSON file.",
+		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		TakesFile: true,
+	}
 	MockRunFlag = &cli.BoolFlag{
 		Name:    "mock-run",
 		Usage:   "Mock run, no actual backend used, just presenting the service",
@@ -41,6 +48,7 @@ var (
 var requiredFlags = []cli.Flag{
 	L2RPCsFlag,
 	DataDirFlag,
+	DependencySetFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -71,13 +79,14 @@ func CheckRequired(ctx *cli.Context) error {
 
 func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
 	return &config.Config{
-		Version:       version,
-		LogConfig:     oplog.ReadCLIConfig(ctx),
-		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:   oppprof.ReadCLIConfig(ctx),
-		RPC:           oprpc.ReadCLIConfig(ctx),
-		MockRun:       ctx.Bool(MockRunFlag.Name),
-		L2RPCs:        ctx.StringSlice(L2RPCsFlag.Name),
-		Datadir:       ctx.Path(DataDirFlag.Name),
+		Version:             version,
+		LogConfig:           oplog.ReadCLIConfig(ctx),
+		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:         oppprof.ReadCLIConfig(ctx),
+		RPC:                 oprpc.ReadCLIConfig(ctx),
+		DependencySetSource: &depset.JsonDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+		MockRun:             ctx.Bool(MockRunFlag.Name),
+		L2RPCs:              ctx.StringSlice(L2RPCsFlag.Name),
+		Datadir:             ctx.Path(DataDirFlag.Name),
 	}
 }

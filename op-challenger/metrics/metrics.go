@@ -38,8 +38,6 @@ type Metricer interface {
 	RecordGameStep()
 	RecordGameMove()
 	RecordGameL2Challenge()
-	RecordVmExecutionTime(vmType string, t time.Duration)
-	RecordVmMemoryUsed(vmType string, memoryUsed uint64)
 	RecordClaimResolutionTime(t float64)
 	RecordGameActTime(t float64)
 
@@ -60,6 +58,10 @@ type Metricer interface {
 	DecActiveExecutors()
 	IncIdleExecutors()
 	DecIdleExecutors()
+
+	// Record vm execution metrics
+	VmMetricer
+	VmMetrics(vmType string) *VmMetrics
 }
 
 // Metrics implementation must implement RegistryMetricer to allow the metrics server to work.
@@ -338,4 +340,8 @@ func (m *Metrics) RecordGameUpdateScheduled() {
 
 func (m *Metrics) RecordGameUpdateCompleted() {
 	m.inflightGames.Sub(1)
+}
+
+func (m *Metrics) VmMetrics(vmType string) *VmMetrics {
+	return NewVmMetrics(m, vmType)
 }

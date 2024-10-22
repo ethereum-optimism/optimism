@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 )
 
 func createTraceProvider(
+	ctx context.Context,
 	logger log.Logger,
 	m vm.Metricer,
 	cfg *config.Config,
@@ -28,44 +30,44 @@ func createTraceProvider(
 ) (types.TraceProvider, error) {
 	switch traceType {
 	case types.TraceTypeCannon:
-		vmConfig := vm.NewOpProgramServerExecutor()
-		stateConverter := cannon.NewStateConverter()
-		prestate, err := getPrestate(prestateHash, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
+		serverExecutor := vm.NewOpProgramServerExecutor(logger)
+		stateConverter := cannon.NewStateConverter(cfg.Cannon)
+		prestate, err := getPrestate(ctx, prestateHash, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return cannon.NewTraceProvider(logger, m, cfg.Cannon, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+		return cannon.NewTraceProvider(logger, m, cfg.Cannon, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsterisc:
-		vmConfig := vm.NewOpProgramServerExecutor()
-		stateConverter := asterisc.NewStateConverter()
-		prestate, err := getPrestate(prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
+		serverExecutor := vm.NewOpProgramServerExecutor(logger)
+		stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
+		prestate, err := getPrestate(ctx, prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsteriscKona:
-		vmConfig := vm.NewKonaServerExecutor()
-		stateConverter := asterisc.NewStateConverter()
-		prestate, err := getPrestate(prestateHash, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
+		serverExecutor := vm.NewKonaExecutor()
+		stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
+		prestate, err := getPrestate(ctx, prestateHash, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
-		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	}
 	return nil, errors.New("invalid trace type")
 }
 
-func getPrestate(prestateHash common.Hash, prestateBaseUrl *url.URL, prestatePath string, dataDir string, stateConverter vm.StateConverter) (string, error) {
+func getPrestate(ctx context.Context, prestateHash common.Hash, prestateBaseUrl *url.URL, prestatePath string, dataDir string, stateConverter vm.StateConverter) (string, error) {
 	prestateSource := prestates.NewPrestateSource(
 		prestateBaseUrl,
 		prestatePath,
 		filepath.Join(dataDir, "prestates"),
 		stateConverter)
 
-	prestate, err := prestateSource.PrestatePath(prestateHash)
+	prestate, err := prestateSource.PrestatePath(ctx, prestateHash)
 	if err != nil {
 		return "", fmt.Errorf("failed to get prestate %v: %w", prestateHash, err)
 	}

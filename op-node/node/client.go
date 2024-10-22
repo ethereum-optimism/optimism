@@ -250,9 +250,9 @@ func (cfg *SupervisorEndpointConfig) Check() error {
 }
 
 func (cfg *SupervisorEndpointConfig) SupervisorClient(ctx context.Context, log log.Logger) (*sources.SupervisorClient, error) {
-	cl, err := client.NewRPC(ctx, log, cfg.SupervisorAddr)
+	cl, err := client.NewRPC(ctx, log, cfg.SupervisorAddr, client.WithLazyDial())
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial supervisor RPC: %w", err)
+		return nil, fmt.Errorf("failed to create supervisor RPC: %w", err)
 	}
 	return sources.NewSupervisorClient(cl), nil
 }

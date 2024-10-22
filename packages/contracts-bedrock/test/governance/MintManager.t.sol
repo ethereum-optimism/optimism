@@ -1,30 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Target contract dependencies
+// Contracts
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
-
-// Target contract
 import { MintManager } from "src/governance/MintManager.sol";
+
+// Interfaces
+import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
+import { IMintManager } from "src/governance/interfaces/IMintManager.sol";
 
 contract MintManager_Initializer is CommonTest {
     address constant owner = address(0x1234);
     address constant rando = address(0x5678);
-    GovernanceToken internal gov;
-    MintManager internal manager;
+    IGovernanceToken internal gov;
+    IMintManager internal manager;
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
 
         vm.prank(owner);
-        gov = new GovernanceToken();
+        gov = IGovernanceToken(address(new GovernanceToken()));
 
         vm.prank(owner);
-        manager = new MintManager(owner, address(gov));
+        manager = IMintManager(address(new MintManager(owner, address(gov))));
 
         vm.prank(owner);
         gov.transferOwnership(address(manager));

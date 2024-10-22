@@ -2,8 +2,10 @@
 pragma solidity 0.8.25;
 
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
+import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
@@ -12,14 +14,14 @@ import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
 error NotEntered();
 
+/// @notice Thrown when attempting to relay a message where payload origin is not L2ToL2CrossDomainMessenger.
+error IdOriginNotL2ToL2CrossDomainMessenger();
+
+/// @notice Thrown when the payload provided to the relay is not a SentMessage event.
+error EventPayloadNotSentMessage();
+
 /// @notice Thrown when attempting to send a message to the chain that the message is being sent from.
 error MessageDestinationSameChain();
-
-/// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not CrossL2Inbox.
-error RelayMessageCallerNotCrossL2Inbox();
-
-/// @notice Thrown when attempting to relay a message where CrossL2Inbox's origin is not L2ToL2CrossDomainMessenger.
-error CrossL2InboxOriginNotL2ToL2CrossDomainMessenger();
 
 /// @notice Thrown when attempting to relay a message whose destination chain is not the chain relaying it.
 error MessageDestinationNotRelayChain();
@@ -35,6 +37,9 @@ error MessageAlreadyRelayed();
 
 /// @notice Thrown when a reentrant call is detected.
 error ReentrantCall();
+
+/// @notice Thrown when a call to the target contract during message relay fails.
+error TargetCallFailed();
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
@@ -53,12 +58,17 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SOURCE_SLOT =
         0x711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee7;
 
+    /// @notice Event selector for the SentMessage event. Will be removed in favor of reading
+    //          the `selector` property directly once crytic/slithe/#2566 is fixed.
+    bytes32 internal constant SENT_MESSAGE_EVENT_SELECTOR =
+        0x382409ac69001e11931a28435afef442cbfd20d9891907e8fa373ba7d351f320;
+
     /// @notice Current message version identifier.
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.0-beta.9
+    string public constant version = "1.0.0-beta.9";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -69,27 +79,45 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     ///         message.
     uint240 internal msgNonce;
 
-    /// @notice Emitted whenever a message is successfully relayed on this chain.
-    /// @param messageHash Hash of the message that was relayed.
-    event RelayedMessage(bytes32 indexed messageHash);
+    /// @notice Emitted whenever a message is sent to a destination
+    /// @param destination  Chain ID of the destination chain.
+    /// @param target       Target contract or wallet address.
+    /// @param messageNonce Nonce associated with the messsage sent
+    /// @param sender       Address initiating this message call
+    /// @param message      Message payload to call target with.
+    event SentMessage(
+        uint256 indexed destination, address indexed target, uint256 indexed messageNonce, address sender, bytes message
+    );
 
-    /// @notice Emitted whenever a message fails to be relayed on this chain.
-    /// @param messageHash Hash of the message that failed to be relayed.
-    event FailedRelayedMessage(bytes32 indexed messageHash);
+    /// @notice Emitted whenever a message is successfully relayed on this chain.
+    /// @param source       Chain ID of the source chain.
+    /// @param messageNonce Nonce associated with the messsage sent
+    /// @param messageHash  Hash of the message that was relayed.
+    event RelayedMessage(uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash);
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
-    /// @return _sender Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() external view onlyEntered returns (address _sender) {
+    /// @return sender_ Address of the sender of the current cross domain message.
+    function crossDomainMessageSender() external view onlyEntered returns (address sender_) {
         assembly {
-            _sender := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
+            sender_ := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
         }
     }
 
     /// @notice Retrieves the source of the current cross domain message. If not entered, reverts.
-    /// @return _source Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() external view onlyEntered returns (uint256 _source) {
+    /// @return source_ Chain ID of the source of the current cross domain message.
+    function crossDomainMessageSource() external view onlyEntered returns (uint256 source_) {
         assembly {
-            _source := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
+            source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
+        }
+    }
+
+    /// @notice Retrieves the context of the current cross domain message. If not entered, reverts.
+    /// @return sender_ Address of the sender of the current cross domain message.
+    /// @return source_ Chain ID of the source of the current cross domain message.
+    function crossDomainMessageContext() external view onlyEntered returns (address sender_, uint256 source_) {
+        assembly {
+            sender_ := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
+            source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
         }
     }
 
@@ -99,67 +127,82 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
-    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external {
+    /// @return The hash of the message being sent, used to track whether the message has successfully been relayed.
+    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external returns (bytes32) {
         if (_destination == block.chainid) revert MessageDestinationSameChain();
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
 
-        bytes memory data = abi.encodeCall(
-            L2ToL2CrossDomainMessenger.relayMessage,
-            (_destination, block.chainid, messageNonce(), msg.sender, _target, _message)
-        );
-        assembly {
-            log0(add(data, 0x20), mload(data))
-        }
+        uint256 nonce = messageNonce();
+        emit SentMessage(_destination, _target, nonce, msg.sender, _message);
+
         msgNonce++;
+
+        return Hashing.hashL2toL2CrossDomainMessage({
+            _destination: _destination,
+            _source: block.chainid,
+            _nonce: nonce,
+            _sender: msg.sender,
+            _target: _target,
+            _message: _message
+        });
     }
 
-    /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only be executed via
-    ///         cross-chain call from the other messenger OR if the message was already received once and is currently
-    ///         being replayed.
-    /// @param _destination Chain ID of the destination chain.
-    /// @param _source      Chain ID of the source chain.
-    /// @param _nonce       Nonce of the message being relayed.
-    /// @param _sender      Address of the user who sent the message.
-    /// @param _target      Address that the message is targeted at.
-    /// @param _message     Message payload to call target with.
+    /// @notice Relays a message that was sent by the other L2ToL2CrossDomainMessenger contract. Can only be executed
+    ///         via cross chain call from the other messenger OR if the message was already received once and is
+    ///         currently being replayed.
+    /// @param _id          Identifier of the SentMessage event to be relayed
+    /// @param _sentMessage Message payload of the `SentMessage` event
     function relayMessage(
-        uint256 _destination,
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes memory _message
+        ICrossL2Inbox.Identifier calldata _id,
+        bytes calldata _sentMessage
     )
         external
         payable
         nonReentrant
     {
-        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayMessageCallerNotCrossL2Inbox();
-        if (CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin() != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
-            revert CrossL2InboxOriginNotL2ToL2CrossDomainMessenger();
-        }
-        if (_destination != block.chainid) revert MessageDestinationNotRelayChain();
-        if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
-        if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
-            revert MessageTargetL2ToL2CrossDomainMessenger();
+        // Ensure the log came from the messenger. Since the log origin is the CDM, there isn't a scenario where
+        // this can be invoked from the CrossL2Inbox as the SentMessage log is not calldata for this function
+        if (_id.origin != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+            revert IdOriginNotL2ToL2CrossDomainMessenger();
         }
 
-        bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
+        // Signal that this is a cross chain call that needs to have the identifier validated
+        CrossL2Inbox(Predeploys.CROSS_L2_INBOX).validateMessage(_id, keccak256(_sentMessage));
+
+        // Decode the payload
+        (uint256 destination, address target, uint256 nonce, address sender, bytes memory message) =
+            _decodeSentMessagePayload(_sentMessage);
+
+        // Assert invariants on the message
+        if (destination != block.chainid) revert MessageDestinationNotRelayChain();
+        if (target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
+        if (target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
+
+        uint256 source = _id.chainId;
+        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage({
+            _destination: destination,
+            _source: source,
+            _nonce: nonce,
+            _sender: sender,
+            _target: target,
+            _message: message
+        });
+
         if (successfulMessages[messageHash]) {
             revert MessageAlreadyRelayed();
         }
 
-        _storeMessageMetadata(_source, _sender);
+        _storeMessageMetadata(source, sender);
 
-        bool success = SafeCall.call(_target, msg.value, _message);
+        bool success = SafeCall.call(target, msg.value, message);
 
-        if (success) {
-            successfulMessages[messageHash] = true;
-            emit RelayedMessage(messageHash);
-        } else {
-            emit FailedRelayedMessage(messageHash);
+        if (!success) {
+            revert TargetCallFailed();
         }
+
+        successfulMessages[messageHash] = true;
+        emit RelayedMessage(source, nonce, messageHash);
 
         _storeMessageMetadata(0, address(0));
     }
@@ -179,5 +222,21 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
         }
+    }
+
+    function _decodeSentMessagePayload(bytes calldata _payload)
+        internal
+        pure
+        returns (uint256 destination_, address target_, uint256 nonce_, address sender_, bytes memory message_)
+    {
+        // Validate Selector (also reverts if LOG0 with no topics)
+        bytes32 selector = abi.decode(_payload[:32], (bytes32));
+        if (selector != SENT_MESSAGE_EVENT_SELECTOR) revert EventPayloadNotSentMessage();
+
+        // Topics
+        (destination_, target_, nonce_) = abi.decode(_payload[32:128], (uint256, address, uint256));
+
+        // Data
+        (sender_, message_) = abi.decode(_payload[128:], (address, bytes));
     }
 }
