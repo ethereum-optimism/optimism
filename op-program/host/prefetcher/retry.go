@@ -142,6 +142,26 @@ func (s *RetryingL2Source) OutputByRoot(ctx context.Context, root common.Hash) (
 	})
 }
 
+func (s *RetryingL2Source) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
+	return retry.Do(ctx, maxAttempts, s.strategy, func() (*eth.AccountResult, error) {
+		r, err := s.source.GetProof(ctx, address, storage, blockTag)
+		if err != nil {
+			s.logger.Warn("Failed to fetch proof", "address", address, "storage", storage, "blockTag", blockTag, "err", err)
+		}
+		return r, err
+	})
+}
+
+func (s *RetryingL2Source) ExecutionWitness(ctx context.Context, blockNum uint64) (*eth.ExecutionWitness, error) {
+	return retry.Do(ctx, maxAttempts, s.strategy, func() (*eth.ExecutionWitness, error) {
+		w, err := s.source.ExecutionWitness(ctx, blockNum)
+		if err != nil {
+			s.logger.Warn("Failed to fetch execution witness", "blockNum", blockNum, "err", err)
+		}
+		return w, err
+	})
+}
+
 func NewRetryingL2Source(logger log.Logger, source L2Source) *RetryingL2Source {
 	return &RetryingL2Source{
 		logger:   logger,

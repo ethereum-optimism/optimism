@@ -596,27 +596,31 @@ func (s *unreliableKvStore) Put(k common.Hash, v []byte) error {
 	return s.KV.Put(k, v)
 }
 
-type l2Client struct {
+type l2Source struct {
 	*testutils.MockL2Client
 	*testutils.MockDebugClient
 }
 
-func (m *l2Client) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
+func (m *l2Source) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
 	out := m.Mock.MethodCalled("OutputByRoot", root)
 	return out[0].(eth.Output), *out[1].(*error)
 }
 
-func (m *l2Client) ExpectOutputByRoot(root common.Hash, output eth.Output, err error) {
+func (m *l2Source) ExecutionWitness(ctx context.Context, blockNumber uint64) (*eth.ExecutionWitness, error) {
+	return nil, fmt.Errorf("ExecutionWitness not implemented in mock")
+}
+
+func (m *l2Source) ExpectOutputByRoot(root common.Hash, output eth.Output, err error) {
 	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
 }
 
-func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *testutils.MockBlobsFetcher, *l2Client, kvstore.KV) {
+func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *testutils.MockBlobsFetcher, *l2Source, kvstore.KV) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	kv := kvstore.NewMemKV()
 
 	l1Source := new(testutils.MockL1Source)
 	l1BlobSource := new(testutils.MockBlobsFetcher)
-	l2Source := &l2Client{
+	l2Source := &l2Source{
 		MockL2Client:    new(testutils.MockL2Client),
 		MockDebugClient: new(testutils.MockDebugClient),
 	}
