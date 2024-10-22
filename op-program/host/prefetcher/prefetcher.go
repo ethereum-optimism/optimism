@@ -1,6 +1,7 @@
 package prefetcher
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -55,6 +56,10 @@ type L2Source interface {
 	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
 	CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
 	OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error)
+	// GetProof returns an account proof result, with any optional requested storage proofs.
+	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
+	// ExecutionWitness returns the execution witness for the given block hash.
+	ExecutionWitness(ctx context.Context, blockNum uint64) (*eth.ExecutionWitness, error)
 }
 
 type Prefetcher struct {
@@ -62,8 +67,13 @@ type Prefetcher struct {
 	l1Fetcher     L1Source
 	l1BlobFetcher L1BlobSource
 	l2Fetcher     L2Source
-	lastHint      string
 	kvStore       kvstore.KV
+
+	// lastHint is the last hint that was received, which should relate to the next preimage that is requested.
+	lastHint string
+
+	// lastBulkHint is the last execution witness or account proof hint that was requested. These provide multiple preimages, including those which should relate to the next preimage. Does a bulkier fetch than lastHint.
+	lastBulkHint string
 }
 
 func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l1BlobFetcher L1BlobSource, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
@@ -78,7 +88,14 @@ func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l1BlobFetcher L1BlobSo
 
 func (p *Prefetcher) Hint(hint string) error {
 	p.logger.Trace("Received hint", "hint", hint)
-	p.lastHint = hint
+	hintType, _, err := parseHint(hint)
+
+	// ignore parsing error, and assume non-bulk hint
+	if err == nil && (hintType == l2.HintL2ExecutionWitness || hintType == l2.HintL2AccountProof) {
+		p.lastBulkHint = hint
+	} else {
+		p.lastHint = hint
+	}
 	return nil
 }
 
@@ -101,6 +118,83 @@ func (p *Prefetcher) GetPreimage(ctx context.Context, key common.Hash) ([]byte, 
 	return pre, err
 }
 
+// bulkPrefetch prefetches multiple preimages at once. This is used for execution witness and account proof hints.
+func (p *Prefetcher) bulkPrefetch(ctx context.Context, hint string) error {
+	hintType, hintBytes, err := parseHint(hint)
+	if err != nil {
+		return err
+	}
+
+	p.logger.Debug("Prefetching", "type", hintType, "bytes", hexutil.Bytes(hintBytes))
+	switch hintType {
+	case l2.HintL2AccountProof:
+		// account proofs include the block number and requested address in the hint
+		if len(hintBytes) != 28 {
+			return fmt.Errorf("invalid L2 account proof hint: %x", hintBytes)
+		}
+
+		blockNumBytes := hintBytes[:8]
+		blockNum := binary.BigEndian.Uint64(blockNumBytes)
+
+		address := common.Address(hintBytes[8:])
+		result, err := p.l2Fetcher.GetProof(ctx, address, []common.Hash{{}}, hexutil.EncodeUint64(blockNum))
+		if err != nil {
+			return fmt.Errorf("failed to fetch account proof for address %s: %w", address, err)
+		}
+
+		if len(result.StorageProof) == 0 {
+			return fmt.Errorf("no storage proof found for address: %s", address)
+		}
+
+		if err := p.storeNodes(result.AccountProof); err != nil {
+			return fmt.Errorf("failed to store account proof state: %w", err)
+		}
+
+		// set the preimage for the account storage root
+		if err := p.storeNodes(result.StorageProof[0].Proof); err != nil {
+			return fmt.Errorf("failed to store storage proof state: %w", err)
+		}
+
+		return nil
+
+	case l2.HintL2ExecutionWitness:
+		// 8 bytes for requested block number
+		if len(hintBytes) != 8 {
+			return fmt.Errorf("invalid L2 execution witness hint: %x", hint)
+		}
+
+		blockNum := binary.BigEndian.Uint64(hintBytes)
+		result, err := p.l2Fetcher.ExecutionWitness(ctx, blockNum)
+		if err != nil {
+			return fmt.Errorf("failed to fetch L2 execution witness for block %d: %w", blockNum, err)
+		}
+
+		values := make([]hexutil.Bytes, 0, len(result.State)+len(result.Codes))
+		for _, valueHex := range result.State {
+			valueBytes, err := hexutil.Decode(valueHex)
+			if err != nil {
+				return fmt.Errorf("failed to parse execution witness state: %w", err)
+			}
+
+			values = append(values, valueBytes)
+		}
+
+		for _, valueHex := range result.Codes {
+			valueBytes, err := hexutil.Decode(valueHex)
+			if err != nil {
+				return fmt.Errorf("failed to parse execution witness codes: %w", err)
+			}
+
+			values = append(values, valueBytes)
+		}
+
+		return p.storeNodes(values)
+	default:
+	}
+	return fmt.Errorf("unknown bulk hint type: %v", hintType)
+}
+
+// prefetch fetches the lastHint and stores the preimages in the kv store. This may call bulkPrefetch if available which will store multiple preimages at a time.
 func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 	hintType, hintBytes, err := parseHint(hint)
 	if err != nil {
@@ -258,6 +352,28 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return err
 		}
 		return p.storeTransactions(txs)
+	case l2.HintL2Output:
+		if len(hintBytes) != 32 {
+			return fmt.Errorf("invalid L2 output hint: %x", hint)
+		}
+		hash := common.Hash(hintBytes)
+		output, err := p.l2Fetcher.OutputByRoot(ctx, hash)
+		if err != nil {
+			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
+		}
+		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
+	}
+
+	// some L2 state data can be fetched in bulk from block execution witnesses instead of direction from the MPT
+	// if we have a bulk hint, we should use it instead of the last hint (will fallback to last hint after bulk hint is cleared and request is retried)
+	if p.lastBulkHint != "" {
+		bulkHint := p.lastBulkHint
+		p.lastBulkHint = ""
+		return p.bulkPrefetch(ctx, bulkHint)
+	}
+
+	switch hintType {
+
 	case l2.HintL2StateNode:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L2 state node hint: %x", hint)
@@ -278,16 +394,6 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hash, err)
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), code)
-	case l2.HintL2Output:
-		if len(hintBytes) != 32 {
-			return fmt.Errorf("invalid L2 output hint: %x", hint)
-		}
-		hash := common.Hash(hintBytes)
-		output, err := p.l2Fetcher.OutputByRoot(ctx, hash)
-		if err != nil {
-			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
-		}
-		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 	}
 	return fmt.Errorf("unknown hint type: %v", hintType)
 }
@@ -310,6 +416,10 @@ func (p *Prefetcher) storeTransactions(txs types.Transactions) error {
 
 func (p *Prefetcher) storeTrieNodes(values []hexutil.Bytes) error {
 	_, nodes := mpt.WriteTrie(values)
+	return p.storeNodes(nodes)
+}
+
+func (p *Prefetcher) storeNodes(nodes []hexutil.Bytes) error {
 	for _, node := range nodes {
 		key := preimage.Keccak256Key(crypto.Keccak256Hash(node)).PreimageKey()
 		if err := p.kvStore.Put(key, node); err != nil {
@@ -319,18 +429,28 @@ func (p *Prefetcher) storeTrieNodes(values []hexutil.Bytes) error {
 	return nil
 }
 
-// parseHint parses a hint string in wire protocol. Returns the hint type, requested hash and error (if any).
+// parseHint parses a hint string in wire protocol. Returns the hint type, concatenation of requested arguments, and error (if any).
 func parseHint(hint string) (string, []byte, error) {
-	hintType, bytesStr, found := strings.Cut(hint, " ")
-	if !found {
+	splitStr := strings.Split(hint, " ")
+	if len(splitStr) < 2 {
 		return "", nil, fmt.Errorf("unsupported hint: %s", hint)
 	}
 
-	hintBytes, err := hexutil.Decode(bytesStr)
-	if err != nil {
-		return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", bytesStr)
+	// split command from args
+	hintType := splitStr[0]
+	hintPayloadComponents := splitStr[1:]
+
+	decodedArgs := make([][]byte, len(hintPayloadComponents))
+	for _, argHex := range hintPayloadComponents {
+		argBytes, err := hexutil.Decode(argHex)
+		if err != nil {
+			return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", hintPayloadComponents)
+		}
+
+		decodedArgs = append(decodedArgs, argBytes)
 	}
-	return hintType, hintBytes, nil
+
+	return hintType, bytes.Join(decodedArgs, []byte{}), nil
 }
 
 func getPrecompiledContract(address common.Address) vm.PrecompiledContract {

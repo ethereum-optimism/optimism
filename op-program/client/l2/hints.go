@@ -1,17 +1,22 @@
 package l2
 
 import (
+	"encoding/binary"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 const (
-	HintL2BlockHeader  = "l2-block-header"
-	HintL2Transactions = "l2-transactions"
-	HintL2Code         = "l2-code"
-	HintL2StateNode    = "l2-state-node"
-	HintL2Output       = "l2-output"
+	HintL2BlockHeader      = "l2-block-header"
+	HintL2Transactions     = "l2-transactions"
+	HintL2Code             = "l2-code"
+	HintL2StateNode        = "l2-state-node"
+	HintL2Output           = "l2-output"
+	HintL2AccountProof     = "l2-account-proof"
+	HintL2ExecutionWitness = "l2-execution-witness"
 )
 
 type BlockHeaderHint common.Hash
@@ -52,4 +57,30 @@ var _ preimage.Hint = L2OutputHint{}
 
 func (l L2OutputHint) Hint() string {
 	return HintL2Output + " " + (common.Hash)(l).String()
+}
+
+type AccountProofHint struct {
+	BlockNumber uint64
+	Address     common.Address
+}
+
+var _ preimage.Hint = AccountProofHint{}
+
+func (l AccountProofHint) Hint() string {
+	var blockNumBytes [8]byte
+
+	binary.BigEndian.PutUint64(blockNumBytes[:], l.BlockNumber)
+
+	return HintL2AccountProof + " " + hexutil.Encode(blockNumBytes[:]) + " " + l.Address.Hex()
+}
+
+type ExecutionWitnessHint uint64
+
+var _ preimage.Hint = ExecutionWitnessHint(0)
+
+func (l ExecutionWitnessHint) Hint() string {
+	var blockNumBytes [8]byte
+	binary.BigEndian.PutUint64(blockNumBytes[:], uint64(l))
+
+	return HintL2ExecutionWitness + " " + hexutil.Encode(blockNumBytes[:])
 }
