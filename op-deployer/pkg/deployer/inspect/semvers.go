@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/big"
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -13,8 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/urfave/cli/v2"
-	"math/big"
-	"time"
 )
 
 var versionSelector = []byte{0x54, 0xfd, 0x4d, 0x50}

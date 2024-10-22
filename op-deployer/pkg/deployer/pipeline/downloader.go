@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,6 +14,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 
