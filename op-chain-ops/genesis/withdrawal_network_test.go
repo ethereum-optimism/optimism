@@ -91,6 +91,12 @@ func TestWithdrawalNetworkInlineJSON(t *testing.T) {
 		"sequencerFeeVaultWithdrawalNetwork": "local"
 	}`
 
+	intJsonString := `{
+		"baseFeeVaultWithdrawalNetwork": 0,
+		"l1FeeVaultWithdrawalNetwork": 1,
+		"sequencerFeeVaultWithdrawalNetwork": 1
+	}`
+
 	t.Run("StringMarshaling", func(t *testing.T) {
 		decoded := new(tempNetworks)
 		require.NoError(t, json.Unmarshal([]byte(jsonString), decoded))
@@ -101,15 +107,10 @@ func TestWithdrawalNetworkInlineJSON(t *testing.T) {
 
 		encoded, err := json.Marshal(decoded)
 		require.NoError(t, err)
-		require.JSONEq(t, jsonString, string(encoded))
+		require.JSONEq(t, intJsonString, string(encoded))
 	})
 
 	t.Run("IntMarshaling", func(t *testing.T) {
-		intJsonString := `{
-			"baseFeeVaultWithdrawalNetwork": 0,
-			"l1FeeVaultWithdrawalNetwork": 1,
-			"sequencerFeeVaultWithdrawalNetwork": 1
-		}`
 
 		decoded := new(tempNetworks)
 		require.NoError(t, json.Unmarshal([]byte(intJsonString), decoded))
@@ -120,7 +121,7 @@ func TestWithdrawalNetworkInlineJSON(t *testing.T) {
 
 		encoded, err := json.Marshal(decoded)
 		require.NoError(t, err)
-		require.JSONEq(t, jsonString, string(encoded))
+		require.JSONEq(t, intJsonString, string(encoded))
 	})
 }
 
