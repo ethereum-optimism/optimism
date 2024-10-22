@@ -440,6 +440,11 @@ func (h *Host) HasPrecompileOverride(addr common.Address) bool {
 	return ok
 }
 
+// GetCode returns the code of an account from the state.
+func (h *Host) GetCode(addr common.Address) []byte {
+	return h.state.GetCode(addr)
+}
+
 // onEnter is a trace-hook, which we use to apply changes to the state-DB, to simulate isolated broadcast calls,
 // for better gas estimation of the exact broadcast call execution.
 func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {

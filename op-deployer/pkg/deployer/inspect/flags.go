@@ -61,6 +61,14 @@ var Commands = []*cli.Command{
 		Action:    DeployConfigCLI,
 		Flags:     Flags,
 	},
+	{
+		Name:      "l2-semvers",
+		Usage:     "outputs the semvers for all L2 chains",
+		Args:      true,
+		ArgsUsage: "<l2-chain-id>",
+		Action:    L2SemversCLI,
+		Flags:     Flags,
+	},
 }
 
 type cliConfig struct {
