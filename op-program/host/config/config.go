@@ -56,7 +56,13 @@ type Config struct {
 	L2Head common.Hash
 	// L2OutputRoot is the agreed L2 output root to start derivation from
 	L2OutputRoot common.Hash
-	L2URL        string
+	// L2URL is the URL of the L2 node to fetch L2 data from, this is the canonical URL for L2 data
+	// in the case of L2ExperimentalEnabled = true, this URL is used as a fallback if the experimental URL fails or cannot retrieve the desired data
+	L2URL string
+	// L2ExperimentalURL is the URL of the L2 node (non hash db archival node, for example, reth archival node) to fetch L2 data from
+	L2ExperimentalURL string
+	// L2ExperimentalEnabled is a flag to enable experimental features on the L2 node
+	L2ExperimentalEnabled bool
 	// L2Claim is the claimed L2 output root to verify
 	L2Claim common.Hash
 	// L2ClaimBlockNumber is the block number the claimed L2 output root is from
@@ -214,23 +220,25 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		return nil, fmt.Errorf("invalid %w: %v", ErrInvalidDataFormat, dbFormat)
 	}
 	return &Config{
-		Rollup:              rollupCfg,
-		DataDir:             ctx.String(flags.DataDir.Name),
-		DataFormat:          dbFormat,
-		L2URL:               ctx.String(flags.L2NodeAddr.Name),
-		L2ChainConfig:       l2ChainConfig,
-		L2Head:              l2Head,
-		L2OutputRoot:        l2OutputRoot,
-		L2Claim:             l2Claim,
-		L2ClaimBlockNumber:  l2ClaimBlockNum,
-		L1Head:              l1Head,
-		L1URL:               ctx.String(flags.L1NodeAddr.Name),
-		L1BeaconURL:         ctx.String(flags.L1BeaconAddr.Name),
-		L1TrustRPC:          ctx.Bool(flags.L1TrustRPC.Name),
-		L1RPCKind:           sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
-		ExecCmd:             ctx.String(flags.Exec.Name),
-		ServerMode:          ctx.Bool(flags.Server.Name),
-		IsCustomChainConfig: isCustomConfig,
+		Rollup:                rollupCfg,
+		DataDir:               ctx.String(flags.DataDir.Name),
+		DataFormat:            dbFormat,
+		L2URL:                 ctx.String(flags.L2NodeAddr.Name),
+		L2ExperimentalURL:     ctx.String(flags.L2NodeExperimentalAddr.Name),
+		L2ExperimentalEnabled: ctx.Bool(flags.L2NodeExperimentalEnabled.Name),
+		L2ChainConfig:         l2ChainConfig,
+		L2Head:                l2Head,
+		L2OutputRoot:          l2OutputRoot,
+		L2Claim:               l2Claim,
+		L2ClaimBlockNumber:    l2ClaimBlockNum,
+		L1Head:                l1Head,
+		L1URL:                 ctx.String(flags.L1NodeAddr.Name),
+		L1BeaconURL:           ctx.String(flags.L1BeaconAddr.Name),
+		L1TrustRPC:            ctx.Bool(flags.L1TrustRPC.Name),
+		L1RPCKind:             sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
+		ExecCmd:               ctx.String(flags.Exec.Name),
+		ServerMode:            ctx.Bool(flags.Server.Name),
+		IsCustomChainConfig:   isCustomConfig,
 	}, nil
 }
 
