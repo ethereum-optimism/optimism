@@ -3,13 +3,12 @@ package state
 import (
 	"encoding/json"
 	"fmt"
-	"math/big"
-
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -101,14 +100,24 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		},
 	}
 
+	if chainState.StartBlock == nil {
+		// These are dummy variables - see below for rationale.
+		num := rpc.LatestBlockNumber
+		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
+			BlockNumber: &num,
+		}
+	} else {
+		startHash := chainState.StartBlock.Hash()
+		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
+			BlockHash: &startHash,
+		}
+	}
+
 	// The below dummy variables are set in order to allow the deploy
 	// config to pass validation. The validation checks are useful to
 	// ensure that the L2 is properly configured. They are not used by
 	// the L2 genesis script itself.
-	num := rpc.LatestBlockNumber
-	cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
-		BlockNumber: &num,
-	}
+
 	cfg.L1BlockTime = 12
 	dummyAddr := common.Address{19: 0x01}
 	cfg.SuperchainL1DeployConfig = genesis.SuperchainL1DeployConfig{
