@@ -125,7 +125,7 @@ contract SemgrepTest__sol_safety_expectrevert_no_args {
 
 contract SemgrepTest__sol_style_input_arg_fmt {
     // ok: sol-style-input-arg-fmt
-    event Test(address indexed src, address indexed guy, uint256 wad);
+    event Test(address indexed _src, address indexed _guy, uint256 _wad);
 
     // ok: sol-style-input-arg-fmt
     function test() public {
