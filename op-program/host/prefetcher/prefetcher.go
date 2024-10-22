@@ -170,22 +170,12 @@ func (p *Prefetcher) bulkPrefetch(ctx context.Context, hint string) error {
 		}
 
 		values := make([]hexutil.Bytes, 0, len(result.State)+len(result.Codes))
-		for _, valueHex := range result.State {
-			valueBytes, err := hexutil.Decode(valueHex)
-			if err != nil {
-				return fmt.Errorf("failed to parse execution witness state: %w", err)
-			}
-
-			values = append(values, valueBytes)
+		for _, value := range result.State {
+			values = append(values, value)
 		}
 
-		for _, valueHex := range result.Codes {
-			valueBytes, err := hexutil.Decode(valueHex)
-			if err != nil {
-				return fmt.Errorf("failed to parse execution witness codes: %w", err)
-			}
-
-			values = append(values, valueBytes)
+		for _, value := range result.Codes {
+			values = append(values, value)
 		}
 
 		return p.storeNodes(values)
