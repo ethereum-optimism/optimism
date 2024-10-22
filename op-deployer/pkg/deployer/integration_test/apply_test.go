@@ -1,7 +1,9 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -9,7 +11,6 @@ import (
 	"os"
 	"path"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -107,7 +108,7 @@ func TestEndToEndApply(t *testing.T) {
 	deployerAddr, err := dk.Address(depKey)
 	require.NoError(t, err)
 
-	loc := localArtifacsLocator(t)
+	loc := localArtifactsLocator(t)
 
 	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 		Logger:  log.NewLogger(log.DiscardHandler()),
@@ -153,7 +154,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 }
 
-func localArtifacsLocator(t *testing.T) *opcm.ArtifactsLocator {
+func localArtifactsLocator(t *testing.T) *opcm.ArtifactsLocator {
 	_, testFilename, _, ok := runtime.Caller(0)
 	require.Truef(t, ok, "failed to get test filename")
 	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..", "..")
@@ -370,6 +371,7 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, chainIntent.BaseFeeVaultRecipient)
 		checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, chainIntent.L1FeeVaultRecipient)
 		checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, chainIntent.SequencerFeeVaultRecipient)
+		checkImmutable(t, alloc, predeploys.OptimismMintableERC721FactoryAddr, common.BigToHash(new(big.Int).SetUint64(intent.L1ChainID)))
 
 		// ownership slots
 		var addrAsSlot common.Hash
@@ -393,16 +395,19 @@ func getEIP1967ImplementationAddress(t *testing.T, allocations types.GenesisAllo
 	return common.HexToAddress(storageValue.Hex())
 }
 
-func checkImmutable(t *testing.T, allocations types.GenesisAlloc, proxyContract common.Address, feeRecipient common.Address) {
+type bytesMarshaler interface {
+	Bytes() []byte
+}
+
+func checkImmutable(t *testing.T, allocations types.GenesisAlloc, proxyContract common.Address, thing bytesMarshaler) {
 	implementationAddress := getEIP1967ImplementationAddress(t, allocations, proxyContract)
 	account, ok := allocations[implementationAddress]
-	require.True(t, ok, "%s not found in allocations", implementationAddress.Hex())
-	require.NotEmpty(t, account.Code, "%s should have code", implementationAddress.Hex())
-	require.Contains(
+	require.True(t, ok, "%s not found in allocations", implementationAddress)
+	require.NotEmpty(t, account.Code, "%s should have code", implementationAddress)
+	require.True(
 		t,
-		strings.ToLower(common.Bytes2Hex(account.Code)),
-		strings.ToLower(strings.TrimPrefix(feeRecipient.Hex(), "0x")),
-		"%s code should contain %s immutable", implementationAddress.Hex(), feeRecipient.Hex(),
+		bytes.Contains(account.Code, thing.Bytes()),
+		"%s code should contain %s immutable", implementationAddress, hex.EncodeToString(thing.Bytes()),
 	)
 }
 
@@ -520,7 +525,7 @@ func TestL2BlockTimeOverride(t *testing.T) {
 	deployerAddr, err := dk.Address(depKey)
 	require.NoError(t, err)
 
-	loc := localArtifacsLocator(t)
+	loc := localArtifactsLocator(t)
 
 	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 		Logger:  lgr,
@@ -554,7 +559,11 @@ func TestL2BlockTimeOverride(t *testing.T) {
 		st,
 	))
 
-	cfg, err := state.CombineDeployConfig(intent, &state.ChainIntent{}, st, st.Chains[0])
+	chainIntent, err := intent.Chain(l2ChainID.Bytes32())
+	require.NoError(t, err)
+	chainState, err := st.Chain(l2ChainID.Bytes32())
+	require.NoError(t, err)
+	cfg, err := state.CombineDeployConfig(intent, chainIntent, st, chainState)
 	require.NoError(t, err)
 
 	require.Equal(t, uint64(3), cfg.L2InitializationConfig.L2CoreDeployConfig.L2BlockTime, "L2 block time should be 3 seconds")
@@ -579,15 +588,7 @@ func TestApplyGenesisStrategy(t *testing.T) {
 	deployerAddr, err := dk.Address(depKey)
 	require.NoError(t, err)
 
-	_, testFilename, _, ok := runtime.Caller(0)
-	require.Truef(t, ok, "failed to get test filename")
-	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..", "..")
-	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
-	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
-	require.NoError(t, err)
-	loc := &opcm.ArtifactsLocator{
-		URL: artifactsURL,
-	}
+	loc := localArtifactsLocator(t)
 
 	env, bundle, _ := createEnv(t, ctx, lgr, nil, broadcaster.NoopBroadcaster(), deployerAddr)
 	intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
@@ -608,6 +609,90 @@ func TestApplyGenesisStrategy(t *testing.T) {
 	for i := range intent.Chains {
 		t.Run(fmt.Sprintf("chain-%d", i), func(t *testing.T) {
 			validateOPChainDeployment(t, cg, st, intent)
+		})
+	}
+}
+
+func TestInvalidL2Genesis(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	depKey := new(deployerKey)
+	l1ChainID := big.NewInt(77799777)
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+
+	l2ChainID1 := uint256.NewInt(1)
+
+	deployerAddr, err := dk.Address(depKey)
+	require.NoError(t, err)
+
+	loc := localArtifactsLocator(t)
+
+	// these tests were generated by grepping all usages of the deploy
+	// config in L2Genesis.s.sol.
+	tests := []struct {
+		name      string
+		overrides map[string]any
+	}{
+		{
+			name: "L2 proxy admin owner not set",
+			overrides: map[string]any{
+				"proxyAdminOwner": nil,
+			},
+		},
+		{
+			name: "base fee vault recipient not set",
+			overrides: map[string]any{
+				"baseFeeVaultRecipient": nil,
+			},
+		},
+		{
+			name: "l1 fee vault recipient not set",
+			overrides: map[string]any{
+				"l1FeeVaultRecipient": nil,
+			},
+		},
+		{
+			name: "sequencer fee vault recipient not set",
+			overrides: map[string]any{
+				"sequencerFeeVaultRecipient": nil,
+			},
+		},
+		{
+			name: "l1 chain ID not set",
+			overrides: map[string]any{
+				"l1ChainID": nil,
+			},
+		},
+		{
+			name: "l2 chain ID not set",
+			overrides: map[string]any{
+				"l2ChainID": nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env, bundle, _ := createEnv(t, ctx, lgr, nil, broadcaster.NoopBroadcaster(), deployerAddr)
+			intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+			intent.Chains = append(intent.Chains, newChainIntent(t, dk, l1ChainID, l2ChainID1))
+			intent.DeploymentStrategy = state.DeploymentStrategyGenesis
+			intent.GlobalDeployOverrides = tt.overrides
+
+			err := deployer.ApplyPipeline(
+				ctx,
+				env,
+				bundle,
+				intent,
+				st,
+			)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "failed to combine L2 init config")
 		})
 	}
 }
