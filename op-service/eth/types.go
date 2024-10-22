@@ -419,7 +419,7 @@ type SystemConfig struct {
 	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
 	// value will be 0 if Holocene is not active, or if derivation has yet to
 	// process any EIP_1559_PARAMS system config update events.
-	EIP1559Params Bytes8 `json:"eip1559Params"`
+	EIP1559Params Bytes8 `json:"eip1559Params,omitempty"`
 	// More fields can be added for future SystemConfig versions.
 }
 
