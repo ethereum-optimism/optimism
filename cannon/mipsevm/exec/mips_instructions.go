@@ -77,7 +77,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 	}
 
 	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		err = HandleBranch(cpu, registers, opcode, insn, rtReg, rs)
+		err = HandleBranch(cpu, registers, opcode, insn, rtReg, rs, stackTracker)
 		return
 	}
 
@@ -479,10 +479,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			return mem
 		case 0x3F: // sd
 			assertMips64(insn)
-			sl := (rs & 0x7) << 3
-			val := rt << sl
-			mask := ^Word(0) << sl
-			return (mem & ^mask) | val
+			return rt
 		default:
 			panic("invalid instruction")
 		}
@@ -501,12 +498,13 @@ func SignExtend(dat Word, idx Word) Word {
 	}
 }
 
-func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]Word, opcode uint32, insn uint32, rtReg Word, rs Word) error {
+func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]Word, opcode uint32, insn uint32, rtReg Word, rs Word, stackTracker StackTracker) error {
 	if cpu.NextPC != cpu.PC+4 {
 		panic("branch in delay slot")
 	}
 
 	shouldBranch := false
+	linked := false
 	if opcode == 4 || opcode == 5 { // beq/bne
 		rt := registers[rtReg]
 		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
@@ -518,10 +516,15 @@ func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]Word, opcode uint32, i
 		// regimm
 		rtv := (insn >> 16) & 0x1F
 		if rtv == 0 { // bltz
-			shouldBranch = int32(rs) < 0
+			shouldBranch = arch.SignedInteger(rs) < 0
 		}
 		if rtv == 1 { // bgez
-			shouldBranch = int32(rs) >= 0
+			shouldBranch = arch.SignedInteger(rs) >= 0
+		}
+		if rtv == 0x11 { // bgezal (i.e. bal mnemonic)
+			shouldBranch = arch.SignedInteger(rs) >= 0
+			registers[31] = cpu.PC + 8 // always set regardless of branch taken
+			linked = true
 		}
 	}
 
@@ -529,6 +532,9 @@ func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]Word, opcode uint32, i
 	cpu.PC = cpu.NextPC // execute the delay slot first
 	if shouldBranch {
 		cpu.NextPC = prevPC + 4 + (SignExtend(Word(insn&0xFFFF), 16) << 2) // then continue with the instruction the branch jumps to.
+		if linked {
+			stackTracker.PushStack(prevPC, cpu.NextPC)
+		}
 	} else {
 		cpu.NextPC = cpu.NextPC + 4 // branch not taken
 	}
