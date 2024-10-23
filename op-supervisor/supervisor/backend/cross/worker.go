@@ -17,10 +17,8 @@ type Worker struct {
 	workFn workFn
 
 	// channel with capacity of 1, full if there is work to do
-	poke chan struct{}
-
-	// channel with capacity of 1, to signal work complete if running in synchroneous mode
-	out chan struct{}
+	poke         chan struct{}
+	pollDuration time.Duration
 
 	// lifetime management of the chain processor
 	ctx    context.Context
@@ -36,11 +34,12 @@ type workFn func(ctx context.Context) error
 func NewWorker(log log.Logger, workFn workFn) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &Worker{
-		log:    log,
-		poke:   make(chan struct{}, 1),
-		out:    make(chan struct{}, 1),
-		ctx:    ctx,
-		cancel: cancel,
+		log:  log,
+		poke: make(chan struct{}, 1),
+		// The data may have changed, and we may have missed a poke, so re-attempt regularly.
+		pollDuration: time.Second * 4,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 	out.workFn = workFn
 	return out
@@ -55,13 +54,10 @@ func (s *Worker) ProcessWork() error {
 	return s.workFn(s.ctx)
 }
 
-// The data may have changed, and we may have missed a poke, so re-attempt regularly.
-const pollDuration = time.Second * 4
-
 func (s *Worker) worker() {
 	defer s.wg.Done()
 
-	delay := time.NewTicker(pollDuration)
+	delay := time.NewTicker(s.pollDuration)
 	for {
 		if s.ctx.Err() != nil { // check if we are closing down
 			return
