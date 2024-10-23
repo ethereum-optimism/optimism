@@ -163,13 +163,21 @@ func (m *mockSafeFrontierCheckDeps) DependencySet() depset.DependencySet {
 
 type mockDependencySet struct {
 	chainIDFromIndexfn func() (types.ChainID, error)
+	canExecuteAtfn     func() (bool, error)
+	canInitiateAtfn    func() (bool, error)
 }
 
 func (m mockDependencySet) CanExecuteAt(chain types.ChainID, timestamp uint64) (bool, error) {
+	if m.canExecuteAtfn != nil {
+		return m.canExecuteAtfn()
+	}
 	return true, nil
 }
 
 func (m mockDependencySet) CanInitiateAt(chain types.ChainID, timestamp uint64) (bool, error) {
+	if m.canInitiateAtfn != nil {
+		return m.canInitiateAtfn()
+	}
 	return true, nil
 }
 
