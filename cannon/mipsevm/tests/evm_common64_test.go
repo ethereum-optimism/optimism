@@ -467,7 +467,7 @@ func TestEVMSingleStep_DivMult(t *testing.T) {
 		funct       uint32
 		expectLo    Word
 		expectHi    Word
-		expectPanic bool
+		expectPanic string
 	}{
 		// dmult s1, s2
 		// expected hi,lo were verified using qemu-mips
@@ -499,11 +499,15 @@ func TestEVMSingleStep_DivMult(t *testing.T) {
 		{name: "dmultu 8", funct: 0x1d, rs: 0x40_00_00_00_00_00_00_01, rt: 0x1000, expectLo: 0x1000, expectHi: 0x4_00},
 		{name: "dmultu 9", funct: 0x1d, rs: 0x80_00_00_00_00_00_00_80, rt: 0x80_00_00_00_00_00_00_80, expectLo: 0x4000, expectHi: 0x40_00_00_00_00_00_00_80},
 		{name: "dmultu 10", funct: 0x1d, rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), rt: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), expectLo: 0x1, expectHi: Word(0xFF_FF_FF_FF_FF_FF_FF_FE)},
+		{name: "dmultu 11", funct: 0x1d, rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), rt: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), expectLo: 0x1, expectHi: 0xFF_FF_FF_FF_FF_FF_FF_FE},
+		{name: "dmultu 12", funct: 0x1d, rs: Word(0xFF_FF_FF_FF_FF_FF_FF_D3), rt: Word(0xAA_BB_CC_DD_A1_D1_C1_E0), expectLo: 0xFC_FC_FD_0A_8E_20_EB_A0, expectHi: 0xAA_BB_CC_DD_A1_D1_C1_C1},
+		{name: "dmultu 13", funct: 0x1d, rs: Word(0x7F_FF_FF_FF_FF_FF_FF_FF), rt: Word(0xAA_BB_CC_DD_A1_D1_C1_E1), expectLo: 0xD5_44_33_22_5E_2E_3E_1F, expectHi: 0x55_5D_E6_6E_D0_E8_E0_EF},
+		{name: "dmultu 14", funct: 0x1d, rs: Word(0x7F_FF_FF_FF_FF_FF_FF_FF), rt: Word(0x8F_FF_FF_FF_FF_FF_FF_FF), expectLo: 0xF0_00_00_00_00_00_00_01, expectHi: 0x47_FF_FF_FF_FF_FF_FF_FE},
 
 		// ddiv rs, rt
-		{name: "ddiv", funct: 0x1e, rs: 0, rt: 0, expectPanic: true},
-		{name: "ddiv", funct: 0x1e, rs: 1, rt: 0, expectPanic: true},
-		{name: "ddiv", funct: 0x1e, rs: 0xFF_FF_FF_FF_FF_FF_FF_FF, rt: 0, expectPanic: true},
+		{name: "ddiv", funct: 0x1e, rs: 0, rt: 0, expectPanic: "instruction divide by zero"},
+		{name: "ddiv", funct: 0x1e, rs: 1, rt: 0, expectPanic: "instruction divide by zero"},
+		{name: "ddiv", funct: 0x1e, rs: 0xFF_FF_FF_FF_FF_FF_FF_FF, rt: 0, expectPanic: "instruction divide by zero"},
 		{name: "ddiv", funct: 0x1e, rs: 0, rt: 1, expectLo: 0, expectHi: 0},
 		{name: "ddiv", funct: 0x1e, rs: 1, rt: 1, expectLo: 1, expectHi: 0},
 		{name: "ddiv", funct: 0x1e, rs: 10, rt: 3, expectLo: 3, expectHi: 1},
@@ -514,9 +518,9 @@ func TestEVMSingleStep_DivMult(t *testing.T) {
 		{name: "ddiv", funct: 0x1e, rs: 0x7F_FF_FF_FF_00_00_00_00, rt: ^Word(0), expectLo: 0x80_00_00_01_00_00_00_00, expectHi: 0},
 
 		// ddivu
-		{name: "ddivu", funct: 0x1f, rs: 0, rt: 0, expectPanic: true},
-		{name: "ddivu", funct: 0x1f, rs: 1, rt: 0, expectPanic: true},
-		{name: "ddivu", funct: 0x1f, rs: 0xFF_FF_FF_FF_FF_FF_FF_FF, rt: 0, expectPanic: true},
+		{name: "ddivu", funct: 0x1f, rs: 0, rt: 0, expectPanic: "instruction divide by zero"},
+		{name: "ddivu", funct: 0x1f, rs: 1, rt: 0, expectPanic: "instruction divide by zero"},
+		{name: "ddivu", funct: 0x1f, rs: 0xFF_FF_FF_FF_FF_FF_FF_FF, rt: 0, expectPanic: "instruction divide by zero"},
 		{name: "ddivu", funct: 0x1f, rs: 0, rt: 1, expectLo: 0, expectHi: 0},
 		{name: "ddivu", funct: 0x1f, rs: 1, rt: 1, expectLo: 1, expectHi: 0},
 		{name: "ddivu", funct: 0x1f, rs: 10, rt: 3, expectLo: 3, expectHi: 1},
@@ -547,8 +551,8 @@ func TestEVMSingleStep_DivMult(t *testing.T) {
 			expected.LO = tt.expectLo
 			expected.HI = tt.expectHi
 
-			if tt.expectPanic {
-				require.PanicsWithValue(t, "instruction divide by zero", func() { _, _ = goVm.Step(true) })
+			if tt.expectPanic != "" {
+				require.PanicsWithValue(t, tt.expectPanic, func() { _, _ = goVm.Step(true) })
 				// TODO(#12250): Assert EVM panic for divide by zero
 				// testutil.AssertEVMReverts(t, state, contracts, nil, proofData, errMsg)
 			} else {
