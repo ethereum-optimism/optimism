@@ -450,16 +450,16 @@ func TestEVMSingleStep_MulDiv(t *testing.T) {
 		expectLo     Word
 		expectRes    Word
 		rdReg        uint32
-		expectRevert bool
+		expectRevert string
 		errMsg       string
 	}{
-		{name: "mul", funct: uint32(0x2), rs: Word(5), rt: Word(2), opcode: uint32(28), rdReg: uint32(0x8), expectRes: Word(10), expectRevert: false},                                                // mul t0, t1, t2
-		{name: "mult", funct: uint32(0x18), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00), expectRevert: false},  // mult t1, t2
-		{name: "multu", funct: uint32(0x19), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00), expectRevert: false}, // multu t1, t2
-		{name: "div", funct: uint32(0x1a), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2), expectRevert: false},                               // div t1, t2
-		{name: "div by zero", funct: uint32(0x1a), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: true, errMsg: "MIPS: division by zero"},                            // div t1, t2
-		{name: "divu", funct: uint32(0x1b), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2), expectRevert: false},                              // divu t1, t2
-		{name: "divu by zero", funct: uint32(0x1b), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: true, errMsg: "MIPS: division by zero"},                           // divu t1, t2
+		{name: "mul", funct: uint32(0x2), rs: Word(5), rt: Word(2), opcode: uint32(28), rdReg: uint32(0x8), expectRes: Word(10)},                                                                   // mul t0, t1, t2
+		{name: "mult", funct: uint32(0x18), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00)},                     // mult t1, t2
+		{name: "multu", funct: uint32(0x19), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00)},                    // multu t1, t2
+		{name: "div", funct: uint32(0x1a), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2)},                                                  // div t1, t2
+		{name: "div by zero", funct: uint32(0x1a), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: "instruction divide by zero", errMsg: "MIPS: division by zero"},  // div t1, t2
+		{name: "divu", funct: uint32(0x1b), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2)},                                                 // divu t1, t2
+		{name: "divu by zero", funct: uint32(0x1b), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: "instruction divide by zero", errMsg: "MIPS: division by zero"}, // divu t1, t2
 	}
 
 	for _, v := range versions {
@@ -477,9 +477,9 @@ func TestEVMSingleStep_MulDiv(t *testing.T) {
 				state.GetRegistersRef()[baseReg] = tt.rs
 				state.GetMemory().SetUint32(0, insn)
 
-				if tt.expectRevert {
+				if tt.expectRevert != "" {
 					proofData := v.ProofGenerator(t, goVm.GetState())
-					require.Panics(t, func() {
+					require.PanicsWithValue(t, tt.expectRevert, func() {
 						_, _ = goVm.Step(
 							false)
 					})
