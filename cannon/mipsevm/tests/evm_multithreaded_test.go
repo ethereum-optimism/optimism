@@ -1495,6 +1495,80 @@ func TestEVM_WakeupTraversal_Full(t *testing.T) {
 	}
 }
 
+func TestEVM_WakeupTraversal_WithExitedThreads(t *testing.T) {
+	var tracer *tracing.Hooks
+	addr := Word(0x1234)
+	wakeupVal := Word(0x999)
+	cases := []struct {
+		name                  string
+		wakeupAddr            Word
+		futexAddr             Word
+		targetVal             Word
+		traverseRight         bool
+		activeStackSize       int
+		otherStackSize        int
+		exitedThreadIdx       []int
+		shouldClearWakeup     bool
+		shouldPreempt         bool
+		activeThreadFutexAddr Word
+		activeThreadFutexVal  Word
+	}{
+		{name: "Wakeable thread exists among exited threads", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal + 1, traverseRight: false, activeStackSize: 3, otherStackSize: 1, exitedThreadIdx: []int{2}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 8, activeThreadFutexVal: wakeupVal + 2},
+		{name: "All threads exited", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 3, otherStackSize: 0, exitedThreadIdx: []int{1, 2}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 16, activeThreadFutexVal: wakeupVal + 3},
+		{name: "Exited threads, no matching futex", wakeupAddr: addr, futexAddr: addr + 4, targetVal: wakeupVal, traverseRight: false, activeStackSize: 2, otherStackSize: 1, exitedThreadIdx: []int{}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 24, activeThreadFutexVal: wakeupVal + 4},
+		{name: "Matching addr, not wakeable, with exited threads", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: true, activeStackSize: 3, otherStackSize: 0, exitedThreadIdx: []int{1}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 32, activeThreadFutexVal: wakeupVal + 5},
+		{name: "Non-waiting threads with exited threads", wakeupAddr: addr, futexAddr: exec.FutexEmptyAddr, targetVal: 0, traverseRight: false, activeStackSize: 2, otherStackSize: 1, exitedThreadIdx: []int{}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 40, activeThreadFutexVal: wakeupVal + 6},
+	}
+
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			goVm, state, contracts := setup(t, i*1000, nil)
+			mttestutil.SetupThreads(int64(i*5000), state, c.traverseRight, c.activeStackSize, c.otherStackSize)
+			step := state.Step
+
+			state.Wakeup = c.wakeupAddr
+			state.GetMemory().SetWord(c.wakeupAddr&arch.AddressMask, wakeupVal)
+
+			threads := mttestutil.GetAllThreads(state)
+			for idx, thread := range threads {
+				if slices.Contains(c.exitedThreadIdx, idx) {
+					thread.Exited = true
+				} else {
+					thread.FutexAddr = c.futexAddr
+					thread.FutexVal = c.targetVal
+					thread.FutexTimeoutStep = exec.FutexNoTimeout
+				}
+			}
+
+			activeThread := state.GetCurrentThread()
+			activeThread.Exited = true
+
+			activeThread.FutexAddr = c.activeThreadFutexAddr
+			activeThread.FutexVal = c.activeThreadFutexVal
+			activeThread.FutexTimeoutStep = exec.FutexNoTimeout
+
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.Step += 1
+
+			if c.shouldClearWakeup {
+				expected.Wakeup = exec.FutexEmptyAddr
+			}
+			if c.shouldPreempt {
+				// Just preempt the current thread
+				expected.ExpectPreemption(state)
+			}
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			stepWitness, err = goVm.Step(true)
+			require.NoError(t, err)
+			expected.Validate(t, state)
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+		})
+	}
+}
+
 func TestEVM_SchedQuantumThreshold(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
