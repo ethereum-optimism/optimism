@@ -73,7 +73,7 @@ contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
             IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(_amount);
         }
 
-        emit CrosschainMinted(_to, _amount);
+        emit CrosschainMint(_to, _amount);
     }
 
     /// @notice Allows the SuperchainTokenBridge to burn tokens.
@@ -89,6 +89,6 @@ contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
             IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: _amount }();
         }
 
-        emit CrosschainBurnt(_from, _amount);
+        emit CrosschainBurn(_from, _amount);
     }
 }
