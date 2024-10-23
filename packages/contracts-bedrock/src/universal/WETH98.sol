@@ -26,8 +26,8 @@ import { IWETH } from "src/universal/interfaces/IWETH.sol";
 contract WETH98 is IWETH {
     uint8 public constant decimals = 18;
 
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
+    mapping(address => uint256) internal _balanceOf;
+    mapping(address => mapping(address => uint256)) internal _allowance;
 
     /// @notice Pipes to deposit.
     receive() external payable {
@@ -50,15 +50,25 @@ contract WETH98 is IWETH {
     }
 
     /// @inheritdoc IWETH
+    function allowance(address owner, address spender) public view virtual returns (uint256) {
+        return _allowance[owner][spender];
+    }
+
+    /// @inheritdoc IWETH
+    function balanceOf(address src) public view returns (uint256) {
+        return _balanceOf[src];
+    }
+
+    /// @inheritdoc IWETH
     function deposit() public payable virtual {
-        balanceOf[msg.sender] += msg.value;
+        _balanceOf[msg.sender] += msg.value;
         emit Deposit(msg.sender, msg.value);
     }
 
     /// @inheritdoc IWETH
     function withdraw(uint256 wad) public virtual {
-        require(balanceOf[msg.sender] >= wad);
-        balanceOf[msg.sender] -= wad;
+        require(_balanceOf[msg.sender] >= wad);
+        _balanceOf[msg.sender] -= wad;
         payable(msg.sender).transfer(wad);
         emit Withdrawal(msg.sender, wad);
     }
@@ -70,7 +80,7 @@ contract WETH98 is IWETH {
 
     /// @inheritdoc IWETH
     function approve(address guy, uint256 wad) external returns (bool) {
-        allowance[msg.sender][guy] = wad;
+        _allowance[msg.sender][guy] = wad;
         emit Approval(msg.sender, guy, wad);
         return true;
     }
@@ -82,15 +92,16 @@ contract WETH98 is IWETH {
 
     /// @inheritdoc IWETH
     function transferFrom(address src, address dst, uint256 wad) public returns (bool) {
-        require(balanceOf[src] >= wad);
+        require(_balanceOf[src] >= wad);
 
-        if (src != msg.sender && allowance[src][msg.sender] != type(uint256).max) {
-            require(allowance[src][msg.sender] >= wad);
-            allowance[src][msg.sender] -= wad;
+        uint256 senderAllowance = allowance(src, msg.sender);
+        if (src != msg.sender && senderAllowance != type(uint256).max) {
+            require(senderAllowance >= wad);
+            _allowance[src][msg.sender] -= wad;
         }
 
-        balanceOf[src] -= wad;
-        balanceOf[dst] += wad;
+        _balanceOf[src] -= wad;
+        _balanceOf[dst] += wad;
 
         emit Transfer(src, dst, wad);
 
