@@ -500,9 +500,15 @@ func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Wor
 		cpu.HI = SignExtend(Word(acc>>32), 32)
 		cpu.LO = SignExtend(Word(uint32(acc)), 32)
 	case 0x1a: // div
+		if rt == 0 {
+			panic("instruction divide by zero")
+		}
 		cpu.HI = SignExtend(Word(int32(rs)%int32(rt)), 32)
 		cpu.LO = SignExtend(Word(int32(rs)/int32(rt)), 32)
 	case 0x1b: // divu
+		if rt == 0 {
+			panic("instruction divide by zero")
+		}
 		cpu.HI = SignExtend(Word(uint32(rs)%uint32(rt)), 32)
 		cpu.LO = SignExtend(Word(uint32(rs)/uint32(rt)), 32)
 	case 0x14: // dsllv
