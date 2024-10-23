@@ -677,8 +677,25 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 		delete(allocs.Accounts, scriptAddr)
 	}
 
+	// Clean out empty storage slots in the dump - this is necessary for compatibility
+	// with the superchain registry.
+	for _, account := range allocs.Accounts {
+		toDelete := make([]common.Hash, 0)
+
+		for slot, value := range account.Storage {
+			if value == (common.Hash{}) {
+				toDelete = append(toDelete, slot)
+			}
+		}
+
+		for _, slot := range toDelete {
+			delete(account.Storage, slot)
+		}
+	}
+
 	// Remove the script deployer from the output
 	delete(allocs.Accounts, ScriptDeployer)
+	delete(allocs.Accounts, ForgeDeployer)
 
 	// The cheatcodes VM has a placeholder bytecode,
 	// because solidity checks if the code exists prior to regular EVM-calls to it.
