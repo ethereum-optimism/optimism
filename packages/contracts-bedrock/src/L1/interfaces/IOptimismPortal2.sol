@@ -114,7 +114,7 @@ interface IOptimismPortal2 {
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
     function setConfig(Types.ConfigType _type, bytes memory _value) external;
-    function upgrade(address payable _proxy, address _implementation) external;
+    function upgrade(uint32 _gasLimit, bytes memory _calldata) external;
 
     function __constructor__(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) external;
 }
