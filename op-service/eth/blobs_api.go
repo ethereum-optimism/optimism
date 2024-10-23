@@ -29,7 +29,7 @@ func (sc *APIBlobSidecar) BlobSidecar() *BlobSidecar {
 
 type SignedBeaconBlockHeader struct {
 	Message   BeaconBlockHeader `json:"message"`
-	Signature hexutil.Bytes            `json:"signature"`
+	Signature hexutil.Bytes     `json:"signature"`
 }
 
 type BeaconBlockHeader struct {
