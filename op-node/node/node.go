@@ -262,12 +262,12 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	}
 
 	// initialize the runtime config before unblocking
-	if _, err := retry.Do(ctx, 5, retry.Fixed(time.Second*10), func() (eth.L1BlockRef, error) {
-		ref, err := reload(ctx)
+	if err := retry.Do0(ctx, 5, retry.Fixed(time.Second*10), func() error {
+		_, err := reload(ctx)
 		if errors.Is(err, errNodeHalt) { // don't retry on halt error
 			err = nil
 		}
-		return ref, err
+		return err
 	}); err != nil {
 		return fmt.Errorf("failed to load runtime configuration repeatedly, last error: %w", err)
 	}
@@ -490,7 +490,7 @@ func (n *OpNode) initP2P(cfg *Config) (err error) {
 		panic("p2p node already initialized")
 	}
 	if n.p2pEnabled() {
-		// TODO(protocol-quest/97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
+		// TODO(protocol-quest#97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
 		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.l2Source, n.runCfg, n.metrics, false)
 		if err != nil {
 			return

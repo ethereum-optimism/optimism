@@ -83,7 +83,8 @@ func TestAppendToChain(t *testing.T) {
 	newBlock := blocks[4]
 	require.Nil(t, chain.GetBlock(newBlock.Hash(), newBlock.NumberU64()), "block unknown before being added")
 
-	require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+	_, err := chain.InsertBlockWithoutSetHead(newBlock, false)
+	require.NoError(t, err)
 	require.Equal(t, blocks[3].Header(), chain.CurrentHeader(), "should not update chain head yet")
 	require.Equal(t, common.Hash{}, chain.GetCanonicalHash(uint64(4)), "not yet a canonical hash")
 	require.Nil(t, chain.GetHeaderByNumber(uint64(4)), "not yet a canonical header")
@@ -99,7 +100,8 @@ func TestAppendToChain(t *testing.T) {
 func TestSetFinalized(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 0)
 	for _, block := range blocks[1:] {
-		require.NoError(t, chain.InsertBlockWithoutSetHead(block))
+		_, err := chain.InsertBlockWithoutSetHead(block, false)
+		require.NoError(t, err)
 	}
 	chain.SetFinalized(blocks[2].Header())
 	require.Equal(t, blocks[2].Header(), chain.CurrentFinalBlock())
@@ -108,7 +110,8 @@ func TestSetFinalized(t *testing.T) {
 func TestSetSafe(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 0)
 	for _, block := range blocks[1:] {
-		require.NoError(t, chain.InsertBlockWithoutSetHead(block))
+		_, err := chain.InsertBlockWithoutSetHead(block, false)
+		require.NoError(t, err)
 	}
 	chain.SetSafe(blocks[2].Header())
 	require.Equal(t, blocks[2].Header(), chain.CurrentSafeBlock())
@@ -127,7 +130,7 @@ func TestUpdateStateDatabaseWhenImportingBlock(t *testing.T) {
 
 	require.False(t, chain.HasBlockAndState(newBlock.Root(), newBlock.NumberU64()), "state from non-imported block should not be available")
 
-	err = chain.InsertBlockWithoutSetHead(newBlock)
+	_, err = chain.InsertBlockWithoutSetHead(newBlock, false)
 	require.NoError(t, err)
 	db, err = chain.StateAt(newBlock.Root())
 	require.NoError(t, err, "state should be available after importing")
@@ -141,7 +144,7 @@ func TestRejectBlockWithStateRootMismatch(t *testing.T) {
 	// Create invalid block by keeping the modified state root but exclude the transaction
 	invalidBlock := types.NewBlockWithHeader(newBlock.Header())
 
-	err := chain.InsertBlockWithoutSetHead(invalidBlock)
+	_, err := chain.InsertBlockWithoutSetHead(invalidBlock, false)
 	require.ErrorContains(t, err, "block root mismatch")
 }
 
@@ -166,8 +169,9 @@ func TestGetHeaderByNumber(t *testing.T) {
 
 		// Append a block
 		newBlock := createBlock(t, chain)
-		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
-		_, err := chain.SetCanonical(newBlock)
+		_, err := chain.InsertBlockWithoutSetHead(newBlock, false)
+		require.NoError(t, err)
+		_, err = chain.SetCanonical(newBlock)
 		require.NoError(t, err)
 
 		require.Equal(t, newBlock.Header(), chain.GetHeaderByNumber(newBlock.NumberU64()))
@@ -179,8 +183,9 @@ func TestGetHeaderByNumber(t *testing.T) {
 
 		// Append a block
 		newBlock := createBlock(t, chain)
-		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
-		_, err := chain.SetCanonical(newBlock)
+		_, err := chain.InsertBlockWithoutSetHead(newBlock, false)
+		require.NoError(t, err)
+		_, err = chain.SetCanonical(newBlock)
 		require.NoError(t, err)
 
 		require.Equal(t, newBlock.Header(), chain.GetHeaderByNumber(newBlock.NumberU64()))
@@ -192,11 +197,14 @@ func TestGetHeaderByNumber(t *testing.T) {
 		newBlock1 := blocks[3]
 		newBlock2 := blocks[4]
 		newBlock3 := blocks[5]
-		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock1))
-		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock2))
-		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock3))
+		_, err := chain.InsertBlockWithoutSetHead(newBlock1, false)
+		require.NoError(t, err)
+		_, err = chain.InsertBlockWithoutSetHead(newBlock2, false)
+		require.NoError(t, err)
+		_, err = chain.InsertBlockWithoutSetHead(newBlock3, false)
+		require.NoError(t, err)
 
-		_, err := chain.SetCanonical(newBlock3)
+		_, err = chain.SetCanonical(newBlock3)
 		require.NoError(t, err)
 
 		require.Equal(t, newBlock3.Header(), chain.GetHeaderByNumber(newBlock3.NumberU64()), "Lookup block3")
@@ -255,16 +263,17 @@ func TestPrecompileOracle(t *testing.T) {
 			require.NoError(t, err)
 
 			newBlock := createBlock(t, chain, WithInput(test.input), WithTargetAddress(test.target))
-			require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+			_, err = chain.InsertBlockWithoutSetHead(newBlock, false)
+			require.NoError(t, err)
 			require.Equal(t, 1, precompileOracle.Calls)
 		})
 	}
 }
 
 func assertBlockDataAvailable(t *testing.T, chain *OracleBackedL2Chain, block *types.Block, blockNumber uint64) {
-	require.Equal(t, block, chain.GetBlockByHash(block.Hash()), "get block %v by hash", blockNumber)
+	require.Equal(t, block.Hash(), chain.GetBlockByHash(block.Hash()).Hash(), "get block %v by hash", blockNumber)
 	require.Equal(t, block.Header(), chain.GetHeaderByHash(block.Hash()), "get header %v by hash", blockNumber)
-	require.Equal(t, block, chain.GetBlock(block.Hash(), blockNumber), "get block %v by hash and number", blockNumber)
+	require.Equal(t, block.Hash(), chain.GetBlock(block.Hash(), blockNumber).Hash(), "get block %v by hash and number", blockNumber)
 	require.Equal(t, block.Header(), chain.GetHeader(block.Hash(), blockNumber), "get header %v by hash and number", blockNumber)
 	require.True(t, chain.HasBlockAndState(block.Hash(), blockNumber), "has block and state for block %v", blockNumber)
 }

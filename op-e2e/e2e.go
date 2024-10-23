@@ -2,30 +2,15 @@ package op_e2e
 
 import (
 	"crypto/md5"
-	"fmt"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 )
 
 func RunMain(m *testing.M) {
-	if config.ExternalL2Shim != "" {
-		fmt.Println("Running tests with external L2 process adapter at ", config.ExternalL2Shim)
-		// As these are integration tests which launch many other processes, the
-		// default parallelism makes the tests flaky.  This change aims to
-		// reduce the flakiness of these tests.
-		maxProcs := runtime.NumCPU() / 4
-		if maxProcs == 0 {
-			maxProcs = 1
-		}
-		runtime.GOMAXPROCS(maxProcs)
-	}
-
 	os.Exit(m.Run())
 }
 
@@ -64,18 +49,6 @@ func autoAllocateExecutor(t e2eutils.TestingBase) {
 func UsesCannon(t e2eutils.TestingBase) {
 	if os.Getenv("OP_E2E_CANNON_ENABLED") == "false" {
 		t.Skip("Skipping cannon test")
-	}
-}
-
-func SkipOnFaultProofs(t e2eutils.TestingBase) {
-	if e2eutils.UseFaultProofs() {
-		t.Skip("Skipping test for fault proofs")
-	}
-}
-
-func SkipOnL2OO(t e2eutils.TestingBase) {
-	if e2eutils.UseL2OO() {
-		t.Skip("Skipping test for L2OO")
 	}
 }
 

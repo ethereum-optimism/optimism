@@ -147,12 +147,13 @@ func (s *Sys) Register(name string, deriver Deriver, opts *RegisterOpts) Emitter
 			}
 		})
 	}
-	// If it can emit, attach an emitter to it
-	if attachTo, ok := deriver.(AttachEmitter); ok {
-		attachTo.AttachEmitter(em)
-	}
+
 	// If it can derive, add it to the executor (and only after attaching the emitter)
 	if deriver != nil {
+		// If it can emit, attach an emitter to it
+		if attachTo, ok := deriver.(AttachEmitter); ok {
+			attachTo.AttachEmitter(em)
+		}
 		r.leaveExecutor = s.executor.Add(r, &opts.Executor)
 	}
 	return em

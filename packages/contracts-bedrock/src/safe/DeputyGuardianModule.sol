@@ -5,14 +5,12 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
-// Contracts
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-
 // Libraries
 import { Unauthorized } from "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
@@ -50,8 +48,8 @@ contract DeputyGuardianModule is ISemver {
     address internal immutable DEPUTY_GUARDIAN;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.1-beta.2
-    string public constant version = "2.0.1-beta.2";
+    /// @custom:semver 2.0.1-beta.3
+    string public constant version = "2.0.1-beta.3";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(Safe _safe, ISuperchainConfig _superchainConfig, address _deputyGuardian) {
@@ -118,12 +116,12 @@ contract DeputyGuardianModule is ISemver {
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
     ///      necessary to call `setAnchorState()` on the `AnchorStateRegistry` contract.
     ///      Only the deputy guardian can call this function.
-    /// @param _registry The `AnchorStateRegistry` contract instance.
+    /// @param _registry The `IAnchorStateRegistry` contract instance.
     /// @param _game The `IFaultDisputeGame` contract instance.
-    function setAnchorState(AnchorStateRegistry _registry, IFaultDisputeGame _game) external {
+    function setAnchorState(IAnchorStateRegistry _registry, IFaultDisputeGame _game) external {
         _onlyDeputyGuardian();
 
-        bytes memory data = abi.encodeCall(AnchorStateRegistry.setAnchorState, (_game));
+        bytes memory data = abi.encodeCall(IAnchorStateRegistry.setAnchorState, (_game));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_registry), 0, data, Enum.Operation.Call);
         if (!success) {

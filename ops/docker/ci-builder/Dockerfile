@@ -40,7 +40,7 @@ FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
 RUN apt-get update && apt-get install -y curl ca-certificates jq binutils
 
-ENV GO_VERSION=1.21.1
+ENV GO_VERSION=1.22.7
 
 # Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
 RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \
@@ -54,10 +54,10 @@ COPY ./versions.json ./versions.json
 RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(jq -r .abigen < versions.json)
 RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json)
 
-RUN go install gotest.tools/gotestsum@v1.11.0
-RUN go install github.com/vektra/mockery/v2@v2.28.1
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
-RUN go install github.com/mikefarah/yq/v4@v4.43.1
+RUN go install gotest.tools/gotestsum@v1.12.0
+RUN go install github.com/vektra/mockery/v2@v2.46.0
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+RUN go install github.com/mikefarah/yq/v4@v4.44.3
 
 # Strip binaries to reduce size
 RUN strip /go/bin/gotestsum && \
@@ -105,6 +105,7 @@ RUN /bin/sh -c set -eux; \
   apt-get install -y docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   pip install capstone pyelftools; \
+  pip install semgrep==$(jq -r .semgrep < versions.json); \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \

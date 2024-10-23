@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,8 +17,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -33,18 +34,26 @@ var (
 )
 
 type Metricer interface {
-	vm.Metricer
 	contractMetrics.ContractMetricer
 
-	RecordFailure(vmType types.TraceType)
-	RecordInvalid(vmType types.TraceType)
-	RecordSuccess(vmType types.TraceType)
+	RecordVmExecutionTime(vmType string, t time.Duration)
+	RecordVmMemoryUsed(vmType string, memoryUsed uint64)
+	RecordFailure(vmType string)
+	RecordInvalid(vmType string)
+	RecordSuccess(vmType string)
+}
+
+type RunConfig struct {
+	TraceType types.TraceType
+	Name      string
+	Prestate  common.Hash
 }
 
 type Runner struct {
-	log log.Logger
-	cfg *config.Config
-	m   Metricer
+	log        log.Logger
+	cfg        *config.Config
+	runConfigs []RunConfig
+	m          Metricer
 
 	running    atomic.Bool
 	ctx        context.Context
@@ -53,11 +62,12 @@ type Runner struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func NewRunner(logger log.Logger, cfg *config.Config) *Runner {
+func NewRunner(logger log.Logger, cfg *config.Config, runConfigs []RunConfig) *Runner {
 	return &Runner{
-		log: logger,
-		cfg: cfg,
-		m:   NewMetrics(),
+		log:        logger,
+		cfg:        cfg,
+		runConfigs: runConfigs,
+		m:          NewMetrics(),
 	}
 }
 
@@ -83,30 +93,21 @@ func (r *Runner) Start(ctx context.Context) error {
 	}
 	caller := batching.NewMultiCaller(l1Client, batching.DefaultBatchSize)
 
-	for _, traceType := range r.cfg.TraceTypes {
+	for _, runConfig := range r.runConfigs {
 		r.wg.Add(1)
-		go r.loop(ctx, traceType, rollupClient, caller)
+		go r.loop(ctx, runConfig, rollupClient, caller)
 	}
 
-	r.log.Info("Runners started")
+	r.log.Info("Runners started", "num", len(r.runConfigs))
 	return nil
 }
 
-func (r *Runner) loop(ctx context.Context, traceType types.TraceType, client *sources.RollupClient, caller *batching.MultiCaller) {
+func (r *Runner) loop(ctx context.Context, runConfig RunConfig, client *sources.RollupClient, caller *batching.MultiCaller) {
 	defer r.wg.Done()
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
 	for {
-		if err := r.runOnce(ctx, traceType, client, caller); errors.Is(err, ErrUnexpectedStatusCode) {
-			r.log.Error("Incorrect status code", "type", traceType, "err", err)
-			r.m.RecordInvalid(traceType)
-		} else if err != nil {
-			r.log.Error("Failed to run", "type", traceType, "err", err)
-			r.m.RecordFailure(traceType)
-		} else {
-			r.log.Info("Successfully verified output root", "type", traceType)
-			r.m.RecordSuccess(traceType)
-		}
+		r.runAndRecordOnce(ctx, runConfig, client, caller)
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -115,22 +116,50 @@ func (r *Runner) loop(ctx context.Context, traceType types.TraceType, client *so
 	}
 }
 
-func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client *sources.RollupClient, caller *batching.MultiCaller) error {
-	prestateHash, err := r.getPrestateHash(ctx, traceType, caller)
-	if err != nil {
-		return err
+func (r *Runner) runAndRecordOnce(ctx context.Context, runConfig RunConfig, client *sources.RollupClient, caller *batching.MultiCaller) {
+	recordError := func(err error, traceType string, m Metricer, log log.Logger) {
+		if errors.Is(err, ErrUnexpectedStatusCode) {
+			log.Error("Incorrect status code", "type", runConfig.Name, "err", err)
+			m.RecordInvalid(traceType)
+		} else if err != nil {
+			log.Error("Failed to run", "type", runConfig.Name, "err", err)
+			m.RecordFailure(traceType)
+		} else {
+			log.Info("Successfully verified output root", "type", runConfig.Name)
+			m.RecordSuccess(traceType)
+		}
+	}
+
+	prestateHash := runConfig.Prestate
+	if prestateHash == (common.Hash{}) {
+		hash, err := r.getPrestateHash(ctx, runConfig.TraceType, caller)
+		if err != nil {
+			recordError(err, runConfig.Name, r.m, r.log)
+			return
+		}
+		prestateHash = hash
 	}
 
 	localInputs, err := r.createGameInputs(ctx, client)
 	if err != nil {
-		return err
+		recordError(err, runConfig.Name, r.m, r.log)
+		return
 	}
-	dir, err := r.prepDatadir(traceType)
+
+	inputsLogger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim)
+	// Sanitize the directory name.
+	safeName := regexp.MustCompile("[^a-zA-Z0-9_-]").ReplaceAllString(runConfig.Name, "")
+	dir, err := r.prepDatadir(safeName)
 	if err != nil {
-		return err
+		recordError(err, runConfig.Name, r.m, r.log)
+		return
 	}
-	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", traceType)
-	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateHash, traceType, localInputs, dir)
+	err = r.runOnce(ctx, inputsLogger.With("type", runConfig.Name), runConfig.Name, runConfig.TraceType, prestateHash, localInputs, dir)
+	recordError(err, runConfig.Name, r.m, r.log)
+}
+
+func (r *Runner) runOnce(ctx context.Context, logger log.Logger, name string, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
+	provider, err := createTraceProvider(ctx, logger, metrics.NewVmMetrics(r.m, name), r.cfg, prestateHash, traceType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
@@ -144,8 +173,8 @@ func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client 
 	return nil
 }
 
-func (r *Runner) prepDatadir(traceType types.TraceType) (string, error) {
-	dir := filepath.Join(r.cfg.Datadir, traceType.String())
+func (r *Runner) prepDatadir(name string) (string, error) {
+	dir := filepath.Join(r.cfg.Datadir, name)
 	if err := os.RemoveAll(dir); err != nil {
 		return "", fmt.Errorf("failed to remove old dir: %w", err)
 	}

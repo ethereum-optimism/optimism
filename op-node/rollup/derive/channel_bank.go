@@ -37,14 +37,13 @@ type ChannelBank struct {
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
 
-	prev    NextFrameProvider
-	fetcher L1Fetcher
+	prev NextFrameProvider
 }
 
 var _ ResettableStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher, m Metrics) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, m Metrics) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		spec:         rollup.NewChainSpec(cfg),
@@ -52,7 +51,6 @@ func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, 
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		prev:         prev,
-		fetcher:      fetcher,
 	}
 }
 
@@ -91,7 +89,7 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 			cb.metrics.RecordHeadChannelOpened()
 		}
 		// create new channel if it doesn't exist yet
-		currentCh = NewChannel(f.ID, origin)
+		currentCh = NewChannel(f.ID, origin, false)
 		cb.channels[f.ID] = currentCh
 		cb.channelQueue = append(cb.channelQueue, f.ID)
 		log.Info("created new channel")

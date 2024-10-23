@@ -26,7 +26,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "_superchainERC20",
+        "name": "superchainERC20_",
         "type": "address"
       }
     ],
@@ -37,7 +37,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "superchainToken",
+        "name": "_localToken",
         "type": "address"
       }
     ],
@@ -45,7 +45,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "remoteToken",
+        "name": "remoteToken_",
         "type": "address"
       }
     ],

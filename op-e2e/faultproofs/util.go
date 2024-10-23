@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 
@@ -49,11 +50,17 @@ func WithSequencerWindowSize(size uint64) faultDisputeConfigOpts {
 	}
 }
 
+func WithAllocType(allocType config.AllocType) faultDisputeConfigOpts {
+	return func(cfg *e2esys.SystemConfig) {
+		cfg.AllocType = allocType
+	}
+}
+
 func StartFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*e2esys.System, *ethclient.Client) {
 	cfg := e2esys.DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
 	cfg.Nodes["sequencer"].SafeDBPath = t.TempDir()
-	cfg.DeployConfig.SequencerWindowSize = 4
+	cfg.DeployConfig.SequencerWindowSize = 30
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true
 	// Disable proposer creating fast games automatically - required games are manually created

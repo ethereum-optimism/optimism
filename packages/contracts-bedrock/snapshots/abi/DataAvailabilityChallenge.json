@@ -44,12 +44,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "challengedBlockNumber",
+        "name": "_challengedBlockNumber",
         "type": "uint256"
       },
       {
         "internalType": "bytes",
-        "name": "challengedCommitment",
+        "name": "_challengedCommitment",
         "type": "bytes"
       }
     ],
@@ -95,12 +95,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "challengedBlockNumber",
+        "name": "_challengedBlockNumber",
         "type": "uint256"
       },
       {
         "internalType": "bytes",
-        "name": "challengedCommitment",
+        "name": "_challengedCommitment",
         "type": "bytes"
       }
     ],
@@ -141,12 +141,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "challengedBlockNumber",
+        "name": "_challengedBlockNumber",
         "type": "uint256"
       },
       {
         "internalType": "bytes",
-        "name": "challengedCommitment",
+        "name": "_challengedCommitment",
         "type": "bytes"
       }
     ],
@@ -218,17 +218,17 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "challengedBlockNumber",
+        "name": "_challengedBlockNumber",
         "type": "uint256"
       },
       {
         "internalType": "bytes",
-        "name": "challengedCommitment",
+        "name": "_challengedCommitment",
         "type": "bytes"
       },
       {
         "internalType": "bytes",
-        "name": "resolveData",
+        "name": "_resolveData",
         "type": "bytes"
       }
     ],
@@ -306,12 +306,12 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "challengedBlockNumber",
+        "name": "_challengedBlockNumber",
         "type": "uint256"
       },
       {
         "internalType": "bytes",
-        "name": "challengedCommitment",
+        "name": "_challengedCommitment",
         "type": "bytes"
       }
     ],
@@ -324,7 +324,7 @@
     "inputs": [
       {
         "internalType": "bytes",
-        "name": "commitment",
+        "name": "_commitment",
         "type": "bytes"
       }
     ],

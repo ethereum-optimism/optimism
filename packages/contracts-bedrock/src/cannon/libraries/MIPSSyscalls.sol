@@ -53,6 +53,7 @@ library MIPSSyscalls {
     uint32 internal constant SYS_PRLIMIT64 = 4338;
     uint32 internal constant SYS_CLOSE = 4006;
     uint32 internal constant SYS_PREAD64 = 4200;
+    uint32 internal constant SYS_FSTAT = 4108;
     uint32 internal constant SYS_FSTAT64 = 4215;
     uint32 internal constant SYS_OPENAT = 4288;
     uint32 internal constant SYS_READLINK = 4085;
@@ -127,6 +128,23 @@ library MIPSSyscalls {
     uint32 internal constant VALID_SYS_CLONE_FLAGS =
         CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_SYSVSEM | CLONE_THREAD;
 
+    // FYI: https://en.wikibooks.org/wiki/MIPS_Assembly/Register_File
+    //      https://refspecs.linuxfoundation.org/elf/mipsabi.pdf
+    uint32 internal constant REG_V0 = 2;
+    uint32 internal constant REG_A0 = 4;
+    uint32 internal constant REG_A1 = 5;
+    uint32 internal constant REG_A2 = 6;
+    uint32 internal constant REG_A3 = 7;
+
+    // FYI: https://web.archive.org/web/20231223163047/https://www.linux-mips.org/wiki/Syscall
+    uint32 internal constant REG_SYSCALL_NUM = REG_V0;
+    uint32 internal constant REG_SYSCALL_ERRNO = REG_A3;
+    uint32 internal constant REG_SYSCALL_RET1 = REG_V0;
+    uint32 internal constant REG_SYSCALL_PARAM1 = REG_A0;
+    uint32 internal constant REG_SYSCALL_PARAM2 = REG_A1;
+    uint32 internal constant REG_SYSCALL_PARAM3 = REG_A2;
+    uint32 internal constant REG_SYSCALL_PARAM4 = REG_A3;
+
     /// @notice Extract syscall num and arguments from registers.
     /// @param _registers The cpu registers.
     /// @return sysCallNum_ The syscall number.
@@ -140,12 +158,12 @@ library MIPSSyscalls {
         returns (uint32 sysCallNum_, uint32 a0_, uint32 a1_, uint32 a2_, uint32 a3_)
     {
         unchecked {
-            sysCallNum_ = _registers[2];
+            sysCallNum_ = _registers[REG_SYSCALL_NUM];
 
-            a0_ = _registers[4];
-            a1_ = _registers[5];
-            a2_ = _registers[6];
-            a3_ = _registers[7];
+            a0_ = _registers[REG_SYSCALL_PARAM1];
+            a1_ = _registers[REG_SYSCALL_PARAM2];
+            a2_ = _registers[REG_SYSCALL_PARAM3];
+            a3_ = _registers[REG_SYSCALL_PARAM4];
 
             return (sysCallNum_, a0_, a1_, a2_, a3_);
         }
@@ -347,7 +365,7 @@ library MIPSSyscalls {
     /// retrieve the file-descriptor R/W flags.
     /// @param _a0 The file descriptor.
     /// @param _a1 The control command.
-    /// @param v0_ The file status flag (only supported command is F_GETFL), or -1 on error.
+    /// @param v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or -1 on error.
     /// @param v1_ An error number, or 0 if there is no error.
     function handleSysFcntl(uint32 _a0, uint32 _a1) internal pure returns (uint32 v0_, uint32 v1_) {
         unchecked {
@@ -355,8 +373,19 @@ library MIPSSyscalls {
             v1_ = uint32(0);
 
             // args: _a0 = fd, _a1 = cmd
-            if (_a1 == 3) {
-                // F_GETFL: get file descriptor flags
+            if (_a1 == 1) {
+                // F_GETFD: get file descriptor flags
+                if (
+                    _a0 == FD_STDIN || _a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_READ
+                        || _a0 == FD_HINT_READ || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE
+                ) {
+                    v0_ = 0; // No flags set
+                } else {
+                    v0_ = 0xFFffFFff;
+                    v1_ = EBADF;
+                }
+            } else if (_a1 == 3) {
+                // F_GETFL: get file status flags
                 if (_a0 == FD_STDIN || _a0 == FD_PREIMAGE_READ || _a0 == FD_HINT_READ) {
                     v0_ = 0; // O_RDONLY
                 } else if (_a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE) {
@@ -385,8 +414,8 @@ library MIPSSyscalls {
     {
         unchecked {
             // Write the results back to the state registers
-            _registers[2] = _v0;
-            _registers[7] = _v1;
+            _registers[REG_SYSCALL_RET1] = _v0;
+            _registers[REG_SYSCALL_ERRNO] = _v1;
 
             // Update the PC and nextPC
             _cpu.pc = _cpu.nextPC;

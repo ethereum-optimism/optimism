@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-
 /// @title IDeployerWhitelist
 /// @notice Interface for the DeployerWhitelist contract.
 interface IDeployerWhitelist {
@@ -17,4 +15,6 @@ interface IDeployerWhitelist {
     function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) external;
     function version() external view returns (string memory);
     function whitelist(address) external view returns (bool);
+
+    function __constructor__() external;
 }

@@ -8,4 +8,6 @@ interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     function initialize(ICrossDomainMessenger _l1CrossDomainMessenger) external;
     function l1CrossDomainMessenger() external view returns (ICrossDomainMessenger);
     function version() external view returns (string memory);
+
+    function __constructor__() external;
 }

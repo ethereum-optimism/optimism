@@ -20,7 +20,7 @@ import (
 const (
 	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
-	L1InfoFuncIsthmusSignature = "setL1BlockValuesIsthmus()"
+	L1InfoFuncInteropSignature = "setL1BlockValuesInterop()"
 	DepositsCompleteSignature  = "depositsComplete()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
@@ -28,8 +28,8 @@ const (
 	DepositsCompleteLen        = 4        // only the selector
 	// DepositsCompleteGas allocates 21k gas for intrinsic tx costs, and
 	// an additional 15k to ensure that the DepositsComplete call does not run out of gas.
-	// GasBenchMark_L1BlockIsthmus_DepositsComplete:test_depositsComplete_benchmark() (gas: 7768)
-	// GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm:test_depositsComplete_benchmark() (gas: 5768)
+	// GasBenchMark_L1BlockInterop_DepositsComplete:test_depositsComplete_benchmark() (gas: 7768)
+	// GasBenchMark_L1BlockInterop_DepositsComplete_Warm:test_depositsComplete_benchmark() (gas: 5768)
 	// see `test_depositsComplete_benchmark` at: `/packages/contracts-bedrock/test/BenchmarkTest.t.sol`
 	DepositsCompleteGas = uint64(21_000 + 15_000)
 )
@@ -37,7 +37,7 @@ const (
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
-	L1InfoFuncIsthmusBytes4 = crypto.Keccak256([]byte(L1InfoFuncIsthmusSignature))[:4]
+	L1InfoFuncInteropBytes4 = crypto.Keccak256([]byte(L1InfoFuncInteropSignature))[:4]
 	DepositsCompleteBytes4  = crypto.Keccak256([]byte(DepositsCompleteSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
@@ -155,7 +155,7 @@ func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 	return nil
 }
 
-// Isthmus & Ecotone Binary Format
+// Interop & Ecotone Binary Format
 // +---------+--------------------------+
 // | Bytes   | Field                    |
 // +---------+--------------------------+
@@ -179,16 +179,16 @@ func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 	return out, nil
 }
 
-func (info *L1BlockInfo) marshalBinaryIsthmus() ([]byte, error) {
-	out, err := marshalBinaryWithSignature(info, L1InfoFuncIsthmusBytes4)
+func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
+	out, err := marshalBinaryWithSignature(info, L1InfoFuncInteropBytes4)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+		return nil, fmt.Errorf("failed to marshal Interop l1 block info: %w", err)
 	}
 	return out, nil
 }
 
 func marshalBinaryWithSignature(info *L1BlockInfo, signature []byte) ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone and Isthmus have the same length
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone and Interop have the same length
 	if err := solabi.WriteSignature(w, signature); err != nil {
 		return nil, err
 	}
@@ -231,8 +231,8 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncEcotoneBytes4, data)
 }
 
-func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
-	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncIsthmusBytes4, data)
+func (info *L1BlockInfo) unmarshalBinaryInterop(data []byte) error {
+	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncInteropBytes4, data)
 }
 
 func unmarshalBinaryWithSignatureAndData(info *L1BlockInfo, signature []byte, data []byte) error {
@@ -285,7 +285,7 @@ func isEcotoneButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) boo
 	return rollupCfg.IsEcotone(l2Timestamp) && !rollupCfg.IsEcotoneActivationBlock(l2Timestamp)
 }
 
-// isInteropButNotFirstBlock returns whether the specified block is subject to the Isthmus upgrade,
+// isInteropButNotFirstBlock returns whether the specified block is subject to the Interop upgrade,
 // but is not the activation block itself.
 func isInteropButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) bool {
 	// Since we use the pre-interop L1 tx one last time during the upgrade block,
@@ -300,7 +300,7 @@ func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []b
 	var info L1BlockInfo
 	// Important, this should be ordered from most recent to oldest
 	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
-		return &info, info.unmarshalBinaryIsthmus(data)
+		return &info, info.unmarshalBinaryInterop(data)
 	}
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		return &info, info.unmarshalBinaryEcotone(data)
@@ -333,9 +333,9 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		l1BlockInfo.BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = scalars.BaseFeeScalar
 		if isInteropButNotFirstBlock(rollupCfg, l2Timestamp) {
-			out, err := l1BlockInfo.marshalBinaryIsthmus()
+			out, err := l1BlockInfo.marshalBinaryInterop()
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+				return nil, fmt.Errorf("failed to marshal Interop l1 block info: %w", err)
 			}
 			data = out
 		} else {

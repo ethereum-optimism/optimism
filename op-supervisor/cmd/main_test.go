@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 var (
@@ -36,7 +37,8 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	defaultCfgTempl := config.NewConfig(ValidL2RPCs, ValidDatadir)
+	depSet := &depset.JsonDependencySetLoader{Path: "test"}
+	defaultCfgTempl := config.NewConfig(ValidL2RPCs, depSet, ValidDatadir)
 	defaultCfg := *defaultCfgTempl
 	defaultCfg.Version = Version
 	require.Equal(t, defaultCfg, *cfg)
@@ -123,8 +125,9 @@ func toArgList(req map[string]string) []string {
 
 func requiredArgs() map[string]string {
 	args := map[string]string{
-		"--l2-rpcs": ValidL2RPCs[0],
-		"--datadir": ValidDatadir,
+		"--l2-rpcs":        ValidL2RPCs[0],
+		"--dependency-set": "test",
+		"--datadir":        ValidDatadir,
 	}
 	return args
 }

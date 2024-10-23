@@ -35,13 +35,6 @@ contract DeployAuthSystemInput is CommonBase {
         }
     }
 
-    function loadInputFile(string memory _infile) public {
-        string memory toml = vm.readFile(_infile);
-
-        set(this.threshold.selector, toml.readUint(".safe.threshold"));
-        set(this.owners.selector, toml.readAddressArray(".safe.owners"));
-    }
-
     function threshold() public view returns (uint256) {
         require(_threshold != 0, "DeployAuthSystemInput: threshold not set");
         return _threshold;
@@ -56,14 +49,9 @@ contract DeployAuthSystemInput is CommonBase {
 contract DeployAuthSystemOutput is CommonBase {
     Safe internal _safe;
 
-    function set(bytes4 sel, address _address) public {
-        if (sel == this.safe.selector) _safe = Safe(payable(_address));
+    function set(bytes4 _sel, address _address) public {
+        if (_sel == this.safe.selector) _safe = Safe(payable(_address));
         else revert("DeployAuthSystemOutput: unknown selector");
-    }
-
-    function writeOutputFile(string memory _outfile) public {
-        string memory out = vm.serializeAddress("outfile", "safe", address(this.safe()));
-        vm.writeToml(out, _outfile);
     }
 
     function checkOutput() public view {
@@ -78,16 +66,6 @@ contract DeployAuthSystemOutput is CommonBase {
 }
 
 contract DeployAuthSystem is Script {
-    function run(string memory _infile, string memory _outfile) public {
-        (DeployAuthSystemInput dasi, DeployAuthSystemOutput daso) = etchIOContracts();
-
-        dasi.loadInputFile(_infile);
-
-        run(dasi, daso);
-
-        daso.writeOutputFile(_outfile);
-    }
-
     function run(DeployAuthSystemInput _dasi, DeployAuthSystemOutput _daso) public {
         deploySafe(_dasi, _daso);
     }

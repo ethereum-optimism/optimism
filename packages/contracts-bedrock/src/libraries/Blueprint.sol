@@ -20,6 +20,9 @@ library Blueprint {
     /// @notice Thrown when parsing a blueprint preamble and the resulting initcode is empty.
     error EmptyInitcode();
 
+    /// @notice Thrown when call to the identity precompile fails.
+    error IdentityPrecompileCallFailed();
+
     /// @notice Thrown when parsing a blueprint preamble and the bytecode does not contain the expected prefix bytes.
     error NotABlueprint();
 
@@ -56,7 +59,7 @@ library Blueprint {
     /// @notice Given bytecode as a sequence of bytes, parse the blueprint preamble and deconstruct
     /// the bytecode into the ERC version, preamble data and initcode. Reverts if the bytecode is
     /// not a valid blueprint contract according to ERC-5202.
-    function parseBlueprintPreamble(bytes memory _bytecode) internal pure returns (Preamble memory) {
+    function parseBlueprintPreamble(bytes memory _bytecode) internal view returns (Preamble memory) {
         if (_bytecode.length < 2 || _bytecode[0] != 0xFE || _bytecode[1] != 0x71) {
             revert NotABlueprint();
         }
@@ -77,18 +80,34 @@ library Blueprint {
         bytes memory preambleData = new bytes(dataLength);
         if (nLengthBytes != 0) {
             uint256 dataStart = 3 + nLengthBytes;
+            // This loop is very small, so not worth using the identity precompile like we do with initcode below.
             for (uint256 i = 0; i < dataLength; i++) {
                 preambleData[i] = _bytecode[dataStart + i];
             }
         }
 
+        // Parsing the initcode byte-by-byte is too costly for long initcode, so we perform a staticcall
+        // to the identity precompile at address(0x04) to copy the initcode.
         uint256 initcodeStart = 3 + nLengthBytes + dataLength;
-        bytes memory initcode = new bytes(_bytecode.length - initcodeStart);
-        for (uint256 i = 0; i < initcode.length; i++) {
-            initcode[i] = _bytecode[initcodeStart + i];
-        }
-        if (initcode.length == 0) revert EmptyInitcode();
+        uint256 initcodeLength = _bytecode.length - initcodeStart;
+        if (initcodeLength == 0) revert EmptyInitcode();
 
+        bytes memory initcode = new bytes(initcodeLength);
+        bool success;
+        assembly ("memory-safe") {
+            // Calculate the memory address of the input data (initcode) within _bytecode.
+            // - add(_bytecode, 32): Moves past the length field to the start of _bytecode's data.
+            // - add(..., initcodeStart): Adds the offset to reach the initcode within _bytecode.
+            let inputData := add(add(_bytecode, 32), initcodeStart)
+
+            // Calculate the memory address for the output data in initcode.
+            let outputData := add(initcode, 32)
+
+            // Perform the staticcall to the identity precompile.
+            success := staticcall(gas(), 0x04, inputData, initcodeLength, outputData, initcodeLength)
+        }
+
+        if (!success) revert IdentityPrecompileCallFailed();
         return Preamble(ercVersion, preambleData, initcode);
     }
 
@@ -106,6 +125,32 @@ library Blueprint {
         if (preamble.preambleData.length != 0) revert UnexpectedPreambleData(preamble.preambleData);
 
         bytes memory initcode = bytes.concat(preamble.initcode, _data);
+        assembly ("memory-safe") {
+            newContract_ := create2(0, add(initcode, 0x20), mload(initcode), _salt)
+        }
+        if (newContract_ == address(0)) revert DeploymentFailed();
+    }
+
+    /// @notice Parses the code at two target addresses as individual blueprints, concatentates them and then deploys
+    /// the resulting initcode with the given `_data` appended, i.e. `_data` is the ABI-encoded constructor arguments.
+    function deployFrom(
+        address _target1,
+        address _target2,
+        bytes32 _salt,
+        bytes memory _data
+    )
+        internal
+        returns (address newContract_)
+    {
+        Preamble memory preamble1 = parseBlueprintPreamble(address(_target1).code);
+        if (preamble1.ercVersion != 0) revert UnsupportedERCVersion(preamble1.ercVersion);
+        if (preamble1.preambleData.length != 0) revert UnexpectedPreambleData(preamble1.preambleData);
+
+        Preamble memory preamble2 = parseBlueprintPreamble(address(_target2).code);
+        if (preamble2.ercVersion != 0) revert UnsupportedERCVersion(preamble2.ercVersion);
+        if (preamble2.preambleData.length != 0) revert UnexpectedPreambleData(preamble2.preambleData);
+
+        bytes memory initcode = bytes.concat(preamble1.initcode, preamble2.initcode, _data);
         assembly ("memory-safe") {
             newContract_ := create2(0, add(initcode, 0x20), mload(initcode), _salt)
         }

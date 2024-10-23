@@ -8,4 +8,6 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 interface ILegacyMessagePasser is ISemver {
     function passMessageToL1(bytes memory _message) external;
     function sentMessages(bytes32) external view returns (bool);
+
+    function __constructor__() external;
 }

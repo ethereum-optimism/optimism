@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
@@ -28,8 +29,8 @@ func TestEVM(t *testing.T) {
 
 	cases := GetMipsVersionTestCases(t)
 	skippedTests := map[string][]string{
-		"multi-threaded":  []string{"clone.bin"},
-		"single-threaded": []string{},
+		"multi-threaded":  {"clone.bin"},
+		"single-threaded": {},
 	}
 
 	for _, c := range cases {
@@ -85,7 +86,7 @@ func TestEVM(t *testing.T) {
 					if exitGroup && goVm.GetState().GetExited() {
 						break
 					}
-					insn := state.GetMemory().GetMemory(state.GetPC())
+					insn := state.GetMemory().GetUint32(state.GetPC())
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 
 					stepWitness, err := goVm.Step(true)
@@ -98,33 +99,33 @@ func TestEVM(t *testing.T) {
 						"mipsevm produced different state than EVM at step %d", state.GetStep())
 				}
 				if exitGroup {
-					require.NotEqual(t, uint32(testutil.EndAddr), goVm.GetState().GetPC(), "must not reach end")
+					require.NotEqual(t, arch.Word(testutil.EndAddr), goVm.GetState().GetPC(), "must not reach end")
 					require.True(t, goVm.GetState().GetExited(), "must set exited state")
 					require.Equal(t, uint8(1), goVm.GetState().GetExitCode(), "must exit with 1")
 				} else if expectPanic {
-					require.NotEqual(t, uint32(testutil.EndAddr), state.GetPC(), "must not reach end")
+					require.NotEqual(t, arch.Word(testutil.EndAddr), state.GetPC(), "must not reach end")
 				} else {
-					require.Equal(t, uint32(testutil.EndAddr), state.GetPC(), "must reach end")
+					require.Equal(t, arch.Word(testutil.EndAddr), state.GetPC(), "must reach end")
 					// inspect test result
-					done, result := state.GetMemory().GetMemory(testutil.BaseAddrEnd+4), state.GetMemory().GetMemory(testutil.BaseAddrEnd+8)
-					require.Equal(t, done, uint32(1), "must be done")
-					require.Equal(t, result, uint32(1), "must have success result")
+					done, result := state.GetMemory().GetWord(testutil.BaseAddrEnd+4), state.GetMemory().GetWord(testutil.BaseAddrEnd+8)
+					require.Equal(t, done, Word(1), "must be done")
+					require.Equal(t, result, Word(1), "must have success result")
 				}
 			})
 		}
 	}
 }
 
-func TestEVMSingleStep(t *testing.T) {
+func TestEVMSingleStep_Jump(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name         string
-		pc           uint32
-		nextPC       uint32
+		pc           arch.Word
+		nextPC       arch.Word
 		insn         uint32
-		expectNextPC uint32
+		expectNextPC arch.Word
 		expectLink   bool
 	}{
 		{name: "j MSB set target", pc: 0, nextPC: 4, insn: 0x0A_00_00_02, expectNextPC: 0x08_00_00_08},                                           // j 0x02_00_00_02
@@ -139,7 +140,7 @@ func TestEVMSingleStep(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
-				state.GetMemory().SetMemory(tt.pc, tt.insn)
+				state.GetMemory().SetUint32(tt.pc, tt.insn)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -162,23 +163,410 @@ func TestEVMSingleStep(t *testing.T) {
 	}
 }
 
+func TestEVMSingleStep_Operators(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name      string
+		isImm     bool
+		rs        Word
+		rt        Word
+		imm       uint16
+		funct     uint32
+		opcode    uint32
+		expectRes Word
+	}{
+		{name: "add", funct: 0x20, isImm: false, rs: Word(12), rt: Word(20), expectRes: Word(32)},                        // add t0, s1, s2
+		{name: "addu", funct: 0x21, isImm: false, rs: Word(12), rt: Word(20), expectRes: Word(32)},                       // addu t0, s1, s2
+		{name: "addi", opcode: 0x8, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},         // addi t0, s1, 40
+		{name: "addi sign", opcode: 0x8, isImm: true, rs: Word(2), rt: Word(1), imm: uint16(0xfffe), expectRes: Word(0)}, // addi t0, s1, -2
+		{name: "addiu", opcode: 0x9, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},        // addiu t0, s1, 40
+		{name: "sub", funct: 0x22, isImm: false, rs: Word(20), rt: Word(12), expectRes: Word(8)},                         // sub t0, s1, s2
+		{name: "subu", funct: 0x23, isImm: false, rs: Word(20), rt: Word(12), expectRes: Word(8)},                        // subu t0, s1, s2
+		{name: "and", funct: 0x24, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(160)},                    // and t0, s1, s2
+		{name: "andi", opcode: 0xc, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(0)},          // andi t0, s1, 40
+		{name: "or", funct: 0x25, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1530)},                    // or t0, s1, s2
+		{name: "ori", opcode: 0xd, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},          // ori t0, s1, 40
+		{name: "xor", funct: 0x26, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1370)},                   // xor t0, s1, s2
+		{name: "xori", opcode: 0xe, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},         // xori t0, s1, 40
+		{name: "nor", funct: 0x27, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(4294965765)},             // nor t0, s1, s2
+		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: Word(5), expectRes: Word(1)},                     // slt t0, s1, s2
+		{name: "sltu", funct: 0x2b, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(0)},                     // sltu t0, s1, s2
+	}
+
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				var insn uint32
+				var baseReg uint32 = 17
+				var rtReg uint32
+				var rdReg uint32
+				if tt.isImm {
+					rtReg = 8
+					insn = tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
+					state.GetRegistersRef()[rtReg] = tt.rt
+					state.GetRegistersRef()[baseReg] = tt.rs
+				} else {
+					rtReg = 18
+					rdReg = 8
+					insn = baseReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
+					state.GetRegistersRef()[baseReg] = tt.rs
+					state.GetRegistersRef()[rtReg] = tt.rt
+				}
+				state.GetMemory().SetUint32(0, insn)
+				step := state.GetStep()
+
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = 4
+				expected.NextPC = 8
+				if tt.isImm {
+					expected.Registers[rtReg] = tt.expectRes
+				} else {
+					expected.Registers[rdReg] = tt.expectRes
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_LoadStore(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	loadMemVal := Word(0x11_22_33_44)
+	loadMemValNeg := Word(0xF1_F2_F3_F4)
+	rtVal := Word(0xaa_bb_cc_dd)
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name         string
+		rt           Word
+		base         Word
+		imm          uint32
+		opcode       uint32
+		memVal       Word
+		expectMemVal Word
+		expectRes    Word
+	}{
+		{name: "lb, offset=0", opcode: uint32(0x20), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
+		{name: "lb, offset=1", opcode: uint32(0x20), base: 0x100, imm: 0x1, memVal: loadMemVal, expectRes: 0x22},
+		{name: "lb, offset=2", opcode: uint32(0x20), base: 0x100, imm: 0x2, memVal: loadMemVal, expectRes: 0x33},
+		{name: "lb, offset=2, variation", opcode: uint32(0x20), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33},
+		{name: "lb, offset=4", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemVal, expectRes: 0x44},
+		{name: "lb, negative, offset=0", opcode: uint32(0x20), base: 0x100, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F1},
+		{name: "lb, negative, offset=1", opcode: uint32(0x20), base: 0x101, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F2},
+		{name: "lb, negative, offset=2", opcode: uint32(0x20), base: 0x102, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F3},
+		{name: "lb, negative, offset=3", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F4},
+		{name: "lh, offset=0", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lh, offset=1", opcode: uint32(0x21), base: 0x101, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lh, offset=2", opcode: uint32(0x21), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33_44},
+		{name: "lh, offset=3", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemVal, expectRes: 0x33_44},
+		{name: "lh, negative, offset=0", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xFF_FF_F1_F2},
+		{name: "lh, negative, offset=3", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemValNeg, expectRes: 0xFF_FF_F3_F4},
+		{name: "lw", opcode: uint32(0x23), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22_33_44},
+		{name: "lbu", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
+		{name: "lbu, negative", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1},
+		{name: "lhu", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lhu, negative", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1_F2},
+		{name: "lwl", opcode: uint32(0x22), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: loadMemVal},
+		{name: "lwl unaligned", opcode: uint32(0x22), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0x22_33_44_dd},
+		{name: "lwr", opcode: uint32(0x26), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_cc_11},
+		{name: "lwr unaligned", opcode: uint32(0x26), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_11_22},
+		{name: "sb, offset=0", opcode: uint32(0x28), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xdd_00_00_00},
+		{name: "sb, offset=1", opcode: uint32(0x28), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0x00_dd_00_00},
+		{name: "sb, offset=2", opcode: uint32(0x28), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_dd_00},
+		{name: "sb, offset=3", opcode: uint32(0x28), base: 0x103, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_00_dd},
+		{name: "sh, offset=0", opcode: uint32(0x29), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
+		{name: "sh, offset=1", opcode: uint32(0x29), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
+		{name: "sh, offset=2", opcode: uint32(0x29), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
+		{name: "sh, offset=3", opcode: uint32(0x29), base: 0x102, imm: 0x21, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
+		{name: "swl", opcode: uint32(0x2a), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
+		{name: "sw", opcode: uint32(0x2b), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
+		{name: "swr unaligned", opcode: uint32(0x2e), base: 0x100, imm: 0x1, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
+	}
+
+	var baseReg uint32 = 9
+	var rtReg uint32 = 8
+	for i, tt := range cases {
+		for _, v := range versions {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				addr := tt.base + Word(tt.imm)
+				effAddr := arch.AddressMask & addr
+
+				// Setup
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
+				state.GetRegistersRef()[rtReg] = tt.rt
+				state.GetRegistersRef()[baseReg] = tt.base
+				state.GetMemory().SetUint32(0, insn)
+				state.GetMemory().SetWord(effAddr, tt.memVal)
+				step := state.GetStep()
+
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.expectMemVal != 0 {
+					expected.ExpectMemoryWriteWord(effAddr, tt.expectMemVal)
+				} else {
+					expected.Registers[rtReg] = tt.expectRes
+				}
+
+				// Run vm
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Validate
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_MovzMovn(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+	}{
+		{name: "movz", funct: uint32(0xa)},
+		{name: "movn", funct: uint32(0xb)},
+	}
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				rsReg := uint32(9)
+				rtReg := uint32(10)
+				rdReg := uint32(8)
+				insn := rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
+				var t2 Word
+				if tt.funct == 0xa {
+					t2 = 0x0
+				} else {
+					t2 = 0x1
+				}
+				state.GetRegistersRef()[rtReg] = t2
+				state.GetRegistersRef()[rsReg] = Word(0xb)
+				state.GetRegistersRef()[rdReg] = Word(0xa)
+				state.GetMemory().SetUint32(0, insn)
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				expected.Registers[rdReg] = state.GetRegistersRef()[rsReg]
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+
+				if tt.funct == 0xa {
+					t2 = 0x1
+				} else {
+					t2 = 0x0
+				}
+				state.GetRegistersRef()[rtReg] = t2
+				expected.ExpectStep()
+				expected.Registers[rtReg] = t2
+				expected.Registers[rdReg] = state.GetRegistersRef()[rdReg]
+
+				stepWitness, err = goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+
+}
+
+func TestEVMSingleStep_MfhiMflo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+		hi    Word
+		lo    Word
+	}{
+		{name: "mflo", funct: uint32(0x12), lo: Word(0xdeadbeef), hi: Word(0x0)},
+		{name: "mfhi", funct: uint32(0x10), lo: Word(0x0), hi: Word(0xdeadbeef)},
+	}
+	expect := Word(0xdeadbeef)
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLO(tt.lo), testutil.WithHI(tt.hi))
+				state := goVm.GetState()
+				rdReg := uint32(8)
+				insn := rdReg<<11 | tt.funct
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				expected.Registers[rdReg] = expect
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_MulDiv(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name         string
+		rs           Word
+		rt           Word
+		funct        uint32
+		opcode       uint32
+		expectHi     Word
+		expectLo     Word
+		expectRes    Word
+		rdReg        uint32
+		expectRevert bool
+		errMsg       string
+	}{
+		{name: "mul", funct: uint32(0x2), rs: Word(5), rt: Word(2), opcode: uint32(28), rdReg: uint32(0x8), expectRes: Word(10), expectRevert: false},                                                // mul t0, t1, t2
+		{name: "mult", funct: uint32(0x18), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00), expectRevert: false},  // mult t1, t2
+		{name: "multu", funct: uint32(0x19), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00), expectRevert: false}, // multu t1, t2
+		{name: "div", funct: uint32(0x1a), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2), expectRevert: false},                               // div t1, t2
+		{name: "div by zero", funct: uint32(0x1a), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: true, errMsg: "MIPS: division by zero"},                            // div t1, t2
+		{name: "divu", funct: uint32(0x1b), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2), expectRevert: false},                              // divu t1, t2
+		{name: "divu by zero", funct: uint32(0x1b), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: true, errMsg: "MIPS: division by zero"},                           // divu t1, t2
+	}
+
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				var insn uint32
+				baseReg := uint32(0x9)
+				rtReg := uint32(0xa)
+
+				insn = tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
+				state.GetRegistersRef()[rtReg] = tt.rt
+				state.GetRegistersRef()[baseReg] = tt.rs
+				state.GetMemory().SetUint32(0, insn)
+
+				if tt.expectRevert {
+					proofData := v.ProofGenerator(t, goVm.GetState())
+					require.Panics(t, func() {
+						_, _ = goVm.Step(
+							false)
+					})
+					testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, tt.errMsg)
+					return
+				}
+
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.expectRes != 0 {
+					expected.Registers[tt.rdReg] = tt.expectRes
+				} else {
+					expected.HI = tt.expectHi
+					expected.LO = tt.expectLo
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_MthiMtlo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+	}{
+		{name: "mtlo", funct: uint32(0x13)},
+		{name: "mthi", funct: uint32(0x11)},
+	}
+	val := Word(0xdeadbeef)
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				state := goVm.GetState()
+				rsReg := uint32(8)
+				insn := rsReg<<21 | tt.funct
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				state.GetRegistersRef()[rsReg] = val
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.funct == 0x11 {
+					expected.HI = state.GetRegistersRef()[rsReg]
+				} else {
+					expected.LO = state.GetRegistersRef()[rsReg]
+				}
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
 func TestEVM_MMap(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name         string
-		heap         uint32
-		address      uint32
-		size         uint32
+		heap         arch.Word
+		address      arch.Word
+		size         arch.Word
 		shouldFail   bool
-		expectedHeap uint32
+		expectedHeap arch.Word
 	}{
-		{name: "Increment heap by max value", heap: program.HEAP_START, address: 0, size: ^uint32(0), shouldFail: true},
-		{name: "Increment heap to 0", heap: program.HEAP_START, address: 0, size: ^uint32(0) - program.HEAP_START + 1, shouldFail: true},
-		{name: "Increment heap to previous page", heap: program.HEAP_START, address: 0, size: ^uint32(0) - program.HEAP_START - memory.PageSize + 1, shouldFail: true},
-		{name: "Increment max page size", heap: program.HEAP_START, address: 0, size: ^uint32(0) & ^uint32(memory.PageAddrMask), shouldFail: true},
-		{name: "Increment max page size from 0", heap: 0, address: 0, size: ^uint32(0) & ^uint32(memory.PageAddrMask), shouldFail: true},
+		{name: "Increment heap by max value", heap: program.HEAP_START, address: 0, size: ^arch.Word(0), shouldFail: true},
+		{name: "Increment heap to 0", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) - program.HEAP_START + 1, shouldFail: true},
+		{name: "Increment heap to previous page", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) - program.HEAP_START - memory.PageSize + 1, shouldFail: true},
+		{name: "Increment max page size", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) & ^arch.Word(memory.PageAddrMask), shouldFail: true},
+		{name: "Increment max page size from 0", heap: 0, address: 0, size: ^arch.Word(0) & ^arch.Word(memory.PageAddrMask), shouldFail: true},
 		{name: "Increment heap at limit", heap: program.HEAP_END, address: 0, size: 1, shouldFail: true},
 		{name: "Increment heap to limit", heap: program.HEAP_END - memory.PageSize, address: 0, size: 1, shouldFail: false, expectedHeap: program.HEAP_END},
 		{name: "Increment heap within limit", heap: program.HEAP_END - 2*memory.PageSize, address: 0, size: 1, shouldFail: false, expectedHeap: program.HEAP_END - memory.PageSize},
@@ -192,8 +580,8 @@ func TestEVM_MMap(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithHeap(c.heap))
 				state := goVm.GetState()
 
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = exec.SysMmap
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
+				state.GetRegistersRef()[2] = arch.SysMmap
 				state.GetRegistersRef()[4] = c.address
 				state.GetRegistersRef()[5] = c.size
 				step := state.GetStep()
@@ -393,14 +781,14 @@ func TestEVMSysWriteHint(t *testing.T) {
 				oracle := testutil.HintTrackingOracle{}
 				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLastHint(tt.lastHint))
 				state := goVm.GetState()
-				state.GetRegistersRef()[2] = exec.SysWrite
+				state.GetRegistersRef()[2] = arch.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
-				state.GetRegistersRef()[5] = uint32(tt.memOffset)
-				state.GetRegistersRef()[6] = uint32(tt.bytesToWrite)
+				state.GetRegistersRef()[5] = arch.Word(tt.memOffset)
+				state.GetRegistersRef()[6] = arch.Word(tt.bytesToWrite)
 
-				err := state.GetMemory().SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
+				err := state.GetMemory().SetMemoryRange(arch.Word(tt.memOffset), bytes.NewReader(tt.hintData))
 				require.NoError(t, err)
-				state.GetMemory().SetMemory(state.GetPC(), insn)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
 				step := state.GetStep()
 
 				expected := testutil.NewExpectedState(state)
@@ -408,8 +796,8 @@ func TestEVMSysWriteHint(t *testing.T) {
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
 				expected.LastHint = tt.expectedLastHint
-				expected.Registers[2] = uint32(tt.bytesToWrite) // Return count of bytes written
-				expected.Registers[7] = 0                       // no Error
+				expected.Registers[2] = arch.Word(tt.bytesToWrite) // Return count of bytes written
+				expected.Registers[7] = 0                          // no Error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -427,13 +815,15 @@ func TestEVMFault(t *testing.T) {
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
-		name   string
-		nextPC uint32
-		insn   uint32
+		name                 string
+		nextPC               arch.Word
+		insn                 uint32
+		errMsg               string
+		memoryProofAddresses []Word
 	}{
-		{"illegal instruction", 0, 0xFF_FF_FF_FF},
-		{"branch in delay-slot", 8, 0x11_02_00_03},
-		{"jump in delay-slot", 8, 0x0c_00_00_0c},
+		{"illegal instruction", 0, 0xFF_FF_FF_FF, "invalid instruction", []Word{0xa7ef00cc}},
+		{"branch in delay-slot", 8, 0x11_02_00_03, "branch in delay slot", []Word{}},
+		{"jump in delay-slot", 8, 0x0c_00_00_0c, "jump in delay slot", []Word{}},
 	}
 
 	for _, v := range versions {
@@ -442,12 +832,13 @@ func TestEVMFault(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
-				state.GetMemory().SetMemory(0, tt.insn)
+				state.GetMemory().SetUint32(0, tt.insn)
 				// set the return address ($ra) to jump into when test completes
 				state.GetRegistersRef()[31] = testutil.EndAddr
 
-				require.Panics(t, func() { _, _ = goVm.Step(true) })
-				testutil.AssertEVMReverts(t, state, v.Contracts, tracer)
+				proofData := v.ProofGenerator(t, goVm.GetState(), tt.memoryProofAddresses...)
+				require.Panics(t, func() { _, _ = goVm.Step(false) })
+				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, tt.errMsg)
 			})
 		}
 	}
@@ -477,7 +868,7 @@ func TestHelloEVM(t *testing.T) {
 				if goVm.GetState().GetExited() {
 					break
 				}
-				insn := state.GetMemory().GetMemory(state.GetPC())
+				insn := state.GetMemory().GetUint32(state.GetPC())
 				if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 				}
@@ -530,7 +921,7 @@ func TestClaimEVM(t *testing.T) {
 					break
 				}
 
-				insn := state.GetMemory().GetMemory(state.GetPC())
+				insn := state.GetMemory().GetUint32(state.GetPC())
 				if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 				}
@@ -578,7 +969,7 @@ func TestEntryEVM(t *testing.T) {
 				if goVm.GetState().GetExited() {
 					break
 				}
-				insn := state.GetMemory().GetMemory(state.GetPC())
+				insn := state.GetMemory().GetUint32(state.GetPC())
 				if i%10_000 == 0 { // avoid spamming test logs, we are executing many steps
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 				}

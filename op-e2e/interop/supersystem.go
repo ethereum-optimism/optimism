@@ -10,11 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -28,11 +26,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
+	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/contracts"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -51,6 +52,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -86,6 +89,12 @@ type SuperSystem interface {
 	SendL2Tx(network string, username string, applyTxOpts helpers.TxOptsFn) *types.Receipt
 	// get the address for a user on an L2
 	Address(network string, username string) common.Address
+	// Deploy the Emitter Contract, which emits Event Logs
+	DeployEmitterContract(network string, username string) common.Address
+	// Use the Emitter Contract to emit an Event Log
+	EmitData(network string, username string, data string) *types.Receipt
+	// Access a contract on a network by name
+	Contract(network string, contractName string) interface{}
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
@@ -123,6 +132,7 @@ type l2Set struct {
 	batcher      *bss.BatcherService
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey
 	userKeys     map[string]ecdsa.PrivateKey
+	contracts    map[string]interface{}
 }
 
 // prepareHDWallet creates a new HD wallet to derive keys from
@@ -401,13 +411,15 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 		batcher:      batcher,
 		operatorKeys: operatorKeys,
 		userKeys:     make(map[string]ecdsa.PrivateKey),
+		contracts:    make(map[string]interface{}),
 	}
 }
 
 // prepareSupervisor creates a new supervisor for the system
 func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
-	logger := s.logger.New("role", "supervisor")
-	cfg := supervisorConfig.Config{
+	// Be verbose with op-supervisor, it's in early test phase
+	logger := testlog.Logger(s.t, log.LevelDebug).New("role", "supervisor")
+	cfg := &supervisorConfig.Config{
 		MetricsConfig: metrics.CLIConfig{
 			Enabled: false,
 		},
@@ -426,11 +438,20 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		L2RPCs:  []string{},
 		Datadir: path.Join(s.t.TempDir(), "supervisor"),
 	}
-	for id := range s.l2s {
-		cfg.L2RPCs = append(cfg.L2RPCs, s.l2s[id].l2Geth.UserRPC().RPC())
+	depSet := &depset.StaticConfigDependencySet{
+		Dependencies: make(map[supervisortypes.ChainID]*depset.StaticConfigDependency),
 	}
+	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
+	for _, l2Out := range s.worldOutput.L2s {
+		chainID := supervisortypes.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		depSet.Dependencies[chainID] = &depset.StaticConfigDependency{
+			ActivationTime: 0,
+			HistoryMinTime: 0,
+		}
+	}
+	cfg.DependencySetSource = depSet
 	// Create the supervisor with the configuration
-	super, err := supervisor.SupervisorFromConfig(context.Background(), &cfg, logger)
+	super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, logger)
 	require.NoError(s.t, err)
 	// Start the supervisor
 	err = super.Start(context.Background())
@@ -460,7 +481,7 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 // their creation can't be safely skipped or reordered at this time
 func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	s.t = t
-	s.logger = testlog.Logger(s.t, log.LevelInfo)
+	s.logger = testlog.Logger(s.t, log.LevelDebug)
 	s.hdWallet = s.prepareHDWallet()
 	s.worldDeployment, s.worldOutput = s.prepareWorld(w)
 
@@ -474,7 +495,7 @@ func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	ctx := context.Background()
 	for _, l2 := range s.l2s {
 		err := s.SupervisorClient().AddL2RPC(ctx, l2.l2Geth.UserRPC().RPC())
-		require.NoError(s.t, err, "failed to add L2 RPC to supervisor", "error", err)
+		require.NoError(s.t, err, "failed to add L2 RPC to supervisor")
 	}
 }
 
@@ -591,12 +612,60 @@ func (s *interopE2ESystem) SendL2Tx(
 ) *types.Receipt {
 	senderSecret := s.UserKey(id, sender)
 	require.NotNil(s.t, senderSecret, "no secret found for sender %s", sender)
+	nonce, err := s.L2GethClient(id).PendingNonceAt(context.Background(), crypto.PubkeyToAddress(senderSecret.PublicKey))
+	require.NoError(s.t, err, "failed to get nonce")
+	newApply := func(opts *helpers.TxOpts) {
+		applyTxOpts(opts)
+		opts.Nonce = nonce
+	}
 	return helpers.SendL2TxWithID(
 		s.t,
 		s.l2s[id].chainID,
 		s.L2GethClient(id),
 		&senderSecret,
-		applyTxOpts)
+		newApply)
+}
+
+func (s *interopE2ESystem) DeployEmitterContract(
+	id string,
+	sender string,
+) common.Address {
+	secret := s.UserKey(id, sender)
+	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+	require.NoError(s.t, err)
+	auth.GasLimit = uint64(3000000)
+	auth.GasPrice = big.NewInt(20000000000)
+	address, _, _, err := emit.DeployEmit(auth, s.L2GethClient(id))
+	require.NoError(s.t, err)
+	contract, err := emit.NewEmit(address, s.L2GethClient(id))
+	require.NoError(s.t, err)
+	s.l2s[id].contracts["emitter"] = contract
+	return address
+}
+
+func (s *interopE2ESystem) EmitData(
+	id string,
+	sender string,
+	data string,
+) *types.Receipt {
+	secret := s.UserKey(id, sender)
+	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+
+	require.NoError(s.t, err)
+
+	auth.GasLimit = uint64(3000000)
+	auth.GasPrice = big.NewInt(20000000000)
+
+	contract := s.Contract(id, "emitter").(*emit.Emit)
+	tx, err := contract.EmitTransactor.EmitData(auth, []byte(data))
+	require.NoError(s.t, err)
+	receipt, err := bind.WaitMined(context.Background(), s.L2GethClient(id), tx)
+	require.NoError(s.t, err)
+	return receipt
+}
+
+func (s *interopE2ESystem) Contract(id string, name string) interface{} {
+	return s.l2s[id].contracts[name]
 }
 
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {

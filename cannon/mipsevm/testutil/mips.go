@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
@@ -97,7 +99,7 @@ func EncodeStepInput(t *testing.T, wit *mipsevm.StepWitness, localContext mipsev
 	return input
 }
 
-func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset uint32, localContext mipsevm.LocalContext) ([]byte, error) {
+func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, localContext mipsevm.LocalContext) ([]byte, error) {
 	if preimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
@@ -151,7 +153,7 @@ func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, 
 	}
 }
 
-func (m *MIPSEVM) assertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset uint32) {
+func (m *MIPSEVM) assertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word) {
 	poInput, err := m.encodePreimageOracleInput(t, preimageKey, preimageValue, preimageOffset, mipsevm.LocalContext{})
 	require.NoError(t, err, "encode preimage oracle input")
 	_, _, evmErr := m.env.Call(m.sender, m.addrs.Oracle, poInput, m.startingGas, common.U2560)
@@ -170,6 +172,12 @@ func LogStepFailureAtCleanup(t *testing.T, mipsEvm *MIPSEVM) {
 
 // ValidateEVM runs a single evm step and validates against an FPVM poststate
 func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM, hashFn mipsevm.HashFn, contracts *ContractMetadata, tracer *tracing.Hooks) {
+	if !arch.IsMips32 {
+		// TODO(#12250) Re-enable EVM validation once 64-bit MIPS contracts are completed
+		t.Logf("WARNING: Skipping EVM validation for 64-bit MIPS")
+		return
+	}
+
 	evm := NewMIPSEVM(contracts)
 	evm.SetTracer(tracer)
 	LogStepFailureAtCleanup(t, evm)
@@ -181,12 +189,11 @@ func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, go
 }
 
 // AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
-func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks) {
-	insnProof := state.GetMemory().MerkleProof(state.GetPC())
+func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, ProofData []byte, expectedReason string) {
 	encodedWitness, _ := state.EncodeWitness()
 	stepWitness := &mipsevm.StepWitness{
 		State:     encodedWitness,
-		ProofData: insnProof[:],
+		ProofData: ProofData,
 	}
 	input := EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.Artifacts.MIPS)
 	startingGas := uint64(30_000_000)
@@ -194,13 +201,19 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	env, evmState := NewEVMEnv(contracts)
 	env.Config.Tracer = tracer
 	sender := common.Address{0x13, 0x37}
-	_, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
+	ret, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
+
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
+	require.Greater(t, len(ret), 4, "Return data length should be greater than 4 bytes")
+	unpacked, decodeErr := abi.UnpackRevert(ret)
+	require.NoError(t, decodeErr, "Failed to unpack revert reason")
+	require.Equal(t, expectedReason, unpacked, "Revert reason mismatch")
+
 	logs := evmState.Logs()
 	require.Equal(t, 0, len(logs))
 }
 
-func AssertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset uint32, contracts *ContractMetadata, tracer *tracing.Hooks) {
+func AssertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, contracts *ContractMetadata, tracer *tracing.Hooks) {
 	evm := NewMIPSEVM(contracts)
 	evm.SetTracer(tracer)
 	LogStepFailureAtCleanup(t, evm)

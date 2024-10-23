@@ -49,7 +49,7 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
 		PrestateProvider: prestateProvider,
-		stateConverter:   NewStateConverter(),
+		stateConverter:   NewStateConverter(cfg),
 		cfg:              cfg,
 	}
 }
@@ -125,7 +125,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*utils
 		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
 			// Expected proof wasn't generated, check if we reached the end of execution
-			proof, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
+			proof, step, exited, err := p.stateConverter.ConvertStateToProof(ctx, vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 			if err != nil {
 				return nil, err
 			}
@@ -168,12 +168,12 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		logger:    logger,
 		dir:       dir,
 		prestate:  cfg.AsteriscAbsolutePreState,
-		generator: vm.NewExecutor(logger, m, cfg.Asterisc, vm.NewOpProgramServerExecutor(), cfg.AsteriscAbsolutePreState, localInputs),
+		generator: vm.NewExecutor(logger, m, cfg.Asterisc, vm.NewOpProgramServerExecutor(logger), cfg.AsteriscAbsolutePreState, localInputs),
 		gameDepth: gameDepth,
 		preimageLoader: utils.NewPreimageLoader(func() (utils.PreimageSource, error) {
 			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
-		stateConverter: NewStateConverter(),
+		stateConverter: NewStateConverter(cfg.Asterisc),
 		cfg:            cfg.Asterisc,
 	}
 	return &AsteriscTraceProviderForTest{p}
@@ -185,7 +185,7 @@ func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint6
 		return 0, fmt.Errorf("generate asterisc trace (until preimage read): %w", err)
 	}
 	// Load the step from the state asterisc finished with
-	_, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
+	_, step, exited, err := p.stateConverter.ConvertStateToProof(ctx, vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load final state: %w", err)
 	}

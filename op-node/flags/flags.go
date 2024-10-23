@@ -259,7 +259,7 @@ var (
 	MetricsAddrFlag = &cli.StringFlag{
 		Name:     "metrics.addr",
 		Usage:    "Metrics listening address",
-		Value:    "0.0.0.0", // TODO(CLI-4159): Switch to 127.0.0.1
+		Value:    "0.0.0.0", // TODO: Switch to 127.0.0.1
 		EnvVars:  prefixEnvVars("METRICS_ADDR"),
 		Category: OperationsCategory,
 	}

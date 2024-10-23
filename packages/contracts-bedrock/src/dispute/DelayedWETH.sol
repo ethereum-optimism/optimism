@@ -7,8 +7,6 @@ import { WETH98 } from "src/universal/WETH98.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { IWETH } from "src/universal/interfaces/IWETH.sol";
-import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 /// @custom:proxied true
@@ -21,12 +19,23 @@ import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 ///         is meant to sit behind a proxy contract and has an owner address that can pull WETH from any account and
 ///         can recover ETH from the contract itself. Variable and function naming vaguely follows the vibe of WETH9.
 ///         Not the prettiest contract in the world, but it gets the job done.
-contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
-    /// @notice Semantic version.
-    /// @custom:semver 1.2.0-beta.1
-    string public constant version = "1.2.0-beta.1";
+contract DelayedWETH is OwnableUpgradeable, WETH98, ISemver {
+    /// @notice Represents a withdrawal request.
+    struct WithdrawalRequest {
+        uint256 amount;
+        uint256 timestamp;
+    }
 
-    /// @inheritdoc IDelayedWETH
+    /// @notice Emitted when an unwrap is started.
+    /// @param src The address that started the unwrap.
+    /// @param wad The amount of WETH that was unwrapped.
+    event Unwrap(address indexed src, uint256 wad);
+
+    /// @notice Semantic version.
+    /// @custom:semver 1.2.0-beta.2
+    string public constant version = "1.2.0-beta.2";
+
+    /// @notice Returns a withdrawal request for the given address.
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;
 
     /// @notice Withdrawal delay in seconds.
@@ -50,12 +59,15 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
         config = _config;
     }
 
-    /// @inheritdoc IDelayedWETH
+    /// @notice Returns the withdrawal delay in seconds.
+    /// @return The withdrawal delay in seconds.
     function delay() external view returns (uint256) {
         return DELAY_SECONDS;
     }
 
-    /// @inheritdoc IDelayedWETH
+    /// @notice Unlocks withdrawals for the sender's account, after a time delay.
+    /// @param _guy Sub-account to unlock.
+    /// @param _wad The amount of WETH to unlock.
     function unlock(address _guy, uint256 _wad) external {
         // Note that the unlock function can be called by any address, but the actual unlocking capability still only
         // gives the msg.sender the ability to withdraw from the account. As long as the unlock and withdraw functions
@@ -67,12 +79,15 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
         wd.amount += _wad;
     }
 
-    /// @inheritdoc IWETH
-    function withdraw(uint256 _wad) public override(WETH98, IWETH) {
+    /// @notice Withdraws an amount of ETH.
+    /// @param _wad The amount of ETH to withdraw.
+    function withdraw(uint256 _wad) public override {
         withdraw(msg.sender, _wad);
     }
 
-    /// @inheritdoc IDelayedWETH
+    /// @notice Extension to withdrawal, must provide a sub-account to withdraw from.
+    /// @param _guy Sub-account to withdraw from.
+    /// @param _wad The amount of WETH to withdraw.
     function withdraw(address _guy, uint256 _wad) public {
         require(!config.paused(), "DelayedWETH: contract is paused");
         WithdrawalRequest storage wd = withdrawals[msg.sender][_guy];
@@ -83,7 +98,8 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
         super.withdraw(_wad);
     }
 
-    /// @inheritdoc IDelayedWETH
+    /// @notice Allows the owner to recover from error cases by pulling ETH out of the contract.
+    /// @param _wad The amount of WETH to recover.
     function recover(uint256 _wad) external {
         require(msg.sender == owner(), "DelayedWETH: not owner");
         uint256 amount = _wad < address(this).balance ? _wad : address(this).balance;
@@ -91,7 +107,9 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
         require(success, "DelayedWETH: recover failed");
     }
 
-    /// @inheritdoc IDelayedWETH
+    /// @notice Allows the owner to recover from error cases by pulling ETH from a specific owner.
+    /// @param _guy The address to recover the WETH from.
+    /// @param _wad The amount of WETH to recover.
     function hold(address _guy, uint256 _wad) external {
         require(msg.sender == owner(), "DelayedWETH: not owner");
         allowance[_guy][msg.sender] = _wad;

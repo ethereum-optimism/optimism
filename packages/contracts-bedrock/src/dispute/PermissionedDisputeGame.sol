@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+
+// Libraries
+import { GameType, Claim, Duration } from "src/dispute/lib/Types.sol";
+import { BadAuth } from "src/dispute/lib/Errors.sol";
+
+// Interfaces
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
-import { FaultDisputeGame, IFaultDisputeGame, IBigStepper, IInitializable } from "src/dispute/FaultDisputeGame.sol";
-import "src/dispute/lib/Types.sol";
-import "src/dispute/lib/Errors.sol";
+import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 
 /// @title PermissionedDisputeGame
 /// @notice PermissionedDisputeGame is a contract that inherits from `FaultDisputeGame`, and contains two roles:
@@ -73,7 +79,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         CHALLENGER = _challenger;
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @inheritdoc FaultDisputeGame
     function step(
         uint256 _claimIndex,
         bool _isAttack,
@@ -106,7 +112,7 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         super.move(_disputed, _challengeIndex, _claim, _isAttack);
     }
 
-    /// @inheritdoc IInitializable
+    /// @notice Initializes the contract.
     function initialize() public payable override {
         // The creator of the dispute game must be the proposer EOA.
         if (tx.origin != PROPOSER) revert BadAuth();

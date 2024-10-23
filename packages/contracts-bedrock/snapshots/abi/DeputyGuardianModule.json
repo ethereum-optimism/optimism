@@ -74,7 +74,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract AnchorStateRegistry",
+        "internalType": "contract IAnchorStateRegistry",
         "name": "_registry",
         "type": "address"
       },

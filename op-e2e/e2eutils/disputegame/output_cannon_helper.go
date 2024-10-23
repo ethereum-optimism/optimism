@@ -35,7 +35,7 @@ type OutputCannonGameHelper struct {
 
 func (g *OutputCannonGameHelper) StartChallenger(ctx context.Context, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
-		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis()),
+		challenger.WithCannon(g.T, g.System),
 		challenger.WithFactoryAddress(g.FactoryAddr),
 		challenger.WithGameAddress(g.Addr),
 	}
@@ -47,23 +47,23 @@ func (g *OutputCannonGameHelper) StartChallenger(ctx context.Context, name strin
 	return c
 }
 
-type honestActorConfig struct {
-	prestateBlock  uint64
-	poststateBlock uint64
-	challengerOpts []challenger.Option
+type HonestActorConfig struct {
+	PrestateBlock  uint64
+	PoststateBlock uint64
+	ChallengerOpts []challenger.Option
 }
 
-type HonestActorOpt func(cfg *honestActorConfig)
+type HonestActorOpt func(cfg *HonestActorConfig)
 
 func WithClaimedL2BlockNumber(num uint64) HonestActorOpt {
-	return func(cfg *honestActorConfig) {
-		cfg.poststateBlock = num
+	return func(cfg *HonestActorConfig) {
+		cfg.PoststateBlock = num
 	}
 }
 
 func WithPrivKey(privKey *ecdsa.PrivateKey) HonestActorOpt {
-	return func(cfg *honestActorConfig) {
-		cfg.challengerOpts = append(cfg.challengerOpts, challenger.WithPrivKey(privKey))
+	return func(cfg *HonestActorConfig) {
+		cfg.ChallengerOpts = append(cfg.ChallengerOpts, challenger.WithPrivKey(privKey))
 	}
 }
 
@@ -75,21 +75,21 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	g.Require.NoError(err, "Failed to load block range")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.System.RollupClient(l2Node)
-	actorCfg := &honestActorConfig{
-		prestateBlock:  realPrestateBlock,
-		poststateBlock: realPostStateBlock,
-		challengerOpts: g.defaultChallengerOptions(),
+	actorCfg := &HonestActorConfig{
+		PrestateBlock:  realPrestateBlock,
+		PoststateBlock: realPostStateBlock,
+		ChallengerOpts: g.defaultChallengerOptions(),
 	}
 	for _, option := range options {
 		option(actorCfg)
 	}
 
-	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, actorCfg.challengerOpts...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, actorCfg.ChallengerOpts...)
 	dir := filepath.Join(cfg.Datadir, "honest")
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, actorCfg.prestateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, actorCfg.PrestateBlock)
 	l1Head := g.GetL1Head(ctx)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, cfg.Cannon, vm.NewOpProgramServerExecutor(), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.prestateBlock, actorCfg.poststateBlock)
+		logger, metrics.NoopMetrics, cfg.Cannon, vm.NewOpProgramServerExecutor(logger), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.PrestateBlock, actorCfg.PoststateBlock)
 	g.Require.NoError(err, "Failed to create output cannon trace accessor")
 	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, g.Game, accessor)
 }
@@ -316,7 +316,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 		localContext = outputs.CreateLocalContext(pre, post)
 		dir := filepath.Join(cfg.Datadir, "cannon-trace")
 		subdir := filepath.Join(dir, localContext.Hex())
-		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics, cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1), nil
+		return cannon.NewTraceProviderForTest(logger, metrics.NoopMetrics.VmMetrics(types.TraceTypeCannon.String()), cfg, localInputs, subdir, g.MaxDepth(ctx)-splitDepth-1), nil
 	})
 
 	claims, err := g.Game.GetAllClaims(ctx, rpcblock.Latest)
@@ -331,7 +331,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 
 func (g *OutputCannonGameHelper) defaultChallengerOptions() []challenger.Option {
 	return []challenger.Option{
-		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis()),
+		challenger.WithCannon(g.T, g.System),
 		challenger.WithFactoryAddress(g.FactoryAddr),
 		challenger.WithGameAddress(g.Addr),
 	}

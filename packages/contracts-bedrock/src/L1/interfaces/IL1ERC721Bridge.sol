@@ -37,4 +37,6 @@ interface IL1ERC721Bridge is IERC721Bridge {
     function paused() external view returns (bool);
     function superchainConfig() external view returns (ISuperchainConfig);
     function version() external view returns (string memory);
+
+    function __constructor__() external;
 }

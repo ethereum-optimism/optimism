@@ -8,7 +8,6 @@ import {
     CommitmentType
 } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
 import { computeCommitmentKeccak256 } from "src/L1/DataAvailabilityChallenge.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 

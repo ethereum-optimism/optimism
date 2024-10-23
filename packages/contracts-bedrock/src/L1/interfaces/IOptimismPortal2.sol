@@ -88,7 +88,7 @@ interface IOptimismPortal2 {
     function l2Sender() external view returns (address);
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256);
-    function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum);
+    function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum); // nosemgrep
     function paused() external view returns (bool);
     function proofMaturityDelaySeconds() external view returns (uint256);
     function proofSubmitters(bytes32, uint256) external view returns (address);
@@ -105,7 +105,7 @@ interface IOptimismPortal2 {
     )
         external
         view
-        returns (IDisputeGame disputeGameProxy, uint64 timestamp);
+        returns (IDisputeGame disputeGameProxy, uint64 timestamp); // nosemgrep
     function respectedGameType() external view returns (GameType);
     function respectedGameTypeUpdatedAt() external view returns (uint64);
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external;
@@ -113,4 +113,6 @@ interface IOptimismPortal2 {
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
+
+    function __constructor__(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) external;
 }

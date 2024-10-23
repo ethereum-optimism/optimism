@@ -233,7 +233,7 @@ services:
       OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
       OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
       OP_CHALLENGER_CANNON_SERVER: /op-program/op-program
-      OP_CHALLENGER_CANNON_PRESTATE: /op-program/prestate.json
+      OP_CHALLENGER_CANNON_PRESTATE: /op-program/prestate.bin.gz
       OP_CHALLENGER_L2_ETH_RPC: http://l2:8545
       OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
       OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"

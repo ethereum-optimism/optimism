@@ -1,8 +1,8 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"fmt"
-	"slices"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,23 +10,36 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
-func CopyRegisters(state mipsevm.FPVMState) *[32]uint32 {
-	copy := new([32]uint32)
-	*copy = *state.GetRegistersRef()
-	return copy
+func AddHintLengthPrefix(data []byte) []byte {
+	dataLen := len(data)
+	prefixed := make([]byte, 0, dataLen+4)
+	prefixed = binary.BigEndian.AppendUint32(prefixed, uint32(dataLen))
+	prefixed = append(prefixed, data...)
+
+	return prefixed
+}
+
+func AddPreimageLengthPrefix(data []byte) []byte {
+	dataLen := len(data)
+	prefixed := make([]byte, 0, dataLen+8)
+	prefixed = binary.BigEndian.AppendUint64(prefixed, uint64(dataLen))
+	prefixed = append(prefixed, data...)
+
+	return prefixed
 }
 
 type StateMutator interface {
 	SetPreimageKey(val common.Hash)
-	SetPreimageOffset(val uint32)
-	SetPC(val uint32)
-	SetNextPC(val uint32)
-	SetHI(val uint32)
-	SetLO(val uint32)
-	SetHeap(addr uint32)
+	SetPreimageOffset(val arch.Word)
+	SetPC(val arch.Word)
+	SetNextPC(val arch.Word)
+	SetHI(val arch.Word)
+	SetLO(val arch.Word)
+	SetHeap(addr arch.Word)
 	SetExitCode(val uint8)
 	SetExited(val bool)
 	SetStep(val uint64)
@@ -36,19 +49,38 @@ type StateMutator interface {
 
 type StateOption func(state StateMutator)
 
-func WithPC(pc uint32) StateOption {
+func WithPC(pc arch.Word) StateOption {
 	return func(state StateMutator) {
 		state.SetPC(pc)
 	}
 }
 
-func WithNextPC(nextPC uint32) StateOption {
+func WithNextPC(nextPC arch.Word) StateOption {
 	return func(state StateMutator) {
 		state.SetNextPC(nextPC)
 	}
 }
 
-func WithHeap(addr uint32) StateOption {
+func WithPCAndNextPC(pc arch.Word) StateOption {
+	return func(state StateMutator) {
+		state.SetPC(pc)
+		state.SetNextPC(pc + 4)
+	}
+}
+
+func WithHI(hi arch.Word) StateOption {
+	return func(state StateMutator) {
+		state.SetHI(hi)
+	}
+}
+
+func WithLO(lo arch.Word) StateOption {
+	return func(state StateMutator) {
+		state.SetLO(lo)
+	}
+}
+
+func WithHeap(addr arch.Word) StateOption {
 	return func(state StateMutator) {
 		state.SetHeap(addr)
 	}
@@ -66,7 +98,7 @@ func WithPreimageKey(key common.Hash) StateOption {
 	}
 }
 
-func WithPreimageOffset(offset uint32) StateOption {
+func WithPreimageOffset(offset arch.Word) StateOption {
 	return func(state StateMutator) {
 		state.SetPreimageOffset(offset)
 	}
@@ -84,12 +116,12 @@ func WithRandomization(seed int64) StateOption {
 	}
 }
 
-func AlignPC(pc uint32) uint32 {
+func AlignPC(pc arch.Word) arch.Word {
 	// Memory-align random pc and leave room for nextPC
-	pc = pc & 0xFF_FF_FF_FC // Align address
-	if pc >= 0xFF_FF_FF_FC {
+	pc = pc & arch.AddressMask // Align address
+	if pc >= arch.AddressMask {
 		// Leave room to set and then increment nextPC
-		pc = 0xFF_FF_FF_FC - 8
+		pc = arch.AddressMask - 8
 	}
 	return pc
 }
@@ -104,17 +136,17 @@ func BoundStep(step uint64) uint64 {
 
 type ExpectedState struct {
 	PreimageKey    common.Hash
-	PreimageOffset uint32
-	PC             uint32
-	NextPC         uint32
-	HI             uint32
-	LO             uint32
-	Heap           uint32
+	PreimageOffset arch.Word
+	PC             arch.Word
+	NextPC         arch.Word
+	HI             arch.Word
+	LO             arch.Word
+	Heap           arch.Word
 	ExitCode       uint8
 	Exited         bool
 	Step           uint64
 	LastHint       hexutil.Bytes
-	Registers      [32]uint32
+	Registers      [32]arch.Word
 	MemoryRoot     common.Hash
 	expectedMemory *memory.Memory
 }
@@ -145,24 +177,18 @@ func (e *ExpectedState) ExpectStep() {
 	e.NextPC += 4
 }
 
-func (e *ExpectedState) ExpectMemoryWrite(addr uint32, val uint32) {
-	e.expectedMemory.SetMemory(addr, val)
+func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val uint32) {
+	e.expectedMemory.SetUint32(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-type StateValidationFlags int
+func (e *ExpectedState) ExpectMemoryWriteWord(addr arch.Word, val arch.Word) {
+	e.expectedMemory.SetWord(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
+}
 
-// TODO(cp-983) - Remove these validation hacks
-const (
-	SkipMemoryValidation StateValidationFlags = iota
-	SkipHintValidation
-	SkipPreimageKeyValidation
-)
-
-func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState, flags ...StateValidationFlags) {
-	if !slices.Contains(flags, SkipPreimageKeyValidation) {
-		require.Equal(t, e.PreimageKey, actualState.GetPreimageKey(), fmt.Sprintf("Expect preimageKey = %v", e.PreimageKey))
-	}
+func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState) {
+	require.Equal(t, e.PreimageKey, actualState.GetPreimageKey(), fmt.Sprintf("Expect preimageKey = %v", e.PreimageKey))
 	require.Equal(t, e.PreimageOffset, actualState.GetPreimageOffset(), fmt.Sprintf("Expect preimageOffset = %v", e.PreimageOffset))
 	require.Equal(t, e.PC, actualState.GetCpu().PC, fmt.Sprintf("Expect PC = 0x%x", e.PC))
 	require.Equal(t, e.NextPC, actualState.GetCpu().NextPC, fmt.Sprintf("Expect nextPC = 0x%x", e.NextPC))
@@ -172,11 +198,7 @@ func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState, fl
 	require.Equal(t, e.ExitCode, actualState.GetExitCode(), fmt.Sprintf("Expect exitCode = 0x%x", e.ExitCode))
 	require.Equal(t, e.Exited, actualState.GetExited(), fmt.Sprintf("Expect exited = %v", e.Exited))
 	require.Equal(t, e.Step, actualState.GetStep(), fmt.Sprintf("Expect step = %d", e.Step))
-	if !slices.Contains(flags, SkipHintValidation) {
-		require.Equal(t, e.LastHint, actualState.GetLastHint(), fmt.Sprintf("Expect lastHint = %v", e.LastHint))
-	}
+	require.Equal(t, e.LastHint, actualState.GetLastHint(), fmt.Sprintf("Expect lastHint = %v", e.LastHint))
 	require.Equal(t, e.Registers, *actualState.GetRegistersRef(), fmt.Sprintf("Expect registers = %v", e.Registers))
-	if !slices.Contains(flags, SkipMemoryValidation) {
-		require.Equal(t, e.MemoryRoot, common.Hash(actualState.GetMemory().MerkleRoot()), fmt.Sprintf("Expect memory root = %v", e.MemoryRoot))
-	}
+	require.Equal(t, e.MemoryRoot, common.Hash(actualState.GetMemory().MerkleRoot()), fmt.Sprintf("Expect memory root = %v", e.MemoryRoot))
 }

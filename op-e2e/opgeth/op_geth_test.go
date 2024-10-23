@@ -129,7 +129,7 @@ func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
 	defer opGeth.Close()
 
 	checkPending := func(stage string, number uint64) {
-		// TODO(CLI-4044): pending-block ID change
+		// TODO: pending-block ID change
 		pendingBlock, err := opGeth.L2Client.BlockByNumber(ctx, big.NewInt(-1))
 		require.NoError(t, err, "failed to fetch pending block at stage "+stage)
 		require.Equal(t, number, pendingBlock.NumberU64(), "pending block must have expected number")

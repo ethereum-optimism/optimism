@@ -56,20 +56,11 @@ type OpGeth struct {
 func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LevelCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.AllocTypeStandard), config.L1Deployments(config.AllocTypeStandard))
 	require.NoError(t, err)
 	l1Block := l1Genesis.ToBlock()
-
-	var allocsMode genesis.L2AllocsMode
-	allocsMode = genesis.L2AllocsDelta
-	if graniteTime := cfg.DeployConfig.GraniteTime(l1Block.Time()); graniteTime != nil && *graniteTime <= 0 {
-		allocsMode = genesis.L2AllocsGranite
-	} else if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
-		allocsMode = genesis.L2AllocsFjord
-	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
-		allocsMode = genesis.L2AllocsEcotone
-	}
-	l2Allocs := config.L2Allocs(allocsMode)
+	allocsMode := e2eutils.GetL2AllocsMode(cfg.DeployConfig, l1Block.Time())
+	l2Allocs := config.L2Allocs(config.AllocTypeStandard, allocsMode)
 	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
 	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
@@ -88,20 +79,10 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	}
 
 	var node services.EthInstance
-	if cfg.ExternalL2Shim == "" {
-		gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
-		require.NoError(t, err)
-		require.NoError(t, gethNode.Node.Start())
-		node = gethNode
-	} else {
-		externalNode := (&e2esys.ExternalRunner{
-			Name:    "l2",
-			BinPath: cfg.ExternalL2Shim,
-			Genesis: l2Genesis,
-			JWTPath: cfg.JWTFilePath,
-		}).Run(t)
-		node = externalNode
-	}
+	gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
+	require.NoError(t, err)
+	require.NoError(t, gethNode.Node.Start())
+	node = gethNode
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.AuthRPC().RPC(), client.WithGethRPCOptions(auth))
@@ -122,6 +103,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	l2Client, err := ethclient.Dial(node.UserRPC().RPC())
 	require.NoError(t, err)
 
+	// Note: Using CanyonTime here because for OP Stack chains, Shanghai must be activated at the same time as Canyon.
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock, cfg.DeployConfig.CanyonTime(l2GenesisBlock.Time()))
 
 	require.NoError(t, err)
@@ -252,6 +234,10 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		GasLimit:              (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
+	}
+	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
+		attrs.EIP1559Params = new(eth.Bytes8)
+		*attrs.EIP1559Params = d.SystemConfig.EIP1559Params
 	}
 	return &attrs, nil
 }

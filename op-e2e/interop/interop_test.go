@@ -54,9 +54,6 @@ func TestInteropTrivial(t *testing.T) {
 	expectedBalance, _ := big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
 
-	// sleep for a bit to allow the chain to start
-	time.Sleep(30 * time.Second)
-
 	// send a tx from Alice to Bob
 	s2.SendL2Tx(
 		chainA,
@@ -86,4 +83,15 @@ func TestInteropTrivial(t *testing.T) {
 	require.NoError(t, err)
 	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
+
+	s2.DeployEmitterContract(chainA, "Alice")
+	s2.DeployEmitterContract(chainB, "Alice")
+	for i := 0; i < 1; i++ {
+		s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
+
+		s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
+	}
+
+	time.Sleep(60 * time.Second)
+
 }

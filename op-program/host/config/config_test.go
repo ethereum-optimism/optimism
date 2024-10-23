@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	validRollupConfig    = chaincfg.Sepolia
-	validL2Genesis       = chainconfig.OPSepoliaChainConfig
+	validRollupConfig    = chaincfg.OPSepolia()
+	validL2Genesis       = chainconfig.OPSepoliaChainConfig()
 	validL1Head          = common.Hash{0xaa}
 	validL2Head          = common.Hash{0xbb}
 	validL2Claim         = common.Hash{0xcc}

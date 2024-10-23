@@ -19,5 +19,6 @@ type SequencerIface interface {
 	Stop(ctx context.Context) (hash common.Hash, err error)
 	SetMaxSafeLag(ctx context.Context, v uint64) error
 	OverrideLeader(ctx context.Context) error
+	ConductorEnabled(ctx context.Context) bool
 	Close()
 }

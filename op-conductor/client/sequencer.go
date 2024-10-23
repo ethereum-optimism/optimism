@@ -18,6 +18,7 @@ type SequencerControl interface {
 	SequencerActive(ctx context.Context) (bool, error)
 	LatestUnsafeBlock(ctx context.Context) (eth.BlockInfo, error)
 	PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	ConductorEnabled(ctx context.Context) (bool, error)
 }
 
 // NewSequencerControl creates a new SequencerControl instance.
@@ -58,4 +59,9 @@ func (s *sequencerController) SequencerActive(ctx context.Context) (bool, error)
 // PostUnsafePayload implements SequencerControl.
 func (s *sequencerController) PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return s.node.PostUnsafePayload(ctx, payload)
+}
+
+// ConductorEnabled implements SequencerControl.
+func (s *sequencerController) ConductorEnabled(ctx context.Context) (bool, error) {
+	return s.node.ConductorEnabled(ctx)
 }

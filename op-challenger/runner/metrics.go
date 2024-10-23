@@ -4,7 +4,6 @@ import (
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -100,14 +99,14 @@ func (m *Metrics) RecordVmMemoryUsed(vmType string, memoryUsed uint64) {
 	m.vmLastMemoryUsed.WithLabelValues(vmType).Set(float64(memoryUsed))
 }
 
-func (m *Metrics) RecordSuccess(vmType types.TraceType) {
-	m.successTotal.WithLabelValues(vmType.String()).Inc()
+func (m *Metrics) RecordSuccess(vmType string) {
+	m.successTotal.WithLabelValues(vmType).Inc()
 }
 
-func (m *Metrics) RecordFailure(vmType types.TraceType) {
-	m.failuresTotal.WithLabelValues(vmType.String()).Inc()
+func (m *Metrics) RecordFailure(vmType string) {
+	m.failuresTotal.WithLabelValues(vmType).Inc()
 }
 
-func (m *Metrics) RecordInvalid(vmType types.TraceType) {
-	m.invalidTotal.WithLabelValues(vmType.String()).Inc()
+func (m *Metrics) RecordInvalid(vmType string) {
+	m.invalidTotal.WithLabelValues(vmType).Inc()
 }

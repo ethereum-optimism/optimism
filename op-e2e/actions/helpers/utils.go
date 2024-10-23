@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
@@ -10,11 +11,14 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 )
 
-var DefaultRollupTestParams = &e2eutils.TestParams{
-	MaxSequencerDrift:   40,
-	SequencerWindowSize: 120,
-	ChannelTimeout:      120,
-	L1BlockTime:         15,
+func DefaultRollupTestParams() *e2eutils.TestParams {
+	return &e2eutils.TestParams{
+		MaxSequencerDrift:   40,
+		SequencerWindowSize: 120,
+		ChannelTimeout:      120,
+		L1BlockTime:         15,
+		AllocType:           config.DefaultAllocType,
+	}
 }
 
 var DefaultAlloc = &e2eutils.AllocParams{PrefundTestUsers: true}

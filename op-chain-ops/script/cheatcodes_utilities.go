@@ -3,8 +3,11 @@ package script
 import (
 	"fmt"
 	"math/big"
+	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 
@@ -188,5 +191,77 @@ func (c *CheatCodesPrecompile) Breakpoint_f7d39a8d(name string, v bool) {
 	}
 }
 
+// ParseTomlAddress_65e7c844 implements https://book.getfoundry.sh/cheatcodes/parse-toml. This
+// method is not well optimized or implemented. It's optimized for quickly delivering OPCM. We
+// can come back and clean it up more later.
+func (c *CheatCodesPrecompile) ParseTomlAddress_65e7c844(tomlStr string, key string) (common.Address, error) {
+	var data map[string]any
+	if err := toml.Unmarshal([]byte(tomlStr), &data); err != nil {
+		return common.Address{}, fmt.Errorf("failed to parse TOML: %w", err)
+	}
+
+	keys, err := SplitJSONPathKeys(key)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to split keys: %w", err)
+	}
+
+	loc := data
+	for i, k := range keys {
+		value, ok := loc[k]
+		if !ok {
+			return common.Address{}, fmt.Errorf("key %q not found in TOML", k)
+		}
+
+		if i == len(keys)-1 {
+			addrStr, ok := value.(string)
+			if !ok {
+				return common.Address{}, fmt.Errorf("key %q is not a string", key)
+			}
+			if !common.IsHexAddress(addrStr) {
+				return common.Address{}, fmt.Errorf("key %q is not a valid address", key)
+			}
+			return common.HexToAddress(addrStr), nil
+		}
+
+		next, ok := value.(map[string]any)
+		if !ok {
+			return common.Address{}, fmt.Errorf("key %q is not a nested map", key)
+		}
+		loc = next
+	}
+
+	panic("should never get here")
+}
+
 // unsupported
 //func (c *CheatCodesPrecompile) CreateWallet() {}
+
+// SplitJSONPathKeys splits a JSON path into keys. It supports bracket notation. There is a much
+// better way to implement this, but I'm keeping this simple for now.
+func SplitJSONPathKeys(path string) ([]string, error) {
+	var out []string
+	bracketSplit := regexp.MustCompile(`[\[\]]`).Split(path, -1)
+	for _, split := range bracketSplit {
+		if len(split) == 0 {
+			continue
+		}
+
+		split = strings.ReplaceAll(split, "\"", "")
+		split = strings.ReplaceAll(split, " ", "")
+
+		if !strings.HasPrefix(split, ".") {
+			out = append(out, split)
+			continue
+		}
+
+		keys := strings.Split(split, ".")
+		for _, key := range keys {
+			if len(key) == 0 {
+				continue
+			}
+			out = append(out, key)
+		}
+	}
+
+	return out, nil
+}

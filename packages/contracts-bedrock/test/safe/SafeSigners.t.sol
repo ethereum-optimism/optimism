@@ -98,7 +98,7 @@ contract SafeSigners_Test is Test, SafeTestTools {
 
         // Recover the signatures using the _getNSigners() method.
         address[] memory gotSigners =
-            SafeSigners.getNSigners({ dataHash: digest, signatures: signatures, requiredSignatures: numSigs });
+            SafeSigners.getNSigners({ _dataHash: digest, _signatures: signatures, _requiredSignatures: numSigs });
 
         // Compare the list of recovered signers to the expected signers.
         assertEq(gotSigners.length, numSigs);

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { L1Block } from "src/L2/L1Block.sol";
-import { Constants } from "src/libraries/Constants.sol";
+// Libraries
 import { LibZip } from "@solady/utils/LibZip.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
@@ -26,8 +29,8 @@ contract GasPriceOracle is ISemver {
     uint256 public constant DECIMALS = 6;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1-beta.1
-    string public constant version = "1.3.1-beta.1";
+    /// @custom:semver 1.3.1-beta.3
+    string public constant version = "1.3.1-beta.3";
 
     /// @notice This is the intercept value for the linear regression used to estimate the final size of the
     ///         compressed transaction.
@@ -71,7 +74,7 @@ contract GasPriceOracle is ISemver {
 
         // Add 68 to the size to account for unsigned tx:
         uint256 txSize = _unsignedTxSize + 68;
-        // txSize / 255 + 16 is the pratical fastlz upper-bound covers %99.99 txs.
+        // txSize / 255 + 16 is the practical fastlz upper-bound covers %99.99 txs.
         uint256 flzUpperBound = txSize + txSize / 255 + 16;
 
         return _fjordL1Cost(flzUpperBound);
@@ -114,7 +117,7 @@ contract GasPriceOracle is ISemver {
     /// @return Current fee overhead.
     function overhead() public view returns (uint256) {
         require(!isEcotone, "GasPriceOracle: overhead() is deprecated");
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
     }
 
     /// @custom:legacy
@@ -122,31 +125,31 @@ contract GasPriceOracle is ISemver {
     /// @return Current fee scalar.
     function scalar() public view returns (uint256) {
         require(!isEcotone, "GasPriceOracle: scalar() is deprecated");
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
     }
 
     /// @notice Retrieves the latest known L1 base fee.
     /// @return Latest known L1 base fee.
     function l1BaseFee() public view returns (uint256) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
     /// @notice Retrieves the current blob base fee.
     /// @return Current blob base fee.
     function blobBaseFee() public view returns (uint256) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFee();
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFee();
     }
 
     /// @notice Retrieves the current base fee scalar.
     /// @return Current base fee scalar.
     function baseFeeScalar() public view returns (uint32) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).baseFeeScalar();
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).baseFeeScalar();
     }
 
     /// @notice Retrieves the current blob base fee scalar.
     /// @return Current blob base fee scalar.
     function blobBaseFeeScalar() public view returns (uint32) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFeeScalar();
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFeeScalar();
     }
 
     /// @custom:legacy
@@ -173,7 +176,7 @@ contract GasPriceOracle is ISemver {
         if (isEcotone) {
             return l1GasUsed;
         }
-        return l1GasUsed + L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
+        return l1GasUsed + IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
     }
 
     /// @notice Computation of the L1 portion of the fee for Bedrock.
@@ -181,8 +184,8 @@ contract GasPriceOracle is ISemver {
     /// @return L1 fee that should be paid for the tx
     function _getL1FeeBedrock(bytes memory _data) internal view returns (uint256) {
         uint256 l1GasUsed = _getCalldataGas(_data);
-        uint256 fee = (l1GasUsed + L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead()) * l1BaseFee()
-            * L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
+        uint256 fee = (l1GasUsed + IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead()) * l1BaseFee()
+            * IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
         return fee / (10 ** DECIMALS);
     }
 

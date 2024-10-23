@@ -4,15 +4,16 @@ import (
 	"crypto/ecdsa"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/crypto"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 func hexPriv(in *ecdsa.PrivateKey) string {
-	b := e2eutils.EncodePrivKey(in)
+	b := crypto.EncodePrivKey(in)
 	return hexutil.Encode(b)
 }
 

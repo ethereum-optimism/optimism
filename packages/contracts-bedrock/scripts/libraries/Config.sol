@@ -33,10 +33,11 @@ enum Fork {
     DELTA,
     ECOTONE,
     FJORD,
-    GRANITE
+    GRANITE,
+    HOLOCENE
 }
 
-Fork constant LATEST_FORK = Fork.GRANITE;
+Fork constant LATEST_FORK = Fork.HOLOCENE;
 
 library ForkUtils {
     function toString(Fork _fork) internal pure returns (string memory) {
@@ -50,6 +51,8 @@ library ForkUtils {
             return "fjord";
         } else if (_fork == Fork.GRANITE) {
             return "granite";
+        } else if (_fork == Fork.HOLOCENE) {
+            return "holocene";
         } else {
             return "unknown";
         }
@@ -65,45 +68,45 @@ library Config {
 
     /// @notice Returns the path on the local filesystem where the deployment artifact is
     ///         written to disk after doing a deployment.
-    function deploymentOutfile() internal view returns (string memory _env) {
-        _env = vm.envOr(
+    function deploymentOutfile() internal view returns (string memory env_) {
+        env_ = vm.envOr(
             "DEPLOYMENT_OUTFILE",
             string.concat(vm.projectRoot(), "/deployments/", vm.toString(block.chainid), "-deploy.json")
         );
     }
 
     /// @notice Returns the path on the local filesystem where the deploy config is
-    function deployConfigPath() internal view returns (string memory _env) {
+    function deployConfigPath() internal view returns (string memory env_) {
         if (vm.isContext(VmSafe.ForgeContext.TestGroup)) {
-            _env = string.concat(vm.projectRoot(), "/deploy-config/hardhat.json");
+            env_ = string.concat(vm.projectRoot(), "/deploy-config/hardhat.json");
         } else {
-            _env = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
-            require(bytes(_env).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
+            env_ = vm.envOr("DEPLOY_CONFIG_PATH", string(""));
+            require(bytes(env_).length > 0, "Config: must set DEPLOY_CONFIG_PATH to filesystem path of deploy config");
         }
     }
 
     /// @notice Returns the chainid from the EVM context or the value of the CHAIN_ID env var as
     ///         an override.
-    function chainID() internal view returns (uint256 _env) {
-        _env = vm.envOr("CHAIN_ID", block.chainid);
+    function chainID() internal view returns (uint256 env_) {
+        env_ = vm.envOr("CHAIN_ID", block.chainid);
     }
 
     /// @notice Returns the value of the env var CONTRACT_ADDRESSES_PATH which is a JSON key/value
     ///         pair of contract names and their addresses. Each key/value pair is passed to `save`
     ///         which then backs the `getAddress` function.
-    function contractAddressesPath() internal view returns (string memory _env) {
-        _env = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
+    function contractAddressesPath() internal view returns (string memory env_) {
+        env_ = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
     }
 
     /// @notice The CREATE2 salt to be used when deploying the implementations.
-    function implSalt() internal view returns (string memory _env) {
-        _env = vm.envOr("IMPL_SALT", string("ethers phoenix"));
+    function implSalt() internal view returns (string memory env_) {
+        env_ = vm.envOr("IMPL_SALT", string("ethers phoenix"));
     }
 
     /// @notice Returns the path that the state dump file should be written to or read from
     ///         on the local filesystem.
-    function stateDumpPath(string memory _suffix) internal view returns (string memory _env) {
-        _env = vm.envOr(
+    function stateDumpPath(string memory _suffix) internal view returns (string memory env_) {
+        env_ = vm.envOr(
             "STATE_DUMP_PATH",
             string.concat(vm.projectRoot(), "/state-dump-", vm.toString(block.chainid), _suffix, ".json")
         );
@@ -112,13 +115,13 @@ library Config {
     /// @notice Returns the name of the file that the forge deployment artifact is written to on the local
     ///         filesystem. By default, it is the name of the deploy script with the suffix `-latest.json`.
     ///         This was useful for creating hardhat deploy style artifacts and will be removed in a future release.
-    function deployFile(string memory _sig) internal view returns (string memory _env) {
-        _env = vm.envOr("DEPLOY_FILE", string.concat(_sig, "-latest.json"));
+    function deployFile(string memory _sig) internal view returns (string memory env_) {
+        env_ = vm.envOr("DEPLOY_FILE", string.concat(_sig, "-latest.json"));
     }
 
     /// @notice Returns the private key that is used to configure drippie.
-    function drippieOwnerPrivateKey() internal view returns (uint256 _env) {
-        _env = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
+    function drippieOwnerPrivateKey() internal view returns (uint256 env_) {
+        env_ = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
     }
 
     /// @notice Returns the OutputMode for genesis allocs generation.
@@ -139,8 +142,8 @@ library Config {
     }
 
     /// @notice Returns true if multithreaded Cannon is used for the deployment.
-    function useMultithreadedCannon() internal view returns (bool _enabled) {
-        _enabled = vm.envOr("USE_MT_CANNON", false);
+    function useMultithreadedCannon() internal view returns (bool enabled_) {
+        enabled_ = vm.envOr("USE_MT_CANNON", false);
     }
 
     /// @notice Returns the latest fork to use for genesis allocs generation.
@@ -163,6 +166,8 @@ library Config {
             return Fork.FJORD;
         } else if (forkHash == keccak256(bytes("granite"))) {
             return Fork.GRANITE;
+        } else if (forkHash == keccak256(bytes("holocene"))) {
+            return Fork.HOLOCENE;
         } else {
             revert(string.concat("Config: unknown fork: ", forkStr));
         }

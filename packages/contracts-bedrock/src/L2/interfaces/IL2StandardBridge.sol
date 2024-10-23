@@ -43,4 +43,6 @@ interface IL2StandardBridge is IStandardBridge {
     )
         external
         payable;
+
+    function __constructor__() external;
 }

@@ -64,6 +64,7 @@ type CLIConfig struct {
 	TLSCaCert string
 	TLSCert   string
 	TLSKey    string
+	Enabled   bool
 }
 
 func NewCLIConfig() CLIConfig {
@@ -71,6 +72,7 @@ func NewCLIConfig() CLIConfig {
 		TLSCaCert: defaultTLSCaCert,
 		TLSCert:   defaultTLSCert,
 		TLSKey:    defaultTLSKey,
+		Enabled:   false,
 	}
 }
 
@@ -83,7 +85,7 @@ func (c CLIConfig) Check() error {
 }
 
 func (c CLIConfig) TLSEnabled() bool {
-	return !(c.TLSCaCert == "" && c.TLSCert == "" && c.TLSKey == "")
+	return c.Enabled
 }
 
 // ReadCLIConfig reads tls cli configs
@@ -93,6 +95,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		TLSCaCert: ctx.String(TLSCaCertFlagName),
 		TLSCert:   ctx.String(TLSCertFlagName),
 		TLSKey:    ctx.String(TLSKeyFlagName),
+		Enabled:   ctx.IsSet(TLSCaCertFlagName) || ctx.IsSet(TLSCertFlagName) || ctx.IsSet(TLSKeyFlagName),
 	}
 }
 
@@ -106,5 +109,6 @@ func ReadCLIConfigWithPrefix(ctx *cli.Context, flagPrefix string) CLIConfig {
 		TLSCaCert: ctx.String(prefixFunc(TLSCaCertFlagName)),
 		TLSCert:   ctx.String(prefixFunc(TLSCertFlagName)),
 		TLSKey:    ctx.String(prefixFunc(TLSKeyFlagName)),
+		Enabled:   ctx.IsSet(TLSCaCertFlagName) || ctx.IsSet(TLSCertFlagName) || ctx.IsSet(TLSKeyFlagName),
 	}
 }

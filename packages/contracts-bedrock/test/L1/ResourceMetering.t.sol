@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Test } from "forge-std/Test.sol";
+
+// Contracts
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 
-// Target contract dependencies
-import { Proxy } from "src/universal/Proxy.sol";
-
-// Target contract
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+// Interfaces
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
 contract MeterUser is ResourceMetering {
