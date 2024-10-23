@@ -25,10 +25,10 @@ contract SuperchainWETH_Test is CommonTest {
     event Withdrawal(address indexed src, uint256 wad);
 
     /// @notice Emitted when a crosschain transfer mints tokens.
-    event CrosschainMinted(address indexed to, uint256 amount);
+    event CrosschainMint(address indexed to, uint256 amount);
 
     /// @notice Emitted when a crosschain transfer burns tokens.
-    event CrosschainBurnt(address indexed from, uint256 amount);
+    event CrosschainBurn(address indexed from, uint256 amount);
 
     address internal constant ZERO_ADDRESS = address(0);
 
@@ -143,7 +143,7 @@ contract SuperchainWETH_Test is CommonTest {
         superchainWeth.crosschainMint(_to, _amount);
     }
 
-    /// @notice Tests the `crosschainMint` with non custom gas token succeeds and emits the `CrosschainMinted` event.
+    /// @notice Tests the `crosschainMint` with non custom gas token succeeds and emits the `CrosschainMint` event.
     function testFuzz_crosschainMint_fromBridgeNonCustomGasTokenChain_succeeds(address _to, uint256 _amount) public {
         // Ensure `_to` is not the zero address
         vm.assume(_to != ZERO_ADDRESS);
@@ -157,9 +157,9 @@ contract SuperchainWETH_Test is CommonTest {
         vm.expectEmit(address(superchainWeth));
         emit Transfer(ZERO_ADDRESS, _to, _amount);
 
-        // Look for the emit of the `CrosschainMinted` event
+        // Look for the emit of the `CrosschainMint` event
         vm.expectEmit(address(superchainWeth));
-        emit CrosschainMinted(_to, _amount);
+        emit CrosschainMint(_to, _amount);
 
         // Mock the `isCustomGasToken` function to return false
         _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(false));
@@ -177,7 +177,7 @@ contract SuperchainWETH_Test is CommonTest {
         assertEq(address(superchainWeth).balance, _amount);
     }
 
-    /// @notice Tests the `crosschainMint` with custom gas token succeeds and emits the `CrosschainMinted` event.
+    /// @notice Tests the `crosschainMint` with custom gas token succeeds and emits the `CrosschainMint` event.
     function testFuzz_crosschainMint_fromBridgeCustomGasTokenChain_succeeds(address _to, uint256 _amount) public {
         // Ensure `_to` is not the zero address
         vm.assume(_to != ZERO_ADDRESS);
@@ -190,9 +190,9 @@ contract SuperchainWETH_Test is CommonTest {
         vm.expectEmit(address(superchainWeth));
         emit Transfer(ZERO_ADDRESS, _to, _amount);
 
-        // Look for the emit of the `CrosschainMinted` event
+        // Look for the emit of the `CrosschainMint` event
         vm.expectEmit(address(superchainWeth));
-        emit CrosschainMinted(_to, _amount);
+        emit CrosschainMint(_to, _amount);
 
         // Mock the `isCustomGasToken` function to return false
         _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(true));
@@ -223,7 +223,7 @@ contract SuperchainWETH_Test is CommonTest {
         superchainWeth.crosschainBurn(_from, _amount);
     }
 
-    /// @notice Tests the `crosschainBurn` with non custom gas token burns the amount and emits the `CrosschainBurnt`
+    /// @notice Tests the `crosschainBurn` with non custom gas token burns the amount and emits the `CrosschainBurn`
     /// event.
     function testFuzz_crosschainBurn_fromBridgeNonCustomGasTokenChain_succeeds(address _from, uint256 _amount) public {
         // Ensure `_from` is not the zero address
@@ -243,9 +243,9 @@ contract SuperchainWETH_Test is CommonTest {
         vm.expectEmit(address(superchainWeth));
         emit Transfer(_from, ZERO_ADDRESS, _amount);
 
-        // Look for the emit of the `CrosschainBurnt` event
+        // Look for the emit of the `CrosschainBurn` event
         vm.expectEmit(address(superchainWeth));
-        emit CrosschainBurnt(_from, _amount);
+        emit CrosschainBurn(_from, _amount);
 
         // Mock the `isCustomGasToken` function to return false
         _mockAndExpect(address(l1Block), abi.encodeCall(l1Block.isCustomGasToken, ()), abi.encode(false));
@@ -263,7 +263,7 @@ contract SuperchainWETH_Test is CommonTest {
         assertEq(address(superchainWeth).balance, 0);
     }
 
-    /// @notice Tests the `crosschainBurn` with custom gas token burns the amount and emits the `CrosschainBurnt`
+    /// @notice Tests the `crosschainBurn` with custom gas token burns the amount and emits the `CrosschainBurn`
     /// event.
     function testFuzz_crosschainBurn_fromBridgeCustomGasTokenChain_succeeds(address _from, uint256 _amount) public {
         // Ensure `_from` is not the zero address
@@ -285,9 +285,9 @@ contract SuperchainWETH_Test is CommonTest {
         vm.expectEmit(address(superchainWeth));
         emit Transfer(_from, ZERO_ADDRESS, _amount);
 
-        // Look for the emit of the `CrosschainBurnt` event
+        // Look for the emit of the `CrosschainBurn` event
         vm.expectEmit(address(superchainWeth));
-        emit CrosschainBurnt(_from, _amount);
+        emit CrosschainBurn(_from, _amount);
 
         // Expect to not call the `burn` function in the `ETHLiquidity` contract
         vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.burn, ()), 0);

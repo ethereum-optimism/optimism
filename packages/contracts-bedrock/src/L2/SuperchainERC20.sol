@@ -13,9 +13,9 @@ import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 ///         burn and mint tokens.
 abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.3
+    /// @custom:semver 1.0.0-beta.4
     function version() external view virtual returns (string memory) {
-        return "1.0.0-beta.3";
+        return "1.0.0-beta.4";
     }
 
     /// @notice Allows the SuperchainTokenBridge to mint tokens.
@@ -26,7 +26,7 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
 
         _mint(_to, _amount);
 
-        emit CrosschainMinted(_to, _amount);
+        emit CrosschainMint(_to, _amount);
     }
 
     /// @notice Allows the SuperchainTokenBridge to burn tokens.
@@ -37,6 +37,6 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
 
         _burn(_from, _amount);
 
-        emit CrosschainBurnt(_from, _amount);
+        emit CrosschainBurn(_from, _amount);
     }
 }
