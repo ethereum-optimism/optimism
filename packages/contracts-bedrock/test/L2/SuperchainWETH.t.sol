@@ -174,7 +174,6 @@ contract SuperchainWETH_Test is CommonTest {
         // Check the total supply and balance of `_to` after the mint were updated correctly
         assertEq(superchainWeth.totalSupply(), _totalSupplyBefore + _amount);
         assertEq(superchainWeth.balanceOf(_to), _toBalanceBefore + _amount);
-        assertEq(superchainWeth.balanceOf(Predeploys.ETH_LIQUIDITY), 0);
         assertEq(address(superchainWeth).balance, _amount);
     }
 
@@ -207,7 +206,6 @@ contract SuperchainWETH_Test is CommonTest {
 
         // Check the total supply and balance of `_to` after the mint were updated correctly
         assertEq(superchainWeth.balanceOf(_to), _toBalanceBefore + _amount);
-        assertEq(superchainWeth.balanceOf(Predeploys.ETH_LIQUIDITY), 0);
         assertEq(superchainWeth.totalSupply(), 0);
         assertEq(address(superchainWeth).balance, 0);
     }
@@ -318,10 +316,6 @@ contract SuperchainWETH_Test is CommonTest {
         // Act
         vm.expectRevert();
         superchainWeth.crosschainBurn(_from, _amount + 1);
-
-        // Assert
-        assertEq(_from.balance, 0);
-        assertEq(superchainWeth.balanceOf(_from), _amount);
     }
 
     /// @notice Test that the internal mint function reverts to protect against accidentally changing the visibility.

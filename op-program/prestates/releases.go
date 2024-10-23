@@ -18,7 +18,7 @@ type Release struct {
 	GovernanceApproved bool   `json:"governanceApproved"`
 }
 
-// Reads the contents of the releases.json file
+// GetReleases reads the contents of the releases.json file
 func GetReleases() ([]Release, error) {
 	var releases []Release
 	err := json.Unmarshal(releasesJSON, &releases)
