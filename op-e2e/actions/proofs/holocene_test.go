@@ -114,7 +114,7 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		{name: "case-3c", blocks: twoThousandBlocks, // if we artificially stall the l1 origin, this should be enough to trigger violation of the max sequencer drift
 			isSpanBatch:             true,
 			safeHeadPreHolocene:     0, // entire span batch invalidated
-			safeHeadHolocene:        0, // TODO we expect partial validity around block 1800
+			safeHeadHolocene:        0, // TODO we expect partial validity, safe head should move to  block 1800
 			breachMaxSequencerDrift: true,
 		},
 	}
@@ -159,16 +159,25 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
 			env.Sequencer.ActL2StartBlock(t)
 
-			if !testCfg.Custom.breachMaxSequencerDrift ||
-				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1799 ||
-				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1800 ||
-				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1801 {
+			if !testCfg.Custom.breachMaxSequencerDrift {
 				// Send an L2 tx
 				env.Alice.L2.ActResetTxOpts(t)
 				env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
 				env.Alice.L2.ActMakeTx(t)
 				env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
 			}
+
+			if testCfg.Custom.breachMaxSequencerDrift &&
+				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1799 ||
+				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1800 ||
+				env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 1801 {
+				// Send an L2 tx and force sequencer to include it
+				env.Alice.L2.ActResetTxOpts(t)
+				env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
+				env.Alice.L2.ActMakeTx(t)
+				env.Engine.ActL2IncludeTxIgnoreForcedEmpty(env.Alice.Address())(t)
+			}
+
 			env.Sequencer.ActL2EndBlock(t)
 		}
 
@@ -217,22 +226,23 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		env.Sequencer.ActL1HeadSignal(t)
 		env.Sequencer.ActL2PipelineFull(t)
 
-		l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
+		l2SafeHead := env.Sequencer.L2Safe()
 
 		if testCfg.Hardfork.Precedence < helpers.Holocene.Precedence {
-			require.Equal(t, testCfg.Custom.safeHeadPreHolocene, l2SafeHead.Number.Uint64())
+			require.Equal(t, testCfg.Custom.safeHeadPreHolocene, l2SafeHead.Number)
 			expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadPreHolocene).Hash()
-			require.Equal(t, expectedHash, l2SafeHead.Hash())
+			require.Equal(t, expectedHash, l2SafeHead.Hash)
 		} else {
-			require.Equal(t, testCfg.Custom.safeHeadHolocene, l2SafeHead.Number.Uint64())
+			require.Equal(t, testCfg.Custom.safeHeadHolocene, l2SafeHead.Number)
 			expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadHolocene).Hash()
-			require.Equal(t, expectedHash, l2SafeHead.Hash())
+			require.Equal(t, expectedHash, l2SafeHead.Hash)
 		}
 
-		if safeHeadNumber := l2SafeHead.Number.Uint64(); safeHeadNumber > 0 {
+		t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
+
+		if safeHeadNumber := l2SafeHead.Number; safeHeadNumber > 0 {
 			env.RunFaultProofProgram(t, safeHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
 		}
-
 	}
 
 	matrix := helpers.NewMatrix[testCase]()
