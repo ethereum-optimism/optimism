@@ -7,6 +7,7 @@ import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 library MIPSInstructions {
     uint32 internal constant OP_LOAD_LINKED = 0x30;
     uint32 internal constant OP_STORE_CONDITIONAL = 0x38;
+    uint32 internal constant REG_RA = 31;
 
     struct CoreStepLogicParams {
         /// @param opcode The opcode value parsed from insn_.
@@ -500,6 +501,11 @@ library MIPSInstructions {
                 }
                 if (rtv == 1) {
                     shouldBranch = int32(_rs) >= 0;
+                }
+                // bgezal (i.e. bal mnemonic)
+                if (rtv == 0x11) {
+                    shouldBranch = int32(_rs) >= 0;
+                    _registers[REG_RA] = _cpu.pc + 8; // always set regardless of branch taken
                 }
             }
 
