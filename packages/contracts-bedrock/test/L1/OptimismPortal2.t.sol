@@ -9,6 +9,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
+import { console2 as console } from "forge-std/console2.sol";
+
+// Contracts
 // Contracts
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
@@ -363,6 +366,64 @@ contract OptimismPortal2_Test is CommonTest {
             _gasLimit: 200_000,
             _isCreation: false,
             _data: abi.encodeCall(IL1Block.setConfig, (Types.ConfigType.SET_GAS_PAYING_TOKEN, data))
+        });
+
+        VmSafe.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 2);
+
+        VmSafe.Log memory systemPath = logs[0];
+        VmSafe.Log memory userPath = logs[1];
+
+        assertEq(systemPath.topics.length, 4);
+        assertEq(systemPath.topics.length, userPath.topics.length);
+        assertEq(systemPath.topics[0], userPath.topics[0]);
+        assertEq(systemPath.topics[1], userPath.topics[1]);
+        assertEq(systemPath.topics[2], userPath.topics[2]);
+        assertEq(systemPath.topics[3], userPath.topics[3]);
+        assertEq(systemPath.data, userPath.data);
+    }
+
+    /// @dev Tests that the upgrade function succeeds.
+    function testFuzz_upgrade_succeeds(uint32 _gasLimit, bytes memory _calldata) external {
+        vm.expectEmit(address(optimismPortal2));
+        emit TransactionDeposited(
+            0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            0,
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(_gasLimit), // gasLimit
+                false, // isCreation,
+                _calldata // data
+            )
+        );
+
+        vm.prank(superchainConfig.upgrader());
+        optimismPortal2.upgrade(_gasLimit, _calldata);
+    }
+
+    /// @notice Ensures that the deposit event is correct for the `setGasPayingToken`
+    ///         code path that manually emits a deposit transaction outside of the
+    ///         `depositTransaction` function. This is a simple differential test.
+    function test_upgrade_correctEvent_succeeds(uint32 _gasLimit, bytes memory _calldata) external {
+        vm.assume(_calldata.length <= 120_000);
+        IResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        _gasLimit =
+            uint32(bound(_gasLimit, optimismPortal2.minimumGasLimit(uint32(_calldata.length)), rcfg.maxResourceLimit));
+        vm.recordLogs();
+
+        vm.prank(superchainConfig.upgrader());
+        optimismPortal2.upgrade(_gasLimit, _calldata);
+
+        console.log("_gasLimit:", _gasLimit);
+        vm.prank(Constants.DEPOSITOR_ACCOUNT, Constants.DEPOSITOR_ACCOUNT);
+        optimismPortal2.depositTransaction({
+            _to: Predeploys.PROXY_ADMIN,
+            _value: 0,
+            _gasLimit: uint64(200_000),
+            _isCreation: false,
+            _data: _calldata
         });
 
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
