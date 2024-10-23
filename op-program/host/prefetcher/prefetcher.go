@@ -74,15 +74,19 @@ type Prefetcher struct {
 
 	// lastBulkHint is the last execution witness or account proof hint that was requested. These provide multiple preimages, including those which should relate to the next preimage. Does a bulkier fetch than lastHint.
 	lastBulkHint string
+
+	// whether to use the experimental source (allows bulk witnesses and proofs)
+	experimentalSourceEnabled bool
 }
 
-func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l1BlobFetcher L1BlobSource, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
+func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l1BlobFetcher L1BlobSource, l2Fetcher L2Source, kvStore kvstore.KV, experimentalSourceEnabled bool) *Prefetcher {
 	return &Prefetcher{
-		logger:        logger,
-		l1Fetcher:     NewRetryingL1Source(logger, l1Fetcher),
-		l1BlobFetcher: NewRetryingL1BlobSource(logger, l1BlobFetcher),
-		l2Fetcher:     NewRetryingL2Source(logger, l2Fetcher),
-		kvStore:       kvStore,
+		logger:                    logger,
+		l1Fetcher:                 NewRetryingL1Source(logger, l1Fetcher),
+		l1BlobFetcher:             NewRetryingL1BlobSource(logger, l1BlobFetcher),
+		l2Fetcher:                 NewRetryingL2Source(logger, l2Fetcher),
+		kvStore:                   kvStore,
+		experimentalSourceEnabled: experimentalSourceEnabled,
 	}
 }
 
@@ -356,7 +360,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 
 	// some L2 state data can be fetched in bulk from block execution witnesses instead of direction from the MPT
 	// if we have a bulk hint, we should use it instead of the last hint (will fallback to last hint after bulk hint is cleared and request is retried)
-	if p.lastBulkHint != "" {
+	if p.lastBulkHint != "" && p.experimentalSourceEnabled {
 		bulkHint := p.lastBulkHint
 		p.lastBulkHint = ""
 		return p.bulkPrefetch(ctx, bulkHint)
