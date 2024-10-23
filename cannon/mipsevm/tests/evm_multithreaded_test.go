@@ -1500,22 +1500,24 @@ func TestEVM_WakeupTraversal_WithExitedThreads(t *testing.T) {
 	addr := Word(0x1234)
 	wakeupVal := Word(0x999)
 	cases := []struct {
-		name              string
-		wakeupAddr        Word
-		futexAddr         Word
-		targetVal         Word
-		traverseRight     bool
-		activeStackSize   int
-		otherStackSize    int
-		exitedThreadIdx   []int
-		shouldClearWakeup bool
-		shouldPreempt     bool
+		name                  string
+		wakeupAddr            Word
+		futexAddr             Word
+		targetVal             Word
+		traverseRight         bool
+		activeStackSize       int
+		otherStackSize        int
+		exitedThreadIdx       []int
+		shouldClearWakeup     bool
+		shouldPreempt         bool
+		activeThreadFutexAddr Word
+		activeThreadFutexVal  Word
 	}{
-		{name: "Wakeable thread exists among exited threads", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal + 1, traverseRight: false, activeStackSize: 3, otherStackSize: 1, exitedThreadIdx: []int{1}, shouldClearWakeup: true, shouldPreempt: false},
-		{name: "All threads exited", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal + 1, traverseRight: false, activeStackSize: 3, otherStackSize: 0, exitedThreadIdx: []int{1, 2}, shouldClearWakeup: false, shouldPreempt: true},
-		{name: "Exited threads, no matching futex", wakeupAddr: addr, futexAddr: addr + 4, targetVal: wakeupVal, traverseRight: false, activeStackSize: 2, otherStackSize: 1, exitedThreadIdx: []int{}, shouldClearWakeup: false, shouldPreempt: true},
-		{name: "Matching addr, not wakeable, with exited threads", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: true, activeStackSize: 3, otherStackSize: 0, exitedThreadIdx: []int{1}, shouldClearWakeup: true, shouldPreempt: false},
-		{name: "Non-waiting threads with exited threads", wakeupAddr: addr, futexAddr: exec.FutexEmptyAddr, targetVal: 0, traverseRight: false, activeStackSize: 2, otherStackSize: 1, exitedThreadIdx: []int{}, shouldClearWakeup: false, shouldPreempt: true},
+		{name: "Wakeable thread exists among exited threads", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal + 1, traverseRight: false, activeStackSize: 3, otherStackSize: 1, exitedThreadIdx: []int{2}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 8, activeThreadFutexVal: wakeupVal + 2},
+		{name: "All threads exited", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 3, otherStackSize: 0, exitedThreadIdx: []int{1, 2}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 16, activeThreadFutexVal: wakeupVal + 3},
+		{name: "Exited threads, no matching futex", wakeupAddr: addr, futexAddr: addr + 4, targetVal: wakeupVal, traverseRight: false, activeStackSize: 2, otherStackSize: 1, exitedThreadIdx: []int{}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 24, activeThreadFutexVal: wakeupVal + 4},
+		{name: "Matching addr, not wakeable, with exited threads", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: true, activeStackSize: 3, otherStackSize: 0, exitedThreadIdx: []int{1}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 32, activeThreadFutexVal: wakeupVal + 5},
+		{name: "Non-waiting threads with exited threads", wakeupAddr: addr, futexAddr: exec.FutexEmptyAddr, targetVal: 0, traverseRight: false, activeStackSize: 2, otherStackSize: 1, exitedThreadIdx: []int{}, shouldClearWakeup: false, shouldPreempt: true, activeThreadFutexAddr: addr + 40, activeThreadFutexVal: wakeupVal + 6},
 	}
 
 	for i, c := range cases {
@@ -1540,6 +1542,10 @@ func TestEVM_WakeupTraversal_WithExitedThreads(t *testing.T) {
 
 			activeThread := state.GetCurrentThread()
 			activeThread.Exited = true
+
+			activeThread.FutexAddr = c.activeThreadFutexAddr
+			activeThread.FutexVal = c.activeThreadFutexVal
+			activeThread.FutexTimeoutStep = exec.FutexNoTimeout
 
 			expected := mttestutil.NewExpectedMTState(state)
 			expected.Step += 1
