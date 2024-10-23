@@ -155,7 +155,12 @@ func TestExtractor_Extract(t *testing.T) {
 	})
 
 	t.Run("UseCachedValueOnFailure", func(t *testing.T) {
-		enricher := &mockEnricher{}
+		enricher := &mockEnricher{
+			action: func(game *monTypes.EnrichedGameData) error {
+				game.Status = gameTypes.GameStatusDefenderWon
+				return nil
+			},
+		}
 		extractor, _, games, _, cl := setupExtractorTest(t, enricher)
 		gameA := common.Address{0xaa}
 		gameB := common.Address{0xbb}
@@ -169,8 +174,10 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Len(t, enriched, 2)
 		require.Equal(t, 2, enricher.calls)
 		firstUpdateTime := cl.Now()
-		require.Equal(t, firstUpdateTime, enriched[0].LastUpdateTime)
-		require.Equal(t, firstUpdateTime, enriched[1].LastUpdateTime)
+		// All results should have current LastUpdateTime
+		for _, data := range enriched {
+			require.Equal(t, firstUpdateTime, data.LastUpdateTime)
+		}
 
 		cl.AdvanceTime(2 * time.Minute)
 		secondUpdateTime := cl.Now()
@@ -189,10 +196,17 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, failed)
 		require.Len(t, enriched, 2)
 		require.Equal(t, 4, enricher.calls)
-		require.Equal(t, enriched[0].Status, gameTypes.GameStatusInProgress)    // Uses cached value from game A
-		require.Equal(t, enriched[1].Status, gameTypes.GameStatusChallengerWon) // Updates game B
-		require.Equal(t, firstUpdateTime, enriched[0].LastUpdateTime)
-		require.Equal(t, secondUpdateTime, enriched[1].LastUpdateTime)
+		// The returned games are not in a fixed order, create a map to look up the game we need to assert
+		actual := make(map[common.Address]*monTypes.EnrichedGameData)
+		for _, data := range enriched {
+			actual[data.Proxy] = data
+		}
+		require.Contains(t, actual, gameA)
+		require.Contains(t, actual, gameB)
+		require.Equal(t, actual[gameA].Status, gameTypes.GameStatusDefenderWon)   // Uses cached value from game A
+		require.Equal(t, actual[gameB].Status, gameTypes.GameStatusChallengerWon) // Updates game B
+		require.Equal(t, firstUpdateTime, actual[gameA].LastUpdateTime)
+		require.Equal(t, secondUpdateTime, actual[gameB].LastUpdateTime)
 	})
 }
 
