@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { IERC20 } from "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
+import { IERC20Solady as IERC20 } from "src/vendor/interfaces/IERC20Solady.sol";
 
 // Target contract
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";

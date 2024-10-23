@@ -31,13 +31,20 @@
   },
   {
     "version": "1.1.0",
-    "hash": "0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b",
-    "governanceApproved": true
+    "hash": "0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b"
+  },
+  {
+    "version": "1.0.1",
+    "hash": "0x0398bdd93e2e9313befdf82beb709da6a4daf35ce1abb42d8a998ec9bc1c572e"
   },
   {
     "version": "1.0.0",
     "hash": "0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55",
     "governanceApproved": true
+  },
+  {
+    "version": "0.3.1",
+    "hash": "0x037ef3c1a487960b0e633d3e513df020c43432769f41a634d18a9595cbf53c55"
   },
   {
     "version": "0.3.0",
@@ -50,5 +57,9 @@
   {
     "version": "0.1.0",
     "hash": "0x038942ec840131a63c49fa514a3f0577ae401fd5584d56ad50cdf5a8b41d4538"
+  },
+  {
+    "version": "0.0.1",
+    "hash": "0x03babef4b4c6d866d56e6356d961839fd9475931d11e0ea507420a87b0cadbdd"
   }
 ]

@@ -1023,7 +1023,10 @@ func (sys *System) RollupClient(name string) *sources.RollupClient {
 		require.NoError(sys.t, err, "failed to dial rollup instance %s", name)
 		return cl
 	})
-	rollupClient = sources.NewRollupClient(client.NewBaseRPCClient(rpcClient))
+	rollupClient = sources.NewRollupClient(client.NewBaseRPCClient(rpcClient,
+		// Increase timeouts because CI servers can be under a lot of load
+		client.WithCallTimeout(30*time.Second),
+		client.WithBatchCallTimeout(30*time.Second)))
 	sys.rollupClients[name] = rollupClient
 	return rollupClient
 }
