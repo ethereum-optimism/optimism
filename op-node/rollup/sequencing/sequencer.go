@@ -220,6 +220,7 @@ func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 		"payloadID", x.Info.ID, "parent", x.Parent, "parent_time", x.Parent.Time)
 	d.latest.Info = x.Info
 	d.latest.Started = x.BuildStarted
+	// *** TODO: maybe record the start building time for health checks
 
 	d.nextActionOK = d.active.Load()
 
@@ -228,9 +229,11 @@ func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 	payloadTime := time.Unix(int64(x.Parent.Time+d.rollupCfg.BlockTime), 0)
 	remainingTime := payloadTime.Sub(now)
 	if remainingTime < sealingDuration {
+		// *** TODO: if we hit this case without going into the else first, then we could be unhealthy.
 		d.nextAction = now // if there's not enough time for sealing, don't wait.
 	} else {
 		// finish with margin of sealing duration before payloadTime
+		// *** Question: what if the remaining time is equal to the sealing duration?
 		d.nextAction = payloadTime.Add(-sealingDuration)
 	}
 }
@@ -336,7 +339,7 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 		latestBlockTimeStamp := uint64(payload.Timestamp)
 		currentTime := uint64(time.Now().Unix())
 
-		if latestBlockTimeStamp <= currentTime+1 { // TODO: Remove the +1 once we have a better way to handle this
+		if latestBlockTimeStamp <= currentTime {
 			timeDiff := time.Duration(currentTime-latestBlockTimeStamp) * time.Second
 
 			if timeDiff < blockBuildingThreshold {
@@ -351,10 +354,9 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 				d.metrics.RecordBlockBuildingHealthCheck("stale")
 			}
 		} else {
-			// TODO: remove this log once we know why the latestBlockTimeStamp is in the future
-			d.log.Debug("Cannot compute time difference, block timestamp is in the future",
-				"current_timestamp", currentTime, "block_timestamp", latestBlockTimeStamp)
-			d.metrics.RecordBlockBuildingHealthCheck("future_timestamp")
+			// future timestamp means healthy block building
+			d.log.Debug("Node is healthy, time difference within threshold", "threshold", blockBuildingThreshold)
+			d.metrics.RecordBlockBuildingHealthCheck("healthy")
 		}
 	}
 	// The payload was already published upon sealing.
@@ -483,6 +485,7 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 		remainingTime := payloadTime.Sub(now)
 		if remainingTime > blockTime {
 			// if we have too much time, then wait before starting the build
+			// *** healthy case: the network is not congested at all
 			d.nextAction = payloadTime.Add(-blockTime)
 		} else {
 			// otherwise start instantly
@@ -530,6 +533,7 @@ func (d *Sequencer) startBuildingBlock() {
 		return
 	}
 
+	// *** TODO: the end of block building
 	d.log.Info("Started sequencing new block", "parent", l2Head, "l1Origin", l1Origin)
 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)

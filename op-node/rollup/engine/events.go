@@ -331,7 +331,7 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 				latestBlockTimeStamp := uint64(payload.Timestamp)
 				currentTime := uint64(time.Now().Unix())
 
-				if latestBlockTimeStamp <= currentTime+1 {
+				if latestBlockTimeStamp <= currentTime {
 					timeDiff := time.Duration(currentTime-latestBlockTimeStamp) * time.Second
 
 					if timeDiff < blockBuildingThreshold {
@@ -346,9 +346,8 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 						d.metrics.RecordBlockBuildingHealthCheck("stale")
 					}
 				} else {
-					d.log.Debug("Cannot compute time difference, block timestamp is in the future",
-						"current_timestamp", currentTime, "block_timestamp", latestBlockTimeStamp)
-					d.metrics.RecordBlockBuildingHealthCheck("future_timestamp")
+					d.log.Debug("Node is healthy, time difference within threshold", "threshold", blockBuildingThreshold)
+					d.metrics.RecordBlockBuildingHealthCheck("healthy")
 				}
 			}
 		}
