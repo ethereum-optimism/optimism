@@ -115,11 +115,6 @@ The `runKontrolDeployment` function of [`KontrolDeployment`](./deployment/Kontro
 
 Once new deployment steps have been added to `runKontrolDeployment` the state-diff files have to [be rebuilt](#build-deployment-summary).
 
-#### Add function signatures to [`KontrolInterfaces`](./proofs/interfaces/KontrolInterfaces.sol)
-
-So far we've got all the state updates ready to be added to the initial configuration of each proof, but we cannot yet write any proof about the function. We still need to add the relevant signatures into `KontrolInterfaces`. The reason for having `KontrolInterfaces` instead of using directly the contracts is to reduce the amount of compiled contracts by Kontrol.
-In the future there might interfaces for all contracts under `contracts-bedrock`, which would imply the removal of `KontrolInterfaces`.
-
 #### Write the proof
 
 Write your proof in a `.k.sol` file in the [`proofs`](./proofs/) folder, which is the `test` directory used by the `kprove` profile to run the proofs (see [Deployment Summary Process](#deployment-summary-process)). The name of the new proofs should start with `prove` (or `check`) instead of `test` to avoid `forge test` running them. The reason for this is that if Kontrol cheatcodes (see [Kontrol's own cheatcodes](https://github.com/runtimeverification/kontrol-cheatcodes/blob/master/src/KontrolCheats.sol)) are used in a test, it will not be runnable by `forge`. Currently, none of the tests are using custom Kontrol cheatcodes, but this is something to bear in mind.
