@@ -121,3 +121,23 @@ func TestHazardCycleChecks_CycleThroughExecMsgs(t *testing.T) {
 	err := HazardCycleChecks(deps, 100, hazards)
 	require.ErrorIs(t, err, ErrCycle, "expected cycle detection error for cycle through executing messages")
 }
+
+func TestHazardCycleChecks_MultipleExecNoCircle(t *testing.T) {
+	deps := &mockCycleCheckDeps{
+		openBlockFn: func(chainID types.ChainID, blockNum uint64) (types.BlockSeal, uint32, map[uint32]*types.ExecutingMessage, error) {
+			// Single chain with multiple executing messages in sequence
+			msgs := map[uint32]*types.ExecutingMessage{
+				1: {Chain: types.ChainIndex(1), LogIdx: 0, Timestamp: 100}, // Points to earlier log
+				3: {Chain: types.ChainIndex(1), LogIdx: 2, Timestamp: 100}, // Points to earlier log
+			}
+			return types.BlockSeal{Number: blockNum}, 4, msgs, nil
+		},
+	}
+
+	hazards := map[types.ChainIndex]types.BlockSeal{
+		types.ChainIndex(1): {Number: 1},
+	}
+
+	err := HazardCycleChecks(deps, 100, hazards)
+	require.NoError(t, err, "expected no error for multiple executing messages without cycle")
+}

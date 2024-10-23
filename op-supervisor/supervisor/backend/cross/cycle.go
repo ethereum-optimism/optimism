@@ -38,7 +38,7 @@ func validateExecMsgs(logCount uint32, execMsgs map[uint32]*types.ExecutingMessa
 func HazardCycleChecks(d CycleCheckDeps, inTimestamp uint64, hazards map[types.ChainIndex]types.BlockSeal) error {
 	// Algorithm: breadth-first-search (BFS).
 	// Types of incoming edges:
-	//   - the previous log event in the block
+	//   - the previous log event in the block (only for non-executing messages)
 	//   - executing another event
 	// Work:
 	//   1. for each node with in-degree 0 (i.e. no dependencies), add it to the result, remove it from the work.
@@ -65,7 +65,13 @@ func HazardCycleChecks(d CycleCheckDeps, inTimestamp uint64, hazards map[types.C
 			return err
 		}
 
+		// First, handle sequential log dependencies for non-executing messages
 		for i := uint32(0); i < logCount; i++ {
+			// Skip if this log is an executing message
+			if _, isExec := msgs[i]; isExec {
+				continue
+			}
+
 			k := msgKey{
 				chainIndex: hazardChainIndex,
 				logIndex:   i,
@@ -74,14 +80,18 @@ func HazardCycleChecks(d CycleCheckDeps, inTimestamp uint64, hazards map[types.C
 				// first log in block does not have a dependency
 				inDegree0[k] = struct{}{}
 			} else {
-				// add edge: prev log <> current log
-				inDegreeNon0[k] = 1
+				// Check if previous log is non-executing
+				if _, prevIsExec := msgs[i-1]; !prevIsExec {
+					// Only add edge if previous log is also non-executing
+					inDegreeNon0[k] = 1
+				} else {
+					// If previous log is executing, this log has no dependencies
+					inDegree0[k] = struct{}{}
+				}
 			}
 		}
 
-		// Add edges for executing messages to their initiating messages
-		// If the initiating message is itself an executing message (checked via msgs map),
-		// we create an edge to maintain proper dependency ordering
+		// Then handle executing message dependencies
 		for execLogIdx, m := range msgs {
 			if m.Timestamp != inTimestamp {
 				continue // no need to worry about this edge. Already enforced by timestamp invariant
