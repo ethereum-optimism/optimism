@@ -10,16 +10,34 @@ rules:
     severity: ERROR
     message: vm.expectRevert is followed by a low-level call but not followed by assertion expecting revert
     patterns:
-      - pattern: |
-          vm.expectRevert(...);
-          $CALL;
-          $CHECK;
+      - pattern-either:
+          - pattern: |
+              vm.expectRevert(...);
+              $CALL
+              $CHECK
+          - pattern: |
+              vm.expectRevert(...);
+              $CALL
       - metavariable-pattern:
           metavariable: $CALL
           patterns:
             - pattern-regex: \.call\(.*\)|\.delegatecall\(.*\)
-      - focus-metavariable: $CHECK
-      - pattern-not-regex: assertTrue\(revertsAsExpected\)
+      - pattern-not-inside:
+          patterns:
+            - pattern: |
+                vm.expectRevert(...);
+                $CALL;
+                assertTrue(revertsAsExpected);
+
+  - id: sol-safety-expectrevert-no-args
+    languages: [solidity]
+    severity: ERROR
+    message: vm.expectRevert() must specify the revert reason
+    patterns:
+      - pattern: vm.expectRevert()
+    paths:
+      exclude:
+        - packages/contracts-bedrock/test
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -62,15 +80,6 @@ rules:
       exclude:
         - packages/contracts-bedrock/test/safe-tools/CompatibilityFallbackHandler_1_3_0.sol
 
-  - id: sol-expectrevert-no-args
-    languages: [solidity]
-    severity: ERROR
-    message: vm.expectRevert() must specify the revert reason
-    patterns:
-      - pattern: vm.expectRevert()
-    paths:
-      exclude:
-        - packages/contracts-bedrock/test
 
   - id: sol-style-malformed-require
     languages: [solidity]
@@ -103,6 +112,9 @@ rules:
       - pattern-not: revert $ERR(...);
       - focus-metavariable: $MSG
       - pattern-not-regex: \"(\w+:\s[^"]+)\"
+      - pattern-not-regex: string\.concat\(\"(\w+:\s[^"]+)\"\,[^"]+\)
+      - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
+      - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
     paths:
       exclude:
         - packages/contracts-bedrock/test

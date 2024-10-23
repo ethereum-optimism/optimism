@@ -230,13 +230,13 @@ func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV
 		return nil, nil
 	}
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialBackoff(10))
+	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialAttempts(10))
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L1 RPC: %w", err)
 	}
 
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL, client.WithDialBackoff(10))
+	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL, client.WithDialAttempts(10))
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
 	}

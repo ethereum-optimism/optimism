@@ -42,6 +42,12 @@ reproducible-prestate:
 	@cat ./bin/prestate-proof-mt.json | jq -r .pre
 .PHONY: reproducible-prestate
 
+verify-reproducibility:
+	rm -rf temp/states
+	./scripts/build-prestates.sh
+	env GO111MODULE=on go run ./prestates/verify/verify.go --input temp/states/versions.json
+.PHONY: verify-reproducibility
+
 clean:
 	rm -rf bin "$(COMPAT_DIR)"
 
