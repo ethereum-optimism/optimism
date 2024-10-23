@@ -9,7 +9,6 @@ import { Optimist } from "src/periphery/op-nft/Optimist.sol";
 import { OptimistAllowlist } from "src/periphery/op-nft/OptimistAllowlist.sol";
 import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
 import { OptimistInviterHelper } from "test/mocks/OptimistInviterHelper.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 library Multicall {

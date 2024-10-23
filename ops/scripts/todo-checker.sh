@@ -5,6 +5,7 @@ set -uo pipefail
 # Flags
 FAIL_INVALID_FMT=false
 VERBOSE=false
+CHECK_CLOSED=false
 
 # Github API access token (Optional - necessary for private repositories.)
 GH_API_TOKEN="${CI_TODO_CHECKER_PAT:-""}"
@@ -36,6 +37,7 @@ NC='\033[0m' # No Color
 #
 # `--strict`: Toggle strict mode; Will fail if any TODOs are found that don't match the expected
 # `--verbose`: Toggle verbose mode; Will print out details about each TODO
+# `--check-closed`: Check for closed issues and error out if found
 for arg in "$@"; do
   case $arg in
     --strict)
@@ -44,6 +46,10 @@ for arg in "$@"; do
     ;;
     --verbose)
     VERBOSE=true
+    shift
+    ;;
+    --check-closed)
+    CHECK_CLOSED=true
     shift
     ;;
   esac
@@ -104,14 +110,16 @@ for todo in $todos; do
     # Check issue state
     STATE=$(echo "$RESPONSE" | jq -r .state)
 
-    if [[ "$STATE" == "closed" ]]; then
+    if [[ "$STATE" == "closed" ]] && $CHECK_CLOSED; then
         echo -e "${RED}[Error]:${NC} Issue #$ISSUE_NUM is closed. Please remove the TODO in ${GREEN}$FILE:$LINE_NUM${NC} referencing ${YELLOW}$ISSUE_REFERENCE${NC} (${CYAN}https://github.com/$GH_URL_PATH${NC})"
         exit 1
     fi
 
-    ((OPEN_COUNT++))
-    TITLE=$(echo "$RESPONSE" | jq -r .title)
-    OPEN_ISSUES+=("$REPO_FULL/issues/$ISSUE_NUM|$TITLE|$FILE:$LINE_NUM")
+    if [[ "$STATE" == "open" ]]; then
+        ((OPEN_COUNT++))
+        TITLE=$(echo "$RESPONSE" | jq -r .title)
+        OPEN_ISSUES+=("$REPO_FULL/issues/$ISSUE_NUM|$TITLE|$FILE:$LINE_NUM")
+    fi
 done
 
 # Print summary

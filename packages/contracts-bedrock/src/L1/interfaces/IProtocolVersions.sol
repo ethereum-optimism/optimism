@@ -23,7 +23,7 @@ interface IProtocolVersions {
     function required() external view returns (ProtocolVersion out_);
     function setRecommended(ProtocolVersion _recommended) external;
     function setRequired(ProtocolVersion _required) external;
-    function transferOwnership(address newOwner) external;
+    function transferOwnership(address newOwner) external; // nosemgrep
     function version() external view returns (string memory);
 
     function __constructor__() external;

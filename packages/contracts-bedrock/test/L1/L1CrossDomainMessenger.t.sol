@@ -3,14 +3,13 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
+import { Reverter } from "test/mocks/Callers.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";

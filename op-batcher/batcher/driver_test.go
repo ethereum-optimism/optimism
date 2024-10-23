@@ -50,6 +50,7 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 		Log:              testlog.Logger(t, log.LevelDebug),
 		Metr:             metrics.NoopMetrics,
 		RollupConfig:     cfg,
+		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
 	}), ep
 }

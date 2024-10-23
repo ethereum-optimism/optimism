@@ -206,20 +206,21 @@ func NewHost(
 		EcotoneTime:  nil,
 		FjordTime:    nil,
 		GraniteTime:  nil,
+		HoloceneTime: nil,
 		InteropTime:  nil,
 		Optimism:     nil,
 	}
 
 	// Create an in-memory database, to host our temporary script state changes
 	h.rawDB = rawdb.NewMemoryDatabase()
-	h.stateDB = state.NewDatabaseWithConfig(h.rawDB, &triedb.Config{
+	h.stateDB = state.NewDatabase(triedb.NewDatabase(h.rawDB, &triedb.Config{
 		Preimages: true, // To be able to iterate the state we need the Preimages
 		IsVerkle:  false,
 		HashDB:    hashdb.Defaults,
 		PathDB:    nil,
-	})
+	}), nil)
 	var err error
-	h.state, err = state.New(types.EmptyRootHash, h.stateDB, nil)
+	h.state, err = state.New(types.EmptyRootHash, h.stateDB)
 	if err != nil {
 		panic(fmt.Errorf("failed to create memory state db: %w", err))
 	}
@@ -391,12 +392,22 @@ func (h *Host) GetNonce(addr common.Address) uint64 {
 // when importing.
 func (h *Host) ImportState(allocs *foundry.ForgeAllocs) {
 	for addr, alloc := range allocs.Accounts {
-		h.state.SetBalance(addr, uint256.MustFromBig(alloc.Balance), tracing.BalanceChangeUnspecified)
-		h.state.SetNonce(addr, alloc.Nonce)
-		h.state.SetCode(addr, alloc.Code)
-		for key, value := range alloc.Storage {
-			h.state.SetState(addr, key, value)
-		}
+		h.ImportAccount(addr, alloc)
+	}
+}
+
+func (h *Host) ImportAccount(addr common.Address, account types.Account) {
+	var balance *uint256.Int
+	if account.Balance == nil {
+		balance = uint256.NewInt(0)
+	} else {
+		balance = uint256.MustFromBig(account.Balance)
+	}
+	h.state.SetBalance(addr, balance, tracing.BalanceChangeUnspecified)
+	h.state.SetNonce(addr, account.Nonce)
+	h.state.SetCode(addr, account.Code)
+	for key, value := range account.Storage {
+		h.state.SetState(addr, key, value)
 	}
 }
 
@@ -427,6 +438,11 @@ func (h *Host) SetPrecompile(addr common.Address, precompile vm.PrecompiledContr
 func (h *Host) HasPrecompileOverride(addr common.Address) bool {
 	_, ok := h.precompiles[addr]
 	return ok
+}
+
+// GetCode returns the code of an account from the state.
+func (h *Host) GetCode(addr common.Address) []byte {
+	return h.state.GetCode(addr)
 }
 
 // onEnter is a trace-hook, which we use to apply changes to the state-DB, to simulate isolated broadcast calls,
@@ -643,7 +659,7 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 		return nil, fmt.Errorf("failed to commit state: %w", err)
 	}
 	// We need a state object around the state DB
-	st, err := state.New(root, h.stateDB, nil)
+	st, err := state.New(root, h.stateDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create state object for state-dumping: %w", err)
 	}
@@ -661,8 +677,25 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 		delete(allocs.Accounts, scriptAddr)
 	}
 
+	// Clean out empty storage slots in the dump - this is necessary for compatibility
+	// with the superchain registry.
+	for _, account := range allocs.Accounts {
+		toDelete := make([]common.Hash, 0)
+
+		for slot, value := range account.Storage {
+			if value == (common.Hash{}) {
+				toDelete = append(toDelete, slot)
+			}
+		}
+
+		for _, slot := range toDelete {
+			delete(account.Storage, slot)
+		}
+	}
+
 	// Remove the script deployer from the output
 	delete(allocs.Accounts, ScriptDeployer)
+	delete(allocs.Accounts, ForgeDeployer)
 
 	// The cheatcodes VM has a placeholder bytecode,
 	// because solidity checks if the code exists prior to regular EVM-calls to it.

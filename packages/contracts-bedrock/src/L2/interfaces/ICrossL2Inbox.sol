@@ -18,24 +18,24 @@ interface ICrossL2Inbox {
     function interopStart() external view returns (uint256 interopStart_);
 
     /// @notice Returns the origin address of the Identifier.
-    /// @return _origin The origin address of the Identifier.
-    function origin() external view returns (address _origin);
+    /// @return origin_ The origin address of the Identifier.
+    function origin() external view returns (address origin_);
 
     /// @notice Returns the block number of the Identifier.
-    /// @return _blockNumber The block number of the Identifier.
-    function blockNumber() external view returns (uint256 _blockNumber);
+    /// @return blockNumber_ The block number of the Identifier.
+    function blockNumber() external view returns (uint256 blockNumber_);
 
     /// @notice Returns the log index of the Identifier.
-    /// @return _logIndex The log index of the Identifier.
-    function logIndex() external view returns (uint256 _logIndex);
+    /// @return logIndex_ The log index of the Identifier.
+    function logIndex() external view returns (uint256 logIndex_);
 
     /// @notice Returns the timestamp of the Identifier.
-    /// @return _timestamp The timestamp of the Identifier.
-    function timestamp() external view returns (uint256 _timestamp);
+    /// @return timestamp_ The timestamp of the Identifier.
+    function timestamp() external view returns (uint256 timestamp_);
 
     /// @notice Returns the chain ID of the Identifier.
-    /// @return _chainId The chain ID of the Identifier.
-    function chainId() external view returns (uint256 _chainId);
+    /// @return chainId_ The chain ID of the Identifier.
+    function chainId() external view returns (uint256 chainId_);
 
     /// @notice Executes a cross chain message on the destination chain.
     /// @param _id An Identifier pointing to the initiating message.

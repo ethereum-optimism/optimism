@@ -11,4 +11,6 @@ interface IETHLiquidity {
     function burn() external payable;
     function mint(uint256 _amount) external;
     function version() external view returns (string memory);
+
+    function __constructor__() external;
 }

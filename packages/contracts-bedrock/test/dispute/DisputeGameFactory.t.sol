@@ -24,12 +24,11 @@ contract DisputeGameFactory_Init is CommonTest {
     event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
 
     function setUp() public virtual override {
-        super.enableFaultProofs();
         super.setUp();
         fakeClone = new FakeClone();
 
         // Transfer ownership of the factory to the test contract.
-        vm.prank(deploy.mustGetAddress("SystemOwnerSafe"));
+        vm.prank(disputeGameFactory.owner());
         disputeGameFactory.transferOwnership(address(this));
     }
 }

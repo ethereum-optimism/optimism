@@ -8,31 +8,29 @@ library SafeSigners {
     /// @dev Make sure to perform a bounds check for @param pos, to avoid out of bounds access on @param signatures
     ///      The signature format is a compact form of {bytes32 r}{bytes32 s}{uint8 v}
     ///      Compact means uint8 is not padded to 32 bytes.
-    /// @param pos Which signature to read.
+    /// @param _pos Which signature to read.
     ///            A prior bounds check of this parameter should be performed, to avoid out of bounds access.
-    /// @param signatures Concatenated {r, s, v} signatures.
-    /// @return v Recovery ID or Safe signature type.
-    /// @return r Output value r of the signature.
-    /// @return s Output value s of the signature.
+    /// @param _signatures Concatenated {r, s, v} signatures.
+    /// @return v_ Recovery ID or Safe signature type.
+    /// @return r_ Output value r of the signature.
+    /// @return s_ Output value s of the signature.
     function signatureSplit(
-        bytes memory signatures,
-        uint256 pos
+        bytes memory _signatures,
+        uint256 _pos
     )
         internal
         pure
-        returns (uint8 v, bytes32 r, bytes32 s)
+        returns (uint8 v_, bytes32 r_, bytes32 s_)
     {
         assembly {
-            let signaturePos := mul(0x41, pos)
-            r := mload(add(signatures, add(signaturePos, 0x20)))
-            s := mload(add(signatures, add(signaturePos, 0x40)))
-            /**
-             * Here we are loading the last 32 bytes, including 31 bytes
-             * of 's'. There is no 'mload8' to do this.
-             * 'byte' is not working due to the Solidity parser, so lets
-             * use the second best option, 'and'
-             */
-            v := and(mload(add(signatures, add(signaturePos, 0x41))), 0xff)
+            let signaturePos := mul(0x41, _pos)
+            r_ := mload(add(_signatures, add(signaturePos, 0x20)))
+            s_ := mload(add(_signatures, add(signaturePos, 0x40)))
+            // Here we are loading the last 32 bytes, including 31 bytes
+            // of 's'. There is no 'mload8' to do this.
+            // 'byte' is not working due to the Solidity parser, so lets
+            // use the second best option, 'and'
+            v_ := and(mload(add(_signatures, add(signaturePos, 0x41))), 0xff)
         }
     }
 
@@ -43,23 +41,23 @@ library SafeSigners {
     ///         the signatures.
     ///         This method therefore simply extracts the addresses from the signatures.
     function getNSigners(
-        bytes32 dataHash,
-        bytes memory signatures,
-        uint256 requiredSignatures
+        bytes32 _dataHash,
+        bytes memory _signatures,
+        uint256 _requiredSignatures
     )
         internal
         pure
-        returns (address[] memory _owners)
+        returns (address[] memory owners_)
     {
-        _owners = new address[](requiredSignatures);
+        owners_ = new address[](_requiredSignatures);
 
         address currentOwner;
         uint8 v;
         bytes32 r;
         bytes32 s;
         uint256 i;
-        for (i = 0; i < requiredSignatures; i++) {
-            (v, r, s) = signatureSplit(signatures, i);
+        for (i = 0; i < _requiredSignatures; i++) {
+            (v, r, s) = signatureSplit(_signatures, i);
             if (v == 0) {
                 // If v is 0 then it is a contract signature
                 // When handling contract signatures the address of the contract is encoded into r
@@ -73,13 +71,13 @@ library SafeSigners {
                 // To support eth_sign and similar we adjust v and hash the messageHash with the Ethereum message prefix
                 // before applying ecrecover
                 currentOwner =
-                    ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", dataHash)), v - 4, r, s);
+                    ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _dataHash)), v - 4, r, s);
             } else {
                 // Default is the ecrecover flow with the provided data hash
                 // Use ecrecover with the messageHash for EOA signatures
-                currentOwner = ecrecover(dataHash, v, r, s);
+                currentOwner = ecrecover(_dataHash, v, r, s);
             }
-            _owners[i] = currentOwner;
+            owners_[i] = currentOwner;
         }
     }
 }

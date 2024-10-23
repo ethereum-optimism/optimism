@@ -31,7 +31,7 @@ import (
 func TestL2EngineAPI(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
@@ -107,7 +107,7 @@ func TestL2EngineAPI(gt *testing.T) {
 func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
@@ -208,7 +208,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 func TestL2EngineAPIFail(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
@@ -228,7 +228,7 @@ func TestL2EngineAPIFail(gt *testing.T) {
 func TestEngineAPITests(t *testing.T) {
 	test.RunEngineAPITests(t, func(t *testing.T) engineapi.EngineBackend {
 		jwtPath := e2eutils.WriteDefaultJWT(t)
-		dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+		dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 		sd := e2eutils.Setup(t, dp, DefaultAlloc)
 		n, _, apiBackend := newBackend(t, sd.L2Cfg, jwtPath, nil)
 		err := n.Start()

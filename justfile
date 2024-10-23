@@ -1,6 +1,14 @@
 issues:
   ./ops/scripts/todo-checker.sh
 
+# Runs semgrep on the entire monorepo.
+semgrep:
+  semgrep scan --config=semgrep --error .
+
+# Runs semgrep tests.
+semgrep-test:
+  semgrep scan --test semgrep/
+
 lint-shellcheck:
   find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -exec sh -c 'echo \"Checking $1\"; shellcheck \"$1\"' _ {} \\;
 
@@ -42,3 +50,15 @@ check-slither:
 
 upgrade-slither:
   jq '.slither = $v' --arg v $(just print-slither) <<<$(cat versions.json) > versions.json
+
+install-semgrep:
+  pip3 install semgrep
+
+print-semgrep:
+  semgrep --version
+
+check-semgrep:
+  [ "$(just print-semgrep)" = "$(jq -r .semgrep < versions.json)" ] && echo '✓ semgrep versions match' || (echo '✗ semgrep version mismatch. Run `just upgrade-semgrep` to upgrade.' && exit 1)
+
+upgrade-semgrep:
+  jq '.semgrep = $v' --arg v $(just print-semgrep) <<<$(cat versions.json) > versions.json

@@ -67,7 +67,7 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	cfg.DeployConfig.L2GenesisFjordTimeOffset = &genesisActivation
 
 	// set up batcher to use brotli
-	sys, err := cfg.Start(t, e2esys.SystemConfigOption{Key: "compressionAlgo", Role: "brotli", Action: nil})
+	sys, err := cfg.Start(t, e2esys.StartOption{Key: "compressionAlgo", Role: "brotli", Action: nil})
 	require.Nil(t, err, "Error starting up system")
 
 	log := testlog.Logger(t, log.LevelInfo)

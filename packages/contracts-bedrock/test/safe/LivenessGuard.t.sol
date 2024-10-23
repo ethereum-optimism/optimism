@@ -71,17 +71,17 @@ contract LivenessGuard_CheckTx_TestFails is LivenessGuard_TestInit {
     function test_checkTransaction_callerIsNotSafe_revert() external {
         vm.expectRevert("LivenessGuard: only Safe can call this function");
         livenessGuard.checkTransaction({
-            to: address(0),
-            value: 0,
-            data: hex"00",
-            operation: Enum.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: hex"00",
-            msgSender: address(0)
+            _to: address(0),
+            _value: 0,
+            _data: hex"00",
+            _operation: Enum.Operation.Call,
+            _safeTxGas: 0,
+            _baseGas: 0,
+            _gasPrice: 0,
+            _gasToken: address(0),
+            _refundReceiver: payable(address(0)),
+            _signatures: hex"00",
+            _msgSender: address(0)
         });
     }
 }

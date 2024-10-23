@@ -14,7 +14,7 @@ interface IMintManager {
     function mintPermittedAfter() external view returns (uint256);
     function owner() external view returns (address);
     function renounceOwnership() external;
-    function transferOwnership(address newOwner) external;
+    function transferOwnership(address newOwner) external; // nosemgrep
     function upgrade(address _newMintManager) external;
 
     function __constructor__(address _upgrader, address _governanceToken) external;

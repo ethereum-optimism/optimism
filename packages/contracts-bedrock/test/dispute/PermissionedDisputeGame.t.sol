@@ -3,22 +3,18 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { Test } from "forge-std/Test.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
-// Contracts
-import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
-import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
+// Scripts
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
-import { Types } from "src/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
 // Interfaces
-import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 
@@ -47,29 +43,46 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+        IPreimageOracle oracle = IPreimageOracle(
+            DeployUtils.create1({
+                _name: "PreimageOracle",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
+            })
+        );
+        AlphabetVM _vm = new AlphabetVM(absolutePrestate, oracle);
 
         // Use a 7 day delayed WETH to simulate withdrawals.
-        IDelayedWETH _weth = IDelayedWETH(payable(new DelayedWETH(7 days)));
+        IDelayedWETH _weth = IDelayedWETH(
+            DeployUtils.create1({
+                _name: "DelayedWETH",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (7 days)))
+            })
+        );
 
         // Deploy an implementation of the fault game
         gameImpl = IPermissionedDisputeGame(
-            address(
-                new PermissionedDisputeGame({
-                    _gameType: GAME_TYPE,
-                    _absolutePrestate: absolutePrestate,
-                    _maxGameDepth: 2 ** 3,
-                    _splitDepth: 2 ** 2,
-                    _clockExtension: Duration.wrap(3 hours),
-                    _maxClockDuration: Duration.wrap(3.5 days),
-                    _vm: _vm,
-                    _weth: _weth,
-                    _anchorStateRegistry: anchorStateRegistry,
-                    _l2ChainId: 10,
-                    _proposer: PROPOSER,
-                    _challenger: CHALLENGER
-                })
-            )
+            DeployUtils.create1({
+                _name: "PermissionedDisputeGame",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IPermissionedDisputeGame.__constructor__,
+                        (
+                            GAME_TYPE,
+                            absolutePrestate,
+                            2 ** 3,
+                            2 ** 2,
+                            Duration.wrap(3 hours),
+                            Duration.wrap(3.5 days),
+                            _vm,
+                            _weth,
+                            anchorStateRegistry,
+                            10,
+                            PROPOSER,
+                            CHALLENGER
+                        )
+                    )
+                )
+            })
         );
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/triedb"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -73,7 +74,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 
 		parent := s.l1Chain.CurrentHeader()
 		parentHash := parent.Hash()
-		statedb, err := state.New(parent.Root, state.NewDatabase(s.l1Database), nil)
+		statedb, err := state.New(parent.Root, state.NewDatabase(triedb.NewDatabase(s.l1Database, nil), nil))
 		if err != nil {
 			t.Fatalf("failed to init state db around block %s (state %s): %w", parentHash, parent.Root, err)
 		}

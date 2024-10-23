@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/types"
 
-	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -146,10 +147,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	rollupCfg, err := opnode.NewRollupConfigFromCLI(log, ctx)
-	if err != nil {
-		return nil, err
-	}
+
 	l2Head := common.HexToHash(ctx.String(flags.L2Head.Name))
 	if l2Head == (common.Hash{}) {
 		return nil, ErrInvalidL2Head
@@ -171,27 +169,46 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if l1Head == (common.Hash{}) {
 		return nil, ErrInvalidL1Head
 	}
-	l2GenesisPath := ctx.String(flags.L2GenesisPath.Name)
+
+	var err error
+	var rollupCfg *rollup.Config
 	var l2ChainConfig *params.ChainConfig
 	var isCustomConfig bool
-	if l2GenesisPath == "" {
-		networkName := ctx.String(flags.Network.Name)
-		ch := chaincfg.ChainByName(networkName)
-		if ch == nil {
-			return nil, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
+	networkName := ctx.String(flags.Network.Name)
+	if networkName != "" {
+		var chainID uint64
+		if chainID, err = strconv.ParseUint(networkName, 10, 64); err != nil {
+			ch := chaincfg.ChainByName(networkName)
+			if ch == nil {
+				return nil, fmt.Errorf("invalid network: %q", networkName)
+			}
+			chainID = ch.ChainID
 		}
-		cfg, err := params.LoadOPStackChainConfig(ch.ChainID)
+
+		l2ChainConfig, err = chainconfig.ChainConfigByChainID(chainID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load chain config for chain %d: %w", ch.ChainID, err)
+			return nil, fmt.Errorf("failed to load chain config for chain %d: %w", chainID, err)
 		}
-		l2ChainConfig = cfg
+		rollupCfg, err = chainconfig.RollupConfigByChainID(chainID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load rollup config for chain %d: %w", chainID, err)
+		}
 	} else {
+		l2GenesisPath := ctx.String(flags.L2GenesisPath.Name)
 		l2ChainConfig, err = loadChainConfigFromGenesis(l2GenesisPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid genesis: %w", err)
+		}
+
+		rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+		rollupCfg, err = loadRollupConfig(rollupConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rollup config: %w", err)
+		}
+
 		isCustomConfig = true
 	}
-	if err != nil {
-		return nil, fmt.Errorf("invalid genesis: %w", err)
-	}
+
 	dbFormat := types.DataFormat(ctx.String(flags.DataFormat.Name))
 	if !slices.Contains(types.SupportedDataFormats, dbFormat) {
 		return nil, fmt.Errorf("invalid %w: %v", ErrInvalidDataFormat, dbFormat)
@@ -228,4 +245,15 @@ func loadChainConfigFromGenesis(path string) (*params.ChainConfig, error) {
 		return nil, fmt.Errorf("parse l2 genesis file: %w", err)
 	}
 	return genesis.Config, nil
+}
+
+func loadRollupConfig(rollupConfigPath string) (*rollup.Config, error) {
+	file, err := os.Open(rollupConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read rollup config: %w", err)
+	}
+	defer file.Close()
+
+	var rollupConfig rollup.Config
+	return &rollupConfig, rollupConfig.ParseRollupConfig(file)
 }

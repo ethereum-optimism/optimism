@@ -127,7 +127,7 @@
           }
         ],
         "internalType": "struct StorageSetter.Slot[]",
-        "name": "slots",
+        "name": "_slots",
         "type": "tuple[]"
       }
     ],

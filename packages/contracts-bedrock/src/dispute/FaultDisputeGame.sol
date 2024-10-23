@@ -8,13 +8,56 @@ import { Clone } from "@solady/utils/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
-import "src/dispute/lib/Types.sol";
-import "src/dispute/lib/Errors.sol";
+import {
+    GameStatus,
+    GameType,
+    Claim,
+    Position,
+    Clock,
+    Duration,
+    Timestamp,
+    Hash,
+    OutputRoot,
+    LibPosition,
+    LibClock,
+    LocalPreimageKey,
+    VMStatuses
+} from "src/dispute/lib/Types.sol";
+import {
+    InvalidParent,
+    ClaimAlreadyExists,
+    ClaimAlreadyResolved,
+    OutOfOrderResolution,
+    InvalidChallengePeriod,
+    InvalidSplitDepth,
+    InvalidClockExtension,
+    MaxDepthTooLarge,
+    AnchorRootNotFound,
+    AlreadyInitialized,
+    UnexpectedRootClaim,
+    GameNotInProgress,
+    InvalidPrestate,
+    ValidStep,
+    GameDepthExceeded,
+    L2BlockNumberChallenged,
+    InvalidDisputedClaimIndex,
+    ClockTimeExceeded,
+    DuplicateStep,
+    CannotDefendRootClaim,
+    IncorrectBondAmount,
+    InvalidLocalIdent,
+    BlockNumberMatches,
+    InvalidHeaderRLP,
+    ClockNotExpired,
+    BondTransferFailed,
+    NoCreditToClaim,
+    InvalidOutputRootProof,
+    ClaimAboveSplit
+} from "src/dispute/lib/Errors.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
@@ -104,8 +147,8 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1-beta.3
-    string public constant version = "1.3.1-beta.3";
+    /// @custom:semver 1.3.1-beta.5
+    string public constant version = "1.3.1-beta.5";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;

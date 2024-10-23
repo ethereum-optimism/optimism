@@ -35,7 +35,7 @@ type PrestateSource interface {
 	// PrestatePath returns the path to the prestate file to use for the game.
 	// The provided prestateHash may be used to differentiate between different states but no guarantee is made that
 	// the returned prestate matches the supplied hash.
-	PrestatePath(prestateHash common.Hash) (string, error)
+	PrestatePath(ctx context.Context, prestateHash common.Hash) (string, error)
 }
 
 type RollupClient interface {
@@ -68,13 +68,13 @@ func RegisterGameTypes(
 
 	var registerTasks []*RegisterTask
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeCannon) {
-		registerTasks = append(registerTasks, NewCannonRegisterTask(faultTypes.CannonGameType, cfg, m, vm.NewOpProgramServerExecutor()))
+		registerTasks = append(registerTasks, NewCannonRegisterTask(faultTypes.CannonGameType, cfg, m, vm.NewOpProgramServerExecutor(logger)))
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypePermissioned) {
-		registerTasks = append(registerTasks, NewCannonRegisterTask(faultTypes.PermissionedGameType, cfg, m, vm.NewOpProgramServerExecutor()))
+		registerTasks = append(registerTasks, NewCannonRegisterTask(faultTypes.PermissionedGameType, cfg, m, vm.NewOpProgramServerExecutor(logger)))
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
-		registerTasks = append(registerTasks, NewAsteriscRegisterTask(faultTypes.AsteriscGameType, cfg, m, vm.NewOpProgramServerExecutor()))
+		registerTasks = append(registerTasks, NewAsteriscRegisterTask(faultTypes.AsteriscGameType, cfg, m, vm.NewOpProgramServerExecutor(logger)))
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsteriscKona) {
 		registerTasks = append(registerTasks, NewAsteriscKonaRegisterTask(faultTypes.AsteriscKonaGameType, cfg, m, vm.NewKonaExecutor()))
