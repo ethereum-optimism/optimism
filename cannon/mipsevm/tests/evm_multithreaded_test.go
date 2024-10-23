@@ -1011,7 +1011,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 				goVm, state, contracts := setup(t, 2101, nil)
 				mttestutil.InitializeSingleThread(2101+i, state, i%2 == 1)
 				effAddr := c.timespecAddr & arch.AddressMask
-				effAddr2 := effAddr + 4
+				effAddr2 := effAddr + arch.WordSizeBytes
 				step := state.Step
 
 				// Define LL-related params
@@ -1121,6 +1121,8 @@ var NoopSyscalls = map[string]uint32{
 	"SysLlseek":        4140,
 	"SysMinCore":       4217,
 	"SysTgkill":        4266,
+	"SysGetRLimit":     4076,
+	"SysLseek":         4019,
 	"SysMunmap":        4091,
 	"SysSetITimer":     4104,
 	"SysTimerCreate":   4257,
