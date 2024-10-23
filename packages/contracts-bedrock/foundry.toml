@@ -76,7 +76,7 @@ runs = 256
 depth = 32
 
 [profile.ciheavy]
-fuzz = { runs = 10000 }
+fuzz = { runs = 20000 }
 
 [profile.ciheavy.invariant]
 runs = 128
