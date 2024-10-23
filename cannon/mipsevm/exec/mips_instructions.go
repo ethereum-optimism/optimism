@@ -577,17 +577,8 @@ func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Wor
 		negative := (a < 0) != (b < 0) // set if operands have different signs
 
 		// Handle special case for most negative value to avoid overflow in negation
-		var absA, absB uint64
-		if a == -0x8000000000000000 {
-			absA = 0x8000000000000000
-		} else {
-			absA = uint64(abs64(a))
-		}
-		if b == -0x8000000000000000 {
-			absB = 0x8000000000000000
-		} else {
-			absB = uint64(abs64(b))
-		}
+		absA := uint64(abs64(a))
+		absB := uint64(abs64(b))
 
 		hi, lo := bits.Mul64(absA, absB)
 		if negative {
