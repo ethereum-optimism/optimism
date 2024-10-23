@@ -380,12 +380,41 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(systemPath.data, userPath.data);
     }
 
-    /// @dev Tests that the gas paying token cannot be set by a non-system config.
-    function test_setGasPayingToken_notSystemConfig_fails(address _caller) external {
+    /// @dev Tests that any config type can be set by the system config.
+    function testFuzz_setConfig_succeeds(uint8 _configType, bytes calldata _value) public {
+        // Ensure that _configType is within the range of the ConfigType enum
+        _configType = uint8(bound(uint256(_configType), 0, uint256(type(Types.ConfigType).max)));
+
+        vm.expectEmit(address(optimismPortal2));
+        emitTransactionDeposited({
+            _from: Constants.DEPOSITOR_ACCOUNT,
+            _to: Predeploys.L1_BLOCK_ATTRIBUTES,
+            _value: 0,
+            _mint: 0,
+            _gasLimit: 200_000,
+            _isCreation: false,
+            _data: abi.encodeCall(IL1Block.setConfig, (Types.ConfigType(_configType), _value))
+        });
+
+        vm.prank(address(optimismPortal2.systemConfig()));
+        optimismPortal2.setConfig(Types.ConfigType(_configType), _value);
+    }
+
+    /// @dev Tests that the gas paying token cannot be set by a non-system config for any config type.
+    function testFuzz_setConfig_notSystemConfig_fails(
+        address _caller,
+        uint8 _configType,
+        bytes calldata _value
+    )
+        external
+    {
+        // Ensure that _configType is within the range of the ConfigType enum
+        _configType = uint8(bound(uint256(_configType), 0, uint256(type(Types.ConfigType).max)));
+
         vm.assume(_caller != address(systemConfig));
         vm.prank(_caller);
         vm.expectRevert(Unauthorized.selector);
-        optimismPortal2.setConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN, hex"");
+        optimismPortal2.setConfig(Types.ConfigType(_configType), _value);
     }
 
     /// @dev Tests that `depositERC20Transaction` reverts when the gas paying token is ether.
