@@ -133,7 +133,7 @@ func (l *L2Source) ExecutionWitness(ctx context.Context, blockNum uint64) (*eth.
 // GetProof implements prefetcher.L2Source.
 func (l *L2Source) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
 	if l.experimentalEnabled {
-		l.experimentalClient.GetProof(ctx, address, storage, blockTag)
+		return l.experimentalClient.GetProof(ctx, address, storage, blockTag)
 	}
 	return l.canonicalEthClient.GetProof(ctx, address, storage, blockTag)
 }
