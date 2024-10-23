@@ -331,8 +331,8 @@ func (s *EthClient) GetProof(ctx context.Context, address common.Address, storag
 		return nil, fmt.Errorf("missing storage proof data, got %d proof entries but requested %d storage keys", len(getProofResponse.StorageProof), len(storage))
 	}
 	for i, key := range storage {
-		if key != getProofResponse.StorageProof[i].Key {
-			return nil, fmt.Errorf("unexpected storage proof key difference for entry %d: got %s but requested %s", i, getProofResponse.StorageProof[i].Key, key)
+		if key != common.BigToHash(getProofResponse.StorageProof[i].Key.ToInt()) {
+			return nil, fmt.Errorf("unexpected storage proof key difference for entry %d: got %s but requested %s", i, getProofResponse.StorageProof[i].Key.String(), key)
 		}
 	}
 	return getProofResponse, nil

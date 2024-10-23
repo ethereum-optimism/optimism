@@ -163,6 +163,10 @@ semver-natspec-check-no-build:
 # Checks that semver natspec is equal to the actual semver version.
 semver-natspec-check: build semver-natspec-check-no-build
 
+# Checks that the semgrep tests are valid.
+semgrep-test-validity-check:
+  forge fmt ../../semgrep/sol-rules.t.sol --check
+
 # Checks that forge test names are correctly formatted.
 lint-forge-tests-check:
   go run ./scripts/checks/names
@@ -191,12 +195,13 @@ validate-spacers: build validate-spacers-no-build
 
 # Runs semgrep on the contracts.
 semgrep:
-  cd ../../ && semgrep scan --config=.semgrep ./packages/contracts-bedrock
+  cd ../../ && semgrep scan --config=semgrep ./packages/contracts-bedrock
 
 # TODO: Also run lint-forge-tests-check but we need to fix the test names first.
 # Runs all checks.
 check:
   @just gas-snapshot-check-no-build \
+  semgrep-test-validity-check \
   unused-imports-check-no-build \
   snapshots-check-no-build \
   lint-check \
