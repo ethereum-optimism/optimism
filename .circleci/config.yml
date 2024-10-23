@@ -677,6 +677,8 @@ jobs:
           name: print forge version
           command: forge --version
       - run-contracts-check:
+          command: semgrep-test-validity-check
+      - run-contracts-check:
           command: semgrep
       - run-contracts-check:
           command: semver-lock
@@ -1298,7 +1300,10 @@ workflows:
       - semgrep-scan
       - semgrep-scan:
           name: semgrep-scan-local
-          scan_command: semgrep scan --timeout=100 --config=./.semgrep --error .
+          scan_command: semgrep scan --timeout=100 --config=./semgrep --error .
+      - semgrep-scan:
+          name: semgrep-test
+          scan_command: semgrep scan --test semgrep/
       - go-lint
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
