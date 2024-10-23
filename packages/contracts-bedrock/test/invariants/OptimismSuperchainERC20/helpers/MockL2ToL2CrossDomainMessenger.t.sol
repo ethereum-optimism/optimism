@@ -112,7 +112,7 @@ contract MockL2ToL2CrossDomainMessenger {
     //  Internal helpers  //
     ////////////////////////
 
-    function _decodePayload(bytes calldata payload) internal pure returns (address recipient, uint256 amount) {
-        (, recipient, amount) = abi.decode(payload[4:], (address, address, uint256));
+    function _decodePayload(bytes calldata payload) internal pure returns (address recipient_, uint256 amount_) {
+        (, recipient_, amount_) = abi.decode(payload[4:], (address, address, uint256));
     }
 }

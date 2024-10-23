@@ -65,7 +65,7 @@ rules:
     paths:
       exclude:
         - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
-        - packages/contracts-bedrock/test
+        - packages/contracts-bedrock/test/safe-tools
         - packages/contracts-bedrock/scripts/libraries/Solarray.sol
         - packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
         - packages/contracts-bedrock/src/dispute/interfaces/IPermissionedDisputeGame.sol
