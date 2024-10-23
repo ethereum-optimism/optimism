@@ -136,6 +136,12 @@ func (s *L2Sequencer) ActL2EmptyBlock(t Testing) {
 	s.ActL2EndBlock(t)
 }
 
+// OverrideL1Origin makes the sequencer use the provided L1 origin.
+func (s *L2Sequencer) OverrideL1Origin(t Testing, override eth.L1BlockRef) {
+	s.log.Info("setting origin override", "block_ref", override)
+	s.mockL1OriginSelector.originOverride = override
+}
+
 // ActL2KeepL1Origin makes the sequencer use the current L1 origin, even if the next origin is available.
 func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
 	parent := s.engine.UnsafeL2Head()

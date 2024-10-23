@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,7 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		safeHeadPreHolocene     uint64
 		safeHeadHolocene        uint64
 		breachMaxSequencerDrift bool
+		overAdvanceL1Origin     bool
 	}
 
 	// invalidPayload invalidates the signature for the second transaction in the block.
@@ -114,8 +116,14 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		{name: "case-3c", blocks: twoThousandBlocks, // if we artificially stall the l1 origin, this should be enough to trigger violation of the max sequencer drift
 			isSpanBatch:             true,
 			safeHeadPreHolocene:     0, // entire span batch invalidated
-			safeHeadHolocene:        0, // TODO we expect partial validity, safe head should move to  block 1800
+			safeHeadHolocene:        0, // TODO we expect partial validity, safe head should move to  block 1800. So far only pending safe head moves.
 			breachMaxSequencerDrift: true,
+		},
+		{name: "case-3d", blocks: []uint{1, 2, 3, 4, 5, 6}, // we will arrange for each to have an l1Origin of (number,dt) {(0,0),(1,12),(1,12),(1,12),(1,12),(1,12)} so we end up back in sync
+			isSpanBatch:         true,
+			safeHeadPreHolocene: 0, // entire span batch invalidated
+			safeHeadHolocene:    0, // TODO we expect partial validity, safe head should move to block 1.  So far only pending safe head moves.
+			overAdvanceL1Origin: true,
 		},
 	}
 
@@ -139,10 +147,6 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			env.Miner.ActL1FinalizeNext(t)
 		}
 
-		if testCfg.Custom.breachMaxSequencerDrift {
-			env.Sequencer.ActL2KeepL1Origin(t)
-		} // prevent L1 origin from progressing
-
 		env.Batcher.ActCreateChannel(t, testCfg.Custom.isSpanBatch)
 
 		var max = func(input []uint) uint {
@@ -157,6 +161,16 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 
 		targetHeadNumber := max(testCfg.Custom.blocks)
 		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
+
+			if testCfg.Custom.overAdvanceL1Origin && env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 2 {
+				env.Miner.ActL1StartBlock(12)(t)
+				env.Miner.ActL1EndBlock(t)
+				env.Miner.ActL1SafeNext(t)
+				env.Miner.ActL1FinalizeNext(t)
+				b := env.Miner.L1Chain().CurrentSafeBlock()
+				env.Sequencer.OverrideL1Origin(t, eth.L1BlockRef{Hash: b.Hash(), Number: b.Number.Uint64(), ParentHash: b.ParentHash, Time: b.Time})
+			}
+
 			env.Sequencer.ActL2StartBlock(t)
 
 			if !testCfg.Custom.breachMaxSequencerDrift {
@@ -185,7 +199,7 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		orderedFrames := make([][]byte, 0, len(testCfg.Custom.frames))
 
 		blockLogger := func(block *types.Block) *types.Block {
-			t.Log("added block", "num", block.Number(), "txs", block.Transactions(), "time", block.Time())
+			t.Log("added block", "num", block.Number(), "txs", block.Transactions(), "time", block.Time(), "l1_origin")
 			return block
 		}
 
