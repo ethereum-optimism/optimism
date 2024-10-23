@@ -16,6 +16,9 @@ const (
 	OpStoreConditional64 = 0x3c
 	OpLoadDoubleLeft     = 0x1A
 	OpLoadDoubleRight    = 0x1B
+
+	// Return address register
+	RegRA = 31
 )
 
 func GetInstructionDetails(pc Word, memory *memory.Memory) (insn, opcode, fun uint32) {
@@ -31,7 +34,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 	if opcode == 2 || opcode == 3 {
 		linkReg := Word(0)
 		if opcode == 3 {
-			linkReg = 31
+			linkReg = RegRA
 		}
 		// Take the top bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (cpu.NextPC & SignExtend(0xF0000000, 32)) | Word((insn&0x03FFFFFF)<<2)
@@ -523,7 +526,7 @@ func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]Word, opcode uint32, i
 		}
 		if rtv == 0x11 { // bgezal (i.e. bal mnemonic)
 			shouldBranch = arch.SignedInteger(rs) >= 0
-			registers[31] = cpu.PC + 8 // always set regardless of branch taken
+			registers[RegRA] = cpu.PC + 8 // always set regardless of branch taken
 			linked = true
 		}
 	}

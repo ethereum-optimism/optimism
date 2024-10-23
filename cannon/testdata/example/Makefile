@@ -22,7 +22,7 @@ bin/%.elf: bin
 	cd $(@:bin/%.elf=%) && GOOS=linux GOARCH=mips GOMIPS=softfloat go build -o ../$@ .
 
 bin/%.64.elf: bin
-	cd $(@:bin/%.64.elf=%) && GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -o ../$@ .
+	cd $(patsubst bin/%.64.elf,%,$@) && GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -o ../$@ .
 
 # take any ELF and dump it
 # TODO: currently have the little-endian toolchain, but should use the big-endian one. The -EB compat flag works though.
