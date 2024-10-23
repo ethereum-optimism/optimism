@@ -12,22 +12,18 @@ import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 ///         bridging to make it fungible across the Superchain. This construction allows the SuperchainTokenBridge to
 ///         burn and mint tokens.
 abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
-    /// @notice A modifier that only allows the SuperchainTokenBridge to call
-    modifier onlySuperchainTokenBridge() {
-        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
-        _;
-    }
-
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
+    /// @custom:semver 1.0.0-beta.3
     function version() external view virtual returns (string memory) {
-        return "1.0.0-beta.2";
+        return "1.0.0-beta.3";
     }
 
     /// @notice Allows the SuperchainTokenBridge to mint tokens.
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
-    function crosschainMint(address _to, uint256 _amount) external onlySuperchainTokenBridge {
+    function crosschainMint(address _to, uint256 _amount) external {
+        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
+
         _mint(_to, _amount);
 
         emit CrosschainMinted(_to, _amount);
@@ -36,7 +32,9 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     /// @notice Allows the SuperchainTokenBridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
-    function crosschainBurn(address _from, uint256 _amount) external onlySuperchainTokenBridge {
+    function crosschainBurn(address _from, uint256 _amount) external {
+        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
+
         _burn(_from, _amount);
 
         emit CrosschainBurnt(_from, _amount);
