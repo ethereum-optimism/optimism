@@ -193,6 +193,12 @@ validate-spacers-no-build:
 # Checks that spacer variables are correctly inserted.
 validate-spacers: build validate-spacers-no-build
 
+# Checks that the Kontrol summary dummy files have not been modified.
+# If you have changed the summary files deliberately, update the hashes in the script.
+# Use `openssl dgst -sha256` to generate the hash for a file.
+check-kontrol-summaries-unchanged:
+  ./scripts/checks/check-kontrol-summaries-unchanged.sh
+
 # Runs semgrep on the contracts.
 semgrep:
   cd ../../ && semgrep scan --config=semgrep ./packages/contracts-bedrock
