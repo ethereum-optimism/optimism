@@ -40,6 +40,7 @@ interface IL1BlockInterop {
     function sequenceNumber() external view returns (uint64);
     function setConfig(ConfigType _type, bytes memory _value) external;
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external;
+    function setHolocene() external;
     function setL1BlockValues(
         uint64 _number,
         uint64 _timestamp,
