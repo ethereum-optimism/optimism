@@ -19,9 +19,9 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
+    /// @custom:semver 1.0.0-beta.3
     function version() external view virtual returns (string memory) {
-        return "1.0.0-beta.2";
+        return "1.0.0-beta.3";
     }
 
     /// @notice Allows the SuperchainTokenBridge to mint tokens.
