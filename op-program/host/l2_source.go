@@ -25,7 +25,7 @@ type L2Source struct {
 	canonicalDebugClient *sources.DebugClient
 
 	// experimental source, used as the primary source if enabled
-	experimentalClient *L2ExperimentalClient
+	experimentalClient *L2Client
 
 	// whether to use the experimental source
 	experimentalEnabled bool
@@ -79,8 +79,7 @@ func NewL2Source(ctx context.Context, logger log.Logger, config *config.Config) 
 		return nil, err
 	}
 
-	experimentalClient := NewL2ExperimentalClient(experimentalL2Client, experimentalRPC)
-	source.experimentalClient = experimentalClient
+	source.experimentalClient = experimentalL2Client
 	source.experimentalEnabled = true
 
 	return source, nil
