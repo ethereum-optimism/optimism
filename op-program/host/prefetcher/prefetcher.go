@@ -173,6 +173,7 @@ func (p *Prefetcher) bulkPrefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L2 execution witness for block %d: %w", blockNum, err)
 		}
 
+		// ignore keys because we want to rehash all of the values for safety
 		values := make([]hexutil.Bytes, 0, len(result.State)+len(result.Codes))
 		for _, value := range result.State {
 			values = append(values, value)
