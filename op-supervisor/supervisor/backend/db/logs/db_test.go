@@ -763,7 +763,8 @@ func TestExecutes(t *testing.T) {
 			// 51 contains an executing message, and 2 other non-executing logs
 			ref, logCount, execMsgs, err := db.OpenBlock(51)
 			require.NoError(t, err)
-			require.Equal(t, []*types.ExecutingMessage{&execMsg1}, execMsgs)
+			require.Len(t, execMsgs, 1)
+			require.Equal(t, &execMsg1, execMsgs[1])
 			require.Equal(t, uint32(3), logCount)
 			require.Equal(t, eth.BlockRef{Hash: createHash(51), Number: 51, ParentHash: createHash(50), Time: 5001}, ref)
 		})
