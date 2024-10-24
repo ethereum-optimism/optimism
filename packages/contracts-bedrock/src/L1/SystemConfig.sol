@@ -12,7 +12,6 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
-import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
@@ -212,6 +211,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setRemoteChainId();
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
+
+        // TODO: set fee vault config calls
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -428,51 +429,21 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setGasLimit(_gasLimit);
     }
 
-    // TODO: Consolidate these setters into a single function
-    // https://github.com/ethereum-optimism/design-docs/pull/97#discussion_r1809199298
-    /// @notice Setter for the BaseFeeVault predeploy configuration.
+    /// @notice Setter for the FeeVault predeploy configuration.
+    /// @param _type The FeeVault type.
     /// @param _recipient Address that should receive the funds.
     /// @param _min Minimum withdrawal amount allowed to be processed.
     /// @param _network The network in which the fees should be withdrawn to.
-    function setBaseFeeVaultConfig(
+    function setFeeVaultConfig(
+        Types.ConfigType _type,
         address _recipient,
         uint256 _min,
         Types.WithdrawalNetwork _network
     )
         external
-        onlyOwner
     {
-        _setFeeVaultConfig(Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG, _recipient, _min, _network);
-    }
-
-    /// @notice Setter for the L1FeeVault predeploy configuration.
-    /// @param _recipient Address that should receive the funds.
-    /// @param _min Minimum withdrawal amount allowed to be processed.
-    /// @param _network The network in which the fees should be withdrawn to.
-    function setL1FeeVaultConfig(
-        address _recipient,
-        uint256 _min,
-        Types.WithdrawalNetwork _network
-    )
-        external
-        onlyOwner
-    {
-        _setFeeVaultConfig(Types.ConfigType.SET_L1_FEE_VAULT_CONFIG, _recipient, _min, _network);
-    }
-
-    /// @notice Setter for the SequencerFeeVault predeploy configuration.
-    /// @param _recipient Address that should receive the funds.
-    /// @param _min Minimum withdrawal amount allowed to be processed.
-    /// @param _network The network in which the fees should be withdrawn to.
-    function setSequencerFeeVaultConfig(
-        address _recipient,
-        uint256 _min,
-        Types.WithdrawalNetwork _network
-    )
-        external
-        onlyOwner
-    {
-        _setFeeVaultConfig(Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, _recipient, _min, _network);
+        require(msg.sender == owner(), "SystemConfig: caller is not the owner");
+        _setFeeVaultConfig(_type, _recipient, _min, _network);
     }
 
     /// @notice Internal function for setting the FeeVault config by type.
@@ -488,6 +459,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     )
         internal
     {
+        require(
+            _type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG || _type == Types.ConfigType.SET_L1_FEE_VAULT_CONFIG
+                || _type == Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG,
+            "SystemConfig: ConfigType is is not a Fee Vault Config type"
+        );
         IOptimismPortal(payable(optimismPortal())).setConfig({
             _type: _type,
             _value: abi.encode(Encoding.encodeFeeVaultConfig(_recipient, _min, _network))

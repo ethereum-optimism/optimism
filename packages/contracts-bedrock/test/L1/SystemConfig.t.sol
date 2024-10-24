@@ -13,6 +13,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 // Interfaces
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
@@ -80,6 +81,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(decimals, 18);
     }
 
+    // TODO: add a reinit test to ensure calls are made to the Portal.
     /// @dev Tests that initialization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
@@ -542,6 +544,25 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.expectRevert("SystemConfig: gas limit too high");
         systemConfig.setGasLimit(maximumGasLimit + 1);
     }
+
+    /// @dev Tests that `setFeeVaultConfig` reverts if the config type is not a fee vault config.
+    function testFuzz_setFeeVaultConfig_badType_reverts(uint8 _type) external {
+        // Ensure that the config type is not a fee vault config.
+        vm.assume(_type != 1 && _type != 2 && _type != 3);
+
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: ConfigType is is not a Fee Vault Config type");
+        systemConfig.setFeeVaultConfig(Types.ConfigType(_type), address(0), 0, Types.WithdrawalNetwork.L1);
+    }
+
+    /// @dev Tests that `setFeeVaultConfig` reverts if the caller is not authorized.
+    function testFuzz_setFeeVaultConfig_badAuth_reverts(address _caller) external {
+        vm.assume(_caller != systemConfig.owner());
+        vm.expectRevert("SystemConfig: caller is not the owner");
+
+        vm.prank(_caller);
+        systemConfig.setFeeVaultConfig(Types.ConfigType.SET_L1_FEE_VAULT_CONFIG, _caller, 0, Types.WithdrawalNetwork.L1);
+    }
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
@@ -608,6 +629,42 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         vm.prank(systemConfig.owner());
         systemConfig.setUnsafeBlockSigner(newUnsafeSigner);
         assertEq(systemConfig.unsafeBlockSigner(), newUnsafeSigner);
+    }
+
+    /// @dev Tests that `setFeeVaultConfig` emits the expected event in the OptimismPortal
+    function testFuzz_setFeeVaultConfig_succeeds(
+        uint8 _vaultConfig,
+        address _recipient,
+        uint256 _min,
+        uint8 _network
+    )
+        external
+    {
+        vm.assume(_min <= type(uint88).max);
+        // Bound the _vaultConfig to one of the 3 enum entries associated with Fee Vault Config.
+        Types.ConfigType feeType = Types.ConfigType(uint8(bound(_vaultConfig, 1, 3)));
+        // Bound the _network to one of the 2 enum entries associated with Withdrawal Network.
+        Types.WithdrawalNetwork withdrawalNetwork = Types.WithdrawalNetwork(uint8(bound(_network, 0, 1)));
+
+        bytes memory value = abi.encode(Encoding.encodeFeeVaultConfig(_recipient, _min, withdrawalNetwork));
+
+        vm.expectEmit(address(optimismPortal2));
+        emit TransactionDeposited(
+            0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
+            Predeploys.L1_BLOCK_ATTRIBUTES,
+            0,
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(200_000), // gasLimit
+                false, // isCreation,
+                abi.encodeCall(IL1Block.setConfig, (feeType, value))
+            )
+        );
+
+        // TODO: add new role
+        vm.prank(systemConfig.owner());
+        systemConfig.setFeeVaultConfig(feeType, _recipient, _min, withdrawalNetwork);
     }
 }
 
