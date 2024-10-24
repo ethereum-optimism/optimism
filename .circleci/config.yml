@@ -677,6 +677,8 @@ jobs:
           name: print forge version
           command: forge --version
       - run-contracts-check:
+          command: check-kontrol-summaries-unchanged
+      - run-contracts-check:
           command: semgrep-test-validity-check
       - run-contracts-check:
           command: semgrep
