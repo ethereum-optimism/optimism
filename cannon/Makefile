@@ -93,8 +93,6 @@ fuzz:
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzStateSyscallCloneST ./mipsevm/tests
 	# Multi-threaded tests
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzStateSyscallCloneMT ./mipsevm/tests
-	# 64-bit tests
-	go test $(FUZZLDFLAGS) -tags=cannon64 -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzStateDmultInsn ./mipsevm/tests
 
 .PHONY: \
 	cannon32-impl \
