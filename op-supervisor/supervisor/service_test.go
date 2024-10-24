@@ -22,6 +22,9 @@ import (
 )
 
 func TestSupervisorService(t *testing.T) {
+	depSet, err := depset.NewStaticConfigDependencySet(make(map[types.ChainID]*depset.StaticConfigDependency))
+	require.NoError(t, err)
+
 	cfg := &config.Config{
 		Version: "",
 		LogConfig: oplog.CLIConfig{
@@ -47,10 +50,8 @@ func TestSupervisorService(t *testing.T) {
 			ListenPort:  0, // pick a port automatically
 			EnableAdmin: true,
 		},
-		DependencySetSource: &depset.StaticConfigDependencySet{
-			Dependencies: make(map[types.ChainID]*depset.StaticConfigDependency),
-		},
-		MockRun: true,
+		DependencySetSource: depSet,
+		MockRun:             true,
 	}
 	logger := testlog.Logger(t, log.LevelError)
 	supervisor, err := SupervisorFromConfig(context.Background(), cfg, logger)

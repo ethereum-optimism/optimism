@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -32,24 +31,27 @@ func TestBackendLifetime(t *testing.T) {
 	dataDir := t.TempDir()
 	chainA := types.ChainIDFromUInt64(900)
 	chainB := types.ChainIDFromUInt64(901)
-	cfg := &config.Config{
-		Version:       "test",
-		LogConfig:     oplog.CLIConfig{},
-		MetricsConfig: opmetrics.CLIConfig{},
-		PprofConfig:   oppprof.CLIConfig{},
-		RPC:           oprpc.CLIConfig{},
-		DependencySetSource: &depset.StaticConfigDependencySet{
-			Dependencies: map[types.ChainID]*depset.StaticConfigDependency{
-				chainA: {
-					ActivationTime: 42,
-					HistoryMinTime: 100,
-				},
-				chainB: {
-					ActivationTime: 30,
-					HistoryMinTime: 20,
-				},
+	depSet, err := depset.NewStaticConfigDependencySet(
+		map[types.ChainID]*depset.StaticConfigDependency{
+			chainA: {
+				ChainIndex:     900,
+				ActivationTime: 42,
+				HistoryMinTime: 100,
 			},
-		},
+			chainB: {
+				ChainIndex:     901,
+				ActivationTime: 30,
+				HistoryMinTime: 20,
+			},
+		})
+	require.NoError(t, err)
+	cfg := &config.Config{
+		Version:               "test",
+		LogConfig:             oplog.CLIConfig{},
+		MetricsConfig:         opmetrics.CLIConfig{},
+		PprofConfig:           oppprof.CLIConfig{},
+		RPC:                   oprpc.CLIConfig{},
+		DependencySetSource:   depSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		L2RPCs:                nil,
@@ -89,7 +91,7 @@ func TestBackendLifetime(t *testing.T) {
 	t.Log("started!")
 
 	_, err = b.UnsafeView(context.Background(), chainA, types.ReferenceView{})
-	require.ErrorIs(t, err, entrydb.ErrFuture, "no data yet, need local-unsafe")
+	require.ErrorIs(t, err, types.ErrFuture, "no data yet, need local-unsafe")
 
 	src.ExpectL1BlockRefByNumber(0, blockX, nil)
 	src.ExpectFetchReceipts(blockX.Hash, &testutils.MockBlockInfo{
@@ -118,7 +120,7 @@ func TestBackendLifetime(t *testing.T) {
 	b.chainProcessors[chainA].ProcessToHead()
 
 	_, err = b.UnsafeView(context.Background(), chainA, types.ReferenceView{})
-	require.ErrorIs(t, err, entrydb.ErrFuture, "still no data yet, need cross-unsafe")
+	require.ErrorIs(t, err, types.ErrFuture, "still no data yet, need cross-unsafe")
 
 	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSeal{
 		Hash:      blockX.Hash,

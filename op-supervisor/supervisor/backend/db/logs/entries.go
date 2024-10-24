@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -29,7 +28,7 @@ func newSearchCheckpoint(blockNum uint64, logsSince uint32, timestamp uint64) se
 
 func newSearchCheckpointFromEntry(data Entry) (searchCheckpoint, error) {
 	if data.Type() != TypeSearchCheckpoint {
-		return searchCheckpoint{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %s", entrydb.ErrDataCorruption, data.Type())
+		return searchCheckpoint{}, fmt.Errorf("%w: attempting to decode search checkpoint but was type %s", types.ErrDataCorruption, data.Type())
 	}
 	return searchCheckpoint{
 		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
@@ -59,7 +58,7 @@ func newCanonicalHash(hash common.Hash) canonicalHash {
 
 func newCanonicalHashFromEntry(data Entry) (canonicalHash, error) {
 	if data.Type() != TypeCanonicalHash {
-		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %s", entrydb.ErrDataCorruption, data.Type())
+		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %s", types.ErrDataCorruption, data.Type())
 	}
 	return newCanonicalHash(common.Hash(data[1:33])), nil
 }
@@ -78,7 +77,7 @@ type initiatingEvent struct {
 
 func newInitiatingEventFromEntry(data Entry) (initiatingEvent, error) {
 	if data.Type() != TypeInitiatingEvent {
-		return initiatingEvent{}, fmt.Errorf("%w: attempting to decode initiating event but was type %s", entrydb.ErrDataCorruption, data.Type())
+		return initiatingEvent{}, fmt.Errorf("%w: attempting to decode initiating event but was type %s", types.ErrDataCorruption, data.Type())
 	}
 	flags := data[1]
 	return initiatingEvent{
@@ -109,7 +108,7 @@ func (i initiatingEvent) encode() Entry {
 }
 
 type executingLink struct {
-	chain     uint32
+	chain     uint32 // chain index, not a chain ID
 	blockNum  uint64
 	logIdx    uint32
 	timestamp uint64
@@ -120,7 +119,7 @@ func newExecutingLink(msg types.ExecutingMessage) (executingLink, error) {
 		return executingLink{}, fmt.Errorf("log idx is too large (%v)", msg.LogIdx)
 	}
 	return executingLink{
-		chain:     msg.Chain,
+		chain:     uint32(msg.Chain),
 		blockNum:  msg.BlockNum,
 		logIdx:    msg.LogIdx,
 		timestamp: msg.Timestamp,
@@ -129,7 +128,7 @@ func newExecutingLink(msg types.ExecutingMessage) (executingLink, error) {
 
 func newExecutingLinkFromEntry(data Entry) (executingLink, error) {
 	if data.Type() != TypeExecutingLink {
-		return executingLink{}, fmt.Errorf("%w: attempting to decode executing link but was type %s", entrydb.ErrDataCorruption, data.Type())
+		return executingLink{}, fmt.Errorf("%w: attempting to decode executing link but was type %s", types.ErrDataCorruption, data.Type())
 	}
 	timestamp := binary.LittleEndian.Uint64(data[16:24])
 	return executingLink{
@@ -166,7 +165,7 @@ func newExecutingCheck(hash common.Hash) executingCheck {
 
 func newExecutingCheckFromEntry(data Entry) (executingCheck, error) {
 	if data.Type() != TypeExecutingCheck {
-		return executingCheck{}, fmt.Errorf("%w: attempting to decode executing check but was type %s", entrydb.ErrDataCorruption, data.Type())
+		return executingCheck{}, fmt.Errorf("%w: attempting to decode executing check but was type %s", types.ErrDataCorruption, data.Type())
 	}
 	return newExecutingCheck(common.Hash(data[1:33])), nil
 }
