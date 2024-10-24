@@ -14,14 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
+func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 
 	type testCase struct {
 		name                    string
 		blocks                  []uint // could enhance this to declare either singular or span batches or a mixture
 		isSpanBatch             bool
 		blockModifiers          []actionsHelpers.BlockModifier
-		frames                  []uint // ignored if isSpanBatch
 		safeHeadPreHolocene     uint64
 		safeHeadHolocene        uint64
 		breachMaxSequencerDrift bool
@@ -83,58 +82,21 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		1, // is_last
 	}
 
-	// an ordered list of blocks (by number) to add to a single channel
-	// and an ordered list of frames to read from the channel and submit
-	// on L1. There will be one frame per block unless isSpanBatch=true,
-	// in which case all blocks are added to a single span batch which is
-	// sent as a single frame.
+	// An ordered list of blocks (by number) to add to a single channel.
 	// Depending on these lists, whether the channel is built as
 	// as span batch channel, and whether the blocks are modified / invalidated
 	// we expect a different progression of the safe head under Holocene
 	// derivation rules, compared with pre Holocene.
 	var testCases = []testCase{
 		// Standard frame submission, standard channel composition
-		{name: "case-0", blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 3},
+		{name: "case-0", blocks: []uint{1, 2, 3}, safeHeadPreHolocene: 3, safeHeadHolocene: 3},
 
-		// Non-standard frame submission, standard channel composition
-		{name: "case-1a", blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0},
-			safeHeadPreHolocene: 3, // frames are buffered, so ordering does not matter
-			safeHeadHolocene:    0, // non-first frames will be dropped b/c it is the first seen with that channel Id. The safe head won't move until the channel is closed/completed.
-		},
-		{name: "case-1b", blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2},
-			safeHeadPreHolocene: 3, // frames are buffered, so ordering does not matter
-			safeHeadHolocene:    0, // non-first frames will be dropped b/c it is the first seen with that channel Id. The safe head won't move until the channel is closed/completed.
-		},
-		{name: "case-1c", blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 1, 2},
-			safeHeadPreHolocene: 3, // frames are buffered, so ordering does not matter
-			safeHeadHolocene:    3, // non-contiguous frames are dropped. So this reduces to case-0.
-		},
-
-		// Standard frame submission, non-standard channel composition
-		{name: "case-2a", blocks: []uint{1, 3, 2}, frames: []uint{0, 1, 2},
-			safeHeadPreHolocene: 3, // batches are buffered, so the block ordering does not matter
-			safeHeadHolocene:    1, // batch for block 3 is considered invalid because it is from the future. This batch + remaining channel is dropped.
-		},
-		{name: "case-2b", blocks: []uint{2, 1, 3}, frames: []uint{0, 1, 2},
-			safeHeadPreHolocene: 3, // batches are buffered, so the block ordering does not matter
-			safeHeadHolocene:    0, // batch for block 2 is considered invalid because it is from the future. This batch + remaining channel is dropped.
-		},
-		{name: "case-2c", blocks: []uint{1, 1, 2, 3}, frames: []uint{0, 1, 2, 3},
-			safeHeadPreHolocene: 3, // duplicate batches are silently dropped, so this reduceds to case-0
-			safeHeadHolocene:    3, // duplicate batches are silently dropped
-		},
-		{name: "case-2d", blocks: []uint{2, 2, 1, 3}, frames: []uint{0, 1, 2, 3},
-			safeHeadPreHolocene: 3, // duplicate batches are silently dropped, so this reduces to case-2b
-			safeHeadHolocene:    0, // duplicate batches are silently dropped, so this reduces to case-2b
-		},
 		{name: "case-3a", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
 			isSpanBatch:         true,
 			safeHeadPreHolocene: 0, // Invalid signature in block 2 causes an invalid _payload_ in the engine queue. Entire span batch is invalidated.
 			safeHeadHolocene:    0, // TODO with full Holocene implementation, we expect the safe head to move to 2 due to creation of an deposit-only block.
 		},
 		{name: "case-3b", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidParentHash, nil},
-			frames:              []uint{0, 1, 2},
-			isSpanBatch:         false,
 			safeHeadPreHolocene: 1, // Invalid parentHash in block 2 causes an invalid batch to be derived.
 			safeHeadHolocene:    1, // Invalid parentHash in block 2 causes an invalid batch to be derived. This batch + remaining channel is dropped.
 		},
@@ -144,11 +106,11 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			safeHeadHolocene:        0, // TODO we expect partial validity, safe head should move to  block 1800. So far only pending safe head moves.
 			breachMaxSequencerDrift: true,
 		},
-		{name: "case-3d", blocks: []uint{1, 2, 3, 4, 5, 6}, // we will arrange for each to have an l1Origin of (number,dt) {(0,0),(1,12),(1,12),(1,12),(1,12),(1,12)} so we end up back in sync
+		{name: "case-3d",
 			isSpanBatch:         true,
-			safeHeadPreHolocene: 0, // entire span batch invalidated
-			safeHeadHolocene:    0, // TODO we expect partial validity, safe head should move to block 1.  So far only pending safe head moves.
-			overAdvanceL1Origin: true,
+			safeHeadPreHolocene: 0,    // entire span batch invalidated
+			safeHeadHolocene:    0,    // TODO we expect partial validity, safe head should move to block 1.  So far only pending safe head moves.
+			overAdvanceL1Origin: true, // this will trigger the use of the partiallyValidSpanBatchFrame any bypass the sequencer entirely
 		},
 	}
 
@@ -216,9 +178,6 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			env.Sequencer.ActL2EndBlock(t)
 		}
 
-		// Build up a local list of frames
-		orderedFrames := make([][]byte, 0, len(testCfg.Custom.frames))
-
 		blockLogger := func(block *types.Block) *types.Block {
 			t.Log("added block", "num", block.Number(), "txs", block.Transactions(), "time", block.Time(), "l1_origin")
 			return block
@@ -238,29 +197,12 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 				}
 				env.Batcher.ActAddBlockByNumber(t, int64(blockNum), blockModifier, blockLogger)
 
-				if !testCfg.Custom.isSpanBatch {
-					if i == len(testCfg.Custom.blocks)-1 {
-						env.Batcher.ActL2ChannelClose(t)
-					}
-					frame := env.Batcher.ReadNextOutputFrame(t)
-					require.NotEmpty(t, frame, "frame %d", i)
-					orderedFrames = append(orderedFrames, frame)
-				}
 			}
-
-			if testCfg.Custom.isSpanBatch { // Make a single frame for the span batch and submit it
-				env.Batcher.ActL2ChannelClose(t)
-				frame := env.Batcher.ReadNextOutputFrame(t)
-				require.NotEmpty(t, frame)
-				env.Batcher.ActL2BatchSubmitRaw(t, frame)
-				includeBatchTx()
-			} else {
-				// Submit frames in specified order order
-				for _, j := range testCfg.Custom.frames {
-					env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[j])
-					includeBatchTx()
-				}
-			}
+			env.Batcher.ActL2ChannelClose(t)
+			frame := env.Batcher.ReadNextOutputFrame(t)
+			require.NotEmpty(t, frame)
+			env.Batcher.ActL2BatchSubmitRaw(t, frame)
+			includeBatchTx()
 		}
 
 		// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
