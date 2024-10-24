@@ -355,6 +355,18 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
+	case l2.HintL2AccountProof:
+	case l2.HintL2StateNode:
+		// handle these separately to allow for bulk fetching
+		return p.prefetchState(ctx, hint)
+	}
+	return fmt.Errorf("unknown hint type: %v", hintType)
+}
+
+func (p *Prefetcher) prefetchState(ctx context.Context, hint string) error {
+	hintType, hintBytes, err := parseHint(hint)
+	if err != nil {
+		return err
 	}
 
 	// some L2 state data can be fetched in bulk from block execution witnesses instead of direction from the MPT
@@ -365,8 +377,8 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		return p.bulkPrefetch(ctx, bulkHint)
 	}
 
+	// if we don't have a bulk hint, we should just fetch state normally by MPT hash
 	switch hintType {
-
 	case l2.HintL2StateNode:
 		if len(hintBytes) != 32 {
 			return fmt.Errorf("invalid L2 state node hint: %x", hint)
@@ -388,7 +400,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), code)
 	}
-	return fmt.Errorf("unknown hint type: %v", hintType)
+	return fmt.Errorf("unknown state hint type: %v", hintType)
 }
 
 func (p *Prefetcher) storeReceipts(receipts types.Receipts) error {
