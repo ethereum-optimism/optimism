@@ -152,6 +152,10 @@ func (s *RetryingL2Source) ExecutionWitness(ctx context.Context, blockNum uint64
 	return s.source.ExecutionWitness(ctx, blockNum)
 }
 
+func (s *RetryingL2Source) ExperimentalEnabled() bool {
+	return s.source.ExperimentalEnabled()
+}
+
 func NewRetryingL2Source(logger log.Logger, source L2Source) *RetryingL2Source {
 	return &RetryingL2Source{
 		logger:   logger,

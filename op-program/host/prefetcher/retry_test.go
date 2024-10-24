@@ -338,6 +338,10 @@ type MockL2Source struct {
 	mock.Mock
 }
 
+func (m *MockL2Source) ExperimentalEnabled() bool {
+	return false
+}
+
 func (m *MockL2Source) ExecutionWitness(ctx context.Context, blockNum uint64) (*eth.ExecutionWitness, error) {
 	out := m.Mock.MethodCalled("ExecutionWitness", blockNum)
 	return out[0].(*eth.ExecutionWitness), *out[1].(*error)
