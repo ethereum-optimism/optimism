@@ -685,8 +685,6 @@ jobs:
       - run-contracts-check:
           command: semver-diff-check-no-build
       - run-contracts-check:
-          command: semver-natspec-check-no-build
-      - run-contracts-check:
           command: validate-deploy-configs
       - run-contracts-check:
           command: lint
@@ -864,7 +862,6 @@ jobs:
               op-service
               op-supervisor
               op-deployer
-              packages/contracts-bedrock/scripts/checks/semver-natspec
             )
             formatted_packages=""
             for package in "${packages[@]}"; do
