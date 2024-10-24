@@ -52,11 +52,6 @@ var (
 		Usage:   "Address of L2 JSON-RPC endpoint to use for experimental features (debug_executionWitness)",
 		EnvVars: prefixEnvVars("L2_RPC_EXPERIMENTAL_RPC"),
 	}
-	L2NodeExperimentalEnabled = &cli.BoolFlag{
-		Name:    "l2.experimental.enabled",
-		Usage:   "Enable experimental features on the L2 JSON-RPC endpoint, will fallback to L2NodeAddr if not able to retrieve desired data",
-		EnvVars: prefixEnvVars("L2_RPC_EXPERIMENTAL_ENABLED"),
-	}
 	L1Head = &cli.StringFlag{
 		Name:    "l1.head",
 		Usage:   "Hash of the L1 head block. Derivation stops after this block is processed.",
@@ -142,7 +137,6 @@ var programFlags = []cli.Flag{
 	DataFormat,
 	L2NodeAddr,
 	L2NodeExperimentalAddr,
-	L2NodeExperimentalEnabled,
 	L2GenesisPath,
 	L1NodeAddr,
 	L1BeaconAddr,
@@ -161,7 +155,6 @@ func init() {
 func CheckRequired(ctx *cli.Context) error {
 	rollupConfig := ctx.String(RollupConfig.Name)
 	network := ctx.String(Network.Name)
-	l2ExperimentalEnabled := ctx.Bool(L2NodeExperimentalEnabled.Name)
 	if rollupConfig == "" && network == "" {
 		return fmt.Errorf("flag %s or %s is required", RollupConfig.Name, Network.Name)
 	}
@@ -173,9 +166,6 @@ func CheckRequired(ctx *cli.Context) error {
 	}
 	if ctx.String(L2GenesisPath.Name) != "" && network != "" {
 		return fmt.Errorf("cannot specify both %s and %s", L2GenesisPath.Name, Network.Name)
-	}
-	if l2ExperimentalEnabled && ctx.String(L2NodeExperimentalAddr.Name) == "" {
-		return fmt.Errorf("flag %s is required when %s is enabled", L2NodeExperimentalAddr.Name, L2NodeExperimentalEnabled.Name)
 	}
 	for _, flag := range requiredFlags {
 		if !ctx.IsSet(flag.Names()[0]) {

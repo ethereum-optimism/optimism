@@ -26,9 +26,6 @@ type L2Source struct {
 
 	// experimental source, used as the primary source if enabled
 	experimentalClient *L2Client
-
-	// whether to use the experimental source
-	experimentalEnabled bool
 }
 
 var _ prefetcher.L2Source = &L2Source{}
@@ -63,7 +60,7 @@ func NewL2Source(ctx context.Context, logger log.Logger, config *config.Config) 
 
 	source := NewL2SourceWithClient(logger, canonicalL2Client, canonicalDebugClient)
 
-	if !config.L2ExperimentalEnabled {
+	if len(config.L2ExperimentalURL) == 0 {
 		return source, nil
 	}
 
@@ -80,14 +77,17 @@ func NewL2Source(ctx context.Context, logger log.Logger, config *config.Config) 
 	}
 
 	source.experimentalClient = experimentalL2Client
-	source.experimentalEnabled = true
 
 	return source, nil
 }
 
+func (l *L2Source) ExperimentalEnabled() bool {
+	return l.experimentalClient != nil
+}
+
 // CodeByHash implements prefetcher.L2Source.
 func (l *L2Source) CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error) {
-	if l.experimentalEnabled {
+	if l.ExperimentalEnabled() {
 		// This means experimental source was not able to retrieve relevant information from eth_getProof or debug_executionWitness
 		// We should fall back to the canonical source, and log a warning, and record a metric
 		l.logger.Warn("Experimental source failed to retrieve code by hash, falling back to canonical source", "hash", hash)
@@ -97,7 +97,7 @@ func (l *L2Source) CodeByHash(ctx context.Context, hash common.Hash) ([]byte, er
 
 // NodeByHash implements prefetcher.L2Source.
 func (l *L2Source) NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error) {
-	if l.experimentalEnabled {
+	if l.ExperimentalEnabled() {
 		// This means experimental source was not able to retrieve relevant information from eth_getProof or debug_executionWitness
 		// We should fall back to the canonical source, and log a warning, and record a metric
 		l.logger.Warn("Experimental source failed to retrieve node by hash, falling back to canonical source", "hash", hash)
@@ -107,7 +107,7 @@ func (l *L2Source) NodeByHash(ctx context.Context, hash common.Hash) ([]byte, er
 
 // InfoAndTxsByHash implements prefetcher.L2Source.
 func (l *L2Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	if l.experimentalEnabled {
+	if l.ExperimentalEnabled() {
 		return l.experimentalClient.InfoAndTxsByHash(ctx, blockHash)
 	}
 	return l.canonicalEthClient.InfoAndTxsByHash(ctx, blockHash)
@@ -115,7 +115,7 @@ func (l *L2Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) 
 
 // OutputByRoot implements prefetcher.L2Source.
 func (l *L2Source) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
-	if l.experimentalEnabled {
+	if l.ExperimentalEnabled() {
 		return l.experimentalClient.OutputByRoot(ctx, root)
 	}
 	return l.canonicalEthClient.OutputByRoot(ctx, root)
@@ -123,17 +123,29 @@ func (l *L2Source) OutputByRoot(ctx context.Context, root common.Hash) (eth.Outp
 
 // ExecutionWitness implements prefetcher.L2Source.
 func (l *L2Source) ExecutionWitness(ctx context.Context, blockNum uint64) (*eth.ExecutionWitness, error) {
-	if !l.experimentalEnabled {
+	if !l.ExperimentalEnabled() {
 		l.logger.Error("Experimental source is not enabled, cannot fetch execution witness", "blockNum", blockNum)
-		panic("experimental source is not enabled")
+		return nil, prefetcher.ErrExperimentalPrefetchDisabled
 	}
-	return l.experimentalClient.ExecutionWitness(ctx, blockNum)
+
+	// log errors, but return standard error so we know to retry with legacy source
+	witness, err := l.experimentalClient.ExecutionWitness(ctx, blockNum)
+	if err != nil {
+		l.logger.Error("Failed to fetch execution witness from experimental source", "blockNum", blockNum, "err", err)
+		return nil, prefetcher.ErrExperimentalPrefetchFailed
+	}
+	return witness, nil
 }
 
 // GetProof implements prefetcher.L2Source.
 func (l *L2Source) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
-	if l.experimentalEnabled {
+	if l.ExperimentalEnabled() {
 		return l.experimentalClient.GetProof(ctx, address, storage, blockTag)
 	}
-	return l.canonicalEthClient.GetProof(ctx, address, storage, blockTag)
+	proof, err := l.canonicalEthClient.GetProof(ctx, address, storage, blockTag)
+	if err != nil {
+		l.logger.Error("Failed to fetch proof from canonical source", "address", address, "storage", storage, "blockTag", blockTag, "err", err)
+		return nil, prefetcher.ErrExperimentalPrefetchFailed
+	}
+	return proof, nil
 }
