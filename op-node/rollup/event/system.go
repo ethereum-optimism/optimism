@@ -56,8 +56,9 @@ type systemActor struct {
 	deriv         Deriver
 	leaveExecutor func()
 
-	// 0 if event does not originate from Deriver-handling of another event
-	currentEvent uint64
+	// 0 if systemActor is not handling deriving of an event
+	// (accessed by atomic, so put in front for better alignment)
+	currentDerivContext atomic.Uint64
 }
 
 // Emit is called by the end-user
@@ -65,7 +66,7 @@ func (r *systemActor) Emit(ev Event) {
 	if r.ctx.Err() != nil {
 		return
 	}
-	r.sys.emit(r.name, r.currentEvent, ev)
+	r.sys.emit(r.name, r.currentDerivContext.Load(), ev)
 }
 
 // RunEvent is called by the events executor.
@@ -82,13 +83,22 @@ func (r *systemActor) RunEvent(ev AnnotatedEvent) {
 		return
 	}
 
-	prev := r.currentEvent
 	start := time.Now()
-	r.currentEvent = r.sys.recordDerivStart(r.name, ev, start)
+	current := r.sys.recordDerivStart(r.name, ev, start)
+	var prev uint64
+	for {
+		prev = r.currentDerivContext.Load()
+
+		if r.currentDerivContext.CompareAndSwap(prev, current) {
+			break
+		}
+	}
+
 	effect := r.deriv.OnEvent(ev.Event)
 	elapsed := time.Since(start)
-	r.sys.recordDerivEnd(r.name, ev, r.currentEvent, start, elapsed, effect)
-	r.currentEvent = prev
+	r.sys.recordDerivEnd(r.name, ev, current, start, elapsed, effect)
+
+	r.currentDerivContext.CompareAndSwap(current, prev)
 }
 
 // Sys is the canonical implementation of System.
@@ -141,7 +151,7 @@ func (s *Sys) Register(name string, deriver Deriver, opts *RegisterOpts) Emitter
 	if opts.Emitter.Limiting {
 		limitedCallback := opts.Emitter.OnLimited
 		em = NewLimiter(ctx, r, opts.Emitter.Rate, opts.Emitter.Burst, func() {
-			r.sys.recordRateLimited(name, r.currentEvent)
+			r.sys.recordRateLimited(name, r.currentDerivContext.Load())
 			if limitedCallback != nil {
 				limitedCallback()
 			}
