@@ -77,6 +77,7 @@ type Node struct {
 	FunctionSelector        string           `json:"functionSelector,omitempty"`
 	EventSelector           string           `json:"eventSelector,omitempty"`
 	Indexed                 bool             `json:"indexed,omitempty"`
+	ErrorSelector           string           `json:"errorSelector,omitempty"`
 }
 
 type SymbolAlias struct {

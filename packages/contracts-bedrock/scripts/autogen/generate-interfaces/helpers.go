@@ -132,6 +132,7 @@ func resetVars() {
 	importedNames = make(map[string]string)
 	eventSelectors = make(map[string]bool)
 	overriddenFunctions = make(map[string]bool)
+	errorSelectors = make(map[string]bool)
 	constructorFound = false
 	level = 0 // redundant?
 }
@@ -193,11 +194,30 @@ func processType(name string) (string, error) {
 
 func getJsonOutput(__contractName string) (JsonOutput, error) {
 	var newJsonOutput JsonOutput
+	var err error
+
 	contractsBase, _ := os.Getwd()
 	var jsonOutputPath = filepath.Join(contractsBase, "forge-artifacts/", __contractName+".sol/", __contractName+".json")
 	data, err := os.ReadFile(jsonOutputPath)
 	if err != nil {
-		return JsonOutput{}, err
+		jsonOutputPath = filepath.Join(contractsBase, "forge-artifacts/", __contractName+".sol/", __contractName+".0.8.25.json")
+		data, err = os.ReadFile(jsonOutputPath)
+		if err != nil {
+			switch __contractName {
+			// For governance contract that imports ERC20Votes which imports ERC20Permit from OZ. Handle its transient dependencies
+			case "ERC20Permit", "IERC20Permit", "EIP712":
+				{
+					jsonOutputPath = filepath.Join(contractsBase, "forge-artifacts/", "draft-"+__contractName+".sol/", __contractName+".0.8.25.json")
+					data, err = os.ReadFile(jsonOutputPath)
+					if err != nil {
+						return JsonOutput{}, err
+					}
+				}
+			default:
+				return JsonOutput{}, err
+			}
+		}
+
 	}
 	err = json.Unmarshal(data, &newJsonOutput)
 	if err != nil {

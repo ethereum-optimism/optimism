@@ -50,6 +50,7 @@ var mainName = map[string]string{}
 var importedNames = map[string]string{}
 var overriddenFunctions = map[string]bool{}
 var eventSelectors = map[string]bool{}
+var errorSelectors = map[string]bool{}
 var JSON_OUTPUT JsonOutput
 var contractName string
 var constructorFound bool = false
@@ -120,13 +121,6 @@ func main() {
 		}
 		resetVars()
 	}
-
-	// contractName = "OptimismSuperchainERC20Factory"
-	// _interface, err := run()
-	// if err != nil {
-	//  panic(err)
-	// }
-	// fmt.Println(_interface)
 }
 
 func run() (string, error) {
@@ -236,7 +230,8 @@ func processInheritance(node Node) (string, string, error) {
 			if name == "" {
 				name = baseContract.BaseName.Name
 			}
-			if name == "ISemver" || name == "IWETH" {
+			switch name {
+			case "ISemver", "IWETH", "IGasToken", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1", "TransientReentrancyAware", "ISuperchainWETH":
 				continue
 			}
 
@@ -279,27 +274,33 @@ func parseImportDirective(node Node) (string, error) {
 	var result string = "import "
 	var err error
 
-	if strings.HasPrefix(node.AbsolutePath, "lib") && node.AbsolutePath != "lib/lib-keccak/contracts/lib/LibKeccak.sol" {
+	if strings.HasPrefix(node.AbsolutePath, "lib") && node.AbsolutePath != "lib/lib-keccak/contracts/lib/LibKeccak.sol" && node.AbsolutePath != "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/ERC20Votes.sol" {
 		return "", nil
 	}
 
+	var added int = 0
 	if len(node.SymbolAliases) > 0 {
 		result += "{ "
 		for i, symbolAlias := range node.SymbolAliases {
 			if symbolAlias.Foreign.Name == "I"+contractName || symbolAlias.Local == "I"+contractName {
-				if len(node.SymbolAliases) > 1 {
-					continue
-				} else {
-					result = strings.TrimSuffix(result, "import { ")
-					break
-				}
+				continue
 			}
 			result += symbolAlias.Foreign.Name
 			if symbolAlias.Local != "" {
+				if mainName[symbolAlias.Local] != "" {
+					result = strings.TrimSuffix(result, symbolAlias.Foreign.Name)
+					continue
+				}
+
 				result += " as " + symbolAlias.Local
 				mainName[symbolAlias.Local] = symbolAlias.Foreign.Name
 				importedNames[symbolAlias.Local] = node.AbsolutePath
 			} else {
+				if mainName[symbolAlias.Foreign.Name] != "" {
+					result = strings.TrimSuffix(result, symbolAlias.Foreign.Name)
+					continue
+				}
+
 				mainName[symbolAlias.Foreign.Name] = symbolAlias.Foreign.Name
 				importedNames[symbolAlias.Foreign.Name] = node.AbsolutePath
 			}
@@ -309,6 +310,12 @@ func parseImportDirective(node Node) (string, error) {
 			} else {
 				result += " } from \"" + node.AbsolutePath + "\";\n"
 			}
+
+			added += 1
+		}
+
+		if added == 0 {
+			return "", nil
 		}
 	} else {
 		result += "\"" + node.AbsolutePath + "\";\n"
@@ -390,6 +397,10 @@ func parseErrorDefinition(node Node) (string, error) {
 	var result string = "error " + node.Name + "("
 	var err error
 
+	if errorSelectors[node.ErrorSelector] {
+		return "", nil
+	}
+
 	for i, parameter := range node.Parameters.Parameters {
 		temp, err := processType(parameter.TypeDescriptions.TypeString)
 		if err != nil {
@@ -403,6 +414,7 @@ func parseErrorDefinition(node Node) (string, error) {
 	}
 
 	result += ");\n"
+	errorSelectors[node.ErrorSelector] = true
 
 	return result, err
 }
@@ -424,11 +436,13 @@ func parseFunctionDefinition(node Node) (string, error) {
 			if level != 0 {
 				return "", nil
 			}
-
 			result = "function __constructor__("
 			constructorFound = true
 		}
 	case "function":
+		if node.Name == "__constructor__" {
+			return "", fmt.Errorf("forbidden function name: __constructor__")
+		}
 		result = "function " + node.Name + "("
 	case "receive":
 		{
