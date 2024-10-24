@@ -12,7 +12,6 @@ import (
 )
 
 const maxAttempts = math.MaxInt // Succeed or die trying
-const maxAttemptsExpensiveOp = 2
 
 type RetryingL1Source struct {
 	logger   log.Logger
@@ -133,7 +132,7 @@ func (s *RetryingL2Source) CodeByHash(ctx context.Context, hash common.Hash) ([]
 }
 
 func (s *RetryingL2Source) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
-	return retry.Do(ctx, maxAttemptsExpensiveOp, s.strategy, func() (eth.Output, error) {
+	return retry.Do(ctx, maxAttempts, s.strategy, func() (eth.Output, error) {
 		o, err := s.source.OutputByRoot(ctx, root)
 		if err != nil {
 			s.logger.Warn("Failed to fetch l2 output", "root", root, "err", err)
@@ -144,23 +143,13 @@ func (s *RetryingL2Source) OutputByRoot(ctx context.Context, root common.Hash) (
 }
 
 func (s *RetryingL2Source) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
-	return retry.Do(ctx, maxAttemptsExpensiveOp, s.strategy, func() (*eth.AccountResult, error) {
-		r, err := s.source.GetProof(ctx, address, storage, blockTag)
-		if err != nil {
-			s.logger.Warn("Failed to fetch proof", "address", address, "storage", storage, "blockTag", blockTag, "err", err)
-		}
-		return r, err
-	})
+	// these aren't retried because they are currently experimental and can be slow
+	return s.source.GetProof(ctx, address, storage, blockTag)
 }
 
 func (s *RetryingL2Source) ExecutionWitness(ctx context.Context, blockNum uint64) (*eth.ExecutionWitness, error) {
-	return retry.Do(ctx, maxAttemptsExpensiveOp, s.strategy, func() (*eth.ExecutionWitness, error) {
-		w, err := s.source.ExecutionWitness(ctx, blockNum)
-		if err != nil {
-			s.logger.Warn("Failed to fetch execution witness", "blockNum", blockNum, "err", err)
-		}
-		return w, err
-	})
+	// these aren't retried because they are currently experimental and can be slow
+	return s.source.ExecutionWitness(ctx, blockNum)
 }
 
 func NewRetryingL2Source(logger log.Logger, source L2Source) *RetryingL2Source {
