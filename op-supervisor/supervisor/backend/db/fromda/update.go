@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -60,19 +59,19 @@ func (db *DB) AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error {
 		// I.e. we encountered an empty L1 block, and the same L2 block continues to be the last block that was derived from it.
 		if lastDerived.Hash != derived.Hash {
 			return fmt.Errorf("derived block %s conflicts with known derived block %s at same height: %w",
-				derived, lastDerived, entrydb.ErrConflict)
+				derived, lastDerived, types.ErrConflict)
 		}
 	} else if lastDerived.Number+1 == derived.Number {
 		if lastDerived.Hash != derived.ParentHash {
 			return fmt.Errorf("derived block %s (parent %s) does not build on %s: %w",
-				derived, derived.ParentHash, lastDerived, entrydb.ErrConflict)
+				derived, derived.ParentHash, lastDerived, types.ErrConflict)
 		}
 	} else if lastDerived.Number+1 < derived.Number {
 		return fmt.Errorf("derived block %s (parent: %s) is too new, expected to build on top of %s: %w",
-			derived, derived.ParentHash, lastDerived, entrydb.ErrOutOfOrder)
+			derived, derived.ParentHash, lastDerived, types.ErrOutOfOrder)
 	} else {
 		return fmt.Errorf("derived block %s is older than current derived block %s: %w",
-			derived, lastDerived, entrydb.ErrOutOfOrder)
+			derived, lastDerived, types.ErrOutOfOrder)
 	}
 
 	// Check derived-from relation: multiple L2 blocks may be derived from the same L1 block. But everything in sequence.
@@ -80,22 +79,22 @@ func (db *DB) AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error {
 		// Same block height? Then it must be the same block.
 		if lastDerivedFrom.Hash != derivedFrom.Hash {
 			return fmt.Errorf("cannot add block %s as derived from %s, expected to be derived from %s at this block height: %w",
-				derived, derivedFrom, lastDerivedFrom, entrydb.ErrConflict)
+				derived, derivedFrom, lastDerivedFrom, types.ErrConflict)
 		}
 	} else if lastDerivedFrom.Number+1 == derivedFrom.Number {
 		// parent hash check
 		if lastDerivedFrom.Hash != derivedFrom.ParentHash {
 			return fmt.Errorf("cannot add block %s as derived from %s (parent %s) derived on top of %s: %w",
-				derived, derivedFrom, derivedFrom.ParentHash, lastDerivedFrom, entrydb.ErrConflict)
+				derived, derivedFrom, derivedFrom.ParentHash, lastDerivedFrom, types.ErrConflict)
 		}
 	} else if lastDerivedFrom.Number+1 < derivedFrom.Number {
 		// adding block that is derived from something too far into the future
 		return fmt.Errorf("cannot add block %s as derived from %s, still deriving from %s: %w",
-			derived, derivedFrom, lastDerivedFrom, entrydb.ErrOutOfOrder)
+			derived, derivedFrom, lastDerivedFrom, types.ErrOutOfOrder)
 	} else {
 		// adding block that is derived from something too old
 		return fmt.Errorf("cannot add block %s as derived from %s, deriving already at %s: %w",
-			derived, derivedFrom, lastDerivedFrom, entrydb.ErrOutOfOrder)
+			derived, derivedFrom, lastDerivedFrom, types.ErrOutOfOrder)
 	}
 
 	link := LinkEntry{

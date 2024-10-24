@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
@@ -71,7 +70,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	chains := depSet.Chains()
 
 	// create initial per-chain resources
-	chainsDBs := db.NewChainsDB(logger)
+	chainsDBs := db.NewChainsDB(logger, depSet)
 	chainProcessors := make(map[types.ChainID]*processors.ChainProcessor, len(chains))
 	chainMetrics := make(map[types.ChainID]*chainMetrics, len(chains))
 
@@ -167,7 +166,7 @@ func (su *SupervisorBackend) attachRPC(ctx context.Context, rpc string) error {
 		return err
 	}
 	if !su.depSet.HasChain(chainID) {
-		return fmt.Errorf("chain %s is not part of the interop dependency set: %w", chainID, db.ErrUnknownChain)
+		return fmt.Errorf("chain %s is not part of the interop dependency set: %w", chainID, types.ErrUnknownChain)
 	}
 	cm, ok := su.chainMetrics[chainID]
 	if !ok {
@@ -273,10 +272,10 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	blockNum := identifier.BlockNumber
 	logIdx := identifier.LogIndex
 	_, err := su.chainDBs.Check(chainID, blockNum, uint32(logIdx), payloadHash)
-	if errors.Is(err, entrydb.ErrFuture) {
+	if errors.Is(err, types.ErrFuture) {
 		return types.LocalUnsafe, nil
 	}
-	if errors.Is(err, entrydb.ErrConflict) {
+	if errors.Is(err, types.ErrConflict) {
 		return types.Invalid, nil
 	}
 	if err != nil {
@@ -378,7 +377,7 @@ func (su *SupervisorBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.B
 	defer su.mu.RUnlock()
 	ch, ok := su.chainProcessors[chainID]
 	if !ok {
-		return db.ErrUnknownChain
+		return types.ErrUnknownChain
 	}
 	return ch.OnNewHead(head)
 }
