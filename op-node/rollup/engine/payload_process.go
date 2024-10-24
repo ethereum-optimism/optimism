@@ -30,21 +30,25 @@ func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
 		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
-			Err: fmt.Errorf("failed to insert execution payload: %w", err)})
+			Err: fmt.Errorf("failed to insert execution payload: %w", err),
+		})
 		return
 	}
 	switch status.Status {
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
+		// TODO: Do we also want to retry deposit-only attributes at this point?
 		eq.emitter.Emit(PayloadInvalidEvent{
 			Envelope: ev.Envelope,
-			Err:      eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status)})
+			Err:      eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
+		})
 		return
 	case eth.ExecutionValid:
 		eq.emitter.Emit(PayloadSuccessEvent(ev))
 		return
 	default:
 		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
-			Err: eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status)})
+			Err: eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
+		})
 		return
 	}
 }

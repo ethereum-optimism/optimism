@@ -3,8 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
@@ -33,20 +31,31 @@ func (ev InvalidPayloadAttributesEvent) String() string {
 func (eq *EngDeriver) onBuildInvalid(ev BuildInvalidEvent) {
 	eq.log.Warn("could not process payload attributes", "err", ev.Err)
 
-	// Count the number of deposits to see if the tx list is deposit only.
-	depositCount := 0
-	for _, tx := range ev.Attributes.Attributes.Transactions {
-		if len(tx) > 0 && tx[0] == types.DepositTxType {
-			depositCount += 1
-		}
-	}
 	// Deposit transaction execution errors are suppressed in the execution engine, but if the
 	// block is somehow invalid, there is nothing we can do to recover & we should exit.
-	if len(ev.Attributes.Attributes.Transactions) == depositCount {
+	if ev.Attributes.Attributes.IsDepositsOnly() {
 		eq.log.Error("deposit only block was invalid", "parent", ev.Attributes.Parent, "err", ev.Err)
 		eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("failed to process block with only deposit transactions: %w", ev.Err)})
 		return
 	}
+
+	// TODO: not sure if we have to check IsDerived, can we land here outside of derivation?
+	if eq.cfg.IsHolocene(ev.Attributes.DerivedFrom.Time) && ev.Attributes.IsDerived() {
+		eq.log.Warn("Holocene active, retrying deposits-only attributes")
+		retryingAttributes := ev.Attributes.WithDepositsOnly()
+
+		// let external derivers know so they can adapt accordingly
+		eq.emitter.Emit(derive.RetryingDepositsPayloadAttributesEvent{
+			OriginalAttributes: ev.Attributes,
+			RetryingAttributes: retryingAttributes,
+			Err:                ev.Err,
+		})
+
+		// attempt retry internally
+		eq.emitter.Emit(BuildStartEvent{retryingAttributes})
+		return
+	}
+
 	// Revert the pending safe head to the safe head.
 	eq.ec.SetPendingSafeL2Head(eq.ec.SafeL2Head())
 	// suppress the error b/c we want to retry with the next batch from the batch queue

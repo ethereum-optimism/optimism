@@ -63,6 +63,20 @@ func (ev PipelineStepEvent) String() string {
 	return "pipeline-step"
 }
 
+// RetryingDepositsPayloadAttributesEvent is a signal to external derivers that
+// the engine retries an invalid payload with a deposits-only replacement.
+// It is sent by the engine and received by the PipelineDeriver and AttributesHandler.
+// This behavior got introduced with Holocene.
+type RetryingDepositsPayloadAttributesEvent struct {
+	OriginalAttributes *AttributesWithParent
+	RetryingAttributes *AttributesWithParent
+	Err                error
+}
+
+func (ev RetryingDepositsPayloadAttributesEvent) String() string {
+	return "retrying-deposits-payload-attributes"
+}
+
 type PipelineDeriver struct {
 	pipeline *DerivationPipeline
 
@@ -131,6 +145,10 @@ func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
 		d.pipeline.ConfirmEngineReset()
 	case ConfirmReceivedAttributesEvent:
 		d.needAttributesConfirmation = false
+	case RetryingDepositsPayloadAttributesEvent:
+		d.pipeline.log.Warn("Flushing current channel of pipeline due to deposits-only attributes retry",
+			"origin", d.pipeline.Origin())
+		d.pipeline.FlushChannel()
 	default:
 		return false
 	}
