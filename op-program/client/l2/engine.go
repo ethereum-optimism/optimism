@@ -45,7 +45,7 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error)
 		return eth.Bytes32{}, fmt.Errorf("failed to get L2 block at %d", l2ClaimBlockNum)
 	}
 
-	o.hinter.Hint(AccountProofHint{BlockNumber: outBlock.Number.Uint64(), Address: predeploys.L2ToL1MessagePasserAddr})
+	o.hinter.Hint(AccountProofHint{BlockHash: outBlock.Hash(), Address: predeploys.L2ToL1MessagePasserAddr})
 	stateDB, err := o.backend.StateAt(outBlock.Root)
 	if err != nil {
 		return eth.Bytes32{}, fmt.Errorf("failed to open L2 state db at block %s: %w", outBlock.Hash(), err)

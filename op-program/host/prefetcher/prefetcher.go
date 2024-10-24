@@ -130,16 +130,15 @@ func (p *Prefetcher) bulkPrefetch(ctx context.Context, hint string) error {
 	p.logger.Debug("Prefetching", "type", hintType, "bytes", hexutil.Bytes(hintBytes))
 	switch hintType {
 	case l2.HintL2AccountProof:
-		// account proofs include the block number and requested address in the hint
-		if len(hintBytes) != 28 {
+		// account proofs include the block hash and requested address in the hint
+		if len(hintBytes) != 52 {
 			return fmt.Errorf("invalid L2 account proof hint: %x", hintBytes)
 		}
 
-		blockNumBytes := hintBytes[:8]
-		blockNum := binary.BigEndian.Uint64(blockNumBytes)
+		blockHash := common.Hash(hintBytes[:32])
 
 		address := common.Address(hintBytes[8:])
-		result, err := p.l2Fetcher.GetProof(ctx, address, []common.Hash{{}}, hexutil.EncodeUint64(blockNum))
+		result, err := p.l2Fetcher.GetProof(ctx, address, []common.Hash{{}}, blockHash.Hex())
 		if err != nil {
 			return fmt.Errorf("failed to fetch account proof for address %s: %w", address, err)
 		}
