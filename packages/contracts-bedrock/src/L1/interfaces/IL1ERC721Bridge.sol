@@ -6,6 +6,8 @@ import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMess
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 interface IL1ERC721Bridge is IERC721Bridge {
+    event Initialized(uint8 version);
+
     function bridgeERC721(
         address _localToken,
         address _remoteToken,

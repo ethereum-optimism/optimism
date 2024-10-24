@@ -30,6 +30,7 @@ interface IL1BlockInterop {
     function gasPayingToken() external view returns (address addr_, uint8 decimals_);
     function gasPayingTokenName() external view returns (string memory name_);
     function gasPayingTokenSymbol() external view returns (string memory symbol_);
+    function getConfig(uint8 _type) external view returns (bytes memory data_);
     function hash() external view returns (bytes32);
     function isCustomGasToken() external view returns (bool);
     function isDeposit() external view returns (bool isDeposit_);

@@ -25,6 +25,7 @@ interface IL1StandardBridge is IStandardBridge {
     );
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
     event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
+    event Initialized(uint8 version);
 
     function depositERC20(
         address _l1Token,
@@ -69,6 +70,8 @@ interface IL1StandardBridge is IStandardBridge {
     )
         external;
     function l2TokenBridge() external view returns (address);
+    function OTHER_BRIDGE() external view returns (IStandardBridge);
+    function otherBridge() external view returns (IStandardBridge);
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
     function version() external view returns (string memory);

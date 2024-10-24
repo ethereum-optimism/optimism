@@ -21,7 +21,7 @@ interface IFeeVault {
     function recipient() external view returns (address recipient_);
     function totalProcessed() external view returns (uint256);
     function withdraw() external;
-    function withdrawalNetwork() external view returns (Types.WithdrawalNetwork network_);
+    function withdrawalNetwork() external view returns (Types.WithdrawalNetwork withdrawalNetwork_);
     function config()
         external
         view

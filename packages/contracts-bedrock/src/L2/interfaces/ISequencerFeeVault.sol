@@ -24,12 +24,8 @@ interface ISequencerFeeVault {
     function withdrawalNetwork() external view returns (Types.WithdrawalNetwork withdrawalNetwork_);
 
     function version() external view returns (string memory);
-    function l1FeeWallet() external view returns (address);
+    function config() external view returns (address recipient_, uint256 amount_, uint8 withdrawalNetwork_);
+    function l1FeeWallet() external view returns (address recipient_);
 
-    function __constructor__(
-        address _recipient,
-        uint256 _minWithdrawalAmount,
-        Types.WithdrawalNetwork _withdrawalNetwork
-    )
-        external;
+    function __constructor__() external;
 }

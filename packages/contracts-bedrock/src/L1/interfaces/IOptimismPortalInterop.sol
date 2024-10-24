@@ -109,10 +109,10 @@ interface IOptimismPortalInterop {
     function respectedGameType() external view returns (GameType);
     function respectedGameTypeUpdatedAt() external view returns (uint64);
     function setConfig(Types.ConfigType _type, bytes memory _value) external;
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external;
     function setRespectedGameType(GameType _gameType) external;
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
+    function upgrade(uint32 _gasLimit, bytes memory _calldata) external;
     function version() external pure returns (string memory);
 
     function __constructor__(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) external;
