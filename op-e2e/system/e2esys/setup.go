@@ -690,7 +690,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 
 	l1Client := sys.NodeClient(RoleL1)
-	_, err = geth.WaitForBlock(big.NewInt(2), l1Client, 6*time.Second*time.Duration(cfg.DeployConfig.L1BlockTime))
+	_, err = geth.WaitForBlock(big.NewInt(2), l1Client)
 	if err != nil {
 		return nil, fmt.Errorf("waiting for blocks: %w", err)
 	}

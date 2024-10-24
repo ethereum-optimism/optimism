@@ -95,7 +95,7 @@ func TestEIP1559Params(t *testing.T) {
 	delta := ((gasTarget - int64(h.GasUsed)) * h.BaseFee.Int64() / gasTarget / int64(expectedDenom))
 	expectedNextFee := h.BaseFee.Int64() - delta
 
-	b, err := geth.WaitForBlock(big.NewInt(h.Number.Int64()+1), l2Seq, txTimeoutDuration)
+	b, err := geth.WaitForBlock(big.NewInt(h.Number.Int64()+1), l2Seq)
 	require.NoError(t, err, "waiting for next L2 block")
 	require.Equal(t, expectedNextFee, b.Header().BaseFee.Int64())
 
