@@ -140,7 +140,7 @@ func TestEVMSingleStep_Jump(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
-				state.GetMemory().SetUint32(tt.pc, tt.insn)
+				testutil.StoreInstruction(state.GetMemory(), tt.pc, tt.insn)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -217,7 +217,7 @@ func TestEVMSingleStep_Operators(t *testing.T) {
 					state.GetRegistersRef()[baseReg] = tt.rs
 					state.GetRegistersRef()[rtReg] = tt.rt
 				}
-				state.GetMemory().SetUint32(0, insn)
+				testutil.StoreInstruction(state.GetMemory(), 0, insn)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -311,7 +311,7 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 				insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 				state.GetRegistersRef()[rtReg] = tt.rt
 				state.GetRegistersRef()[baseReg] = tt.base
-				state.GetMemory().SetUint32(0, insn)
+				testutil.StoreInstruction(state.GetMemory(), 0, insn)
 				state.GetMemory().SetWord(effAddr, tt.memVal)
 				step := state.GetStep()
 
@@ -365,7 +365,7 @@ func TestEVMSingleStep_MovzMovn(t *testing.T) {
 				state.GetRegistersRef()[rtReg] = t2
 				state.GetRegistersRef()[rsReg] = Word(0xb)
 				state.GetRegistersRef()[rdReg] = Word(0xa)
-				state.GetMemory().SetUint32(0, insn)
+				testutil.StoreInstruction(state.GetMemory(), 0, insn)
 				step := state.GetStep()
 				// Setup expectations
 				expected := testutil.NewExpectedState(state)
@@ -420,7 +420,7 @@ func TestEVMSingleStep_MfhiMflo(t *testing.T) {
 				state := goVm.GetState()
 				rdReg := uint32(8)
 				insn := rdReg<<11 | tt.funct
-				state.GetMemory().SetUint32(state.GetPC(), insn)
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 				step := state.GetStep()
 				// Setup expectations
 				expected := testutil.NewExpectedState(state)
@@ -475,7 +475,7 @@ func TestEVMSingleStep_MulDiv(t *testing.T) {
 				insn = tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
 				state.GetRegistersRef()[rtReg] = tt.rt
 				state.GetRegistersRef()[baseReg] = tt.rs
-				state.GetMemory().SetUint32(0, insn)
+				testutil.StoreInstruction(state.GetMemory(), 0, insn)
 
 				if tt.expectRevert != "" {
 					proofData := v.ProofGenerator(t, goVm.GetState())
@@ -529,7 +529,7 @@ func TestEVMSingleStep_MthiMtlo(t *testing.T) {
 				state := goVm.GetState()
 				rsReg := uint32(8)
 				insn := rsReg<<21 | tt.funct
-				state.GetMemory().SetUint32(state.GetPC(), insn)
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 				state.GetRegistersRef()[rsReg] = val
 				step := state.GetStep()
 				// Setup expectations
@@ -580,7 +580,7 @@ func TestEVM_MMap(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithHeap(c.heap))
 				state := goVm.GetState()
 
-				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = arch.SysMmap
 				state.GetRegistersRef()[4] = c.address
 				state.GetRegistersRef()[5] = c.size
@@ -788,7 +788,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 				err := state.GetMemory().SetMemoryRange(arch.Word(tt.memOffset), bytes.NewReader(tt.hintData))
 				require.NoError(t, err)
-				state.GetMemory().SetUint32(state.GetPC(), insn)
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 				step := state.GetStep()
 
 				expected := testutil.NewExpectedState(state)
@@ -832,7 +832,7 @@ func TestEVMFault(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
-				state.GetMemory().SetUint32(0, tt.insn)
+				testutil.StoreInstruction(state.GetMemory(), 0, tt.insn)
 				// set the return address ($ra) to jump into when test completes
 				state.GetRegistersRef()[31] = testutil.EndAddr
 
@@ -1059,7 +1059,7 @@ func TestEVMSingleStepBranch(t *testing.T) {
 				state := goVm.GetState()
 				const rsReg = 8 // t0
 				insn := tt.opcode<<26 | rsReg<<21 | tt.regimm<<16 | uint32(tt.offset)
-				state.GetMemory().SetUint32(tt.pc, insn)
+				testutil.StoreInstruction(state.GetMemory(), tt.pc, insn)
 				state.GetRegistersRef()[rsReg] = Word(tt.rs)
 				step := state.GetStep()
 

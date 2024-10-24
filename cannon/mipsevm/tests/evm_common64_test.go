@@ -117,7 +117,7 @@ func TestEVMSingleStep_Operators64(t *testing.T) {
 				state.GetRegistersRef()[rsReg] = tt.rs
 				state.GetRegistersRef()[rtReg] = tt.rt
 			}
-			state.GetMemory().SetUint32(0, insn)
+			testutil.StoreInstruction(state.GetMemory(), 0, insn)
 			step := state.GetStep()
 
 			// Setup expectations
@@ -200,7 +200,7 @@ func TestEVMSingleStep_Shift(t *testing.T) {
 			insn = rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
 			state.GetRegistersRef()[rdReg] = tt.rd
 			state.GetRegistersRef()[rtReg] = tt.rt
-			state.GetMemory().SetUint32(0, insn)
+			testutil.StoreInstruction(state.GetMemory(), 0, insn)
 			step := state.GetStep()
 
 			// Setup expectations
@@ -438,7 +438,7 @@ func TestEVMSingleStep_LoadStore64(t *testing.T) {
 			state.GetRegistersRef()[rtReg] = tt.rt
 			state.GetRegistersRef()[baseReg] = t1
 
-			state.GetMemory().SetUint32(0, insn)
+			testutil.StoreInstruction(state.GetMemory(), 0, insn)
 			state.GetMemory().SetWord(t1&arch.AddressMask, tt.memVal)
 			step := state.GetStep()
 
@@ -543,7 +543,7 @@ func TestEVMSingleStep_DivMult(t *testing.T) {
 			insn := rsReg<<21 | rtReg<<16 | tt.funct
 			state.GetRegistersRef()[rsReg] = tt.rs
 			state.GetRegistersRef()[rtReg] = tt.rt
-			state.GetMemory().SetUint32(0, insn)
+			testutil.StoreInstruction(state.GetMemory(), 0, insn)
 			step := state.GetStep()
 
 			// Setup expectations
@@ -633,7 +633,7 @@ func TestEVMSingleStepBranch64(t *testing.T) {
 				state := goVm.GetState()
 				const rsReg = 8 // t0
 				insn := tt.opcode<<26 | rsReg<<21 | tt.regimm<<16 | uint32(tt.offset)
-				state.GetMemory().SetUint32(tt.pc, insn)
+				testutil.StoreInstruction(state.GetMemory(), tt.pc, insn)
 				state.GetRegistersRef()[rsReg] = Word(tt.rs)
 				step := state.GetStep()
 
