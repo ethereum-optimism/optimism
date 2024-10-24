@@ -343,12 +343,9 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 		case 0x0F: // lui
 			return SignExtend(rt<<16, 32)
 		case 0x20: // lb
-			msb := uint32(arch.WordSize - 8) // 24 for 32-bit and 56 for 64-bit
-			return SignExtend((mem>>(msb-uint32(rs&arch.ExtMask)*8))&0xFF, 8)
+			return SelectSubWord(rs, mem, 1, true)
 		case 0x21: // lh
-			msb := uint32(arch.WordSize - 16) // 16 for 32-bit and 48 for 64-bit
-			mask := Word(arch.ExtMask - 1)
-			return SignExtend((mem>>(msb-uint32(rs&mask)*8))&0xFFFF, 16)
+			return SelectSubWord(rs, mem, 2, true)
 		case 0x22: // lwl
 			if arch.IsMips32 {
 				val := mem << ((rs & 3) * 8)
@@ -356,26 +353,17 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
 			} else {
 				// similar to the above mips32 implementation but loads are constrained to the nearest 4-byte memory word
-				shift := 32 - ((rs & 0x4) << 3)
-				w := uint32(mem >> shift)
-				val := uint64(w << ((rs & 3) * 8))
+				w := uint32(SelectSubWord(rs, mem, 4, false))
+				val := w << ((rs & 3) * 8)
 				mask := Word(uint32(0xFFFFFFFF) << ((rs & 3) * 8))
 				return SignExtend(((rt & ^mask)|Word(val))&0xFFFFFFFF, 32)
 			}
 		case 0x23: // lw
-			if arch.IsMips32 {
-				return mem
-			} else {
-				// TODO(#12562): Simplify using LoadSubWord
-				return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
-			}
+			return SelectSubWord(rs, mem, 4, true)
 		case 0x24: // lbu
-			msb := uint32(arch.WordSize - 8) // 24 for 32-bit and 56 for 64-bit
-			return (mem >> (msb - uint32(rs&arch.ExtMask)*8)) & 0xFF
+			return SelectSubWord(rs, mem, 1, false)
 		case 0x25: //  lhu
-			msb := uint32(arch.WordSize - 16) // 16 for 32-bit and 48 for 64-bit
-			mask := Word(arch.ExtMask - 1)
-			return (mem >> (msb - uint32(rs&mask)*8)) & 0xFFFF
+			return SelectSubWord(rs, mem, 2, false)
 		case 0x26: //  lwr
 			if arch.IsMips32 {
 				val := mem >> (24 - (rs&3)*8)
@@ -383,8 +371,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
 			} else {
 				// similar to the above mips32 implementation but constrained to the nearest 4-byte memory word
-				shift := 32 - ((rs & 0x4) << 3)
-				w := uint32(mem >> shift)
+				w := uint32(SelectSubWord(rs, mem, 4, false))
 				val := w >> (24 - (rs&3)*8)
 				mask := uint32(0xFFFFFFFF) >> (24 - (rs&3)*8)
 				lwrResult := ((uint32(rt) & ^mask) | val) & 0xFFFFFFFF
@@ -397,17 +384,9 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				}
 			}
 		case 0x28: //  sb
-			msb := uint32(arch.WordSize - 8) // 24 for 32-bit and 56 for 64-bit
-			val := (rt & 0xFF) << (msb - uint32(rs&arch.ExtMask)*8)
-			mask := ^Word(0) ^ Word(0xFF<<(msb-uint32(rs&arch.ExtMask)*8))
-			return (mem & mask) | val
+			return UpdateSubWord(rs, mem, 1, rt)
 		case 0x29: //  sh
-			msb := uint32(arch.WordSize - 16) // 16 for 32-bit and 48 for 64-bit
-			rsMask := Word(arch.ExtMask - 1)  // 2 for 32-bit and 6 for 64-bit
-			sl := msb - uint32(rs&rsMask)*8
-			val := (rt & 0xFFFF) << sl
-			mask := ^Word(0) ^ Word(0xFFFF<<sl)
-			return (mem & mask) | val
+			return UpdateSubWord(rs, mem, 2, rt)
 		case 0x2a: //  swl
 			if arch.IsMips32 {
 				val := rt >> ((rs & 3) * 8)
@@ -420,14 +399,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				return (mem & Word(^mask)) | val
 			}
 		case 0x2b: //  sw
-			if arch.IsMips32 {
-				return rt
-			} else {
-				sl := 32 - ((rs & 0x4) << 3)
-				val := (rt & 0xFFFFFFFF) << sl
-				mask := Word(0xFFFFFFFFFFFFFFFF ^ uint64(0xFFFFFFFF<<sl))
-				return Word(mem&mask) | Word(val)
-			}
+			return UpdateSubWord(rs, mem, 4, rt)
 		case 0x2e: //  swr
 			if arch.IsMips32 {
 				val := rt << (24 - (rs&3)*8)
@@ -435,18 +407,11 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 				return (mem & Word(^mask)) | val
 			} else {
 				// similar to the above mips32 implementation but constrained to the nearest 4-byte memory word
-				shift := 32 - ((rs & 0x4) << 3)
-				w := uint32(mem >> shift)
+				w := uint32(SelectSubWord(rs, mem, 4, false))
 				val := rt << (24 - (rs&3)*8)
 				mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
 				swrResult := (w & ^mask) | uint32(val)
-				// merge with the untouched bytes in mem
-				if shift > 0 {
-					return (Word(swrResult) << 32) | (mem & Word(^uint32(0))) // nolint: staticcheck
-				} else {
-					memMask := uint64(0xFF_FF_FF_FF_00_00_00_00)
-					return (mem & Word(memMask)) | Word(swrResult & ^uint32(0))
-				}
+				return UpdateSubWord(rs, mem, 4, Word(swrResult))
 			}
 
 		// MIPS64
@@ -663,45 +628,56 @@ func HandleRd(cpu *mipsevm.CpuScalars, registers *[32]Word, storeReg Word, val W
 	return nil
 }
 
-func LoadSubWord(memory *memory.Memory, addr Word, byteLength Word, signExtend bool, memoryTracker MemTracker) Word {
+// LoadSubWord loads a subword of byteLength size from memory based on the low-order bits of vaddr
+func LoadSubWord(memory *memory.Memory, vaddr Word, byteLength Word, signExtend bool, memoryTracker MemTracker) Word {
 	// Pull data from memory
-	effAddr := (addr) & arch.AddressMask
+	effAddr := (vaddr) & arch.AddressMask
 	memoryTracker.TrackMemAccess(effAddr)
 	mem := memory.GetWord(effAddr)
 
-	// Extract a sub-word based on the low-order bits in addr
-	dataMask, bitOffset, bitLength := calculateSubWordMaskAndOffset(addr, byteLength)
-	retVal := (mem >> bitOffset) & dataMask
-	if signExtend {
-		retVal = SignExtend(retVal, bitLength)
-	}
-
-	return retVal
+	return SelectSubWord(vaddr, mem, byteLength, signExtend)
 }
 
-func StoreSubWord(memory *memory.Memory, addr Word, byteLength Word, value Word, memoryTracker MemTracker) {
+// StoreSubWord stores a [Word] that has been updated by the specified value at bit positions determined by the vaddr
+func StoreSubWord(memory *memory.Memory, vaddr Word, byteLength Word, value Word, memoryTracker MemTracker) {
 	// Pull data from memory
-	effAddr := (addr) & arch.AddressMask
+	effAddr := (vaddr) & arch.AddressMask
 	memoryTracker.TrackMemAccess(effAddr)
 	mem := memory.GetWord(effAddr)
 
 	// Modify isolated sub-word within mem
-	dataMask, bitOffset, _ := calculateSubWordMaskAndOffset(addr, byteLength)
-	subWordValue := dataMask & value
-	memUpdateMask := dataMask << bitOffset
-	newMemVal := subWordValue<<bitOffset | (^memUpdateMask)&mem
-
+	newMemVal := UpdateSubWord(vaddr, mem, byteLength, value)
 	memory.SetWord(effAddr, newMemVal)
 }
 
-func calculateSubWordMaskAndOffset(addr Word, byteLength Word) (dataMask, bitOffset, bitLength Word) {
+// SelectSubWord selects a subword of byteLength size contained in memWord based on the low-order bits of vaddr
+// This is the nearest subword that is naturally aligned by the specified byteLength
+func SelectSubWord(vaddr Word, memWord Word, byteLength Word, signExtend bool) Word {
+	// Extract a sub-word based on the low-order bits in vaddr
+	dataMask, bitOffset, bitLength := calculateSubWordMaskAndOffset(vaddr, byteLength)
+	retVal := (memWord >> bitOffset) & dataMask
+	if signExtend {
+		retVal = SignExtend(retVal, bitLength)
+	}
+	return retVal
+}
+
+// UpdateSubWord returns a [Word] that has been updated by the specified value at bit positions determined by the vaddr
+func UpdateSubWord(vaddr Word, memWord Word, byteLength Word, value Word) Word {
+	dataMask, bitOffset, _ := calculateSubWordMaskAndOffset(vaddr, byteLength)
+	subWordValue := dataMask & value
+	memUpdateMask := dataMask << bitOffset
+	return subWordValue<<bitOffset | (^memUpdateMask)&memWord
+}
+
+func calculateSubWordMaskAndOffset(vaddr Word, byteLength Word) (dataMask, bitOffset, bitLength Word) {
 	bitLength = byteLength << 3
 	dataMask = ^Word(0) >> (arch.WordSize - bitLength)
 
-	// Figure out sub-word index based on the low-order bits in addr
-	byteIndexMask := addr & arch.ExtMask & ^(byteLength - 1)
+	// Figure out sub-word index based on the low-order bits in vaddr
+	byteIndexMask := vaddr & arch.ExtMask & ^(byteLength - 1)
 	maxByteShift := arch.WordSizeBytes - byteLength
-	byteIndex := addr & byteIndexMask
+	byteIndex := vaddr & byteIndexMask
 	bitOffset = (maxByteShift - byteIndex) << 3
 
 	return dataMask, bitOffset, bitLength
