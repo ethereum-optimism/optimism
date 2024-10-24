@@ -669,7 +669,7 @@ library MIPSInstructions {
     }
 
     /// @notice Selects a subword of byteLength size contained in memWord based on the low-order bits of vaddr
-    /// @param _vaddr The virtual address of the memory location containing the subword.
+    /// @param _vaddr The virtual address of the the subword.
     /// @param _memWord The full word to select a subword from.
     /// @param _byteLength The size of the subword.
     /// @param _signExtend Whether to sign extend the selected subwrod.
@@ -691,6 +691,12 @@ library MIPSInstructions {
         return subword_;
     }
 
+    /// @notice Returns a word that has been updated by the specified subword at bit positions determined by the virtual
+    /// address
+    /// @param _vaddr The virtual address of the subword.
+    /// @param _memWord The full word to update.
+    /// @param _byteLength The size of the subword.
+    /// @param _value The subword that updates _memWord.
     function updateSubWord(
         uint32 _vaddr,
         uint32 _memWord,
