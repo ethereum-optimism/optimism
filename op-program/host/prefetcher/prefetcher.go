@@ -396,6 +396,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 	case l2.HintL2Code:
+		fallthrough
 	case l2.HintL2StateNode:
 		// handle state access hints separately to allow for bulk fetching
 		return p.prefetchState(ctx, hint)
