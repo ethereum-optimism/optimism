@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -57,7 +56,33 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		twoThousandBlocks[i] = uint(i) + 1
 	}
 
-	// testCases is a list of testCases which each specify
+	partiallyValidSpanBatchFrame := []byte{
+		0,                                                                           // version_byte
+		207, 193, 36, 120, 131, 193, 183, 227, 45, 196, 92, 103, 218, 173, 173, 192, // channel_id
+		0, 0, // frame_number
+		0, 0, 2, 58, // frame_data_length = 570 bytes
+		// BEGIN frame_data
+		120, 1, // zlib header
+		0, 42, 2, 213, 253, // initial DEFLATE block indicating 554 uncompressed bytes
+		185, 2, 39, // rlp prefix for long string 569 bytes
+		//// BEGIN encoded span batch
+		1,                                                                                          // batch_version (span)
+		1,                                                                                          // rel_timestamp
+		1,                                                                                          // l1_origin_num
+		137, 125, 54, 181, 103, 34, 6, 165, 204, 60, 141, 71, 165, 172, 31, 148, 75, 246, 120, 219, // parent_check
+		79, 189, 89, 43, 191, 92, 73, 34, 21, 146, 178, 246, 188, 199, 119, 72, 77, 120, 66, 191, // l1_origin_check
+		6,                // block_count
+		4,                // origin_bits 0b000100
+		1, 1, 1, 1, 1, 1, // block_tx_counts
+		// txs (not broken down here):
+		63, 2, 8, 224, 4, 89, 43, 169, 191, 250, 124, 3, 145, 72, 46, 23, 29, 16, 64, 186, 32, 226, 85, 58, 152, 158, 64, 16, 147, 44, 134, 199, 179, 5, 66, 34, 121, 141, 214, 128, 187, 62, 59, 172, 109, 72, 7, 96, 10, 91, 221, 190, 58, 214, 243, 19, 175, 160, 252, 152, 216, 203, 106, 120, 54, 122, 85, 66, 157, 73, 172, 176, 195, 53, 71, 163, 114, 211, 248, 81, 77, 58, 69, 14, 116, 157, 33, 160, 242, 210, 117, 137, 203, 26, 115, 181, 24, 243, 113, 185, 45, 230, 246, 26, 148, 19, 18, 181, 9, 67, 240, 253, 156, 52, 142, 188, 255, 136, 176, 146, 9, 115, 233, 79, 128, 239, 98, 105, 145, 13, 214, 245, 165, 70, 93, 34, 53, 201, 58, 86, 81, 153, 245, 214, 222, 235, 35, 125, 248, 119, 136, 226, 99, 38, 217, 238, 213, 227, 209, 77, 68, 12, 120, 171, 98, 56, 100, 72, 135, 11, 223, 87, 230, 79, 74, 94, 80, 244, 41, 10, 82, 52, 254, 58, 158, 184, 13, 16, 199, 54, 229, 101, 227, 182, 7, 88, 96, 154, 168, 39, 92, 201, 197, 241, 5, 174, 52, 209, 34, 15, 241, 73, 92, 123, 55, 247, 55, 33, 48, 170, 68, 20, 174, 90, 169, 95, 6, 36, 105, 122, 14, 143, 66, 133, 102, 248, 144, 226, 246, 10, 177, 152, 135, 67, 65, 58, 183, 90, 181, 125, 180, 254, 90, 154, 152, 87, 243, 249, 195, 28, 21, 47, 229, 13, 226, 162, 135, 186, 172, 31, 143, 207, 66, 14, 63, 43, 138, 215, 237, 40, 155, 71, 13, 37, 194, 72, 196, 144, 174, 1, 1, 214, 40, 144, 44, 173, 71, 17, 168, 31, 106, 78, 198, 244, 240, 223, 88, 166, 215, 200, 52, 148, 209, 124, 128, 197, 164, 204, 161, 185, 18, 170, 180, 9, 82, 214, 186, 63, 244, 213, 132, 147, 12, 118, 37, 79, 145, 197, 4, 80, 10, 61, 190, 48, 154, 196, 44, 176, 46, 228, 99, 144, 237, 208, 39, 112, 1, 110, 111, 135, 38, 206, 24, 208, 218, 234, 94, 171, 109, 151, 34, 74, 241, 89, 83, 190, 194, 140, 52, 1, 194, 80, 80, 71, 30, 254, 2, 205, 128, 132, 119, 53, 148, 0, 132, 119, 53, 148, 2, 128, 192, 2, 205, 128, 132, 119, 53, 148, 0, 132, 119, 53, 148, 2, 128, 192, 2, 205, 128, 132, 119, 53, 148, 0, 132, 119, 53, 148, 2, 128, 192, 2, 205, 128, 132, 119, 53, 148, 0, 132, 119, 53, 148, 2, 128, 192, 2, 205, 128, 132, 119, 53, 148, 0, 132, 119, 53, 148, 2, 128, 192, 2, 205, 128, 132, 119, 53, 148, 0, 132, 119, 53, 148, 2, 128, 192, 0, 1, 2, 3, 4, 5, 161, 164, 3, 161, 164, 3, 161, 164, 3, 161, 164, 3, 161, 164, 3, 161, 164, 3,
+		//// END encoded span batch
+		1, 0, 0, 255, 255, // terminal DEFLATE block
+		199, 158, 250, 29, // 4-byte Adler-32 checksum
+		// END frame_data
+		1, // is_last
+	}
+
 	// an ordered list of blocks (by number) to add to a single channel
 	// and an ordered list of frames to read from the channel and submit
 	// on L1. There will be one frame per block unless isSpanBatch=true,
@@ -162,13 +187,9 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 		targetHeadNumber := max(testCfg.Custom.blocks)
 		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
 
-			if testCfg.Custom.overAdvanceL1Origin && env.Engine.L2Chain().CurrentBlock().Number.Uint64() == 2 {
-				env.Miner.ActL1StartBlock(12)(t)
-				env.Miner.ActL1EndBlock(t)
-				env.Miner.ActL1SafeNext(t)
-				env.Miner.ActL1FinalizeNext(t)
-				b := env.Miner.L1Chain().CurrentSafeBlock()
-				env.Sequencer.OverrideL1Origin(t, eth.L1BlockRef{Hash: b.Hash(), Number: b.Number.Uint64(), ParentHash: b.ParentHash, Time: b.Time})
+			if testCfg.Custom.breachMaxSequencerDrift {
+				// prevent L1 origin from progressing
+				env.Sequencer.ActL2KeepL1Origin(t)
 			}
 
 			env.Sequencer.ActL2StartBlock(t)
@@ -203,36 +224,42 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			return block
 		}
 
-		// Buffer the blocks in the batcher.
-		for i, blockNum := range testCfg.Custom.blocks {
-
-			var blockModifier actionsHelpers.BlockModifier
-			if len(testCfg.Custom.blockModifiers) > i {
-				blockModifier = testCfg.Custom.blockModifiers[i]
-			}
-			env.Batcher.ActAddBlockByNumber(t, int64(blockNum), blockModifier, blockLogger)
-
-			if !testCfg.Custom.isSpanBatch {
-				if i == len(testCfg.Custom.blocks)-1 {
-					env.Batcher.ActL2ChannelClose(t)
-				}
-				frame := env.Batcher.ReadNextOutputFrame(t)
-				require.NotEmpty(t, frame, "frame %d", i)
-				orderedFrames = append(orderedFrames, frame)
-			}
-		}
-
-		if testCfg.Custom.isSpanBatch { // Make a single frame for the span batch and submit it
-			env.Batcher.ActL2ChannelClose(t)
-			frame := env.Batcher.ReadNextOutputFrame(t)
-			require.NotEmpty(t, frame)
-			env.Batcher.ActL2BatchSubmitRaw(t, frame)
+		if testCfg.Custom.overAdvanceL1Origin {
+			env.Batcher.ActL2BatchSubmitRaw(t, partiallyValidSpanBatchFrame)
 			includeBatchTx()
 		} else {
-			// Submit frames in specified order order
-			for _, j := range testCfg.Custom.frames {
-				env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[j])
+
+			// Buffer the blocks in the batcher.
+			for i, blockNum := range testCfg.Custom.blocks {
+
+				var blockModifier actionsHelpers.BlockModifier
+				if len(testCfg.Custom.blockModifiers) > i {
+					blockModifier = testCfg.Custom.blockModifiers[i]
+				}
+				env.Batcher.ActAddBlockByNumber(t, int64(blockNum), blockModifier, blockLogger)
+
+				if !testCfg.Custom.isSpanBatch {
+					if i == len(testCfg.Custom.blocks)-1 {
+						env.Batcher.ActL2ChannelClose(t)
+					}
+					frame := env.Batcher.ReadNextOutputFrame(t)
+					require.NotEmpty(t, frame, "frame %d", i)
+					orderedFrames = append(orderedFrames, frame)
+				}
+			}
+
+			if testCfg.Custom.isSpanBatch { // Make a single frame for the span batch and submit it
+				env.Batcher.ActL2ChannelClose(t)
+				frame := env.Batcher.ReadNextOutputFrame(t)
+				require.NotEmpty(t, frame)
+				env.Batcher.ActL2BatchSubmitRaw(t, frame)
 				includeBatchTx()
+			} else {
+				// Submit frames in specified order order
+				for _, j := range testCfg.Custom.frames {
+					env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[j])
+					includeBatchTx()
+				}
 			}
 		}
 
