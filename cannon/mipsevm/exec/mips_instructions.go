@@ -651,7 +651,7 @@ func StoreSubWord(memory *memory.Memory, vaddr Word, byteLength Word, value Word
 }
 
 // SelectSubWord selects a subword of byteLength size contained in memWord based on the low-order bits of vaddr
-// This is the nearest subword that is naturally aligned by the specifie dbyteLength
+// This is the nearest subword that is naturally aligned by the specified byteLength
 func SelectSubWord(vaddr Word, memWord Word, byteLength Word, signExtend bool) Word {
 	// Extract a sub-word based on the low-order bits in vaddr
 	dataMask, bitOffset, bitLength := calculateSubWordMaskAndOffset(vaddr, byteLength)

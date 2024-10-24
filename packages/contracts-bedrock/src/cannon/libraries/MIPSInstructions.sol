@@ -677,14 +677,14 @@ library MIPSInstructions {
     )
         internal
         pure
-        returns (uint32 subword_)
+        returns (uint32 retval_)
     {
         (uint32 dataMask, uint32 bitOffset, uint32 bitLength) = calculateSubWordMaskAndOffset(_vaddr, _byteLength);
-        subword_ = (_memWord >> bitOffset) & dataMask;
+        retval_ = (_memWord >> bitOffset) & dataMask;
         if (_signExtend) {
-            subword_ = signExtend(subword_, bitLength);
+            retval_ = signExtend(retval_, bitLength);
         }
-        return subword_;
+        return retval_;
     }
 
     /// @notice Returns a word that has been updated by the specified subword at bit positions determined by the virtual
