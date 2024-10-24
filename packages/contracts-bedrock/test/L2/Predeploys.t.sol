@@ -22,7 +22,7 @@ contract PredeploysBaseTest is CommonTest {
     }
 
     /// @dev No predeploys should ever be initializable.
-    function _isInitializable(address _addr) internal pure returns (bool) {
+    function _isInitializable(address) internal pure returns (bool) {
         return false;
     }
 
@@ -104,6 +104,8 @@ contract PredeploysBaseTest is CommonTest {
                 assertEq(implAddr.code, supposedCode, "proxy implementation contract should match contract source");
             }
 
+            // todo: l2genesis: this whole branch is a no-op.
+            //   Either run the check, or remove the branch.
             if (_isInitializable(addr)) {
                 assertEq(l2Genesis.loadInitializedSlot(cname), uint8(1));
             }
