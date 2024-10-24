@@ -19,8 +19,8 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type OracleEngine struct {
-	api        *engineapi.L2EngineAPI
-	hintWriter *preimage.HintWriter
+	api    *engineapi.L2EngineAPI
+	hinter preimage.Hinter
 
 	// backend is the actual implementation used to create and process blocks. It is specifically a
 	// engineapi.CachingEngineBackend to ensure that blocks are stored when they are created and don't need to be
@@ -29,13 +29,13 @@ type OracleEngine struct {
 	rollupCfg *rollup.Config
 }
 
-func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engineapi.CachingEngineBackend, hintWriter *preimage.HintWriter) *OracleEngine {
+func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engineapi.CachingEngineBackend, hinter preimage.Hinter) *OracleEngine {
 	engineAPI := engineapi.NewL2EngineAPI(logger, backend, nil)
 	return &OracleEngine{
-		api:        engineAPI,
-		backend:    backend,
-		rollupCfg:  rollupCfg,
-		hintWriter: hintWriter,
+		api:       engineAPI,
+		backend:   backend,
+		rollupCfg: rollupCfg,
+		hinter:    hinter,
 	}
 }
 
@@ -45,7 +45,7 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error)
 		return eth.Bytes32{}, fmt.Errorf("failed to get L2 block at %d", l2ClaimBlockNum)
 	}
 
-	o.hintWriter.Hint(AccountProofHint{BlockNumber: outBlock.Number.Uint64(), Address: predeploys.L2ToL1MessagePasserAddr})
+	o.hinter.Hint(AccountProofHint{BlockNumber: outBlock.Number.Uint64(), Address: predeploys.L2ToL1MessagePasserAddr})
 	stateDB, err := o.backend.StateAt(outBlock.Root)
 	if err != nil {
 		return eth.Bytes32{}, fmt.Errorf("failed to open L2 state db at block %s: %w", outBlock.Hash(), err)
@@ -76,9 +76,9 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 }
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	header := o.backend.GetHeaderByHash(state.SafeBlockHash)
+	header := o.backend.GetHeaderByHash(state.HeadBlockHash)
 
-	o.hintWriter.Hint(ExecutionWitnessHint(header.Number.Uint64() + 1))
+	o.hinter.Hint(ExecutionWitnessHint(header.Number.Uint64() + 1))
 
 	switch method := o.rollupCfg.ForkchoiceUpdatedVersion(attr); method {
 	case eth.FCUV3:
@@ -93,6 +93,8 @@ func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.Forkchoi
 }
 
 func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
+	o.hinter.Hint(ExecutionWitnessHint(payload.BlockNumber))
+
 	switch method := o.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
 	case eth.NewPayloadV3:
 		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)
