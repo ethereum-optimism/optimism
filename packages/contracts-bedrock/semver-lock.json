@@ -140,11 +140,11 @@
     "sourceCodeHash": "0x2ab6be69795109a1ee04c5693a34d6ce0ff90b62e404cdeb18178bab18d06784"
   },
   "src/cannon/MIPS.sol": {
-    "initCodeHash": "0x39d8f168b83a1143b059c70788677284eaaa9f6b59f961acff915920b7c335a0",
+    "initCodeHash": "0x98c6a98917144f8e105b565694ad1f7a3ac95180daca61ab5d2139c411174ffc",
     "sourceCodeHash": "0x3c2e5d6d39b29a60dcd1a776363518c87fcfef9a8d80e38696f56b6eec5bd53a"
   },
   "src/cannon/MIPS2.sol": {
-    "initCodeHash": "0x7c5f887c820a469bdf9dcf96bde3c39177e085bd2c7b237ca10464d319dbedc2",
+    "initCodeHash": "0x6ad993cdad955d8f7a9994885a7a6627867003e1dfadd40306d8f623424a0cc6",
     "sourceCodeHash": "0x17c7b0edb9d20932eaf1b038e3e05e457f0461d2c8691ba1940fb4c2b0dfd123"
   },
   "src/cannon/PreimageOracle.sol": {

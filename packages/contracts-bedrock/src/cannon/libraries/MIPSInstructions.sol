@@ -411,15 +411,11 @@ library MIPSInstructions {
                 }
                 //  sb
                 else if (_opcode == 0x28) {
-                    uint32 val = (_rt & 0xFF) << (24 - (_rs & 3) * 8);
-                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24 - (_rs & 3) * 8));
-                    return (_mem & mask) | val;
+                    return updateSubWord(_rs, _mem, 1, _rt);
                 }
                 //  sh
                 else if (_opcode == 0x29) {
-                    uint32 val = (_rt & 0xFFFF) << (16 - (_rs & 2) * 8);
-                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16 - (_rs & 2) * 8));
-                    return (_mem & mask) | val;
+                    return updateSubWord(_rs, _mem, 2, _rt);
                 }
                 //  swl
                 else if (_opcode == 0x2a) {
@@ -429,7 +425,7 @@ library MIPSInstructions {
                 }
                 //  sw
                 else if (_opcode == 0x2b) {
-                    return _rt;
+                    return updateSubWord(_rs, _mem, 4, _rt);
                 }
                 //  swr
                 else if (_opcode == 0x2e) {
