@@ -81,8 +81,5 @@ type ExecutionWitnessHint uint64
 var _ preimage.Hint = ExecutionWitnessHint(0)
 
 func (l ExecutionWitnessHint) Hint() string {
-	var blockNumBytes [8]byte
-	binary.BigEndian.PutUint64(blockNumBytes[:], uint64(l))
-
-	return HintL2ExecutionWitness + " " + hexutil.Encode(blockNumBytes[:])
+	return HintL2ExecutionWitness + " " + hexutil.EncodeUint64(uint64(l))
 }
