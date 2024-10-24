@@ -19,7 +19,7 @@ contract SimpleStorage {
 
 contract Clasher {
     function upgradeTo(address) external pure {
-        revert("upgradeTo");
+        revert("Clasher: upgradeTo");
     }
 }
 

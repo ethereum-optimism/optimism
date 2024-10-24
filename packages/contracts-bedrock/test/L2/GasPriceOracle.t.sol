@@ -131,7 +131,7 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
         // Execute the function call
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(calldataPacked);
-        require(success, "Function call failed");
+        require(success, "GasPriceOracleEcotone_Test: Function call failed");
     }
 
     /// @dev Tests that `setEcotone` is only callable by the depositor.
@@ -222,7 +222,7 @@ contract GasPriceOracleFjordActive_Test is GasPriceOracle_Test {
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(calldataPacked);
-        require(success, "Function call failed");
+        require(success, "GasPriceOracleFjordActive_Test: Function call failed");
     }
 
     /// @dev Tests that `setFjord` cannot be called when Fjord is already activate

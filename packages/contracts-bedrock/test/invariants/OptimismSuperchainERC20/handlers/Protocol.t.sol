@@ -157,7 +157,9 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         bytes32 realSalt = keccak256(abi.encode(remoteToken, name, symbol, decimals));
         // Foundry invariant erroneously show other unrelated invariant breaking
         // when this deployment fails due to a create2 collision, so we revert eagerly instead
-        require(MESSENGER.superTokenAddresses(chainId, realSalt) == address(0), "skip duplicate deployment");
+        require(
+            MESSENGER.superTokenAddresses(chainId, realSalt) == address(0), "ProtocolHandler: skip duplicate deployment"
+        );
 
         // what we use in the tests to walk around two contracts needing two different addresses
         // tbf we could be using CREATE1, but this feels more verbose

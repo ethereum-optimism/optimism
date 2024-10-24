@@ -80,7 +80,7 @@ contract SystemConfigInterop_Test is CommonTest {
 
     /// @dev Tests that adding a dependency as not the dependency manager reverts.
     function testFuzz_addDependency_notDependencyManager_reverts(uint256 _chainId) public {
-        require(alice != _systemConfigInterop().dependencyManager(), "SystemConfigInterop_Test-100");
+        require(alice != _systemConfigInterop().dependencyManager(), "SystemConfigInterop_Test: 100");
         vm.expectRevert("SystemConfig: caller is not the dependency manager");
         vm.prank(alice);
         _systemConfigInterop().addDependency(_chainId);
@@ -102,7 +102,7 @@ contract SystemConfigInterop_Test is CommonTest {
 
     /// @dev Tests that removing a dependency as not the dependency manager reverts.
     function testFuzz_removeDependency_notDependencyManager_reverts(uint256 _chainId) public {
-        require(alice != _systemConfigInterop().dependencyManager(), "SystemConfigInterop_Test-100");
+        require(alice != _systemConfigInterop().dependencyManager(), "SystemConfigInterop_Test: 100");
         vm.expectRevert("SystemConfig: caller is not the dependency manager");
         vm.prank(alice);
         _systemConfigInterop().removeDependency(_chainId);
