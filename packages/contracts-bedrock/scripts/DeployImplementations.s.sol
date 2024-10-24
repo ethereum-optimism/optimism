@@ -570,9 +570,7 @@ contract DeployImplementations is Script {
             OPContractsManager.InitializerInputs(_blueprints, _setters, _release, true);
 
         vm.startBroadcast(msg.sender);
-        proxy.upgradeToAndCall(
-            address(opcmImpl), abi.encodeWithSelector(opcmImpl.initialize.selector, initializerInputs)
-        );
+        proxy.upgradeToAndCall(address(opcmImpl), abi.encodeCall(opcmImpl.initialize, (initializerInputs)));
 
         proxy.changeAdmin(address(opcmProxyOwner)); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
@@ -1146,9 +1144,7 @@ contract DeployImplementationsInterop is DeployImplementations {
             OPContractsManager.InitializerInputs(_blueprints, _setters, _release, true);
 
         vm.startBroadcast(msg.sender);
-        proxy.upgradeToAndCall(
-            address(opcmImpl), abi.encodeWithSelector(opcmImpl.initialize.selector, initializerInputs)
-        );
+        proxy.upgradeToAndCall(address(opcmImpl), abi.encodeCall(opcmImpl.initialize, (initializerInputs)));
 
         proxy.changeAdmin(opcmProxyOwner); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
