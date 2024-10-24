@@ -3,6 +3,7 @@ package eth
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -419,8 +420,42 @@ type SystemConfig struct {
 	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
 	// value will be 0 if Holocene is not active, or if derivation has yet to
 	// process any EIP_1559_PARAMS system config update events.
-	EIP1559Params Bytes8 `json:"eip1559Params,omitempty"`
+	EIP1559Params Bytes8 `json:"eip1559Params"`
 	// More fields can be added for future SystemConfig versions.
+
+	// MarshalPreHolocene indicates whether or not this struct should be
+	// marshaled in the pre-Holocene format. The pre-Holocene format does
+	// not marshal the EIP1559Params field. The presence of this field in
+	// pre-Holocene codebases causes the rollup config to be rejected.
+	MarshalPreHolocene bool `json:"-"`
+}
+
+func (sysCfg SystemConfig) MarshalJSON() ([]byte, error) {
+	if sysCfg.MarshalPreHolocene {
+		return jsonMarshalPreHolocene(sysCfg)
+	}
+	return jsonMarshalHolocene(sysCfg)
+}
+
+func jsonMarshalHolocene(sysCfg SystemConfig) ([]byte, error) {
+	type sysCfgMarshaling SystemConfig
+	return json.Marshal(sysCfgMarshaling(sysCfg))
+}
+
+func jsonMarshalPreHolocene(sysCfg SystemConfig) ([]byte, error) {
+	type sysCfgMarshaling struct {
+		BatcherAddr common.Address `json:"batcherAddr"`
+		Overhead    Bytes32        `json:"overhead"`
+		Scalar      Bytes32        `json:"scalar"`
+		GasLimit    uint64         `json:"gasLimit"`
+	}
+	sc := sysCfgMarshaling{
+		BatcherAddr: sysCfg.BatcherAddr,
+		Overhead:    sysCfg.Overhead,
+		Scalar:      sysCfg.Scalar,
+		GasLimit:    sysCfg.GasLimit,
+	}
+	return json.Marshal(sc)
 }
 
 // The Ecotone upgrade introduces a versioned L1 scalar format
