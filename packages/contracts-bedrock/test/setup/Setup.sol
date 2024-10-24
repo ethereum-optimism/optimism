@@ -38,7 +38,8 @@ import { IL2CrossDomainMessenger } from "src/L2/interfaces/IL2CrossDomainMesseng
 import { IL2StandardBridgeInterop } from "src/L2/interfaces/IL2StandardBridgeInterop.sol";
 import { IL2ToL1MessagePasser } from "src/L2/interfaces/IL2ToL1MessagePasser.sol";
 import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
-import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IL1OptimismMintableERC20Factory } from "src/L1/interfaces/IL1OptimismMintableERC20Factory.sol";
+import { IL2OptimismMintableERC20Factory } from "src/L2/interfaces/IL2OptimismMintableERC20Factory.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
 import { IBaseFeeVault } from "src/L2/interfaces/IBaseFeeVault.sol";
@@ -86,7 +87,7 @@ contract Setup {
     IL1CrossDomainMessenger l1CrossDomainMessenger;
     IAddressManager addressManager;
     IL1ERC721Bridge l1ERC721Bridge;
-    IOptimismMintableERC20Factory l1OptimismMintableERC20Factory;
+    IL1OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     IProtocolVersions protocolVersions;
     ISuperchainConfig superchainConfig;
     IDataAvailabilityChallenge dataAvailabilityChallenge;
@@ -96,8 +97,8 @@ contract Setup {
         IL2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
     IL2StandardBridgeInterop l2StandardBridge = IL2StandardBridgeInterop(payable(Predeploys.L2_STANDARD_BRIDGE));
     IL2ToL1MessagePasser l2ToL1MessagePasser = IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
-    IOptimismMintableERC20Factory l2OptimismMintableERC20Factory =
-        IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
+    IL2OptimismMintableERC20Factory l2OptimismMintableERC20Factory =
+        IL2OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
     IL2ERC721Bridge l2ERC721Bridge = IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
     IOptimismMintableERC721Factory l2OptimismMintableERC721Factory =
         IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
@@ -157,8 +158,9 @@ contract Setup {
         l1CrossDomainMessenger = IL1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
         addressManager = IAddressManager(deploy.mustGetAddress("AddressManager"));
         l1ERC721Bridge = IL1ERC721Bridge(deploy.mustGetAddress("L1ERC721BridgeProxy"));
+        // TODO: change the string name to "L1OptimismMintableERC20FactoryProxy"
         l1OptimismMintableERC20Factory =
-            IOptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
+            IL1OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = IProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = ISuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = IAnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));

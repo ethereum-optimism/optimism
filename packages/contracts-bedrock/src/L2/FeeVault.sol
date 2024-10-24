@@ -52,7 +52,7 @@ abstract contract FeeVault {
         public
         view
         virtual
-        returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_);
+        returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork withdrawalNetwork_);
 
     /// @notice Minimum balance before a withdrawal can be triggered.
     function minWithdrawalAmount() public view virtual returns (uint256 amount_) {
@@ -89,8 +89,8 @@ abstract contract FeeVault {
     ///         Use the `withdrawalNetwork()` getter as this is deprecated
     ///         and is subject to be removed in the future.
     /// @custom:legacy
-    function WITHDRAWAL_NETWORK() external view returns (Types.WithdrawalNetwork network_) {
-        network_ = withdrawalNetwork();
+    function WITHDRAWAL_NETWORK() external view returns (Types.WithdrawalNetwork withdrawalNetwork_) {
+        withdrawalNetwork_ = withdrawalNetwork();
     }
 
     /// @notice Triggers a withdrawal of funds to the fee wallet on L1 or L2.

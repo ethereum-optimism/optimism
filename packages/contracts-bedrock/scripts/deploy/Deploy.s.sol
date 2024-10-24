@@ -58,7 +58,7 @@ import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistr
 import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 import { IMIPS2 } from "src/cannon/interfaces/IMIPS2.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
-import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IL1OptimismMintableERC20Factory } from "src/L1/interfaces/IL1OptimismMintableERC20Factory.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 import { IResolvedDelegateProxy } from "src/legacy/interfaces/IResolvedDelegateProxy.sol";
@@ -1077,10 +1077,10 @@ contract Deploy is Deployer {
         proxyAdmin.upgradeAndCall({
             _proxy: payable(optimismMintableERC20FactoryProxy),
             _implementation: optimismMintableERC20Factory,
-            _data: abi.encodeCall(IOptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
+            _data: abi.encodeCall(IL1OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
         });
 
-        IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
+        IL1OptimismMintableERC20Factory factory = IL1OptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
         string memory version = factory.version();
         console.log("OptimismMintableERC20Factory version: %s", version);
 
