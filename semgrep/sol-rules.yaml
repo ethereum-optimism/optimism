@@ -39,6 +39,32 @@ rules:
       exclude:
         - packages/contracts-bedrock/test/dispute/WETH98.t.sol
 
+  - id: sol-safety-natspec-semver-match
+    languages: [generic]
+    severity: ERROR
+    message: Semgrep defined in contract must match natspec $VERSION1 $VERSION2
+    patterns:
+      - pattern-either:
+          - pattern-regex: /// @custom:semver
+              (?P<VERSION1>[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?)\s+string
+              public constant version =
+              "(?P<VERSION2>[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?)";
+          - pattern-regex: /// @custom:semver
+              (?P<VERSION1>[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?)\s+function
+              version\(\) public pure virtual returns \(string memory\)
+              \{\s+return
+              "(?P<VERSION2>[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?)";
+          - pattern-regex: /// @custom:semver (?P<VERSION1>[a-zA-Z0-9.+-]+)\s+function
+              version\(\) public pure override returns \(string memory\)
+              \{\s+return string\.concat\(super\.version\(\),
+              "(?P<VERSION2>[a-zA-Z0-9.+-]+)"\);
+      - metavariable-comparison:
+          comparison: $VERSION1 != $VERSION2
+          metavariable: $VERSION1
+    paths:
+      include:
+        - packages/contracts-bedrock/src
+
   - id: sol-style-input-arg-fmt
     languages: [solidity]
     severity: ERROR

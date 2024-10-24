@@ -155,14 +155,6 @@ semver-diff-check-no-build:
 # Checks that any contracts with a modified semver lock also have a modified semver version.
 semver-diff-check: build semver-diff-check-no-build
 
-# Checks that semver natspec is equal to the actual semver version.
-# Does not build contracts.
-semver-natspec-check-no-build:
-    go run ./scripts/checks/semver-natspec
-
-# Checks that semver natspec is equal to the actual semver version.
-semver-natspec-check: build semver-natspec-check-no-build
-
 # Checks that the semgrep tests are valid.
 semgrep-test-validity-check:
   forge fmt ../../semgrep/sol-rules.t.sol --check
@@ -206,7 +198,6 @@ check:
   snapshots-check-no-build \
   lint-check \
   semver-diff-check-no-build \
-  semver-natspec-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \
   interfaces-check-no-build
