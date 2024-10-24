@@ -132,7 +132,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
 
         vm.expectRevert("SystemConfig: gas limit too low");
         systemConfig.initialize({
-            _owner: alice,
+            _roles: ISystemConfig.Roles({ owner: alice, feeAdmin: bob }),
             _basefeeScalar: basefeeScalar,
             _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
@@ -162,7 +162,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         // Initialize and check that StartBlock updates to current block number
         vm.prank(systemConfig.owner());
         systemConfig.initialize({
-            _owner: alice,
+            _roles: ISystemConfig.Roles({ owner: alice, feeAdmin: bob }),
             _basefeeScalar: basefeeScalar,
             _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
@@ -193,7 +193,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         // Initialize and check that StartBlock doesn't update
         vm.prank(systemConfig.owner());
         systemConfig.initialize({
-            _owner: alice,
+            _roles: ISystemConfig.Roles({ owner: alice, feeAdmin: bob }),
             _basefeeScalar: basefeeScalar,
             _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
@@ -288,7 +288,7 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
 
         vm.expectRevert(bytes(revertMessage));
         systemConfig.initialize({
-            _owner: address(0xdEaD),
+            _roles: ISystemConfig.Roles({ owner: address(0xdEaD), feeAdmin: address(0xdEaD) }),
             _basefeeScalar: 0,
             _blobbasefeeScalar: 0,
             _batcherHash: bytes32(0),
@@ -327,7 +327,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
         vm.store(address(systemConfig), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT, bytes32(0));
 
         systemConfig.initialize({
-            _owner: alice,
+            _roles: ISystemConfig.Roles({ owner: alice, feeAdmin: bob }),
             _basefeeScalar: 2100,
             _blobbasefeeScalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
@@ -550,15 +550,15 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         // Ensure that the config type is not a fee vault config.
         vm.assume(_type != 1 && _type != 2 && _type != 3);
 
-        vm.prank(systemConfig.owner());
+        vm.prank(systemConfig.feeAdmin());
         vm.expectRevert("SystemConfig: ConfigType is is not a Fee Vault Config type");
         systemConfig.setFeeVaultConfig(Types.ConfigType(_type), address(0), 0, Types.WithdrawalNetwork.L1);
     }
 
     /// @dev Tests that `setFeeVaultConfig` reverts if the caller is not authorized.
     function testFuzz_setFeeVaultConfig_badAuth_reverts(address _caller) external {
-        vm.assume(_caller != systemConfig.owner());
-        vm.expectRevert("SystemConfig: caller is not the owner");
+        vm.assume(_caller != systemConfig.feeAdmin());
+        vm.expectRevert("SystemConfig: caller is not the fee admin");
 
         vm.prank(_caller);
         systemConfig.setFeeVaultConfig(Types.ConfigType.SET_L1_FEE_VAULT_CONFIG, _caller, 0, Types.WithdrawalNetwork.L1);

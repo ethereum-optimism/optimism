@@ -23,6 +23,11 @@ interface ISystemConfig {
         address gasPayingToken;
     }
 
+    struct Roles {
+        address owner;
+        address feeAdmin;
+    }
+
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
     event Initialized(uint8 version);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -47,7 +52,7 @@ interface ISystemConfig {
     function gasPayingTokenName() external view returns (string memory name_);
     function gasPayingTokenSymbol() external view returns (string memory symbol_);
     function initialize(
-        address _owner,
+        Roles memory _roles,
         uint32 _basefeeScalar,
         uint32 _blobbasefeeScalar,
         bytes32 _batcherHash,
@@ -68,6 +73,7 @@ interface ISystemConfig {
     function optimismPortal() external view returns (address addr_);
     function overhead() external view returns (uint256);
     function owner() external view returns (address);
+    function feeAdmin() external view returns (address);
     function renounceOwnership() external;
     function resourceConfig() external view returns (IResourceMetering.ResourceConfig memory);
     function scalar() external view returns (uint256);

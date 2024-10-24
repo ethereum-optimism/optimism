@@ -57,6 +57,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         address gasPayingToken;
     }
 
+    struct Roles {
+        address owner;
+        address feeAdmin;
+    }
+    // TODO: add unsafe block signer and batcher hash?
+
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
@@ -69,6 +75,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         happens. It is unlikely that keccak second preimage resistance will be broken,
     ///         but it is better to be safe than sorry.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
+
+    /// @notice Storage slot that the feeAdmin address is stored at.
+    bytes32 public constant FEE_ADMIN_SLOT = keccak256("systemconfig.feeadmin");
 
     /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
     bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT =
@@ -159,7 +168,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
-    /// @param _owner             Initial owner of the contract.
+    /// @param _roles             Initial roles.
     /// @param _basefeeScalar     Initial basefee scalar value.
     /// @param _blobbasefeeScalar Initial blobbasefee scalar value.
     /// @param _batcherHash       Initial batcher hash.
@@ -170,7 +179,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
-        address _owner,
+        Roles memory _roles,
         uint32 _basefeeScalar,
         uint32 _blobbasefeeScalar,
         bytes32 _batcherHash,
@@ -184,7 +193,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         initializer
     {
         __Ownable_init();
-        transferOwnership(_owner);
+        transferOwnership(_roles.owner);
 
         // These are set in ascending order of their UpdateTypes.
         _setBatcherHash(_batcherHash);
@@ -192,6 +201,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setGasLimit(_gasLimit);
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
+        Storage.setAddress(FEE_ADMIN_SLOT, _roles.feeAdmin);
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
 
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
@@ -261,6 +271,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @return addr_ Address of the unsafe block signer.
     function unsafeBlockSigner() public view returns (address addr_) {
         addr_ = Storage.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
+    }
+
+    /// @notice High level getter for the fee admin address.
+    /// @return addr_ Address of the fee admin.
+    function feeAdmin() public view returns (address addr_) {
+        addr_ = Storage.getAddress(FEE_ADMIN_SLOT);
     }
 
     /// @notice Getter for the L1CrossDomainMessenger address.
@@ -442,7 +458,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     )
         external
     {
-        require(msg.sender == owner(), "SystemConfig: caller is not the owner");
+        require(msg.sender == feeAdmin(), "SystemConfig: caller is not the fee admin");
         _setFeeVaultConfig(_type, _recipient, _min, _network);
     }
 

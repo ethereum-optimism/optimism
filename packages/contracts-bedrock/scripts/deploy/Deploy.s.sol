@@ -978,7 +978,8 @@ contract Deploy is Deployer {
             _data: abi.encodeCall(
                 ISystemConfig.initialize,
                 (
-                    cfg.finalSystemOwner(),
+                    // TODO: How should the feeAdmin actually be set?
+                    ISystemConfig.Roles({ owner: cfg.finalSystemOwner(), feeAdmin: cfg.finalSystemOwner() }),
                     cfg.basefeeScalar(),
                     cfg.blobbasefeeScalar(),
                     batcherHash,
