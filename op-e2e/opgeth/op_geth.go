@@ -237,7 +237,7 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 	}
 	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
 		attrs.EIP1559Params = new(eth.Bytes8)
-		*attrs.EIP1559Params = d.SystemConfig.EIP1559Params
+		copy(attrs.EIP1559Params[:], d.SystemConfig.EIP1559Params[:])
 	}
 	return &attrs, nil
 }

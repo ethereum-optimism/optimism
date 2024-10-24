@@ -32,7 +32,8 @@ var (
 	oneUint256 = abi.Arguments{
 		{Type: uint256T},
 	}
-	eip1559Params = []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8}
+	eip1559Params       = []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8}
+	eip1559ParamsBytes8 = eth.Bytes8(eip1559Params)
 )
 
 // TestProcessSystemConfigUpdateLogEvent tests the parsing of an event and mutating the
@@ -204,7 +205,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				EIP1559Params: eth.Bytes8(eip1559Params),
+				EIP1559Params: &eip1559ParamsBytes8,
 			},
 			err: false,
 		},

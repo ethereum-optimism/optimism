@@ -155,6 +155,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
+		destSysCfg.EIP1559Params = new(eth.Bytes8)
 		copy(destSysCfg.EIP1559Params[:], params[24:32])
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:

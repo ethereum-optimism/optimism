@@ -161,7 +161,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 	if ba.rollupCfg.IsHolocene(nextL2Time) {
 		r.EIP1559Params = new(eth.Bytes8)
-		*r.EIP1559Params = sysConfig.EIP1559Params
+		r.EIP1559Params = sysConfig.EIP1559Params
 	}
 
 	return r, nil
