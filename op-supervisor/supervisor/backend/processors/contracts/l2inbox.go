@@ -76,7 +76,7 @@ func (i *CrossL2Inbox) DecodeExecutingMessageLog(l *ethTypes.Log) (types.Executi
 	}
 	hash := payloadHashToLogHash(msgHash, identifier.Origin)
 	return types.ExecutingMessage{
-		Chain:     chainID,
+		Chain:     types.ChainIndex(chainID), // TODO(#11105): translate chain ID to chain index
 		Hash:      hash,
 		BlockNum:  identifier.BlockNumber.Uint64(),
 		LogIdx:    uint32(identifier.LogIndex.Uint64()),

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -57,10 +56,10 @@ func (d LinkEntry) String() string {
 
 func (d *LinkEntry) decode(e Entry) error {
 	if e.Type() != DerivedFromV0 {
-		return fmt.Errorf("%w: unexpected entry type: %s", entrydb.ErrDataCorruption, e.Type())
+		return fmt.Errorf("%w: unexpected entry type: %s", types.ErrDataCorruption, e.Type())
 	}
 	if [3]byte(e[1:4]) != ([3]byte{}) {
-		return fmt.Errorf("%w: expected empty data, to pad entry size to round number: %x", entrydb.ErrDataCorruption, e[1:4])
+		return fmt.Errorf("%w: expected empty data, to pad entry size to round number: %x", types.ErrDataCorruption, e[1:4])
 	}
 	offset := 4
 	d.derivedFrom.Number = binary.BigEndian.Uint64(e[offset : offset+8])
