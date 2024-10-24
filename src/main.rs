@@ -31,6 +31,14 @@ struct Args {
     #[arg(long, env)]
     jwt_path: Option<PathBuf>,
 
+    /// JWT token for authentication for the builder
+    #[arg(long, env)]
+    builder_jwt_token: Option<String>,
+
+    /// Path to the JWT secret file for the builder
+    #[arg(long, env)]
+    builder_jwt_path: Option<PathBuf>,
+
     /// URL of the local l2 execution engine
     #[arg(long, env)]
     l2_url: String,
@@ -91,11 +99,21 @@ async fn main() -> Result<()> {
         }
     };
 
+    let builder_jwt_secret = match (args.builder_jwt_path, args.builder_jwt_token) {
+        (Some(file), None) => {
+            JwtSecret::from_file(&file).map_err(|e| Error::InvalidArgs(e.to_string()))?
+        }
+        (None, Some(secret)) => {
+            JwtSecret::from_hex(secret).map_err(|e| Error::InvalidArgs(e.to_string()))?
+        }
+        _ => jwt_secret,
+    };
+
     // Initialize the l2 client
     let l2_client = create_client(&args.l2_url, jwt_secret)?;
 
     // Initialize the builder client
-    let builder_client = create_client(&args.builder_url, jwt_secret)?;
+    let builder_client = create_client(&args.builder_url, builder_jwt_secret)?;
 
     let eth_engine_api = EthEngineApi::new(
         Arc::new(l2_client),
