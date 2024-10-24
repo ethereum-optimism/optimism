@@ -71,7 +71,9 @@ func (l AccountProofHint) Hint() string {
 
 	binary.BigEndian.PutUint64(blockNumBytes[:], l.BlockNumber)
 
-	return HintL2AccountProof + " " + hexutil.Encode(blockNumBytes[:]) + " " + l.Address.Hex()
+	hintData := append(blockNumBytes[:], l.Address.Bytes()...)
+
+	return HintL2AccountProof + " " + hexutil.Encode(hintData)
 }
 
 type ExecutionWitnessHint uint64

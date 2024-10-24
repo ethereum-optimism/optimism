@@ -1,7 +1,6 @@
 package prefetcher
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -423,28 +422,18 @@ func (p *Prefetcher) storeNodes(nodes []hexutil.Bytes) error {
 	return nil
 }
 
-// parseHint parses a hint string in wire protocol. Returns the hint type, concatenation of requested arguments, and error (if any).
+// parseHint parses a hint string in wire protocol. Returns the hint type, requested hash and error (if any).
 func parseHint(hint string) (string, []byte, error) {
-	splitStr := strings.Split(hint, " ")
-	if len(splitStr) < 2 {
+	hintType, bytesStr, found := strings.Cut(hint, " ")
+	if !found {
 		return "", nil, fmt.Errorf("unsupported hint: %s", hint)
 	}
 
-	// split command from args
-	hintType := splitStr[0]
-	hintPayloadComponents := splitStr[1:]
-
-	decodedArgs := make([][]byte, len(hintPayloadComponents))
-	for _, argHex := range hintPayloadComponents {
-		argBytes, err := hexutil.Decode(argHex)
-		if err != nil {
-			return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", hintPayloadComponents)
-		}
-
-		decodedArgs = append(decodedArgs, argBytes)
+	hintBytes, err := hexutil.Decode(bytesStr)
+	if err != nil {
+		return "", make([]byte, 0), fmt.Errorf("invalid bytes: %s", bytesStr)
 	}
-
-	return hintType, bytes.Join(decodedArgs, []byte{}), nil
+	return hintType, hintBytes, nil
 }
 
 func getPrecompiledContract(address common.Address) vm.PrecompiledContract {
