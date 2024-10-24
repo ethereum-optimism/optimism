@@ -56,13 +56,15 @@ func TestValidateRPCConfig(t *testing.T) {
 }
 
 func validConfig() *Config {
-	depSet := &depset.StaticConfigDependencySet{
-		Dependencies: map[types.ChainID]*depset.StaticConfigDependency{
-			types.ChainIDFromUInt64(900): &depset.StaticConfigDependency{
-				ActivationTime: 0,
-				HistoryMinTime: 0,
-			},
+	depSet, err := depset.NewStaticConfigDependencySet(map[types.ChainID]*depset.StaticConfigDependency{
+		types.ChainIDFromUInt64(900): &depset.StaticConfigDependency{
+			ChainIndex:     900,
+			ActivationTime: 0,
+			HistoryMinTime: 0,
 		},
+	})
+	if err != nil {
+		panic(err)
 	}
 	// Should be valid using only the required arguments passed in via the constructor.
 	return NewConfig([]string{"http://localhost:8545"}, depSet, "./supervisor_testdir")
