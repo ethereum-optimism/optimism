@@ -175,6 +175,7 @@ func TestCrossSafeUpdate(t *testing.T) {
 
 func TestScopedCrossSafeUpdate(t *testing.T) {
 	t.Run("CandidateCrossSafe returns error", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := types.ChainIDFromUInt64(0)
 		csd := &mockCrossSafeDeps{}
 		csd.candidateCrossSafeFn = func() (derivedFromScope, crossSafe eth.BlockRef, err error) {
@@ -182,11 +183,12 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when CandidateCrossSafe returns an error,
 		// the error is returned
-		blockRef, err := scopedCrossSafeUpdate(chainID, csd)
+		blockRef, err := scopedCrossSafeUpdate(logger, chainID, csd)
 		require.ErrorContains(t, err, "some error")
 		require.Equal(t, eth.BlockRef{}, blockRef)
 	})
 	t.Run("CandidateCrossSafe returns error", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := types.ChainIDFromUInt64(0)
 		csd := &mockCrossSafeDeps{}
 		csd.openBlockFn = func(chainID types.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
@@ -194,11 +196,12 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when OpenBlock returns an error,
 		// the error is returned
-		blockRef, err := scopedCrossSafeUpdate(chainID, csd)
+		blockRef, err := scopedCrossSafeUpdate(logger, chainID, csd)
 		require.ErrorContains(t, err, "some error")
 		require.Equal(t, eth.BlockRef{}, blockRef)
 	})
 	t.Run("candidate does not match opened block", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := types.ChainIDFromUInt64(0)
 		csd := &mockCrossSafeDeps{}
 		candidate := eth.BlockRef{Number: 1}
@@ -211,11 +214,12 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when OpenBlock and CandidateCrossSafe return different blocks,
 		// an ErrConflict is returned
-		blockRef, err := scopedCrossSafeUpdate(chainID, csd)
+		blockRef, err := scopedCrossSafeUpdate(logger, chainID, csd)
 		require.ErrorIs(t, err, types.ErrConflict)
 		require.Equal(t, eth.BlockRef{}, blockRef)
 	})
 	t.Run("CrossSafeHazards returns error", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := types.ChainIDFromUInt64(0)
 		csd := &mockCrossSafeDeps{}
 		candidate := eth.BlockRef{Number: 1}
@@ -234,12 +238,13 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when CrossSafeHazards returns an error,
 		// the error is returned
-		blockRef, err := scopedCrossSafeUpdate(chainID, csd)
+		blockRef, err := scopedCrossSafeUpdate(logger, chainID, csd)
 		require.ErrorContains(t, err, "some error")
 		require.ErrorContains(t, err, "dependencies of cross-safe candidate")
 		require.Equal(t, eth.BlockRef{}, blockRef)
 	})
 	t.Run("HazardSafeFrontierChecks returns error", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := types.ChainIDFromUInt64(0)
 		csd := &mockCrossSafeDeps{}
 		candidate := eth.BlockRef{Number: 1}
@@ -264,12 +269,13 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when CrossSafeHazards returns an error,
 		// the error is returned
-		blockRef, err := scopedCrossSafeUpdate(chainID, csd)
+		blockRef, err := scopedCrossSafeUpdate(logger, chainID, csd)
 		require.ErrorContains(t, err, "some error")
 		require.ErrorContains(t, err, "frontier")
 		require.Equal(t, eth.BlockRef{}, blockRef)
 	})
 	t.Run("UpdateCrossSafe returns error", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := types.ChainIDFromUInt64(0)
 		csd := &mockCrossSafeDeps{}
 		candidate := eth.BlockRef{Number: 1}
@@ -288,12 +294,12 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when UpdateCrossSafe returns an error,
 		// the error is returned
-		blockRef, err := scopedCrossSafeUpdate(chainID, csd)
+		_, err := scopedCrossSafeUpdate(logger, chainID, csd)
 		require.ErrorContains(t, err, "some error")
 		require.ErrorContains(t, err, "failed to update")
-		require.Equal(t, eth.BlockRef{}, blockRef)
 	})
 	t.Run("successful update", func(t *testing.T) {
+		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := types.ChainIDFromUInt64(0)
 		csd := &mockCrossSafeDeps{}
 		candidate := eth.BlockRef{Number: 1}
@@ -319,7 +325,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		// when no errors occur, the update is carried out
 		// the used candidate and scope are from CandidateCrossSafe
 		// the candidateScope is returned
-		blockRef, err := scopedCrossSafeUpdate(chainID, csd)
+		blockRef, err := scopedCrossSafeUpdate(logger, chainID, csd)
 		require.Equal(t, chainID, updatingChain)
 		require.Equal(t, candidateScope, updatingCandidateScope)
 		require.Equal(t, candidate, updatingCandidate)

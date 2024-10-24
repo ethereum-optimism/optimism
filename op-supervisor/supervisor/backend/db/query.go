@@ -231,8 +231,13 @@ func (db *ChainsDB) CrossDerivedFrom(chain types.ChainID, derived eth.BlockID) (
 }
 
 // CandidateCrossSafe returns the candidate local-safe block that may become cross-safe.
+//
 // This returns ErrFuture if no block is known yet.
+//
 // Or ErrConflict if there is an inconsistency between the local-safe and cross-safe DB.
+//
+// Or ErrOutOfScope, with non-zero derivedFromScope,
+// if additional L1 data is needed to cross-verify the candidate L2 block.
 func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe eth.BlockRef, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
@@ -285,17 +290,27 @@ func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, c
 	}
 
 	candidateRef := candidate.WithParent(crossDerived.ID())
-	// Allow increment of DA by 1, if we know the floor (due to local safety) is 1 ahead of the current cross-safe L1 scope.
-	if candidateFrom.Number > crossDerivedFrom.Number+1 {
-		return eth.BlockRef{}, eth.BlockRef{},
-			fmt.Errorf("candidate is from %s, while current scope is %s: %w",
-				candidateFrom, crossDerivedFrom, types.ErrOutOfScope)
-	}
+
 	parentDerivedFrom, err := lDB.PreviousDerivedFrom(candidateFrom.ID())
 	if err != nil {
 		return eth.BlockRef{}, eth.BlockRef{}, fmt.Errorf("failed to find parent-block of derived-from %s: %w", candidateFrom, err)
 	}
 	candidateFromRef := candidateFrom.WithParent(parentDerivedFrom.ID())
+
+	// Allow increment of DA by 1, if we know the floor (due to local safety) is 1 ahead of the current cross-safe L1 scope.
+	if candidateFrom.Number > crossDerivedFrom.Number+1 {
+		// If we are not ready to process the candidate block,
+		// then we need to stick to the current scope, so the caller can bump up from there.
+		parent, err := lDB.PreviousDerivedFrom(crossDerivedFrom.ID())
+		if err != nil {
+			return eth.BlockRef{}, eth.BlockRef{}, fmt.Errorf("failed to find parent-block of cross-derived-from %s: %w",
+				crossDerivedFrom, err)
+		}
+		crossDerivedFromRef := crossDerivedFrom.WithParent(parent.ID())
+		return crossDerivedFromRef, eth.BlockRef{},
+			fmt.Errorf("candidate is from %s, while current scope is %s: %w",
+				candidateFrom, crossDerivedFrom, types.ErrOutOfScope)
+	}
 	return candidateFromRef, candidateRef, nil
 }
 

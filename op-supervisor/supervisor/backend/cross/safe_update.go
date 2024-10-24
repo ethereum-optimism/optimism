@@ -27,15 +27,22 @@ type CrossSafeDeps interface {
 }
 
 func CrossSafeUpdate(ctx context.Context, logger log.Logger, chainID types.ChainID, d CrossSafeDeps) error {
+	logger.Debug("Cross-safe update call")
 	// TODO(#11693): establish L1 reorg-lock of scopeDerivedFrom
 	// defer unlock once we are done checking the chain
-	candidateScope, err := scopedCrossSafeUpdate(chainID, d)
+	candidateScope, err := scopedCrossSafeUpdate(logger, chainID, d)
 	if err == nil {
+		// if we made progress, and no errors, then there is no need to bump the L1 scope yet.
 		return nil
 	}
 	if !errors.Is(err, types.ErrOutOfScope) {
 		return err
 	}
+	// candidateScope is expected to be set if ErrOutOfScope is returned.
+	if candidateScope == (eth.BlockRef{}) {
+		return fmt.Errorf("expected L1 scope to be defined with ErrOutOfScope: %w", err)
+	}
+	logger.Debug("Cross-safe updating ran out of L1 scope", "scope", candidateScope, "err", err)
 	// bump the L1 scope up, and repeat the prev L2 block, not the candidate
 	newScope, err := d.NextDerivedFrom(chainID, candidateScope.ID())
 	if err != nil {
@@ -51,30 +58,36 @@ func CrossSafeUpdate(ctx context.Context, logger log.Logger, chainID types.Chain
 		return fmt.Errorf("cannot find parent-block of cross-safe: %w", err)
 	}
 	crossSafeRef := currentCrossSafe.WithParent(parent.ID())
+	logger.Debug("Bumping cross-safe scope", "scope", newScope, "crossSafe", crossSafeRef)
 	if err := d.UpdateCrossSafe(chainID, newScope, crossSafeRef); err != nil {
 		return fmt.Errorf("failed to update cross-safe head with L1 scope increment to %s and repeat of L2 block %s: %w", candidateScope, crossSafeRef, err)
 	}
 	return nil
 }
 
-func scopedCrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps) (scope eth.BlockRef, err error) {
+// scopedCrossSafeUpdate runs through the cross-safe update checks.
+// If no L2 cross-safe progress can be made without additional L1 input data,
+// then a types.ErrOutOfScope error is returned,
+// with the current scope that will need to be expanded for further progress.
+func scopedCrossSafeUpdate(logger log.Logger, chainID types.ChainID, d CrossSafeDeps) (scope eth.BlockRef, err error) {
 	candidateScope, candidate, err := d.CandidateCrossSafe(chainID)
 	if err != nil {
-		return eth.BlockRef{}, fmt.Errorf("failed to determine candidate block for cross-safe: %w", err)
+		return candidateScope, fmt.Errorf("failed to determine candidate block for cross-safe: %w", err)
 	}
+	logger.Debug("Candidate cross-safe", "scope", candidateScope, "candidate", candidate)
 	opened, _, execMsgs, err := d.OpenBlock(chainID, candidate.Number)
 	if err != nil {
-		return eth.BlockRef{}, fmt.Errorf("failed to open block %s: %w", candidate, err)
+		return candidateScope, fmt.Errorf("failed to open block %s: %w", candidate, err)
 	}
 	if opened.ID() != candidate.ID() {
-		return eth.BlockRef{}, fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, types.ErrConflict)
+		return candidateScope, fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, types.ErrConflict)
 	}
 	hazards, err := CrossSafeHazards(d, chainID, candidateScope.ID(), types.BlockSealFromRef(opened), sliceOfExecMsgs(execMsgs))
 	if err != nil {
-		return eth.BlockRef{}, fmt.Errorf("failed to determine dependencies of cross-safe candidate %s: %w", candidate, err)
+		return candidateScope, fmt.Errorf("failed to determine dependencies of cross-safe candidate %s: %w", candidate, err)
 	}
 	if err := HazardSafeFrontierChecks(d, candidateScope.ID(), hazards); err != nil {
-		return eth.BlockRef{}, fmt.Errorf("failed to verify block %s in cross-safe frontier: %w", candidate, err)
+		return candidateScope, fmt.Errorf("failed to verify block %s in cross-safe frontier: %w", candidate, err)
 	}
 	//if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
 	// TODO
@@ -82,7 +95,7 @@ func scopedCrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps) (scope eth.Bl
 
 	// promote the candidate block to cross-safe
 	if err := d.UpdateCrossSafe(chainID, candidateScope, candidate); err != nil {
-		return eth.BlockRef{}, fmt.Errorf("failed to update cross-safe head to %s, derived from scope %s: %w", candidate, candidateScope, err)
+		return candidateScope, fmt.Errorf("failed to update cross-safe head to %s, derived from scope %s: %w", candidate, candidateScope, err)
 	}
 	return candidateScope, nil
 }

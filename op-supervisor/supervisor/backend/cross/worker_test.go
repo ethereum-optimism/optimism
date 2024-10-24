@@ -19,7 +19,7 @@ func TestWorker(t *testing.T) {
 			return nil
 		})
 		// when ProcessWork is called, the workFn is called once
-		w.ProcessWork()
+		require.NoError(t, w.ProcessWork())
 		require.Equal(t, 1, count)
 	})
 	t.Run("background worker", func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestWorker(t *testing.T) {
 			return count == 1
 		}, 2*time.Second, 100*time.Millisecond)
 		// when OnNewData is called, the worker runs again
-		w.OnNewData()
+		require.NoError(t, w.OnNewData())
 		require.Eventually(t, func() bool {
 			return count == 2
 		}, 2*time.Second, 100*time.Millisecond)
