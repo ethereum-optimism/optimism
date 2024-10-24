@@ -383,7 +383,7 @@ library MIPSInstructions {
                 }
                 // lh
                 else if (_opcode == 0x21) {
-			        return selectSubWord(_rs, _mem, 2, true);
+                    return selectSubWord(_rs, _mem, 2, true);
                 }
                 // lwl
                 else if (_opcode == 0x22) {
@@ -393,15 +393,15 @@ library MIPSInstructions {
                 }
                 // lw
                 else if (_opcode == 0x23) {
-			        return selectSubWord(_rs, _mem, 4, true);
+                    return selectSubWord(_rs, _mem, 4, true);
                 }
                 // lbu
                 else if (_opcode == 0x24) {
-			        return selectSubWord(_rs, _mem, 1, false);
+                    return selectSubWord(_rs, _mem, 1, false);
                 }
                 //  lhu
                 else if (_opcode == 0x25) {
-			        return selectSubWord(_rs, _mem, 2, false);
+                    return selectSubWord(_rs, _mem, 2, false);
                 }
                 //  lwr
                 else if (_opcode == 0x26) {
