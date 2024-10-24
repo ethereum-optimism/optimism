@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // PayloadSealInvalidEvent identifies a permanent in-consensus problem with the payload sealing.
@@ -106,10 +107,17 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 	eq.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(eq.cfg.BlockTime)*time.Second)
 
 	txnCount := len(envelope.ExecutionPayload.Transactions)
-	eq.metrics.CountSequencedTxs(txnCount)
+	depositCount := 1
+	for i, txn := range envelope.ExecutionPayload.Transactions {
+		if txn[0] != types.DepositTxType {
+			depositCount = i
+			break
+		}
+	}
+	eq.metrics.CountSequencedTxsInBlock(txnCount, depositCount)
 
 	eq.log.Debug("Processed new L2 block", "l2_unsafe", ref, "l1_origin", ref.L1Origin,
-		"txs", txnCount, "time", ref.Time, "seal_time", sealTime, "build_time", buildTime)
+		"txs", txnCount, "deposits", depositCount, "time", ref.Time, "seal_time", sealTime, "build_time", buildTime)
 
 	eq.emitter.Emit(BuildSealedEvent{
 		IsLastInSpan: ev.IsLastInSpan,
