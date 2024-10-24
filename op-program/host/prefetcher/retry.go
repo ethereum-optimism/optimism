@@ -142,6 +142,20 @@ func (s *RetryingL2Source) OutputByRoot(ctx context.Context, root common.Hash) (
 	})
 }
 
+func (s *RetryingL2Source) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
+	// these aren't retried because they are currently experimental and can be slow
+	return s.source.GetProof(ctx, address, storage, blockTag)
+}
+
+func (s *RetryingL2Source) ExecutionWitness(ctx context.Context, blockNum uint64) (*eth.ExecutionWitness, error) {
+	// these aren't retried because they are currently experimental and can be slow
+	return s.source.ExecutionWitness(ctx, blockNum)
+}
+
+func (s *RetryingL2Source) ExperimentalEnabled() bool {
+	return s.source.ExperimentalEnabled()
+}
+
 func NewRetryingL2Source(logger log.Logger, source L2Source) *RetryingL2Source {
 	return &RetryingL2Source{
 		logger:   logger,
