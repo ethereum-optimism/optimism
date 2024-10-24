@@ -220,6 +220,13 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 		nat = basichost.NewNATManager
 	}
 
+	var addrFactory = func(addrs []ma.Multiaddr) []ma.Multiaddr {
+		forceAddr, _ := ma.NewMultiaddr(fmt.Sprintf("/ip/%s/tcp/%d", conf.AdvertiseIP.String(), conf.AdvertiseTCPPort))
+
+		addrs = append(addrs, forceAddr)
+		return addrs
+	}
+
 	opts := []libp2p.Option{
 		libp2p.Identity(conf.Priv),
 		// Explicitly set the user-agent, so we can differentiate from other Go libp2p users.
@@ -242,6 +249,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 		// Help peers with their NAT reachability status, but throttle to avoid too much work.
 		libp2p.EnableNATService(),
 		libp2p.AutoNATServiceRateLimit(10, 5, time.Second*60),
+		libp2p.AddrsFactory(addrFactory),
 	}
 	opts = append(opts, conf.HostMux...)
 	if conf.NoTransportSecurity {
