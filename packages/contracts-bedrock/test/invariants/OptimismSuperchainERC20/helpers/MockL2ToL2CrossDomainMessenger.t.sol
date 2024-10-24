@@ -89,7 +89,7 @@ contract MockL2ToL2CrossDomainMessenger {
     function sendMessage(uint256 chainId, address, /*recipient*/ bytes calldata data) external {
         address crossChainRecipient = superTokenAddresses[chainId][superTokenInitDeploySalts[msg.sender]];
         if (crossChainRecipient == msg.sender) {
-            require(false, "same chain");
+            require(false, "MockL2ToL2CrossDomainMessenger: same chain");
         }
         (address recipient, uint256 amount) = _decodePayload(data);
 

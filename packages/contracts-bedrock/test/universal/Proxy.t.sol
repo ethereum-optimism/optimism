@@ -19,7 +19,7 @@ contract SimpleStorage {
 
 contract Clasher {
     function upgradeTo(address) external pure {
-        revert("upgradeTo");
+        revert("Clasher: upgradeTo");
     }
 }
 
@@ -228,7 +228,7 @@ contract Proxy_Test is Test {
         // not as the owner so that the call passes through.
         // The implementation will revert so we can be
         // sure that the call passed through.
-        vm.expectRevert(bytes("upgradeTo"));
+        vm.expectRevert(bytes("Clasher: upgradeTo"));
         proxy.upgradeTo(address(0));
 
         {

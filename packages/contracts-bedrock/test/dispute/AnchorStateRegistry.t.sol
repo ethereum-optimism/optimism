@@ -138,7 +138,10 @@ contract AnchorStateRegistry_TryUpdateAnchorState_Test is AnchorStateRegistry_In
     function test_setAnchorState_invalidGame_fails() public {
         // Confirm that the anchor state is older than the game state.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        require(l2BlockNumber < gameProxy.l2BlockNumber(), "l2BlockNumber < gameProxy.l2BlockNumber()");
+        require(
+            l2BlockNumber < gameProxy.l2BlockNumber(),
+            "AnchorStateRegistry_TryUpdateAnchorState_Test: l2BlockNumber < gameProxy.l2BlockNumber()"
+        );
 
         // Mock the state that we want.
         vm.mockCall(

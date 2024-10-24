@@ -2641,7 +2641,7 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
             (uint256 numMovesA,) = dishonest.move();
             (uint256 numMovesB, bool success) = honest.move();
 
-            require(success, "Honest actor's moves should always be successful");
+            require(success, "FaultDispute_1v1_Actors_Test: Honest actor's moves should always be successful");
 
             // If both actors have run out of moves, we're done.
             if (numMovesA == 0 && numMovesB == 0) break;
