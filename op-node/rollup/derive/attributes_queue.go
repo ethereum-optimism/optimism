@@ -35,6 +35,18 @@ type AttributesWithParent struct {
 	DerivedFrom eth.L1BlockRef
 }
 
+// WithDepositsOnly return a shallow clone with all non-Deposit transactions
+// stripped from the transactions of its attributes. The order is preserved.
+func (a *AttributesWithParent) WithDepositsOnly() *AttributesWithParent {
+	clone := *a
+	clone.Attributes = clone.Attributes.WithDepositsOnly()
+	return &clone
+}
+
+func (a *AttributesWithParent) IsDerived() bool {
+	return a.DerivedFrom != (eth.L1BlockRef{})
+}
+
 type AttributesQueue struct {
 	log          log.Logger
 	config       *rollup.Config
@@ -46,6 +58,7 @@ type AttributesQueue struct {
 
 type SingularBatchProvider interface {
 	ResettableStage
+	ChannelFlusher
 	Origin() eth.L1BlockRef
 	NextBatch(context.Context, eth.L2BlockRef) (*SingularBatch, bool, error)
 }
@@ -89,7 +102,6 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2Bloc
 		aq.isLastInSpan = false
 		return &attr, nil
 	}
-
 }
 
 // createNextAttributes transforms a batch into a payload attributes. This sets `NoTxPool` and appends the batched transactions
@@ -120,8 +132,17 @@ func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *Sing
 	return attrs, nil
 }
 
-func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
+func (aq *AttributesQueue) reset() {
 	aq.batch = nil
 	aq.isLastInSpan = false // overwritten later, but set for consistency
+}
+
+func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
+	aq.reset()
 	return io.EOF
+}
+
+func (aq *AttributesQueue) FlushChannel() {
+	aq.reset()
+	aq.prev.FlushChannel()
 }

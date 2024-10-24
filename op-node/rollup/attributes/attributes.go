@@ -71,7 +71,7 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 	case rollup.EngineTemporaryErrorEvent:
 		eq.sentAttributes = false
 	case engine.InvalidPayloadAttributesEvent:
-		if x.Attributes.DerivedFrom == (eth.L1BlockRef{}) {
+		if !x.Attributes.IsDerived() {
 			return true // from sequencing
 		}
 		eq.sentAttributes = false
@@ -98,6 +98,13 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 		eq.sentAttributes = false
 		eq.attributes = nil
 		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
+	case derive.RetryingDepositsPayloadAttributesEvent:
+		if !x.OriginalAttributes.IsDerived() {
+			return true // from sequencing
+		}
+		// replace with retrying attributes
+		// TODO: not sure if even necessary
+		eq.attributes = x.RetryingAttributes
 	default:
 		return false
 	}
