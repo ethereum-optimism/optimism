@@ -379,11 +379,11 @@ library MIPSInstructions {
                 }
                 // lb
                 else if (_opcode == 0x20) {
-                    return signExtend((_mem >> (24 - (_rs & 3) * 8)) & 0xFF, 8);
+                    return selectSubWord(_rs, _mem, 1, true);
                 }
                 // lh
                 else if (_opcode == 0x21) {
-                    return signExtend((_mem >> (16 - (_rs & 2) * 8)) & 0xFFFF, 16);
+			        return selectSubWord(_rs, _mem, 2, true);
                 }
                 // lwl
                 else if (_opcode == 0x22) {
@@ -393,15 +393,15 @@ library MIPSInstructions {
                 }
                 // lw
                 else if (_opcode == 0x23) {
-                    return _mem;
+			        return selectSubWord(_rs, _mem, 4, true);
                 }
                 // lbu
                 else if (_opcode == 0x24) {
-                    return (_mem >> (24 - (_rs & 3) * 8)) & 0xFF;
+			        return selectSubWord(_rs, _mem, 1, false);
                 }
                 //  lhu
                 else if (_opcode == 0x25) {
-                    return (_mem >> (16 - (_rs & 2) * 8)) & 0xFFFF;
+			        return selectSubWord(_rs, _mem, 2, false);
                 }
                 //  lwr
                 else if (_opcode == 0x26) {
@@ -666,5 +666,64 @@ library MIPSInstructions {
             _cpu.pc = _cpu.nextPC;
             _cpu.nextPC = _cpu.nextPC + 4;
         }
+    }
+
+    /// @notice Selects a subword of byteLength size contained in memWord based on the low-order bits of vaddr
+    /// @param _vaddr The virtual address of the memory location containing the subword.
+    /// @param _memWord The full word to select a subword from.
+    /// @param _byteLength The size of the subword.
+    /// @param _signExtend Whether to sign extend the selected subwrod.
+    function selectSubWord(
+        uint32 _vaddr,
+        uint32 _memWord,
+        uint32 _byteLength,
+        bool _signExtend
+    )
+        internal
+        pure
+        returns (uint32 subword_)
+    {
+        (uint32 dataMask, uint32 bitOffset, uint32 bitLength) = calculateSubWordMaskAndOffset(_vaddr, _byteLength);
+        subword_ = (_memWord >> bitOffset) & dataMask;
+        if (_signExtend) {
+            subword_ = signExtend(subword_, bitLength);
+        }
+        return subword_;
+    }
+
+    function updateSubWord(
+        uint32 _vaddr,
+        uint32 _memWord,
+        uint32 _byteLength,
+        uint32 _value
+    )
+        internal
+        pure
+        returns (uint32 word_)
+    {
+        (uint32 dataMask, uint32 bitOffset,) = calculateSubWordMaskAndOffset(_vaddr, _byteLength);
+        uint32 subWordValue = dataMask & _value;
+        uint32 memUpdateMask = dataMask << bitOffset;
+        return subWordValue << bitOffset | (~memUpdateMask) & _memWord;
+    }
+
+    function calculateSubWordMaskAndOffset(
+        uint32 _vaddr,
+        uint32 _byteLength
+    )
+        internal
+        pure
+        returns (uint32 dataMask_, uint32 bitOffset_, uint32 bitLength_)
+    {
+        uint32 bitLength = _byteLength << 3;
+        uint32 dataMask = ~uint32(0) >> (32 - bitLength);
+
+        // Figure out sub-word index based on the low-order bits in vaddr
+        uint32 byteIndexMask = _vaddr & 0x3 & ~(_byteLength - 1);
+        uint32 maxByteShift = 4 - _byteLength;
+        uint32 byteIndex = _vaddr & byteIndexMask;
+        uint32 bitOffset = (maxByteShift - byteIndex) << 3;
+
+        return (dataMask, bitOffset, bitLength);
     }
 }
