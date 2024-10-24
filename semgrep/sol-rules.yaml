@@ -37,7 +37,7 @@ rules:
       - pattern: vm.expectRevert()
     paths:
       exclude:
-        - packages/contracts-bedrock/test
+        - packages/contracts-bedrock/test/dispute/WETH98.t.sol
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -79,7 +79,6 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/test/safe-tools/CompatibilityFallbackHandler_1_3_0.sol
-
 
   - id: sol-style-malformed-require
     languages: [solidity]

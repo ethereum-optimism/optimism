@@ -314,7 +314,7 @@ contract SuperchainWETH_Test is CommonTest {
         superchainWeth.deposit{ value: _amount }();
 
         // Act
-        vm.expectRevert();
+        vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
         superchainWeth.crosschainBurn(_from, _amount + 1);
     }
 
