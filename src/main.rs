@@ -8,6 +8,7 @@ use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
 use metrics::ServerMetrics;
+use metrics_exporter_prometheus::PrometheusBuilder;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService};
 use server::{EngineApiServer, EthEngineApi};
@@ -83,6 +84,9 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::new(args.log_level.to_string())) // Set the log level
         .init();
 
+    PrometheusBuilder::new()
+        .install()
+        .map_err(|e| Error::InitMetrics(e.to_string()))?;
     let metrics = ServerMetrics::default();
 
     // Handle JWT secret
