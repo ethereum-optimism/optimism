@@ -1,4 +1,5 @@
 use alloy::primitives::B256;
+use alloy_primitives::Bytes;
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
@@ -14,7 +15,7 @@ use op_alloy_rpc_types_engine::{
 };
 use reth_rpc_layer::AuthClientService;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[rpc(server, client, namespace = "engine")]
 pub trait EngineApi {
@@ -40,6 +41,12 @@ pub trait EngineApi {
     ) -> RpcResult<PayloadStatus>;
 }
 
+#[rpc(server, client, namespace = "eth")]
+pub trait EthApi {
+    #[method(name = "sendRawTransaction")]
+    async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
+}
+
 pub struct EthEngineApi<S = AuthClientService<HttpBackend>> {
     l2_client: Arc<HttpClient<S>>,
     builder_client: Arc<HttpClient<S>>,
@@ -57,6 +64,36 @@ impl<S> EthEngineApi<S> {
             builder_client,
             boost_sync,
         }
+    }
+}
+
+#[async_trait]
+impl EthApiServer for EthEngineApi {
+    async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
+        debug!(
+            message = "received send_raw_transaction",
+            "bytes_len" = bytes.len()
+        );
+        let builder = self.builder_client.clone();
+        let tx_bytes = bytes.clone();
+        tokio::spawn(async move {
+            builder.send_raw_transaction(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling send_raw_transaction for builder", "error" = %e);
+            })
+        });
+        self.l2_client
+            .send_raw_transaction(bytes)
+            .await
+            .map_err(|e| match e {
+                ClientError::Call(err) => err, // Already an ErrorObjectOwned, so just return it
+                other_error => {
+                    error!(
+                        message = "error calling send_raw_transaction for l2 client",
+                        "error" = %other_error,
+                    );
+                    ErrorCode::InternalError.into()
+                }
+            })
     }
 }
 
