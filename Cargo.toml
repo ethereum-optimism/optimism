@@ -28,6 +28,9 @@ hyper-util = { version = "0.1", features = ["full"] }
 serde_json = "1.0.96"
 reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.0.7" }
 reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.0.7", features = ["optimism"] }
+futures = "0.3.31"
+metrics-derive = "0.1"
+metrics = "0.24.0"
 
 [dev-dependencies]
 anyhow = "1.0"

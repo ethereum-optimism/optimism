@@ -7,6 +7,7 @@ use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
+use metrics::ServerMetrics;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService};
 use server::{EngineApiServer, EthEngineApi};
@@ -16,6 +17,7 @@ use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
 mod error;
+mod metrics;
 mod proxy;
 mod server;
 
@@ -81,6 +83,8 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::new(args.log_level.to_string())) // Set the log level
         .init();
 
+    let metrics = ServerMetrics::default();
+
     // Handle JWT secret
     let jwt_secret = match (args.jwt_path, args.jwt_token) {
         (Some(file), None) => {
@@ -119,6 +123,7 @@ async fn main() -> Result<()> {
         Arc::new(l2_client),
         Arc::new(builder_client),
         args.boost_sync,
+        metrics,
     );
     let mut module: RpcModule<()> = RpcModule::new(());
     module
