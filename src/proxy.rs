@@ -9,6 +9,8 @@ use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
 use tracing::debug;
 
+const PROXY_METHODS: [&str; 2] = ["engine_", "eth_sendRawTransaction"];
+
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
     target_url: Uri,
@@ -84,7 +86,7 @@ where
                 message = "received json rpc request for",
                 method = method.method
             );
-            if method.method.starts_with("engine_") {
+            if PROXY_METHODS.iter().any(|&m| method.method.starts_with(m)) {
                 // let rpc server handle engine rpc requests
                 let res = inner.call(req).await.map_err(|e| e.into())?;
                 Ok(res)
