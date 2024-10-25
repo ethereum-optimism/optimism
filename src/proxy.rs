@@ -9,7 +9,7 @@ use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
 use tracing::debug;
 
-const PROXY_METHODS: [&str; 2] = ["engine_", "eth_sendRawTransaction"];
+const MULTIPLEX_METHODS: [&str; 2] = ["engine_", "eth_sendRawTransaction"];
 
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
