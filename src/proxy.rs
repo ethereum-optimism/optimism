@@ -58,6 +58,11 @@ where
     }
 
     fn call(&mut self, req: HttpRequest<HttpBody>) -> Self::Future {
+        match req.uri().path() {
+            "/healthz" => return Box::pin(async { Ok(Self::Response::new(HttpBody::from("OK"))) }),
+            _ => {}
+        };
+
         let target_url = self.target_url.clone();
         let client = self.client.clone();
         let mut inner = self.inner.clone();
@@ -110,6 +115,7 @@ where
 mod tests {
     use std::net::SocketAddr;
 
+    use http_body_util::BodyExt;
     use jsonrpsee::{
         core::{client::ClientT, ClientError},
         http_client::HttpClient,
@@ -130,6 +136,7 @@ mod tests {
         proxy_success().await;
         proxy_failure().await;
         does_not_proxy_engine_method().await;
+        health_check().await;
     }
 
     async fn proxy_success() {
@@ -152,6 +159,25 @@ mod tests {
         let response = send_request("engine_method").await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "engine response");
+    }
+
+    async fn health_check() {
+        let proxy_server = spawn_proxy_server().await;
+        // Create a new HTTP client
+        let client: Client<HttpConnector, HttpBody> =
+            Client::builder(TokioExecutor::new()).build_http();
+
+        // Test the health check endpoint
+        let health_check_url = format!("http://{ADDR}:{PORT}/healthz");
+        let health_response = client.get(health_check_url.parse::<Uri>().unwrap()).await;
+        assert!(health_response.is_ok());
+        let b = health_response.unwrap().into_body().collect().await.unwrap().to_bytes();
+        // Convert the collected bytes to a string
+        let body_string = String::from_utf8(b.to_vec()).unwrap();
+        assert_eq!(body_string, "OK");
+
+        proxy_server.stop().unwrap();
+        proxy_server.stopped().await;
     }
 
     async fn send_request(method: &str) -> Result<String, ClientError> {
