@@ -18,7 +18,6 @@ use std::sync::Arc;
 use tracing::{debug, error, info};
 
 use crate::metrics::ServerMetrics;
-use crate::selector::{DefaultPayloadSelector, PayloadSelector};
 
 #[rpc(server, client, namespace = "engine")]
 pub trait EngineApi {
@@ -54,7 +53,7 @@ pub struct EthEngineApi<S = AuthClientService<HttpBackend>> {
     l2_client: Arc<HttpClient<S>>,
     builder_client: Arc<HttpClient<S>>,
     boost_sync: bool,
-    metrics: ServerMetrics,
+    metrics: Option<Arc<ServerMetrics>>,
 }
 
 impl<S> EthEngineApi<S> {
@@ -62,14 +61,13 @@ impl<S> EthEngineApi<S> {
         l2_client: Arc<HttpClient<S>>,
         builder_client: Arc<HttpClient<S>>,
         boost_sync: bool,
-        metrics: ServerMetrics,
+        metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
         Self {
             l2_client,
             builder_client,
             boost_sync,
             metrics,
-            payload_selector: Arc::new(DefaultPayloadSelector),
         }
     }
 }
@@ -81,16 +79,19 @@ impl EthApiServer for EthEngineApi {
             message = "received send_raw_transaction",
             "bytes_len" = bytes.len()
         );
-        for builder in self.builder_clients.iter() {
-            self.metrics.send_raw_tx_count.increment(1);
-            let builder = builder.clone();
-            let tx_bytes = bytes.clone();
-            tokio::spawn(async move {
-                builder.send_raw_transaction(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling send_raw_transaction for builder", "error" = %e);
-                })
-            });
+
+        if let Some(metrics) = &self.metrics {
+            metrics.send_raw_tx_count.increment(1);
         }
+
+        let builder = self.builder_client.clone();
+        let tx_bytes = bytes.clone();
+        tokio::spawn(async move {
+            builder.send_raw_transaction(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling send_raw_transaction for builder", "error" = %e);
+            })
+        });
+
         self.l2_client
             .send_raw_transaction(bytes)
             .await
@@ -132,13 +133,14 @@ impl EngineApiServer for EthEngineApi {
         };
 
         if should_send_to_builder {
-            // async call to each builder to trigger payload building and sync
-            for builder in self.builder_clients.iter() {
-                self.metrics.fcu_count.increment(1);
-                let builder = builder.clone();
-                let attr = payload_attributes.clone();
-                tokio::spawn(async move {
-                    builder.fork_choice_updated_v3(fork_choice_state, attr).await.map(|response| {
+            // async call to builder to trigger payload building and sync
+            if let Some(metrics) = &self.metrics {
+                metrics.fcu_count.increment(1);
+            }
+            let builder = self.builder_client.clone();
+            let attr = payload_attributes.clone();
+            tokio::spawn(async move {
+                builder.fork_choice_updated_v3(fork_choice_state, attr).await.map(|response| {
                     let payload_id_str = response.payload_id.map(|id| id.to_string()).unwrap_or_default();
                     if response.is_invalid() {
                         error!(message = "builder rejected fork_choice_updated_v3 with attributes", "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
@@ -175,13 +177,14 @@ impl EngineApiServer for EthEngineApi {
     ) -> RpcResult<OptimismExecutionPayloadEnvelopeV3> {
         info!(message = "received get_payload_v3", "payload_id" = %payload_id);
         let l2_client_future = self.l2_client.get_payload_v3(payload_id);
-        let builder_client_futures = self.builder_clients.iter().map(|builder| {
-            let builder = builder.clone();
-            Box::pin(async move {
-                self.metrics.get_payload_count.increment(1);
-                let payload = builder.get_payload_v3(payload_id).await.map_err(|e| {
-                    error!(message = "error calling get_payload_v3 from builder", "error" = %e, "payload_id" = %payload_id);
-                    e
+        let builder_client_future = Box::pin(async move {
+            if let Some(metrics) = &self.metrics {
+                metrics.get_payload_count.increment(1);
+            }
+            let builder = self.builder_client.clone();
+            let payload = builder.get_payload_v3(payload_id).await.map_err(|e| {
+                error!(message = "error calling get_payload_v3 from builder", "error" = %e, "payload_id" = %payload_id);
+                e
                 })?;
 
             info!(message = "received payload from builder", "payload_id" = %payload_id, "block_hash" = %payload.as_v1_payload().block_hash);
@@ -189,6 +192,9 @@ impl EngineApiServer for EthEngineApi {
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
+            if let Some(metrics) = &self.metrics {
+                metrics.new_payload_count.increment(1);
+            }
             let payload_status = self.l2_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
                 error!(message = "error calling new_payload_v3 to validate builder payload", "error" = %e, "payload_id" = %payload_id);
                 e
@@ -232,13 +238,15 @@ impl EngineApiServer for EthEngineApi {
 
         // async call to builder to sync the builder node
         if self.boost_sync {
-            for builder in self.builder_clients.iter() {
-                self.metrics.new_payload_count.increment(1);
-                let builder = builder.clone();
-                let builder_payload = payload.clone();
-                let builder_versioned_hashes = versioned_hashes.clone();
-                tokio::spawn(async move {
-                    builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
+            if let Some(metrics) = &self.metrics {
+                metrics.new_payload_count.increment(1);
+            }
+
+            let builder = self.builder_client.clone();
+            let builder_payload = payload.clone();
+            let builder_versioned_hashes = versioned_hashes.clone();
+            tokio::spawn(async move {
+                builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
                 .map(|response: PayloadStatus| {
                     if response.is_invalid() {
                         error!(message = "builder rejected new_payload_v3", "block_hash" = %block_hash);

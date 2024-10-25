@@ -31,7 +31,9 @@ reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git
 futures = "0.3.31"
 metrics-derive = "0.1"
 metrics = "0.24.0"
-metrics-exporter-prometheus = "0.7"
+metrics-exporter-prometheus = "0.16.0"
+metrics-process = "2.3.1"
+metrics-util = "0.18.0"
 
 [dev-dependencies]
 anyhow = "1.0"

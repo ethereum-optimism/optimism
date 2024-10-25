@@ -8,6 +8,6 @@ pub enum Error {
     InitRPCClient(String),
     #[error("Error Initializing RPC Server: {0}")]
     InitRPCServer(String),
-    #[error("Error Initializing Metrics: {0}")]
+    #[error("Error Initializing Prometheus Metrics: {0}")]
     InitMetrics(String),
 }
