@@ -1,9 +1,11 @@
-use http::Uri;
+use http::header::CONTENT_TYPE;
+use http::{HeaderValue, Uri};
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use jsonrpsee::core::{http_helpers, BoxError};
 use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
+use metrics_exporter_prometheus::PrometheusHandle;
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
@@ -14,11 +16,12 @@ const MULTIPLEX_METHODS: [&str; 2] = ["engine_", "eth_sendRawTransaction"];
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
     target_url: Uri,
+    handle: Option<PrometheusHandle>,
 }
 
 impl ProxyLayer {
-    pub fn new(target_url: Uri) -> Self {
-        ProxyLayer { target_url }
+    pub fn new(target_url: Uri, handle: Option<PrometheusHandle>) -> Self {
+        ProxyLayer { target_url, handle }
     }
 }
 
@@ -30,15 +33,17 @@ impl<S> Layer<S> for ProxyLayer {
             inner,
             client: Client::builder(TokioExecutor::new()).build_http(),
             target_url: self.target_url.clone(),
+            handle: self.handle.clone(),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ProxyService<S> {
     inner: S,
     client: Client<HttpConnector, HttpBody>,
     target_url: Uri,
+    handle: Option<PrometheusHandle>,
 }
 
 impl<S> Service<HttpRequest<HttpBody>> for ProxyService<S>
@@ -60,7 +65,18 @@ where
     fn call(&mut self, req: HttpRequest<HttpBody>) -> Self::Future {
         match req.uri().path() {
             "/healthz" => return Box::pin(async { Ok(Self::Response::new(HttpBody::from("OK"))) }),
-            "/metrics" => {}
+            "/metrics" => {
+                if let Some(handle) = self.handle.as_ref() {
+                    let metrics = handle.render();
+                    return Box::pin(async {
+                        let mut response = Self::Response::new(HttpBody::from(metrics));
+                        response
+                            .headers_mut()
+                            .insert(CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+                        Ok::<HttpResponse, BoxError>(response)
+                    });
+                }
+            }
             _ => {}
         };
 
@@ -238,7 +254,8 @@ mod tests {
     /// Spawn a new RPC server with a proxy layer.
     async fn spawn_proxy_server() -> ServerHandle {
         let addr = format!("{ADDR}:{PORT}");
-        let proxy_layer = ProxyLayer::new(format!("http://{ADDR}:{PROXY_PORT}").parse().unwrap());
+        let proxy_layer =
+            ProxyLayer::new(format!("http://{ADDR}:{PROXY_PORT}").parse().unwrap(), None);
         // Create a layered server
         let server = ServerBuilder::default()
             .set_http_middleware(tower::ServiceBuilder::new().layer(proxy_layer))

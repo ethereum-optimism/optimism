@@ -17,6 +17,8 @@ use reth_rpc_layer::AuthClientService;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 
+use crate::metrics::ServerMetrics;
+
 #[rpc(server, client, namespace = "engine")]
 pub trait EngineApi {
     #[method(name = "forkchoiceUpdatedV3")]
@@ -51,6 +53,7 @@ pub struct EthEngineApi<S = AuthClientService<HttpBackend>> {
     l2_client: Arc<HttpClient<S>>,
     builder_client: Arc<HttpClient<S>>,
     boost_sync: bool,
+    metrics: Option<Arc<ServerMetrics>>,
 }
 
 impl<S> EthEngineApi<S> {
@@ -58,11 +61,13 @@ impl<S> EthEngineApi<S> {
         l2_client: Arc<HttpClient<S>>,
         builder_client: Arc<HttpClient<S>>,
         boost_sync: bool,
+        metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
         Self {
             l2_client,
             builder_client,
             boost_sync,
+            metrics,
         }
     }
 }
@@ -74,6 +79,11 @@ impl EthApiServer for EthEngineApi {
             message = "received send_raw_transaction",
             "bytes_len" = bytes.len()
         );
+
+        if let Some(metrics) = &self.metrics {
+            metrics.send_raw_tx_count.increment(1);
+        }
+
         let builder = self.builder_client.clone();
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
@@ -81,6 +91,7 @@ impl EthApiServer for EthEngineApi {
                 error!(message = "error calling send_raw_transaction for builder", "error" = %e);
             })
         });
+
         self.l2_client
             .send_raw_transaction(bytes)
             .await
@@ -123,6 +134,9 @@ impl EngineApiServer for EthEngineApi {
 
         if should_send_to_builder {
             // async call to builder to trigger payload building and sync
+            if let Some(metrics) = &self.metrics {
+                metrics.fcu_count.increment(1);
+            }
             let builder = self.builder_client.clone();
             let attr = payload_attributes.clone();
             tokio::spawn(async move {
@@ -163,17 +177,24 @@ impl EngineApiServer for EthEngineApi {
     ) -> RpcResult<OptimismExecutionPayloadEnvelopeV3> {
         info!(message = "received get_payload_v3", "payload_id" = %payload_id);
         let l2_client_future = self.l2_client.get_payload_v3(payload_id);
-        let builder_client_future = Box::pin(async {
-            let payload = self.builder_client.get_payload_v3(payload_id).await.map_err(|e| {
+        let builder_client_future = Box::pin(async move {
+            if let Some(metrics) = &self.metrics {
+                metrics.get_payload_count.increment(1);
+            }
+            let builder = self.builder_client.clone();
+            let payload = builder.get_payload_v3(payload_id).await.map_err(|e| {
                 error!(message = "error calling get_payload_v3 from builder", "error" = %e, "payload_id" = %payload_id);
                 e
-            })?;
+                })?;
 
             info!(message = "received payload from builder", "payload_id" = %payload_id, "block_hash" = %payload.as_v1_payload().block_hash);
 
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
+            if let Some(metrics) = &self.metrics {
+                metrics.new_payload_count.increment(1);
+            }
             let payload_status = self.l2_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
                 error!(message = "error calling new_payload_v3 to validate builder payload", "error" = %e, "payload_id" = %payload_id);
                 e
@@ -217,6 +238,10 @@ impl EngineApiServer for EthEngineApi {
 
         // async call to builder to sync the builder node
         if self.boost_sync {
+            if let Some(metrics) = &self.metrics {
+                metrics.new_payload_count.increment(1);
+            }
+
             let builder = self.builder_client.clone();
             let builder_payload = payload.clone();
             let builder_versioned_hashes = versioned_hashes.clone();

@@ -14,12 +14,16 @@ cargo run -- [OPTIONS]
 ### Command-line Options
 
 - `--jwt-token <TOKEN>`: JWT token for authentication (required)
+- `--jwt-path <PATH>`: Path to the JWT secret file (required if `--jwt-token` is not provided)
 - `--l2-url <URL>`: URL of the local L2 execution engine (required)
 - `--builder-url <URL>`: URL of the builder execution engine (required)
+- `--builder-jwt-token <TOKEN>`: JWT token for builder authentication. defaults to the value of `--jwt-token` if not provided
+- `--builder-jwt-path <PATH>`: Path to the builder JWT secret file.
 - `--rpc-host <HOST>`: Host to run the server on (default: 0.0.0.0)
 - `--rpc-port <PORT>`: Port to run the server on (default: 8081)
 - `--tracing`: Enable tracing (default: false)
 - `--log-level <LEVEL>`: Log level (default: info)
+- `--metrics`: Enable metrics (default: false)
 - `--boost-sync`: Enable syncing the builder with the proposer op-node (default: false)
 
 ### Environment Variables

@@ -7,6 +7,9 @@ use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
+use metrics::ServerMetrics;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_util::layers::{PrefixLayer, Stack};
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService};
 use server::{EngineApiServer, EthEngineApi};
@@ -16,6 +19,7 @@ use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
 mod error;
+mod metrics;
 mod proxy;
 mod server;
 
@@ -63,6 +67,10 @@ struct Args {
     #[arg(long, env, default_value = "false")]
     tracing: bool,
 
+    // Enable Prometheus metrics
+    #[arg(long, env, default_value = "false")]
+    metrics: bool,
+
     /// Log level
     #[arg(long, env, default_value = "info")]
     log_level: Level,
@@ -80,6 +88,21 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::new(args.log_level.to_string())) // Set the log level
         .init();
+
+    let (metrics, handler) = if args.metrics {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+
+        // Build metrics stack
+        Stack::new(recorder)
+            .push(PrefixLayer::new("rollup-boost"))
+            .install()
+            .map_err(|e| Error::InitMetrics(e.to_string()))?;
+
+        (Some(Arc::new(ServerMetrics::default())), Some(handle))
+    } else {
+        (None, None)
+    };
 
     // Handle JWT secret
     let jwt_secret = match (args.jwt_path, args.jwt_token) {
@@ -119,6 +142,7 @@ async fn main() -> Result<()> {
         Arc::new(l2_client),
         Arc::new(builder_client),
         args.boost_sync,
+        metrics,
     );
     let mut module: RpcModule<()> = RpcModule::new(());
     module
@@ -131,6 +155,7 @@ async fn main() -> Result<()> {
         args.l2_url
             .parse::<Uri>()
             .map_err(|e| Error::InvalidArgs(e.to_string()))?,
+        handler,
     ));
     let server = Server::builder()
         .set_http_middleware(service_builder)
