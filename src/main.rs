@@ -10,11 +10,17 @@ use jsonrpsee::RpcModule;
 use metrics::ServerMetrics;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{PrefixLayer, Stack};
+use opentelemetry::global;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::propagation::TraceContextPropagator;
+use opentelemetry_sdk::trace::Config;
+use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService};
 use server::{EngineApiServer, EthEngineApi};
 use std::sync::Arc;
 use std::{net::SocketAddr, path::PathBuf};
+use tracing::error;
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
@@ -71,6 +77,10 @@ struct Args {
     #[arg(long, env, default_value = "false")]
     metrics: bool,
 
+    /// OTLP endpoint
+    #[arg(long, env, default_value = "http://localhost:4317")]
+    otlp_endpoint: String,
+
     /// Log level
     #[arg(long, env, default_value = "info")]
     log_level: Level,
@@ -103,6 +113,11 @@ async fn main() -> Result<()> {
     } else {
         (None, None)
     };
+
+    // telemetry setup
+    if args.tracing {
+        init_tracing(&args.otlp_endpoint);
+    }
 
     // Handle JWT secret
     let jwt_secret = match (args.jwt_path, args.jwt_token) {
@@ -186,6 +201,29 @@ fn create_client(
         .map_err(|e| Error::InitRPCClient(e.to_string()))
 }
 
+fn init_tracing(endpoint: &str) {
+    global::set_text_map_propagator(TraceContextPropagator::new());
+    let provider = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint(endpoint),
+        )
+        .with_trace_config(Config::default().with_resource(Resource::new(vec![
+            opentelemetry::KeyValue::new("service.name", "rollup-boost"),
+        ])))
+        .install_batch(opentelemetry_sdk::runtime::Tokio);
+    match provider {
+        Ok(provider) => {
+            let _ = global::set_tracer_provider(provider);
+        }
+        Err(e) => {
+            error!(message = "failed to initiate tracing provider", "error" = %e);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use assert_cmd::Command;
@@ -202,7 +240,7 @@ mod tests {
 
     use super::*;
 
-    const AUTH_PORT: u32 = 8551;
+    const AUTH_PORT: u32 = 8550;
     const AUTH_ADDR: &str = "0.0.0.0";
     const SECRET: &str = "f79ae8046bc11c9927afe911db7143c51a806c4a537cc08e0d37140b0192f430";
 
