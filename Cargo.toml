@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alloy-primitives = "0.8.3"
-alloy = { version = "0.3.6", features = ["eips", "rpc-types"] }
-op-alloy-rpc-types-engine = "0.2.12"
-op-alloy-rpc-types = "0.2.12"
-alloy-rpc-types-engine = "0.3.6"
-alloy-rpc-types-eth = "0.3.6"
+alloy-primitives = "0.8.10"
+alloy = { version = "0.4.2", features = ["eips", "rpc-types"] }
+op-alloy-rpc-types-engine = "0.5.1"
+op-alloy-rpc-types = "0.5.1"
+alloy-rpc-types-engine = "0.5.4"
+alloy-rpc-types-eth = "0.5.4"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1.4"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
@@ -17,6 +17,7 @@ serde = { version = "1", features = ["derive"] }
 thiserror = "1.0"
 clap = { version = "4", features = ["derive", "env"] }
 jsonrpsee = {version = "0.24.4", features = ["server", "http-client", "macros"]}
+lru = "0.10.0"
 reqwest = "0.12.5"
 http = "1.1.0"
 dotenv = "0.15.0"
@@ -26,8 +27,14 @@ http-body-util = "0.1.2"
 hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 serde_json = "1.0.96"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.0.7" }
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.0.7", features = ["optimism"] }
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "734c78fdfb46cc5a97971450ed74c6cbdf62d5af" }
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", rev = "734c78fdfb46cc5a97971450ed74c6cbdf62d5af", features = ["optimism"] }
+reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "734c78fdfb46cc5a97971450ed74c6cbdf62d5af" }
+opentelemetry = { version = "0.26.0", features = ["trace"] }
+opentelemetry-http = "0.26.0"
+opentelemetry-otlp = { version = "0.26.0", features = ["http-proto", "http-json", "reqwest-client", "trace"] }
+opentelemetry_sdk = { version = "0.26.0", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.27.0"
 futures = "0.3.31"
 metrics-derive = "0.1"
 metrics = "0.24.0"
