@@ -97,6 +97,7 @@ async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::new(args.log_level.to_string())) // Set the log level
+        .with_ansi(false) // Disable colored logging
         .init();
 
     let (metrics, handler) = if args.metrics {
