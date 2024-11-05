@@ -17,8 +17,9 @@ use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService};
-use server::{EngineApiServer, EthEngineApi};
+use server::{EngineApiServer, EthEngineApi, HttpClientWrapper};
 use std::sync::Arc;
+use std::time::Duration;
 use std::{net::SocketAddr, path::PathBuf};
 use tracing::error;
 use tracing::{info, Level};
@@ -191,15 +192,17 @@ async fn main() -> Result<()> {
 fn create_client(
     url: &str,
     jwt_secret: JwtSecret,
-) -> Result<HttpClient<AuthClientService<HttpBackend>>> {
+) -> Result<HttpClientWrapper<HttpClient<AuthClientService<HttpBackend>>>> {
     // Create a middleware that adds a new JWT token to every request.
     let auth_layer = AuthClientLayer::new(jwt_secret);
     let client_middleware = tower::ServiceBuilder::new().layer(auth_layer);
 
-    HttpClientBuilder::new()
+    let client = HttpClientBuilder::new()
         .set_http_middleware(client_middleware)
+        .request_timeout(Duration::from_secs(10))
         .build(url)
-        .map_err(|e| Error::InitRPCClient(e.to_string()))
+        .map_err(|e| Error::InitRPCClient(e.to_string()))?;
+    Ok(HttpClientWrapper::new(client, url.to_string()))
 }
 
 fn init_tracing(endpoint: &str) {
@@ -265,7 +268,7 @@ mod tests {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
         let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
         let client = create_client(url.as_str(), secret);
-        let response = send_request(client.unwrap()).await;
+        let response = send_request(client.unwrap().client).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
     }
@@ -274,7 +277,7 @@ mod tests {
         let secret = JwtSecret::random();
         let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
         let client = create_client(url.as_str(), secret);
-        let response = send_request(client.unwrap()).await;
+        let response = send_request(client.unwrap().client).await;
         assert!(response.is_err());
         assert!(matches!(
             response.unwrap_err(),
