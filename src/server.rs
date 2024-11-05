@@ -117,7 +117,18 @@ pub trait EthApi {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
 }
 
-pub struct EthEngineApi<C = HttpClient<AuthClientService<HttpBackend>>> {
+pub struct HttpClientWrapper<C = HttpClient<AuthClientService<HttpBackend>>> {
+    pub client: C,
+    pub url: String,
+}
+
+impl<C> HttpClientWrapper<C> {
+    pub fn new(client: C, url: String) -> Self {
+        Self { client, url }
+    }
+}
+
+pub struct EthEngineApi<C = HttpClientWrapper> {
     l2_client: Arc<C>,
     builder_client: Arc<C>,
     boost_sync: bool,
@@ -143,9 +154,9 @@ impl<C> EthEngineApi<C> {
 }
 
 #[async_trait]
-impl<C> EthApiServer for EthEngineApi<C>
+impl<C> EthApiServer for EthEngineApi<HttpClientWrapper<C>>
 where
-    C: EthApiClient + Send + Sync + 'static,
+    C: EthApiClient + Send + Sync + Clone + 'static,
 {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
         debug!(
@@ -157,15 +168,17 @@ where
             metrics.send_raw_tx_count.increment(1);
         }
 
-        let builder = self.builder_client.clone();
+        let builder_client = self.builder_client.client.clone();
+        let url = self.builder_client.url.clone();
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
-            builder.send_raw_transaction(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling send_raw_transaction for builder", "error" = %e);
+            builder_client.send_raw_transaction(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling send_raw_transaction for builder", "url" = url, "error" = %e);
             })
         });
 
         self.l2_client
+            .client
             .send_raw_transaction(bytes)
             .await
             .map_err(|e| match e {
@@ -173,6 +186,7 @@ where
                 other_error => {
                     error!(
                         message = "error calling send_raw_transaction for l2 client",
+                        "url" = self.l2_client.url,
                         "error" = %other_error,
                     );
                     ErrorCode::InternalError.into()
@@ -182,9 +196,9 @@ where
 }
 
 #[async_trait]
-impl<C> EngineApiServer for EthEngineApi<C>
+impl<C> EngineApiServer for EthEngineApi<HttpClientWrapper<C>>
 where
-    C: EngineApiClient + Send + Sync + 'static,
+    C: EngineApiClient + Send + Sync + Clone + 'static,
 {
     async fn fork_choice_updated_v3(
         &self,
@@ -251,17 +265,18 @@ where
             let builder = self.builder_client.clone();
             let attr = payload_attributes.clone();
             tokio::spawn(async move {
-                let _ = builder.fork_choice_updated_v3(fork_choice_state, attr).await.map(|response| {
+                let _ = builder.client.fork_choice_updated_v3(fork_choice_state, attr).await.map(|response| {
                     let payload_id_str = response.payload_id.map(|id| id.to_string()).unwrap_or_default();
                     if response.is_invalid() {
-                        error!(message = "builder rejected fork_choice_updated_v3 with attributes", "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
+                        error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = builder.url, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
                     } else {
-                        info!(message = "called fork_choice_updated_v3 to builder with payload attributes", "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
+                        info!(message = "called fork_choice_updated_v3 to builder with payload attributes", "url" = builder.url, "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
                         }
                     })
                     .map_err(|e| {
                         error!(
                             message = "error calling fork_choice_updated_v3 to builder",
+                            "url" = builder.url,    
                             "error" = %e,
                             "head_block_hash" = %fork_choice_state.head_block_hash
                         );
@@ -275,6 +290,7 @@ where
         }
 
         self.l2_client
+            .client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes)
             .await
             .map_err(|e| match e {
@@ -282,6 +298,7 @@ where
                 other_error => {
                     error!(
                         message = "error calling fork_choice_updated_v3 for l2 client",
+                        "url" = self.l2_client.url,
                         "error" = %other_error,
                         "head_block_hash" = %fork_choice_state.head_block_hash,
                     );
@@ -295,7 +312,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
         info!(message = "received get_payload_v3", "payload_id" = %payload_id);
-        let l2_client_future = self.l2_client.get_payload_v3(payload_id);
+        let l2_client_future = self.l2_client.client.get_payload_v3(payload_id);
         let builder_client_future = Box::pin(async move {
             if let Some(metrics) = &self.metrics {
                 metrics.get_payload_count.increment(1);
@@ -312,8 +329,8 @@ where
             });
 
             let builder = self.builder_client.clone();
-            let payload = builder.get_payload_v3(payload_id).await.map_err(|e| {
-                error!(message = "error calling get_payload_v3 from builder", "error" = %e, "payload_id" = %payload_id);
+            let payload = builder.client.get_payload_v3(payload_id).await.map_err(|e| {
+                error!(message = "error calling get_payload_v3 from builder", "url" = builder.url, "error" = %e, "payload_id" = %payload_id);
                 e
                 })?;
 
@@ -326,8 +343,8 @@ where
             if let Some(metrics) = &self.metrics {
                 metrics.new_payload_count.increment(1);
             }
-            let payload_status = self.l2_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
-                error!(message = "error calling new_payload_v3 to validate builder payload", "error" = %e, "payload_id" = %payload_id);
+            let payload_status = self.l2_client.client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
+                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = self.l2_client.url, "error" = %e, "payload_id" = %payload_id);
                 e
             })?;
             if let Some(mut s) = span {
@@ -340,7 +357,7 @@ where
                 }
             };
             if payload_status.is_invalid() {
-                error!(message = "builder payload was not valid", "payload_status" = %payload_status.status, "payload_id" = %payload_id);
+                error!(message = "builder payload was not valid", "url" = builder.url, "payload_status" = %payload_status.status, "payload_id" = %payload_id);
                 Err(ClientError::Call(ErrorObject::owned(
                     INVALID_REQUEST_CODE,
                     "Builder payload was not valid",
@@ -358,6 +375,7 @@ where
             other_error => {
                 error!(
                     message = "error calling get_payload_v3",
+                    "url" = self.builder_client.url,
                     "error" = %other_error,
                     "payload_id" = %payload_id
                 );
@@ -401,19 +419,20 @@ where
                 .remove_by_parent_hash(&parent_hash)
                 .await;
 
-            let builder = self.builder_client.clone();
+            let builder = self.builder_client.client.clone();
+            let builder_url = self.builder_client.url.clone();
             let builder_payload = payload.clone();
             let builder_versioned_hashes = versioned_hashes.clone();
             tokio::spawn(async move {
                 let _ = builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
                 .map(|response: PayloadStatus| {
                     if response.is_invalid() {
-                        error!(message = "builder rejected new_payload_v3", "block_hash" = %block_hash);
+                        error!(message = "builder rejected new_payload_v3", "url" = builder_url, "block_hash" = %block_hash);
                     } else {
-                        info!(message = "called new_payload_v3 to builder", "payload_status" = %response.status, "block_hash" = %block_hash);
+                        info!(message = "called new_payload_v3 to builder", "url" = builder_url, "payload_status" = %response.status, "block_hash" = %block_hash);
                     }
                 }).map_err(|e| {
-                    error!(message = "error calling new_payload_v3 to builder", "error" = %e, "block_hash" = %block_hash);
+                    error!(message = "error calling new_payload_v3 to builder", "url" = builder_url, "error" = %e, "block_hash" = %block_hash);
                     e
                 });
                 if let Some(mut spans) = spans {
@@ -422,6 +441,7 @@ where
             });
         }
         self.l2_client
+            .client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
             .await
             .map_err(|e| match e {
@@ -536,8 +556,14 @@ mod tests {
                 .unwrap();
 
             let eth_engine_api = EthEngineApi::new(
-                Arc::new(l2_client),
-                Arc::new(builder_client),
+                Arc::new(HttpClientWrapper::new(
+                    l2_client,
+                    format!("http://{L2_ADDR}"),
+                )),
+                Arc::new(HttpClientWrapper::new(
+                    builder_client,
+                    format!("http://{BUILDER_ADDR}"),
+                )),
                 boost_sync,
                 None,
             );
