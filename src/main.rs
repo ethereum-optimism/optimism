@@ -85,6 +85,14 @@ struct Args {
     /// Log level
     #[arg(long, env, default_value = "info")]
     log_level: Level,
+
+    /// Timeout for the builder client calls in milliseconds
+    #[arg(long, env, default_value = "200")]
+    builder_timeout: u64,
+
+    /// Timeout for the l2 client calls in milliseconds
+    #[arg(long, env, default_value = "2000")]
+    l2_timeout: u64,
 }
 
 type Result<T> = core::result::Result<T, Error>;
@@ -150,10 +158,11 @@ async fn main() -> Result<()> {
     };
 
     // Initialize the l2 client
-    let l2_client = create_client(&args.l2_url, jwt_secret)?;
+    let l2_client = create_client(&args.l2_url, jwt_secret, args.l2_timeout)?;
 
     // Initialize the builder client
-    let builder_client = create_client(&args.builder_url, builder_jwt_secret)?;
+    let builder_client =
+        create_client(&args.builder_url, builder_jwt_secret, args.builder_timeout)?;
 
     let eth_engine_api = EthEngineApi::new(
         Arc::new(l2_client),
@@ -192,6 +201,7 @@ async fn main() -> Result<()> {
 fn create_client(
     url: &str,
     jwt_secret: JwtSecret,
+    timeout: u64,
 ) -> Result<HttpClientWrapper<HttpClient<AuthClientService<HttpBackend>>>> {
     // Create a middleware that adds a new JWT token to every request.
     let auth_layer = AuthClientLayer::new(jwt_secret);
@@ -199,7 +209,7 @@ fn create_client(
 
     let client = HttpClientBuilder::new()
         .set_http_middleware(client_middleware)
-        .request_timeout(Duration::from_secs(10))
+        .request_timeout(Duration::from_millis(timeout))
         .build(url)
         .map_err(|e| Error::InitRPCClient(e.to_string()))?;
     Ok(HttpClientWrapper::new(client, url.to_string()))
@@ -267,7 +277,7 @@ mod tests {
     async fn valid_jwt() {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
         let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
-        let client = create_client(url.as_str(), secret);
+        let client = create_client(url.as_str(), secret, 2000);
         let response = send_request(client.unwrap().client).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
@@ -276,7 +286,7 @@ mod tests {
     async fn invalid_jwt() {
         let secret = JwtSecret::random();
         let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
-        let client = create_client(url.as_str(), secret);
+        let client = create_client(url.as_str(), secret, 2000);
         let response = send_request(client.unwrap().client).await;
         assert!(response.is_err());
         assert!(matches!(
