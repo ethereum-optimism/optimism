@@ -50,8 +50,8 @@ cargo run --jwt-token your_jwt_token --l2-url http://localhost:8545 --builder-ur
     - `rollup-boost` validates the block with `proposer-op-geth` using `engine_newPayload`.
     - This validation ensures the block will be valid for `proposer-op-geth`, preventing network stalls due to invalid blocks.
     - If the external block is valid, it is returned to the `proposer-op-node`.
-5. As per its normal workflow, the `proposer-op-node` sends another `newPayload` request to the sidecar and another FCU(without) to update the state of its op-geth node.
-    - In this case, the sidecar just relays the data and does not introspect anything.
+5. As per its normal workflow, the `proposer-op-node` sends another `newPayload` request to the `rollup-boost` and another FCU(without) to update the state of its op-geth node.
+    - In this case, the `rollup-boost` just relays the data and does not introspect anything.
     - Note that since we already tested `newPayload` on the proposer-op-geth in the previous step, this process should be cached. 
 
 ![Workflow Diagram](/assets/workflow.svg)
