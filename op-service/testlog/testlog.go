@@ -186,8 +186,10 @@ func (l *logger) Crit(msg string, ctx ...any) {
 	l.t.Helper()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.l.Crit(msg, ctx...)
+	// We can't use l.l.Crit because that will exit the program before we can flush the buffer.
+	l.l.Write(log.LevelCrit, msg, ctx...)
 	l.flush()
+	os.Exit(1)
 }
 
 func (l *logger) Log(level slog.Level, msg string, ctx ...any) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -43,6 +44,10 @@ type txData struct {
 	frames []frameData
 	// daType represents the DA type which the frames data will be submitted to.
 	daType DaType
+	// altDACommitment is non-nil when the frames have been sent to the alt-da server,
+	// and the received commitment needs to be sent to the L1.
+	// Should only be present when daType is DaTypeAltDA.
+	altDACommitment altda.CommitmentData
 }
 
 func singleFrameTxData(frame frameData) txData {
