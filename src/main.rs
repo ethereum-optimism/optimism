@@ -31,10 +31,14 @@ mod server;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
-#[clap(group(ArgGroup::new("jwt").required(true).multiple(false).args(&["jwt_token", "jwt_path"])))]
+#[clap(group(ArgGroup::new("jwt").multiple(false).args(&["jwt_token", "jwt_path"])))]
 struct Args {
     /// JWT token for authentication
-    #[arg(long, env)]
+    #[arg(
+        long,
+        env,
+        default_value = "688f5d737bad920bdfb2fc2f488d6b6209eebda1dae949a8de91398d932c517a"
+    )]
     jwt_token: Option<String>,
 
     /// Path to the JWT secret file
@@ -50,7 +54,7 @@ struct Args {
     builder_jwt_path: Option<PathBuf>,
 
     /// URL of the local l2 execution engine
-    #[arg(long, env)]
+    #[arg(long, env, default_value = "http://localhost:8551")]
     l2_url: String,
 
     /// URL of the builder execution engine
