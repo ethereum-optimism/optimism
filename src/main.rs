@@ -50,7 +50,7 @@ struct Args {
     builder_jwt_path: Option<PathBuf>,
 
     /// URL of the local l2 execution engine
-    #[arg(long, env)]
+    #[arg(long, env, default_value = "http://localhost:8551")]
     l2_url: String,
 
     /// URL of the builder execution engine
