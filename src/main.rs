@@ -1,4 +1,3 @@
-use alloy_rpc_types_engine::JwtSecret;
 use clap::{arg, ArgGroup, Parser};
 use dotenv::dotenv;
 use error::Error;
@@ -16,7 +15,7 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
-use reth_rpc_layer::{AuthClientLayer, AuthClientService};
+use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use server::{EngineApiServer, EthEngineApi, HttpClientWrapper};
 use std::sync::Arc;
 use std::time::Duration;

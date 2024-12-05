@@ -1,6 +1,5 @@
 use crate::metrics::ServerMetrics;
-use alloy::primitives::B256;
-use alloy_primitives::Bytes;
+use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
@@ -16,7 +15,7 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
-use reth_optimism_payload_builder::{OpPayloadAttributes, OptimismPayloadBuilderAttributes};
+use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
 use reth_rpc_layer::AuthClientService;
 use std::num::NonZero;
@@ -230,7 +229,7 @@ where
                     .payload_trace_context
                     .tracer
                     .start_with_context("build-block", &Context::current());
-                let builder_attrs = OptimismPayloadBuilderAttributes::try_new(
+                let builder_attrs = OpPayloadBuilderAttributes::try_new(
                     fork_choice_state.head_block_hash,
                     payload_attributes,
                     3,
@@ -465,7 +464,7 @@ mod tests {
 
     use super::*;
 
-    use alloy::hex;
+    use alloy_primitives::hex;
     use alloy_primitives::{FixedBytes, U256};
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
