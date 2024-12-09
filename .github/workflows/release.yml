@@ -37,6 +37,21 @@ jobs:
             type=pep440,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-') }}
 
+      # https://github.com/WarpBuilds/rust-cache
+      - name: Run WarpBuilds/rust-cache
+        uses: WarpBuilds/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      # https://github.com/Mozilla-Actions/sccache-action
+      - name: Setup sccache-action
+        uses: mozilla-actions/sccache-action@v0.0.5
+
+      - name: Set env vars
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
