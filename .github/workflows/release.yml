@@ -12,7 +12,7 @@ permissions:
 jobs:
   docker-image:
     name: Publish Docker Image
-    runs-on: warp-ubuntu-latest-x64-16x
+    runs-on: ubuntu-latest-xlarge
 
     steps:
       - name: Checkout sources
@@ -37,36 +37,27 @@ jobs:
             type=pep440,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-') }}
 
-      # https://github.com/WarpBuilds/rust-cache
-      - name: Run WarpBuilds/rust-cache
-        uses: WarpBuilds/rust-cache@v2
-        with:
-          cache-on-failure: true
-
-      # https://github.com/Mozilla-Actions/sccache-action
-      - name: Setup sccache-action
-        uses: mozilla-actions/sccache-action@v0.0.5
-
-      - name: Set env vars
-        run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.FLASHBOTS_DOCKERHUB_USERNAME }}
           password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
+          cache-from: |
+            type=gha,scope=amd64
+            type=gha,scope=arm64
+          cache-to: |
+            type=gha,mode=max,scope=amd64
+            type=gha,mode=max,scope=arm64
           context: .
           push: true
           build-args: |
@@ -79,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Create release
         id: create_release
