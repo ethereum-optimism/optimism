@@ -6,7 +6,7 @@
 #
 # Based on https://depot.dev/blog/rust-dockerfile-best-practices
 #
-FROM rust:1.82 as base
+FROM rust:1.82 AS base
 
 ARG FEATURES
 
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 #
 # Builder container (running "cargo chef cook" and "cargo build --release")
 #
-FROM base as builder
+FROM base AS builder
 WORKDIR /app
 # Default binary filename
 ARG ROLLUP_BOOST_BIN="rollup-boost"
