@@ -12,8 +12,16 @@ permissions:
 jobs:
   docker-image:
     name: Publish Docker Image
-    runs-on: ubuntu-latest-xlarge
-
+    strategy:
+      matrix:
+        config:
+          - target: x86_64-unknown-linux-gnu
+            runner: warp-ubuntu-latest-x64-16x
+            platform: linux/amd64
+          - target: aarch64-unknown-linux-gnu
+            runner: warp-ubuntu-latest-arm64-16x
+            platform: linux/arm64
+    runs-on: ${{ matrix.config.runner }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -50,21 +58,30 @@ jobs:
           password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
-          cache-from: |
-            type=gha,scope=amd64
-            type=gha,scope=arm64
-          cache-to: |
-            type=gha,mode=max,scope=amd64
-            type=gha,mode=max,scope=arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           context: .
-          push: true
           build-args: |
             VERSION=${{ env.RELEASE_VERSION }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.config.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export Digest
+        run: |
+          digest="${{ steps.build.outputs.digest }}"
+          [ "$digest" ] || exit 1
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload Digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.config.platform }}
+          path: /tmp/digests/*
 
   github-release:
     runs-on: ubuntu-latest

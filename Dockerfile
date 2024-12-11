@@ -10,7 +10,7 @@ FROM rust:1.82 as base
 
 ARG FEATURES
 
-RUN cargo install sccache --version ^0.8
+RUN cargo install sccache --version ^0.9
 RUN cargo install cargo-chef --version ^0.1
 
 RUN apt-get update \
