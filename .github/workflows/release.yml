@@ -9,25 +9,29 @@ on:
 permissions:
   contents: write
 
+env:
+  REGISTRY_IMAGE: flashbots/rollup-boost
+
 jobs:
-  docker-image:
+  build:
     name: Publish Docker Image
     strategy:
       matrix:
         config:
-          - target: x86_64-unknown-linux-gnu
+          - platform: linux/amd64
             runner: warp-ubuntu-latest-x64-16x
-            platform: linux/amd64
-          - target: aarch64-unknown-linux-gnu
+          - platform: linux/arm64
             runner: warp-ubuntu-latest-arm64-16x
-            platform: linux/arm64
     runs-on: ${{ matrix.config.runner }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Get tag version
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: Set env
+        run: |
+          platform=${{ matrix.config.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
       - name: Print version
         run: |
@@ -38,12 +42,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: flashbots/rollup-boost
-          tags: |
-            type=sha
-            type=pep440,pattern={{version}}
-            type=pep440,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-') }}
+          images: ${{ env.REGISTRY_IMAGE }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -66,22 +65,64 @@ jobs:
           build-args: |
             VERSION=${{ env.RELEASE_VERSION }}
           platforms: ${{ matrix.config.platform }}
-          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
-      - name: Export Digest
+      - name: Export digest
         run: |
-          digest="${{ steps.build.outputs.digest }}"
-          [ "$digest" ] || exit 1
           mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
           touch "/tmp/digests/${digest#sha256:}"
 
-      - name: Upload Digest
+      - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.config.platform }}
+          name: digests-${{ env.PLATFORM_PAIR }}
           path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.FLASHBOTS_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=sha
+            type=pep440,pattern={{version}}
+            type=pep440,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-') }}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
 
   github-release:
     runs-on: ubuntu-latest
