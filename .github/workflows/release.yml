@@ -9,17 +9,29 @@ on:
 permissions:
   contents: write
 
-jobs:
-  docker-image:
-    name: Publish Docker Image
-    runs-on: warp-ubuntu-latest-x64-16x
+env:
+  REGISTRY_IMAGE: flashbots/rollup-boost
 
+jobs:
+  build:
+    name: Publish Docker Image
+    strategy:
+      matrix:
+        config:
+          - platform: linux/amd64
+            runner: warp-ubuntu-latest-x64-16x
+          - platform: linux/arm64
+            runner: warp-ubuntu-latest-arm64-16x
+    runs-on: ${{ matrix.config.runner }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Get tag version
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: Set env
+        run: |
+          platform=${{ matrix.config.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
       - name: Print version
         run: |
@@ -30,56 +42,94 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: flashbots/rollup-boost
+          images: ${{ env.REGISTRY_IMAGE }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.FLASHBOTS_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          context: .
+          build-args: |
+            VERSION=${{ env.RELEASE_VERSION }}
+          platforms: ${{ matrix.config.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.FLASHBOTS_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             type=sha
             type=pep440,pattern={{version}}
             type=pep440,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-') }}
 
-      # https://github.com/WarpBuilds/rust-cache
-      - name: Run WarpBuilds/rust-cache
-        uses: WarpBuilds/rust-cache@v2
-        with:
-          cache-on-failure: true
-
-      # https://github.com/Mozilla-Actions/sccache-action
-      - name: Setup sccache-action
-        uses: mozilla-actions/sccache-action@v0.0.5
-
-      - name: Set env vars
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.FLASHBOTS_DOCKERHUB_USERNAME }}
-          password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          push: true
-          build-args: |
-            VERSION=${{ env.RELEASE_VERSION }}
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
 
   github-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Create release
         id: create_release
