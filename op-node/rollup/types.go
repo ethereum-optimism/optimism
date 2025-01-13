@@ -123,6 +123,10 @@ type Config struct {
 	// Active if IsthmusTime != nil && L2 block timestamp >= *IsthmusTime, inactive otherwise.
 	IsthmusTime *uint64 `json:"isthmus_time,omitempty"`
 
+	// JovianTime sets the activation time of the Jovian network upgrade.
+	// Active if JovianTime != nil && L2 block timestamp >= *JovianTime, inactive otherwise.
+	JovianTime *uint64 `json:"jovian_time,omitempty"`
+
 	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
 	InteropTime *uint64 `json:"interop_time,omitempty"`
@@ -435,6 +439,11 @@ func (c *Config) IsIsthmus(timestamp uint64) bool {
 	return c.IsthmusTime != nil && timestamp >= *c.IsthmusTime
 }
 
+// IsJovian returns true if the Jovian hardfork is active at or past the given timestamp.
+func (c *Config) IsJovian(timestamp uint64) bool {
+	return c.JovianTime != nil && timestamp >= *c.JovianTime
+}
+
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime
@@ -498,6 +507,14 @@ func (c *Config) IsIsthmusActivationBlock(l2BlockTime uint64) bool {
 		!c.IsIsthmus(l2BlockTime-c.BlockTime)
 }
 
+// IsJovianActivationBlock returns whether the specified block is the first block subject to the
+// Jovian upgrade.
+func (c *Config) IsJovianActivationBlock(l2BlockTime uint64) bool {
+	return c.IsJovian(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsJovian(l2BlockTime-c.BlockTime)
+}
+
 func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 	return c.IsInterop(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
@@ -520,6 +537,9 @@ func (c *Config) ActivateAtGenesis(hardfork ForkName) {
 	switch hardfork {
 	case Interop:
 		c.InteropTime = new(uint64)
+		fallthrough
+	case Jovian:
+		c.JovianTime = new(uint64)
 		fallthrough
 	case Isthmus:
 		c.IsthmusTime = new(uint64)
@@ -725,6 +745,7 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 		callback("Pectra Blob Schedule", "pectra_blob_schedule_time", c.PectraBlobScheduleTime)
 	}
 	callback("Isthmus", "isthmus_time", c.IsthmusTime)
+	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Interop", "interop_time", c.InteropTime)
 }
 
