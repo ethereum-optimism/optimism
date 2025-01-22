@@ -98,6 +98,10 @@ struct Args {
     #[arg(long, env, default_value = "info")]
     log_level: Level,
 
+    /// Log format
+    #[arg(long, env, default_value = "text")]
+    log_format: String,
+
     /// Timeout for the builder client calls in milliseconds
     #[arg(long, env, default_value = "200")]
     builder_timeout: u64,
@@ -116,10 +120,22 @@ async fn main() -> Result<()> {
     let args: Args = Args::parse();
 
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::new(args.log_level.to_string())) // Set the log level
-        .with_ansi(false) // Disable colored logging
-        .init();
+    let log_format = args.log_format.to_lowercase();
+    let log_level = args.log_level.to_string();
+    if log_format == "json" {
+        // JSON log format
+        tracing_subscriber::fmt()
+            .json() // Use JSON format
+            .with_env_filter(EnvFilter::new(log_level)) // Set log level
+            .with_ansi(false) // Disable colored logging
+            .init();
+    } else {
+        // Default (text) log format
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::new(log_level)) // Set log level
+            .with_ansi(false) // Disable colored logging
+            .init();
+    }
 
     let metrics = if args.metrics {
         let recorder = PrometheusBuilder::new().build_recorder();
