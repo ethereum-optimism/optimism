@@ -1,13 +1,16 @@
 use clap::{arg, ArgGroup, Parser};
 use dotenv::dotenv;
 use error::Error;
-use http::Uri;
+use http::{StatusCode, Uri};
+use hyper::service::service_fn;
+use hyper::{server::conn::http1, Request, Response};
+use hyper_util::rt::TokioIo;
 use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use jsonrpsee::http_client::{HttpBody, HttpClient, HttpClientBuilder};
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
 use metrics::ServerMetrics;
-use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_util::layers::{PrefixLayer, Stack};
 use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
@@ -17,9 +20,11 @@ use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use server::{EngineApiServer, EthEngineApi, HttpClientWrapper};
+use std::net::AddrParseError;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{net::SocketAddr, path::PathBuf};
+use tokio::net::TcpListener;
 use tracing::error;
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
@@ -77,6 +82,14 @@ struct Args {
     #[arg(long, env, default_value = "false")]
     metrics: bool,
 
+    /// Host to run the metrics server on
+    #[arg(long, env, default_value = "0.0.0.0")]
+    metrics_host: String,
+
+    /// Port to run the metrics server on
+    #[arg(long, env, default_value = "9090")]
+    metrics_port: u16,
+
     /// OTLP endpoint
     #[arg(long, env, default_value = "http://localhost:4317")]
     otlp_endpoint: String,
@@ -108,7 +121,7 @@ async fn main() -> Result<()> {
         .with_ansi(false) // Disable colored logging
         .init();
 
-    let (metrics, handler) = if args.metrics {
+    let metrics = if args.metrics {
         let recorder = PrometheusBuilder::new().build_recorder();
         let handle = recorder.handle();
 
@@ -118,9 +131,16 @@ async fn main() -> Result<()> {
             .install()
             .map_err(|e| Error::InitMetrics(e.to_string()))?;
 
-        (Some(Arc::new(ServerMetrics::default())), Some(handle))
+        // Start the metrics server
+        let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
+        let addr: SocketAddr = metrics_addr
+            .parse()
+            .map_err(|e: AddrParseError| Error::InitMetrics(e.to_string()))?;
+        tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task
+
+        Some(Arc::new(ServerMetrics::default()))
     } else {
-        (None, None)
+        None
     };
 
     // telemetry setup
@@ -180,7 +200,6 @@ async fn main() -> Result<()> {
         args.l2_url
             .parse::<Uri>()
             .map_err(|e| Error::InvalidArgs(e.to_string()))?,
-        handler,
     ));
     let server = Server::builder()
         .set_http_middleware(service_builder)
@@ -233,6 +252,42 @@ fn init_tracing(endpoint: &str) {
         }
         Err(e) => {
             error!(message = "failed to initiate tracing provider", "error" = %e);
+        }
+    }
+}
+
+async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> Result<()> {
+    let listener = TcpListener::bind(addr)
+        .await
+        .map_err(|e| Error::InitMetrics(e.to_string()))?;
+    info!("Metrics server running on {}", addr);
+
+    loop {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                let handle = handle.clone(); // Clone the handle for each connection
+                tokio::task::spawn(async move {
+                    let service = service_fn(move |_req: Request<hyper::body::Incoming>| {
+                        let response = match _req.uri().path() {
+                            "/metrics" => Response::new(HttpBody::from(handle.render())),
+                            _ => Response::builder()
+                                .status(StatusCode::NOT_FOUND)
+                                .body(HttpBody::empty())
+                                .unwrap(),
+                        };
+                        async { Ok::<_, hyper::Error>(response) }
+                    });
+
+                    let io = TokioIo::new(stream);
+
+                    if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
+                        error!(message = "Error serving metrics connection", error = %err);
+                    }
+                });
+            }
+            Err(e) => {
+                error!(message = "Error accepting connection", error = %e);
+            }
         }
     }
 }
