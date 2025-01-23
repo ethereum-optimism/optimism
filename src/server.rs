@@ -230,7 +230,7 @@ where
         let l2_response = self
             .l2_client
             .client
-            .fork_choice_updated_v3(fork_choice_state.clone(), payload_attributes.clone())
+            .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
             .await
             .map_err(|e| match e {
                 ClientError::Call(err) => err,
@@ -270,7 +270,7 @@ where
                     3,
                 )
                 .unwrap();
-                let local_payload_id = builder_attrs.payload_id();
+                let local_payload_id = l2_response.payload_id.expect("local payload_id is None");
                 parent_span.set_attribute(KeyValue::new(
                     "parent_hash",
                     fork_choice_state.head_block_hash.to_string(),
@@ -316,9 +316,12 @@ where
                         if let (Some(local_id), Some(external_id)) =
                             (local_payload_id, external_payload_id)
                         {
-                            payload_trace_context
-                                .store_payload_id_mapping(local_id, external_id)
-                                .await;
+                            // Only store mapping if local and external IDs are different
+                            if local_id != external_id {
+                                payload_trace_context
+                                    .store_payload_id_mapping(local_id, external_id)
+                                    .await;
+                            }
                         }
                         let payload_id_str = external_payload_id
                             .map(|id| id.to_string())
@@ -371,11 +374,12 @@ where
             });
 
             // Get the external builder's payload ID that corresponds to our local payload ID
+            // If no mapping exists, fallback to local ID
             let external_payload_id = self
                 .payload_trace_context
                 .get_external_payload_id(&payload_id)
                 .await
-                .unwrap_or(payload_id); // Fallback to local ID if no mapping exists
+                .unwrap_or(payload_id);
 
             let builder = self.builder_client.clone();
             let payload = builder.client.get_payload_v3(external_payload_id).await.map_err(|e| {
