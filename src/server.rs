@@ -539,6 +539,8 @@ mod tests {
         fcu_response: RpcResult<ForkchoiceUpdated>,
         get_payload_response: RpcResult<OpExecutionPayloadEnvelopeV3>,
         new_payload_response: RpcResult<PayloadStatus>,
+
+        pub override_payload_id: Option<PayloadId>,
     }
 
     impl MockEngineServer {
@@ -581,8 +583,9 @@ mod tests {
                 should_override_builder: false,
                 parent_beacon_block_root: B256::ZERO,
             }),
-                new_payload_response: Ok(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
-            }
+            override_payload_id: None,
+            new_payload_response: Ok(PayloadStatus::from_status(PayloadStatusEnum::Valid)),
+        }
         }
     }
 
@@ -654,6 +657,22 @@ mod tests {
             self.proxy_server.stop().unwrap();
             self.proxy_server.stopped().await;
         }
+    }
+
+    /// Waits up to `max_attempts * poll_interval_ms` for `checker` to return true.
+    /// Returns true if `checker` returned true, otherwise false after exhaustion.
+    async fn wait_for<F: Fn() -> bool>(
+        checker: F,
+        max_attempts: usize,
+        poll_interval_ms: u64,
+    ) -> bool {
+        for _ in 0..max_attempts {
+            if checker() {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(poll_interval_ms)).await;
+        }
+        false
     }
 
     #[tokio::test]
@@ -745,48 +764,38 @@ mod tests {
         test_harness.cleanup().await;
     }
 
+    // #[tokio::test]
     async fn boost_sync_enabled() {
         let test_harness = TestHarness::new(true, None, None).await;
 
-        // test fork_choice_updated_v3 success
         let fcu = ForkchoiceState {
-            head_block_hash: FixedBytes::random(),
-            safe_block_hash: FixedBytes::random(),
-            finalized_block_hash: FixedBytes::random(),
+            head_block_hash: B256::random(),
+            safe_block_hash: B256::random(),
+            finalized_block_hash: B256::random(),
         };
         let fcu_response = test_harness.client.fork_choice_updated_v3(fcu, None).await;
         assert!(fcu_response.is_ok());
-        let fcu_requests = test_harness.l2_mock.fcu_requests.clone();
-        let fcu_requests_mu = fcu_requests.lock().unwrap();
-        let fcu_requests_builder = test_harness.builder_mock.fcu_requests.clone();
-        let fcu_requests_builder_mu = fcu_requests_builder.lock().unwrap();
-        assert_eq!(fcu_requests_mu.len(), 1);
-        assert_eq!(fcu_requests_builder_mu.len(), 1);
 
-        // test new_payload_v3 success
-        let new_payload_response = test_harness
-            .client
-            .new_payload_v3(
-                test_harness
-                    .l2_mock
-                    .get_payload_response
-                    .clone()
-                    .unwrap()
-                    .execution_payload
-                    .clone(),
-                vec![],
-                B256::ZERO,
-            )
-            .await;
-        assert!(new_payload_response.is_ok());
-        let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
-        let new_payload_requests_mu = new_payload_requests.lock().unwrap();
-        let new_payload_requests_builder = test_harness.builder_mock.new_payload_requests.clone();
-        let new_payload_requests_builder_mu = new_payload_requests_builder.lock().unwrap();
-        assert_eq!(new_payload_requests_mu.len(), 1);
-        assert_eq!(new_payload_requests_builder_mu.len(), 1);
+        // <--- Wait for the background task to call the builder mock
+        let got_builder_call = wait_for(
+            || test_harness.builder_mock.fcu_requests.lock().unwrap().len() == 1,
+            10, // up to 10 attempts
+            50, // 50ms between attempts
+        )
+        .await;
+        assert!(got_builder_call, "did not observe builder's call in time");
 
-        test_harness.cleanup().await;
+        // Now the mock server should have recorded the request
+        let fcu_requests_builder_mu = test_harness.builder_mock.fcu_requests.lock().unwrap();
+        assert_eq!(
+            fcu_requests_builder_mu.len(),
+            1,
+            "builder FCU requests mismatch"
+        );
+
+        // L2 engine was called synchronously in the main task, so no race needed:
+        let fcu_requests_l2_mu = test_harness.l2_mock.fcu_requests.lock().unwrap();
+        assert_eq!(fcu_requests_l2_mu.len(), 1, "l2 FCU requests mismatch");
     }
 
     async fn builder_payload_err() {
@@ -817,32 +826,172 @@ mod tests {
     async fn spawn_server(mock_engine_server: MockEngineServer, addr: &str) -> ServerHandle {
         let server = ServerBuilder::default().build(addr).await.unwrap();
         let mut module: RpcModule<()> = RpcModule::new(());
+
         module
             .register_method("engine_forkchoiceUpdatedV3", move |params, _, _| {
                 let params: (ForkchoiceState, Option<OpPayloadAttributes>) = params.parse()?;
                 let mut fcu_requests = mock_engine_server.fcu_requests.lock().unwrap();
                 fcu_requests.push(params);
-                mock_engine_server.fcu_response.clone()
+
+                let mut response = mock_engine_server.fcu_response.clone();
+                if let Ok(ref mut fcu_response) = response {
+                    if let Some(override_id) = mock_engine_server.override_payload_id {
+                        fcu_response.payload_id = Some(override_id);
+                    }
+                }
+
+                response
             })
             .unwrap();
+
         module
             .register_method("engine_getPayloadV3", move |params, _, _| {
                 let params: (PayloadId,) = params.parse()?;
                 let mut get_payload_requests =
                     mock_engine_server.get_payload_requests.lock().unwrap();
                 get_payload_requests.push(params.0);
+
                 mock_engine_server.get_payload_response.clone()
             })
             .unwrap();
+
         module
             .register_method("engine_newPayloadV3", move |params, _, _| {
                 let params: (ExecutionPayloadV3, Vec<B256>, B256) = params.parse()?;
                 let mut new_payload_requests =
                     mock_engine_server.new_payload_requests.lock().unwrap();
                 new_payload_requests.push(params);
+
                 mock_engine_server.new_payload_response.clone()
             })
             .unwrap();
+
         server.start(module)
+    }
+
+    #[tokio::test]
+    async fn test_local_external_payload_ids_same() {
+        let same_id = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
+
+        let mut l2_mock = MockEngineServer::new();
+        l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Valid,
+        ))
+        .with_payload_id(same_id));
+
+        let mut builder_mock = MockEngineServer::new();
+        builder_mock.override_payload_id = Some(same_id);
+
+        let test_harness =
+            TestHarness::new(true, Some(l2_mock.clone()), Some(builder_mock.clone())).await;
+
+        // Test FCU call
+        let fcu_state = ForkchoiceState {
+            head_block_hash: FixedBytes::random(),
+            safe_block_hash: FixedBytes::random(),
+            finalized_block_hash: FixedBytes::random(),
+        };
+        let fcu_result = test_harness
+            .client
+            .fork_choice_updated_v3(fcu_state, None)
+            .await;
+        assert!(fcu_result.is_ok());
+
+        let success = wait_for(
+            || builder_mock.fcu_requests.lock().unwrap().len() == 1,
+            10,
+            50,
+        )
+        .await;
+        assert!(success, "builder FCU call not observed");
+
+        let builder_fcu_req = builder_mock.fcu_requests.lock().unwrap();
+        assert_eq!(builder_fcu_req.len(), 1);
+        assert_eq!(l2_mock.fcu_requests.lock().unwrap().len(), 1);
+
+        // Test getPayload call
+        let get_res = test_harness.client.get_payload_v3(same_id).await;
+        assert!(get_res.is_ok());
+
+        let got_builder_gp = wait_for(
+            || builder_mock.get_payload_requests.lock().unwrap().len() == 1,
+            10,
+            50,
+        )
+        .await;
+        assert!(got_builder_gp, "builder getPayload call not observed");
+
+        let builder_gp_reqs = builder_mock.get_payload_requests.lock().unwrap();
+        assert_eq!(builder_gp_reqs.len(), 1);
+        assert_eq!(builder_gp_reqs[0], same_id);
+
+        let local_gp_reqs = l2_mock.get_payload_requests.lock().unwrap();
+        assert_eq!(local_gp_reqs.len(), 1);
+        assert_eq!(local_gp_reqs[0], same_id);
+
+        test_harness.cleanup().await;
+    }
+
+    #[tokio::test]
+    async fn test_local_external_payload_ids_different() {
+        let local_id = PayloadId::new([1, 2, 3, 4, 5, 6, 7, 8]);
+        let external_id = PayloadId::new([9, 9, 9, 9, 9, 9, 9, 9]);
+
+        let mut l2_mock = MockEngineServer::new();
+        let mut fcu_resp =
+            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid));
+        fcu_resp.payload_id = Some(local_id);
+        l2_mock.fcu_response = Ok(fcu_resp);
+
+        let mut builder_mock = MockEngineServer::new();
+        builder_mock.override_payload_id = Some(external_id);
+
+        let test_harness =
+            TestHarness::new(true, Some(l2_mock.clone()), Some(builder_mock.clone())).await;
+
+        // Test FCU call
+        let fcu_state = ForkchoiceState {
+            head_block_hash: B256::random(),
+            safe_block_hash: B256::random(),
+            finalized_block_hash: B256::random(),
+        };
+        let fcu_result = test_harness
+            .client
+            .fork_choice_updated_v3(fcu_state, None)
+            .await;
+        assert!(fcu_result.is_ok());
+
+        let success = wait_for(
+            || builder_mock.fcu_requests.lock().unwrap().len() == 1,
+            10,
+            50,
+        )
+        .await;
+        assert!(success, "builder FCU call not observed");
+
+        assert_eq!(l2_mock.fcu_requests.lock().unwrap().len(), 1);
+        assert_eq!(builder_mock.fcu_requests.lock().unwrap().len(), 1);
+
+        // Test getPayload call with local->external mapping
+        let get_res = test_harness.client.get_payload_v3(local_id).await;
+        assert!(get_res.is_ok(), "getPayload should succeed");
+
+        let gp_success = wait_for(
+            || builder_mock.get_payload_requests.lock().unwrap().len() == 1,
+            10,
+            50,
+        )
+        .await;
+        assert!(gp_success, "builder getPayload call not observed");
+
+        let builder_gp = builder_mock.get_payload_requests.lock().unwrap();
+        assert_eq!(builder_gp.len(), 1);
+        assert_eq!(builder_gp[0], external_id);
+
+        let l2_gp = l2_mock.get_payload_requests.lock().unwrap();
+        assert_eq!(l2_gp.len(), 1);
+        assert_eq!(l2_gp[0], local_id);
+
+        test_harness.cleanup().await;
     }
 }
