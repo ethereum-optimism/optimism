@@ -526,6 +526,7 @@ mod tests {
     use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
+    use tokio::time::sleep;
 
     const L2_ADDR: &str = "0.0.0.0:8554";
     const BUILDER_ADDR: &str = "0.0.0.0:8555";
@@ -659,22 +660,6 @@ mod tests {
         }
     }
 
-    /// Waits up to `max_attempts * poll_interval_ms` for `checker` to return true.
-    /// Returns true if `checker` returned true, otherwise false after exhaustion.
-    async fn wait_for<F: Fn() -> bool>(
-        checker: F,
-        max_attempts: usize,
-        poll_interval_ms: u64,
-    ) -> bool {
-        for _ in 0..max_attempts {
-            if checker() {
-                return true;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(poll_interval_ms)).await;
-        }
-        false
-    }
-
     #[tokio::test]
     async fn test_server() {
         let _ = tracing_subscriber::fmt::try_init();
@@ -764,38 +749,50 @@ mod tests {
         test_harness.cleanup().await;
     }
 
-    // #[tokio::test]
     async fn boost_sync_enabled() {
         let test_harness = TestHarness::new(true, None, None).await;
 
         let fcu = ForkchoiceState {
-            head_block_hash: B256::random(),
-            safe_block_hash: B256::random(),
-            finalized_block_hash: B256::random(),
+            head_block_hash: FixedBytes::random(),
+            safe_block_hash: FixedBytes::random(),
+            finalized_block_hash: FixedBytes::random(),
         };
         let fcu_response = test_harness.client.fork_choice_updated_v3(fcu, None).await;
         assert!(fcu_response.is_ok());
 
-        // <--- Wait for the background task to call the builder mock
-        let got_builder_call = wait_for(
-            || test_harness.builder_mock.fcu_requests.lock().unwrap().len() == 1,
-            10, // up to 10 attempts
-            50, // 50ms between attempts
-        )
-        .await;
-        assert!(got_builder_call, "did not observe builder's call in time");
+        sleep(std::time::Duration::from_millis(100)).await;
 
-        // Now the mock server should have recorded the request
-        let fcu_requests_builder_mu = test_harness.builder_mock.fcu_requests.lock().unwrap();
-        assert_eq!(
-            fcu_requests_builder_mu.len(),
-            1,
-            "builder FCU requests mismatch"
-        );
+        let fcu_requests = test_harness.l2_mock.fcu_requests.clone();
+        let fcu_requests_mu = fcu_requests.lock().unwrap();
+        let fcu_requests_builder = test_harness.builder_mock.fcu_requests.clone();
+        let fcu_requests_builder_mu = fcu_requests_builder.lock().unwrap();
+        assert_eq!(fcu_requests_mu.len(), 1);
+        assert_eq!(fcu_requests_builder_mu.len(), 1);
 
-        // L2 engine was called synchronously in the main task, so no race needed:
-        let fcu_requests_l2_mu = test_harness.l2_mock.fcu_requests.lock().unwrap();
-        assert_eq!(fcu_requests_l2_mu.len(), 1, "l2 FCU requests mismatch");
+        // test new_payload_v3 success
+        let new_payload_response = test_harness
+            .client
+            .new_payload_v3(
+                test_harness
+                    .l2_mock
+                    .get_payload_response
+                    .clone()
+                    .unwrap()
+                    .execution_payload
+                    .clone(),
+                vec![],
+                B256::ZERO,
+            )
+            .await;
+        assert!(new_payload_response.is_ok());
+        let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
+        let new_payload_requests_mu = new_payload_requests.lock().unwrap();
+        let new_payload_requests_builder = test_harness.builder_mock.new_payload_requests.clone();
+        let new_payload_requests_builder_mu = new_payload_requests_builder.lock().unwrap();
+        assert_eq!(new_payload_requests_mu.len(), 1);
+        assert_eq!(new_payload_requests_builder_mu.len(), 1);
+
+        test_harness.cleanup().await;
     }
 
     async fn builder_payload_err() {
@@ -886,24 +883,16 @@ mod tests {
             TestHarness::new(true, Some(l2_mock.clone()), Some(builder_mock.clone())).await;
 
         // Test FCU call
-        let fcu_state = ForkchoiceState {
+        let fcu = ForkchoiceState {
             head_block_hash: FixedBytes::random(),
             safe_block_hash: FixedBytes::random(),
             finalized_block_hash: FixedBytes::random(),
         };
-        let fcu_result = test_harness
-            .client
-            .fork_choice_updated_v3(fcu_state, None)
-            .await;
-        assert!(fcu_result.is_ok());
+        let fcu_response = test_harness.client.fork_choice_updated_v3(fcu, None).await;
+        assert!(fcu_response.is_ok());
 
-        let success = wait_for(
-            || builder_mock.fcu_requests.lock().unwrap().len() == 1,
-            10,
-            50,
-        )
-        .await;
-        assert!(success, "builder FCU call not observed");
+        // wait for builder to observe the FCU call
+        sleep(std::time::Duration::from_millis(100)).await;
 
         let builder_fcu_req = builder_mock.fcu_requests.lock().unwrap();
         assert_eq!(builder_fcu_req.len(), 1);
@@ -913,13 +902,8 @@ mod tests {
         let get_res = test_harness.client.get_payload_v3(same_id).await;
         assert!(get_res.is_ok());
 
-        let got_builder_gp = wait_for(
-            || builder_mock.get_payload_requests.lock().unwrap().len() == 1,
-            10,
-            50,
-        )
-        .await;
-        assert!(got_builder_gp, "builder getPayload call not observed");
+        // wait for builder to observe the getPayload call
+        sleep(std::time::Duration::from_millis(100)).await;
 
         let builder_gp_reqs = builder_mock.get_payload_requests.lock().unwrap();
         assert_eq!(builder_gp_reqs.len(), 1);
@@ -950,24 +934,16 @@ mod tests {
             TestHarness::new(true, Some(l2_mock.clone()), Some(builder_mock.clone())).await;
 
         // Test FCU call
-        let fcu_state = ForkchoiceState {
+        let fcu = ForkchoiceState {
             head_block_hash: B256::random(),
             safe_block_hash: B256::random(),
             finalized_block_hash: B256::random(),
         };
-        let fcu_result = test_harness
-            .client
-            .fork_choice_updated_v3(fcu_state, None)
-            .await;
-        assert!(fcu_result.is_ok());
+        let fcu_response = test_harness.client.fork_choice_updated_v3(fcu, None).await;
+        assert!(fcu_response.is_ok());
 
-        let success = wait_for(
-            || builder_mock.fcu_requests.lock().unwrap().len() == 1,
-            10,
-            50,
-        )
-        .await;
-        assert!(success, "builder FCU call not observed");
+        // wait for builder to observe the FCU call
+        sleep(std::time::Duration::from_millis(100)).await;
 
         assert_eq!(l2_mock.fcu_requests.lock().unwrap().len(), 1);
         assert_eq!(builder_mock.fcu_requests.lock().unwrap().len(), 1);
@@ -976,13 +952,8 @@ mod tests {
         let get_res = test_harness.client.get_payload_v3(local_id).await;
         assert!(get_res.is_ok(), "getPayload should succeed");
 
-        let gp_success = wait_for(
-            || builder_mock.get_payload_requests.lock().unwrap().len() == 1,
-            10,
-            50,
-        )
-        .await;
-        assert!(gp_success, "builder getPayload call not observed");
+        // wait for builder to observe the getPayload call
+        sleep(std::time::Duration::from_millis(100)).await;
 
         let builder_gp = builder_mock.get_payload_requests.lock().unwrap();
         assert_eq!(builder_gp.len(), 1);
