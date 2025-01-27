@@ -330,13 +330,12 @@ where
             })
         });
 
-        match tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(
-                self.l2_client
-                    .client
-                    .set_max_da_size(max_tx_size, max_block_size),
-            )
-        }) {
+        match self
+            .l2_client
+            .client
+            .set_max_da_size(max_tx_size, max_block_size)
+            .await
+        {
             Ok(result) => Ok(result),
             Err(e) => match e {
                 ClientError::Call(err) => Err(err),
