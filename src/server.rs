@@ -18,7 +18,6 @@ use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
-use reth_rpc_api::{MinerApiClient, MinerApiServer};
 use reth_rpc_layer::AuthClientService;
 use std::num::NonZero;
 use std::sync::Arc;
@@ -196,11 +195,33 @@ where
     }
 }
 
+/*TODO: Remove this in favor of the `MinerApi` from Reth once the
+       trait methods are updated to be async
+*/
+/// Miner namespace rpc interface that can control miner/builder settings
+#[rpc(server, client, namespace = "miner")]
+pub trait MinerApi {
+    /// Sets the extra data string that is included when this miner mines a block.
+    ///
+    /// Returns an error if the extra data is too long.
+    #[method(name = "setExtra")]
+    async fn set_extra(&self, record: Bytes) -> RpcResult<bool>;
+
+    /// Sets the minimum accepted gas price for the miner.
+    #[method(name = "setGasPrice")]
+    async fn set_gas_price(&self, gas_price: U128) -> RpcResult<bool>;
+
+    /// Sets the gaslimit to target towards during mining.
+    #[method(name = "setGasLimit")]
+    async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool>;
+}
+
+#[async_trait]
 impl<C> MinerApiServer for EthEngineApi<HttpClientWrapper<C>>
 where
     C: MinerApiClient + Send + Sync + Clone + 'static,
 {
-    fn set_extra(&self, record: Bytes) -> RpcResult<bool> {
+    async fn set_extra(&self, record: Bytes) -> RpcResult<bool> {
         debug!(
             message = "received miner_setExtra",
             "record_len" = record.len()
@@ -215,9 +236,7 @@ where
             })
         });
 
-        match tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(self.l2_client.client.set_extra(record))
-        }) {
+        match self.l2_client.client.set_extra(record).await {
             Ok(result) => Ok(result),
             Err(e) => match e {
                 ClientError::Call(err) => Err(err),
@@ -233,7 +252,7 @@ where
         }
     }
 
-    fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool> {
+    async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool> {
         debug!(
             message = "received miner_setGasLimit",
             "gas_price" = ?gas_price
@@ -248,10 +267,7 @@ where
             })
         });
 
-        match tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current()
-                .block_on(self.l2_client.client.set_gas_limit(gas_price))
-        }) {
+        match self.l2_client.client.set_gas_limit(gas_price).await {
             Ok(result) => Ok(result),
             Err(e) => match e {
                 ClientError::Call(err) => Err(err),
@@ -267,22 +283,18 @@ where
         }
     }
 
-    fn set_gas_price(&self, gas_price: U128) -> RpcResult<bool> {
+    async fn set_gas_price(&self, gas_price: U128) -> RpcResult<bool> {
         debug!(message = "received miner_setGasPrice", ?gas_price);
 
         let builder_client = self.builder_client.client.clone();
         let url = self.builder_client.url.clone();
-        let gas_price = gas_price.clone();
         tokio::spawn(async move {
             builder_client.set_gas_price(gas_price).await.map_err(|e| {
                 error!(message = "error calling miner_setGasPrice for builder", "url" =url, "error" = %e);
             })
         });
 
-        match tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current()
-                .block_on(self.l2_client.client.set_gas_price(gas_price))
-        }) {
+        match self.l2_client.client.set_gas_price(gas_price).await {
             Ok(result) => Ok(result),
             Err(e) => match e {
                 ClientError::Call(err) => Err(err),
@@ -299,12 +311,46 @@ where
     }
 }
 
+#[async_trait]
 impl<C> MinerApiExtServer for EthEngineApi<HttpClientWrapper<C>>
 where
     C: MinerApiExtClient + Send + Sync + Clone + 'static,
 {
     async fn set_max_da_size(&self, max_tx_size: U64, max_block_size: U64) -> RpcResult<bool> {
-        todo!()
+        debug!(
+            message = "received miner_setMaxDASize",
+            ?max_tx_size,
+            ?max_block_size
+        );
+
+        let builder_client = self.builder_client.client.clone();
+        let url = self.builder_client.url.clone();
+        tokio::spawn(async move {
+            builder_client.set_max_da_size(max_tx_size, max_block_size).await.map_err(|e| {
+                error!(message = "error calling miner_setMaxDASize for builder", "url" =url, "error" = %e);
+            })
+        });
+
+        match tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(
+                self.l2_client
+                    .client
+                    .set_max_da_size(max_tx_size, max_block_size),
+            )
+        }) {
+            Ok(result) => Ok(result),
+            Err(e) => match e {
+                ClientError::Call(err) => Err(err),
+                other_error => {
+                    error!(
+                        message = "error calling miner_setMaxDASize for l2 client",
+                        "url" = self.l2_client.url,
+                        "error" = %other_error,
+                    );
+                    Err(ErrorCode::InternalError.into())
+                }
+            },
+        }
     }
 }
 
