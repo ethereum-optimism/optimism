@@ -4,6 +4,7 @@ use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
+use http::method;
 use jsonrpsee::core::{async_trait, ClientError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::HttpClient;
@@ -116,6 +117,21 @@ pub trait EthApi {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
 }
 
+#[rpc(server, client, namespace = "miner")]
+pub trait MinerApi {
+    #[method(name = "setMaxDASize")]
+    async fn set_max_da_size(&self, bytes: Bytes) -> RpcResult<bool>;
+
+    #[method(name = "setExtra")]
+    async fn set_extra(&self, bytes: Bytes) -> RpcResult<bool>;
+
+    #[method(name = "setGasPrice")]
+    async fn set_gas_price(&self, bytes: Bytes) -> RpcResult<bool>;
+
+    #[method(name = "setGasLimit")]
+    async fn set_gas_limit(&self, bytes: Bytes) -> RpcResult<bool>;
+}
+
 pub struct HttpClientWrapper<C = HttpClient<AuthClientService<HttpBackend>>> {
     pub client: C,
     pub url: String,
@@ -193,6 +209,8 @@ where
             })
     }
 }
+
+// TODO: set this for all the miner methods impl a trait or use one from reth
 
 #[async_trait]
 impl<C> EngineApiServer for EthEngineApi<HttpClientWrapper<C>>
