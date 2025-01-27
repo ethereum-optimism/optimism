@@ -4,7 +4,6 @@ use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
-use http::method;
 use jsonrpsee::core::{async_trait, ClientError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::HttpClient;
@@ -210,7 +209,55 @@ where
     }
 }
 
-// TODO: set this for all the miner methods impl a trait or use one from reth
+#[async_trait]
+impl<C> MinerApiServer for EthEngineApi<HttpClientWrapper<C>>
+where
+    C: MinerApiClient + Send + Sync + Clone + 'static,
+{
+    async fn set_max_da_size(&self, bytes: Bytes) -> RpcResult<bool> {
+        debug!(
+            message = "received set_max_da_size",
+            "bytes_len" = bytes.len()
+        );
+
+        let builder_client = self.builder_client.client.clone();
+        let url = self.builder_client.url.clone();
+        let tx_bytes = bytes.clone();
+        tokio::spawn(async move {
+            builder_client.set_max_da_size(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling set_max_da_size for builder", "url" = url, "error" = %e);
+            })
+        });
+
+        self.l2_client
+            .client
+            .set_max_da_size(bytes)
+            .await
+            .map_err(|e| match e {
+                ClientError::Call(err) => err,
+                other_error => {
+                    error!(
+                        message = "error calling set_max_da_size for l2 client",
+                        "url" = self.l2_client.url,
+                        "error" = %other_error,
+                    );
+                    ErrorCode::InternalError.into()
+                }
+            })
+    }
+
+    async fn set_extra(&self, bytes: Bytes) -> RpcResult<bool> {
+        todo!()
+    }
+
+    async fn set_gas_price(&self, bytes: Bytes) -> RpcResult<bool> {
+        todo!()
+    }
+
+    async fn set_gas_limit(&self, bytes: Bytes) -> RpcResult<bool> {
+        todo!()
+    }
+}
 
 #[async_trait]
 impl<C> EngineApiServer for EthEngineApi<HttpClientWrapper<C>>
