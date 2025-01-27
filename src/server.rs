@@ -312,7 +312,7 @@ where
 
     async fn set_gas_limit(&self, bytes: Bytes) -> RpcResult<bool> {
         debug!(
-            message = "received set_gas_limit",
+            message = "received miner_setGasLimit",
             "bytes_len" = bytes.len()
         );
 
@@ -321,7 +321,7 @@ where
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
             builder_client.set_gas_limit(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling set_gas_limit for builder", "url" =url, "error" = %e);
+                error!(message = "error calling miner_setGasLimit for builder", "url" =url, "error" = %e);
             })
         });
 
@@ -333,7 +333,7 @@ where
                 ClientError::Call(err) => err,
                 other_error => {
                     error!(
-                        message = "error calling set_gas_limit for l2 client",
+                        message = "error calling miner_setGasLimit for l2 client",
                         "url" = self.l2_client.url,
                         "error" = %other_error,
                     );
@@ -938,4 +938,7 @@ mod tests {
             .unwrap();
         server.start(module)
     }
+
+    #[test]
+    fn test_set_extra() {}
 }
