@@ -1,5 +1,5 @@
 use crate::metrics::ServerMetrics;
-use alloy_primitives::{Bytes, B256};
+use alloy_primitives::{Bytes, B256, U128, U64};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
@@ -11,12 +11,14 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
 use lru::LruCache;
+use op_alloy_rpc_jsonrpsee::traits::MinerApiExtServer;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
+use reth_rpc_api::{MinerApiClient, MinerApiServer};
 use reth_rpc_layer::AuthClientService;
 use std::num::NonZero;
 use std::sync::Arc;
@@ -116,21 +118,6 @@ pub trait EthApi {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
 }
 
-#[rpc(server, client, namespace = "miner")]
-pub trait MinerApi {
-    #[method(name = "setMaxDASize")]
-    async fn set_max_da_size(&self, bytes: Bytes) -> RpcResult<bool>;
-
-    #[method(name = "setExtra")]
-    async fn set_extra(&self, bytes: Bytes) -> RpcResult<bool>;
-
-    #[method(name = "setGasPrice")]
-    async fn set_gas_price(&self, bytes: Bytes) -> RpcResult<bool>;
-
-    #[method(name = "setGasLimit")]
-    async fn set_gas_limit(&self, bytes: Bytes) -> RpcResult<bool>;
-}
-
 pub struct HttpClientWrapper<C = HttpClient<AuthClientService<HttpBackend>>> {
     pub client: C,
     pub url: String,
@@ -209,137 +196,106 @@ where
     }
 }
 
-#[async_trait]
 impl<C> MinerApiServer for EthEngineApi<HttpClientWrapper<C>>
 where
     C: MinerApiClient + Send + Sync + Clone + 'static,
 {
-    async fn set_max_da_size(&self, bytes: Bytes) -> RpcResult<bool> {
-        debug!(
-            message = "received miner_setMaxDASize",
-            "bytes_len" = bytes.len()
-        );
-
-        let builder_client = self.builder_client.client.clone();
-        let url = self.builder_client.url.clone();
-        let tx_bytes = bytes.clone();
-        tokio::spawn(async move {
-            builder_client.set_max_da_size(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling miner_setMaxDASize for builder", "url" =url, "error" = %e);
-            })
-        });
-
-        self.l2_client
-            .client
-            .set_max_da_size(bytes)
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err,
-                other_error => {
-                    error!(
-                        message = "error calling miner_setMaxDASize for l2 client",
-                        "url" = self.l2_client.url,
-                        "error" = %other_error,
-                    );
-                    ErrorCode::InternalError.into()
-                }
-            })
-    }
-
-    async fn set_extra(&self, bytes: Bytes) -> RpcResult<bool> {
+    fn set_extra(&self, record: Bytes) -> RpcResult<bool> {
         debug!(
             message = "received miner_setExtra",
-            "bytes_len" = bytes.len()
+            "record_len" = record.len()
         );
 
         let builder_client = self.builder_client.client.clone();
         let url = self.builder_client.url.clone();
-        let tx_bytes = bytes.clone();
+        let rec = record.clone();
         tokio::spawn(async move {
-            builder_client.set_extra(tx_bytes).await.map_err(|e| {
+            builder_client.set_extra(rec).await.map_err(|e| {
                 error!(message = "error calling miner_setExtra for builder", "url" =url, "error" = %e);
             })
         });
 
-        self.l2_client
-            .client
-            .set_extra(bytes)
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err,
+        match tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(self.l2_client.client.set_extra(record))
+        }) {
+            Ok(result) => Ok(result),
+            Err(e) => match e {
+                ClientError::Call(err) => Err(err),
                 other_error => {
                     error!(
                         message = "error calling miner_setExtra for l2 client",
                         "url" = self.l2_client.url,
                         "error" = %other_error,
                     );
-                    ErrorCode::InternalError.into()
+                    Err(ErrorCode::InternalError.into())
                 }
-            })
+            },
+        }
     }
 
-    async fn set_gas_price(&self, bytes: Bytes) -> RpcResult<bool> {
-        debug!(
-            message = "received miner_setGasPrice",
-            "bytes_len" = bytes.len()
-        );
-
-        let builder_client = self.builder_client.client.clone();
-        let url = self.builder_client.url.clone();
-        let tx_bytes = bytes.clone();
-        tokio::spawn(async move {
-            builder_client.set_gas_price(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling miner_setGasPrice for builder", "url" =url, "error" = %e);
-            })
-        });
-
-        self.l2_client
-            .client
-            .set_gas_price(bytes)
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err,
-                other_error => {
-                    error!(
-                        message = "error calling miner_setGasPrice for l2 client",
-                        "url" = self.l2_client.url,
-                        "error" = %other_error,
-                    );
-                    ErrorCode::InternalError.into()
-                }
-            })
-    }
-
-    async fn set_gas_limit(&self, bytes: Bytes) -> RpcResult<bool> {
+    fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool> {
         debug!(
             message = "received miner_setGasLimit",
-            "bytes_len" = bytes.len()
+            "gas_price" = ?gas_price
         );
 
         let builder_client = self.builder_client.client.clone();
         let url = self.builder_client.url.clone();
-        let tx_bytes = bytes.clone();
+        let gas_price = gas_price.clone();
         tokio::spawn(async move {
-            builder_client.set_gas_limit(tx_bytes).await.map_err(|e| {
+            builder_client.set_gas_limit(gas_price).await.map_err(|e| {
                 error!(message = "error calling miner_setGasLimit for builder", "url" =url, "error" = %e);
             })
         });
 
-        self.l2_client
-            .client
-            .set_gas_limit(bytes)
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err,
+        match tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(self.l2_client.client.set_gas_limit(gas_price))
+        }) {
+            Ok(result) => Ok(result),
+            Err(e) => match e {
+                ClientError::Call(err) => Err(err),
                 other_error => {
                     error!(
                         message = "error calling miner_setGasLimit for l2 client",
                         "url" = self.l2_client.url,
                         "error" = %other_error,
                     );
-                    ErrorCode::InternalError.into()
+                    Err(ErrorCode::InternalError.into())
                 }
+            },
+        }
+    }
+
+    fn set_gas_price(&self, gas_price: U128) -> RpcResult<bool> {
+        debug!(message = "received miner_setGasPrice", ?gas_price);
+
+        let builder_client = self.builder_client.client.clone();
+        let url = self.builder_client.url.clone();
+        let gas_price = gas_price.clone();
+        tokio::spawn(async move {
+            builder_client.set_gas_price(gas_price).await.map_err(|e| {
+                error!(message = "error calling miner_setGasPrice for builder", "url" =url, "error" = %e);
             })
+        });
+
+        match tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(self.l2_client.client.set_gas_price(gas_price))
+        }) {
+            Ok(result) => Ok(result),
+            Err(e) => match e {
+                ClientError::Call(err) => Err(err),
+                other_error => {
+                    error!(
+                        message = "error calling miner_setGasPrice for l2 client",
+                        "url" = self.l2_client.url,
+                        "error" = %other_error,
+                    );
+                    Err(ErrorCode::InternalError.into())
+                }
+            },
+        }
     }
 }
 
