@@ -938,7 +938,4 @@ mod tests {
             .unwrap();
         server.start(module)
     }
-
-    #[test]
-    fn test_set_extra() {}
 }
