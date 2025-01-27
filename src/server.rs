@@ -225,7 +225,7 @@ where
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
             builder_client.set_max_da_size(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling set_max_da_size for builder", "url" = url, "error" = %e);
+                error!(message = "error calling set_max_da_size for builder", "url" =url, "error" = %e);
             })
         });
 
@@ -247,15 +247,96 @@ where
     }
 
     async fn set_extra(&self, bytes: Bytes) -> RpcResult<bool> {
-        todo!()
+        debug!(message = "received set_extra", "bytes_len" = bytes.len());
+
+        let builder_client = self.builder_client.client.clone();
+        let url = self.builder_client.url.clone();
+        let tx_bytes = bytes.clone();
+        tokio::spawn(async move {
+            builder_client.set_extra(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling set_extra for builder", "url" =url, "error" = %e);
+            })
+        });
+
+        self.l2_client
+            .client
+            .set_extra(bytes)
+            .await
+            .map_err(|e| match e {
+                ClientError::Call(err) => err,
+                other_error => {
+                    error!(
+                        message = "error calling set_extra for l2 client",
+                        "url" = self.l2_client.url,
+                        "error" = %other_error,
+                    );
+                    ErrorCode::InternalError.into()
+                }
+            })
     }
 
     async fn set_gas_price(&self, bytes: Bytes) -> RpcResult<bool> {
-        todo!()
+        debug!(
+            message = "received set_gas_price",
+            "bytes_len" = bytes.len()
+        );
+
+        let builder_client = self.builder_client.client.clone();
+        let url = self.builder_client.url.clone();
+        let tx_bytes = bytes.clone();
+        tokio::spawn(async move {
+            builder_client.set_gas_price(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling set_gas_price for builder", "url" =url, "error" = %e);
+            })
+        });
+
+        self.l2_client
+            .client
+            .set_gas_price(bytes)
+            .await
+            .map_err(|e| match e {
+                ClientError::Call(err) => err,
+                other_error => {
+                    error!(
+                        message = "error calling set_gas_price for l2 client",
+                        "url" = self.l2_client.url,
+                        "error" = %other_error,
+                    );
+                    ErrorCode::InternalError.into()
+                }
+            })
     }
 
     async fn set_gas_limit(&self, bytes: Bytes) -> RpcResult<bool> {
-        todo!()
+        debug!(
+            message = "received set_gas_limit",
+            "bytes_len" = bytes.len()
+        );
+
+        let builder_client = self.builder_client.client.clone();
+        let url = self.builder_client.url.clone();
+        let tx_bytes = bytes.clone();
+        tokio::spawn(async move {
+            builder_client.set_gas_limit(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling set_gas_limit for builder", "url" =url, "error" = %e);
+            })
+        });
+
+        self.l2_client
+            .client
+            .set_gas_limit(bytes)
+            .await
+            .map_err(|e| match e {
+                ClientError::Call(err) => err,
+                other_error => {
+                    error!(
+                        message = "error calling set_gas_limit for l2 client",
+                        "url" = self.l2_client.url,
+                        "error" = %other_error,
+                    );
+                    ErrorCode::InternalError.into()
+                }
+            })
     }
 }
 
