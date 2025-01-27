@@ -260,7 +260,6 @@ where
 
         let builder_client = self.builder_client.client.clone();
         let url = self.builder_client.url.clone();
-        let gas_price = gas_price.clone();
         tokio::spawn(async move {
             builder_client.set_gas_limit(gas_price).await.map_err(|e| {
                 error!(message = "error calling miner_setGasLimit for builder", "url" =url, "error" = %e);
