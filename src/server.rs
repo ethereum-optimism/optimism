@@ -216,7 +216,7 @@ where
 {
     async fn set_max_da_size(&self, bytes: Bytes) -> RpcResult<bool> {
         debug!(
-            message = "received set_max_da_size",
+            message = "received miner_setMaxDASize",
             "bytes_len" = bytes.len()
         );
 
@@ -225,7 +225,7 @@ where
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
             builder_client.set_max_da_size(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling set_max_da_size for builder", "url" =url, "error" = %e);
+                error!(message = "error calling miner_setMaxDASize for builder", "url" =url, "error" = %e);
             })
         });
 
@@ -237,7 +237,7 @@ where
                 ClientError::Call(err) => err,
                 other_error => {
                     error!(
-                        message = "error calling set_max_da_size for l2 client",
+                        message = "error calling miner_setMaxDASize for l2 client",
                         "url" = self.l2_client.url,
                         "error" = %other_error,
                     );
@@ -247,14 +247,17 @@ where
     }
 
     async fn set_extra(&self, bytes: Bytes) -> RpcResult<bool> {
-        debug!(message = "received set_extra", "bytes_len" = bytes.len());
+        debug!(
+            message = "received miner_setExtra",
+            "bytes_len" = bytes.len()
+        );
 
         let builder_client = self.builder_client.client.clone();
         let url = self.builder_client.url.clone();
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
             builder_client.set_extra(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling set_extra for builder", "url" =url, "error" = %e);
+                error!(message = "error calling miner_setExtra for builder", "url" =url, "error" = %e);
             })
         });
 
@@ -266,7 +269,7 @@ where
                 ClientError::Call(err) => err,
                 other_error => {
                     error!(
-                        message = "error calling set_extra for l2 client",
+                        message = "error calling miner_setExtra for l2 client",
                         "url" = self.l2_client.url,
                         "error" = %other_error,
                     );
@@ -277,7 +280,7 @@ where
 
     async fn set_gas_price(&self, bytes: Bytes) -> RpcResult<bool> {
         debug!(
-            message = "received set_gas_price",
+            message = "received miner_setGasPrice",
             "bytes_len" = bytes.len()
         );
 
@@ -286,7 +289,7 @@ where
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
             builder_client.set_gas_price(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling set_gas_price for builder", "url" =url, "error" = %e);
+                error!(message = "error calling miner_setGasPrice for builder", "url" =url, "error" = %e);
             })
         });
 
@@ -298,7 +301,7 @@ where
                 ClientError::Call(err) => err,
                 other_error => {
                     error!(
-                        message = "error calling set_gas_price for l2 client",
+                        message = "error calling miner_setGasPrice for l2 client",
                         "url" = self.l2_client.url,
                         "error" = %other_error,
                     );
