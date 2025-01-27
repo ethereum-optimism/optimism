@@ -28,9 +28,6 @@ hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 serde_json = "1.0.96"
 reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
-reth-rpc-api = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222", features = [
-    "client",
-] }
 reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222", features = [
     "optimism",
 ] }
