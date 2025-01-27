@@ -11,7 +11,7 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
 use lru::LruCache;
-use op_alloy_rpc_jsonrpsee::traits::MinerApiExtServer;
+use op_alloy_rpc_jsonrpsee::traits::{MinerApiExtClient, MinerApiExtServer};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
@@ -296,6 +296,15 @@ where
                 }
             },
         }
+    }
+}
+
+impl<C> MinerApiExtServer for EthEngineApi<HttpClientWrapper<C>>
+where
+    C: MinerApiExtClient + Send + Sync + Clone + 'static,
+{
+    async fn set_max_da_size(&self, max_tx_size: U64, max_block_size: U64) -> RpcResult<bool> {
+        todo!()
     }
 }
 
