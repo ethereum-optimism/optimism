@@ -1,6 +1,5 @@
 use clap::{arg, ArgGroup, Parser};
 use dotenv::dotenv;
-use error::Error;
 use http::{StatusCode, Uri};
 use hyper::service::service_fn;
 use hyper::{server::conn::http1, Request, Response};
@@ -19,8 +18,8 @@ use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use server::{EngineApiServer, EthEngineApi, HttpClientWrapper};
-use std::net::AddrParseError;
+use server::{HttpClientWrapper, RollupBoostServer};
+
 use std::sync::Arc;
 use std::time::Duration;
 use std::{net::SocketAddr, path::PathBuf};
@@ -29,7 +28,6 @@ use tracing::error;
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
-mod error;
 mod metrics;
 mod proxy;
 mod server;
@@ -111,10 +109,8 @@ struct Args {
     l2_timeout: u64,
 }
 
-type Result<T> = core::result::Result<T, Error>;
-
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> eyre::Result<()> {
     // Load .env file
     dotenv().ok();
     let args: Args = Args::parse();
@@ -144,14 +140,11 @@ async fn main() -> Result<()> {
         // Build metrics stack
         Stack::new(recorder)
             .push(PrefixLayer::new("rollup-boost"))
-            .install()
-            .map_err(|e| Error::InitMetrics(e.to_string()))?;
+            .install()?;
 
         // Start the metrics server
         let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
-        let addr: SocketAddr = metrics_addr
-            .parse()
-            .map_err(|e: AddrParseError| Error::InitMetrics(e.to_string()))?;
+        let addr: SocketAddr = metrics_addr.parse()?;
         tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task
 
         Some(Arc::new(ServerMetrics::default()))
@@ -168,27 +161,21 @@ async fn main() -> Result<()> {
     let jwt_secret = match (args.jwt_path, args.jwt_token) {
         (Some(file), None) => {
             // Read JWT secret from file
-            JwtSecret::from_file(&file).map_err(|e| Error::InvalidArgs(e.to_string()))?
+            JwtSecret::from_file(&file)?
         }
         (None, Some(secret)) => {
             // Use the provided JWT secret
-            JwtSecret::from_hex(secret).map_err(|e| Error::InvalidArgs(e.to_string()))?
+            JwtSecret::from_hex(secret)?
         }
         _ => {
             // This case should not happen due to ArgGroup
-            return Err(Error::InvalidArgs(
-                "Either jwt_file or jwt_secret must be provided".into(),
-            ));
+            eyre::bail!("Either jwt_file or jwt_secret must be provided");
         }
     };
 
     let builder_jwt_secret = match (args.builder_jwt_path, args.builder_jwt_token) {
-        (Some(file), None) => {
-            JwtSecret::from_file(&file).map_err(|e| Error::InvalidArgs(e.to_string()))?
-        }
-        (None, Some(secret)) => {
-            JwtSecret::from_hex(secret).map_err(|e| Error::InvalidArgs(e.to_string()))?
-        }
+        (Some(file), None) => JwtSecret::from_file(&file)?,
+        (None, Some(secret)) => JwtSecret::from_hex(secret)?,
         _ => jwt_secret,
     };
 
@@ -199,34 +186,26 @@ async fn main() -> Result<()> {
     let builder_client =
         create_client(&args.builder_url, builder_jwt_secret, args.builder_timeout)?;
 
-    let eth_engine_api = EthEngineApi::new(
+    let rollup_boost = RollupBoostServer::new(
         Arc::new(l2_client),
         Arc::new(builder_client),
         args.boost_sync,
         metrics,
     );
-    let mut module: RpcModule<()> = RpcModule::new(());
-    module
-        .merge(eth_engine_api.into_rpc())
-        .map_err(|e| Error::InitRPCServer(e.to_string()))?;
+
+    let module: RpcModule<()> = rollup_boost.try_into()?;
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
-    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        args.l2_url
-            .parse::<Uri>()
-            .map_err(|e| Error::InvalidArgs(e.to_string()))?,
-    ));
+    let service_builder =
+        tower::ServiceBuilder::new().layer(ProxyLayer::new(args.l2_url.parse::<Uri>()?));
     let server = Server::builder()
         .set_http_middleware(service_builder)
-        .build(
-            format!("{}:{}", args.rpc_host, args.rpc_port)
-                .parse::<SocketAddr>()
-                .map_err(|e| Error::InitRPCServer(e.to_string()))?,
-        )
-        .await
-        .map_err(|e| Error::InitRPCServer(e.to_string()))?;
+        .build(format!("{}:{}", args.rpc_host, args.rpc_port).parse::<SocketAddr>()?)
+        .await?;
     let handle = server.start(module);
+
+    // TODO:
     handle.stopped().await;
 
     Ok(())
@@ -236,7 +215,7 @@ fn create_client(
     url: &str,
     jwt_secret: JwtSecret,
     timeout: u64,
-) -> Result<HttpClientWrapper<HttpClient<AuthClientService<HttpBackend>>>> {
+) -> eyre::Result<HttpClientWrapper<HttpClient<AuthClientService<HttpBackend>>>> {
     // Create a middleware that adds a new JWT token to every request.
     let auth_layer = AuthClientLayer::new(jwt_secret);
     let client_middleware = tower::ServiceBuilder::new().layer(auth_layer);
@@ -244,8 +223,7 @@ fn create_client(
     let client = HttpClientBuilder::new()
         .set_http_middleware(client_middleware)
         .request_timeout(Duration::from_millis(timeout))
-        .build(url)
-        .map_err(|e| Error::InitRPCClient(e.to_string()))?;
+        .build(url)?;
     Ok(HttpClientWrapper::new(client, url.to_string()))
 }
 
@@ -272,10 +250,8 @@ fn init_tracing(endpoint: &str) {
     }
 }
 
-async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> Result<()> {
-    let listener = TcpListener::bind(addr)
-        .await
-        .map_err(|e| Error::InitMetrics(e.to_string()))?;
+async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre::Result<()> {
+    let listener = TcpListener::bind(addr).await?;
     info!("Metrics server running on {}", addr);
 
     loop {
@@ -313,6 +289,7 @@ mod tests {
     use assert_cmd::Command;
     use jsonrpsee::core::client::ClientT;
     use jsonrpsee::http_client::transport::Error as TransportError;
+    use jsonrpsee::RpcModule;
     use jsonrpsee::{
         core::ClientError,
         rpc_params,

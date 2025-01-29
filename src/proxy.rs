@@ -7,7 +7,7 @@ use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
-use tracing::debug;
+use tracing::{debug, info};
 
 const MULTIPLEX_METHODS: [&str; 3] = ["engine_", "eth_sendRawTransaction", "miner_"];
 
@@ -94,10 +94,14 @@ where
                 .iter()
                 .any(|&m| method.method.starts_with(m))
             {
+                info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
+
                 // let rpc server handle engine rpc requests
                 let res = inner.call(req).await.map_err(|e| e.into())?;
                 Ok(res)
             } else {
+                info!(target: "proxy::call", message = "forwarding request to l2 client", ?method);
+
                 // Modify the URI
                 *req.uri_mut() = target_url;
 

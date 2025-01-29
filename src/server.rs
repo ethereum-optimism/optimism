@@ -4,12 +4,13 @@ use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
-use jsonrpsee::core::{async_trait, ClientError, RpcResult};
+use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
+use jsonrpsee::RpcModule;
 use lru::LruCache;
 use op_alloy_rpc_jsonrpsee::traits::{MinerApiExtClient, MinerApiExtServer};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
@@ -117,6 +118,7 @@ pub trait EthApi {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
 }
 
+#[derive(Clone)]
 pub struct HttpClientWrapper<C = HttpClient<AuthClientService<HttpBackend>>> {
     pub client: C,
     pub url: String,
@@ -128,7 +130,8 @@ impl<C> HttpClientWrapper<C> {
     }
 }
 
-pub struct EthEngineApi<C = HttpClientWrapper> {
+#[derive(Clone)]
+pub struct RollupBoostServer<C = HttpClientWrapper> {
     l2_client: Arc<C>,
     builder_client: Arc<C>,
     boost_sync: bool,
@@ -136,7 +139,7 @@ pub struct EthEngineApi<C = HttpClientWrapper> {
     payload_trace_context: Arc<PayloadTraceContext>,
 }
 
-impl<C> EthEngineApi<C> {
+impl<C> RollupBoostServer<C> {
     pub fn new(
         l2_client: Arc<C>,
         builder_client: Arc<C>,
@@ -153,8 +156,29 @@ impl<C> EthEngineApi<C> {
     }
 }
 
+impl<C> TryInto<RpcModule<()>> for RollupBoostServer<C>
+where
+    Self: EngineApiServer + EthApiServer + MinerApiServer + MinerApiExtServer + Clone,
+{
+    type Error = RegisterMethodError;
+
+    fn try_into(self) -> Result<RpcModule<()>, Self::Error> {
+        let mut module: RpcModule<()> = RpcModule::new(());
+        module.merge(EngineApiServer::into_rpc(self.clone()))?;
+        module.merge(EthApiServer::into_rpc(self.clone()))?;
+        module.merge(MinerApiServer::into_rpc(self.clone()))?;
+        module.merge(MinerApiExtServer::into_rpc(self))?;
+
+        for method in module.method_names() {
+            info!(?method, "method registered");
+        }
+
+        Ok(module)
+    }
+}
+
 #[async_trait]
-impl<C> EthApiServer for EthEngineApi<HttpClientWrapper<C>>
+impl<C> EthApiServer for RollupBoostServer<HttpClientWrapper<C>>
 where
     C: EthApiClient + Send + Sync + Clone + 'static,
 {
@@ -217,7 +241,7 @@ pub trait MinerApi {
 }
 
 #[async_trait]
-impl<C> MinerApiServer for EthEngineApi<HttpClientWrapper<C>>
+impl<C> MinerApiServer for RollupBoostServer<HttpClientWrapper<C>>
 where
     C: MinerApiClient + Send + Sync + Clone + 'static,
 {
@@ -311,12 +335,13 @@ where
 }
 
 #[async_trait]
-impl<C> MinerApiExtServer for EthEngineApi<HttpClientWrapper<C>>
+impl<C> MinerApiExtServer for RollupBoostServer<HttpClientWrapper<C>>
 where
     C: MinerApiExtClient + Send + Sync + Clone + 'static,
 {
     async fn set_max_da_size(&self, max_tx_size: U64, max_block_size: U64) -> RpcResult<bool> {
         debug!(
+            target: "server::set_max_da_size",
             message = "received miner_setMaxDASize",
             ?max_tx_size,
             ?max_block_size
@@ -326,7 +351,7 @@ where
         let url = self.builder_client.url.clone();
         tokio::spawn(async move {
             builder_client.set_max_da_size(max_tx_size, max_block_size).await.map_err(|e| {
-                error!(message = "error calling miner_setMaxDASize for builder", "url" =url, "error" = %e);
+                error!(target: "server::set_max_da_size", message = "error calling miner_setMaxDASize for builder", "url" =url, "error" = %e);
             })
         });
 
@@ -338,7 +363,10 @@ where
         {
             Ok(result) => Ok(result),
             Err(e) => match e {
-                ClientError::Call(err) => Err(err),
+                ClientError::Call(err) => {
+                    error!(target: "server::set_max_da_size", message = "error forwarding miner_setMaxDASize to l2 client", ?err);
+                    Err(err)
+                }
                 other_error => {
                     error!(
                         message = "error calling miner_setMaxDASize for l2 client",
@@ -353,7 +381,7 @@ where
 }
 
 #[async_trait]
-impl<C> EngineApiServer for EthEngineApi<HttpClientWrapper<C>>
+impl<C> EngineApiServer for RollupBoostServer<HttpClientWrapper<C>>
 where
     C: EngineApiClient + Send + Sync + Clone + 'static,
 {
@@ -620,16 +648,21 @@ mod tests {
     use std::net::SocketAddr;
     use std::sync::Mutex;
 
+    use crate::proxy::ProxyLayer;
+
     use super::*;
 
     use alloy_primitives::hex;
+    use alloy_primitives::U64;
     use alloy_primitives::{FixedBytes, U256};
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
+    use http::Uri;
     use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-    use jsonrpsee::server::{ServerBuilder, ServerHandle};
+    use jsonrpsee::server::{Server, ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
+    use std::sync::Arc;
 
     const L2_ADDR: &str = "0.0.0.0:8554";
     const BUILDER_ADDR: &str = "0.0.0.0:8555";
@@ -712,7 +745,7 @@ mod tests {
                 .build(format!("http://{BUILDER_ADDR}"))
                 .unwrap();
 
-            let eth_engine_api = EthEngineApi::new(
+            let rollup_boost_client = RollupBoostServer::new(
                 Arc::new(HttpClientWrapper::new(
                     l2_client,
                     format!("http://{L2_ADDR}"),
@@ -726,7 +759,7 @@ mod tests {
             );
             let mut module: RpcModule<()> = RpcModule::new(());
             module
-                .merge(EngineApiServer::into_rpc(eth_engine_api))
+                .merge(EngineApiServer::into_rpc(rollup_boost_client))
                 .unwrap();
 
             let proxy_server = ServerBuilder::default()
