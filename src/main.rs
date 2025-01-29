@@ -18,7 +18,7 @@ use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use rpc_client::{RpcClient, RpcClientArgs};
+use rpc::{ExecutionClient, RpcClientArgs};
 use server::{HttpClientWrapper, RollupBoostServer};
 
 use std::sync::Arc;
@@ -31,9 +31,8 @@ use tracing_subscriber::EnvFilter;
 
 mod metrics;
 mod proxy;
-mod rpc_client;
+mod rpc;
 mod server;
-
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
 #[clap(group(ArgGroup::new("jwt").required(true).multiple(false).args(&["jwt_token", "jwt_path"])))]
@@ -83,14 +82,6 @@ struct Args {
     /// Log format
     #[arg(long, env, default_value = "text")]
     log_format: String,
-
-    /// Timeout for the builder client calls in milliseconds
-    #[arg(long, env, default_value = "200")]
-    builder_timeout: u64,
-
-    /// Timeout for the l2 client calls in milliseconds
-    #[arg(long, env, default_value = "2000")]
-    l2_timeout: u64,
 }
 
 #[tokio::main]
@@ -161,23 +152,32 @@ async fn main() -> eyre::Result<()> {
     let l2_client = create_client(
         &args.l2_client.http_addr.to_string(),
         l2_jwt_secret,
-        args.l2_timeout,
+        args.l2_client.timeout,
     )?;
 
-    let l2_client = RpcClient::new(
+    let l2_client = ExecutionClient::new(
         args.l2_client.http_addr,
         args.l2_client.http_port,
         args.l2_client.auth_addr,
         args.l2_client.auth_port,
         l2_jwt_secret,
-        args.l2_timeout,
+        args.l2_client.timeout,
     )?;
 
     // Initialize the builder client
     let builder_client = create_client(
         &args.builder.http_addr.to_string(),
         builder_jwt_secret,
-        args.builder_timeout,
+        args.builder.timeout,
+    )?;
+
+    let builder_client = ExecutionClient::new(
+        args.builder.http_addr,
+        args.builder.http_port,
+        args.builder.auth_addr,
+        args.builder.auth_port,
+        builder_jwt_secret,
+        args.builder.timeout,
     )?;
 
     let rollup_boost = RollupBoostServer::new(
