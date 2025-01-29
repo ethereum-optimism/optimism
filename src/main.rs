@@ -17,6 +17,7 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
+use reth_node_core::args::RpcServerArgs;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use server::{HttpClientWrapper, RollupBoostServer};
 
@@ -36,29 +37,11 @@ mod server;
 #[clap(author, version, about)]
 #[clap(group(ArgGroup::new("jwt").required(true).multiple(false).args(&["jwt_token", "jwt_path"])))]
 struct Args {
-    /// JWT token for authentication
-    #[arg(long, env)]
-    jwt_token: Option<String>,
+    #[clap(flatten)]
+    builder: RpcServerArgs,
 
-    /// Path to the JWT secret file
-    #[arg(long, env)]
-    jwt_path: Option<PathBuf>,
-
-    /// JWT token for authentication for the builder
-    #[arg(long, env)]
-    builder_jwt_token: Option<String>,
-
-    /// Path to the JWT secret file for the builder
-    #[arg(long, env)]
-    builder_jwt_path: Option<PathBuf>,
-
-    /// URL of the local l2 execution engine
-    #[arg(long, env, default_value = "http://localhost:8551")]
-    l2_url: String,
-
-    /// URL of the builder execution engine
-    #[arg(long, env)]
-    builder_url: String,
+    #[clap(flatten)]
+    l2_client: RpcServerArgs,
 
     /// Use the proposer to sync the builder node
     #[arg(long, env, default_value = "false")]
@@ -157,34 +140,35 @@ async fn main() -> eyre::Result<()> {
         init_tracing(&args.otlp_endpoint);
     }
 
-    // Handle JWT secret
-    let jwt_secret = match (args.jwt_path, args.jwt_token) {
-        (Some(file), None) => {
-            // Read JWT secret from file
-            JwtSecret::from_file(&file)?
-        }
-        (None, Some(secret)) => {
-            // Use the provided JWT secret
-            JwtSecret::from_hex(secret)?
-        }
-        _ => {
-            // This case should not happen due to ArgGroup
-            eyre::bail!("Either jwt_file or jwt_secret must be provided");
-        }
+    let l2_jwt_secret = if let Some(jwt_secret) = args.l2_client.rpc_jwtsecret {
+        jwt_secret
+    } else if let Some(path) = args.l2_client.auth_jwtsecret {
+        JwtSecret::from_file(&path)?
+    } else {
+        eyre::bail!("Either l2_client.rpc_jwtsecret or l2_client.auth_jwtsecret must be provided");
     };
 
-    let builder_jwt_secret = match (args.builder_jwt_path, args.builder_jwt_token) {
-        (Some(file), None) => JwtSecret::from_file(&file)?,
-        (None, Some(secret)) => JwtSecret::from_hex(secret)?,
-        _ => jwt_secret,
+    let builder_jwt_secret = if let Some(jwt_secret) = args.builder.rpc_jwtsecret {
+        jwt_secret
+    } else if let Some(path) = args.builder.auth_jwtsecret {
+        JwtSecret::from_file(&path)?
+    } else {
+        eyre::bail!("Either builder.rpc_jwtsecret or builder.auth_jwtsecret must be provided");
     };
 
     // Initialize the l2 client
-    let l2_client = create_client(&args.l2_url, jwt_secret, args.l2_timeout)?;
+    let l2_client = create_client(
+        &args.l2_client.http_addr.to_string(),
+        l2_jwt_secret,
+        args.l2_timeout,
+    )?;
 
     // Initialize the builder client
-    let builder_client =
-        create_client(&args.builder_url, builder_jwt_secret, args.builder_timeout)?;
+    let builder_client = create_client(
+        &args.builder.http_addr.to_string(),
+        builder_jwt_secret,
+        args.builder_timeout,
+    )?;
 
     let rollup_boost = RollupBoostServer::new(
         Arc::new(l2_client),
@@ -197,8 +181,9 @@ async fn main() -> eyre::Result<()> {
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
-    let service_builder =
-        tower::ServiceBuilder::new().layer(ProxyLayer::new(args.l2_url.parse::<Uri>()?));
+    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
+        args.l2_client.http_addr.to_string().parse::<Uri>()?,
+    ));
     let server = Server::builder()
         .set_http_middleware(service_builder)
         .build(format!("{}:{}", args.rpc_host, args.rpc_port).parse::<SocketAddr>()?)

@@ -31,6 +31,7 @@ reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b
 reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222", features = [
     "optimism",
 ] }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
 reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
 opentelemetry = { version = "0.26.0", features = ["trace"] }
 opentelemetry-http = "0.26.0"
