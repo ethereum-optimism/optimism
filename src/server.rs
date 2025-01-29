@@ -1,4 +1,5 @@
 use crate::metrics::ServerMetrics;
+use crate::rpc_client::RpcClient;
 use alloy_primitives::{Bytes, B256, U128, U64};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
@@ -133,24 +134,24 @@ impl<C> HttpClientWrapper<C> {
 }
 
 #[derive(Clone)]
-pub struct RollupBoostServer<C = HttpClientWrapper> {
-    l2_client: Arc<C>,
-    builder_client: Arc<C>,
+pub struct RollupBoostServer {
+    l2_client: Arc<RpcClient>,
+    builder_client: Arc<RpcClient>,
     boost_sync: bool,
     metrics: Option<Arc<ServerMetrics>>,
     payload_trace_context: Arc<PayloadTraceContext>,
 }
 
-impl<C> RollupBoostServer<C> {
+impl RollupBoostServer {
     pub fn new(
-        l2_client: Arc<C>,
-        builder_client: Arc<C>,
+        l2_client: RpcClient,
+        builder_client: RpcClient,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
         Self {
-            l2_client,
-            builder_client,
+            l2_client: Arc::new(l2_client),
+            builder_client: Arc::new(builder_client),
             boost_sync,
             metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
@@ -158,10 +159,7 @@ impl<C> RollupBoostServer<C> {
     }
 }
 
-impl<C> TryInto<RpcModule<()>> for RollupBoostServer<C>
-where
-    Self: EngineApiServer + EthApiServer + MinerApiServer + MinerApiExtServer + Clone,
-{
+impl TryInto<RpcModule<()>> for RollupBoostServer {
     type Error = RegisterMethodError;
 
     fn try_into(self) -> Result<RpcModule<()>, Self::Error> {
@@ -180,10 +178,7 @@ where
 }
 
 #[async_trait]
-impl<C> EthApiServer for RollupBoostServer<HttpClientWrapper<C>>
-where
-    C: EthApiClient + Send + Sync + Clone + 'static,
-{
+impl EthApiServer for RollupBoostServer {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
         debug!(
             message = "received send_raw_transaction",
@@ -195,7 +190,6 @@ where
         }
 
         let builder_client = self.builder_client.client.clone();
-        let url = self.builder_client.url.clone();
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
             builder_client.send_raw_transaction(tx_bytes).await.map_err(|e| {
