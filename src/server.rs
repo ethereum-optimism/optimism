@@ -166,7 +166,7 @@ impl EthApiServer for RollupBoostServer {
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
             builder_client.client.send_raw_transaction(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling send_raw_transaction for builder", ?builder_client.http_socket, "error" = %e);
+                error!(message = "error calling send_raw_transaction for builder", "url" = ?builder_client.http_socket, "error" = %e);
             })
         });
 
@@ -200,7 +200,7 @@ impl MinerApiServer for RollupBoostServer {
         let rec = record.clone();
         tokio::spawn(async move {
             builder_client.client.set_extra(rec).await.map_err(|e| {
-                error!(message = "error calling miner_setExtra for builder", ?builder_client.http_socket, "error" = %e);
+                error!(message = "error calling miner_setExtra for builder", "url" = ?builder_client.http_socket, "error" = %e);
             })
         });
 
@@ -229,7 +229,7 @@ impl MinerApiServer for RollupBoostServer {
         let builder_client = self.builder_client.clone();
         tokio::spawn(async move {
             builder_client.client.set_gas_limit(gas_price).await.map_err(|e| {
-                error!(message = "error calling miner_setGasLimit for builder", ?builder_client.http_socket, "error" = %e);
+                error!(message = "error calling miner_setGasLimit for builder", "url" = ?builder_client.http_socket, "error" = %e);
             })
         });
 
@@ -255,7 +255,7 @@ impl MinerApiServer for RollupBoostServer {
         let builder_client = self.builder_client.clone();
         tokio::spawn(async move {
             builder_client.client.set_gas_price(gas_price).await.map_err(|e| {
-                error!(message = "error calling miner_setGasPrice for builder", ?builder_client.http_socket, "error" = %e);
+                error!(message = "error calling miner_setGasPrice for builder", "url" = ?builder_client.http_socket, "error" = %e);
             })
         });
 
@@ -289,7 +289,7 @@ impl MinerApiExtServer for RollupBoostServer {
         let builder_client = self.builder_client.clone();
         tokio::spawn(async move {
             builder_client.client.set_max_da_size(max_tx_size, max_block_size).await.map_err(|e| {
-                error!(target: "server::set_max_da_size", message = "error calling miner_setMaxDASize for builder", ?builder_client.http_socket, "error" = %e);
+                error!(target: "server::set_max_da_size", message = "error calling miner_setMaxDASize for builder", "url" = ?builder_client.http_socket, "error" = %e);
             })
         });
 
@@ -385,18 +385,18 @@ impl EngineApiServer for RollupBoostServer {
             let builder_client = self.builder_client.clone();
             let attr = payload_attributes.clone();
             tokio::spawn(async move {
-                let _ = builder_client.client.fork_choice_updated_v3(fork_choice_state, attr).await.map(|response| {
+                let _ = builder_client.auth_client.fork_choice_updated_v3(fork_choice_state, attr).await.map(|response| {
                     let payload_id_str = response.payload_id.map(|id| id.to_string()).unwrap_or_default();
                     if response.is_invalid() {
-                        error!(message = "builder rejected fork_choice_updated_v3 with attributes", ?builder_client.http_socket, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
+                        error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_socket, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
                     } else {
-                        info!(message = "called fork_choice_updated_v3 to builder with payload attributes", ?builder_client.http_socket, "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
+                        info!(message = "called fork_choice_updated_v3 to builder with payload attributes", "url" = ?builder_client.auth_socket, "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
                         }
                     })
                     .map_err(|e| {
                         error!(
                             message = "error calling fork_choice_updated_v3 to builder",
-                            ?builder_client.http_socket,
+                            "url" = ?builder_client.auth_socket,
                             "error" = %e,
                             "head_block_hash" = %fork_choice_state.head_block_hash
                         );
@@ -410,7 +410,7 @@ impl EngineApiServer for RollupBoostServer {
         }
 
         self.l2_client
-            .client
+            .auth_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes)
             .await
             .map_err(|e| match e {
@@ -418,7 +418,7 @@ impl EngineApiServer for RollupBoostServer {
                 other_error => {
                     error!(
                         message = "error calling fork_choice_updated_v3 for l2 client",
-                        "url" = ?self.l2_client.http_socket,
+                        "url" = ?self.l2_client.auth_socket,
                         "error" = %other_error,
                         "head_block_hash" = %fork_choice_state.head_block_hash,
                     );
@@ -432,7 +432,7 @@ impl EngineApiServer for RollupBoostServer {
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
         info!(message = "received get_payload_v3", "payload_id" = %payload_id);
-        let l2_client_future = self.l2_client.client.get_payload_v3(payload_id);
+        let l2_client_future = self.l2_client.auth_client.get_payload_v3(payload_id);
         let builder_client_future = Box::pin(async move {
             if let Some(metrics) = &self.metrics {
                 metrics.get_payload_count.increment(1);
@@ -449,8 +449,8 @@ impl EngineApiServer for RollupBoostServer {
             });
 
             let builder_client = self.builder_client.clone();
-            let payload = builder_client.client.get_payload_v3(payload_id).await.map_err(|e| {
-                error!(message = "error calling get_payload_v3 from builder", ?builder_client.http_socket, "error" = %e, "payload_id" = %payload_id);
+            let payload = builder_client.auth_client.get_payload_v3(payload_id).await.map_err(|e| {
+                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder_client.auth_socket, "error" = %e, "payload_id" = %payload_id);
                 e
                 })?;
 
@@ -463,8 +463,8 @@ impl EngineApiServer for RollupBoostServer {
             if let Some(metrics) = &self.metrics {
                 metrics.new_payload_count.increment(1);
             }
-            let payload_status = self.l2_client.client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
-                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.http_socket, "error" = %e, "payload_id" = %payload_id);
+            let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
+                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_socket, "error" = %e, "payload_id" = %payload_id);
                 e
             })?;
             if let Some(mut s) = span {
@@ -495,7 +495,7 @@ impl EngineApiServer for RollupBoostServer {
             other_error => {
                 error!(
                     message = "error calling get_payload_v3",
-                    builder_client.http_socket = ?self.builder_client.http_socket,
+                    builder_client.http_socket = ?self.builder_client.auth_socket,
                     "error" = %other_error,
                     "payload_id" = %payload_id
                 );
@@ -543,15 +543,15 @@ impl EngineApiServer for RollupBoostServer {
             let builder_payload = payload.clone();
             let builder_versioned_hashes = versioned_hashes.clone();
             tokio::spawn(async move {
-                let _ = builder.client.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
+                let _ = builder.auth_client.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
                 .map(|response: PayloadStatus| {
                     if response.is_invalid() {
-                        error!(message = "builder rejected new_payload_v3", "url" = ?builder.http_socket, "block_hash" = %block_hash);
+                        error!(message = "builder rejected new_payload_v3", "url" = ?builder.auth_socket, "block_hash" = %block_hash);
                     } else {
-                        info!(message = "called new_payload_v3 to builder", "url" = ?builder.http_socket, "payload_status" = %response.status, "block_hash" = %block_hash);
+                        info!(message = "called new_payload_v3 to builder", "url" = ?builder.auth_socket, "payload_status" = %response.status, "block_hash" = %block_hash);
                     }
                 }).map_err(|e| {
-                    error!(message = "error calling new_payload_v3 to builder", "url" = ?builder.http_socket, "error" = %e, "block_hash" = %block_hash);
+                    error!(message = "error calling new_payload_v3 to builder", "url" = ?builder.auth_socket, "error" = %e, "block_hash" = %block_hash);
                     e
                 });
                 if let Some(mut spans) = spans {
@@ -560,7 +560,7 @@ impl EngineApiServer for RollupBoostServer {
             });
         }
         self.l2_client
-            .client
+            .auth_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
             .await
             .map_err(|e| match e {
@@ -568,6 +568,7 @@ impl EngineApiServer for RollupBoostServer {
                 other_error => {
                     error!(
                         message = "error calling new_payload_v3",
+                        "url" = ?self.l2_client.auth_socket,
                         "error" = %other_error,
                         "block_hash" = %block_hash
                     );
