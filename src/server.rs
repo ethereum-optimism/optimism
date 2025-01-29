@@ -130,6 +130,11 @@ impl<C> HttpClientWrapper<C> {
     }
 }
 
+pub struct RpcClient {
+    pub client: HttpClient<HttpBackend>,
+    pub auth_client: HttpClient<AuthClientService<HttpBackend>>,
+}
+
 #[derive(Clone)]
 pub struct RollupBoostServer<C = HttpClientWrapper> {
     l2_client: Arc<C>,
