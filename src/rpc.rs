@@ -101,7 +101,9 @@ pub struct RpcClientArgs {
 
 pub struct ExecutionClient {
     pub client: HttpClient<HttpBackend>,
+    pub http_socket: SocketAddr,
     pub auth_client: HttpClient<AuthClientService<HttpBackend>>,
+    pub auth_socket: SocketAddr,
 }
 
 impl ExecutionClient {
@@ -127,7 +129,9 @@ impl ExecutionClient {
 
         Ok(Self {
             client,
+            http_socket,
             auth_client,
+            auth_socket,
         })
     }
 }
@@ -182,30 +186,3 @@ pub trait MinerApi {
     #[method(name = "setGasLimit")]
     async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool>;
 }
-
-// #[async_trait]
-// impl EngineApiClient for ExecutionClient {
-//     async fn fork_choice_updated_v3(
-//         &self,
-//         fork_choice_state: ForkchoiceState,
-//         payload_attributes: Option<OpPayloadAttributes>,
-//     ) -> RpcResult<ForkchoiceUpdated> {
-//         todo!()
-//     }
-
-//     async fn get_payload_v3(
-//         &self,
-//         payload_id: PayloadId,
-//     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
-//         todo!()
-//     }
-
-//     async fn new_payload_v3(
-//         &self,
-//         payload: ExecutionPayloadV3,
-//         versioned_hashes: Vec<B256>,
-//         parent_beacon_block_root: B256,
-//     ) -> RpcResult<PayloadStatus> {
-//         todo!()
-//     }
-// }

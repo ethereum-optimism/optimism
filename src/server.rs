@@ -1,6 +1,5 @@
 use crate::metrics::ServerMetrics;
-use crate::rpc::{EngineApiServer, EthApiServer, MinerApiServer};
-use crate::rpc_client::RpcClient;
+use crate::rpc::{EngineApiServer, EthApiClient, EthApiServer, ExecutionClient, MinerApiServer};
 use alloy_primitives::{Bytes, B256, U128, U64};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
@@ -106,8 +105,8 @@ impl<C> HttpClientWrapper<C> {
 
 #[derive(Clone)]
 pub struct RollupBoostServer {
-    l2_client: Arc<RpcClient>,
-    builder_client: Arc<RpcClient>,
+    l2_client: Arc<ExecutionClient>,
+    builder_client: Arc<ExecutionClient>,
     boost_sync: bool,
     metrics: Option<Arc<ServerMetrics>>,
     payload_trace_context: Arc<PayloadTraceContext>,
@@ -115,8 +114,8 @@ pub struct RollupBoostServer {
 
 impl RollupBoostServer {
     pub fn new(
-        l2_client: RpcClient,
-        builder_client: RpcClient,
+        l2_client: ExecutionClient,
+        builder_client: ExecutionClient,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
@@ -160,11 +159,11 @@ impl EthApiServer for RollupBoostServer {
             metrics.send_raw_tx_count.increment(1);
         }
 
-        let builder_client = self.builder_client.client.clone();
+        let builder_client = self.builder_client.clone();
         let tx_bytes = bytes.clone();
         tokio::spawn(async move {
-            builder_client.send_raw_transaction(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling send_raw_transaction for builder", "url" = url, "error" = %e);
+            builder_client.client.send_raw_transaction(tx_bytes).await.map_err(|e| {
+                error!(message = "error calling send_raw_transaction for builder", "url" = ?builder_client.http_socket, "error" = %e);
             })
         });
 
@@ -177,7 +176,7 @@ impl EthApiServer for RollupBoostServer {
                 other_error => {
                     error!(
                         message = "error calling send_raw_transaction for l2 client",
-                        "url" = self.l2_client.url,
+                        "url" = ?self.l2_client.http_socket,
                         "error" = %other_error,
                     );
                     ErrorCode::InternalError.into()

@@ -148,13 +148,6 @@ async fn main() -> eyre::Result<()> {
         eyre::bail!("Either builder.rpc_jwtsecret or builder.auth_jwtsecret must be provided");
     };
 
-    // Initialize the l2 client
-    let l2_client = create_client(
-        &args.l2_client.http_addr.to_string(),
-        l2_jwt_secret,
-        args.l2_client.timeout,
-    )?;
-
     let l2_client = ExecutionClient::new(
         args.l2_client.http_addr,
         args.l2_client.http_port,
@@ -162,13 +155,6 @@ async fn main() -> eyre::Result<()> {
         args.l2_client.auth_port,
         l2_jwt_secret,
         args.l2_client.timeout,
-    )?;
-
-    // Initialize the builder client
-    let builder_client = create_client(
-        &args.builder.http_addr.to_string(),
-        builder_jwt_secret,
-        args.builder.timeout,
     )?;
 
     let builder_client = ExecutionClient::new(
