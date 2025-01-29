@@ -166,12 +166,7 @@ async fn main() -> eyre::Result<()> {
         args.builder.timeout,
     )?;
 
-    let rollup_boost = RollupBoostServer::new(
-        Arc::new(l2_client),
-        Arc::new(builder_client),
-        args.boost_sync,
-        metrics,
-    );
+    let rollup_boost = RollupBoostServer::new(l2_client, builder_client, args.boost_sync, metrics);
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
