@@ -6,7 +6,7 @@ use alloy_rpc_types_engine::{
 };
 use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
@@ -19,9 +19,11 @@ use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
-use reth_rpc_layer::AuthClientService;
+use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
+use std::net::{IpAddr, SocketAddr};
 use std::num::NonZero;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
@@ -128,11 +130,6 @@ impl<C> HttpClientWrapper<C> {
     pub fn new(client: C, url: String) -> Self {
         Self { client, url }
     }
-}
-
-pub struct RpcClient {
-    pub client: HttpClient<HttpBackend>,
-    pub auth_client: HttpClient<AuthClientService<HttpBackend>>,
 }
 
 #[derive(Clone)]

@@ -17,8 +17,8 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
-use reth_node_core::args::RpcServerArgs;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
+use rpc_client::{RpcClient, RpcClientArgs};
 use server::{HttpClientWrapper, RollupBoostServer};
 
 use std::sync::Arc;
@@ -31,6 +31,7 @@ use tracing_subscriber::EnvFilter;
 
 mod metrics;
 mod proxy;
+mod rpc_client;
 mod server;
 
 #[derive(Parser, Debug)]
@@ -38,10 +39,10 @@ mod server;
 #[clap(group(ArgGroup::new("jwt").required(true).multiple(false).args(&["jwt_token", "jwt_path"])))]
 struct Args {
     #[clap(flatten)]
-    builder: RpcServerArgs,
+    builder: RpcClientArgs,
 
     #[clap(flatten)]
-    l2_client: RpcServerArgs,
+    l2_client: RpcClientArgs,
 
     /// Use the proposer to sync the builder node
     #[arg(long, env, default_value = "false")]
@@ -159,6 +160,15 @@ async fn main() -> eyre::Result<()> {
     // Initialize the l2 client
     let l2_client = create_client(
         &args.l2_client.http_addr.to_string(),
+        l2_jwt_secret,
+        args.l2_timeout,
+    )?;
+
+    let l2_client = RpcClient::new(
+        args.l2_client.http_addr,
+        args.l2_client.http_port,
+        args.l2_client.auth_addr,
+        args.l2_client.auth_port,
         l2_jwt_secret,
         args.l2_timeout,
     )?;
