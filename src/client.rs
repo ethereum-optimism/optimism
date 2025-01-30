@@ -108,9 +108,13 @@ macro_rules! define_rpc_args {
         $(
             paste! {
                 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
-                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "_jwt")).required(true).multiple(false).args(&[
+                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "_auth_jwt")).required(true).multiple(false).args(&[
                     concat!(stringify!($prefix), "_auth_jwtsecret_path"),
                     concat!(stringify!($prefix), "_auth_jwtsecret")])))
+                ]
+                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "_rpc_jwt")).required(false).multiple(false).args(&[
+                    concat!(stringify!($prefix), "_rpc_jwtsecret_path"),
+                    concat!(stringify!($prefix), "_rpc_jwtsecret")])))
                 ]
                 pub struct $name {
                     /// Http server address
@@ -141,14 +145,14 @@ macro_rules! define_rpc_args {
                     ///
                     /// This is __not__ used for the authenticated engine-API RPC server, see
                     /// `authrpc.jwtsecret`.
-                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret.path"), env, value_name = "PATH", required = false, conflicts_with = concat!(stringify!($prefix), "_rpc_jwtsecret"))]
+                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret.path"), env, value_name = "PATH")]
                     pub [<$prefix _rpc_jwtsecret_path>]: Option<PathBuf>,
 
                     /// Hex encoded JWT secret to authenticate the regular RPC server(s)
                     ///
                     /// This is __not__ used for the authenticated engine-API RPC server, see
                     /// `authrpc.jwtsecret`.
-                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret"), env, value_name = "HEX", required = false, conflicts_with = concat!(stringify!($prefix), "_rpc_jwtsecret_path"))]
+                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret"), env, value_name = "HEX")]
                     pub [<$prefix _rpc_jwtsecret>]: Option<PathBuf>,
 
                     /// Filename for auth IPC socket/pipe within the datadir
