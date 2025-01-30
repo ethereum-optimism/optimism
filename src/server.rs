@@ -662,31 +662,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::panic;
-    use std::default;
-    use std::net::SocketAddr;
-    use std::str::FromStr;
-    use std::sync::Mutex;
-
-    use crate::proxy::ProxyLayer;
 
     use super::*;
-
     use alloy_primitives::hex;
-    use alloy_primitives::U64;
     use alloy_primitives::{FixedBytes, U256};
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
-    use http::Uri;
-    use jsonrpsee::core::client::BatchResponse;
-    use jsonrpsee::core::params::BatchRequestBuilder;
-    use jsonrpsee::core::traits::ToRpcParams;
     use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-    use jsonrpsee::server::{Server, ServerBuilder, ServerHandle};
+    use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
-    use serde::de::DeserializeOwned;
+    use std::net::SocketAddr;
+    use std::str::FromStr;
     use std::sync::Arc;
+    use std::sync::Mutex;
 
     const L2_ADDR: &str = "0.0.0.0:8554";
     const BUILDER_ADDR: &str = "0.0.0.0:8555";
