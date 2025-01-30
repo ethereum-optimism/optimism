@@ -7,6 +7,17 @@ use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::time::Duration;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ExecutionClientError {
+    #[error(transparent)]
+    HttpClient(#[from] jsonrpsee::core::client::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Jwt(#[from] reth_rpc_layer::JwtError),
+}
 
 /// Client interface for interacting with an execution layer node.
 ///
@@ -37,7 +48,7 @@ impl ExecutionClient {
         auth_port: u16,
         auth_rpc_jwt_secret: PathBuf,
         timeout: u64,
-    ) -> eyre::Result<Self> {
+    ) -> Result<Self, ExecutionClientError> {
         let http_socket = SocketAddr::new(http_addr, http_port);
         let client = HttpClientBuilder::new()
             .request_timeout(Duration::from_millis(timeout))
@@ -71,7 +82,7 @@ impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
         auth_port: u16,
         auth_rpc_jwt_secret: PathBuf,
         timeout: u64,
-    ) -> eyre::Result<Self> {
+    ) -> Result<Self, ExecutionClientError> {
         let jwt = std::fs::read_to_string(rpc_jwt_secret)?;
         let rpc_jwt_secret = JwtSecret::from_hex(jwt)?;
         let rpc_auth_layer = AuthClientLayer::new(rpc_jwt_secret);
