@@ -155,7 +155,7 @@ macro_rules! define_rpc_args {
                     #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret"), env, value_name = "HEX")]
                     pub [<$prefix _rpc_jwtsecret>]: Option<PathBuf>,
 
-                    /// Filename for auth IPC socket/pipe within the datadir
+                    /// Filename for auth IPC socket/pipe 
                     /// 
                     /// NOTE: This is unimplemented currently
                     #[arg(long = concat!(stringify!($prefix), ".auth.ipc.path"), env, value_name = "PATH")]
