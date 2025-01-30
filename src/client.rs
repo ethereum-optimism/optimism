@@ -1,16 +1,8 @@
-use alloy_primitives::{Bytes, B256, U128};
-use alloy_rpc_types_engine::{
-    ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus,
-};
 use clap::{arg, ArgGroup, Parser};
 use jsonrpsee::core::client::ClientT;
-use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use jsonrpsee::proc_macros::rpc;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use paste::paste;
-use reth_optimism_payload_builder::OpPayloadAttributes;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;

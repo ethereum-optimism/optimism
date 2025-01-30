@@ -6,8 +6,6 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
-use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
 use jsonrpsee::RpcModule;
@@ -19,19 +17,14 @@ use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
-use reth_rpc_layer::AuthClientService;
 use std::num::NonZero;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
-use clap::{arg, ArgGroup, Parser};
+use clap::Parser;
 use jsonrpsee::core::client::ClientT;
-use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::proc_macros::rpc;
-use reth_rpc_layer::{AuthClientLayer, JwtSecret};
-use std::net::{IpAddr, SocketAddr};
-use std::time::Duration;
 
 const CACHE_SIZE: usize = 100;
 
@@ -836,7 +829,7 @@ mod tests {
         let fcu_requests_builder_mu = fcu_requests_builder.lock().unwrap();
         assert_eq!(fcu_requests_mu.len(), 1);
         assert_eq!(fcu_requests_builder_mu.len(), 0);
-        let req: &(ForkchoiceState, Option<OpPayloadAttributes>) = fcu_requests_mu.get(0).unwrap();
+        let req: &(ForkchoiceState, Option<OpPayloadAttributes>) = fcu_requests_mu.first().unwrap();
         assert_eq!(req.0, fcu);
         assert_eq!(req.1, None);
 
@@ -863,7 +856,7 @@ mod tests {
         assert_eq!(new_payload_requests_mu.len(), 1);
         assert_eq!(new_payload_requests_builder_mu.len(), 0);
         let req: &(ExecutionPayloadV3, Vec<FixedBytes<32>>, B256) =
-            new_payload_requests_mu.get(0).unwrap();
+            new_payload_requests_mu.first().unwrap();
         assert_eq!(
             req.0,
             test_harness
@@ -893,7 +886,7 @@ mod tests {
         assert_eq!(get_payload_requests_builder_mu.len(), 1);
         assert_eq!(get_payload_requests_mu.len(), 1);
         assert_eq!(new_payload_requests_mu.len(), 2);
-        let req: &PayloadId = get_payload_requests_mu.get(0).unwrap();
+        let req: &PayloadId = get_payload_requests_mu.first().unwrap();
         assert_eq!(*req, PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1]));
 
         test_harness.cleanup().await;

@@ -5,8 +5,7 @@ use http::{StatusCode, Uri};
 use hyper::service::service_fn;
 use hyper::{server::conn::http1, Request, Response};
 use hyper_util::rt::TokioIo;
-use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::{HttpBody, HttpClient, HttpClientBuilder};
+use jsonrpsee::http_client::HttpBody;
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
 use metrics::ServerMetrics;
@@ -18,12 +17,10 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
-use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use server::RollupBoostServer;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::net::TcpListener;
 use tracing::error;
 use tracing::{info, Level};
@@ -169,7 +166,6 @@ async fn main() -> eyre::Result<()> {
         .await?;
     let handle = server.start(module);
 
-    // TODO:
     handle.stopped().await;
 
     Ok(())
@@ -236,7 +232,7 @@ async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre
 mod tests {
     use assert_cmd::Command;
     use jsonrpsee::core::client::ClientT;
-    use jsonrpsee::http_client::transport::Error as TransportError;
+
     use jsonrpsee::RpcModule;
     use jsonrpsee::{
         core::ClientError,
