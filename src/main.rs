@@ -263,6 +263,7 @@ mod tests {
         ));
     }
 
+    // TODO: move these tests
     async fn send_request(
         client: HttpClient<AuthClientService<HttpBackend>>,
     ) -> Result<String, ClientError> {

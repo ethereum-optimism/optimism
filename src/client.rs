@@ -25,7 +25,7 @@ pub struct ExecutionClient<
     C: ClientT = HttpClient<HttpBackend>,
     A: ClientT = HttpClient<AuthClientService<HttpBackend>>,
 > {
-    /// Handles requests to Eth, Miner, and other Execution Layer APIs (optional JWT authentication)
+    /// Handles requests to Eth, Miner, and other execution layer APIs (optional JWT authentication)
     pub client: C,
     /// Address of the RPC server for execution layer API calls, excluding the Engine API
     pub http_socket: SocketAddr,
@@ -36,7 +36,7 @@ pub struct ExecutionClient<
 }
 
 impl ExecutionClient {
-    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for general Execution Layer APIs.
+    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for general execution layer APIs.
     pub fn new(
         http_addr: IpAddr,
         http_port: u16,
@@ -67,7 +67,7 @@ impl ExecutionClient {
 }
 
 impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
-    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and general Execution Layer APIs.
+    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and general execution layer APIs.
     pub fn new_with_auth(
         http_addr: IpAddr,
         http_port: u16,
