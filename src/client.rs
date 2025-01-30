@@ -141,7 +141,7 @@ macro_rules! define_rpc_args {
                     ///
                     /// This is __not__ used for the authenticated engine-API RPC server, see
                     /// `authrpc.jwtsecret`.
-                    #[arg(long = concat!(stringify!($prefix), "rpc.jwtsecret"), value_name = "PATH", required = false)]
+                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret"), value_name = "PATH", required = false)]
                     pub [<$prefix _rpc_jwtsecret>]: Option<PathBuf>,
 
                     /// Filename for auth IPC socket/pipe within the datadir
