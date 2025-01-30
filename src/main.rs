@@ -17,6 +17,7 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
+use reth_rpc_layer::JwtSecret;
 use server::RollupBoostServer;
 
 use std::net::SocketAddr;
@@ -136,7 +137,7 @@ async fn main() -> eyre::Result<()> {
         l2_client_args.l2_http_port,
         l2_client_args.l2_auth_addr,
         l2_client_args.l2_auth_port,
-        l2_client_args.l2_auth_jwtsecret,
+        l2_client_args.l2_auth_jwtsecret.clone(),
         l2_client_args.l2_timeout,
     )?;
 
@@ -152,12 +153,16 @@ async fn main() -> eyre::Result<()> {
 
     let rollup_boost = RollupBoostServer::new(l2_client, builder_client, args.boost_sync, metrics);
 
-    let l2_auth_client = rollup_boost.l2_client.auth_client.clone();
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
-    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(l2_auth_client));
+    let auth_rpc_uri = format!("http://{}:{}", l2_client_args.l2_auth_addr, l2_client_args.l2_auth_port).parse::<Uri>()?;
+
+    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
+        auth_rpc_uri, 
+        JwtSecret::from_file(&l2_client_args.l2_auth_jwtsecret)?
+    ));
     let server = Server::builder()
         .set_http_middleware(service_builder)
         .build(format!("{}:{}", args.rpc_host, args.rpc_port).parse::<SocketAddr>()?)
