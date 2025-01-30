@@ -19,7 +19,7 @@ use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use server::{HttpClientWrapper, RollupBoostServer};
+use server::RollupBoostServer;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -175,22 +175,6 @@ async fn main() -> eyre::Result<()> {
     Ok(())
 }
 
-fn create_client(
-    url: &str,
-    jwt_secret: JwtSecret,
-    timeout: u64,
-) -> eyre::Result<HttpClientWrapper<HttpClient<AuthClientService<HttpBackend>>>> {
-    // Create a middleware that adds a new JWT token to every request.
-    let auth_layer = AuthClientLayer::new(jwt_secret);
-    let client_middleware = tower::ServiceBuilder::new().layer(auth_layer);
-
-    let client = HttpClientBuilder::new()
-        .set_http_middleware(client_middleware)
-        .request_timeout(Duration::from_millis(timeout))
-        .build(url)?;
-    Ok(HttpClientWrapper::new(client, url.to_string()))
-}
-
 fn init_tracing(endpoint: &str) {
     global::set_text_map_propagator(TraceContextPropagator::new());
     let provider = opentelemetry_otlp::new_pipeline()
@@ -276,34 +260,6 @@ mod tests {
 
         cmd.assert().failure().stderr(predicate::str::contains(
             "error: unexpected argument '--invalid-arg' found",
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_create_client() {
-        valid_jwt().await;
-        invalid_jwt().await;
-    }
-
-    async fn valid_jwt() {
-        let secret = JwtSecret::from_hex(SECRET).unwrap();
-        let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
-        let client = create_client(url.as_str(), secret, 2000);
-        let response = send_request(client.unwrap().client).await;
-        assert!(response.is_ok());
-        assert_eq!(response.unwrap(), "You are the dark lord");
-    }
-
-    async fn invalid_jwt() {
-        let secret = JwtSecret::random();
-        let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
-        let client = create_client(url.as_str(), secret, 2000);
-        let response = send_request(client.unwrap().client).await;
-        assert!(response.is_err());
-        assert!(matches!(
-            response.unwrap_err(),
-            ClientError::Transport(e)
-                if matches!(e.downcast_ref::<TransportError>(), Some(TransportError::Rejected { status_code: 401 }))
         ));
     }
 
