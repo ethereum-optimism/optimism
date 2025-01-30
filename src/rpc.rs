@@ -35,71 +35,6 @@ use clap::{
 };
 use std::path::PathBuf;
 
-/// Parameters for configuring the rpc more granularity via CLI
-#[derive(Debug, Clone, Args, PartialEq, Eq)]
-#[command(next_help_heading = "RPC")]
-#[command(group(
-    ArgGroup::new("jwt")
-        .required(true)
-        .args(&["auth_jwtsecret", "rpc_jwtsecret"]),
-))]
-pub struct RpcClientArgs {
-    /// Http server address to listen on
-    #[arg(long = "http.addr")]
-    pub http_addr: IpAddr,
-
-    /// Http server port to listen on
-    #[arg(long = "http.port")]
-    pub http_port: u16,
-
-    /// Http Corsdomain to allow request from
-    #[arg(long = "http.corsdomain")]
-    pub http_corsdomain: Option<String>,
-
-    /// Auth server address to listen on
-    #[arg(long = "authrpc.addr")]
-    pub auth_addr: IpAddr,
-
-    /// Auth server port to listen on
-    #[arg(long = "authrpc.port")]
-    pub auth_port: u16,
-
-    /// Path to a JWT secret to use for the authenticated engine-API RPC server.
-    ///
-    /// This will enforce JWT authentication for all requests coming from the consensus layer.
-    ///
-    /// If no path is provided, a secret will be generated and stored in the datadir under
-    /// `<DIR>/<CHAIN_ID>/jwt.hex`. For mainnet this would be `~/.reth/mainnet/jwt.hex` by default.
-    #[arg(
-        long = "authrpc.jwtsecret",
-        value_name = "PATH",
-        global = true,
-        required = false
-    )]
-    pub auth_jwtsecret: Option<PathBuf>,
-
-    /// Filename for auth IPC socket/pipe within the datadir
-    #[arg(long = "auth-ipc.path")]
-    pub auth_ipc_path: Option<String>,
-
-    /// Hex encoded JWT secret to authenticate the regular RPC server(s), see `--http.api` and
-    /// `--ws.api`.
-    ///
-    /// This is __not__ used for the authenticated engine-API RPC server, see
-    /// `--authrpc.jwtsecret`.
-    #[arg(
-        long = "rpc.jwtsecret",
-        value_name = "HEX",
-        global = true,
-        required = false
-    )]
-    pub rpc_jwtsecret: Option<JwtSecret>,
-
-    /// Timeout for http calls in milliseconds
-    #[arg(long, env)]
-    pub timeout: u64,
-}
-
 pub struct ExecutionClient {
     pub client: HttpClient<HttpBackend>,
     pub http_socket: SocketAddr,
@@ -188,11 +123,20 @@ pub trait MinerApi {
     async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool>;
 }
 
+/// Generates Clap argument structs with a prefix to create a unique namespace when specifing RPC client config via the CLI.
 macro_rules! define_rpc_args {
     ($(($name:ident, $prefix:ident)),*) => {
         $(
             paste! {
-                #[derive(Debug, Clone, Args, PartialEq, Eq)]
+                #[derive(Parser, Debug, Clone, PartialEq, Eq)]
+                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "_jwt"))
+                    .required(true)
+                    .multiple(false)
+                    .args(&[
+                        concat!(stringify!($prefix), "_jwtsecret"),
+                        concat!(stringify!($prefix), "_jwtsecret_path")
+                    ])
+                ))]
                 pub struct $name {
                     #[arg(long)]
                     pub [<$prefix _http_addr>]: IpAddr,
@@ -201,22 +145,21 @@ macro_rules! define_rpc_args {
                     pub [<$prefix _http_port>]: u16,
 
                     #[arg(long)]
-                    pub [<$prefix _http_corsdomain>]: Option<String>,
-
-                    #[arg(long)]
                     pub [<$prefix _auth_addr>]: IpAddr,
 
                     #[arg(long)]
                     pub [<$prefix _auth_port>]: u16,
 
+                    #[arg(long, value_name = "HEX", global = true)]
+                    pub [<$prefix _jwtsecret>]: Option<JwtSecret>,
+
                     #[arg(long, value_name = "PATH", global = true)]
-                    pub [<$prefix _auth_jwtsecret>]: Option<PathBuf>,
+                    pub [<$prefix _jwtsecret_path>]: Option<PathBuf>,
 
                     #[arg(long)]
                     pub [<$prefix _auth_ipc_path>]: Option<String>,
 
-                    #[arg(long, value_name = "HEX", global = true)]
-                    pub [<$prefix _rpc_jwtsecret>]: Option<JwtSecret>,
+
 
                     #[arg(long)]
                     pub [<$prefix _timeout>]: u64,

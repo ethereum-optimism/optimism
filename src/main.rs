@@ -18,7 +18,7 @@ use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use rpc::{BuilderArgs, ExecutionClient, L2ClientArgs, RpcClientArgs};
+use rpc::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use server::{HttpClientWrapper, RollupBoostServer};
 
 use std::sync::Arc;
@@ -33,9 +33,9 @@ mod metrics;
 mod proxy;
 mod rpc;
 mod server;
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
-#[clap(group(ArgGroup::new("jwt").required(true).multiple(false).args(&["jwt_token", "jwt_path"])))]
 struct Args {
     #[clap(flatten)]
     builder: BuilderArgs,
@@ -132,17 +132,17 @@ async fn main() -> eyre::Result<()> {
         init_tracing(&args.otlp_endpoint);
     }
 
-    let l2_jwt_secret = if let Some(jwt_secret) = args.l2_client.l2_rpc_jwtsecret {
+    let l2_jwt_secret = if let Some(jwt_secret) = args.l2_client.l2_jwtsecret {
         jwt_secret
-    } else if let Some(path) = args.l2_client.l2_auth_jwtsecret {
+    } else if let Some(path) = args.l2_client.l2_jwtsecret_path {
         JwtSecret::from_file(&path)?
     } else {
         eyre::bail!("Either l2_client.rpc_jwtsecret or l2_client.auth_jwtsecret must be provided");
     };
 
-    let builder_jwt_secret = if let Some(jwt_secret) = args.builder.builder_rpc_jwtsecret {
+    let builder_jwt_secret = if let Some(jwt_secret) = args.builder.builder_jwtsecret {
         jwt_secret
-    } else if let Some(path) = args.builder.builder_auth_jwtsecret {
+    } else if let Some(path) = args.builder.builder_jwtsecret_path {
         JwtSecret::from_file(&path)?
     } else {
         eyre::bail!("Either builder.rpc_jwtsecret or builder.auth_jwtsecret must be provided");
