@@ -138,29 +138,43 @@ macro_rules! define_rpc_args {
                     ])
                 ))]
                 pub struct $name {
+                    /// Http server address
                     #[arg(long)]
                     pub [<$prefix _http_addr>]: IpAddr,
 
+                    /// Http server port
                     #[arg(long)]
                     pub [<$prefix _http_port>]: u16,
 
+                    /// Auth server address
                     #[arg(long)]
                     pub [<$prefix _auth_addr>]: IpAddr,
 
+                    /// Auth server port
                     #[arg(long)]
                     pub [<$prefix _auth_port>]: u16,
 
+                    /// Hex encoded JWT secret to authenticate the regular RPC server(s), see `--http.api` and
+                    /// `--ws.api`.
+                    ///
+                    /// This is __not__ used for the authenticated engine-API RPC server, see
+                    /// `--authrpc.jwtsecret`.
+                    // TODO:
                     #[arg(long, value_name = "HEX", global = true)]
                     pub [<$prefix _jwtsecret>]: Option<JwtSecret>,
 
+                    /// Path to a JWT secret to use for the authenticated engine-API RPC server.
+                    ///
+                    /// If no path is provided, a secret will be generated and stored in the datadir under
+                    /// `<DIR>/<CHAIN_ID>/jwt.hex`. For mainnet this would be `~/.reth/mainnet/jwt.hex` by default.
                     #[arg(long, value_name = "PATH", global = true)]
                     pub [<$prefix _jwtsecret_path>]: Option<PathBuf>,
 
+                    /// Filename for auth IPC socket/pipe within the datadir
                     #[arg(long)]
                     pub [<$prefix _auth_ipc_path>]: Option<String>,
 
-
-
+                    /// Timeout for http calls in milliseconds
                     #[arg(long)]
                     pub [<$prefix _timeout>]: u64,
                 }
