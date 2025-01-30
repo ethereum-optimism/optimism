@@ -140,8 +140,25 @@ where
 
 impl<C, A> TryInto<RpcModule<()>> for RollupBoostServer<C, A>
 where
-    C: ClientT + Clone,
-    A: ClientT + Clone,
+    C: EngineApiClient
+        + EthApiClient
+        + MinerApiClient
+        + MinerApiExtClient
+        + ClientT
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+
+    A: EngineApiClient
+        + EthApiClient
+        + MinerApiClient
+        + MinerApiExtClient
+        + ClientT
+        + Clone
+        + Send
+        + Sync
+        + 'static,
 {
     type Error = RegisterMethodError;
 
@@ -167,7 +184,11 @@ pub trait EthApi {
 }
 
 #[async_trait]
-impl EthApiServer for RollupBoostServer {
+impl<C, A> EthApiServer for RollupBoostServer<C, A>
+where
+    C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
+{
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
         debug!(
             message = "received send_raw_transaction",
@@ -226,7 +247,11 @@ pub trait MinerApi {
 }
 
 #[async_trait]
-impl MinerApiServer for RollupBoostServer {
+impl<C, A> MinerApiServer for RollupBoostServer<C, A>
+where
+    C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
+{
     async fn set_extra(&self, record: Bytes) -> RpcResult<bool> {
         debug!(
             message = "received miner_setExtra",
@@ -314,7 +339,11 @@ impl MinerApiServer for RollupBoostServer {
 }
 
 #[async_trait]
-impl MinerApiExtServer for RollupBoostServer {
+impl<C, A> MinerApiExtServer for RollupBoostServer<C, A>
+where
+    C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
+{
     async fn set_max_da_size(&self, max_tx_size: U64, max_block_size: U64) -> RpcResult<bool> {
         debug!(
             target: "server::set_max_da_size",
@@ -380,7 +409,11 @@ pub trait EngineApi {
 }
 
 #[async_trait]
-impl EngineApiServer for RollupBoostServer {
+impl<C, A> EngineApiServer for RollupBoostServer<C, A>
+where
+    C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
+{
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
@@ -642,6 +675,7 @@ impl EngineApiServer for RollupBoostServer {
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
+    use std::str::FromStr;
     use std::sync::Mutex;
 
     use crate::proxy::ProxyLayer;
@@ -737,22 +771,28 @@ mod tests {
             let l2_client = HttpClientBuilder::new()
                 .build(format!("http://{L2_ADDR}"))
                 .unwrap();
+
             let builder_client = HttpClientBuilder::new()
                 .build(format!("http://{BUILDER_ADDR}"))
                 .unwrap();
 
-            let rollup_boost_client = RollupBoostServer::new(
-                Arc::new(HttpClientWrapper::new(
-                    l2_client,
-                    format!("http://{L2_ADDR}"),
-                )),
-                Arc::new(HttpClientWrapper::new(
-                    builder_client,
-                    format!("http://{BUILDER_ADDR}"),
-                )),
-                boost_sync,
-                None,
-            );
+            let l2_client = ExecutionClient {
+                client: l2_client.clone(),
+                http_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
+                auth_client: l2_client,
+                auth_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
+            };
+
+            let builder_client = ExecutionClient {
+                client: builder_client.clone(),
+                http_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
+                auth_client: builder_client,
+                auth_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
+            };
+
+            let rollup_boost_client =
+                RollupBoostServer::new(l2_client, builder_client, boost_sync, None);
+
             let mut module: RpcModule<()> = RpcModule::new(());
             module
                 .merge(EngineApiServer::into_rpc(rollup_boost_client))

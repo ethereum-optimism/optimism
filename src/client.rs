@@ -20,6 +20,7 @@ use std::time::Duration;
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
 /// -  All other API calls including the **Eth & Miner APIs** are faciliated via the `client` (optional JWT authentication).
 ///
+#[derive(Clone)]
 pub struct ExecutionClient<
     C: ClientT = HttpClient<HttpBackend>,
     A: ClientT = HttpClient<AuthClientService<HttpBackend>>,
