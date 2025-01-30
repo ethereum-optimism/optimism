@@ -27,7 +27,7 @@ use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: usize = 100;
 
-struct PayloadTraceContext {
+pub struct PayloadTraceContext {
     tracer: Arc<BoxedTracer>,
     block_hash_to_payload_ids: Arc<Mutex<LruCache<B256, Vec<PayloadId>>>>,
     payload_id_to_span: Arc<Mutex<LruCache<PayloadId, Arc<BoxedSpan>>>>,

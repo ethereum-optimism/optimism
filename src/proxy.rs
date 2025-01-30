@@ -1,3 +1,4 @@
+use http::header::AUTHORIZATION;
 use http::Uri;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
@@ -7,7 +8,7 @@ use jsonrpsee::core::traits::ToRpcParams;
 use jsonrpsee::core::{http_helpers, BoxError};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpBody, HttpClient, HttpRequest, HttpResponse};
-use reth_rpc_layer::AuthClientService;
+use reth_rpc_layer::{secret_to_bearer_header, AuthClientService, JwtSecret};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
@@ -18,12 +19,13 @@ const MULTIPLEX_METHODS: [&str; 3] = ["engine_", "eth_sendRawTransaction", "mine
 
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
-    l2_auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
+    target_url: Uri,
+    secret: JwtSecret,
 }
 
 impl ProxyLayer {
-    pub fn new(l2_auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>) -> Self {
-        ProxyLayer { l2_auth_client }
+    pub fn new(target_url: Uri, secret: JwtSecret) -> Self {
+        ProxyLayer { target_url, secret }
     }
 }
 
@@ -33,7 +35,9 @@ impl<S> Layer<S> for ProxyLayer {
     fn layer(&self, inner: S) -> Self::Service {
         ProxyService {
             inner,
-            l2_auth_client: self.l2_auth_client.clone(),
+            client: Client::builder(TokioExecutor::new()).build_http(),
+            target_url: self.target_url.clone(),
+            secret: self.secret.clone(),
         }
     }
 }
@@ -41,7 +45,9 @@ impl<S> Layer<S> for ProxyLayer {
 #[derive(Clone)]
 pub struct ProxyService<S> {
     inner: S,
-    l2_auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
+    client:  Client<HttpConnector, HttpBody>,
+    target_url: Uri,
+    secret: JwtSecret,
 }
 
 impl<S> Service<HttpRequest<HttpBody>> for ProxyService<S>
@@ -65,8 +71,10 @@ where
             return Box::pin(async { Ok(Self::Response::new(HttpBody::from("OK"))) });
         }
 
-        let l2_auth_client = self.l2_auth_client.clone();
+        let client = self.client.clone();
         let mut inner = self.inner.clone();
+        let target_url = self.target_url.clone();
+        let secret = self.secret.clone();
 
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
@@ -103,10 +111,17 @@ where
                 Ok(res)
             } else {
                 info!(target: "proxy::call", message = "forwarding request to l2 client", "method" = ?rpc_request.method);
+                // Modify the URI 
+                *req.uri_mut() = target_url.clone();
+                // Insert JWT Authorization headers
+                req.headers_mut().insert(AUTHORIZATION, secret_to_bearer_header(&secret));
 
-                // TODO: forward to l2_auth_client
-
-                todo!();
+                // Forward the request
+                let res = client
+                    .request(req)
+                    .await
+                    .map(|res| res.map(HttpBody::new))?;
+                Ok(res)
             }
         };
         Box::pin(fut)
