@@ -1,4 +1,5 @@
 use clap::{arg, Parser};
+use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use dotenv::dotenv;
 use http::{StatusCode, Uri};
 use hyper::service::service_fn;
@@ -18,7 +19,6 @@ use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use rpc::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use server::{HttpClientWrapper, RollupBoostServer};
 
 use std::net::SocketAddr;
@@ -29,9 +29,9 @@ use tracing::error;
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
+mod client;
 mod metrics;
 mod proxy;
-mod rpc;
 mod server;
 
 #[derive(Parser, Debug)]

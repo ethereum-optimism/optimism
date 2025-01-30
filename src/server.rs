@@ -1,8 +1,5 @@
+use crate::client::ExecutionClient;
 use crate::metrics::ServerMetrics;
-use crate::rpc::{
-    EngineApiClient, EngineApiServer, EthApiClient, EthApiServer, ExecutionClient, MinerApiClient,
-    MinerApiServer,
-};
 use alloy_primitives::{Bytes, B256, U128, U64};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
@@ -27,6 +24,14 @@ use std::num::NonZero;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
+
+use clap::{arg, ArgGroup, Parser};
+use jsonrpsee::core::client::ClientT;
+use jsonrpsee::http_client::HttpClientBuilder;
+use jsonrpsee::proc_macros::rpc;
+use reth_rpc_layer::{AuthClientLayer, JwtSecret};
+use std::net::{IpAddr, SocketAddr};
+use std::time::Duration;
 
 const CACHE_SIZE: usize = 100;
 
@@ -147,6 +152,12 @@ impl TryInto<RpcModule<()>> for RollupBoostServer {
     }
 }
 
+#[rpc(server, client, namespace = "eth")]
+pub trait EthApi {
+    #[method(name = "sendRawTransaction")]
+    async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
+}
+
 #[async_trait]
 impl EthApiServer for RollupBoostServer {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
@@ -183,6 +194,27 @@ impl EthApiServer for RollupBoostServer {
                 }
             })
     }
+}
+
+/*TODO: Remove this in favor of the `MinerApi` from Reth once the
+       trait methods are updated to be async
+*/
+/// Miner namespace rpc interface that can control miner/builder settings
+#[rpc(server, client, namespace = "miner")]
+pub trait MinerApi {
+    /// Sets the extra data string that is included when this miner mines a block.
+    ///
+    /// Returns an error if the extra data is too long.
+    #[method(name = "setExtra")]
+    async fn set_extra(&self, record: Bytes) -> RpcResult<bool>;
+
+    /// Sets the minimum accepted gas price for the miner.
+    #[method(name = "setGasPrice")]
+    async fn set_gas_price(&self, gas_price: U128) -> RpcResult<bool>;
+
+    /// Sets the gaslimit to target towards during mining.
+    #[method(name = "setGasLimit")]
+    async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool>;
 }
 
 #[async_trait]
@@ -313,6 +345,30 @@ impl MinerApiExtServer for RollupBoostServer {
             },
         }
     }
+}
+
+#[rpc(server, client, namespace = "engine")]
+pub trait EngineApi {
+    #[method(name = "forkchoiceUpdatedV3")]
+    async fn fork_choice_updated_v3(
+        &self,
+        fork_choice_state: ForkchoiceState,
+        payload_attributes: Option<OpPayloadAttributes>,
+    ) -> RpcResult<ForkchoiceUpdated>;
+
+    #[method(name = "getPayloadV3")]
+    async fn get_payload_v3(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV3>;
+
+    #[method(name = "newPayloadV3")]
+    async fn new_payload_v3(
+        &self,
+        payload: ExecutionPayloadV3,
+        versioned_hashes: Vec<B256>,
+        parent_beacon_block_root: B256,
+    ) -> RpcResult<PayloadStatus>;
 }
 
 #[async_trait]
