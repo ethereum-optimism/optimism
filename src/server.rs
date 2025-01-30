@@ -10,8 +10,7 @@ use alloy_rpc_types_engine::{
 };
 use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
 use jsonrpsee::RpcModule;
@@ -23,11 +22,9 @@ use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
-use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use std::net::{IpAddr, SocketAddr};
+use reth_rpc_layer::AuthClientService;
 use std::num::NonZero;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 

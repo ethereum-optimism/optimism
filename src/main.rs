@@ -1,4 +1,4 @@
-use clap::{arg, ArgGroup, Parser};
+use clap::{arg, Parser};
 use dotenv::dotenv;
 use http::{StatusCode, Uri};
 use hyper::service::service_fn;
@@ -21,9 +21,9 @@ use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use rpc::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use server::{HttpClientWrapper, RollupBoostServer};
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{net::SocketAddr, path::PathBuf};
 use tokio::net::TcpListener;
 use tracing::error;
 use tracing::{info, Level};

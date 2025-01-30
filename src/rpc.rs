@@ -1,40 +1,18 @@
-use crate::metrics::ServerMetrics;
-use alloy_primitives::{Bytes, B256, U128, U64};
+use alloy_primitives::{Bytes, B256, U128};
 use alloy_rpc_types_engine::{
-    ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
-    PayloadStatus,
+    ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId, PayloadStatus,
 };
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
+use clap::{arg, ArgGroup, Parser};
+use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::types::error::INVALID_REQUEST_CODE;
-use jsonrpsee::types::{ErrorCode, ErrorObject};
-use jsonrpsee::RpcModule;
-use lru::LruCache;
-use op_alloy_rpc_jsonrpsee::traits::{MinerApiExtClient, MinerApiExtServer};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
-use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
-use opentelemetry::trace::{Span, TraceContextExt, Tracer};
-use opentelemetry::{Context, KeyValue};
 use paste::paste;
-use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
-use reth_payload_primitives::PayloadBuilderAttributes;
+use reth_optimism_payload_builder::OpPayloadAttributes;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::net::{IpAddr, SocketAddr};
-use std::num::NonZero;
-use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
-use tracing::{debug, error, info};
-
-use clap::{arg, ArgGroup, Parser};
-use clap::{
-    builder::{PossibleValue, RangedU64ValueParser, TypedValueParser},
-    Arg, Args, Command,
-};
-use std::path::PathBuf;
 
 pub struct ExecutionClient {
     // TODO: add support for optional auth rpc (eth api, miner api, etc.)
