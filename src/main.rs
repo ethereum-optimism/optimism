@@ -132,37 +132,23 @@ async fn main() -> eyre::Result<()> {
         init_tracing(&args.otlp_endpoint);
     }
 
-    let l2_jwt_secret = if let Some(jwt_secret) = args.l2_client.l2_jwtsecret {
-        jwt_secret
-    } else if let Some(path) = args.l2_client.l2_jwtsecret_path {
-        JwtSecret::from_file(&path)?
-    } else {
-        eyre::bail!("Either l2_client.rpc_jwtsecret or l2_client.auth_jwtsecret must be provided");
-    };
-
-    let builder_jwt_secret = if let Some(jwt_secret) = args.builder.builder_jwtsecret {
-        jwt_secret
-    } else if let Some(path) = args.builder.builder_jwtsecret_path {
-        JwtSecret::from_file(&path)?
-    } else {
-        eyre::bail!("Either builder.rpc_jwtsecret or builder.auth_jwtsecret must be provided");
-    };
-
     let l2_client = ExecutionClient::new(
         args.l2_client.l2_http_addr,
         args.l2_client.l2_http_port,
+        args.l2_client.l2_rpc_jwtsecret,
         args.l2_client.l2_auth_addr,
         args.l2_client.l2_auth_port,
-        l2_jwt_secret,
+        args.l2_client.l2_auth_rpc_jwtsecret,
         args.l2_client.l2_timeout,
     )?;
 
     let builder_client = ExecutionClient::new(
         args.builder.builder_http_addr,
         args.builder.builder_http_port,
+        args.builder.builder_rpc_jwtsecret,
         args.builder.builder_auth_addr,
         args.builder.builder_auth_port,
-        builder_jwt_secret,
+        args.builder.builder_auth_rpc_jwtsecret,
         args.builder.builder_timeout,
     )?;
 

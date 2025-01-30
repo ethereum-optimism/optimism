@@ -35,10 +35,13 @@ use clap::{
 };
 use std::path::PathBuf;
 
-pub struct ExecutionClient {
-    pub client: HttpClient<HttpBackend>,
+pub struct ExecutionClient<
+    C = HttpClient<HttpBackend>,
+    A = HttpClient<AuthClientService<HttpBackend>>,
+> {
+    pub client: C,
     pub http_socket: SocketAddr,
-    pub auth_client: HttpClient<AuthClientService<HttpBackend>>,
+    pub auth_client: A,
     pub auth_socket: SocketAddr,
 }
 
@@ -46,17 +49,20 @@ impl ExecutionClient {
     pub fn new(
         http_addr: IpAddr,
         http_port: u16,
+        rpc_jwtsecret: Option<JwtSecret>,
         auth_addr: IpAddr,
         auth_port: u16,
-        jwt_secret: JwtSecret,
+        auth_rpc_jwtsecret: JwtSecret,
         timeout: u64,
     ) -> Result<Self, jsonrpsee::core::client::Error> {
+        // TODO: add optional auth layer for regular rpc
+
         let http_socket = SocketAddr::new(http_addr, http_port);
         let client = HttpClientBuilder::new()
             .request_timeout(Duration::from_millis(timeout))
             .build(format!("http://{}", http_socket))?;
 
-        let auth_layer = AuthClientLayer::new(jwt_secret);
+        let auth_layer = AuthClientLayer::new(auth_rpc_jwtsecret);
         let auth_socket = SocketAddr::new(auth_addr, auth_port);
         let auth_client = HttpClientBuilder::new()
             .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))
@@ -154,21 +160,17 @@ macro_rules! define_rpc_args {
                     #[arg(long)]
                     pub [<$prefix _auth_port>]: u16,
 
-                    /// Hex encoded JWT secret to authenticate the regular RPC server(s), see `--http.api` and
-                    /// `--ws.api`.
+                    /// Path to a JWT secret to use for the authenticated engine-API RPC server.
+                    #[arg(long, value_name = "PATH", global = true)]
+                    pub [<$prefix _auth_rpc_jwtsecret>]: JwtSecret,
+
+                    /// Hex encoded JWT secret to authenticate the regular RPC server(s)
                     ///
                     /// This is __not__ used for the authenticated engine-API RPC server, see
-                    /// `--authrpc.jwtsecret`.
-                    // TODO:
+                    /// `authrpc.jwtsecret`.
                     #[arg(long, value_name = "HEX", global = true)]
-                    pub [<$prefix _jwtsecret>]: Option<JwtSecret>,
+                    pub [<$prefix _rpc_jwtsecret>]: Option<JwtSecret>,
 
-                    /// Path to a JWT secret to use for the authenticated engine-API RPC server.
-                    ///
-                    /// If no path is provided, a secret will be generated and stored in the datadir under
-                    /// `<DIR>/<CHAIN_ID>/jwt.hex`. For mainnet this would be `~/.reth/mainnet/jwt.hex` by default.
-                    #[arg(long, value_name = "PATH", global = true)]
-                    pub [<$prefix _jwtsecret_path>]: Option<PathBuf>,
 
                     /// Filename for auth IPC socket/pipe within the datadir
                     #[arg(long)]
