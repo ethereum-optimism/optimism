@@ -6,6 +6,7 @@ use paste::paste;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -27,11 +28,11 @@ pub enum ExecutionClientError {
 #[derive(Clone)]
 pub struct ExecutionClient<C: ClientT = HttpClient<HttpBackend>> {
     /// Handles requests to Eth, Miner, and other execution layer APIs (optional JWT authentication)
-    pub client: C,
+    pub client: Arc<C>,
     /// Address of the RPC server for execution layer API calls, excluding the Engine API
     pub http_socket: SocketAddr,
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
-    pub auth_client: HttpClient<AuthClientService<HttpBackend>>,
+    pub auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
     /// Address of the RPC server for authenticated Engine API calls
     pub auth_socket: SocketAddr,
 }
@@ -61,9 +62,9 @@ impl ExecutionClient {
             .build(format!("http://{}", auth_socket))?;
 
         Ok(Self {
-            client,
+            client: Arc::new(client),
             http_socket,
-            auth_client,
+            auth_client: Arc::new(auth_client),
             auth_socket,
         })
     }
@@ -99,9 +100,9 @@ impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
             .build(format!("http://{}", auth_socket))?;
 
         Ok(Self {
-            client,
+            client: Arc::new(client),
             http_socket,
-            auth_client,
+            auth_client: Arc::new(auth_client),
             auth_socket,
         })
     }

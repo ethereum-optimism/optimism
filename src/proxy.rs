@@ -2,8 +2,12 @@ use http::Uri;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
+use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::{http_helpers, BoxError};
-use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
+use jsonrpsee::http_client::transport::HttpBackend;
+use jsonrpsee::http_client::{HttpBody, HttpClient, HttpRequest, HttpResponse};
+use reth_rpc_layer::AuthClientService;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
@@ -13,12 +17,12 @@ const MULTIPLEX_METHODS: [&str; 3] = ["engine_", "eth_sendRawTransaction", "mine
 
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
-    target_url: Uri,
+    l2_auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
 }
 
 impl ProxyLayer {
-    pub fn new(target_url: Uri) -> Self {
-        ProxyLayer { target_url }
+    pub fn new(l2_auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>) -> Self {
+        ProxyLayer { l2_auth_client }
     }
 }
 
@@ -28,8 +32,7 @@ impl<S> Layer<S> for ProxyLayer {
     fn layer(&self, inner: S) -> Self::Service {
         ProxyService {
             inner,
-            client: Client::builder(TokioExecutor::new()).build_http(),
-            target_url: self.target_url.clone(),
+            l2_auth_client: self.l2_auth_client.clone(),
         }
     }
 }
@@ -37,8 +40,7 @@ impl<S> Layer<S> for ProxyLayer {
 #[derive(Clone)]
 pub struct ProxyService<S> {
     inner: S,
-    client: Client<HttpConnector, HttpBody>,
-    target_url: Uri,
+    l2_auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
 }
 
 impl<S> Service<HttpRequest<HttpBody>> for ProxyService<S>
@@ -62,14 +64,14 @@ where
             return Box::pin(async { Ok(Self::Response::new(HttpBody::from("OK"))) });
         }
 
-        let target_url = self.target_url.clone();
-        let client = self.client.clone();
+        let l2_auth_client = self.l2_auth_client.clone();
         let mut inner = self.inner.clone();
 
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
             #[serde(borrow)]
             method: &'a str,
+            params: Option<serde_json::Value>,
         }
 
         let fut = async move {
@@ -78,7 +80,7 @@ where
             let (body, _is_single) =
                 http_helpers::read_body(&parts.headers, body, u32::MAX).await?;
             // Deserialize the bytes to find the method
-            let method: RpcRequest = serde_json::from_slice(&body)?;
+            let rpc_request: RpcRequest = serde_json::from_slice(&body)?;
 
             // Create a new body from the bytes
             let new_body = HttpBody::from(body.clone());
@@ -88,29 +90,41 @@ where
 
             debug!(
                 message = "received json rpc request for",
-                method = method.method
+                method = rpc_request.method
             );
             if MULTIPLEX_METHODS
                 .iter()
-                .any(|&m| method.method.starts_with(m))
+                .any(|&m| rpc_request.method.starts_with(m))
             {
-                info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
+                info!(target: "proxy::call", message = "proxying request to rollup-boost server", "method" = ?rpc_request.method);
 
                 // let rpc server handle engine rpc requests
                 let res = inner.call(req).await.map_err(|e| e.into())?;
                 Ok(res)
             } else {
-                info!(target: "proxy::call", message = "forwarding request to l2 client", ?method);
+                info!(target: "proxy::call", message = "forwarding request to l2 client", "method" = ?rpc_request.method);
 
-                // Modify the URI
-                *req.uri_mut() = target_url;
+                // l2_auth_client.call(req);
+                l2_auth_client
+                    .request(
+                        rpc_request.method,
+                        rpc_request.params.unwrap_or(serde_json::Value::Null),
+                    )
+                    .await;
 
-                // Forward the request
-                let res = client
-                    .request(req)
-                    .await
-                    .map(|res| res.map(HttpBody::new))?;
-                Ok(res)
+                // let res = l2_auth_client.request(req).await.map_err(|e| e.into());
+
+                // // Modify the URI
+                // *req.uri_mut() = target_url;
+
+                // // Forward the request
+                // let res = client
+                //     .request(req)
+                //     .await
+                //     .map(|res| res.map(HttpBody::new))?;
+                // Ok(res)
+
+                todo!();
             }
         };
         Box::pin(fut)
@@ -119,17 +133,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
+    use std::{
+        net::{IpAddr, SocketAddr},
+        str::FromStr,
+    };
 
     use http_body_util::BodyExt;
     use jsonrpsee::{
         core::{client::ClientT, ClientError},
-        http_client::HttpClient,
+        http_client::{HttpClient, HttpClientBuilder},
         rpc_params,
         server::{ServerBuilder, ServerHandle},
         types::{ErrorCode, ErrorObject},
         RpcModule,
     };
+    use reth_rpc_layer::{AuthClientLayer, JwtSecret};
 
     use super::*;
 
@@ -240,7 +258,19 @@ mod tests {
     /// Spawn a new RPC server with a proxy layer.
     async fn spawn_proxy_server() -> ServerHandle {
         let addr = format!("{ADDR}:{PORT}");
-        let proxy_layer = ProxyLayer::new(format!("http://{ADDR}:{PROXY_PORT}").parse().unwrap());
+
+        let jwt = JwtSecret::random();
+        let auth_layer = AuthClientLayer::new(jwt);
+        let l2_auth_client = HttpClientBuilder::new()
+            .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))
+            .build(format!(
+                "http://{}",
+                SocketAddr::new(IpAddr::from_str(ADDR).unwrap(), PORT as u16)
+            ))
+            .expect("Could not build auth client");
+
+        let proxy_layer = ProxyLayer::new(Arc::new(l2_auth_client));
+
         // Create a layered server
         let server = ServerBuilder::default()
             .set_http_middleware(tower::ServiceBuilder::new().layer(proxy_layer))

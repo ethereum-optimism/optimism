@@ -90,8 +90,8 @@ impl PayloadTraceContext {
 
 #[derive(Clone)]
 pub struct RollupBoostServer<C: ClientT> {
-    l2_client: Arc<ExecutionClient<C>>,
-    builder_client: Arc<ExecutionClient<C>>,
+    l2_client: ExecutionClient<C>,
+    builder_client: ExecutionClient<C>,
     boost_sync: bool,
     metrics: Option<Arc<ServerMetrics>>,
     payload_trace_context: Arc<PayloadTraceContext>,
@@ -108,8 +108,8 @@ where
         metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
         Self {
-            l2_client: Arc::new(l2_client),
-            builder_client: Arc::new(builder_client),
+            l2_client,
+            builder_client,
             boost_sync,
             metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
@@ -651,6 +651,7 @@ mod tests {
     use jsonrpsee::RpcModule;
     use reth_rpc_layer::JwtSecret;
     use std::net::{IpAddr, SocketAddr};
+    use std::path::PathBuf;
     use std::str::FromStr;
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -735,8 +736,12 @@ mod tests {
             let host = IpAddr::from_str(HOST).unwrap();
 
             let jwt_secret = JwtSecret::random();
+            // NOTE: update, placeholder for now
+            let jwt_secret = PathBuf::default();
             let l2_client =
-                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret, 2000).unwrap();
+                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret.clone(), 2000)
+                    .unwrap();
+
             let builder_client =
                 ExecutionClient::new(host, BUILDER_PORT, host, BUILDER_PORT, jwt_secret, 2000)
                     .unwrap();
