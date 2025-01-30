@@ -4,6 +4,7 @@ use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
+use jsonrpsee::core::client::ClientT;
 use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -35,13 +36,11 @@ use clap::{
 };
 use std::path::PathBuf;
 
-pub struct ExecutionClient<
-    C = HttpClient<HttpBackend>,
-    A = HttpClient<AuthClientService<HttpBackend>>,
-> {
-    pub client: C,
+pub struct ExecutionClient {
+    // TODO: add support for optional auth rpc (eth api, miner api, etc.)
+    pub client: HttpClient<HttpBackend>,
     pub http_socket: SocketAddr,
-    pub auth_client: A,
+    pub auth_client: HttpClient<AuthClientService<HttpBackend>>,
     pub auth_socket: SocketAddr,
 }
 
@@ -49,20 +48,17 @@ impl ExecutionClient {
     pub fn new(
         http_addr: IpAddr,
         http_port: u16,
-        rpc_jwtsecret: Option<JwtSecret>,
         auth_addr: IpAddr,
         auth_port: u16,
-        auth_rpc_jwtsecret: JwtSecret,
+        auth_rpc_jwt_secret: JwtSecret,
         timeout: u64,
     ) -> Result<Self, jsonrpsee::core::client::Error> {
-        // TODO: add optional auth layer for regular rpc
-
         let http_socket = SocketAddr::new(http_addr, http_port);
         let client = HttpClientBuilder::new()
             .request_timeout(Duration::from_millis(timeout))
             .build(format!("http://{}", http_socket))?;
 
-        let auth_layer = AuthClientLayer::new(auth_rpc_jwtsecret);
+        let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
         let auth_socket = SocketAddr::new(auth_addr, auth_port);
         let auth_client = HttpClientBuilder::new()
             .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))

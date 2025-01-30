@@ -135,7 +135,6 @@ async fn main() -> eyre::Result<()> {
     let l2_client = ExecutionClient::new(
         args.l2_client.l2_http_addr,
         args.l2_client.l2_http_port,
-        args.l2_client.l2_rpc_jwtsecret,
         args.l2_client.l2_auth_addr,
         args.l2_client.l2_auth_port,
         args.l2_client.l2_auth_rpc_jwtsecret,
@@ -145,7 +144,6 @@ async fn main() -> eyre::Result<()> {
     let builder_client = ExecutionClient::new(
         args.builder.builder_http_addr,
         args.builder.builder_http_port,
-        args.builder.builder_rpc_jwtsecret,
         args.builder.builder_auth_addr,
         args.builder.builder_auth_port,
         args.builder.builder_auth_rpc_jwtsecret,
