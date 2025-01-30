@@ -3,6 +3,7 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use jsonrpsee::core::client::ClientT;
+use jsonrpsee::core::traits::ToRpcParams;
 use jsonrpsee::core::{http_helpers, BoxError};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpBody, HttpClient, HttpRequest, HttpResponse};
@@ -71,7 +72,6 @@ where
         struct RpcRequest<'a> {
             #[serde(borrow)]
             method: &'a str,
-            params: Option<serde_json::Value>,
         }
 
         let fut = async move {
@@ -104,25 +104,7 @@ where
             } else {
                 info!(target: "proxy::call", message = "forwarding request to l2 client", "method" = ?rpc_request.method);
 
-                // l2_auth_client.call(req);
-                l2_auth_client
-                    .request(
-                        rpc_request.method,
-                        rpc_request.params.unwrap_or(serde_json::Value::Null),
-                    )
-                    .await;
-
-                // let res = l2_auth_client.request(req).await.map_err(|e| e.into());
-
-                // // Modify the URI
-                // *req.uri_mut() = target_url;
-
-                // // Forward the request
-                // let res = client
-                //     .request(req)
-                //     .await
-                //     .map(|res| res.map(HttpBody::new))?;
-                // Ok(res)
+                // TODO: forward to l2_auth_client
 
                 todo!();
             }

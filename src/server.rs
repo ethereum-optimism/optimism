@@ -90,11 +90,11 @@ impl PayloadTraceContext {
 
 #[derive(Clone)]
 pub struct RollupBoostServer<C: ClientT> {
-    l2_client: ExecutionClient<C>,
-    builder_client: ExecutionClient<C>,
-    boost_sync: bool,
-    metrics: Option<Arc<ServerMetrics>>,
-    payload_trace_context: Arc<PayloadTraceContext>,
+    pub l2_client: ExecutionClient<C>,
+    pub builder_client: ExecutionClient<C>,
+    pub boost_sync: bool,
+    pub metrics: Option<Arc<ServerMetrics>>,
+    pub payload_trace_context: Arc<PayloadTraceContext>,
 }
 
 impl<C> RollupBoostServer<C>

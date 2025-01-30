@@ -152,17 +152,12 @@ async fn main() -> eyre::Result<()> {
 
     let rollup_boost = RollupBoostServer::new(l2_client, builder_client, args.boost_sync, metrics);
 
+    let l2_auth_client = rollup_boost.l2_client.auth_client.clone();
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
-    // TODO: Both the Auth and Non-Auth URI's should be passed to the ProxyLayer
-    let l2_auth_uri = format!(
-        "http://{}:{}",
-        l2_client_args.l2_auth_addr, l2_client_args.l2_auth_port
-    );
-    let service_builder =
-        tower::ServiceBuilder::new().layer(ProxyLayer::new(l2_auth_uri.parse::<Uri>()?));
+    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(l2_auth_client));
     let server = Server::builder()
         .set_http_middleware(service_builder)
         .build(format!("{}:{}", args.rpc_host, args.rpc_port).parse::<SocketAddr>()?)
