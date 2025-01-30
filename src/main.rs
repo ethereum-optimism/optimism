@@ -132,13 +132,12 @@ async fn main() -> eyre::Result<()> {
 
     let l2_client_args = args.l2_client;
 
-    let l2_jwt = match (
-        l2_client_args.l2_auth_jwtsecret.as_ref(),
-        l2_client_args.l2_auth_jwtsecret_path.as_ref(),
-    ) {
-        (Some(secret), None) => *secret,
-        (None, Some(path)) => JwtSecret::from_file(path)?,
-        _ => return Err(eyre::eyre!("Missing JWT secret")),
+    let l2_jwt = if let Some(secret) = l2_client_args.l2_auth_jwtsecret {
+        secret
+    } else if let Some(path) = l2_client_args.l2_auth_jwtsecret_path.as_ref() {
+        JwtSecret::from_file(path)?
+    } else {
+        return Err(eyre::eyre!("Missing L2 JWT secret"));
     };
     // TODO: add support for optional JWT gated rpc (eth api, miner api, etc.) based on rpc_jwtsecret Some/None
     let l2_client = ExecutionClient::new(
@@ -151,13 +150,12 @@ async fn main() -> eyre::Result<()> {
     )?;
 
     let builder_args = args.builder;
-    let builder_jwt = match (
-        builder_args.builder_auth_jwtsecret.as_ref(),
-        builder_args.builder_auth_jwtsecret_path.as_ref(),
-    ) {
-        (Some(secret), None) => *secret,
-        (None, Some(path)) => JwtSecret::from_file(path)?,
-        _ => return Err(eyre::eyre!("Missing JWT secret")),
+    let builder_jwt = if let Some(secret) = builder_args.builder_auth_jwtsecret {
+        secret
+    } else if let Some(path) = builder_args.builder_auth_jwtsecret_path.as_ref() {
+        JwtSecret::from_file(path)?
+    } else {
+        return Err(eyre::eyre!("Missing Builder JWT secret"));
     };
 
     let builder_client = ExecutionClient::new(
