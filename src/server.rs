@@ -646,12 +646,11 @@ mod tests {
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
-    use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+    use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
     use reth_rpc_layer::JwtSecret;
     use std::net::{IpAddr, SocketAddr};
-    use std::path::PathBuf;
     use std::str::FromStr;
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -736,8 +735,6 @@ mod tests {
             let host = IpAddr::from_str(HOST).unwrap();
 
             let jwt_secret = JwtSecret::random();
-            // NOTE: update, placeholder for now
-            let jwt_secret = PathBuf::default();
             let l2_client =
                 ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret.clone(), 2000)
                     .unwrap();

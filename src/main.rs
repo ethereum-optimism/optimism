@@ -131,23 +131,41 @@ async fn main() -> eyre::Result<()> {
     }
 
     let l2_client_args = args.l2_client;
+
+    let l2_jwt = match (
+        l2_client_args.l2_auth_jwtsecret.as_ref(),
+        l2_client_args.l2_auth_jwtsecret_path.as_ref(),
+    ) {
+        (Some(secret), None) => *secret,
+        (None, Some(path)) => JwtSecret::from_file(path)?,
+        _ => return Err(eyre::eyre!("Missing JWT secret")),
+    };
     // TODO: add support for optional JWT gated rpc (eth api, miner api, etc.) based on rpc_jwtsecret Some/None
     let l2_client = ExecutionClient::new(
         l2_client_args.l2_http_addr,
         l2_client_args.l2_http_port,
         l2_client_args.l2_auth_addr,
         l2_client_args.l2_auth_port,
-        l2_client_args.l2_auth_jwtsecret.clone(),
+        l2_jwt,
         l2_client_args.l2_timeout,
     )?;
 
     let builder_args = args.builder;
+    let builder_jwt = match (
+        builder_args.builder_auth_jwtsecret.as_ref(),
+        builder_args.builder_auth_jwtsecret_path.as_ref(),
+    ) {
+        (Some(secret), None) => *secret,
+        (None, Some(path)) => JwtSecret::from_file(path)?,
+        _ => return Err(eyre::eyre!("Missing JWT secret")),
+    };
+
     let builder_client = ExecutionClient::new(
         builder_args.builder_http_addr,
         builder_args.builder_http_port,
         builder_args.builder_auth_addr,
         builder_args.builder_auth_port,
-        builder_args.builder_auth_jwtsecret,
+        builder_jwt,
         builder_args.builder_timeout,
     )?;
 
@@ -157,12 +175,13 @@ async fn main() -> eyre::Result<()> {
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
-    let auth_rpc_uri = format!("http://{}:{}", l2_client_args.l2_auth_addr, l2_client_args.l2_auth_port).parse::<Uri>()?;
+    let auth_rpc_uri = format!(
+        "http://{}:{}",
+        l2_client_args.l2_auth_addr, l2_client_args.l2_auth_port
+    )
+    .parse::<Uri>()?;
 
-    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        auth_rpc_uri, 
-        JwtSecret::from_file(&l2_client_args.l2_auth_jwtsecret)?
-    ));
+    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(auth_rpc_uri, l2_jwt));
     let server = Server::builder()
         .set_http_middleware(service_builder)
         .build(format!("{}:{}", args.rpc_host, args.rpc_port).parse::<SocketAddr>()?)

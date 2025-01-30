@@ -3,13 +3,9 @@ use http::Uri;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::core::traits::ToRpcParams;
 use jsonrpsee::core::{http_helpers, BoxError};
-use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::{HttpBody, HttpClient, HttpRequest, HttpResponse};
-use reth_rpc_layer::{secret_to_bearer_header, AuthClientService, JwtSecret};
-use std::sync::Arc;
+use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
+use reth_rpc_layer::{secret_to_bearer_header, JwtSecret};
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
@@ -45,7 +41,7 @@ impl<S> Layer<S> for ProxyLayer {
 #[derive(Clone)]
 pub struct ProxyService<S> {
     inner: S,
-    client:  Client<HttpConnector, HttpBody>,
+    client: Client<HttpConnector, HttpBody>,
     target_url: Uri,
     secret: JwtSecret,
 }
@@ -111,10 +107,11 @@ where
                 Ok(res)
             } else {
                 info!(target: "proxy::call", message = "forwarding request to l2 client", "method" = ?rpc_request.method);
-                // Modify the URI 
+                // Modify the URI
                 *req.uri_mut() = target_url.clone();
                 // Insert JWT Authorization headers
-                req.headers_mut().insert(AUTHORIZATION, secret_to_bearer_header(&secret));
+                req.headers_mut()
+                    .insert(AUTHORIZATION, secret_to_bearer_header(&secret));
 
                 // Forward the request
                 let res = client
@@ -138,13 +135,13 @@ mod tests {
     use http_body_util::BodyExt;
     use jsonrpsee::{
         core::{client::ClientT, ClientError},
-        http_client::{HttpClient, HttpClientBuilder},
+        http_client::HttpClient,
         rpc_params,
         server::{ServerBuilder, ServerHandle},
         types::{ErrorCode, ErrorObject},
         RpcModule,
     };
-    use reth_rpc_layer::{AuthClientLayer, JwtSecret};
+    use reth_rpc_layer::JwtSecret;
 
     use super::*;
 
@@ -257,16 +254,13 @@ mod tests {
         let addr = format!("{ADDR}:{PORT}");
 
         let jwt = JwtSecret::random();
-        let auth_layer = AuthClientLayer::new(jwt);
-        let l2_auth_client = HttpClientBuilder::new()
-            .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))
-            .build(format!(
-                "http://{}",
-                SocketAddr::new(IpAddr::from_str(ADDR).unwrap(), PORT as u16)
-            ))
-            .expect("Could not build auth client");
-
-        let proxy_layer = ProxyLayer::new(Arc::new(l2_auth_client));
+        let l2_auth_uri = format!(
+            "http://{}",
+            SocketAddr::new(IpAddr::from_str(ADDR).unwrap(), PORT as u16)
+        )
+        .parse::<Uri>()
+        .unwrap();
+        let proxy_layer = ProxyLayer::new(l2_auth_uri, jwt);
 
         // Create a layered server
         let server = ServerBuilder::default()
