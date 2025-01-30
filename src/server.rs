@@ -662,6 +662,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use core::panic;
+    use std::default;
     use std::net::SocketAddr;
     use std::str::FromStr;
     use std::sync::Mutex;
@@ -677,9 +679,13 @@ mod tests {
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
     use http::Uri;
+    use jsonrpsee::core::client::BatchResponse;
+    use jsonrpsee::core::params::BatchRequestBuilder;
+    use jsonrpsee::core::traits::ToRpcParams;
     use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
     use jsonrpsee::server::{Server, ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
+    use serde::de::DeserializeOwned;
     use std::sync::Arc;
 
     const L2_ADDR: &str = "0.0.0.0:8554";
@@ -1005,67 +1011,28 @@ mod tests {
         server.start(module)
     }
 
-    // TODO: update this so that the backend stores the requests that we can assert against
-    pub type MockExecutionClient =
-        ExecutionClient<HttpClient<HttpBackend>, HttpClient<HttpBackend>>;
-
-    impl MockExecutionClient {
-        pub fn new() -> Self {
-            todo!()
-        }
-    }
-
     #[tokio::test]
     async fn test_send_raw_transaction() -> eyre::Result<()> {
-        let l2_client = MockExecutionClient::new();
-        let builder_client = MockExecutionClient::new();
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-
-        let bytes = Bytes::from(FixedBytes::from([1u8; 32]).to_vec());
-        rollup_boost.send_raw_transaction(bytes).await?;
-
-        // TODO: assert that clients recieved the request
-
-        Ok(())
+        todo!();
     }
 
     #[tokio::test]
     async fn test_set_gas_limit() -> eyre::Result<()> {
-        let l2_client = MockExecutionClient::new();
-        let builder_client = MockExecutionClient::new();
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-
-        // TODO:
-        Ok(())
+        todo!();
     }
 
     #[tokio::test]
     async fn test_set_gas_price() -> eyre::Result<()> {
-        let l2_client = MockExecutionClient::new();
-        let builder_client = MockExecutionClient::new();
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-        // TODO:
-
-        Ok(())
+        todo!();
     }
 
     #[tokio::test]
     async fn test_set_extra() -> eyre::Result<()> {
-        let l2_client = MockExecutionClient::new();
-        let builder_client = MockExecutionClient::new();
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-        // TODO:
-
-        Ok(())
+        todo!();
     }
 
     #[tokio::test]
     async fn test_set_max_da_size() -> eyre::Result<()> {
-        let l2_client = MockExecutionClient::new();
-        let builder_client = MockExecutionClient::new();
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-        // TODO:
-
-        Ok(())
+        todo!();
     }
 }
