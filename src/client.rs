@@ -1,11 +1,23 @@
-use clap::{arg, ArgGroup, Parser};
+use clap::{arg, Parser};
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use paste::paste;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use std::time::Duration;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ExecutionClientError {
+    #[error(transparent)]
+    HttpClient(#[from] jsonrpsee::core::client::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Jwt(#[from] reth_rpc_layer::JwtError),
+}
 
 /// Client interface for interacting with an execution layer node.
 ///
@@ -31,14 +43,16 @@ impl ExecutionClient {
         http_port: u16,
         auth_addr: IpAddr,
         auth_port: u16,
-        auth_rpc_jwt_secret: JwtSecret,
+        auth_rpc_jwt_secret: PathBuf,
         timeout: u64,
-    ) -> Result<Self, jsonrpsee::core::client::Error> {
+    ) -> Result<Self, ExecutionClientError> {
         let http_socket = SocketAddr::new(http_addr, http_port);
         let client = HttpClientBuilder::new()
             .request_timeout(Duration::from_millis(timeout))
             .build(format!("http://{}", http_socket))?;
 
+        let jwt = std::fs::read_to_string(auth_rpc_jwt_secret)?;
+        let auth_rpc_jwt_secret = JwtSecret::from_hex(jwt)?;
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
         let auth_socket = SocketAddr::new(auth_addr, auth_port);
         let auth_client = HttpClientBuilder::new()
@@ -60,12 +74,14 @@ impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
     pub fn new_with_auth(
         http_addr: IpAddr,
         http_port: u16,
-        rpc_jwt_secret: JwtSecret,
+        rpc_jwt_secret: PathBuf,
         auth_addr: IpAddr,
         auth_port: u16,
-        auth_rpc_jwt_secret: JwtSecret,
+        auth_rpc_jwt_secret: PathBuf,
         timeout: u64,
-    ) -> Result<Self, jsonrpsee::core::client::Error> {
+    ) -> Result<Self, ExecutionClientError> {
+        let jwt = std::fs::read_to_string(rpc_jwt_secret)?;
+        let rpc_jwt_secret = JwtSecret::from_hex(jwt)?;
         let rpc_auth_layer = AuthClientLayer::new(rpc_jwt_secret);
         let http_socket = SocketAddr::new(http_addr, http_port);
         let client = HttpClientBuilder::new()
@@ -73,6 +89,8 @@ impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
             .request_timeout(Duration::from_millis(timeout))
             .build(format!("http://{}", http_socket))?;
 
+        let jwt = std::fs::read_to_string(auth_rpc_jwt_secret)?;
+        let auth_rpc_jwt_secret = JwtSecret::from_hex(jwt)?;
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
         let auth_socket = SocketAddr::new(auth_addr, auth_port);
         let auth_client = HttpClientBuilder::new()
@@ -95,49 +113,40 @@ macro_rules! define_rpc_args {
         $(
             paste! {
                 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
-                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "_jwt"))
-                    .required(true)
-                    .multiple(false)
-                    .args(&[
-                        concat!(stringify!($prefix), "_jwtsecret"),
-                        concat!(stringify!($prefix), "_jwtsecret_path")
-                    ])
-                ))]
                 pub struct $name {
                     /// Http server address
-                    #[arg(long)]
+                    #[arg(long = concat!(stringify!($prefix), ".http.addr"), default_value = "127.0.0.1")]
                     pub [<$prefix _http_addr>]: IpAddr,
 
                     /// Http server port
-                    #[arg(long)]
+                    #[arg(long = concat!(stringify!($prefix), ".http.port"), default_value_t = 8545)]
                     pub [<$prefix _http_port>]: u16,
 
                     /// Auth server address
-                    #[arg(long)]
+                    #[arg(long = concat!(stringify!($prefix), ".auth.addr"), default_value = "127.0.0.1")]
                     pub [<$prefix _auth_addr>]: IpAddr,
 
                     /// Auth server port
-                    #[arg(long)]
+                    #[arg(long = concat!(stringify!($prefix), ".auth.port"), default_value_t = 8551)]
                     pub [<$prefix _auth_port>]: u16,
 
                     /// Path to a JWT secret to use for the authenticated engine-API RPC server.
-                    #[arg(long, value_name = "PATH")]
-                    pub [<$prefix _auth_rpc_jwt_secret>]: JwtSecret,
+                    #[arg(long = concat!(stringify!($prefix), ".authrpc.jwtsecret"), value_name = "PATH", required = true)]
+                    pub [<$prefix _auth_jwtsecret>]: PathBuf,
 
                     /// Hex encoded JWT secret to authenticate the regular RPC server(s)
                     ///
                     /// This is __not__ used for the authenticated engine-API RPC server, see
                     /// `authrpc.jwtsecret`.
-                    #[arg(long, value_name = "HEX")]
-                    pub [<$prefix _rpc_jwt_secret>]: JwtSecret,
-
+                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret"), value_name = "PATH", required = false)]
+                    pub [<$prefix _rpc_jwtsecret>]: Option<PathBuf>,
 
                     /// Filename for auth IPC socket/pipe within the datadir
-                    #[arg(long)]
+                    #[arg(long = concat!(stringify!($prefix), ".auth.ipc.path"), value_name = "PATH")]
                     pub [<$prefix _auth_ipc_path>]: Option<String>,
 
                     /// Timeout for http calls in milliseconds
-                    #[arg(long)]
+                    #[arg(long = concat!(stringify!($prefix), ".timeout"), default_value_t = 1000)]
                     pub [<$prefix _timeout>]: u64,
                 }
             }

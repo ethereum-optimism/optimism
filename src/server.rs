@@ -22,7 +22,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
-use clap::Parser;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::proc_macros::rpc;
 
