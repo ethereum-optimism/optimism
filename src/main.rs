@@ -233,6 +233,8 @@ mod tests {
     use assert_cmd::Command;
     use jsonrpsee::core::client::ClientT;
 
+    use jsonrpsee::http_client::transport::HttpBackend;
+    use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::RpcModule;
     use jsonrpsee::{
         core::ClientError,
@@ -240,7 +242,7 @@ mod tests {
         server::{ServerBuilder, ServerHandle},
     };
     use predicates::prelude::*;
-    use reth_rpc_layer::{AuthLayer, JwtAuthValidator};
+    use reth_rpc_layer::{AuthClientService, AuthLayer, JwtAuthValidator, JwtSecret};
     use std::result::Result;
 
     use super::*;

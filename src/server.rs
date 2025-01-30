@@ -90,22 +90,21 @@ impl PayloadTraceContext {
 }
 
 #[derive(Clone)]
-pub struct RollupBoostServer<C: ClientT, A: ClientT> {
-    l2_client: Arc<ExecutionClient<C, A>>,
-    builder_client: Arc<ExecutionClient<C, A>>,
+pub struct RollupBoostServer<C: ClientT> {
+    l2_client: Arc<ExecutionClient<C>>,
+    builder_client: Arc<ExecutionClient<C>>,
     boost_sync: bool,
     metrics: Option<Arc<ServerMetrics>>,
     payload_trace_context: Arc<PayloadTraceContext>,
 }
 
-impl<C, A> RollupBoostServer<C, A>
+impl<C> RollupBoostServer<C>
 where
     C: ClientT,
-    A: ClientT,
 {
     pub fn new(
-        l2_client: ExecutionClient<C, A>,
-        builder_client: ExecutionClient<C, A>,
+        l2_client: ExecutionClient<C>,
+        builder_client: ExecutionClient<C>,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
@@ -119,19 +118,9 @@ where
     }
 }
 
-impl<C, A> TryInto<RpcModule<()>> for RollupBoostServer<C, A>
+impl<C> TryInto<RpcModule<()>> for RollupBoostServer<C>
 where
     C: EngineApiClient
-        + EthApiClient
-        + MinerApiClient
-        + MinerApiExtClient
-        + ClientT
-        + Clone
-        + Send
-        + Sync
-        + 'static,
-
-    A: EngineApiClient
         + EthApiClient
         + MinerApiClient
         + MinerApiExtClient
@@ -165,10 +154,9 @@ pub trait EthApi {
 }
 
 #[async_trait]
-impl<C, A> EthApiServer for RollupBoostServer<C, A>
+impl<C> EthApiServer for RollupBoostServer<C>
 where
     C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
         debug!(
@@ -228,10 +216,9 @@ pub trait MinerApi {
 }
 
 #[async_trait]
-impl<C, A> MinerApiServer for RollupBoostServer<C, A>
+impl<C> MinerApiServer for RollupBoostServer<C>
 where
     C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn set_extra(&self, record: Bytes) -> RpcResult<bool> {
         debug!(
@@ -320,10 +307,9 @@ where
 }
 
 #[async_trait]
-impl<C, A> MinerApiExtServer for RollupBoostServer<C, A>
+impl<C> MinerApiExtServer for RollupBoostServer<C>
 where
     C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn set_max_da_size(&self, max_tx_size: U64, max_block_size: U64) -> RpcResult<bool> {
         debug!(
@@ -390,10 +376,9 @@ pub trait EngineApi {
 }
 
 #[async_trait]
-impl<C, A> EngineApiServer for RollupBoostServer<C, A>
+impl<C> EngineApiServer for RollupBoostServer<C>
 where
     C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn fork_choice_updated_v3(
         &self,
@@ -665,13 +650,17 @@ mod tests {
     use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
-    use std::net::SocketAddr;
+    use reth_rpc_layer::JwtSecret;
+    use std::net::{IpAddr, SocketAddr};
     use std::str::FromStr;
     use std::sync::Arc;
     use std::sync::Mutex;
 
+    const HOST: &str = "0.0.0.0";
+    const L2_PORT: u16 = 8554;
     const L2_ADDR: &str = "0.0.0.0:8554";
-    const BUILDER_ADDR: &str = "0.0.0.0:8555";
+    const BUILDER_PORT: u16 = 8555;
+    const BUILDER_ADDR: &str = "0.0.0.0.8555";
     const SERVER_ADDR: &str = "0.0.0.0:8556";
 
     #[derive(Debug, Clone)]
@@ -744,27 +733,14 @@ mod tests {
             l2_mock: Option<MockEngineServer>,
             builder_mock: Option<MockEngineServer>,
         ) -> Self {
-            let l2_client = HttpClientBuilder::new()
-                .build(format!("http://{L2_ADDR}"))
-                .unwrap();
+            let host = IpAddr::from_str(HOST).unwrap();
 
-            let builder_client = HttpClientBuilder::new()
-                .build(format!("http://{BUILDER_ADDR}"))
-                .unwrap();
-
-            let l2_client = ExecutionClient {
-                client: l2_client.clone(),
-                http_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
-                auth_client: l2_client,
-                auth_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
-            };
-
-            let builder_client = ExecutionClient {
-                client: builder_client.clone(),
-                http_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
-                auth_client: builder_client,
-                auth_socket: SocketAddr::from_str(L2_ADDR).unwrap(),
-            };
+            let jwt_secret = JwtSecret::random();
+            let l2_client =
+                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret, 2000).unwrap();
+            let builder_client =
+                ExecutionClient::new(host, BUILDER_PORT, host, BUILDER_PORT, jwt_secret, 2000)
+                    .unwrap();
 
             let rollup_boost_client =
                 RollupBoostServer::new(l2_client, builder_client, boost_sync, None);

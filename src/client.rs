@@ -13,16 +13,13 @@ use std::time::Duration;
 /// -  All other API calls including the **Eth & Miner APIs** are faciliated via the `client` (optional JWT authentication).
 ///
 #[derive(Clone)]
-pub struct ExecutionClient<
-    C: ClientT = HttpClient<HttpBackend>,
-    A: ClientT = HttpClient<AuthClientService<HttpBackend>>,
-> {
+pub struct ExecutionClient<C: ClientT = HttpClient<HttpBackend>> {
     /// Handles requests to Eth, Miner, and other execution layer APIs (optional JWT authentication)
     pub client: C,
     /// Address of the RPC server for execution layer API calls, excluding the Engine API
     pub http_socket: SocketAddr,
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
-    pub auth_client: A,
+    pub auth_client: HttpClient<AuthClientService<HttpBackend>>,
     /// Address of the RPC server for authenticated Engine API calls
     pub auth_socket: SocketAddr,
 }
