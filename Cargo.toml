@@ -49,6 +49,7 @@ metrics-exporter-prometheus = "0.16.0"
 metrics-process = "2.3.1"
 metrics-util = "0.18.0"
 eyre = "0.6.12"
+paste = "1.0.15"
 
 [dev-dependencies]
 anyhow = "1.0"

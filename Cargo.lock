@@ -5192,6 +5192,7 @@ dependencies = [
  "opentelemetry-http",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "paste",
  "predicates",
  "reqwest",
  "reth-optimism-payload-builder",

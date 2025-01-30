@@ -17,6 +17,7 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
+use paste::paste;
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
@@ -186,3 +187,43 @@ pub trait MinerApi {
     #[method(name = "setGasLimit")]
     async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool>;
 }
+
+macro_rules! define_rpc_args {
+    ($(($name:ident, $prefix:ident)),*) => {
+        $(
+            paste! {
+                #[derive(Debug, Clone, Args, PartialEq, Eq)]
+                pub struct $name {
+                    #[arg(long)]
+                    pub [<$prefix _http_addr>]: IpAddr,
+
+                    #[arg(long)]
+                    pub [<$prefix _http_port>]: u16,
+
+                    #[arg(long)]
+                    pub [<$prefix _http_corsdomain>]: Option<String>,
+
+                    #[arg(long)]
+                    pub [<$prefix _auth_addr>]: IpAddr,
+
+                    #[arg(long)]
+                    pub [<$prefix _auth_port>]: u16,
+
+                    #[arg(long, value_name = "PATH", global = true)]
+                    pub [<$prefix _auth_jwtsecret>]: Option<PathBuf>,
+
+                    #[arg(long)]
+                    pub [<$prefix _auth_ipc_path>]: Option<String>,
+
+                    #[arg(long, value_name = "HEX", global = true)]
+                    pub [<$prefix _rpc_jwtsecret>]: Option<JwtSecret>,
+
+                    #[arg(long)]
+                    pub [<$prefix _timeout>]: u64,
+                }
+            }
+        )*
+    };
+}
+
+define_rpc_args!((BuilderArgs, builder), (L2ClientArgs, l2));

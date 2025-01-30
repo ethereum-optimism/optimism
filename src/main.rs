@@ -18,7 +18,7 @@ use opentelemetry_sdk::trace::Config;
 use opentelemetry_sdk::Resource;
 use proxy::ProxyLayer;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use rpc::{ExecutionClient, RpcClientArgs};
+use rpc::{BuilderArgs, ExecutionClient, L2ClientArgs, RpcClientArgs};
 use server::{HttpClientWrapper, RollupBoostServer};
 
 use std::sync::Arc;
@@ -38,10 +38,10 @@ mod server;
 #[clap(group(ArgGroup::new("jwt").required(true).multiple(false).args(&["jwt_token", "jwt_path"])))]
 struct Args {
     #[clap(flatten)]
-    builder: RpcClientArgs,
+    builder: BuilderArgs,
 
     #[clap(flatten)]
-    l2_client: RpcClientArgs,
+    l2_client: L2ClientArgs,
 
     /// Use the proposer to sync the builder node
     #[arg(long, env, default_value = "false")]
@@ -132,38 +132,38 @@ async fn main() -> eyre::Result<()> {
         init_tracing(&args.otlp_endpoint);
     }
 
-    let l2_jwt_secret = if let Some(jwt_secret) = args.l2_client.rpc_jwtsecret {
+    let l2_jwt_secret = if let Some(jwt_secret) = args.l2_client.l2_rpc_jwtsecret {
         jwt_secret
-    } else if let Some(path) = args.l2_client.auth_jwtsecret {
+    } else if let Some(path) = args.l2_client.l2_auth_jwtsecret {
         JwtSecret::from_file(&path)?
     } else {
         eyre::bail!("Either l2_client.rpc_jwtsecret or l2_client.auth_jwtsecret must be provided");
     };
 
-    let builder_jwt_secret = if let Some(jwt_secret) = args.builder.rpc_jwtsecret {
+    let builder_jwt_secret = if let Some(jwt_secret) = args.builder.builder_rpc_jwtsecret {
         jwt_secret
-    } else if let Some(path) = args.builder.auth_jwtsecret {
+    } else if let Some(path) = args.builder.builder_auth_jwtsecret {
         JwtSecret::from_file(&path)?
     } else {
         eyre::bail!("Either builder.rpc_jwtsecret or builder.auth_jwtsecret must be provided");
     };
 
     let l2_client = ExecutionClient::new(
-        args.l2_client.http_addr,
-        args.l2_client.http_port,
-        args.l2_client.auth_addr,
-        args.l2_client.auth_port,
+        args.l2_client.l2_http_addr,
+        args.l2_client.l2_http_port,
+        args.l2_client.l2_auth_addr,
+        args.l2_client.l2_auth_port,
         l2_jwt_secret,
-        args.l2_client.timeout,
+        args.l2_client.l2_timeout,
     )?;
 
     let builder_client = ExecutionClient::new(
-        args.builder.http_addr,
-        args.builder.http_port,
-        args.builder.auth_addr,
-        args.builder.auth_port,
+        args.builder.builder_http_addr,
+        args.builder.builder_http_port,
+        args.builder.builder_auth_addr,
+        args.builder.builder_auth_port,
         builder_jwt_secret,
-        args.builder.timeout,
+        args.builder.builder_timeout,
     )?;
 
     let rollup_boost = RollupBoostServer::new(l2_client, builder_client, args.boost_sync, metrics);
@@ -173,7 +173,7 @@ async fn main() -> eyre::Result<()> {
     // server setup
     info!("Starting server on :{}", args.rpc_port);
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        args.l2_client.http_addr.to_string().parse::<Uri>()?,
+        args.l2_client.l2_http_addr.to_string().parse::<Uri>()?,
     ));
     let server = Server::builder()
         .set_http_middleware(service_builder)

@@ -95,18 +95,6 @@ impl PayloadTraceContext {
 }
 
 #[derive(Clone)]
-pub struct HttpClientWrapper<C = HttpClient<AuthClientService<HttpBackend>>> {
-    pub client: C,
-    pub url: String,
-}
-
-impl<C> HttpClientWrapper<C> {
-    pub fn new(client: C, url: String) -> Self {
-        Self { client, url }
-    }
-}
-
-#[derive(Clone)]
 pub struct RollupBoostServer {
     l2_client: Arc<ExecutionClient>,
     builder_client: Arc<ExecutionClient>,
