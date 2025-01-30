@@ -73,14 +73,12 @@ impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
     pub fn _new_with_auth(
         http_addr: IpAddr,
         http_port: u16,
-        rpc_jwt_secret: PathBuf,
+        rpc_jwt_secret: JwtSecret,
         auth_addr: IpAddr,
         auth_port: u16,
-        auth_rpc_jwt_secret: PathBuf,
+        auth_rpc_jwt_secret: JwtSecret,
         timeout: u64,
     ) -> Result<Self, ExecutionClientError> {
-        let jwt = std::fs::read_to_string(rpc_jwt_secret)?;
-        let rpc_jwt_secret = JwtSecret::from_hex(jwt)?;
         let rpc_auth_layer = AuthClientLayer::new(rpc_jwt_secret);
         let http_socket = SocketAddr::new(http_addr, http_port);
         let client = HttpClientBuilder::new()
@@ -88,8 +86,6 @@ impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
             .request_timeout(Duration::from_millis(timeout))
             .build(format!("http://{}", http_socket))?;
 
-        let jwt = std::fs::read_to_string(auth_rpc_jwt_secret)?;
-        let auth_rpc_jwt_secret = JwtSecret::from_hex(jwt)?;
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
         let auth_socket = SocketAddr::new(auth_addr, auth_port);
         let auth_client = HttpClientBuilder::new()
