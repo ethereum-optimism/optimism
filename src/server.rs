@@ -109,18 +109,22 @@ impl<C> HttpClientWrapper<C> {
 }
 
 #[derive(Clone)]
-pub struct RollupBoostServer {
-    l2_client: Arc<ExecutionClient>,
-    builder_client: Arc<ExecutionClient>,
+pub struct RollupBoostServer<C: ClientT, A: ClientT> {
+    l2_client: Arc<ExecutionClient<C, A>>,
+    builder_client: Arc<ExecutionClient<C, A>>,
     boost_sync: bool,
     metrics: Option<Arc<ServerMetrics>>,
     payload_trace_context: Arc<PayloadTraceContext>,
 }
 
-impl RollupBoostServer {
+impl<C, A> RollupBoostServer<C, A>
+where
+    C: ClientT,
+    A: ClientT,
+{
     pub fn new(
-        l2_client: ExecutionClient,
-        builder_client: ExecutionClient,
+        l2_client: ExecutionClient<C, A>,
+        builder_client: ExecutionClient<C, A>,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
@@ -134,7 +138,11 @@ impl RollupBoostServer {
     }
 }
 
-impl TryInto<RpcModule<()>> for RollupBoostServer {
+impl<C, A> TryInto<RpcModule<()>> for RollupBoostServer<C, A>
+where
+    C: ClientT + Clone,
+    A: ClientT + Clone,
+{
     type Error = RegisterMethodError;
 
     fn try_into(self) -> Result<RpcModule<()>, Self::Error> {

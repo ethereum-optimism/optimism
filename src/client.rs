@@ -15,17 +15,27 @@ use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
+/// Client interface for interacting with an execution layer node.
+///
+/// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
+/// -  All other API calls including the **Eth & Miner APIs** are faciliated via the `client` (optional JWT authentication).
+///
 pub struct ExecutionClient<
     C: ClientT = HttpClient<HttpBackend>,
     A: ClientT = HttpClient<AuthClientService<HttpBackend>>,
 > {
+    /// Handles requests to Eth, Miner, and other Execution Layer APIs (optional JWT authentication)
     pub client: C,
+    /// Address of the RPC server for execution layer API calls, excluding the Engine API
     pub http_socket: SocketAddr,
+    /// Handles requests to the authenticated Engine API (requires JWT authentication)
     pub auth_client: A,
+    /// Address of the RPC server for authenticated Engine API calls
     pub auth_socket: SocketAddr,
 }
 
 impl ExecutionClient {
+    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for general Execution Layer APIs.
     pub fn new(
         http_addr: IpAddr,
         http_port: u16,
@@ -56,6 +66,7 @@ impl ExecutionClient {
 }
 
 impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
+    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and general Execution Layer APIs.
     pub fn new_with_auth(
         http_addr: IpAddr,
         http_port: u16,
@@ -121,14 +132,14 @@ macro_rules! define_rpc_args {
 
                     /// Path to a JWT secret to use for the authenticated engine-API RPC server.
                     #[arg(long, value_name = "PATH")]
-                    pub [<$prefix _auth_rpc_jwtsecret>]: JwtSecret,
+                    pub [<$prefix _auth_rpc_jwt_secret>]: JwtSecret,
 
                     /// Hex encoded JWT secret to authenticate the regular RPC server(s)
                     ///
                     /// This is __not__ used for the authenticated engine-API RPC server, see
                     /// `authrpc.jwtsecret`.
                     #[arg(long, value_name = "HEX")]
-                    pub [<$prefix _rpc_jwtsecret>]: Option<JwtSecret>,
+                    pub [<$prefix _rpc_jwt_secret>]: JwtSecret,
 
 
                     /// Filename for auth IPC socket/pipe within the datadir

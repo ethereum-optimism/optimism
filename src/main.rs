@@ -132,22 +132,26 @@ async fn main() -> eyre::Result<()> {
         init_tracing(&args.otlp_endpoint);
     }
 
-    let l2_client = ExecutionClient::new(
-        args.l2_client.l2_http_addr,
-        args.l2_client.l2_http_port,
-        args.l2_client.l2_auth_addr,
-        args.l2_client.l2_auth_port,
-        args.l2_client.l2_auth_rpc_jwtsecret,
-        args.l2_client.l2_timeout,
+    let l2_client_args = args.l2_client;
+    let l2_client = ExecutionClient::new_with_auth(
+        l2_client_args.l2_http_addr,
+        l2_client_args.l2_http_port,
+        l2_client_args.l2_rpc_jwt_secret,
+        l2_client_args.l2_auth_addr,
+        l2_client_args.l2_auth_port,
+        l2_client_args.l2_auth_rpc_jwt_secret,
+        l2_client_args.l2_timeout,
     )?;
 
-    let builder_client = ExecutionClient::new(
-        args.builder.builder_http_addr,
-        args.builder.builder_http_port,
-        args.builder.builder_auth_addr,
-        args.builder.builder_auth_port,
-        args.builder.builder_auth_rpc_jwtsecret,
-        args.builder.builder_timeout,
+    let builder_args = args.builder;
+    let builder_client = ExecutionClient::new_with_auth(
+        builder_args.builder_http_addr,
+        builder_args.builder_http_port,
+        builder_args.builder_rpc_jwt_secret,
+        builder_args.builder_auth_addr,
+        builder_args.builder_auth_port,
+        builder_args.builder_auth_rpc_jwt_secret,
+        builder_args.builder_timeout,
     )?;
 
     let rollup_boost = RollupBoostServer::new(l2_client, builder_client, args.boost_sync, metrics);
@@ -157,7 +161,7 @@ async fn main() -> eyre::Result<()> {
     // server setup
     info!("Starting server on :{}", args.rpc_port);
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        args.l2_client.l2_http_addr.to_string().parse::<Uri>()?,
+        l2_client_args.l2_http_addr.to_string().parse::<Uri>()?,
     ));
     let server = Server::builder()
         .set_http_middleware(service_builder)
