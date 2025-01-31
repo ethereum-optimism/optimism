@@ -976,7 +976,7 @@ mod tests {
 
     struct MockHttpServer {
         addr: SocketAddr,
-        requests: Arc<Mutex<Vec<String>>>,
+        requests: Arc<Mutex<Vec<serde_json::Value>>>,
         _join_handle: JoinHandle<()>,
     }
 
@@ -1022,11 +1022,8 @@ mod tests {
 
         async fn handle_request(
             req: hyper::Request<hyper::body::Incoming>,
-            requests: Arc<Mutex<Vec<String>>>,
+            requests: Arc<Mutex<Vec<serde_json::Value>>>,
         ) -> Result<hyper::Response<String>, hyper::Error> {
-            let path = req.uri().to_string();
-            requests.lock().unwrap().push(path);
-
             let body_bytes = match req.into_body().collect().await {
                 Ok(buf) => buf.to_bytes(),
                 Err(_) => {
@@ -1051,12 +1048,14 @@ mod tests {
                 }
             };
 
+            requests.lock().unwrap().push(request_body.clone());
+
             let method = request_body["method"].as_str().unwrap_or_default();
 
             let response = match method {
                 "eth_sendRawTransaction" => json!({
                     "jsonrpc": "2.0",
-                    "result": format!("{}", B256::default()),
+                    "result": format!("{}", B256::from([1; 32])),
                     "id": request_body["id"]
                 }),
                 "miner_setMaxDASize" | "miner_setGasLimit" | "miner_setGasPrice"
@@ -1108,9 +1107,24 @@ mod tests {
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
         let bytes = Bytes::from(hex::decode("0x1234")?);
-        rollup_boost.send_raw_transaction(bytes).await?;
-        assert_eq!(builder.requests.lock().unwrap().len(), 1);
-        assert_eq!(l2.requests.lock().unwrap().len(), 1);
+        rollup_boost.send_raw_transaction(bytes.clone()).await?;
+
+        let expected_method = "eth_sendRawTransaction";
+        let expected_value = json!(bytes);
+
+        // Assert the builder received the correct payload
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_value);
+
+        // Assert the l2 received the correct payload
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_value);
         Ok(())
     }
 
@@ -1140,9 +1154,26 @@ mod tests {
 
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
-        rollup_boost.set_gas_limit(U128::ZERO).await?;
-        assert_eq!(builder.requests.lock().unwrap().len(), 1);
-        assert_eq!(l2.requests.lock().unwrap().len(), 1);
+        let gas_limit = U128::MAX;
+        rollup_boost.set_gas_limit(gas_limit).await?;
+
+        let expected_method = "miner_setGasLimit";
+        let expected_value = json!(gas_limit);
+
+        // Assert the builder received the correct payload
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_value);
+
+        // Assert the l2 received the correct payload
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_value);
+
         Ok(())
     }
 
@@ -1172,9 +1203,26 @@ mod tests {
 
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
-        rollup_boost.set_gas_price(U128::ZERO).await?;
-        assert_eq!(builder.requests.lock().unwrap().len(), 1);
-        assert_eq!(l2.requests.lock().unwrap().len(), 1);
+        let gas_price = U128::MAX;
+        rollup_boost.set_gas_price(gas_price).await?;
+
+        let expected_method = "miner_setGasPrice";
+        let expected_value = json!(gas_price);
+
+        // Assert the builder received the correct payload
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_value);
+
+        // Assert the l2 received the correct payload
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_value);
+
         Ok(())
     }
 
@@ -1204,9 +1252,25 @@ mod tests {
 
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
-        rollup_boost.set_extra(Bytes::default()).await?;
-        assert_eq!(builder.requests.lock().unwrap().len(), 1);
-        assert_eq!(l2.requests.lock().unwrap().len(), 1);
+        let extra = Bytes::from(hex::decode("0x1234")?);
+        rollup_boost.set_extra(extra.clone()).await?;
+
+        let expected_method = "miner_setExtra";
+        let expected_value = json!(extra);
+
+        // Assert the builder received the correct payload
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_value);
+
+        // Assert the l2 received the correct payload
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_value);
         Ok(())
     }
 
@@ -1236,9 +1300,33 @@ mod tests {
 
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
-        rollup_boost.set_max_da_size(U64::ZERO, U64::ZERO).await?;
-        assert_eq!(builder.requests.lock().unwrap().len(), 1);
-        assert_eq!(l2.requests.lock().unwrap().len(), 1);
+        let max_tx_size = U64::MAX;
+        let max_block_size = U64::MAX;
+
+        rollup_boost
+            .set_max_da_size(max_tx_size, max_block_size)
+            .await?;
+
+        let expected_method = "miner_setMaxDASize";
+        let expected_tx_size = json!(max_tx_size);
+        let expected_block_size = json!(max_block_size);
+
+        // Assert the builder received the correct payload
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_tx_size);
+        assert_eq!(builder_req["params"][1], expected_block_size);
+
+        // Assert the l2 received the correct payload
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_tx_size);
+        assert_eq!(builder_req["params"][1], expected_block_size);
+
         Ok(())
     }
 }
