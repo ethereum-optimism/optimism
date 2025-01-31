@@ -1173,8 +1173,8 @@ mod tests {
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
         rollup_boost.set_gas_price(U128::ZERO).await?;
-        assert!(builder.requests.lock().unwrap().len(), 1);
-        assert!(l2.requests.lock().unwrap().len(), 1);
+        assert_eq!(builder.requests.lock().unwrap().len(), 1);
+        assert_eq!(l2.requests.lock().unwrap().len(), 1);
         Ok(())
     }
 
