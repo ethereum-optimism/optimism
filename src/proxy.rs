@@ -146,7 +146,7 @@ mod tests {
     use super::*;
 
     const PORT: u32 = 8552;
-    const ADDR: &str = "0.0.0.0";
+    const ADDR: &str = "127.0.0.1";
     const PROXY_PORT: u32 = 8553;
 
     #[tokio::test]
@@ -256,7 +256,7 @@ mod tests {
         let jwt = JwtSecret::random();
         let l2_auth_uri = format!(
             "http://{}",
-            SocketAddr::new(IpAddr::from_str(ADDR).unwrap(), PORT as u16)
+            SocketAddr::new(IpAddr::from_str(ADDR).unwrap(), PROXY_PORT as u16)
         )
         .parse::<Uri>()
         .unwrap();

@@ -253,6 +253,7 @@ mod tests {
     use assert_cmd::Command;
     use jsonrpsee::core::client::ClientT;
 
+    use jsonrpsee::http_client::transport::Error as TransportError;
     use jsonrpsee::http_client::transport::HttpBackend;
     use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::RpcModule;
@@ -281,9 +282,51 @@ mod tests {
         ));
     }
 
+    #[tokio::test]
+    async fn test_create_client() {
+        valid_jwt().await;
+        invalid_jwt().await;
+    }
+
+    async fn valid_jwt() {
+        let secret = JwtSecret::from_hex(SECRET).unwrap();
+        let client = ExecutionClient::new(
+            AUTH_ADDR.parse().unwrap(),
+            8545,
+            AUTH_ADDR.parse().unwrap(),
+            AUTH_PORT as u16,
+            secret,
+            1000,
+        )
+        .unwrap();
+        let response = send_request(client.auth_client).await;
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), "You are the dark lord");
+    }
+
+    async fn invalid_jwt() {
+        let secret = JwtSecret::random();
+        let client = ExecutionClient::new(
+            AUTH_ADDR.parse().unwrap(),
+            8545,
+            AUTH_ADDR.parse().unwrap(),
+            AUTH_PORT as u16,
+            secret,
+            1000,
+        )
+        .unwrap();
+        let response = send_request(client.auth_client).await;
+        assert!(response.is_err());
+        assert!(matches!(
+            response.unwrap_err(),
+            ClientError::Transport(e)
+                if matches!(e.downcast_ref::<TransportError>(), Some(TransportError::Rejected { status_code: 401 }))
+        ));
+    }
+
     // TODO: move these tests
     async fn send_request(
-        client: HttpClient<AuthClientService<HttpBackend>>,
+        client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
     ) -> Result<String, ClientError> {
         let server = spawn_server().await;
 
