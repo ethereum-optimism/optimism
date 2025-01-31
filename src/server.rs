@@ -646,12 +646,9 @@ mod tests {
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
-    use http_body::Body;
     use http_body_util::BodyExt;
-    use hyper::client::conn::http1;
-    use hyper::server::conn::http2;
     use hyper::service::service_fn;
-    use hyper_util::rt::{TokioExecutor, TokioIo};
+    use hyper_util::rt::TokioIo;
     use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
