@@ -980,7 +980,7 @@ mod tests {
     struct MockHttpServer {
         addr: SocketAddr,
         requests: Arc<Mutex<Vec<String>>>,
-        join_handle: JoinHandle<()>,
+        _join_handle: JoinHandle<()>,
     }
 
     impl MockHttpServer {
@@ -1019,7 +1019,7 @@ mod tests {
             Ok(Self {
                 addr,
                 requests,
-                join_handle: handle,
+                _join_handle: handle,
             })
         }
 
@@ -1062,11 +1062,22 @@ mod tests {
                     "result": format!("{}", B256::default()),
                     "id": request_body["id"]
                 }),
-                _ => json!({
-                    "jsonrpc": "2.0",
-                    "error": { "code": -32601, "message": "Method not found" },
-                    "id": request_body["id"]
-                }),
+                "miner_setMaxDASize" | "miner_setGasLimit" | "miner_setGasPrice"
+                | "miner_setExtra" => {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "result": true,
+                        "id": request_body["id"]
+                    })
+                }
+                _ => {
+                    let error_response = json!({
+                        "jsonrpc": "2.0",
+                        "error": { "code": -32601, "message": "Method not found" },
+                        "id": request_body["id"]
+                    });
+                    return Ok(hyper::Response::new(error_response.to_string()));
+                }
             };
 
             return Ok(hyper::Response::new(response.to_string()));
@@ -1075,7 +1086,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_raw_transaction() -> eyre::Result<()> {
-        tracing_subscriber::fmt::init();
         let builder = MockHttpServer::serve().await?;
         let l2 = MockHttpServer::serve().await?;
 
@@ -1102,31 +1112,136 @@ mod tests {
 
         let bytes = Bytes::from(hex::decode("0x1234")?);
         rollup_boost.send_raw_transaction(bytes).await?;
-
+        assert!(builder.requests.lock().unwrap().len() == 1);
+        assert!(l2.requests.lock().unwrap().len() == 1);
         Ok(())
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_set_gas_limit() -> eyre::Result<()> {
-        todo!();
+        let builder = MockHttpServer::serve().await?;
+        let l2 = MockHttpServer::serve().await?;
+
+        let jwt = JwtSecret::random();
+        let builder_client = ExecutionClient::new(
+            builder.addr.ip(),
+            builder.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let l2_client = ExecutionClient::new(
+            l2.addr.ip(),
+            l2.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
+
+        rollup_boost.set_gas_limit(U128::ZERO).await?;
+        assert!(builder.requests.lock().unwrap().len() == 1);
+        assert!(l2.requests.lock().unwrap().len() == 1);
+        Ok(())
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_set_gas_price() -> eyre::Result<()> {
-        todo!();
+        let builder = MockHttpServer::serve().await?;
+        let l2 = MockHttpServer::serve().await?;
+
+        let jwt = JwtSecret::random();
+        let builder_client = ExecutionClient::new(
+            builder.addr.ip(),
+            builder.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let l2_client = ExecutionClient::new(
+            l2.addr.ip(),
+            l2.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
+
+        rollup_boost.set_gas_price(U128::ZERO).await?;
+        assert!(builder.requests.lock().unwrap().len() == 1);
+        assert!(l2.requests.lock().unwrap().len() == 1);
+        Ok(())
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_set_extra() -> eyre::Result<()> {
-        todo!();
+        let builder = MockHttpServer::serve().await?;
+        let l2 = MockHttpServer::serve().await?;
+
+        let jwt = JwtSecret::random();
+        let builder_client = ExecutionClient::new(
+            builder.addr.ip(),
+            builder.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let l2_client = ExecutionClient::new(
+            l2.addr.ip(),
+            l2.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
+
+        rollup_boost.set_extra(Bytes::default()).await?;
+        assert!(builder.requests.lock().unwrap().len() == 1);
+        assert!(l2.requests.lock().unwrap().len() == 1);
+        Ok(())
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_set_max_da_size() -> eyre::Result<()> {
-        todo!();
+        let builder = MockHttpServer::serve().await?;
+        let l2 = MockHttpServer::serve().await?;
+
+        let jwt = JwtSecret::random();
+        let builder_client = ExecutionClient::new(
+            builder.addr.ip(),
+            builder.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let l2_client = ExecutionClient::new(
+            l2.addr.ip(),
+            l2.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
+
+        rollup_boost.set_max_da_size(U64::ZERO, U64::ZERO).await?;
+        assert!(builder.requests.lock().unwrap().len() == 1);
+        assert!(l2.requests.lock().unwrap().len() == 1);
+        Ok(())
     }
 }
