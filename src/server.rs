@@ -646,14 +646,20 @@ mod tests {
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
+    use hyper::client::conn::http1;
+    use hyper::server::conn::http2;
+    use hyper::service::service_fn;
+    use hyper_util::rt::{TokioExecutor, TokioIo};
     use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
     use reth_rpc_layer::JwtSecret;
-    use std::net::{IpAddr, SocketAddr};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::str::FromStr;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
 
     const HOST: &str = "0.0.0.0";
     const L2_PORT: u16 = 8554;
@@ -970,9 +976,93 @@ mod tests {
         server.start(module)
     }
 
+    struct MockHttpServer {
+        addr: SocketAddr,
+        requests: Arc<Mutex<Vec<String>>>,
+        join_handle: JoinHandle<()>,
+    }
+
+    impl MockHttpServer {
+        async fn serve() -> eyre::Result<Self> {
+            let listener = TcpListener::bind("127.0.0.1:0").await?;
+            let addr = listener.local_addr()?;
+            let requests = Arc::new(Mutex::new(vec![]));
+
+            let requests_clone = requests.clone();
+            let handle = tokio::spawn(async move {
+                loop {
+                    match listener.accept().await {
+                        Ok((stream, _)) => {
+                            let io = TokioIo::new(stream);
+                            let requests = requests_clone.clone();
+
+                            tokio::spawn(async move {
+                                if let Err(err) =
+                                    hyper::server::conn::http2::Builder::new(TokioExecutor::new())
+                                        .serve_connection(
+                                            io,
+                                            service_fn(move |req| {
+                                                Self::handle_request(req, requests.clone())
+                                            }),
+                                        )
+                                        .await
+                                {
+                                    eprintln!("Error serving connection: {}", err);
+                                }
+                            });
+                        }
+                        Err(e) => eprintln!("Error accepting connection: {}", e),
+                    }
+                }
+            });
+
+            Ok(Self {
+                addr,
+                requests,
+                join_handle: handle,
+            })
+        }
+
+        async fn handle_request(
+            req: hyper::Request<hyper::body::Incoming>,
+            requests: Arc<Mutex<Vec<String>>>,
+        ) -> Result<hyper::Response<String>, hyper::Error> {
+            let path = req.uri().to_string();
+            requests.lock().unwrap().push(path);
+            Ok(hyper::Response::new("OK".to_string()))
+        }
+    }
+
     #[tokio::test]
     async fn test_send_raw_transaction() -> eyre::Result<()> {
-        todo!();
+        let builder = MockHttpServer::serve().await?;
+        let l2 = MockHttpServer::serve().await?;
+
+        let jwt = JwtSecret::random();
+        let builder_client = ExecutionClient::new(
+            builder.addr.ip(),
+            builder.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let l2_client = ExecutionClient::new(
+            l2.addr.ip(),
+            l2.addr.port(),
+            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            0,
+            jwt,
+            2000,
+        )?;
+
+        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
+
+        let bytes = Bytes::from(hex::decode("0x1234")?);
+        rollup_boost.send_raw_transaction(bytes).await?;
+
+        Ok(())
     }
 
     #[tokio::test]
