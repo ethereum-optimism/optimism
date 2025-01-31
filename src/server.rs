@@ -89,21 +89,22 @@ impl PayloadTraceContext {
 }
 
 #[derive(Clone)]
-pub struct RollupBoostServer<C: ClientT> {
+pub struct RollupBoostServer<C: ClientT, A: ClientT> {
     pub l2_client: ExecutionClient<C>,
-    pub builder_client: ExecutionClient<C>,
+    pub builder_client: ExecutionClient<A>,
     pub boost_sync: bool,
     pub metrics: Option<Arc<ServerMetrics>>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
 }
 
-impl<C> RollupBoostServer<C>
+impl<C, A> RollupBoostServer<C, A>
 where
     C: ClientT,
+    A: ClientT,
 {
     pub fn new(
         l2_client: ExecutionClient<C>,
-        builder_client: ExecutionClient<C>,
+        builder_client: ExecutionClient<A>,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
@@ -117,9 +118,18 @@ where
     }
 }
 
-impl<C> TryInto<RpcModule<()>> for RollupBoostServer<C>
+impl<C, A> TryInto<RpcModule<()>> for RollupBoostServer<C, A>
 where
     C: EngineApiClient
+        + EthApiClient
+        + MinerApiClient
+        + MinerApiExtClient
+        + ClientT
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+    A: EngineApiClient
         + EthApiClient
         + MinerApiClient
         + MinerApiExtClient
@@ -153,9 +163,10 @@ pub trait EthApi {
 }
 
 #[async_trait]
-impl<C> EthApiServer for RollupBoostServer<C>
+impl<C, A> EthApiServer for RollupBoostServer<C, A>
 where
     C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
         debug!(
@@ -215,9 +226,10 @@ pub trait MinerApi {
 }
 
 #[async_trait]
-impl<C> MinerApiServer for RollupBoostServer<C>
+impl<C, A> MinerApiServer for RollupBoostServer<C, A>
 where
     C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn set_extra(&self, record: Bytes) -> RpcResult<bool> {
         debug!(
@@ -306,9 +318,10 @@ where
 }
 
 #[async_trait]
-impl<C> MinerApiExtServer for RollupBoostServer<C>
+impl<C, A> MinerApiExtServer for RollupBoostServer<C, A>
 where
     C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn set_max_da_size(&self, max_tx_size: U64, max_block_size: U64) -> RpcResult<bool> {
         debug!(
@@ -375,9 +388,10 @@ pub trait EngineApi {
 }
 
 #[async_trait]
-impl<C> EngineApiServer for RollupBoostServer<C>
+impl<C, A> EngineApiServer for RollupBoostServer<C, A>
 where
     C: ClientT + Clone + Send + Sync + 'static,
+    A: ClientT + Clone + Send + Sync + 'static,
 {
     async fn fork_choice_updated_v3(
         &self,
@@ -942,7 +956,6 @@ mod tests {
     }
 
     async fn spawn_server(mock_engine_server: MockEngineServer, addr: &str) -> ServerHandle {
-        println!("Starting server at {}", addr);
         let server = ServerBuilder::default().build(addr).await.unwrap();
         let mut module: RpcModule<()> = RpcModule::new(());
         module

@@ -33,7 +33,7 @@ impl<S> Layer<S> for ProxyLayer {
             inner,
             client: Client::builder(TokioExecutor::new()).build_http(),
             target_url: self.target_url.clone(),
-            secret: self.secret.clone(),
+            secret: self.secret,
         }
     }
 }
@@ -70,7 +70,7 @@ where
         let client = self.client.clone();
         let mut inner = self.inner.clone();
         let target_url = self.target_url.clone();
-        let secret = self.secret.clone();
+        let secret = self.secret;
 
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
