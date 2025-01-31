@@ -1,24 +1,27 @@
+use http::header::AUTHORIZATION;
 use http::Uri;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use jsonrpsee::core::{http_helpers, BoxError};
 use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
+use reth_rpc_layer::{secret_to_bearer_header, JwtSecret};
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
-use tracing::debug;
+use tracing::{debug, info};
 
-const MULTIPLEX_METHODS: [&str; 2] = ["engine_", "eth_sendRawTransaction"];
+const MULTIPLEX_METHODS: [&str; 3] = ["engine_", "eth_sendRawTransaction", "miner_"];
 
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
     target_url: Uri,
+    secret: JwtSecret,
 }
 
 impl ProxyLayer {
-    pub fn new(target_url: Uri) -> Self {
-        ProxyLayer { target_url }
+    pub fn new(target_url: Uri, secret: JwtSecret) -> Self {
+        ProxyLayer { target_url, secret }
     }
 }
 
@@ -30,6 +33,7 @@ impl<S> Layer<S> for ProxyLayer {
             inner,
             client: Client::builder(TokioExecutor::new()).build_http(),
             target_url: self.target_url.clone(),
+            secret: self.secret,
         }
     }
 }
@@ -39,6 +43,7 @@ pub struct ProxyService<S> {
     inner: S,
     client: Client<HttpConnector, HttpBody>,
     target_url: Uri,
+    secret: JwtSecret,
 }
 
 impl<S> Service<HttpRequest<HttpBody>> for ProxyService<S>
@@ -62,9 +67,10 @@ where
             return Box::pin(async { Ok(Self::Response::new(HttpBody::from("OK"))) });
         }
 
-        let target_url = self.target_url.clone();
         let client = self.client.clone();
         let mut inner = self.inner.clone();
+        let target_url = self.target_url.clone();
+        let secret = self.secret;
 
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
@@ -78,7 +84,7 @@ where
             let (body, _is_single) =
                 http_helpers::read_body(&parts.headers, body, u32::MAX).await?;
             // Deserialize the bytes to find the method
-            let method: RpcRequest = serde_json::from_slice(&body)?;
+            let rpc_request: RpcRequest = serde_json::from_slice(&body)?;
 
             // Create a new body from the bytes
             let new_body = HttpBody::from(body.clone());
@@ -88,18 +94,24 @@ where
 
             debug!(
                 message = "received json rpc request for",
-                method = method.method
+                method = rpc_request.method
             );
             if MULTIPLEX_METHODS
                 .iter()
-                .any(|&m| method.method.starts_with(m))
+                .any(|&m| rpc_request.method.starts_with(m))
             {
+                info!(target: "proxy::call", message = "proxying request to rollup-boost server", "method" = ?rpc_request.method);
+
                 // let rpc server handle engine rpc requests
                 let res = inner.call(req).await.map_err(|e| e.into())?;
                 Ok(res)
             } else {
+                info!(target: "proxy::call", message = "forwarding request to l2 client", "method" = ?rpc_request.method);
                 // Modify the URI
-                *req.uri_mut() = target_url;
+                *req.uri_mut() = target_url.clone();
+                // Insert JWT Authorization headers
+                req.headers_mut()
+                    .insert(AUTHORIZATION, secret_to_bearer_header(&secret));
 
                 // Forward the request
                 let res = client
@@ -115,7 +127,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
+    use std::{
+        net::{IpAddr, SocketAddr},
+        str::FromStr,
+    };
 
     use http_body_util::BodyExt;
     use jsonrpsee::{
@@ -126,11 +141,12 @@ mod tests {
         types::{ErrorCode, ErrorObject},
         RpcModule,
     };
+    use reth_rpc_layer::JwtSecret;
 
     use super::*;
 
     const PORT: u32 = 8552;
-    const ADDR: &str = "0.0.0.0";
+    const ADDR: &str = "127.0.0.1";
     const PROXY_PORT: u32 = 8553;
 
     #[tokio::test]
@@ -236,7 +252,16 @@ mod tests {
     /// Spawn a new RPC server with a proxy layer.
     async fn spawn_proxy_server() -> ServerHandle {
         let addr = format!("{ADDR}:{PORT}");
-        let proxy_layer = ProxyLayer::new(format!("http://{ADDR}:{PROXY_PORT}").parse().unwrap());
+
+        let jwt = JwtSecret::random();
+        let l2_auth_uri = format!(
+            "http://{}",
+            SocketAddr::new(IpAddr::from_str(ADDR).unwrap(), PROXY_PORT as u16)
+        )
+        .parse::<Uri>()
+        .unwrap();
+        let proxy_layer = ProxyLayer::new(l2_auth_uri, jwt);
+
         // Create a layered server
         let server = ServerBuilder::default()
             .set_http_middleware(tower::ServiceBuilder::new().layer(proxy_layer))
