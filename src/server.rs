@@ -646,6 +646,7 @@ mod tests {
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
+    use http_body::Body;
     use hyper::client::conn::http1;
     use hyper::server::conn::http2;
     use hyper::service::service_fn;
@@ -654,6 +655,7 @@ mod tests {
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
     use reth_rpc_layer::JwtSecret;
+    use serde_json::json;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::str::FromStr;
     use std::sync::Arc;
@@ -995,15 +997,14 @@ mod tests {
                             let requests = requests_clone.clone();
 
                             tokio::spawn(async move {
-                                if let Err(err) =
-                                    hyper::server::conn::http1::Builder::new()
-                                        .serve_connection(
-                                            io,
-                                            service_fn(move |req| {
-                                                Self::handle_request(req, requests.clone())
-                                            }),
-                                        )
-                                        .await
+                                if let Err(err) = hyper::server::conn::http1::Builder::new()
+                                    .serve_connection(
+                                        io,
+                                        service_fn(move |req| {
+                                            Self::handle_request(req, requests.clone())
+                                        }),
+                                    )
+                                    .await
                                 {
                                     eprintln!("Error serving connection: {}", err);
                                 }
@@ -1027,7 +1028,14 @@ mod tests {
         ) -> Result<hyper::Response<String>, hyper::Error> {
             let path = req.uri().to_string();
             requests.lock().unwrap().push(path);
-            Ok(hyper::Response::new("OK".to_string()))
+
+            let response = json!({
+                "jsonrpc": "2.0",
+                "result": format!("{:?}", B256::default()),
+                "id": 0
+            });
+
+            return Ok(hyper::Response::new(response.to_string()));
         }
     }
 
