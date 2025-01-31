@@ -752,10 +752,7 @@ mod tests {
             let rollup_boost_client =
                 RollupBoostServer::new(l2_client, builder_client, boost_sync, None);
 
-            let mut module: RpcModule<()> = RpcModule::new(());
-            module
-                .merge(EngineApiServer::into_rpc(rollup_boost_client))
-                .unwrap();
+            let module: RpcModule<()> = rollup_boost_client.try_into().unwrap();
 
             let proxy_server = ServerBuilder::default()
                 .build("0.0.0.0:8556".parse::<SocketAddr>().unwrap())
@@ -999,7 +996,7 @@ mod tests {
 
                             tokio::spawn(async move {
                                 if let Err(err) =
-                                    hyper::server::conn::http2::Builder::new(TokioExecutor::new())
+                                    hyper::server::conn::http1::Builder::new()
                                         .serve_connection(
                                             io,
                                             service_fn(move |req| {
@@ -1035,8 +1032,8 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_send_raw_transaction() -> eyre::Result<()> {
+        tracing_subscriber::fmt::init();
         let builder = MockHttpServer::serve().await?;
         let l2 = MockHttpServer::serve().await?;
 
