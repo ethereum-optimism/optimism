@@ -662,11 +662,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_server() {
-        let _ = tracing_subscriber::fmt::try_init();
-
         engine_success().await;
         boost_sync_enabled().await;
         builder_payload_err().await;
+        test_local_external_payload_ids_different().await;
+        test_local_external_payload_ids_same().await;
     }
 
     async fn engine_success() {
@@ -866,7 +866,6 @@ mod tests {
         server.start(module)
     }
 
-    #[tokio::test]
     async fn test_local_external_payload_ids_same() {
         let same_id = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
 
@@ -916,7 +915,6 @@ mod tests {
         test_harness.cleanup().await;
     }
 
-    #[tokio::test]
     async fn test_local_external_payload_ids_different() {
         let local_id = PayloadId::new([1, 2, 3, 4, 5, 6, 7, 8]);
         let external_id = PayloadId::new([9, 9, 9, 9, 9, 9, 9, 9]);
