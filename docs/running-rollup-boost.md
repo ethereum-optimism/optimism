@@ -16,6 +16,8 @@ cargo run -- --l2-url http://localhost:8551 --builder-url http://localhost:8546
 
 To set up a builder, you can use [`op-rbuilder`](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder) with an op-node instance and have rollup-boost point to the builder auth rpc endpoint. It is recommended that boost sync is enabled on rollup-boost to sync the builder with the proposer op-node to removed the p2p networking overhead. In testing, this reduces latency significantly from around 200-300 milliseconds to just 3-4 milliseconds in local environments.
 
+Depending on the block time of the rollup, you can set the `builder_timeout` flag for failsafe guarantees such that rollup-boost will not wait too long for a builder to respond. The default timeout is 200ms, with the assumption that the builder will be geographically close to the proposer. There is also a `l2_timeout` flag which is set to 2000ms by default, which is the timeout for the local execution engine to respond to the proposer.
+
 Optionally, you can set a separate builder jwt token or path to the proposer jwt token via the `--builder-jwt-token` and `--builder-jwt-path` flags. If not provided, the proposer jwt token will be used.
 
 ## High Availability Setup with Rollup Boost
