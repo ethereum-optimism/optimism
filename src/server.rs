@@ -647,6 +647,7 @@ mod tests {
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
     use http_body::Body;
+    use http_body_util::BodyExt;
     use hyper::client::conn::http1;
     use hyper::server::conn::http2;
     use hyper::service::service_fn;
@@ -1029,11 +1030,44 @@ mod tests {
             let path = req.uri().to_string();
             requests.lock().unwrap().push(path);
 
-            let response = json!({
-                "jsonrpc": "2.0",
-                "result": format!("{:?}", B256::default()),
-                "id": 0
-            });
+            let body_bytes = match req.into_body().collect().await {
+                Ok(buf) => buf.to_bytes(),
+                Err(_) => {
+                    let error_response = json!({
+                        "jsonrpc": "2.0",
+                        "error": { "code": -32700, "message": "Failed to read request body" },
+                        "id": null
+                    });
+                    return Ok(hyper::Response::new(error_response.to_string()));
+                }
+            };
+
+            let request_body: serde_json::Value = match serde_json::from_slice(&body_bytes) {
+                Ok(json) => json,
+                Err(_) => {
+                    let error_response = json!({
+                        "jsonrpc": "2.0",
+                        "error": { "code": -32700, "message": "Invalid JSON format" },
+                        "id": null
+                    });
+                    return Ok(hyper::Response::new(error_response.to_string()));
+                }
+            };
+
+            let method = request_body["method"].as_str().unwrap_or_default();
+
+            let response = match method {
+                "eth_sendRawTransaction" => json!({
+                    "jsonrpc": "2.0",
+                    "result": format!("{}", B256::default()),
+                    "id": request_body["id"]
+                }),
+                _ => json!({
+                    "jsonrpc": "2.0",
+                    "error": { "code": -32601, "message": "Method not found" },
+                    "id": request_body["id"]
+                }),
+            };
 
             return Ok(hyper::Response::new(response.to_string()));
         }
