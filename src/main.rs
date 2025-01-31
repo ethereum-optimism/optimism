@@ -138,7 +138,7 @@ async fn main() -> eyre::Result<()> {
     } else if let Some(path) = l2_client_args.l2_auth_jwtsecret_path.as_ref() {
         JwtSecret::from_file(path)?
     } else {
-        return Err(eyre::eyre!("Missing L2 JWT secret"));
+        bail!("Missing L2 Client JWT secret");
     };
     // TODO: add support for optional JWT gated rpc (eth api, miner api, etc.) based on rpc_jwtsecret Some/None
     let l2_client = ExecutionClient::new(
