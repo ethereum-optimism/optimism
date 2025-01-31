@@ -1,6 +1,7 @@
 use clap::{arg, Parser};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use dotenv::dotenv;
+use eyre::bail;
 use http::{StatusCode, Uri};
 use hyper::service::service_fn;
 use hyper::{server::conn::http1, Request, Response};
@@ -155,7 +156,7 @@ async fn main() -> eyre::Result<()> {
     } else if let Some(path) = builder_args.builder_auth_jwtsecret_path.as_ref() {
         JwtSecret::from_file(path)?
     } else {
-        return Err(eyre::eyre!("Missing Builder JWT secret"));
+        bail!("Missing Builder JWT secret");
     };
 
     let builder_client = ExecutionClient::new(

@@ -1109,8 +1109,8 @@ mod tests {
 
         let bytes = Bytes::from(hex::decode("0x1234")?);
         rollup_boost.send_raw_transaction(bytes).await?;
-        assert!(builder.requests.lock().unwrap().len() == 1);
-        assert!(l2.requests.lock().unwrap().len() == 1);
+        assert_eq!(builder.requests.lock().unwrap().len(), 1);
+        assert_eq!(l2.requests.lock().unwrap().len(), 1);
         Ok(())
     }
 
@@ -1141,8 +1141,8 @@ mod tests {
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
         rollup_boost.set_gas_limit(U128::ZERO).await?;
-        assert!(builder.requests.lock().unwrap().len() == 1);
-        assert!(l2.requests.lock().unwrap().len() == 1);
+        assert_eq!(builder.requests.lock().unwrap().len(), 1);
+        assert_eq!(l2.requests.lock().unwrap().len(), 1);
         Ok(())
     }
 
@@ -1173,8 +1173,8 @@ mod tests {
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
         rollup_boost.set_gas_price(U128::ZERO).await?;
-        assert!(builder.requests.lock().unwrap().len() == 1);
-        assert!(l2.requests.lock().unwrap().len() == 1);
+        assert!(builder.requests.lock().unwrap().len(), 1);
+        assert!(l2.requests.lock().unwrap().len(), 1);
         Ok(())
     }
 
@@ -1205,8 +1205,8 @@ mod tests {
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
         rollup_boost.set_extra(Bytes::default()).await?;
-        assert!(builder.requests.lock().unwrap().len() == 1);
-        assert!(l2.requests.lock().unwrap().len() == 1);
+        assert_eq!(builder.requests.lock().unwrap().len(), 1);
+        assert_eq!(l2.requests.lock().unwrap().len(), 1);
         Ok(())
     }
 
@@ -1237,8 +1237,8 @@ mod tests {
         let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
 
         rollup_boost.set_max_da_size(U64::ZERO, U64::ZERO).await?;
-        assert!(builder.requests.lock().unwrap().len() == 1);
-        assert!(l2.requests.lock().unwrap().len() == 1);
+        assert_eq!(builder.requests.lock().unwrap().len(), 1);
+        assert_eq!(l2.requests.lock().unwrap().len(), 1);
         Ok(())
     }
 }
