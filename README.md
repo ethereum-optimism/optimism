@@ -22,6 +22,7 @@ cargo run -- [OPTIONS]
 - `--rpc-port <PORT>`: Port to run the server on (default: 8081)
 - `--tracing`: Enable tracing (default: false)
 - `--log-level <LEVEL>`: Log level (default: info)
+- `--log-format <FORMAT>`: Log format (default: text)
 - `--metrics`: Enable metrics (default: false)
 - `--boost-sync`: Enable syncing the builder with the proposer op-node (default: false)
 
@@ -32,7 +33,7 @@ You can also set the options using environment variables. See .env.example to us
 ### Example
 
 ```
-cargo run --jwt-token your_jwt_token --l2-url http://localhost:8551 --builder-url http://localhost:8546
+cargo run -- --jwt-token your_jwt_token --l2-url http://localhost:8551 --builder-url http://localhost:8546
 ```
 
 ## Core System Workflow
@@ -102,32 +103,6 @@ By default, `rollup-boost` will proxy all RPC calls from the proposer `op-node` 
 
 - `engine_forkchoiceUpdatedV3`: this call will be multiplexed to the builder regardless of whether the call contains payload attributes or not.
 - `engine_newPayloadV3`: ensures the builder has the latest block if the local payload was used.
-
-## Observability
-
-To check if the rollup-boost server is running, you can check the health endpoint:
-
-```
-curl http://localhost:8081/healthz
-```
-
-### Metrics
-
-To enable metrics, you can set the `--metrics` flag. This will start a metrics server which will run on port 9090 by default. To see the list of metrics, you can checkout [metrics.rs](./src/metrics.rs) and ping the metrics endpoint:
-
-```
-curl http://localhost:9090/metrics
-```
-
-To check that rollup-boost is sending requests to get blocks from the builder, you can check the `builder_get_payload_v3` metric which is incremented when a `engine_getPayloadV3` call is proxied to the builder.
-
-Additionally, execution engines such as op-rbuilder has rpc metrics exposed to check if `engine_getPayloadV3` requests have been received. To check if the builder blocks are landing on-chain, the builder can be configured to include a builder transaction in the block, which is captured as part of the builder metrics. To see more details about obserability in the op-builder, you can check op-rbuilder's [README](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder).
-
-### Tracing
-
-Tracing is enabled by setting the `--tracing` flag. This will start exporting traces to the otlp endpoint specified in the `--otlp-endpoint` flag. This endpoint is set to `http://localhost:4317` by default.
-
-Traces use the payload id to track the block building lifecycle. A distributed tracing system such as [Jaeger](https://www.jaegertracing.io/) can be used to visualize when the proposer triggers block building via `engine_forkchoiceUpdatedV3` and retrieve the block with `engine_getPayloadV3`.
 
 ## License
 The code in this project is free software under the [MIT License](/LICENSE).
