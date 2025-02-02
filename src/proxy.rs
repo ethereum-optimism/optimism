@@ -525,15 +525,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_max_da_size() -> eyre::Result<()> {
+    async fn test_forward_set_max_da_size() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
 
         let max_tx_size = U64::MAX;
         let max_block_size = U64::MAX;
 
-        let _response: serde_json::Value = test_harness
+        test_harness
             .proxy_client
-            .request("miner_setMaxDASize", (max_tx_size, max_block_size))
+            .request::<serde_json::Value, _>("miner_setMaxDASize", (max_tx_size, max_block_size))
             .await?;
 
         let expected_method = "miner_setMaxDASize";
@@ -557,6 +557,41 @@ mod tests {
         assert_eq!(l2_req["method"], expected_method);
         assert_eq!(l2_req["params"][0], expected_tx_size);
         assert_eq!(builder_req["params"][1], expected_block_size);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forward_eth_send_raw_transaction() -> eyre::Result<()> {
+        let test_harness = TestHarness::new().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forward_eth_send_raw_transaction_conditional() -> eyre::Result<()> {
+        let test_harness = TestHarness::new().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forward_miner_set_extra() -> eyre::Result<()> {
+        let test_harness = TestHarness::new().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forward_miner_set_gas_price() -> eyre::Result<()> {
+        let test_harness = TestHarness::new().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_forward_miner_set_gas_limit() -> eyre::Result<()> {
+        let test_harness = TestHarness::new().await?;
 
         Ok(())
     }
