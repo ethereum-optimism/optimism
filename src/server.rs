@@ -524,8 +524,7 @@ mod tests {
 
             let jwt_secret = JwtSecret::random();
             let l2_client =
-                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret, 2000)
-                    .unwrap();
+                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret, 2000).unwrap();
 
             let builder_client =
                 ExecutionClient::new(host, BUILDER_PORT, host, BUILDER_PORT, jwt_secret, 2000)
