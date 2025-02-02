@@ -11,7 +11,12 @@ use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
 use tracing::{debug, error, info};
 
-const MULTIPLEX_METHODS: [&str; 3] = ["engine_", "eth_sendRawTransaction", "miner_"];
+const MULTIPLEX_METHODS: [&str; 4] = [
+    "engine_",
+    "eth_sendRawTransactionConditional",
+    "eth_sendRawTransaction",
+    "miner_",
+];
 const FORWARD_REQUESTS: [&str; 6] = [
     "eth_sendRawTransaction",
     "eth_sendRawTransactionConditional",
@@ -201,11 +206,12 @@ async fn forward_request(
 mod tests {
     use super::*;
     use super::*;
-    use alloy_primitives::{hex, B256, U64};
+    use alloy_primitives::{hex, Bytes, B256, U128, U64};
     use alloy_primitives::{FixedBytes, U256};
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
+    use alloy_rpc_types_eth::erc4337::ConditionalOptions;
     use http_body_util::BodyExt;
     use hyper::service::service_fn;
     use hyper_util::rt::TokioIo;
@@ -384,7 +390,7 @@ mod tests {
             let method = request_body["method"].as_str().unwrap_or_default();
 
             let response = match method {
-                "eth_sendRawTransaction" => json!({
+                "eth_sendRawTransaction" | "eth_sendRawTransactionConditional" => json!({
                     "jsonrpc": "2.0",
                     "result": format!("{}", B256::from([1; 32])),
                     "id": request_body["id"]
@@ -598,12 +604,69 @@ mod tests {
     async fn test_forward_eth_send_raw_transaction() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
 
+        let expected_tx: Bytes = hex!("1234").into();
+        let expected_method = "eth_sendRawTransaction";
+
+        test_harness
+            .proxy_client
+            .request::<serde_json::Value, _>(expected_method, (expected_tx.clone(),))
+            .await?;
+
+        let expected_tx = json!(expected_tx);
+
+        // Assert the builder received the correct payload
+        let builder = &test_harness.builder;
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_tx);
+
+        // Assert the l2 received the correct payload
+        let l2 = &test_harness.l2_rpc;
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_tx);
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_forward_eth_send_raw_transaction_conditional() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
+
+        let expected_tx: Bytes = hex!("1234").into();
+        let expected_method = "eth_sendRawTransactionConditional";
+        let transact_conditionals = ConditionalOptions::default();
+        test_harness
+            .proxy_client
+            .request::<serde_json::Value, _>(
+                expected_method,
+                (expected_tx.clone(), transact_conditionals.clone()),
+            )
+            .await?;
+
+        let expected_tx = json!(expected_tx);
+        let expected_conditionals = json!(transact_conditionals);
+        // Assert the builder received the correct payload
+        let builder = &test_harness.builder;
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_tx);
+        assert_eq!(builder_req["params"][1], expected_conditionals);
+
+        // Assert the l2 received the correct payload
+        let l2 = &test_harness.l2_rpc;
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_tx);
+        assert_eq!(l2_req["params"][1], expected_conditionals);
 
         Ok(())
     }
@@ -612,6 +675,32 @@ mod tests {
     async fn test_forward_miner_set_extra() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
 
+        let extra = Bytes::default();
+        let expected_method = "miner_setExtra";
+
+        test_harness
+            .proxy_client
+            .request::<serde_json::Value, _>(expected_method, (extra.clone(),))
+            .await?;
+
+        let expected_extra = json!(extra);
+
+        // Assert the builder received the correct payload
+        let builder = &test_harness.builder;
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_extra);
+
+        // Assert the l2 received the correct payload
+        let l2 = &test_harness.l2_rpc;
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_extra);
+
         Ok(())
     }
 
@@ -619,12 +708,64 @@ mod tests {
     async fn test_forward_miner_set_gas_price() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
 
+        let gas_price = U128::ZERO;
+        let expected_method = "miner_setGasPrice";
+
+        test_harness
+            .proxy_client
+            .request::<serde_json::Value, _>(expected_method, (gas_price.clone(),))
+            .await?;
+
+        let expected_price = json!(gas_price);
+
+        // Assert the builder received the correct payload
+        let builder = &test_harness.builder;
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_price);
+
+        // Assert the l2 received the correct payload
+        let l2 = &test_harness.l2_rpc;
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_price);
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_forward_miner_set_gas_limit() -> eyre::Result<()> {
         let test_harness = TestHarness::new().await?;
+
+        let gas_limit = U128::ZERO;
+        let expected_method = "miner_setGasLimit";
+
+        test_harness
+            .proxy_client
+            .request::<serde_json::Value, _>(expected_method, (gas_limit.clone(),))
+            .await?;
+
+        let expected_price = json!(gas_limit);
+
+        // Assert the builder received the correct payload
+        let builder = &test_harness.builder;
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_price);
+
+        // Assert the l2 received the correct payload
+        let l2 = &test_harness.l2_rpc;
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_price);
 
         Ok(())
     }

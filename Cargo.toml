@@ -55,3 +55,4 @@ paste = "1.0.15"
 anyhow = "1.0"
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
+alloy-eips = { version = "0.9.2", default-features = false }
