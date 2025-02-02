@@ -23,24 +23,30 @@ const FORWARD_REQUESTS: [&str; 6] = [
 
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
-    l2_uri: Uri,
-    l2_auth: JwtSecret,
-    builder_uri: Uri,
-    builder_auth: Option<JwtSecret>,
+    l2_auth_uri: Uri,
+    l2_auth_secret: JwtSecret,
+    l2_rpc_uri: Uri,
+    l2_rpc_secret: Option<JwtSecret>,
+    builder_rpc_uri: Uri,
+    builder_rpc_secret: Option<JwtSecret>,
 }
 
 impl ProxyLayer {
     pub fn new(
-        l2_uri: Uri,
-        l2_auth: JwtSecret,
-        builder_uri: Uri,
-        builder_auth: Option<JwtSecret>,
+        l2_auth_uri: Uri,
+        l2_auth_secret: JwtSecret,
+        l2_rpc_uri: Uri,
+        l2_rpc_secret: Option<JwtSecret>,
+        builder_rpc_uri: Uri,
+        builder_rpc_secret: Option<JwtSecret>,
     ) -> Self {
         ProxyLayer {
-            l2_uri,
-            l2_auth,
-            builder_uri,
-            builder_auth,
+            l2_auth_uri,
+            l2_auth_secret,
+            l2_rpc_uri,
+            l2_rpc_secret,
+            builder_rpc_uri,
+            builder_rpc_secret,
         }
     }
 }
@@ -52,10 +58,12 @@ impl<S> Layer<S> for ProxyLayer {
         ProxyService {
             inner,
             client: Client::builder(TokioExecutor::new()).build_http(),
-            l2_uri: self.l2_uri.clone(),
-            l2_auth: self.l2_auth,
-            builder_uri: self.builder_uri.clone(),
-            builder_auth: self.builder_auth,
+            l2_auth_uri: self.l2_auth_uri.clone(),
+            l2_auth_secret: self.l2_auth_secret.clone(),
+            l2_rpc_uri: self.l2_rpc_uri.clone(),
+            l2_rpc_secret: self.l2_rpc_secret.clone(),
+            builder_rpc_uri: self.builder_rpc_uri.clone(),
+            builder_rpc_secret: self.builder_rpc_secret.clone(),
         }
     }
 }
@@ -64,10 +72,12 @@ impl<S> Layer<S> for ProxyLayer {
 pub struct ProxyService<S> {
     inner: S,
     client: Client<HttpConnector, HttpBody>,
-    l2_uri: Uri,
-    l2_auth: JwtSecret,
-    builder_uri: Uri,
-    builder_auth: Option<JwtSecret>,
+    l2_auth_uri: Uri,
+    l2_auth_secret: JwtSecret,
+    l2_rpc_uri: Uri,
+    l2_rpc_secret: Option<JwtSecret>,
+    builder_rpc_uri: Uri,
+    builder_rpc_secret: Option<JwtSecret>,
 }
 
 impl<S> Service<HttpRequest<HttpBody>> for ProxyService<S>
@@ -93,10 +103,12 @@ where
 
         let client = self.client.clone();
         let mut inner = self.inner.clone();
-        let builder_uri = self.builder_uri.clone();
-        let builder_auth = self.builder_auth;
-        let l2_uri = self.l2_uri.clone();
-        let l2_auth = self.l2_auth;
+        let builder_rpc_uri = self.builder_rpc_uri.clone();
+        let builder_rpc_secret = self.builder_rpc_secret.clone();
+        let l2_auth_uri = self.l2_auth_uri.clone();
+        let l2_auth_secret = self.l2_auth_secret.clone();
+        let l2_rpc_uri = self.l2_rpc_uri.clone();
+        let l2_rpc_secret = self.l2_rpc_secret.clone();
 
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
@@ -127,15 +139,15 @@ where
                             builder_client,
                             builder_req,
                             &builder_method,
-                            builder_uri,
-                            builder_auth,
+                            builder_rpc_uri,
+                            builder_rpc_secret,
                         )
                         .await;
                     });
 
                     let l2_req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
                     info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
-                    forward_request(client, l2_req, &method, l2_uri, None).await
+                    forward_request(client, l2_req, &method, l2_rpc_uri, l2_rpc_secret).await
                 } else {
                     let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
                     info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
@@ -143,7 +155,7 @@ where
                 }
             } else {
                 let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
-                forward_request(client, req, &method, l2_uri, Some(l2_auth)).await
+                forward_request(client, req, &method, l2_auth_uri, Some(l2_auth_secret)).await
             }
         };
         Box::pin(fut)
@@ -224,7 +236,8 @@ mod tests {
 
     struct TestHarness {
         builder: MockHttpServer,
-        l2: MockHttpServer,
+        l2_auth: MockHttpServer,
+        l2_rpc: MockHttpServer,
         server_handle: ServerHandle,
         proxy_client: HttpClient,
     }
@@ -237,13 +250,25 @@ mod tests {
 
     impl TestHarness {
         async fn new() -> eyre::Result<Self> {
-            let builder = MockHttpServer::serve().await?;
-            let l2 = MockHttpServer::serve().await?;
-
+            let builder_rpc = MockHttpServer::serve().await?;
+            let l2_auth_rpc = MockHttpServer::serve().await?;
+            let l2_rpc = MockHttpServer::serve().await?;
             let middleware = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-                format!("http://{}:{}", l2.addr.ip(), l2.addr.port()).parse::<Uri>()?,
+                format!(
+                    "http://{}:{}",
+                    l2_auth_rpc.addr.ip(),
+                    l2_auth_rpc.addr.port()
+                )
+                .parse::<Uri>()?,
                 JwtSecret::random(),
-                format!("http://{}:{}", builder.addr.ip(), builder.addr.port()).parse::<Uri>()?,
+                format!("http://{}:{}", l2_rpc.addr.ip(), l2_rpc.addr.port()).parse::<Uri>()?,
+                None,
+                format!(
+                    "http://{}:{}",
+                    builder_rpc.addr.ip(),
+                    builder_rpc.addr.port()
+                )
+                .parse::<Uri>()?,
                 None,
             ));
 
@@ -265,8 +290,9 @@ mod tests {
             let server_handle = server.start(RpcModule::new(()));
 
             Ok(Self {
-                builder,
-                l2,
+                builder: builder_rpc,
+                l2_auth: l2_auth_rpc,
+                l2_rpc,
                 server_handle,
                 proxy_client,
             })
@@ -498,7 +524,14 @@ mod tests {
         .unwrap();
 
         // TODO: update uri
-        let proxy_layer = ProxyLayer::new(l2_auth_uri, jwt, Uri::default(), None);
+        let proxy_layer = ProxyLayer::new(
+            l2_auth_uri.clone(),
+            jwt,
+            l2_auth_uri,
+            None,
+            Uri::default(),
+            None,
+        );
 
         // Create a layered server
         let server = ServerBuilder::default()
@@ -550,7 +583,7 @@ mod tests {
         assert_eq!(builder_req["params"][1], expected_block_size);
 
         // Assert the l2 received the correct payload
-        let l2 = &test_harness.l2;
+        let l2 = &test_harness.l2_rpc;
         let l2_requests = l2.requests.lock().unwrap();
         let l2_req = l2_requests.first().unwrap();
         assert_eq!(l2_requests.len(), 1);
