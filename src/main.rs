@@ -133,23 +133,31 @@ async fn main() -> eyre::Result<()> {
 
     let l2_client_args = args.l2_client;
 
-    let l2_jwt = if let Some(secret) = l2_client_args.l2_auth_jwtsecret {
+    let l2_auth_jwt = if let Some(secret) = l2_client_args.l2_auth_jwtsecret {
         secret
     } else if let Some(path) = l2_client_args.l2_auth_jwtsecret_path.as_ref() {
         JwtSecret::from_file(path)?
     } else {
         bail!("Missing L2 Client JWT secret");
     };
-    // TODO: add support for optional JWT gated rpc (eth api, miner api, etc.) based on rpc_jwtsecret Some/None
+
+    let l2_rpc_jwt = if let Some(secret) = l2_client_args.l2_rpc_jwtsecret {
+        Some(secret)
+    } else if let Some(path) = l2_client_args.l2_rpc_jwtsecret_path.as_ref() {
+        Some(JwtSecret::from_file(path)?)
+    } else {
+        None
+    };
+
     let l2_client = ExecutionClient::new(
         l2_client_args.l2_auth_addr,
         l2_client_args.l2_auth_port,
-        l2_jwt,
+        l2_auth_jwt,
         l2_client_args.l2_timeout,
     )?;
 
     let builder_args = args.builder;
-    let builder_jwt = if let Some(secret) = builder_args.builder_auth_jwtsecret {
+    let builder_auth_jwt = if let Some(secret) = builder_args.builder_auth_jwtsecret {
         secret
     } else if let Some(path) = builder_args.builder_auth_jwtsecret_path.as_ref() {
         JwtSecret::from_file(path)?
@@ -168,7 +176,7 @@ async fn main() -> eyre::Result<()> {
     let builder_client = ExecutionClient::new(
         builder_args.builder_auth_addr,
         builder_args.builder_auth_port,
-        builder_jwt,
+        builder_auth_jwt,
         builder_args.builder_timeout,
     )?;
 
@@ -178,9 +186,15 @@ async fn main() -> eyre::Result<()> {
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
-    let auth_rpc_uri = format!(
+    let l2_auth_rpc_uri = format!(
         "http://{}:{}",
         l2_client_args.l2_auth_addr, l2_client_args.l2_auth_port
+    )
+    .parse::<Uri>()?;
+
+    let l2_rpc_uri = format!(
+        "http://{}:{}",
+        l2_client_args.l2_http_addr, l2_client_args.l2_http_port
     )
     .parse::<Uri>()?;
 
@@ -191,8 +205,10 @@ async fn main() -> eyre::Result<()> {
     .parse::<Uri>()?;
 
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        auth_rpc_uri,
-        l2_jwt,
+        l2_auth_rpc_uri,
+        l2_auth_jwt,
+        l2_rpc_uri,
+        l2_rpc_jwt,
         builder_rpc_uri,
         builder_rpc_jwt,
     ));

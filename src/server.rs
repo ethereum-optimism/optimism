@@ -21,7 +21,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
-use jsonrpsee::core::client::ClientT;
 use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: usize = 100;
@@ -426,6 +425,7 @@ mod tests {
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
     use reth_rpc_layer::JwtSecret;
+    use serial_test::serial;
     use std::net::{IpAddr, SocketAddr};
     use std::str::FromStr;
     use std::sync::Arc;
@@ -553,6 +553,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_server() {
         engine_success().await;
         boost_sync_enabled().await;
