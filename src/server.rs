@@ -21,7 +21,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{error, info};
 
-use jsonrpsee::core::client::ClientT;
 use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: usize = 100;

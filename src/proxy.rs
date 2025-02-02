@@ -205,12 +205,7 @@ async fn forward_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::*;
     use alloy_primitives::{hex, Bytes, B256, U128, U64};
-    use alloy_primitives::{FixedBytes, U256};
-    use alloy_rpc_types_engine::{
-        BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
-    };
     use alloy_rpc_types_eth::erc4337::ConditionalOptions;
     use http_body_util::BodyExt;
     use hyper::service::service_fn;
@@ -226,14 +221,12 @@ mod tests {
     };
     use reth_rpc_layer::JwtSecret;
     use serde_json::json;
-    use std::thread::sleep;
-    use std::time::Duration;
     use std::{
         net::{IpAddr, SocketAddr},
         str::FromStr,
         sync::{Arc, Mutex},
     };
-    use tokio::net::{TcpListener, TcpSocket};
+    use tokio::net::TcpListener;
     use tokio::task::JoinHandle;
 
     const PORT: u32 = 8552;
@@ -400,6 +393,13 @@ mod tests {
                     json!({
                         "jsonrpc": "2.0",
                         "result": true,
+                        "id": request_body["id"]
+                    })
+                }
+                "mock_forwardedMethod" => {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "result": "forwarded response",
                         "id": request_body["id"]
                     })
                 }
@@ -761,6 +761,36 @@ mod tests {
 
         // Assert the l2 received the correct payload
         let l2 = &test_harness.l2_rpc;
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_price);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_direct_forward_mock_request() -> eyre::Result<()> {
+        let test_harness = TestHarness::new().await?;
+
+        let mock_data = U128::ZERO;
+        let expected_method = "mock_forwardedMethod";
+
+        test_harness
+            .proxy_client
+            .request::<serde_json::Value, _>(expected_method, (mock_data.clone(),))
+            .await?;
+
+        let expected_price = json!(mock_data);
+
+        // Assert the builder has not received the payload
+        let builder = &test_harness.builder;
+        let builder_requests = builder.requests.lock().unwrap();
+        assert_eq!(builder_requests.len(), 0);
+
+        // Assert the l2 auth received the correct payload
+        let l2 = &test_harness.l2_auth;
         let l2_requests = l2.requests.lock().unwrap();
         let l2_req = l2_requests.first().unwrap();
         assert_eq!(l2_requests.len(), 1);

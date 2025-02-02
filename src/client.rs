@@ -1,6 +1,5 @@
 use clap::ArgGroup;
 use clap::{arg, Parser};
-use jsonrpsee::core::client::ClientT;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use paste::paste;
