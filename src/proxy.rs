@@ -559,7 +559,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_forward_set_max_da_size() -> eyre::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
@@ -598,7 +597,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_forward_eth_send_raw_transaction() -> eyre::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
@@ -633,7 +631,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_forward_eth_send_raw_transaction_conditional() -> eyre::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
@@ -673,7 +670,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_forward_miner_set_extra() -> eyre::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
@@ -708,7 +704,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_forward_miner_set_gas_price() -> eyre::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
@@ -743,7 +738,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_forward_miner_set_gas_limit() -> eyre::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
@@ -778,7 +772,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_direct_forward_mock_request() -> eyre::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
