@@ -1,6 +1,6 @@
 use crate::client::ExecutionClient;
 use crate::metrics::ServerMetrics;
-use alloy_primitives::{Bytes, B256, U128, U64};
+use alloy_primitives::B256;
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
@@ -10,7 +10,6 @@ use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
 use jsonrpsee::RpcModule;
 use lru::LruCache;
-use op_alloy_rpc_jsonrpsee::traits::{MinerApiExtClient, MinerApiExtServer};
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
@@ -20,7 +19,7 @@ use reth_payload_primitives::PayloadBuilderAttributes;
 use std::num::NonZero;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::proc_macros::rpc;
@@ -120,246 +119,20 @@ where
 
 impl<C, A> TryInto<RpcModule<()>> for RollupBoostServer<C, A>
 where
-    C: EngineApiClient
-        + EthApiClient
-        + MinerApiClient
-        + MinerApiExtClient
-        + ClientT
-        + Clone
-        + Send
-        + Sync
-        + 'static,
-    A: EngineApiClient
-        + EthApiClient
-        + MinerApiClient
-        + MinerApiExtClient
-        + ClientT
-        + Clone
-        + Send
-        + Sync
-        + 'static,
+    C: EngineApiClient + ClientT + Clone + Send + Sync + 'static,
+    A: EngineApiClient + ClientT + Clone + Send + Sync + 'static,
 {
     type Error = RegisterMethodError;
 
     fn try_into(self) -> Result<RpcModule<()>, Self::Error> {
         let mut module: RpcModule<()> = RpcModule::new(());
         module.merge(EngineApiServer::into_rpc(self.clone()))?;
-        module.merge(EthApiServer::into_rpc(self.clone()))?;
-        module.merge(MinerApiServer::into_rpc(self.clone()))?;
-        module.merge(MinerApiExtServer::into_rpc(self))?;
 
         for method in module.method_names() {
             info!(?method, "method registered");
         }
 
         Ok(module)
-    }
-}
-
-#[rpc(server, client, namespace = "eth")]
-pub trait EthApi {
-    #[method(name = "sendRawTransaction")]
-    async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
-}
-
-#[async_trait]
-impl<C, A> EthApiServer for RollupBoostServer<C, A>
-where
-    C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
-{
-    async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
-        debug!(
-            message = "received send_raw_transaction",
-            "bytes_len" = bytes.len()
-        );
-
-        if let Some(metrics) = &self.metrics {
-            metrics.send_raw_tx_count.increment(1);
-        }
-
-        let builder_client = self.builder_client.clone();
-        let tx_bytes = bytes.clone();
-        tokio::spawn(async move {
-            builder_client.client.send_raw_transaction(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling send_raw_transaction for builder", "url" = ?builder_client.http_socket, "error" = %e);
-            })
-        });
-
-        self.l2_client
-            .client
-            .send_raw_transaction(bytes)
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err, // Already an ErrorObjectOwned, so just return it
-                other_error => {
-                    error!(
-                        message = "error calling send_raw_transaction for l2 client",
-                        "url" = ?self.l2_client.http_socket,
-                        "error" = %other_error,
-                    );
-                    ErrorCode::InternalError.into()
-                }
-            })
-    }
-}
-
-/*TODO: Remove this in favor of the `MinerApi` from Reth once the
-       trait methods are updated to be async
-*/
-/// Miner namespace rpc interface that can control miner/builder settings
-#[rpc(server, client, namespace = "miner")]
-pub trait MinerApi {
-    /// Sets the extra data string that is included when this miner mines a block.
-    ///
-    /// Returns an error if the extra data is too long.
-    #[method(name = "setExtra")]
-    async fn set_extra(&self, record: Bytes) -> RpcResult<bool>;
-
-    /// Sets the minimum accepted gas price for the miner.
-    #[method(name = "setGasPrice")]
-    async fn set_gas_price(&self, gas_price: U128) -> RpcResult<bool>;
-
-    /// Sets the gaslimit to target towards during mining.
-    #[method(name = "setGasLimit")]
-    async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool>;
-}
-
-#[async_trait]
-impl<C, A> MinerApiServer for RollupBoostServer<C, A>
-where
-    C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
-{
-    async fn set_extra(&self, record: Bytes) -> RpcResult<bool> {
-        debug!(
-            message = "received miner_setExtra",
-            "record_len" = record.len()
-        );
-
-        let builder_client = self.builder_client.clone();
-        let rec = record.clone();
-        tokio::spawn(async move {
-            builder_client.client.set_extra(rec).await.map_err(|e| {
-                error!(message = "error calling miner_setExtra for builder", "url" = ?builder_client.http_socket, "error" = %e);
-            })
-        });
-
-        match self.l2_client.client.set_extra(record).await {
-            Ok(result) => Ok(result),
-            Err(e) => match e {
-                ClientError::Call(err) => Err(err),
-                other_error => {
-                    error!(
-                        message = "error calling miner_setExtra for l2 client",
-                        "url" = ?self.l2_client.http_socket,
-                        "error" = %other_error,
-                    );
-                    Err(ErrorCode::InternalError.into())
-                }
-            },
-        }
-    }
-
-    async fn set_gas_limit(&self, gas_price: U128) -> RpcResult<bool> {
-        debug!(
-            message = "received miner_setGasLimit",
-            "gas_price" = ?gas_price
-        );
-
-        let builder_client = self.builder_client.clone();
-        tokio::spawn(async move {
-            builder_client.client.set_gas_limit(gas_price).await.map_err(|e| {
-                error!(message = "error calling miner_setGasLimit for builder", "url" = ?builder_client.http_socket, "error" = %e);
-            })
-        });
-
-        match self.l2_client.client.set_gas_limit(gas_price).await {
-            Ok(result) => Ok(result),
-            Err(e) => match e {
-                ClientError::Call(err) => Err(err),
-                other_error => {
-                    error!(
-                        message = "error calling miner_setGasLimit for l2 client",
-                        "url" = ?self.l2_client.http_socket,
-                        "error" = %other_error,
-                    );
-                    Err(ErrorCode::InternalError.into())
-                }
-            },
-        }
-    }
-
-    async fn set_gas_price(&self, gas_price: U128) -> RpcResult<bool> {
-        debug!(message = "received miner_setGasPrice", ?gas_price);
-
-        let builder_client = self.builder_client.clone();
-        tokio::spawn(async move {
-            builder_client.client.set_gas_price(gas_price).await.map_err(|e| {
-                error!(message = "error calling miner_setGasPrice for builder", "url" = ?builder_client.http_socket, "error" = %e);
-            })
-        });
-
-        match self.l2_client.client.set_gas_price(gas_price).await {
-            Ok(result) => Ok(result),
-            Err(e) => match e {
-                ClientError::Call(err) => Err(err),
-                other_error => {
-                    error!(
-                        message = "error calling miner_setGasPrice for l2 client",
-                        "url" = ?self.l2_client.http_socket,
-                        "error" = %other_error,
-                    );
-                    Err(ErrorCode::InternalError.into())
-                }
-            },
-        }
-    }
-}
-
-#[async_trait]
-impl<C, A> MinerApiExtServer for RollupBoostServer<C, A>
-where
-    C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
-{
-    async fn set_max_da_size(&self, max_tx_size: U64, max_block_size: U64) -> RpcResult<bool> {
-        debug!(
-            target: "server::set_max_da_size",
-            message = "received miner_setMaxDASize",
-            ?max_tx_size,
-            ?max_block_size
-        );
-
-        let builder_client = self.builder_client.clone();
-        tokio::spawn(async move {
-            builder_client.client.set_max_da_size(max_tx_size, max_block_size).await.map_err(|e| {
-                error!(target: "server::set_max_da_size", message = "error calling miner_setMaxDASize for builder", "url" = ?builder_client.http_socket, "error" = %e);
-            })
-        });
-
-        match self
-            .l2_client
-            .client
-            .set_max_da_size(max_tx_size, max_block_size)
-            .await
-        {
-            Ok(result) => Ok(result),
-            Err(e) => match e {
-                ClientError::Call(err) => {
-                    error!(target: "server::set_max_da_size", message = "error forwarding miner_setMaxDASize to l2 client", ?err);
-                    Err(err)
-                }
-                other_error => {
-                    error!(
-                        message = "error calling miner_setMaxDASize for l2 client",
-                        "url" = ?self.l2_client.http_socket,
-                        "error" = %other_error,
-                    );
-                    Err(ErrorCode::InternalError.into())
-                }
-            },
-        }
     }
 }
 
@@ -660,20 +433,15 @@ mod tests {
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
-    use http_body_util::BodyExt;
-    use hyper::service::service_fn;
-    use hyper_util::rt::TokioIo;
+
     use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
     use reth_rpc_layer::JwtSecret;
-    use serde_json::json;
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::net::{IpAddr, SocketAddr};
     use std::str::FromStr;
     use std::sync::Arc;
     use std::sync::Mutex;
-    use tokio::net::TcpListener;
-    use tokio::task::JoinHandle;
 
     const HOST: &str = "0.0.0.0";
     const L2_PORT: u16 = 8545;
@@ -756,7 +524,7 @@ mod tests {
 
             let jwt_secret = JwtSecret::random();
             let l2_client =
-                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret.clone(), 2000)
+                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret, 2000)
                     .unwrap();
 
             let builder_client =
@@ -985,361 +753,5 @@ mod tests {
             })
             .unwrap();
         server.start(module)
-    }
-
-    struct MockHttpServer {
-        addr: SocketAddr,
-        requests: Arc<Mutex<Vec<serde_json::Value>>>,
-        _join_handle: JoinHandle<()>,
-    }
-
-    impl MockHttpServer {
-        async fn serve() -> eyre::Result<Self> {
-            let listener = TcpListener::bind("127.0.0.1:0").await?;
-            let addr = listener.local_addr()?;
-            let requests = Arc::new(Mutex::new(vec![]));
-
-            let requests_clone = requests.clone();
-            let handle = tokio::spawn(async move {
-                loop {
-                    match listener.accept().await {
-                        Ok((stream, _)) => {
-                            let io = TokioIo::new(stream);
-                            let requests = requests_clone.clone();
-
-                            tokio::spawn(async move {
-                                if let Err(err) = hyper::server::conn::http1::Builder::new()
-                                    .serve_connection(
-                                        io,
-                                        service_fn(move |req| {
-                                            Self::handle_request(req, requests.clone())
-                                        }),
-                                    )
-                                    .await
-                                {
-                                    eprintln!("Error serving connection: {}", err);
-                                }
-                            });
-                        }
-                        Err(e) => eprintln!("Error accepting connection: {}", e),
-                    }
-                }
-            });
-
-            Ok(Self {
-                addr,
-                requests,
-                _join_handle: handle,
-            })
-        }
-
-        async fn handle_request(
-            req: hyper::Request<hyper::body::Incoming>,
-            requests: Arc<Mutex<Vec<serde_json::Value>>>,
-        ) -> Result<hyper::Response<String>, hyper::Error> {
-            let body_bytes = match req.into_body().collect().await {
-                Ok(buf) => buf.to_bytes(),
-                Err(_) => {
-                    let error_response = json!({
-                        "jsonrpc": "2.0",
-                        "error": { "code": -32700, "message": "Failed to read request body" },
-                        "id": null
-                    });
-                    return Ok(hyper::Response::new(error_response.to_string()));
-                }
-            };
-
-            let request_body: serde_json::Value = match serde_json::from_slice(&body_bytes) {
-                Ok(json) => json,
-                Err(_) => {
-                    let error_response = json!({
-                        "jsonrpc": "2.0",
-                        "error": { "code": -32700, "message": "Invalid JSON format" },
-                        "id": null
-                    });
-                    return Ok(hyper::Response::new(error_response.to_string()));
-                }
-            };
-
-            requests.lock().unwrap().push(request_body.clone());
-
-            let method = request_body["method"].as_str().unwrap_or_default();
-
-            let response = match method {
-                "eth_sendRawTransaction" => json!({
-                    "jsonrpc": "2.0",
-                    "result": format!("{}", B256::from([1; 32])),
-                    "id": request_body["id"]
-                }),
-                "miner_setMaxDASize" | "miner_setGasLimit" | "miner_setGasPrice"
-                | "miner_setExtra" => {
-                    json!({
-                        "jsonrpc": "2.0",
-                        "result": true,
-                        "id": request_body["id"]
-                    })
-                }
-                _ => {
-                    let error_response = json!({
-                        "jsonrpc": "2.0",
-                        "error": { "code": -32601, "message": "Method not found" },
-                        "id": request_body["id"]
-                    });
-                    return Ok(hyper::Response::new(error_response.to_string()));
-                }
-            };
-
-            return Ok(hyper::Response::new(response.to_string()));
-        }
-    }
-
-    #[tokio::test]
-    async fn test_send_raw_transaction() -> eyre::Result<()> {
-        let builder = MockHttpServer::serve().await?;
-        let l2 = MockHttpServer::serve().await?;
-
-        let jwt = JwtSecret::random();
-        let builder_client = ExecutionClient::new(
-            builder.addr.ip(),
-            builder.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let l2_client = ExecutionClient::new(
-            l2.addr.ip(),
-            l2.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-
-        let bytes = Bytes::from(hex::decode("0x1234")?);
-        rollup_boost.send_raw_transaction(bytes.clone()).await?;
-
-        let expected_method = "eth_sendRawTransaction";
-        let expected_value = json!(bytes);
-
-        // Assert the builder received the correct payload
-        let builder_requests = builder.requests.lock().unwrap();
-        let builder_req = builder_requests.first().unwrap();
-        assert_eq!(builder_requests.len(), 1);
-        assert_eq!(builder_req["method"], expected_method);
-        assert_eq!(builder_req["params"][0], expected_value);
-
-        // Assert the l2 received the correct payload
-        let l2_requests = l2.requests.lock().unwrap();
-        let l2_req = l2_requests.first().unwrap();
-        assert_eq!(l2_requests.len(), 1);
-        assert_eq!(l2_req["method"], expected_method);
-        assert_eq!(l2_req["params"][0], expected_value);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_set_gas_limit() -> eyre::Result<()> {
-        let builder = MockHttpServer::serve().await?;
-        let l2 = MockHttpServer::serve().await?;
-
-        let jwt = JwtSecret::random();
-        let builder_client = ExecutionClient::new(
-            builder.addr.ip(),
-            builder.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let l2_client = ExecutionClient::new(
-            l2.addr.ip(),
-            l2.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-
-        let gas_limit = U128::MAX;
-        rollup_boost.set_gas_limit(gas_limit).await?;
-
-        let expected_method = "miner_setGasLimit";
-        let expected_value = json!(gas_limit);
-
-        // Assert the builder received the correct payload
-        let builder_requests = builder.requests.lock().unwrap();
-        let builder_req = builder_requests.first().unwrap();
-        assert_eq!(builder_requests.len(), 1);
-        assert_eq!(builder_req["method"], expected_method);
-        assert_eq!(builder_req["params"][0], expected_value);
-
-        // Assert the l2 received the correct payload
-        let l2_requests = l2.requests.lock().unwrap();
-        let l2_req = l2_requests.first().unwrap();
-        assert_eq!(l2_requests.len(), 1);
-        assert_eq!(l2_req["method"], expected_method);
-        assert_eq!(l2_req["params"][0], expected_value);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_set_gas_price() -> eyre::Result<()> {
-        let builder = MockHttpServer::serve().await?;
-        let l2 = MockHttpServer::serve().await?;
-
-        let jwt = JwtSecret::random();
-        let builder_client = ExecutionClient::new(
-            builder.addr.ip(),
-            builder.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let l2_client = ExecutionClient::new(
-            l2.addr.ip(),
-            l2.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-
-        let gas_price = U128::MAX;
-        rollup_boost.set_gas_price(gas_price).await?;
-
-        let expected_method = "miner_setGasPrice";
-        let expected_value = json!(gas_price);
-
-        // Assert the builder received the correct payload
-        let builder_requests = builder.requests.lock().unwrap();
-        let builder_req = builder_requests.first().unwrap();
-        assert_eq!(builder_requests.len(), 1);
-        assert_eq!(builder_req["method"], expected_method);
-        assert_eq!(builder_req["params"][0], expected_value);
-
-        // Assert the l2 received the correct payload
-        let l2_requests = l2.requests.lock().unwrap();
-        let l2_req = l2_requests.first().unwrap();
-        assert_eq!(l2_requests.len(), 1);
-        assert_eq!(l2_req["method"], expected_method);
-        assert_eq!(l2_req["params"][0], expected_value);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_set_extra() -> eyre::Result<()> {
-        let builder = MockHttpServer::serve().await?;
-        let l2 = MockHttpServer::serve().await?;
-
-        let jwt = JwtSecret::random();
-        let builder_client = ExecutionClient::new(
-            builder.addr.ip(),
-            builder.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let l2_client = ExecutionClient::new(
-            l2.addr.ip(),
-            l2.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-
-        let extra = Bytes::from(hex::decode("0x1234")?);
-        rollup_boost.set_extra(extra.clone()).await?;
-
-        let expected_method = "miner_setExtra";
-        let expected_value = json!(extra);
-
-        // Assert the builder received the correct payload
-        let builder_requests = builder.requests.lock().unwrap();
-        let builder_req = builder_requests.first().unwrap();
-        assert_eq!(builder_requests.len(), 1);
-        assert_eq!(builder_req["method"], expected_method);
-        assert_eq!(builder_req["params"][0], expected_value);
-
-        // Assert the l2 received the correct payload
-        let l2_requests = l2.requests.lock().unwrap();
-        let l2_req = l2_requests.first().unwrap();
-        assert_eq!(l2_requests.len(), 1);
-        assert_eq!(l2_req["method"], expected_method);
-        assert_eq!(l2_req["params"][0], expected_value);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_set_max_da_size() -> eyre::Result<()> {
-        let builder = MockHttpServer::serve().await?;
-        let l2 = MockHttpServer::serve().await?;
-
-        let jwt = JwtSecret::random();
-        let builder_client = ExecutionClient::new(
-            builder.addr.ip(),
-            builder.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let l2_client = ExecutionClient::new(
-            l2.addr.ip(),
-            l2.addr.port(),
-            IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
-            0,
-            jwt,
-            2000,
-        )?;
-
-        let rollup_boost = RollupBoostServer::new(l2_client, builder_client, false, None);
-
-        let max_tx_size = U64::MAX;
-        let max_block_size = U64::MAX;
-
-        rollup_boost
-            .set_max_da_size(max_tx_size, max_block_size)
-            .await?;
-
-        let expected_method = "miner_setMaxDASize";
-        let expected_tx_size = json!(max_tx_size);
-        let expected_block_size = json!(max_block_size);
-
-        // Assert the builder received the correct payload
-        let builder_requests = builder.requests.lock().unwrap();
-        let builder_req = builder_requests.first().unwrap();
-        assert_eq!(builder_requests.len(), 1);
-        assert_eq!(builder_req["method"], expected_method);
-        assert_eq!(builder_req["params"][0], expected_tx_size);
-        assert_eq!(builder_req["params"][1], expected_block_size);
-
-        // Assert the l2 received the correct payload
-        let l2_requests = l2.requests.lock().unwrap();
-        let l2_req = l2_requests.first().unwrap();
-        assert_eq!(l2_requests.len(), 1);
-        assert_eq!(l2_req["method"], expected_method);
-        assert_eq!(l2_req["params"][0], expected_tx_size);
-        assert_eq!(builder_req["params"][1], expected_block_size);
-
-        Ok(())
     }
 }

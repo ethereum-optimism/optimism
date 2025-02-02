@@ -153,7 +153,7 @@ macro_rules! define_rpc_args {
                     /// This is __not__ used for the authenticated engine-API RPC server, see
                     /// `authrpc.jwtsecret`.
                     #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret"), env, value_name = "HEX")]
-                    pub [<$prefix _rpc_jwtsecret>]: Option<PathBuf>,
+                    pub [<$prefix _rpc_jwtsecret>]: Option<JwtSecret>,
 
                     /// Filename for auth IPC socket/pipe
                     ///
