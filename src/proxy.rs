@@ -221,6 +221,7 @@ mod tests {
     };
     use reth_rpc_layer::JwtSecret;
     use serde_json::json;
+    use serial_test::serial;
     use std::{
         net::{IpAddr, SocketAddr},
         str::FromStr,
@@ -418,11 +419,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_proxy_service() {
         proxy_success().await;
         proxy_failure().await;
         does_not_proxy_engine_method().await;
-        does_not_proxy_eth_send_raw_transaction_method().await;
         health_check().await;
     }
 
@@ -446,12 +447,6 @@ mod tests {
         let response = send_request("engine_method").await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "engine response");
-    }
-
-    async fn does_not_proxy_eth_send_raw_transaction_method() {
-        let response = send_request("eth_sendRawTransaction").await;
-        assert!(response.is_ok());
-        assert_eq!(response.unwrap(), "raw transaction response");
     }
 
     async fn health_check() {
@@ -564,7 +559,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_set_max_da_size() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let max_tx_size = U64::MAX;
@@ -601,7 +598,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_eth_send_raw_transaction() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let expected_tx: Bytes = hex!("1234").into();
@@ -634,7 +633,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_eth_send_raw_transaction_conditional() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let expected_tx: Bytes = hex!("1234").into();
@@ -672,7 +673,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_miner_set_extra() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let extra = Bytes::default();
@@ -705,7 +708,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_miner_set_gas_price() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let gas_price = U128::ZERO;
@@ -738,7 +743,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_forward_miner_set_gas_limit() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let gas_limit = U128::ZERO;
@@ -771,7 +778,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_direct_forward_mock_request() -> eyre::Result<()> {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let mock_data = U128::ZERO;
