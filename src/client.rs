@@ -21,17 +21,12 @@ pub enum ExecutionClientError {
     Jwt(#[from] reth_rpc_layer::JwtError),
 }
 
-/// Client interface for interacting with an execution layer node.
+/// Client interface for interacting with execution layer node's Engine API.
 ///
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
-/// -  All other API calls including the **Eth & Miner APIs** are faciliated via the `client` (optional JWT authentication).
 ///
 #[derive(Clone)]
-pub struct ExecutionClient<C: ClientT = HttpClient<HttpBackend>> {
-    /// Handles requests to Eth, Miner, and other execution layer APIs (optional JWT authentication)
-    pub client: Arc<C>,
-    /// Address of the RPC server for execution layer API calls, excluding the Engine API
-    pub http_socket: SocketAddr,
+pub struct ExecutionClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
     pub auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
     /// Address of the RPC server for authenticated Engine API calls
@@ -41,17 +36,11 @@ pub struct ExecutionClient<C: ClientT = HttpClient<HttpBackend>> {
 impl ExecutionClient {
     /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for general execution layer APIs.
     pub fn new(
-        http_addr: IpAddr,
-        http_port: u16,
         auth_addr: IpAddr,
         auth_port: u16,
         auth_rpc_jwt_secret: JwtSecret,
         timeout: u64,
     ) -> Result<Self, ExecutionClientError> {
-        let http_socket = SocketAddr::new(http_addr, http_port);
-        let client = HttpClientBuilder::new()
-            .request_timeout(Duration::from_millis(timeout))
-            .build(format!("http://{}", http_socket))?;
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
         let auth_socket = SocketAddr::new(auth_addr, auth_port);
         let auth_client = HttpClientBuilder::new()
@@ -60,42 +49,6 @@ impl ExecutionClient {
             .build(format!("http://{}", auth_socket))?;
 
         Ok(Self {
-            client: Arc::new(client),
-            http_socket,
-            auth_client: Arc::new(auth_client),
-            auth_socket,
-        })
-    }
-}
-
-impl ExecutionClient<HttpClient<AuthClientService<HttpBackend>>> {
-    /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and general execution layer APIs.
-    pub fn _new_with_auth(
-        http_addr: IpAddr,
-        http_port: u16,
-        rpc_jwt_secret: JwtSecret,
-        auth_addr: IpAddr,
-        auth_port: u16,
-        auth_rpc_jwt_secret: JwtSecret,
-        timeout: u64,
-    ) -> Result<Self, ExecutionClientError> {
-        let rpc_auth_layer = AuthClientLayer::new(rpc_jwt_secret);
-        let http_socket = SocketAddr::new(http_addr, http_port);
-        let client = HttpClientBuilder::new()
-            .set_http_middleware(tower::ServiceBuilder::new().layer(rpc_auth_layer))
-            .request_timeout(Duration::from_millis(timeout))
-            .build(format!("http://{}", http_socket))?;
-
-        let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
-        let auth_socket = SocketAddr::new(auth_addr, auth_port);
-        let auth_client = HttpClientBuilder::new()
-            .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))
-            .request_timeout(Duration::from_millis(timeout))
-            .build(format!("http://{}", auth_socket))?;
-
-        Ok(Self {
-            client: Arc::new(client),
-            http_socket,
             auth_client: Arc::new(auth_client),
             auth_socket,
         })

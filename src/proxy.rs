@@ -111,7 +111,7 @@ where
             // Deserialize the bytes to find the method
             let method = serde_json::from_slice::<RpcRequest>(&body_bytes)?
                 .method
-                .to_owned();
+                .to_string();
 
             debug!(message = "received json rpc request for", ?method);
 

@@ -142,8 +142,6 @@ async fn main() -> eyre::Result<()> {
     };
     // TODO: add support for optional JWT gated rpc (eth api, miner api, etc.) based on rpc_jwtsecret Some/None
     let l2_client = ExecutionClient::new(
-        l2_client_args.l2_http_addr,
-        l2_client_args.l2_http_port,
         l2_client_args.l2_auth_addr,
         l2_client_args.l2_auth_port,
         l2_jwt,
@@ -168,8 +166,6 @@ async fn main() -> eyre::Result<()> {
     };
 
     let builder_client = ExecutionClient::new(
-        builder_args.builder_http_addr,
-        builder_args.builder_http_port,
         builder_args.builder_auth_addr,
         builder_args.builder_auth_port,
         builder_jwt,
@@ -310,15 +306,9 @@ mod tests {
 
     async fn valid_jwt() {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
-        let client = ExecutionClient::new(
-            AUTH_ADDR.parse().unwrap(),
-            8545,
-            AUTH_ADDR.parse().unwrap(),
-            AUTH_PORT as u16,
-            secret,
-            1000,
-        )
-        .unwrap();
+        let client =
+            ExecutionClient::new(AUTH_ADDR.parse().unwrap(), AUTH_PORT as u16, secret, 1000)
+                .unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
@@ -326,15 +316,9 @@ mod tests {
 
     async fn invalid_jwt() {
         let secret = JwtSecret::random();
-        let client = ExecutionClient::new(
-            AUTH_ADDR.parse().unwrap(),
-            8545,
-            AUTH_ADDR.parse().unwrap(),
-            AUTH_PORT as u16,
-            secret,
-            1000,
-        )
-        .unwrap();
+        let client =
+            ExecutionClient::new(AUTH_ADDR.parse().unwrap(), AUTH_PORT as u16, secret, 1000)
+                .unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_err());
         assert!(matches!(

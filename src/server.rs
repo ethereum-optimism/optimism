@@ -88,22 +88,18 @@ impl PayloadTraceContext {
 }
 
 #[derive(Clone)]
-pub struct RollupBoostServer<C: ClientT, A: ClientT> {
-    pub l2_client: ExecutionClient<C>,
-    pub builder_client: ExecutionClient<A>,
+pub struct RollupBoostServer {
+    pub l2_client: ExecutionClient,
+    pub builder_client: ExecutionClient,
     pub boost_sync: bool,
     pub metrics: Option<Arc<ServerMetrics>>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
 }
 
-impl<C, A> RollupBoostServer<C, A>
-where
-    C: ClientT,
-    A: ClientT,
-{
+impl RollupBoostServer {
     pub fn new(
-        l2_client: ExecutionClient<C>,
-        builder_client: ExecutionClient<A>,
+        l2_client: ExecutionClient,
+        builder_client: ExecutionClient,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
@@ -117,11 +113,7 @@ where
     }
 }
 
-impl<C, A> TryInto<RpcModule<()>> for RollupBoostServer<C, A>
-where
-    C: EngineApiClient + ClientT + Clone + Send + Sync + 'static,
-    A: EngineApiClient + ClientT + Clone + Send + Sync + 'static,
-{
+impl TryInto<RpcModule<()>> for RollupBoostServer {
     type Error = RegisterMethodError;
 
     fn try_into(self) -> Result<RpcModule<()>, Self::Error> {
@@ -161,11 +153,7 @@ pub trait EngineApi {
 }
 
 #[async_trait]
-impl<C, A> EngineApiServer for RollupBoostServer<C, A>
-where
-    C: ClientT + Clone + Send + Sync + 'static,
-    A: ClientT + Clone + Send + Sync + 'static,
-{
+impl EngineApiServer for RollupBoostServer {
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
@@ -523,12 +511,10 @@ mod tests {
             let host = IpAddr::from_str(HOST).unwrap();
 
             let jwt_secret = JwtSecret::random();
-            let l2_client =
-                ExecutionClient::new(host, L2_PORT, host, L2_PORT, jwt_secret, 2000).unwrap();
+            let l2_client = ExecutionClient::new(host, L2_PORT, jwt_secret, 2000).unwrap();
 
             let builder_client =
-                ExecutionClient::new(host, BUILDER_PORT, host, BUILDER_PORT, jwt_secret, 2000)
-                    .unwrap();
+                ExecutionClient::new(host, BUILDER_PORT, jwt_secret, 2000).unwrap();
 
             let rollup_boost_client =
                 RollupBoostServer::new(l2_client, builder_client, boost_sync, None);
