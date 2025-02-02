@@ -247,8 +247,9 @@ mod tests {
                 None,
             ));
 
-            let listener = TcpListener::bind("0.0.0.0:0").await?;
-            let server_addr = listener.local_addr()?;
+            let temp_listener = TcpListener::bind("0.0.0.0:0").await?;
+            let server_addr = temp_listener.local_addr()?;
+            drop(temp_listener);
             let server = Server::builder()
                 .set_http_middleware(middleware.clone())
                 .build(server_addr)
@@ -288,7 +289,6 @@ mod tests {
         async fn serve() -> eyre::Result<Self> {
             let listener = TcpListener::bind("0.0.0.0:0").await?;
             let addr = listener.local_addr()?;
-            dbg!("Mock HTTP server listening on {}", addr);
             let requests = Arc::new(Mutex::new(vec![]));
 
             let requests_clone = requests.clone();
@@ -531,15 +531,14 @@ mod tests {
         let max_tx_size = U64::MAX;
         let max_block_size = U64::MAX;
 
+        let _response: serde_json::Value = test_harness
+            .proxy_client
+            .request("miner_setMaxDASize", (max_tx_size, max_block_size))
+            .await?;
+
         let expected_method = "miner_setMaxDASize";
         let expected_tx_size = json!(max_tx_size);
         let expected_block_size = json!(max_block_size);
-
-        let params = json!([max_tx_size, max_block_size]);
-        let _response: serde_json::Value = test_harness
-            .proxy_client
-            .request("miner_setMaxDASize", (params,))
-            .await?;
 
         // Assert the builder received the correct payload
         let builder = &test_harness.builder;
