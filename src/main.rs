@@ -178,7 +178,7 @@ async fn main() -> eyre::Result<()> {
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
-    let auth_rpc_uri = format!(
+    let l2_auth_rpc_uri = format!(
         "http://{}:{}",
         l2_client_args.l2_auth_addr, l2_client_args.l2_auth_port
     )
@@ -191,7 +191,7 @@ async fn main() -> eyre::Result<()> {
     .parse::<Uri>()?;
 
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        auth_rpc_uri,
+        l2_auth_rpc_uri,
         l2_jwt,
         builder_rpc_uri,
         builder_rpc_jwt,

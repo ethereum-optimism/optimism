@@ -208,14 +208,15 @@ mod tests {
     };
     use reth_rpc_layer::JwtSecret;
     use serde_json::json;
+    use std::thread::sleep;
+    use std::time::Duration;
     use std::{
         net::{IpAddr, SocketAddr},
         str::FromStr,
         sync::{Arc, Mutex},
     };
-    use tokio::net::TcpListener;
+    use tokio::net::{TcpListener, TcpSocket};
     use tokio::task::JoinHandle;
-    use tracing_subscriber::fmt::format;
 
     const PORT: u32 = 8552;
     const ADDR: &str = "127.0.0.1";
@@ -226,6 +227,12 @@ mod tests {
         l2: MockHttpServer,
         server_handle: ServerHandle,
         proxy_client: HttpClient,
+    }
+
+    impl Drop for TestHarness {
+        fn drop(&mut self) {
+            self.server_handle.stop().unwrap();
+        }
     }
 
     impl TestHarness {
@@ -240,22 +247,21 @@ mod tests {
                 None,
             ));
 
-            let listener = TcpListener::bind("127.0.0.1:0").await?;
+            let listener = TcpListener::bind("0.0.0.0:0").await?;
             let server_addr = listener.local_addr()?;
-
-            dbg!("Mock server listening on {}", server_addr);
-
             let server = Server::builder()
-                .set_http_middleware(middleware)
+                .set_http_middleware(middleware.clone())
                 .build(server_addr)
                 .await?;
-            let server_handle = server.start(RpcModule::new(()));
 
+            let server_addr = server.local_addr()?;
             let proxy_client: HttpClient = HttpClient::builder().build(format!(
                 "http://{}:{}",
                 server_addr.ip(),
                 server_addr.port()
             ))?;
+
+            let server_handle = server.start(RpcModule::new(()));
 
             Ok(Self {
                 builder,
@@ -269,12 +275,18 @@ mod tests {
     struct MockHttpServer {
         addr: SocketAddr,
         requests: Arc<Mutex<Vec<serde_json::Value>>>,
-        _join_handle: JoinHandle<()>,
+        join_handle: JoinHandle<()>,
+    }
+
+    impl Drop for MockHttpServer {
+        fn drop(&mut self) {
+            self.join_handle.abort();
+        }
     }
 
     impl MockHttpServer {
         async fn serve() -> eyre::Result<Self> {
-            let listener = TcpListener::bind("127.0.0.1:0").await?;
+            let listener = TcpListener::bind("0.0.0.0:0").await?;
             let addr = listener.local_addr()?;
             dbg!("Mock HTTP server listening on {}", addr);
             let requests = Arc::new(Mutex::new(vec![]));
@@ -309,7 +321,7 @@ mod tests {
             Ok(Self {
                 addr,
                 requests,
-                _join_handle: handle,
+                join_handle: handle,
             })
         }
 
