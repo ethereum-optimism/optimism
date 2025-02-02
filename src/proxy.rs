@@ -187,12 +187,17 @@ async fn forward_request(
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        net::{IpAddr, SocketAddr},
-        str::FromStr,
+    use super::*;
+    use super::*;
+    use alloy_primitives::{hex, B256, U64};
+    use alloy_primitives::{FixedBytes, U256};
+    use alloy_rpc_types_engine::{
+        BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
-
     use http_body_util::BodyExt;
+    use hyper::service::service_fn;
+    use hyper_util::rt::TokioIo;
+    use jsonrpsee::server::Server;
     use jsonrpsee::{
         core::{client::ClientT, ClientError},
         http_client::HttpClient,
@@ -202,12 +207,171 @@ mod tests {
         RpcModule,
     };
     use reth_rpc_layer::JwtSecret;
-
-    use super::*;
+    use serde_json::json;
+    use std::{
+        net::{IpAddr, SocketAddr},
+        str::FromStr,
+        sync::{Arc, Mutex},
+    };
+    use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
+    use tracing_subscriber::fmt::format;
 
     const PORT: u32 = 8552;
     const ADDR: &str = "127.0.0.1";
     const PROXY_PORT: u32 = 8553;
+
+    struct TestHarness {
+        builder: MockHttpServer,
+        l2: MockHttpServer,
+        server_handle: ServerHandle,
+        proxy_client: HttpClient,
+    }
+
+    impl TestHarness {
+        async fn new() -> eyre::Result<Self> {
+            let builder = MockHttpServer::serve().await?;
+            let l2 = MockHttpServer::serve().await?;
+
+            let middleware = tower::ServiceBuilder::new().layer(ProxyLayer::new(
+                format!("http://{}:{}", l2.addr.ip(), l2.addr.port()).parse::<Uri>()?,
+                JwtSecret::random(),
+                format!("http://{}:{}", builder.addr.ip(), builder.addr.port()).parse::<Uri>()?,
+                None,
+            ));
+
+            let listener = TcpListener::bind("127.0.0.1:0").await?;
+            let server_addr = listener.local_addr()?;
+
+            dbg!("Mock server listening on {}", server_addr);
+
+            let server = Server::builder()
+                .set_http_middleware(middleware)
+                .build(server_addr)
+                .await?;
+            let server_handle = server.start(RpcModule::new(()));
+
+            let proxy_client: HttpClient = HttpClient::builder().build(format!(
+                "http://{}:{}",
+                server_addr.ip(),
+                server_addr.port()
+            ))?;
+
+            Ok(Self {
+                builder,
+                l2,
+                server_handle,
+                proxy_client,
+            })
+        }
+    }
+
+    struct MockHttpServer {
+        addr: SocketAddr,
+        requests: Arc<Mutex<Vec<serde_json::Value>>>,
+        _join_handle: JoinHandle<()>,
+    }
+
+    impl MockHttpServer {
+        async fn serve() -> eyre::Result<Self> {
+            let listener = TcpListener::bind("127.0.0.1:0").await?;
+            let addr = listener.local_addr()?;
+            dbg!("Mock HTTP server listening on {}", addr);
+            let requests = Arc::new(Mutex::new(vec![]));
+
+            let requests_clone = requests.clone();
+            let handle = tokio::spawn(async move {
+                loop {
+                    match listener.accept().await {
+                        Ok((stream, _)) => {
+                            let io = TokioIo::new(stream);
+                            let requests = requests_clone.clone();
+
+                            tokio::spawn(async move {
+                                if let Err(err) = hyper::server::conn::http1::Builder::new()
+                                    .serve_connection(
+                                        io,
+                                        service_fn(move |req| {
+                                            Self::handle_request(req, requests.clone())
+                                        }),
+                                    )
+                                    .await
+                                {
+                                    eprintln!("Error serving connection: {}", err);
+                                }
+                            });
+                        }
+                        Err(e) => eprintln!("Error accepting connection: {}", e),
+                    }
+                }
+            });
+
+            Ok(Self {
+                addr,
+                requests,
+                _join_handle: handle,
+            })
+        }
+
+        async fn handle_request(
+            req: hyper::Request<hyper::body::Incoming>,
+            requests: Arc<Mutex<Vec<serde_json::Value>>>,
+        ) -> Result<hyper::Response<String>, hyper::Error> {
+            let body_bytes = match req.into_body().collect().await {
+                Ok(buf) => buf.to_bytes(),
+                Err(_) => {
+                    let error_response = json!({
+                        "jsonrpc": "2.0",
+                        "error": { "code": -32700, "message": "Failed to read request body" },
+                        "id": null
+                    });
+                    return Ok(hyper::Response::new(error_response.to_string()));
+                }
+            };
+
+            let request_body: serde_json::Value = match serde_json::from_slice(&body_bytes) {
+                Ok(json) => json,
+                Err(_) => {
+                    let error_response = json!({
+                        "jsonrpc": "2.0",
+                        "error": { "code": -32700, "message": "Invalid JSON format" },
+                        "id": null
+                    });
+                    return Ok(hyper::Response::new(error_response.to_string()));
+                }
+            };
+
+            requests.lock().unwrap().push(request_body.clone());
+
+            let method = request_body["method"].as_str().unwrap_or_default();
+
+            let response = match method {
+                "eth_sendRawTransaction" => json!({
+                    "jsonrpc": "2.0",
+                    "result": format!("{}", B256::from([1; 32])),
+                    "id": request_body["id"]
+                }),
+                "miner_setMaxDASize" | "miner_setGasLimit" | "miner_setGasPrice"
+                | "miner_setExtra" => {
+                    json!({
+                        "jsonrpc": "2.0",
+                        "result": true,
+                        "id": request_body["id"]
+                    })
+                }
+                _ => {
+                    let error_response = json!({
+                        "jsonrpc": "2.0",
+                        "error": { "code": -32601, "message": "Method not found" },
+                        "id": request_body["id"]
+                    });
+                    return Ok(hyper::Response::new(error_response.to_string()));
+                }
+            };
+
+            return Ok(hyper::Response::new(response.to_string()));
+        }
+    }
 
     #[tokio::test]
     async fn test_proxy_service() {
@@ -346,5 +510,43 @@ mod tests {
             .unwrap();
 
         server.start(module)
+    }
+
+    #[tokio::test]
+    async fn test_set_max_da_size() -> eyre::Result<()> {
+        let test_harness = TestHarness::new().await?;
+
+        let max_tx_size = U64::MAX;
+        let max_block_size = U64::MAX;
+
+        let expected_method = "miner_setMaxDASize";
+        let expected_tx_size = json!(max_tx_size);
+        let expected_block_size = json!(max_block_size);
+
+        let params = json!([max_tx_size, max_block_size]);
+        let _response: serde_json::Value = test_harness
+            .proxy_client
+            .request("miner_setMaxDASize", (params,))
+            .await?;
+
+        // Assert the builder received the correct payload
+        let builder = &test_harness.builder;
+        let builder_requests = builder.requests.lock().unwrap();
+        let builder_req = builder_requests.first().unwrap();
+        assert_eq!(builder_requests.len(), 1);
+        assert_eq!(builder_req["method"], expected_method);
+        assert_eq!(builder_req["params"][0], expected_tx_size);
+        assert_eq!(builder_req["params"][1], expected_block_size);
+
+        // Assert the l2 received the correct payload
+        let l2 = &test_harness.l2;
+        let l2_requests = l2.requests.lock().unwrap();
+        let l2_req = l2_requests.first().unwrap();
+        assert_eq!(l2_requests.len(), 1);
+        assert_eq!(l2_req["method"], expected_method);
+        assert_eq!(l2_req["params"][0], expected_tx_size);
+        assert_eq!(builder_req["params"][1], expected_block_size);
+
+        Ok(())
     }
 }
