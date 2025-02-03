@@ -29,7 +29,7 @@ impl RethConfig {
 
 impl Service for RethConfig {
     fn command(&self) -> ServiceCommand {
-        ServiceCommand::new("/Users/ferranbt/Downloads/op-reth")
+        ServiceCommand::new("op-reth")
             .arg("node")
             .arg("--authrpc.port")
             .arg(Arg::Port {
