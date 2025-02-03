@@ -407,17 +407,6 @@ impl EngineApi {
         )
         .await?)
     }
-
-    pub async fn get_block_by_number(
-        &self,
-        number: BlockNumberOrTag,
-        include_txs: bool,
-    ) -> eyre::Result<Option<alloy_rpc_types_eth::Block>> {
-        Ok(
-            BlockApiClient::get_block_by_number(&self.engine_api_client, number, include_txs)
-                .await?,
-        )
-    }
 }
 
 #[rpc(client, namespace = "eth")]
