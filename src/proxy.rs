@@ -130,8 +130,6 @@ where
                 .method
                 .to_string();
 
-            debug!(message = "received json rpc request for", ?method);
-
             if MULTIPLEX_METHODS.iter().any(|&m| method.starts_with(m)) {
                 if FORWARD_REQUESTS.contains(&method.as_str()) {
                     let builder_client = client.clone();
