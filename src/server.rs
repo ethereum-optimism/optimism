@@ -310,7 +310,7 @@ impl EngineApiServer for RollupBoostServer {
                 }
             };
             if payload_status.is_invalid() {
-                error!(message = "builder payload was not valid",  "payload_status" = %payload_status.status, "payload_id" = %payload_id);
+                error!(message = "builder payload was not valid",  "url" = ?builder_client.auth_socket, "payload_status" = %payload_status.status, "payload_id" = %payload_id);
                 Err(ClientError::Call(ErrorObject::owned(
                     INVALID_REQUEST_CODE,
                     "Builder payload was not valid",
