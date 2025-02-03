@@ -472,8 +472,6 @@ impl RollupBoostTestHarness {
             .builder_url(builder_service);
         let rb_service = framework.start("rollup-boost", &rb_config).await?;
 
-        println!("xxx {:?}", rb_service.get_endpoint("rpc"));
-
         let engine_api = EngineApi::new(&rb_service.get_endpoint("rpc"), DEFAULT_JWT_TOKEN)
             .map_err(|_| IntegrationError::SetupError)?;
 
@@ -505,23 +503,11 @@ impl<'a> SimpleBlockGenerator<'a> {
         let latest_block = self.engine_api.latest().await?.expect("block not found");
         self.latest_hash = latest_block.header.hash;
         self.timestamp = latest_block.header.timestamp;
-
-        println!(
-            "Initialized block generator with latest hash: {:?}",
-            self.latest_hash
-        );
-        println!(
-            "Initialized block generator with timestamp: {:?}",
-            self.timestamp
-        );
-
         Ok(())
     }
 
     /// Generate a single new block and return its hash
     pub async fn generate_block(&mut self) -> eyre::Result<B256> {
-        println!("Xxx {}", self.timestamp);
-
         // Submit forkchoice update with payload attributes for the next block
         let result = self
             .engine_api

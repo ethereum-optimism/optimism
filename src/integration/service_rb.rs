@@ -1,10 +1,7 @@
-use crate::integration::{
-    poll_logs, Arg, IntegrationError, Service, ServiceCommand, DEFAULT_JWT_TOKEN,
-};
+use crate::integration::{poll_logs, Arg, IntegrationError, Service, ServiceCommand};
 use futures_util::Future;
 use std::{
     path::{Path, PathBuf},
-    process::Command,
     time::Duration,
 };
 
