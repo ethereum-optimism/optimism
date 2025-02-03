@@ -1,4 +1,4 @@
-name: Tests
+name: Integration Tests
 
 on:
   push:
@@ -18,6 +18,15 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+
+      - name: Download op-reth
+        run: |
+          ./scripts/download-op-reth.sh
+          echo "$PWD/op-reth" >> $GITHUB_PATH
+
+      - name: Log Op-reth version
+        run: |
+          ./op-reth --version
 
       - name: Build
         run: cargo build
