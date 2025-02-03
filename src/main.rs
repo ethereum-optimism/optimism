@@ -28,6 +28,8 @@ use tracing::{error, info, Level};
 use tracing_subscriber::EnvFilter;
 
 mod error;
+#[cfg(feature = "integration")]
+mod integration;
 mod metrics;
 mod proxy;
 mod server;
