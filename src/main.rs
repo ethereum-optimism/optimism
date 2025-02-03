@@ -1,5 +1,7 @@
 use clap::{arg, Parser};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
+use std::{net::SocketAddr, sync::Arc};
+
 use dotenv::dotenv;
 use eyre::bail;
 use http::{StatusCode, Uri};
@@ -14,18 +16,14 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_util::layers::{PrefixLayer, Stack};
 use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::Config;
-use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Config, Resource};
 use proxy::ProxyLayer;
 use reth_rpc_layer::JwtSecret;
 use server::RollupBoostServer;
 
-use std::net::SocketAddr;
-use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::error;
-use tracing::{info, Level};
+use tokio::signal::unix::{signal as unix_signal, SignalKind};
+use tracing::{error, info, Level};
 use tracing_subscriber::EnvFilter;
 
 mod client;
@@ -126,7 +124,7 @@ async fn main() -> eyre::Result<()> {
         None
     };
 
-    // telemetry setup
+    // Telemetry setup
     if args.tracing {
         init_tracing(&args.otlp_endpoint);
     }
@@ -184,7 +182,7 @@ async fn main() -> eyre::Result<()> {
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
-    // server setup
+    // Build and start the server
     info!("Starting server on :{}", args.rpc_port);
     let l2_auth_rpc_uri = format!(
         "http://{}:{}",
@@ -212,13 +210,33 @@ async fn main() -> eyre::Result<()> {
         builder_rpc_uri,
         builder_rpc_jwt,
     ));
+
     let server = Server::builder()
         .set_http_middleware(service_builder)
         .build(format!("{}:{}", args.rpc_host, args.rpc_port).parse::<SocketAddr>()?)
         .await?;
     let handle = server.start(module);
 
-    handle.stopped().await;
+    let stop_handle = handle.clone();
+
+    // Capture SIGINT and SIGTERM
+    let mut sigint = unix_signal(SignalKind::interrupt())?;
+    let mut sigterm = unix_signal(SignalKind::terminate())?;
+
+    tokio::select! {
+        _ = handle.stopped() => {
+            // The server has already shut down by itself
+            info!("Server stopped");
+        }
+        _ = sigint.recv() => {
+            info!("Received SIGINT, shutting down gracefully...");
+            let _ = stop_handle.stop();
+        }
+        _ = sigterm.recv() => {
+            info!("Received SIGTERM, shutting down gracefully...");
+            let _ = stop_handle.stop();
+        }
+    }
 
     Ok(())
 }
