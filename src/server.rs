@@ -225,6 +225,7 @@ impl std::fmt::Display for PayloadCreator {
     }
 }
 
+#[allow(dead_code)]
 impl PayloadCreator {
     pub fn is_builder(&self) -> bool {
         matches!(self, PayloadCreator::Builder)
