@@ -1,17 +1,49 @@
 #[cfg(test)]
 mod tests {
-    use crate::integration::{RollupBoostTestHarness, SimpleBlockGenerator};
+    use crate::integration::RollupBoostTestHarness;
 
     #[tokio::test]
-    async fn test_integration() {
-        let harness = RollupBoostTestHarness::new().await.unwrap();
+    async fn test_integration_simple() {
+        let harness = RollupBoostTestHarness::new("test_integration_simple")
+            .await
+            .unwrap();
 
-        let mut block_generator = SimpleBlockGenerator::new(&harness.engine_api);
-        block_generator.init().await.unwrap();
+        let mut block_generator = harness.get_block_generator().await;
 
-        for _ in 0..10 {
-            let block = block_generator.generate_block().await.unwrap();
-            println!("Generated block: {:?}", block);
+        for _ in 0..5 {
+            let (_block, block_creator) = block_generator.generate_block(false).await.unwrap();
+            assert!(
+                block_creator.is_builder(),
+                "Block creator should be the builder"
+            );
+
+            // wait for 1 second
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_integration_no_tx_pool() {
+        let harness = RollupBoostTestHarness::new("test_integration_no_tx_pool")
+            .await
+            .unwrap();
+
+        let mut block_generator = harness.get_block_generator().await;
+
+        // start creating 5 empty blocks which are processed by the L2 builder
+        for _ in 0..5 {
+            let (_block, block_creator) = block_generator.generate_block(true).await.unwrap();
+            assert!(block_creator.is_l2(), "Block creator should be l2");
+        }
+
+        // process 5 more non empty blocks which are processed by the builder.
+        // The builder should be on sync because it has received the new payload requests from rollup-boost.
+        for _ in 0..5 {
+            let (_block, block_creator) = block_generator.generate_block(false).await.unwrap();
+            assert!(
+                block_creator.is_builder(),
+                "Block creator should be the builder"
+            );
         }
     }
 }

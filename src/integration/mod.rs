@@ -1,4 +1,5 @@
 use crate::server::EngineApiClient;
+use crate::server::PayloadCreator;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{
@@ -7,6 +8,7 @@ use alloy_rpc_types_engine::{
 };
 use jsonrpsee::http_client::{transport::HttpBackend, HttpClient};
 use jsonrpsee::proc_macros::rpc;
+use lazy_static::lazy_static;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use reth_optimism_payload_builder::OpPayloadAttributes;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
@@ -14,6 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Mutex;
 use std::{
     fs::{File, OpenOptions},
     io,
@@ -126,10 +129,13 @@ pub struct ServiceInstance {
     allocated_ports: HashMap<String, u16>,
 }
 
+lazy_static! {
+    static ref GLOBAL_ALLOCATED_PORTS: Mutex<HashSet<u16>> = Mutex::new(HashSet::new());
+}
+
 pub struct IntegrationFramework {
     test_dir: PathBuf,
-    services: Vec<ServiceInstance>,
-    allocated_ports: HashSet<u16>,
+    services: HashMap<String, ServiceInstance>,
 }
 
 /// Helper function to poll logs periodically
@@ -220,17 +226,26 @@ impl ServiceInstance {
     pub fn get_endpoint(&self, name: &str) -> String {
         format!("http://localhost:{}", self.get_port(name))
     }
+
+    pub fn get_logs(&self) -> String {
+        let mut file = File::open(&self.log_path).unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+        contents
+    }
 }
 
 impl IntegrationFramework {
-    pub fn new() -> Result<Self, IntegrationError> {
+    pub fn new(test_name: &str) -> Result<Self, IntegrationError> {
         let dt: OffsetDateTime = SystemTime::now().into();
         let format = format_description::parse("[year]_[month]_[day]_[hour]_[minute]_[second]")
             .map_err(|_| IntegrationError::SetupError)?;
 
-        let test_name = dt
+        let timestamp = dt
             .format(&format)
             .map_err(|_| IntegrationError::SetupError)?;
+
+        let test_name = format!("{}_{}", timestamp, test_name);
 
         let mut test_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         test_dir.push("./integration_logs");
@@ -240,8 +255,7 @@ impl IntegrationFramework {
 
         Ok(Self {
             test_dir,
-            services: Vec::new(),
-            allocated_ports: HashSet::new(),
+            services: HashMap::new(),
         })
     }
 
@@ -256,7 +270,6 @@ impl IntegrationFramework {
         for arg in cmd.args {
             match arg {
                 Arg::Port { name, preferred } => {
-                    // find available port
                     let port = self.find_available_port(preferred)?;
                     allocated_ports.insert(name, port);
                     command.arg(port.to_string());
@@ -272,20 +285,24 @@ impl IntegrationFramework {
             }
         }
 
-        // update the allocated ports with the new ports
-        self.allocated_ports.extend(allocated_ports.values());
         Ok((allocated_ports, command))
     }
 
     fn find_available_port(&self, start: u16) -> Result<u16, IntegrationError> {
+        let mut global_ports = GLOBAL_ALLOCATED_PORTS
+            .lock()
+            .expect("Failed to acquire lock");
+
         (start..start + 100)
             .find(|&port| {
-                // if the port is already allocated internally by the framework, skip it
-                if self.allocated_ports.contains(&port) {
+                if global_ports.contains(&port) {
                     return false;
                 }
-                // check if the port is available
-                std::net::TcpListener::bind(("127.0.0.1", port)).is_ok()
+                if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                    global_ports.insert(port);
+                    return true;
+                }
+                false
             })
             .ok_or(IntegrationError::SetupError)
     }
@@ -300,8 +317,8 @@ impl IntegrationFramework {
         // Store the service instance in the framework
         let service =
             ServiceInstance::new(name.to_string(), self.test_dir.clone(), allocated_ports);
-        self.services.push(service);
-        let service = self.services.last_mut().unwrap();
+        self.services.insert(name.to_string(), service);
+        let service = self.services.get_mut(name).unwrap();
 
         service.start_with_config(config, command).await?;
         Ok(service)
@@ -335,8 +352,19 @@ fn open_log_file(path: &PathBuf) -> Result<File, IntegrationError> {
 
 impl Drop for IntegrationFramework {
     fn drop(&mut self) {
+        // Stop all services first
         for service in &mut self.services {
-            let _ = service.stop();
+            let _ = service.1.stop();
+        }
+
+        // Release allocated ports from global registry
+        let mut global_ports = GLOBAL_ALLOCATED_PORTS
+            .lock()
+            .expect("Failed to acquire lock");
+        for service in &self.services {
+            for port in service.1.allocated_ports.values() {
+                global_ports.remove(port);
+            }
         }
     }
 }
@@ -426,8 +454,8 @@ pub struct RollupBoostTestHarness {
 }
 
 impl RollupBoostTestHarness {
-    pub async fn new() -> Result<Self, IntegrationError> {
-        let mut framework = IntegrationFramework::new()?;
+    pub async fn new(test_name: &str) -> Result<Self, IntegrationError> {
+        let mut framework = IntegrationFramework::new(test_name)?;
 
         let jwt_path = framework.write_file("jwt.hex", DEFAULT_JWT_TOKEN)?;
 
@@ -469,19 +497,51 @@ impl RollupBoostTestHarness {
             engine_api,
         })
     }
+
+    pub fn get_block_creator(&self, block_hash: B256) -> Option<PayloadCreator> {
+        let service = self._framework.services.get("rollup-boost").unwrap();
+        let logs = service.get_logs();
+
+        // Find the log line containing the block hash
+        for line in logs.lines() {
+            if line.contains(&format!("hash={:#x}", block_hash)) {
+                // Extract the context="X" part
+                if let Some(context_start) = line.find("context=\"") {
+                    let context = line[context_start..].split('"').nth(1)?;
+                    if context == "builder" {
+                        return Some(PayloadCreator::Builder);
+                    } else if context == "l2" {
+                        return Some(PayloadCreator::L2);
+                    } else {
+                        panic!("Unknown context: {}", context);
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    pub async fn get_block_generator(&self) -> SimpleBlockGenerator {
+        let mut block_creator = SimpleBlockGenerator::new(self);
+        block_creator.init().await.unwrap();
+        block_creator
+    }
 }
 
 /// A simple system that continuously generates empty blocks using the engine API
 pub struct SimpleBlockGenerator<'a> {
+    rollup_boost_service: &'a RollupBoostTestHarness,
     engine_api: &'a EngineApi,
     latest_hash: B256,
     timestamp: u64,
 }
 
 impl<'a> SimpleBlockGenerator<'a> {
-    pub fn new(engine_api: &'a EngineApi) -> Self {
+    pub fn new(rollup_boost_service: &'a RollupBoostTestHarness) -> Self {
         Self {
-            engine_api,
+            rollup_boost_service,
+            engine_api: &rollup_boost_service.engine_api,
             latest_hash: B256::ZERO, // temporary value
             timestamp: 0,            // temporary value
         }
@@ -496,7 +556,10 @@ impl<'a> SimpleBlockGenerator<'a> {
     }
 
     /// Generate a single new block and return its hash
-    pub async fn generate_block(&mut self) -> eyre::Result<B256> {
+    pub async fn generate_block(
+        &mut self,
+        empty_blocks: bool,
+    ) -> eyre::Result<(B256, PayloadCreator)> {
         // Submit forkchoice update with payload attributes for the next block
         let result = self
             .engine_api
@@ -514,7 +577,7 @@ impl<'a> SimpleBlockGenerator<'a> {
                         max_blobs_per_block: None,
                     },
                     transactions: None,
-                    no_tx_pool: Some(false),
+                    no_tx_pool: Some(empty_blocks),
                     gas_limit: Some(10000000000),
                     eip_1559_params: None,
                 }),
@@ -553,6 +616,12 @@ impl<'a> SimpleBlockGenerator<'a> {
             .payload_inner
             .timestamp;
 
-        Ok(new_block_hash)
+        // Check who built the block in the rollup-boost logs
+        let block_creator = self
+            .rollup_boost_service
+            .get_block_creator(new_block_hash)
+            .unwrap();
+
+        Ok((new_block_hash, block_creator))
     }
 }

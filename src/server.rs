@@ -210,6 +210,31 @@ where
     }
 }
 
+#[derive(Debug)]
+pub enum PayloadCreator {
+    L2,
+    Builder,
+}
+
+impl std::fmt::Display for PayloadCreator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PayloadCreator::L2 => write!(f, "l2"),
+            PayloadCreator::Builder => write!(f, "builder"),
+        }
+    }
+}
+
+impl PayloadCreator {
+    pub fn is_builder(&self) -> bool {
+        matches!(self, PayloadCreator::Builder)
+    }
+
+    pub fn is_l2(&self) -> bool {
+        matches!(self, PayloadCreator::L2)
+    }
+}
+
 #[async_trait]
 impl<C> EngineApiServer for EthEngineApi<HttpClientWrapper<C>>
 where
@@ -423,17 +448,38 @@ where
         });
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
-        builder_payload.or(l2_payload).map_err(|e| match e {
-            ClientError::Call(err) => err, // Already an ErrorObjectOwned, so just return it
-            other_error => {
-                error!(
-                    message = "error calling get_payload_v3",
-                    "url" = self.builder_client.url,
-                    "error" = %other_error,
-                    "payload_id" = %payload_id
-                );
-                ErrorCode::InternalError.into()
-            }
+        let payload = match (builder_payload, l2_payload) {
+            (Ok(builder), _) => Ok((builder, PayloadCreator::Builder)),
+            (Err(_), Ok(l2)) => Ok((l2, PayloadCreator::L2)),
+            (Err(e), Err(_)) => match e {
+                ClientError::Call(err) => Err(err), // Already an ErrorObjectOwned, so just return it
+                other_error => {
+                    error!(
+                        message = "error calling get_payload_v3",
+                        "url" = self.builder_client.url,
+                        "error" = %other_error,
+                        "payload_id" = %payload_id
+                    );
+                    Err(ErrorCode::InternalError.into())
+                }
+            },
+        };
+        payload.map(|(payload, context)| {
+            let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
+            let block_hash = inner_payload.block_hash();
+            let block_number = inner_payload.block_number();
+
+            // Note: This log message is used by integration tests to track payload context.
+            // While not ideal to rely on log parsing, it provides a reliable way to verify behavior.
+            // Happy to consider an alternative approach later on.
+            info!(
+                message = "returning block",
+                "hash" = %block_hash,
+                "number" = %block_number,
+                "context" = %context,
+                "payload_id" = %payload_id
+            );
+            payload
         })
     }
 

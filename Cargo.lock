@@ -5100,6 +5100,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jsonrpsee",
+ "lazy_static",
  "lru",
  "metrics",
  "metrics-derive",
