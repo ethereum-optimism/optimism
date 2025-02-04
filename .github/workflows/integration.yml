@@ -22,17 +22,14 @@ jobs:
       - name: Download op-reth
         run: |
           ./scripts/download-op-reth.sh
-          echo "$PWD/op-reth" >> $GITHUB_PATH
-          echo $GITHUB_PATH
-
-      - name: Build
-        run: cargo build
+          echo "$(pwd)" >> $GITHUB_PATH
 
       - name: Log Op-reth version
         run: |
-          echo $GITHUB_PATH
           op-reth --version
-          ./target/debug/rollup-boost --version
+
+      - name: Build
+        run: cargo build
 
       - name: Run tests
         run: cargo test --features integration -- integration::integration_test::tests
