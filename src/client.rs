@@ -69,14 +69,6 @@ macro_rules! define_rpc_args {
                     concat!(stringify!($prefix), "_rpc_jwtsecret")])))
                 ]
                 pub struct $name {
-                    /// Http server address
-                    #[arg(long = concat!(stringify!($prefix), ".http.addr"), env, default_value = "127.0.0.1")]
-                    pub [<$prefix _http_addr>]: IpAddr,
-
-                    /// Http server port
-                    #[arg(long = concat!(stringify!($prefix), ".http.port"), env, default_value_t = 8545)]
-                    pub [<$prefix _http_port>]: u16,
-
                     /// Auth server address
                     #[arg(long = concat!(stringify!($prefix), ".auth.addr"), env, default_value = "127.0.0.1")]
                     pub [<$prefix _auth_addr>]: IpAddr,
@@ -92,26 +84,6 @@ macro_rules! define_rpc_args {
                     /// Hex encoded JWT secret to use for the authenticated engine-API RPC server.
                     #[arg(long = concat!(stringify!($prefix), ".authrpc.jwtsecret"), env, value_name = "HEX")]
                     pub [<$prefix _auth_jwtsecret>]: Option<JwtSecret>,
-
-                    /// Path to a JWT secret to authenticate the regular RPC server(s)
-                    ///
-                    /// This is __not__ used for the authenticated engine-API RPC server, see
-                    /// `authrpc.jwtsecret`.
-                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret.path"), env, value_name = "PATH")]
-                    pub [<$prefix _rpc_jwtsecret_path>]: Option<PathBuf>,
-
-                    /// Hex encoded JWT secret to authenticate the regular RPC server(s)
-                    ///
-                    /// This is __not__ used for the authenticated engine-API RPC server, see
-                    /// `authrpc.jwtsecret`.
-                    #[arg(long = concat!(stringify!($prefix), ".rpc.jwtsecret"), env, value_name = "HEX")]
-                    pub [<$prefix _rpc_jwtsecret>]: Option<JwtSecret>,
-
-                    /// Filename for auth IPC socket/pipe
-                    ///
-                    /// NOTE: This is unimplemented currently
-                    #[arg(long = concat!(stringify!($prefix), ".auth.ipc.path"), env, value_name = "PATH")]
-                    pub [<$prefix _auth_ipc_path>]: Option<String>,
 
                     /// Timeout for http calls in milliseconds
                     #[arg(long = concat!(stringify!($prefix), ".timeout"), env, default_value_t = 1000)]
