@@ -206,7 +206,6 @@ mod tests {
     };
     use reth_rpc_layer::JwtSecret;
     use serde_json::json;
-    use serial_test::serial;
     use std::{
         net::{IpAddr, SocketAddr},
         str::FromStr,
@@ -389,7 +388,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_proxy_service() {
         proxy_success().await;
         proxy_failure().await;
