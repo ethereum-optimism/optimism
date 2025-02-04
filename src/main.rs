@@ -141,14 +141,6 @@ async fn main() -> eyre::Result<()> {
         bail!("Missing L2 Client JWT secret");
     };
 
-    let l2_rpc_jwt = if let Some(secret) = l2_client_args.l2_rpc_jwtsecret {
-        Some(secret)
-    } else if let Some(path) = l2_client_args.l2_rpc_jwtsecret_path.as_ref() {
-        Some(JwtSecret::from_file(path)?)
-    } else {
-        None
-    };
-
     let l2_client = ExecutionClient::new(
         l2_client_args.l2_auth_addr,
         l2_client_args.l2_auth_port,
@@ -163,14 +155,6 @@ async fn main() -> eyre::Result<()> {
         JwtSecret::from_file(path)?
     } else {
         bail!("Missing Builder JWT secret");
-    };
-
-    let builder_rpc_jwt = if let Some(secret) = builder_args.builder_rpc_jwtsecret {
-        Some(secret)
-    } else if let Some(path) = builder_args.builder_rpc_jwtsecret_path.as_ref() {
-        Some(JwtSecret::from_file(path)?)
-    } else {
-        None
     };
 
     let builder_client = ExecutionClient::new(
@@ -192,25 +176,17 @@ async fn main() -> eyre::Result<()> {
     )
     .parse::<Uri>()?;
 
-    let l2_rpc_uri = format!(
+    let builder_auth_rpc_uri = format!(
         "http://{}:{}",
-        l2_client_args.l2_http_addr, l2_client_args.l2_http_port
-    )
-    .parse::<Uri>()?;
-
-    let builder_rpc_uri = format!(
-        "http://{}:{}",
-        builder_args.builder_http_addr, builder_args.builder_http_port
+        builder_args.builder_auth_addr, builder_args.builder_auth_port
     )
     .parse::<Uri>()?;
 
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
         l2_auth_rpc_uri,
         l2_auth_jwt,
-        l2_rpc_uri,
-        l2_rpc_jwt,
-        builder_rpc_uri,
-        builder_rpc_jwt,
+        builder_auth_rpc_uri,
+        builder_auth_jwt,
     ));
     let server = Server::builder()
         .set_http_middleware(service_builder)
