@@ -33,3 +33,11 @@ jobs:
 
       - name: Run tests
         run: cargo test --features integration -- integration::integration_test::tests
+
+      - name: Archive integration logs
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: integration-logs
+          path: integration_logs
+          retention-days: 5
