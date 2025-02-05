@@ -44,5 +44,9 @@ jobs:
         if: ${{ failure() }}
         with:
           name: integration-logs
-          path: integration_logs/
+          path: |
+            integration_logs/**/*
+            integration_logs/.*
           retention-days: 5
+          if-no-files-found: error # Will fail if no logs are found
+          compression-level: 9 # Maximum compression
