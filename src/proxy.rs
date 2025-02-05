@@ -58,9 +58,9 @@ impl<S> Layer<S> for ProxyLayer {
             inner,
             client: Client::builder(TokioExecutor::new()).build_http(),
             l2_auth_uri: self.l2_auth_uri.clone(),
-            l2_auth_secret: self.l2_auth_secret.clone(),
+            l2_auth_secret: self.l2_auth_secret,
             builder_auth_uri: self.builder_auth_uri.clone(),
-            builder_auth_secret: self.builder_auth_secret.clone(),
+            builder_auth_secret: self.builder_auth_secret,
         }
     }
 }
@@ -99,9 +99,9 @@ where
         let client = self.client.clone();
         let mut inner = self.inner.clone();
         let builder_uri = self.builder_auth_uri.clone();
-        let builder_secret = self.builder_auth_secret.clone();
+        let builder_secret = self.builder_auth_secret;
         let l2_uri = self.l2_auth_uri.clone();
-        let l2_secret = self.l2_auth_secret.clone();
+        let l2_secret = self.l2_auth_secret;
 
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
