@@ -12,6 +12,7 @@ use reth_optimism_payload_builder::OpPayloadAttributes;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{
@@ -45,6 +46,8 @@ pub enum IntegrationError {
     LogError,
     #[error("Service already running")]
     ServiceAlreadyRunning,
+    #[error(transparent)]
+    AddrParseError(#[from] std::net::AddrParseError),
 }
 
 #[derive(Debug, Clone)]
@@ -463,8 +466,9 @@ impl RollupBoostTestHarness {
         // Start Rollup-boost instance
         let rb_config = service_rb::RollupBoostConfig::new()
             .jwt_path(jwt_path)
-            .l2_url(l2_service)
-            .builder_url(builder_service);
+            .l2_addr(SocketAddr::from_str(&l2_service)?)
+            .builder_addr(SocketAddr::from_str(&builder_service)?);
+
         let rb_service = framework.start("rollup-boost", &rb_config).await?;
 
         let engine_api = EngineApi::new(&rb_service.get_endpoint("rpc"), DEFAULT_JWT_TOKEN)

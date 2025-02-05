@@ -1,5 +1,6 @@
 use clap::ArgGroup;
 use clap::{arg, Parser};
+use http::Uri;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use paste::paste;
@@ -28,28 +29,26 @@ pub enum ExecutionClientError {
 pub struct ExecutionClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
     pub auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
-    /// Address of the RPC server for authenticated Engine API calls
-    pub auth_socket: SocketAddr,
+    /// Uri of the RPC server for authenticated Engine API calls
+    pub auth_rpc: Uri,
 }
 
 impl ExecutionClient {
     /// Initializes a new [ExecutionClient] with JWT auth for the Engine API and without auth for general execution layer APIs.
     pub fn new(
-        auth_addr: IpAddr,
-        auth_port: u16,
+        auth_rpc: Uri,
         auth_rpc_jwt_secret: JwtSecret,
         timeout: u64,
     ) -> Result<Self, ExecutionClientError> {
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
-        let auth_socket = SocketAddr::new(auth_addr, auth_port);
         let auth_client = HttpClientBuilder::new()
             .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))
             .request_timeout(Duration::from_millis(timeout))
-            .build(format!("http://{}", auth_socket))?;
+            .build(auth_rpc.to_string())?;
 
         Ok(Self {
             auth_client: Arc::new(auth_client),
-            auth_socket,
+            auth_rpc,
         })
     }
 }
@@ -70,23 +69,19 @@ macro_rules! define_rpc_args {
                 ]
                 pub struct $name {
                     /// Auth server address
-                    #[arg(long = concat!(stringify!($prefix), ".auth.addr"), env, default_value = "127.0.0.1")]
-                    pub [<$prefix _auth_addr>]: IpAddr,
-
-                    /// Auth server port
-                    #[arg(long = concat!(stringify!($prefix), ".auth.port"), env, default_value_t = 8551)]
-                    pub [<$prefix _auth_port>]: u16,
+                    #[arg(long = concat!(stringify!($prefix), "-auth-rpc"), env, default_value = "127.0.0.1:8551")]
+                    pub [<$prefix _auth_rpc>]: Uri,
 
                     /// Path to a JWT secret to use for the authenticated engine-API RPC server.
-                    #[arg(long = concat!(stringify!($prefix), ".authrpc.jwtsecret.path"), env, value_name = "PATH")]
+                    #[arg(long = concat!(stringify!($prefix), "-auth-jwtsecret-path"), env, value_name = "PATH")]
                     pub [<$prefix _auth_jwtsecret_path>]: Option<PathBuf>,
 
                     /// Hex encoded JWT secret to use for the authenticated engine-API RPC server.
-                    #[arg(long = concat!(stringify!($prefix), ".authrpc.jwtsecret"), env, value_name = "HEX")]
+                    #[arg(long = concat!(stringify!($prefix), "-auth-jwtsecret"), env, value_name = "HEX")]
                     pub [<$prefix _auth_jwtsecret>]: Option<JwtSecret>,
 
                     /// Timeout for http calls in milliseconds
-                    #[arg(long = concat!(stringify!($prefix), ".timeout"), env, default_value_t = 1000)]
+                    #[arg(long = concat!(stringify!($prefix), "-timeout"), env, default_value_t = 1000)]
                     pub [<$prefix _timeout>]: u64,
                 }
             }

@@ -191,7 +191,7 @@ impl EngineApiServer for RollupBoostServer {
                 other_error => {
                     error!(
                         message = "error calling fork_choice_updated_v3 for l2 client",
-                        "url" = ?self.l2_client.auth_socket,
+                        "url" = ?self.l2_client.auth_rpc,
                         "error" = %other_error,
                         "head_block_hash" = %fork_choice_state.head_block_hash,
                     );
@@ -281,15 +281,15 @@ impl EngineApiServer for RollupBoostServer {
                             .map(|id| id.to_string())
                             .unwrap_or_default();
                         if response.is_invalid() {
-                            error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_socket, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
+                            error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_rpc, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
                         } else {
-                            info!(message = "called fork_choice_updated_v3 to builder with payload attributes", "url" = ?builder_client.auth_socket, "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
+                            info!(message = "called fork_choice_updated_v3 to builder with payload attributes", "url" = ?builder_client.auth_rpc, "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
                         }
                     }
                     Err(e) => {
                         error!(
                             message = "error calling fork_choice_updated_v3 to builder",
-                            "url" = ?builder_client.auth_socket,
+                            "url" = ?builder_client.auth_rpc,
                             "error" = %e,
                             "head_block_hash" = %fork_choice_state.head_block_hash
                         );
@@ -337,7 +337,7 @@ impl EngineApiServer for RollupBoostServer {
 
             let builder = self.builder_client.clone();
             let payload = builder.auth_client.get_payload_v3(external_payload_id).await.map_err(|e| {
-                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder.auth_socket, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
+                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder.auth_rpc, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 e
                 })?;
 
@@ -351,7 +351,7 @@ impl EngineApiServer for RollupBoostServer {
                 metrics.new_payload_count.increment(1);
             }
             let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
-                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_socket, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
+                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_rpc, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 e
             })?;
             if let Some(mut s) = span {
@@ -364,7 +364,7 @@ impl EngineApiServer for RollupBoostServer {
                 }
             };
             if payload_status.is_invalid() {
-                error!(message = "builder payload was not valid", "url" = ?builder.auth_socket, "payload_status" = %payload_status.status, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
+                error!(message = "builder payload was not valid", "url" = ?builder.auth_rpc, "payload_status" = %payload_status.status, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 Err(ClientError::Call(ErrorObject::owned(
                     INVALID_REQUEST_CODE,
                     "Builder payload was not valid",
@@ -382,7 +382,7 @@ impl EngineApiServer for RollupBoostServer {
             other_error => {
                 error!(
                     message = "error calling get_payload_v3",
-                    builder_client.http_socket = ?self.builder_client.auth_socket,
+                    builder_client.http_socket = ?self.builder_client.auth_rpc,
                     "error" = %other_error,
                     "payload_id" = %payload_id
                 );
@@ -433,12 +433,12 @@ impl EngineApiServer for RollupBoostServer {
                 let _ = builder.auth_client.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
                 .map(|response: PayloadStatus| {
                     if response.is_invalid() {
-                        error!(message = "builder rejected new_payload_v3", "url" = ?builder.auth_socket, "block_hash" = %block_hash);
+                        error!(message = "builder rejected new_payload_v3", "url" = ?builder.auth_rpc, "block_hash" = %block_hash);
                     } else {
-                        info!(message = "called new_payload_v3 to builder", "url" = ?builder.auth_socket, "payload_status" = %response.status, "block_hash" = %block_hash);
+                        info!(message = "called new_payload_v3 to builder", "url" = ?builder.auth_rpc, "payload_status" = %response.status, "block_hash" = %block_hash);
                     }
                 }).map_err(|e| {
-                    error!(message = "error calling new_payload_v3 to builder", "url" = ?builder.auth_socket, "error" = %e, "block_hash" = %block_hash);
+                    error!(message = "error calling new_payload_v3 to builder", "url" = ?builder.auth_rpc, "error" = %e, "block_hash" = %block_hash);
                     e
                 });
                 if let Some(mut spans) = spans {
@@ -455,7 +455,7 @@ impl EngineApiServer for RollupBoostServer {
                 other_error => {
                     error!(
                         message = "error calling new_payload_v3",
-                        "url" = ?self.l2_client.auth_socket,
+                        "url" = ?self.l2_client.auth_rpc,
                         "error" = %other_error,
                         "block_hash" = %block_hash
                     );
@@ -475,6 +475,7 @@ mod tests {
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
 
+    use http::Uri;
     use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
@@ -565,13 +566,14 @@ mod tests {
             l2_mock: Option<MockEngineServer>,
             builder_mock: Option<MockEngineServer>,
         ) -> Self {
-            let host = IpAddr::from_str(HOST).unwrap();
-
             let jwt_secret = JwtSecret::random();
-            let l2_client = ExecutionClient::new(host, L2_PORT, jwt_secret, 2000).unwrap();
 
-            let builder_client =
-                ExecutionClient::new(host, BUILDER_PORT, jwt_secret, 2000).unwrap();
+            let l2_auth_rpc = Uri::from_str(&format!("http://{}:{}", HOST, L2_PORT)).unwrap();
+            let l2_client = ExecutionClient::new(l2_auth_rpc, jwt_secret, 2000).unwrap();
+
+            let builder_auth_rpc =
+                Uri::from_str(&format!("http://{}:{}", HOST, BUILDER_PORT)).unwrap();
+            let builder_client = ExecutionClient::new(builder_auth_rpc, jwt_secret, 2000).unwrap();
 
             let rollup_boost_client =
                 RollupBoostServer::new(l2_client, builder_client, boost_sync, None);

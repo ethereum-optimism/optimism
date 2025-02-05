@@ -142,8 +142,7 @@ async fn main() -> eyre::Result<()> {
     };
 
     let l2_client = ExecutionClient::new(
-        l2_client_args.l2_auth_addr,
-        l2_client_args.l2_auth_port,
+        l2_client_args.l2_auth_rpc.clone(),
         l2_auth_jwt,
         l2_client_args.l2_timeout,
     )?;
@@ -158,8 +157,7 @@ async fn main() -> eyre::Result<()> {
     };
 
     let builder_client = ExecutionClient::new(
-        builder_args.builder_auth_addr,
-        builder_args.builder_auth_port,
+        builder_args.builder_auth_rpc.clone(),
         builder_auth_jwt,
         builder_args.builder_timeout,
     )?;
@@ -170,22 +168,11 @@ async fn main() -> eyre::Result<()> {
 
     // Build and start the server
     info!("Starting server on :{}", args.rpc_port);
-    let l2_auth_rpc_uri = format!(
-        "http://{}:{}",
-        l2_client_args.l2_auth_addr, l2_client_args.l2_auth_port
-    )
-    .parse::<Uri>()?;
-
-    let builder_auth_rpc_uri = format!(
-        "http://{}:{}",
-        builder_args.builder_auth_addr, builder_args.builder_auth_port
-    )
-    .parse::<Uri>()?;
 
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        l2_auth_rpc_uri,
+        l2_client_args.l2_auth_rpc,
         l2_auth_jwt,
-        builder_auth_rpc_uri,
+        builder_args.builder_auth_rpc,
         builder_auth_jwt,
     ));
 
@@ -293,6 +280,7 @@ mod tests {
     use predicates::prelude::*;
     use reth_rpc_layer::{AuthClientService, AuthLayer, JwtAuthValidator, JwtSecret};
     use std::result::Result;
+    use std::str::FromStr;
 
     use super::*;
 
@@ -318,9 +306,9 @@ mod tests {
 
     async fn valid_jwt() {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
-        let client =
-            ExecutionClient::new(AUTH_ADDR.parse().unwrap(), AUTH_PORT as u16, secret, 1000)
-                .unwrap();
+
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000).unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
@@ -328,9 +316,8 @@ mod tests {
 
     async fn invalid_jwt() {
         let secret = JwtSecret::random();
-        let client =
-            ExecutionClient::new(AUTH_ADDR.parse().unwrap(), AUTH_PORT as u16, secret, 1000)
-                .unwrap();
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000).unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_err());
         assert!(matches!(
@@ -340,7 +327,6 @@ mod tests {
         ));
     }
 
-    // TODO: move these tests
     async fn send_request(
         client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
     ) -> Result<String, ClientError> {
