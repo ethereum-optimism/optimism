@@ -39,14 +39,17 @@ jobs:
         run: |
           ls -laR integration_logs
 
+      - name: Create tar archive of integration logs
+        if: ${{ failure() }}
+        run: |
+          tar -czf integration_logs.tar.gz integration_logs/
+          ls -lh integration_logs.tar.gz
+
       - name: Archive integration logs
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: integration-logs
-          path: |
-            integration_logs/**/*
-            integration_logs/.*
+          path: integration_logs.tar.gz
           retention-days: 5
-          if-no-files-found: error # Will fail if no logs are found
-          compression-level: 9 # Maximum compression
+          if-no-files-found: error
