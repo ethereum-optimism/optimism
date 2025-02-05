@@ -42,7 +42,7 @@ jobs:
       - name: Create tar archive of integration logs
         if: ${{ failure() }}
         run: |
-          tar -czf integration_logs.tar.gz integration_logs/
+          tar -czvf integration_logs.tar.gz integration_logs/
           ls -lh integration_logs.tar.gz
 
       - name: Archive integration logs
