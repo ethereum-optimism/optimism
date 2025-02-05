@@ -446,6 +446,7 @@ impl RollupBoostTestHarness {
         let l2_reth_config = service_reth::RethConfig::new()
             .jwt_secret_path(jwt_path.clone())
             .chain_config_path(genesis_path.clone());
+
         let l2_service = {
             let service = framework.start("l2-reth", &l2_reth_config).await?;
             service.get_endpoint("authrpc")

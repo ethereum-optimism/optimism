@@ -1,4 +1,3 @@
-use clap::ArgGroup;
 use clap::{arg, Parser};
 use http::Uri;
 use jsonrpsee::http_client::transport::HttpBackend;
@@ -58,10 +57,6 @@ macro_rules! define_rpc_args {
         $(
             paste! {
                 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
-                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "-auth-jwt")).required(true).multiple(false).args(&[
-                    concat!(stringify!($prefix), "-auth-jwtsecret_path"),
-                    concat!(stringify!($prefix), "-auth-jwtsecret")])))
-                ]
                 pub struct $name {
                     /// Auth server address
                     #[arg(long = concat!(stringify!($prefix), "-auth-rpc"), env, default_value = "127.0.0.1:8551")]

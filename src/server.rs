@@ -480,7 +480,7 @@ mod tests {
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
     use reth_rpc_layer::JwtSecret;
-    use std::net::{IpAddr, SocketAddr};
+    use std::net::SocketAddr;
     use std::str::FromStr;
     use std::sync::Arc;
     use std::sync::Mutex;

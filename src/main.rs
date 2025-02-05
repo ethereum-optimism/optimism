@@ -4,7 +4,7 @@ use std::{net::SocketAddr, sync::Arc};
 
 use dotenv::dotenv;
 use eyre::bail;
-use http::{StatusCode, Uri};
+use http::StatusCode;
 use hyper::service::service_fn;
 use hyper::{server::conn::http1, Request, Response};
 use hyper_util::rt::TokioIo;
@@ -266,6 +266,7 @@ async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre
 #[cfg(test)]
 mod tests {
     use assert_cmd::Command;
+    use http::Uri;
     use jsonrpsee::core::client::ClientT;
 
     use jsonrpsee::http_client::transport::Error as TransportError;
