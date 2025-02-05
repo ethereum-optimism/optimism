@@ -5,7 +5,6 @@ use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use paste::paste;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -59,13 +58,9 @@ macro_rules! define_rpc_args {
         $(
             paste! {
                 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
-                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "_auth_jwt")).required(true).multiple(false).args(&[
-                    concat!(stringify!($prefix), "_auth_jwtsecret_path"),
-                    concat!(stringify!($prefix), "_auth_jwtsecret")])))
-                ]
-                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "_rpc_jwt")).required(false).multiple(false).args(&[
-                    concat!(stringify!($prefix), "_rpc_jwtsecret_path"),
-                    concat!(stringify!($prefix), "_rpc_jwtsecret")])))
+                #[clap(group(ArgGroup::new(concat!(stringify!($prefix), "-auth-jwt")).required(true).multiple(false).args(&[
+                    concat!(stringify!($prefix), "-auth-jwtsecret_path"),
+                    concat!(stringify!($prefix), "-auth-jwtsecret")])))
                 ]
                 pub struct $name {
                     /// Auth server address
