@@ -1,7 +1,6 @@
 use crate::integration::{poll_logs, Arg, IntegrationError, Service, ServiceCommand};
 use futures_util::Future;
 use std::{
-    net::SocketAddr,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -9,8 +8,8 @@ use std::{
 #[derive(Default)]
 pub struct RollupBoostConfig {
     jwt_path: Option<PathBuf>,
-    l2_addr: Option<SocketAddr>,
-    builder_addr: Option<SocketAddr>,
+    l2_url: Option<String>,
+    builder_url: Option<String>,
 }
 
 impl RollupBoostConfig {
@@ -23,13 +22,13 @@ impl RollupBoostConfig {
         self
     }
 
-    pub fn l2_addr(mut self, addr: SocketAddr) -> Self {
-        self.l2_addr = Some(addr);
+    pub fn l2_url(mut self, url: String) -> Self {
+        self.l2_url = Some(url);
         self
     }
 
-    pub fn builder_addr(mut self, addr: SocketAddr) -> Self {
-        self.builder_addr = Some(addr);
+    pub fn builder_url(mut self, url: String) -> Self {
+        self.builder_url = Some(url);
         self
     }
 }
@@ -41,26 +40,14 @@ impl Service for RollupBoostConfig {
 
         let jwt_path = self.jwt_path.as_ref().expect("jwt_path not set");
 
-        let l2_addr = self.l2_addr.expect("l2 addr not set");
-        let l2_ip = l2_addr.ip();
-        let l2_port = l2_addr.port();
-
-        let builder_addr = self.builder_addr.expect("builder addr not set");
-        let builder_ip = builder_addr.ip();
-        let builder_port = builder_addr.port();
-
         let cmd = ServiceCommand::new(bin_path.to_str().unwrap())
-            // jwt auth rpc secrets
-            .arg("--l2.auth.jwtsecret.path")
+            .arg("--l2-auth-jwtsecret-path")
             .arg(jwt_path.clone())
-            .arg("--builder.auth.jwtsecret.path")
+            .arg("--builder-auth-jwtsecret-path")
             .arg(jwt_path.clone())
-            // builder and l2 address
-            .arg("--l2.auth.addr")
-            .arg(l2_ip.to_string())
-            .arg("--l2.auth.port")
-            .arg(l2_ip.to_string())
-            .arg("--builder-url")
+            .arg("--l2-auth-rpc")
+            .arg(self.l2_url.as_ref().expect("l2_url not set"))
+            .arg("--builder-auth-rpc")
             .arg(self.builder_url.as_ref().expect("builder_url not set"))
             .arg("--rpc-port")
             .arg(Arg::Port {
