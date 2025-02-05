@@ -21,6 +21,7 @@ use std::{
     process::{Child, Command},
     time::{Duration, SystemTime},
 };
+use thiserror::Error;
 use time::{format_description, OffsetDateTime};
 use tokio::time::sleep;
 
@@ -32,12 +33,17 @@ mod integration_test;
 mod service_rb;
 mod service_reth;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum IntegrationError {
+    #[error("Failed to spawn process")]
     SpawnError,
+    #[error("Binary not found")]
     BinaryNotFound,
+    #[error("Failed to setup integration framework")]
     SetupError,
+    #[error("Log error")]
     LogError,
+    #[error("Service already running")]
     ServiceAlreadyRunning,
 }
 
