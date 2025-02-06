@@ -41,7 +41,7 @@ impl Service for RollupBoostConfig {
         let jwt_path = self.jwt_path.as_ref().expect("jwt_path not set");
 
         let cmd = ServiceCommand::new(bin_path.to_str().unwrap())
-            .arg("--jwt-path")
+            .arg("--l2-jwt-path")
             .arg(jwt_path.clone())
             .arg("--builder-jwt-path")
             .arg(jwt_path.clone())

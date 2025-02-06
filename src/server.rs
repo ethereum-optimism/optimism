@@ -1,17 +1,17 @@
+use crate::client::ExecutionClient;
+use crate::metrics::ServerMetrics;
+use alloy_primitives::B256;
 use std::num::NonZero;
 use std::sync::Arc;
 
-use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
-use jsonrpsee::core::{async_trait, ClientError, RpcResult};
-use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::HttpClient;
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use jsonrpsee::types::{ErrorCode, ErrorObject};
+use jsonrpsee::RpcModule;
 use lru::LruCache;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
@@ -19,15 +19,15 @@ use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use reth_optimism_payload_builder::{OpPayloadAttributes, OpPayloadBuilderAttributes};
 use reth_payload_primitives::PayloadBuilderAttributes;
-use reth_rpc_layer::AuthClientService;
-use tokio::sync::Mutex;
-use tracing::{debug, error, info};
 
-use crate::metrics::ServerMetrics;
+use tokio::sync::Mutex;
+use tracing::{error, info};
+
+use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: usize = 100;
 
-struct PayloadTraceContext {
+pub struct PayloadTraceContext {
     tracer: Arc<BoxedTracer>,
     block_hash_to_payload_ids: Arc<Mutex<LruCache<B256, Vec<PayloadId>>>>,
     payload_id_to_span: Arc<Mutex<LruCache<PayloadId, Arc<BoxedSpan>>>>,
@@ -102,6 +102,47 @@ impl PayloadTraceContext {
     }
 }
 
+#[derive(Clone)]
+pub struct RollupBoostServer {
+    pub l2_client: ExecutionClient,
+    pub builder_client: ExecutionClient,
+    pub boost_sync: bool,
+    pub metrics: Option<Arc<ServerMetrics>>,
+    pub payload_trace_context: Arc<PayloadTraceContext>,
+}
+
+impl RollupBoostServer {
+    pub fn new(
+        l2_client: ExecutionClient,
+        builder_client: ExecutionClient,
+        boost_sync: bool,
+        metrics: Option<Arc<ServerMetrics>>,
+    ) -> Self {
+        Self {
+            l2_client,
+            builder_client,
+            boost_sync,
+            metrics,
+            payload_trace_context: Arc::new(PayloadTraceContext::new()),
+        }
+    }
+}
+
+impl TryInto<RpcModule<()>> for RollupBoostServer {
+    type Error = RegisterMethodError;
+
+    fn try_into(self) -> Result<RpcModule<()>, Self::Error> {
+        let mut module: RpcModule<()> = RpcModule::new(());
+        module.merge(EngineApiServer::into_rpc(self.clone()))?;
+
+        for method in module.method_names() {
+            info!(?method, "method registered");
+        }
+
+        Ok(module)
+    }
+}
+
 #[rpc(server, client, namespace = "engine")]
 pub trait EngineApi {
     #[method(name = "forkchoiceUpdatedV3")]
@@ -126,95 +167,8 @@ pub trait EngineApi {
     ) -> RpcResult<PayloadStatus>;
 }
 
-#[rpc(server, client, namespace = "eth")]
-pub trait EthApi {
-    #[method(name = "sendRawTransaction")]
-    async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256>;
-}
-
-pub struct HttpClientWrapper<C = HttpClient<AuthClientService<HttpBackend>>> {
-    pub client: C,
-    pub url: String,
-}
-
-impl<C> HttpClientWrapper<C> {
-    pub fn new(client: C, url: String) -> Self {
-        Self { client, url }
-    }
-}
-
-pub struct EthEngineApi<C = HttpClientWrapper> {
-    l2_client: Arc<C>,
-    builder_client: Arc<C>,
-    boost_sync: bool,
-    metrics: Option<Arc<ServerMetrics>>,
-    payload_trace_context: Arc<PayloadTraceContext>,
-}
-
-impl<C> EthEngineApi<C> {
-    pub fn new(
-        l2_client: Arc<C>,
-        builder_client: Arc<C>,
-        boost_sync: bool,
-        metrics: Option<Arc<ServerMetrics>>,
-    ) -> Self {
-        Self {
-            l2_client,
-            builder_client,
-            boost_sync,
-            metrics,
-            payload_trace_context: Arc::new(PayloadTraceContext::new()),
-        }
-    }
-}
-
 #[async_trait]
-impl<C> EthApiServer for EthEngineApi<HttpClientWrapper<C>>
-where
-    C: EthApiClient + Send + Sync + Clone + 'static,
-{
-    async fn send_raw_transaction(&self, bytes: Bytes) -> RpcResult<B256> {
-        debug!(
-            message = "received send_raw_transaction",
-            "bytes_len" = bytes.len()
-        );
-
-        if let Some(metrics) = &self.metrics {
-            metrics.send_raw_tx_count.increment(1);
-        }
-
-        let builder_client = self.builder_client.client.clone();
-        let url = self.builder_client.url.clone();
-        let tx_bytes = bytes.clone();
-        tokio::spawn(async move {
-            builder_client.send_raw_transaction(tx_bytes).await.map_err(|e| {
-                error!(message = "error calling send_raw_transaction for builder", "url" = url, "error" = %e);
-            })
-        });
-
-        self.l2_client
-            .client
-            .send_raw_transaction(bytes)
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err, // Already an ErrorObjectOwned, so just return it
-                other_error => {
-                    error!(
-                        message = "error calling send_raw_transaction for l2 client",
-                        "url" = self.l2_client.url,
-                        "error" = %other_error,
-                    );
-                    ErrorCode::InternalError.into()
-                }
-            })
-    }
-}
-
-#[async_trait]
-impl<C> EngineApiServer for EthEngineApi<HttpClientWrapper<C>>
-where
-    C: EngineApiClient + Send + Sync + Clone + 'static,
-{
+impl EngineApiServer for RollupBoostServer {
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
@@ -229,7 +183,7 @@ where
         // First get the local payload ID from L2 client
         let l2_response = self
             .l2_client
-            .client
+            .auth_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
             .await
             .map_err(|e| match e {
@@ -237,7 +191,7 @@ where
                 other_error => {
                     error!(
                         message = "error calling fork_choice_updated_v3 for l2 client",
-                        "url" = self.l2_client.url,
+                        "url" = ?self.l2_client.auth_rpc,
                         "error" = %other_error,
                         "head_block_hash" = %fork_choice_state.head_block_hash,
                     );
@@ -301,13 +255,13 @@ where
             if let Some(metrics) = &self.metrics {
                 metrics.fcu_count.increment(1);
             }
-            let builder = self.builder_client.clone();
+            let builder_client = self.builder_client.clone();
             let attr = payload_attributes.clone();
             let payload_trace_context = self.payload_trace_context.clone();
             let local_payload_id = l2_response.payload_id;
             tokio::spawn(async move {
-                match builder
-                    .client
+                match builder_client
+                    .auth_client
                     .fork_choice_updated_v3(fork_choice_state, attr)
                     .await
                 {
@@ -327,15 +281,15 @@ where
                             .map(|id| id.to_string())
                             .unwrap_or_default();
                         if response.is_invalid() {
-                            error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = builder.url, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
+                            error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_rpc, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
                         } else {
-                            info!(message = "called fork_choice_updated_v3 to builder with payload attributes", "url" = builder.url, "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
+                            info!(message = "called fork_choice_updated_v3 to builder with payload attributes", "url" = ?builder_client.auth_rpc, "payload_status" = %response.payload_status.status, "payload_id" = payload_id_str);
                         }
                     }
                     Err(e) => {
                         error!(
                             message = "error calling fork_choice_updated_v3 to builder",
-                            "url" = builder.url,
+                            "url" = ?builder_client.auth_rpc,
                             "error" = %e,
                             "head_block_hash" = %fork_choice_state.head_block_hash
                         );
@@ -357,7 +311,7 @@ where
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
         info!(message = "received get_payload_v3", "payload_id" = %payload_id);
-        let l2_client_future = self.l2_client.client.get_payload_v3(payload_id);
+        let l2_client_future = self.l2_client.auth_client.get_payload_v3(payload_id);
         let builder_client_future = Box::pin(async move {
             if let Some(metrics) = &self.metrics {
                 metrics.get_payload_count.increment(1);
@@ -382,8 +336,8 @@ where
                 .unwrap_or(payload_id);
 
             let builder = self.builder_client.clone();
-            let payload = builder.client.get_payload_v3(external_payload_id).await.map_err(|e| {
-                error!(message = "error calling get_payload_v3 from builder", "url" = builder.url, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
+            let payload = builder.auth_client.get_payload_v3(external_payload_id).await.map_err(|e| {
+                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder.auth_rpc, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 e
                 })?;
 
@@ -396,8 +350,8 @@ where
             if let Some(metrics) = &self.metrics {
                 metrics.new_payload_count.increment(1);
             }
-            let payload_status = self.l2_client.client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
-                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = self.l2_client.url, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
+            let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
+                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_rpc, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 e
             })?;
             if let Some(mut s) = span {
@@ -410,7 +364,7 @@ where
                 }
             };
             if payload_status.is_invalid() {
-                error!(message = "builder payload was not valid", "url" = builder.url, "payload_status" = %payload_status.status, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
+                error!(message = "builder payload was not valid", "url" = ?builder.auth_rpc, "payload_status" = %payload_status.status, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 Err(ClientError::Call(ErrorObject::owned(
                     INVALID_REQUEST_CODE,
                     "Builder payload was not valid",
@@ -428,7 +382,7 @@ where
             other_error => {
                 error!(
                     message = "error calling get_payload_v3",
-                    "url" = self.builder_client.url,
+                    builder_client.http_socket = ?self.builder_client.auth_rpc,
                     "error" = %other_error,
                     "payload_id" = %payload_id
                 );
@@ -472,20 +426,19 @@ where
                 .remove_by_parent_hash(&parent_hash)
                 .await;
 
-            let builder = self.builder_client.client.clone();
-            let builder_url = self.builder_client.url.clone();
+            let builder = self.builder_client.clone();
             let builder_payload = payload.clone();
             let builder_versioned_hashes = versioned_hashes.clone();
             tokio::spawn(async move {
-                let _ = builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
+                let _ = builder.auth_client.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
                 .map(|response: PayloadStatus| {
                     if response.is_invalid() {
-                        error!(message = "builder rejected new_payload_v3", "url" = builder_url, "block_hash" = %block_hash);
+                        error!(message = "builder rejected new_payload_v3", "url" = ?builder.auth_rpc, "block_hash" = %block_hash);
                     } else {
-                        info!(message = "called new_payload_v3 to builder", "url" = builder_url, "payload_status" = %response.status, "block_hash" = %block_hash);
+                        info!(message = "called new_payload_v3 to builder", "url" = ?builder.auth_rpc, "payload_status" = %response.status, "block_hash" = %block_hash);
                     }
                 }).map_err(|e| {
-                    error!(message = "error calling new_payload_v3 to builder", "url" = builder_url, "error" = %e, "block_hash" = %block_hash);
+                    error!(message = "error calling new_payload_v3 to builder", "url" = ?builder.auth_rpc, "error" = %e, "block_hash" = %block_hash);
                     e
                 });
                 if let Some(mut spans) = spans {
@@ -494,7 +447,7 @@ where
             });
         }
         self.l2_client
-            .client
+            .auth_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
             .await
             .map_err(|e| match e {
@@ -502,6 +455,7 @@ where
                 other_error => {
                     error!(
                         message = "error calling new_payload_v3",
+                        "url" = ?self.l2_client.auth_rpc,
                         "error" = %other_error,
                         "block_hash" = %block_hash
                     );
@@ -513,23 +467,30 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-    use std::sync::Mutex;
 
     use super::*;
-
     use alloy_primitives::hex;
     use alloy_primitives::{FixedBytes, U256};
     use alloy_rpc_types_engine::{
         BlobsBundleV1, ExecutionPayloadV1, ExecutionPayloadV2, PayloadStatusEnum,
     };
-    use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+
+    use http::Uri;
+    use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::RpcModule;
+    use reth_rpc_layer::JwtSecret;
+    use std::net::SocketAddr;
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use std::sync::Mutex;
     use tokio::time::sleep;
 
-    const L2_ADDR: &str = "0.0.0.0:8554";
-    const BUILDER_ADDR: &str = "0.0.0.0:8555";
+    const HOST: &str = "0.0.0.0";
+    const L2_PORT: u16 = 8545;
+    const L2_ADDR: &str = "127.0.0.1:8545";
+    const BUILDER_PORT: u16 = 8544;
+    const BUILDER_ADDR: &str = "127.0.0.1:8544";
     const SERVER_ADDR: &str = "0.0.0.0:8556";
 
     #[derive(Debug, Clone)]
@@ -605,29 +566,19 @@ mod tests {
             l2_mock: Option<MockEngineServer>,
             builder_mock: Option<MockEngineServer>,
         ) -> Self {
-            let l2_client = HttpClientBuilder::new()
-                .build(format!("http://{L2_ADDR}"))
-                .unwrap();
-            let builder_client = HttpClientBuilder::new()
-                .build(format!("http://{BUILDER_ADDR}"))
-                .unwrap();
+            let jwt_secret = JwtSecret::random();
 
-            let eth_engine_api = EthEngineApi::new(
-                Arc::new(HttpClientWrapper::new(
-                    l2_client,
-                    format!("http://{L2_ADDR}"),
-                )),
-                Arc::new(HttpClientWrapper::new(
-                    builder_client,
-                    format!("http://{BUILDER_ADDR}"),
-                )),
-                boost_sync,
-                None,
-            );
-            let mut module: RpcModule<()> = RpcModule::new(());
-            module
-                .merge(EngineApiServer::into_rpc(eth_engine_api))
-                .unwrap();
+            let l2_auth_rpc = Uri::from_str(&format!("http://{}:{}", HOST, L2_PORT)).unwrap();
+            let l2_client = ExecutionClient::new(l2_auth_rpc, jwt_secret, 2000).unwrap();
+
+            let builder_auth_rpc =
+                Uri::from_str(&format!("http://{}:{}", HOST, BUILDER_PORT)).unwrap();
+            let builder_client = ExecutionClient::new(builder_auth_rpc, jwt_secret, 2000).unwrap();
+
+            let rollup_boost_client =
+                RollupBoostServer::new(l2_client, builder_client, boost_sync, None);
+
+            let module: RpcModule<()> = rollup_boost_client.try_into().unwrap();
 
             let proxy_server = ServerBuilder::default()
                 .build("0.0.0.0:8556".parse::<SocketAddr>().unwrap())
@@ -686,7 +637,7 @@ mod tests {
         let fcu_requests_builder_mu = fcu_requests_builder.lock().unwrap();
         assert_eq!(fcu_requests_mu.len(), 1);
         assert_eq!(fcu_requests_builder_mu.len(), 0);
-        let req: &(ForkchoiceState, Option<OpPayloadAttributes>) = fcu_requests_mu.get(0).unwrap();
+        let req: &(ForkchoiceState, Option<OpPayloadAttributes>) = fcu_requests_mu.first().unwrap();
         assert_eq!(req.0, fcu);
         assert_eq!(req.1, None);
 
@@ -713,7 +664,7 @@ mod tests {
         assert_eq!(new_payload_requests_mu.len(), 1);
         assert_eq!(new_payload_requests_builder_mu.len(), 0);
         let req: &(ExecutionPayloadV3, Vec<FixedBytes<32>>, B256) =
-            new_payload_requests_mu.get(0).unwrap();
+            new_payload_requests_mu.first().unwrap();
         assert_eq!(
             req.0,
             test_harness
@@ -743,7 +694,7 @@ mod tests {
         assert_eq!(get_payload_requests_builder_mu.len(), 1);
         assert_eq!(get_payload_requests_mu.len(), 1);
         assert_eq!(new_payload_requests_mu.len(), 2);
-        let req: &PayloadId = get_payload_requests_mu.get(0).unwrap();
+        let req: &PayloadId = get_payload_requests_mu.first().unwrap();
         assert_eq!(*req, PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1]));
 
         test_harness.cleanup().await;

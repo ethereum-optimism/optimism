@@ -12,7 +12,4 @@ pub struct ServerMetrics {
 
     #[metric(describe = "Count of get_payload_v3 calls proxied to the builder")]
     pub get_payload_count: Counter,
-
-    #[metric(describe = "Count of send_raw_transaction calls proxied to the builder")]
-    pub send_raw_tx_count: Counter,
 }
