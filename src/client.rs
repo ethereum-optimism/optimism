@@ -59,20 +59,19 @@ macro_rules! define_rpc_args {
                 #[derive(Parser, Debug, Clone, PartialEq, Eq)]
                 pub struct $name {
                     /// Auth server address
-                    #[arg(long = concat!(stringify!($prefix), "-url"), env, default_value = "127.0.0.1:8551")]
+                    #[arg(long, env, default_value = "127.0.0.1:8551")]
                     pub [<$prefix _url>]: Uri,
 
                     /// Hex encoded JWT secret to use for the authenticated engine-API RPC server.
-                    #[arg(long = concat!(stringify!($prefix), "-jwt-token"), env, value_name = "HEX")]
+                    #[arg(long, env, value_name = "HEX")]
                     pub [<$prefix _jwt_token>]: Option<JwtSecret>,
 
                     /// Path to a JWT secret to use for the authenticated engine-API RPC server.
-                    #[arg(long = concat!(stringify!($prefix), "-jwt-path"), env, value_name = "PATH")]
+                    #[arg(long, env, value_name = "PATH")]
                     pub [<$prefix _jwt_path>]: Option<PathBuf>,
 
-
                     /// Timeout for http calls in milliseconds
-                    #[arg(long = concat!(stringify!($prefix), "-timeout"), env, default_value_t = 1000)]
+                    #[arg(long, env, default_value_t = 1000)]
                     pub [<$prefix _timeout>]: u64,
                 }
             }
