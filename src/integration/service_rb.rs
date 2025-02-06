@@ -41,13 +41,13 @@ impl Service for RollupBoostConfig {
         let jwt_path = self.jwt_path.as_ref().expect("jwt_path not set");
 
         let cmd = ServiceCommand::new(bin_path.to_str().unwrap())
-            .arg("--l2-auth-jwtsecret-path")
+            .arg("--l2-jwt-path")
             .arg(jwt_path.clone())
-            .arg("--builder-auth-jwtsecret-path")
+            .arg("--builder-jwt-path")
             .arg(jwt_path.clone())
-            .arg("--l2-auth-rpc")
+            .arg("--l2-url")
             .arg(self.l2_url.as_ref().expect("l2_url not set"))
-            .arg("--builder-auth-rpc")
+            .arg("--builder-url")
             .arg(self.builder_url.as_ref().expect("builder_url not set"))
             .arg("--rpc-port")
             .arg(Arg::Port {

@@ -133,31 +133,31 @@ async fn main() -> eyre::Result<()> {
 
     let l2_client_args = args.l2_client;
 
-    let l2_auth_jwt = if let Some(secret) = l2_client_args.l2_auth_jwtsecret {
+    let l2_auth_jwt = if let Some(secret) = l2_client_args.l2_jwt_token {
         secret
-    } else if let Some(path) = l2_client_args.l2_auth_jwtsecret_path.as_ref() {
+    } else if let Some(path) = l2_client_args.l2_jwt_path.as_ref() {
         JwtSecret::from_file(path)?
     } else {
         bail!("Missing L2 Client JWT secret");
     };
 
     let l2_client = ExecutionClient::new(
-        l2_client_args.l2_auth_rpc.clone(),
+        l2_client_args.l2_url.clone(),
         l2_auth_jwt,
         l2_client_args.l2_timeout,
     )?;
 
     let builder_args = args.builder;
-    let builder_auth_jwt = if let Some(secret) = builder_args.builder_auth_jwtsecret {
+    let builder_auth_jwt = if let Some(secret) = builder_args.builder_jwt_token {
         secret
-    } else if let Some(path) = builder_args.builder_auth_jwtsecret_path.as_ref() {
+    } else if let Some(path) = builder_args.builder_jwt_path.as_ref() {
         JwtSecret::from_file(path)?
     } else {
         bail!("Missing Builder JWT secret");
     };
 
     let builder_client = ExecutionClient::new(
-        builder_args.builder_auth_rpc.clone(),
+        builder_args.builder_url.clone(),
         builder_auth_jwt,
         builder_args.builder_timeout,
     )?;
@@ -170,9 +170,9 @@ async fn main() -> eyre::Result<()> {
     info!("Starting server on :{}", args.rpc_port);
 
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        l2_client_args.l2_auth_rpc,
+        l2_client_args.l2_url,
         l2_auth_jwt,
-        builder_args.builder_auth_rpc,
+        builder_args.builder_url,
         builder_auth_jwt,
     ));
 
