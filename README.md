@@ -33,7 +33,7 @@ You can also set the options using environment variables. See .env.example to us
 ### Example
 
 ```
-cargo run --jwt-token your_jwt_token --l2-url http://localhost:8545 --builder-url http://localhost:8546
+cargo run --l2-jwt-token your_jwt_token --l2-url http://localhost:8545 --builder-jwt-token your_jwt_token --builder-url http://localhost:8546
 ```
 
 ## Core System Workflow
