@@ -34,10 +34,17 @@ jobs:
       - name: Run tests
         run: cargo test --features integration -- integration::integration_test::tests
 
+      - name: Create tar archive of integration logs
+        if: ${{ failure() }}
+        run: |
+          # Find and archive only the logs directories. There were some issues archiving the entire directory.
+          find integration_logs -type d -name "logs" | tar -czvf integration_logs.tar.gz -T -
+
       - name: Archive integration logs
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: integration-logs
-          path: integration_logs
+          path: integration_logs.tar.gz
           retention-days: 5
+          if-no-files-found: error

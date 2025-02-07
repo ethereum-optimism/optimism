@@ -60,6 +60,7 @@ impl Service for RethConfig {
             })
             .arg("--color")
             .arg("never")
+            .arg("--ipcdisable")
     }
 
     #[allow(clippy::manual_async_fn)]
