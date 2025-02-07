@@ -24,6 +24,7 @@ use std::{
     process::{Child, Command},
     time::{Duration, SystemTime},
 };
+use thiserror::Error;
 use time::{format_description, OffsetDateTime};
 use tokio::time::sleep;
 
@@ -35,13 +36,20 @@ mod integration_test;
 mod service_rb;
 mod service_reth;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum IntegrationError {
+    #[error("Failed to spawn process")]
     SpawnError,
+    #[error("Binary not found")]
     BinaryNotFound,
+    #[error("Failed to setup integration framework")]
     SetupError,
+    #[error("Log error")]
     LogError,
+    #[error("Service already running")]
     ServiceAlreadyRunning,
+    #[error(transparent)]
+    AddrParseError(#[from] std::net::AddrParseError),
 }
 
 #[derive(Debug, Clone)]
@@ -466,6 +474,7 @@ impl RollupBoostTestHarness {
         let l2_reth_config = service_reth::RethConfig::new()
             .jwt_secret_path(jwt_path.clone())
             .chain_config_path(genesis_path.clone());
+
         let l2_service = {
             let service = framework.start("l2-reth", &l2_reth_config).await?;
             service.get_endpoint("authrpc")
@@ -487,6 +496,7 @@ impl RollupBoostTestHarness {
             .jwt_path(jwt_path)
             .l2_url(l2_service)
             .builder_url(builder_service);
+
         let rb_service = framework.start("rollup-boost", &rb_config).await?;
 
         let engine_api = EngineApi::new(&rb_service.get_endpoint("rpc"), DEFAULT_JWT_TOKEN)

@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 op-alloy-rpc-types-engine = "0.7.3"
 op-alloy-rpc-types = "0.7.3"
+op-alloy-rpc-jsonrpsee = { version = "0.9.6", features = ["client"] }
 alloy-rpc-types-engine = "0.7.3"
 alloy-rpc-types-eth = "0.7.3"
 alloy-primitives = "0.8.10"
@@ -16,7 +17,7 @@ tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "1.0"
 clap = { version = "4", features = ["derive", "env"] }
-jsonrpsee = {version = "0.24.4", features = ["server", "http-client", "macros"]}
+jsonrpsee = { version = "0.24", features = ["server", "http-client", "macros"] }
 lru = "0.10.0"
 reqwest = "0.12.5"
 http = "1.1.0"
@@ -28,11 +29,18 @@ hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 serde_json = "1.0.96"
 reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222", features = ["optimism"] }
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222", features = [
+    "optimism",
+] }
 reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
 opentelemetry = { version = "0.26.0", features = ["trace"] }
 opentelemetry-http = "0.26.0"
-opentelemetry-otlp = { version = "0.26.0", features = ["http-proto", "http-json", "reqwest-client", "trace"] }
+opentelemetry-otlp = { version = "0.26.0", features = [
+    "http-proto",
+    "http-json",
+    "reqwest-client",
+    "trace",
+] }
 opentelemetry_sdk = { version = "0.26.0", features = ["rt-tokio"] }
 tracing-opentelemetry = "0.27.0"
 futures = "0.3.31"
@@ -41,10 +49,11 @@ metrics = "0.24.0"
 metrics-exporter-prometheus = "0.16.0"
 metrics-process = "2.3.1"
 metrics-util = "0.18.0"
+eyre = "0.6.12"
+paste = "1.0.15"
 
 # dev dependencies for integration tests
 time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
-eyre = { version = "0.6.12" }
 futures-util = "0.3.31"
 lazy_static = "1.5.0"
 
