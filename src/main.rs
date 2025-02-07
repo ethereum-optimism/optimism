@@ -42,9 +42,9 @@ struct Args {
     #[clap(flatten)]
     l2_client: L2ClientArgs,
 
-    /// Use the proposer to sync the builder node
+    /// Disable using the proposer to sync the builder node
     #[arg(long, env, default_value = "false")]
-    boost_sync: bool,
+    no_boost_sync: bool,
 
     /// Host to run the server on
     #[arg(long, env, default_value = "0.0.0.0")]
@@ -162,7 +162,13 @@ async fn main() -> eyre::Result<()> {
         builder_args.builder_timeout,
     )?;
 
-    let rollup_boost = RollupBoostServer::new(l2_client, builder_client, args.boost_sync, metrics);
+    let boost_sync_enabled = !args.no_boost_sync;
+    if boost_sync_enabled {
+        info!("Boost sync enabled");
+    }
+
+    let rollup_boost =
+        RollupBoostServer::new(l2_client, builder_client, boost_sync_enabled, metrics);
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
