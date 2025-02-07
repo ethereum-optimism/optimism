@@ -34,11 +34,6 @@ jobs:
       - name: Run tests
         run: cargo test --features integration -- integration::integration_test::tests
 
-      - name: Print integration logs
-        if: ${{ failure() }}
-        run: |
-          ls -laR integration_logs
-
       - name: Create tar archive of integration logs
         if: ${{ failure() }}
         run: |
