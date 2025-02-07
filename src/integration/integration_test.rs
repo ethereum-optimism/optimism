@@ -17,6 +17,7 @@ mod tests {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
+        eyre::bail!("fail on purpose to check integration ci");
         Ok(())
     }
 
