@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
@@ -41,6 +43,12 @@ func main() {
 			Usage:  "applies a chain intent to the chain",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
 			Action: deployer.ApplyCLI(),
+		},
+		{
+			Name:        "upgrade",
+			Usage:       "upgrades contracts by sending tx to OPCM.upgrade function",
+			Flags:       cliapp.ProtectFlags(deployer.UpgradeFlags),
+			Subcommands: upgrade.Commands,
 		},
 		{
 			Name:        "bootstrap",

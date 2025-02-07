@@ -138,8 +138,8 @@ var (
 	}
 	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
 		Name:    "active-sequencer-check-duration",
-		Usage:   "The duration between checks to determine the active sequencer endpoint. ",
-		Value:   2 * time.Minute,
+		Usage:   "The duration between checks to determine the active sequencer endpoint.",
+		Value:   5 * time.Second,
 		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
 	}
 	CheckRecentTxsDepthFlag = &cli.IntFlag{
@@ -171,7 +171,7 @@ var (
 	ThrottleTxSizeFlag = &cli.IntFlag{
 		Name:    "throttle-tx-size",
 		Usage:   "The DA size of transactions to start throttling when we are over the throttle threshold",
-		Value:   300, // most transactions compress to under 300 bytes. TODO: compute exact distribution
+		Value:   5000, // less than 1% of all transactions should be affected by this limit
 		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE"),
 	}
 	ThrottleBlockSizeFlag = &cli.IntFlag{

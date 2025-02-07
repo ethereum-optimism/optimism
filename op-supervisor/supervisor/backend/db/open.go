@@ -3,14 +3,14 @@ package db
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func OpenLogDB(logger log.Logger, chainID types.ChainID, dataDir string, m logs.Metrics) (*logs.DB, error) {
+func OpenLogDB(logger log.Logger, chainID eth.ChainID, dataDir string, m logs.Metrics) (*logs.DB, error) {
 	path, err := prepLogDBPath(chainID, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create datadir for chain %s: %w", chainID, err)
@@ -22,8 +22,8 @@ func OpenLogDB(logger log.Logger, chainID types.ChainID, dataDir string, m logs.
 	return logDB, nil
 }
 
-func OpenLocalDerivedFromDB(logger log.Logger, chainID types.ChainID, dataDir string, m fromda.ChainMetrics) (*fromda.DB, error) {
-	path, err := prepLocalDerivedFromDBPath(chainID, dataDir)
+func OpenLocalDerivationDB(logger log.Logger, chainID eth.ChainID, dataDir string, m fromda.ChainMetrics) (*fromda.DB, error) {
+	path, err := prepLocalDerivationDBPath(chainID, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare datadir for chain %s: %w", chainID, err)
 	}
@@ -34,8 +34,8 @@ func OpenLocalDerivedFromDB(logger log.Logger, chainID types.ChainID, dataDir st
 	return db, nil
 }
 
-func OpenCrossDerivedFromDB(logger log.Logger, chainID types.ChainID, dataDir string, m fromda.ChainMetrics) (*fromda.DB, error) {
-	path, err := prepCrossDerivedFromDBPath(chainID, dataDir)
+func OpenCrossDerivationDB(logger log.Logger, chainID eth.ChainID, dataDir string, m fromda.ChainMetrics) (*fromda.DB, error) {
+	path, err := prepCrossDerivationDBPath(chainID, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare datadir for chain %s: %w", chainID, err)
 	}

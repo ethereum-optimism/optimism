@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -18,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
-	"github.com/holiman/uint256"
 )
 
 const (
@@ -184,6 +185,12 @@ func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast
 	ch := make(chan txmgr.SendResponse, 1)
 
 	id := bcast.ID()
+	candidate := asTxCandidate(bcast, blockGasLimit)
+	t.mgr.SendAsync(ctx, candidate, ch)
+	return ch, id
+}
+
+func asTxCandidate(bcast script.Broadcast, blockGasLimit uint64) txmgr.TxCandidate {
 	value := ((*uint256.Int)(bcast.Value)).ToBig()
 	var candidate txmgr.TxCandidate
 	switch bcast.Type {
@@ -212,10 +219,10 @@ func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast
 			Value:    value,
 			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, true, blockGasLimit),
 		}
+	default:
+		panic(fmt.Sprintf("unrecognized broadcast type: '%s'", bcast.Type))
 	}
-
-	t.mgr.SendAsync(ctx, candidate, ch)
-	return ch, id
+	return candidate
 }
 
 // padGasLimit calculates the gas limit for a transaction based on the intrinsic gas and the gas used by
@@ -223,7 +230,7 @@ func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast
 // is clamped to the block gas limit since Geth will reject transactions that exceed it before letting them
 // into the mempool.
 func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint64) uint64 {
-	intrinsicGas, err := core.IntrinsicGas(data, nil, creation, true, true, false)
+	intrinsicGas, err := core.IntrinsicGas(data, nil, nil, creation, true, true, false)
 	// This method never errors - we should look into it if it does.
 	if err != nil {
 		panic(err)

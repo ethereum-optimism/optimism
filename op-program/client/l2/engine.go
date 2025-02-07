@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -36,26 +37,63 @@ func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engine
 	}
 }
 
-func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error) {
+// L2OutputRoot returns the block hash and output root at the specified block number
+func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (common.Hash, eth.Bytes32, error) {
 	outBlock := o.backend.GetHeaderByNumber(l2ClaimBlockNum)
 	if outBlock == nil {
-		return eth.Bytes32{}, fmt.Errorf("failed to get L2 block at %d", l2ClaimBlockNum)
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to get L2 block at %d", l2ClaimBlockNum)
 	}
-	stateDB, err := o.backend.StateAt(outBlock.Root)
+	output, err := o.l2OutputAtHeader(outBlock)
 	if err != nil {
-		return eth.Bytes32{}, fmt.Errorf("failed to open L2 state db at block %s: %w", outBlock.Hash(), err)
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to get L2 output: %w", err)
 	}
-	withdrawalsTrie, err := stateDB.OpenStorageTrie(predeploys.L2ToL1MessagePasserAddr)
-	if err != nil {
-		return eth.Bytes32{}, fmt.Errorf("withdrawals trie unavailable at block %v: %w", outBlock.Hash(), err)
+	return outBlock.Hash(), eth.OutputRoot(output), nil
+}
+
+// L2OutputAtBlockHash returns the L2 output at the specified block hash
+func (o *OracleEngine) L2OutputAtBlockHash(blockHash common.Hash) (*eth.OutputV0, error) {
+	header := o.backend.GetHeaderByHash(blockHash)
+	if header == nil {
+		return nil, fmt.Errorf("failed to get L2 block at %s", blockHash)
 	}
-	return rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(outBlock), withdrawalsTrie.Hash())
+	return o.l2OutputAtHeader(header)
+}
+
+func (o *OracleEngine) l2OutputAtHeader(header *types.Header) (*eth.OutputV0, error) {
+	blockHash := header.Hash()
+	var storageRoot [32]byte
+	// if Isthmus is active, we don't need to compute the storage root, we can use the header
+	// withdrawalRoot which is the storage root for the L2ToL1MessagePasser contract
+	if o.rollupCfg.IsIsthmus(header.Time) {
+		if header.WithdrawalsHash == nil {
+			return nil, fmt.Errorf("unexpected nil withdrawalsHash in isthmus header for block %v", blockHash)
+		}
+		storageRoot = *header.WithdrawalsHash
+	} else {
+		stateDB, err := o.backend.StateAt(header.Root)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open L2 state db at block %s: %w", blockHash, err)
+		}
+		withdrawalsTrie, err := stateDB.OpenStorageTrie(predeploys.L2ToL1MessagePasserAddr)
+		if err != nil {
+			return nil, fmt.Errorf("withdrawals trie unavailable at block %v: %w", blockHash, err)
+		}
+		storageRoot = withdrawalsTrie.Hash()
+	}
+	output := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(header.Root),
+		MessagePasserStorageRoot: eth.Bytes32(storageRoot),
+		BlockHash:                blockHash,
+	}
+	return output, nil
 }
 
 func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
 	var res *eth.ExecutionPayloadEnvelope
 	var err error
 	switch method := o.rollupCfg.GetPayloadVersion(payloadInfo.Timestamp); method {
+	case eth.GetPayloadV4:
+		res, err = o.api.GetPayloadV4(ctx, payloadInfo.ID)
 	case eth.GetPayloadV3:
 		res, err = o.api.GetPayloadV3(ctx, payloadInfo.ID)
 	case eth.GetPayloadV2:
@@ -84,6 +122,8 @@ func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.Forkchoi
 
 func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	switch method := o.rollupCfg.NewPayloadVersion(uint64(payload.Timestamp)); method {
+	case eth.NewPayloadV4:
+		return o.api.NewPayloadV4(ctx, payload, []common.Hash{}, parentBeaconBlockRoot, []hexutil.Bytes{})
 	case eth.NewPayloadV3:
 		return o.api.NewPayloadV3(ctx, payload, []common.Hash{}, parentBeaconBlockRoot)
 	case eth.NewPayloadV2:
@@ -98,7 +138,7 @@ func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*et
 	if block == nil {
 		return nil, ErrNotFound
 	}
-	return eth.BlockAsPayloadEnv(block, o.backend.Config().ShanghaiTime)
+	return eth.BlockAsPayloadEnv(block, o.backend.Config())
 }
 
 func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayloadEnvelope, error) {

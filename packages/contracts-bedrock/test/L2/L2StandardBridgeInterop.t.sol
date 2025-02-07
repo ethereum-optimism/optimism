@@ -19,6 +19,9 @@ contract L2StandardBridgeInterop_Test is CommonTest {
 
     /// @notice Test setup.
     function setUp() public virtual override {
+        // Skip the test until L2StandardBridgeInterop is integrated again
+        vm.skip(true);
+
         super.enableInterop();
         super.setUp();
     }
@@ -47,6 +50,15 @@ contract L2StandardBridgeInterop_Test is CommonTest {
     /// @notice Assume a valid address for fuzzing
     function _assumeAddress(address _address) internal {
         assumeAddressIsNot(_address, AddressType.Precompile, AddressType.ForgeAddress);
+    }
+}
+
+/// @notice Test suite for getter functions.
+contract L2StandardBridgeInterop_Getters_Test is L2StandardBridgeInterop_Test {
+    /// @notice Tests that the version function returns a valid string. We avoid testing the
+    ///         specific value of the string as it changes frequently.
+    function test_version_succeeds() external view {
+        assert(bytes(l2StandardBridge.version()).length > 0);
     }
 }
 

@@ -209,12 +209,11 @@ func NewHost(
 		GrayGlacierBlock:    big.NewInt(0),
 		MergeNetsplitBlock:  big.NewInt(0),
 		// Ethereum forks in proof-of-stake era.
-		TerminalTotalDifficulty:       big.NewInt(1),
-		TerminalTotalDifficultyPassed: true,
-		ShanghaiTime:                  new(uint64),
-		CancunTime:                    new(uint64),
-		PragueTime:                    nil,
-		VerkleTime:                    nil,
+		TerminalTotalDifficulty: big.NewInt(1),
+		ShanghaiTime:            new(uint64),
+		CancunTime:              new(uint64),
+		PragueTime:              nil,
+		VerkleTime:              nil,
 		// OP-Stack forks are disabled, since we use this for L1.
 		BedrockBlock: nil,
 		RegolithTime: nil,
@@ -290,14 +289,15 @@ func NewHost(
 		CallerOverride:      h.handleCaller,
 	}
 
-	h.env = vm.NewEVM(blockContext, txContext, h.state, h.chainCfg, vmCfg)
+	h.env = vm.NewEVM(blockContext, h.state, h.chainCfg, vmCfg)
+	h.env.SetTxContext(txContext)
 
 	return h
 }
 
 // AllowCheatcodes allows the given address to utilize the cheatcodes and logging precompiles
 func (h *Host) AllowCheatcodes(addr common.Address) {
-	h.log.Debug("Allowing cheatcodes", "address", addr, "label", h.labels[addr])
+	h.log.Trace("Allowing cheatcodes", "address", addr, "label", h.labels[addr])
 	h.allowedCheatcodes[addr] = struct{}{}
 }
 
@@ -440,6 +440,10 @@ func (h *Host) ImportAccount(addr common.Address, account types.Account) {
 	}
 }
 
+func (h *Host) SetStorage(addr common.Address, key common.Hash, value common.Hash) {
+	h.state.SetState(addr, key, value)
+}
+
 // getPrecompile overrides any accounts during runtime, to insert special precompiles, if activated.
 func (h *Host) getPrecompile(rules params.Rules, original vm.PrecompiledContract, addr common.Address) vm.PrecompiledContract {
 	if p, ok := h.precompiles[addr]; ok {
@@ -527,9 +531,9 @@ func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, rever
 	if reverted {
 		h.LogCallStack()
 		if msg, revertInspectErr := abi.UnpackRevert(output); revertInspectErr == nil {
-			h.log.Warn("Revert", "addr", addr, "err", err, "revertMsg", msg, "depth", depth)
+			h.log.Warn("Revert", "addr", addr, "label", h.labels[addr], "err", err, "revertMsg", msg, "depth", depth)
 		} else {
-			h.log.Warn("Revert", "addr", addr, "err", err, "revertData", hexutil.Bytes(output), "depth", depth)
+			h.log.Warn("Revert", "addr", addr, "label", h.labels[addr], "err", err, "revertData", hexutil.Bytes(output), "depth", depth)
 		}
 	}
 
@@ -539,7 +543,7 @@ func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, rever
 
 // onFault is a trace-hook, catches things more generic than regular EVM reverts.
 func (h *Host) onFault(pc uint64, op byte, gas, cost uint64, scope tracing.OpContext, depth int, err error) {
-	h.log.Warn("Fault", "addr", scope.Address(), "err", err, "depth", depth)
+	h.log.Warn("Fault", "addr", scope.Address(), "label", h.labels[scope.Address()], "err", err, "depth", depth)
 }
 
 // unwindCallstack is a helper to remove call-stack entries.
@@ -694,7 +698,7 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 	baseState := h.baseState
 	// We have to commit the existing state to the trie,
 	// for all the state-changes to be captured by the trie iterator.
-	root, err := baseState.Commit(h.env.Context.BlockNumber.Uint64(), true)
+	root, err := baseState.Commit(h.env.Context.BlockNumber.Uint64(), true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit state: %w", err)
 	}

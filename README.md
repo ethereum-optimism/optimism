@@ -64,6 +64,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 
 <pre>
 ├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
+├── <a href="./kurtosis-devnet">kurtosis-devnet</a>: OP-Stack Kurtosis devnet
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
@@ -76,7 +77,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-ufm">op-ufm</a>: Simulations for monitoring end-to-end transaction latency
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
-├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
 ├── <a href="./semgrep">semgrep</a>: Semgrep rules and tests
@@ -99,7 +99,7 @@ For contract releases, refer to the GitHub release notes for a given release whi
 
 Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code only, and **DO NOT** include smart contracts.
 This naming scheme is required by Golang.
-In the above list, this means these `v<semver` releases contain all `op-*` components and exclude all `contracts-*` components.
+In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
 
 `op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
 Basically, geth’s version is our minor version.
@@ -111,7 +111,6 @@ See the [Node Software Releases](https://docs.optimism.io/builders/node-operator
 
 The full set of components that have releases are:
 
-- `ci-builder`
 - `op-batcher`
 - `op-contracts`
 - `op-challenger`

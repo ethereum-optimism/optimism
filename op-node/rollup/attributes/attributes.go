@@ -66,7 +66,7 @@ func (eq *AttributesHandler) OnEvent(ev event.Event) bool {
 		eq.emitter.Emit(derive.ConfirmReceivedAttributesEvent{})
 		// to make sure we have a pre-state signal to process the attributes from
 		eq.emitter.Emit(engine.PendingSafeRequestEvent{})
-	case rollup.ResetEvent:
+	case rollup.ResetEvent, rollup.ForceResetEvent:
 		eq.sentAttributes = false
 		eq.attributes = nil
 	case rollup.EngineTemporaryErrorEvent:
@@ -193,9 +193,9 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 			return
 		}
 		eq.emitter.Emit(engine.PromotePendingSafeEvent{
-			Ref:         ref,
-			Concluding:  attributes.Concluding,
-			DerivedFrom: attributes.DerivedFrom,
+			Ref:        ref,
+			Concluding: attributes.Concluding,
+			Source:     attributes.DerivedFrom,
 		})
 	}
 

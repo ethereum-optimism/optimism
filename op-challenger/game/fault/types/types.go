@@ -19,6 +19,7 @@ import (
 var (
 	ErrGameDepthReached   = errors.New("game depth reached")
 	ErrL2BlockNumberValid = errors.New("l2 block number is valid")
+	ErrNotInSync          = errors.New("local node too far behind")
 )
 
 type GameType uint32
@@ -28,8 +29,11 @@ const (
 	PermissionedGameType GameType = 1
 	AsteriscGameType     GameType = 2
 	AsteriscKonaGameType GameType = 3
+	SuperCannonGameType  GameType = 4
+	OPSuccinctGameType   GameType = 6
 	FastGameType         GameType = 254
 	AlphabetGameType     GameType = 255
+	KailuaGameType       GameType = 1337
 	UnknownGameType      GameType = math.MaxUint32
 )
 
@@ -47,10 +51,16 @@ func (t GameType) String() string {
 		return "asterisc"
 	case AsteriscKonaGameType:
 		return "asterisc-kona"
+	case SuperCannonGameType:
+		return "super-cannon"
+	case OPSuccinctGameType:
+		return "op-succinct"
 	case FastGameType:
 		return "fast"
 	case AlphabetGameType:
 		return "alphabet"
+	case KailuaGameType:
+		return "kailua"
 	default:
 		return fmt.Sprintf("<invalid: %d>", t)
 	}
@@ -65,9 +75,10 @@ const (
 	TraceTypeAsterisc     TraceType = "asterisc"
 	TraceTypeAsteriscKona TraceType = "asterisc-kona"
 	TraceTypePermissioned TraceType = "permissioned"
+	TraceTypeSuperCannon  TraceType = "super-cannon"
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast, TraceTypeSuperCannon}
 
 func (t TraceType) String() string {
 	return string(t)
@@ -110,6 +121,8 @@ func (t TraceType) GameType() GameType {
 		return FastGameType
 	case TraceTypeAlphabet:
 		return AlphabetGameType
+	case TraceTypeSuperCannon:
+		return SuperCannonGameType
 	default:
 		return UnknownGameType
 	}
