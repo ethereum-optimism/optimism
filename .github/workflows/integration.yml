@@ -42,18 +42,8 @@ jobs:
       - name: Create tar archive of integration logs
         if: ${{ failure() }}
         run: |
-          # Find and archive only the logs directories
+          # Find and archive only the logs directories. There were some issues archiving the entire directory.
           find integration_logs -type d -name "logs" | tar -czvf integration_logs.tar.gz -T -
-
-          echo "Tar file details:"
-          ls -lh integration_logs.tar.gz
-
-          echo "Verifying tar content:"
-          tar -tvf integration_logs.tar.gz | wc -l
-
-          # Verify the file exists and is readable
-          test -r integration_logs.tar.gz || echo "File not readable!"
-          file integration_logs.tar.gz
 
       - name: Archive integration logs
         uses: actions/upload-artifact@v4
