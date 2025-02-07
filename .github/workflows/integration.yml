@@ -42,10 +42,8 @@ jobs:
       - name: Create tar archive of integration logs
         if: ${{ failure() }}
         run: |
-          echo "Original directory size:"
-          du -sh integration_logs/
-
-          tar -czvf integration_logs.tar.gz integration_logs/
+          # Find and archive only the logs directories
+          find integration_logs -type d -name "logs" | tar -czvf integration_logs.tar.gz -T -
 
           echo "Tar file details:"
           ls -lh integration_logs.tar.gz

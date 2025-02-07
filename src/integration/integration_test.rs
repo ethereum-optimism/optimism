@@ -14,7 +14,6 @@ mod tests {
                 "Block creator should be the builder"
             );
 
-            // wait for 1 second
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 

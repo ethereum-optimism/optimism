@@ -143,6 +143,7 @@ lazy_static! {
 
 pub struct IntegrationFramework {
     test_dir: PathBuf,
+    logs_dir: PathBuf,
     services: HashMap<String, ServiceInstance>,
 }
 
@@ -174,8 +175,8 @@ pub async fn poll_logs(
 }
 
 impl ServiceInstance {
-    pub fn new(name: String, test_dir: PathBuf, allocated_ports: HashMap<String, u16>) -> Self {
-        let log_path = test_dir.join(format!("{}.log", name));
+    pub fn new(name: String, logs_dir: PathBuf, allocated_ports: HashMap<String, u16>) -> Self {
+        let log_path = logs_dir.join(format!("{}.log", name));
         Self {
             process: None,
             log_path,
@@ -259,10 +260,13 @@ impl IntegrationFramework {
         test_dir.push("./integration_logs");
         test_dir.push(test_name);
 
-        std::fs::create_dir_all(&test_dir).map_err(|_| IntegrationError::SetupError)?;
+        // Create logs subdirectory
+        let logs_dir = test_dir.join("logs");
+        std::fs::create_dir_all(&logs_dir).map_err(|_| IntegrationError::SetupError)?;
 
         Ok(Self {
             test_dir,
+            logs_dir,
             services: HashMap::new(),
         })
     }
@@ -324,7 +328,7 @@ impl IntegrationFramework {
 
         // Store the service instance in the framework
         let service =
-            ServiceInstance::new(name.to_string(), self.test_dir.clone(), allocated_ports);
+            ServiceInstance::new(name.to_string(), self.logs_dir.clone(), allocated_ports);
         self.services.insert(name.to_string(), service);
         let service = self.services.get_mut(name).unwrap();
 
@@ -512,19 +516,26 @@ impl RollupBoostTestHarness {
         let service = self._framework.services.get("rollup-boost").unwrap();
         let logs = service.get_logs();
 
+        let search_query = format!("returning block hash={:#x}", block_hash);
+
         // Find the log line containing the block hash
         for line in logs.lines() {
-            if line.contains(&format!("hash={:#x}", block_hash)) {
-                // Extract the context="X" part
-                if let Some(context_start) = line.find("context=\"") {
-                    let context = line[context_start..].split('"').nth(1)?;
-                    if context == "builder" {
-                        return Some(PayloadCreator::Builder);
-                    } else if context == "l2" {
-                        return Some(PayloadCreator::L2);
-                    } else {
-                        panic!("Unknown context: {}", context);
+            if line.contains(&search_query) {
+                // Extract the context=X part
+                if let Some(context_start) = line.find("context=") {
+                    let context = line[context_start..]
+                        .split_whitespace()
+                        .next()?
+                        .split('=')
+                        .nth(1)?;
+
+                    match context {
+                        "builder" => return Some(PayloadCreator::Builder),
+                        "l2" => return Some(PayloadCreator::L2),
+                        _ => panic!("Unknown context: {}", context),
                     }
+                } else {
+                    panic!("no context found");
                 }
             }
         }
