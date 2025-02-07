@@ -13,12 +13,12 @@ cargo run -- [OPTIONS]
 
 ### Command-line Options
 
-- `--jwt-token <TOKEN>`: JWT token for authentication (required)
-- `--jwt-path <PATH>`: Path to the JWT secret file (required if `--jwt-token` is not provided)
+- `--l2-jwt-token <TOKEN>`: JWT token for L2 authentication (required)
+- `--l2-jwt-path <PATH>`: Path to the L2 JWT secret file (required if `--l2-jwt-token` is not provided)
 - `--l2-url <URL>`: URL of the local L2 execution engine (required)
 - `--builder-url <URL>`: URL of the builder execution engine (required)
-- `--builder-jwt-token <TOKEN>`: JWT token for builder authentication. defaults to the value of `--jwt-token` if not provided
-- `--builder-jwt-path <PATH>`: Path to the builder JWT secret file.
+- `--builder-jwt-token <TOKEN>`: JWT token for builder authentication (required)
+- `--builder-jwt-path <PATH>`: Path to the builder JWT secret file (required if `--builder-jwt-token` is not provided)
 - `--rpc-host <HOST>`: Host to run the server on (default: 0.0.0.0)
 - `--rpc-port <PORT>`: Port to run the server on (default: 8081)
 - `--tracing`: Enable tracing (default: false)
@@ -33,7 +33,7 @@ You can also set the options using environment variables. See .env.example to us
 ### Example
 
 ```
-cargo run --jwt-token your_jwt_token --l2-url http://localhost:8545 --builder-url http://localhost:8546
+cargo run --l2-jwt-token your_jwt_token --l2-url http://localhost:8545 --builder-jwt-token your_jwt_token --builder-url http://localhost:8546
 ```
 
 ## Core System Workflow
