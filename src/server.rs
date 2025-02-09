@@ -277,7 +277,7 @@ impl RollupBoostServer {
         // TODO: Use _is_block_building_call to log the correct message during the async call to builder
         let (should_send_to_builder, _is_block_building_call) =
             if let Some(attr) = payload_attributes.as_ref() {
-                // payload attributes are present. It is a FCU call to sync the builder node
+                // payload attributes are present. It is a FCU call to start block building
                 // Do not send to builder if no_tx_pool is set, meaning that the CL node wants
                 // a deterministic block without txs. We let the fallback EL node compute those.
                 let use_tx_pool = !attr.no_tx_pool.unwrap_or_default();
