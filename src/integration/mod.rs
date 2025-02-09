@@ -26,7 +26,6 @@ use std::{
 };
 use thiserror::Error;
 use time::{format_description, OffsetDateTime};
-use tokio::time::sleep;
 
 /// Default JWT token for testing purposes
 pub const DEFAULT_JWT_TOKEN: &str =
@@ -48,6 +47,8 @@ pub enum IntegrationError {
     LogError,
     #[error("Service already running")]
     ServiceAlreadyRunning,
+    #[error("Service stopped")]
+    ServiceStopped,
     #[error(transparent)]
     AddrParseError(#[from] std::net::AddrParseError),
 }
@@ -128,7 +129,10 @@ impl ServiceCommand {
 
 pub trait Service {
     fn command(&self) -> ServiceCommand;
-    fn ready(&self, log_path: &Path) -> impl Future<Output = Result<(), IntegrationError>> + Send;
+    fn ready(
+        &self,
+        service_instance: &mut ServiceInstance,
+    ) -> impl Future<Output = Result<(), IntegrationError>> + Send;
 }
 
 pub struct ServiceInstance {
@@ -145,33 +149,6 @@ pub struct IntegrationFramework {
     test_dir: PathBuf,
     logs_dir: PathBuf,
     services: HashMap<String, ServiceInstance>,
-}
-
-/// Helper function to poll logs periodically
-pub async fn poll_logs(
-    log_path: &Path,
-    pattern: &str,
-    interval: Duration,
-    timeout: Duration,
-) -> Result<(), IntegrationError> {
-    let start = std::time::Instant::now();
-
-    loop {
-        if start.elapsed() > timeout {
-            return Err(IntegrationError::SpawnError);
-        }
-
-        let mut file = File::open(log_path).map_err(|_| IntegrationError::LogError)?;
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .map_err(|_| IntegrationError::LogError)?;
-
-        if contents.contains(pattern) {
-            return Ok(());
-        }
-
-        sleep(interval).await;
-    }
 }
 
 impl ServiceInstance {
@@ -222,7 +199,7 @@ impl ServiceInstance {
         system_command: Command,
     ) -> Result<(), IntegrationError> {
         self.start(system_command)?;
-        config.ready(&self.log_path).await?;
+        config.ready(self).await?;
         Ok(())
     }
 
@@ -241,6 +218,45 @@ impl ServiceInstance {
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
         contents
+    }
+
+    pub fn wait_for_log(
+        &mut self,
+        pattern: &str,
+        timeout: Duration,
+    ) -> Result<(), IntegrationError> {
+        let start = std::time::Instant::now();
+
+        loop {
+            // Check if process has stopped
+            if let Some(ref mut process) = self.process {
+                match process.try_wait() {
+                    Ok(None) => {}
+                    Ok(Some(_status)) => {
+                        // Process has exited
+                        return Err(IntegrationError::ServiceStopped);
+                    }
+                    Err(_) => {
+                        return Err(IntegrationError::ServiceStopped);
+                    }
+                }
+            }
+
+            if start.elapsed() > timeout {
+                return Err(IntegrationError::SpawnError);
+            }
+
+            let mut file = File::open(&self.log_path).map_err(|_| IntegrationError::LogError)?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)
+                .map_err(|_| IntegrationError::LogError)?;
+
+            if contents.contains(pattern) {
+                return Ok(());
+            }
+
+            std::thread::sleep(Duration::from_millis(100));
+        }
     }
 }
 
