@@ -375,6 +375,19 @@ impl RollupBoostServer {
                 };
             });
         } else {
+            // If no payload attributes are provided, the builder will not build a block
+            // We store a mapping from the local payload ID to an empty payload ID to signal
+            // during get_payload_v3 request that the builder does not need to be queried.
+            if let Some(local_id) = l2_response.payload_id {
+                let payload_trace_context = self.payload_trace_context.clone();
+
+                payload_trace_context
+                    .store_payload_id_mapping(local_id, PayloadId::default())
+                    .await;
+            } else {
+                error!(message = "no local payload id returned from l2 client", "head_block_hash" = %fork_choice_state.head_block_hash);
+            }
+
             info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash);
         }
 
@@ -387,6 +400,7 @@ impl RollupBoostServer {
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
         info!(message = "received get_payload_v3", "payload_id" = %payload_id);
         let l2_client_future = self.l2_client.auth_client.get_payload_v3(payload_id);
+
         let builder_client_future = Box::pin(async move {
             if let Some(metrics) = &self.metrics {
                 metrics.get_payload_count.increment(1);
@@ -409,6 +423,23 @@ impl RollupBoostServer {
                 .get_external_payload_id(&payload_id)
                 .await
                 .unwrap_or(payload_id);
+
+            if external_payload_id == PayloadId::default() {
+                info!(
+                    message =
+                        "no-tx-pool call and builder did not build a block, defer to L2 result"
+                );
+
+                // Note: We are sending an error here to return early from the future and this error
+                // is not logged later on, so it's not causing issues. However, we should find a better
+                // way to handle this case in the future rather than relying on this error being silently
+                // ignored.
+                return Err(ClientError::Call(ErrorObject::owned(
+                    INVALID_REQUEST_CODE,
+                    "Builder payload was not valid",
+                    None::<String>,
+                )));
+            }
 
             let builder = self.builder_client.clone();
             let payload = builder.auth_client.get_payload_v3(external_payload_id).await.map_err(|e| {
