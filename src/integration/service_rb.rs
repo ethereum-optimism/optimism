@@ -50,8 +50,7 @@ impl Service for RollupBoostConfig {
             .arg(Arg::Port {
                 name: "rpc".into(),
                 preferred: 8112,
-            })
-            .arg("--boost-sync");
+            });
 
         cmd
     }
