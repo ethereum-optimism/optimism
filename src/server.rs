@@ -274,16 +274,19 @@ impl RollupBoostServer {
                 }
             })?;
 
-        let use_tx_pool = payload_attributes
-            .as_ref()
-            .map(|attr| !attr.no_tx_pool.unwrap_or_default());
-        let should_send_to_builder = if self.boost_sync {
-            // don't send to builder only if no_tx_pool is set
-            use_tx_pool.unwrap_or(true)
-        } else {
-            // send to builder if there are payload attributes and no_tx_pool is not set
-            use_tx_pool.is_some()
-        };
+        // TODO: Use _is_block_building_call to log the correct message during the async call to builder
+        let (should_send_to_builder, _is_block_building_call) =
+            if let Some(attr) = payload_attributes.as_ref() {
+                // payload attributes are present. It is a FCU call to sync the builder node
+                // Do not send to builder if no_tx_pool is set, meaning that the CL node wants
+                // a deterministic block without txs. We let the fallback EL node compute those.
+                let use_tx_pool = !attr.no_tx_pool.unwrap_or_default();
+                (use_tx_pool, true)
+            } else {
+                // no payload attributes. It is a FCU call to lock the head block
+                // previously synced with the new_payload_v3 call. Only send to builder if boost_sync is enabled
+                (self.boost_sync, false)
+            };
 
         if should_send_to_builder {
             let span: Option<BoxedSpan> = if let Some(payload_attributes) =
