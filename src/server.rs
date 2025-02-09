@@ -3,6 +3,7 @@ use crate::metrics::ServerMetrics;
 use alloy_primitives::B256;
 use std::num::NonZero;
 use std::sync::Arc;
+use std::time::Instant;
 
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
@@ -195,6 +196,54 @@ pub trait EngineApi {
 
 #[async_trait]
 impl EngineApiServer for RollupBoostServer {
+    async fn fork_choice_updated_v3(
+        &self,
+        fork_choice_state: ForkchoiceState,
+        payload_attributes: Option<OpPayloadAttributes>,
+    ) -> RpcResult<ForkchoiceUpdated> {
+        let start = Instant::now();
+        let res = self
+            .fork_choice_updated_v3(fork_choice_state, payload_attributes)
+            .await;
+        let elapsed = start.elapsed();
+        if let Some(metrics) = &self.metrics {
+            metrics.fork_choice_updated_v3.record(elapsed);
+        }
+        res
+    }
+
+    async fn get_payload_v3(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
+        let start = Instant::now();
+        let res = self.get_payload_v3(payload_id).await;
+        let elapsed = start.elapsed();
+        if let Some(metrics) = &self.metrics {
+            metrics.get_payload_v3.record(elapsed);
+        }
+        res
+    }
+
+    async fn new_payload_v3(
+        &self,
+        payload: ExecutionPayloadV3,
+        versioned_hashes: Vec<B256>,
+        parent_beacon_block_root: B256,
+    ) -> RpcResult<PayloadStatus> {
+        let start = Instant::now();
+        let res = self
+            .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
+            .await;
+        let elapsed = start.elapsed();
+        if let Some(metrics) = &self.metrics {
+            metrics.new_payload_v3.record(elapsed);
+        }
+        res
+    }
+}
+
+impl RollupBoostServer {
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
