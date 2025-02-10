@@ -1,9 +1,13 @@
 use crate::client::ExecutionClient;
+use crate::debug;
 use crate::metrics::ServerMetrics;
 use alloy_primitives::B256;
+use debug::debug_server::{Debug, DebugServer};
+use debug::{SetDryRunRequest, SetDryRunResponse};
 use std::num::NonZero;
 use std::sync::Arc;
 use std::time::Instant;
+use tonic::{transport::Server, Request, Response, Status};
 
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
@@ -110,6 +114,7 @@ pub struct RollupBoostServer {
     pub boost_sync: bool,
     pub metrics: Option<Arc<ServerMetrics>>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
+    pub dry_run: Arc<Mutex<bool>>,
 }
 
 impl RollupBoostServer {
@@ -125,7 +130,19 @@ impl RollupBoostServer {
             boost_sync,
             metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
+            dry_run: Arc::new(Mutex::new(false)),
         }
+    }
+
+    pub fn start_tonic_server(&self) {
+        let self_clone = self.clone();
+
+        tokio::spawn(async {
+            Server::builder()
+                .add_service(DebugServer::new(self_clone))
+                .serve("[::1]:50051".parse().unwrap())
+                .await
+        });
     }
 }
 
@@ -405,6 +422,18 @@ impl RollupBoostServer {
         let l2_client_future = self.l2_client.auth_client.get_payload_v3(payload_id);
 
         let builder_client_future = Box::pin(async move {
+            let dry_run = self.dry_run.lock().await;
+            if *dry_run {
+                info!(message = "dry run mode is enabled, skipping get payload builder call");
+
+                // We are in dry run mode, so we do not want to call the builder.
+                return Err(ClientError::Call(ErrorObject::owned(
+                    INVALID_REQUEST_CODE,
+                    "Dry run mode is enabled",
+                    None::<String>,
+                )));
+            }
+
             if let Some(metrics) = &self.metrics {
                 metrics.get_payload_count.increment(1);
             }
@@ -591,6 +620,23 @@ impl RollupBoostServer {
                     ErrorCode::InternalError.into()
                 }
             })
+    }
+}
+
+#[tonic::async_trait]
+impl Debug for RollupBoostServer {
+    async fn set_dry_run(
+        &self,
+        _request: Request<SetDryRunRequest>,
+    ) -> Result<Response<SetDryRunResponse>, Status> {
+        let mut dry_run = self.dry_run.lock().await;
+        *dry_run = !*dry_run;
+
+        info!(message = "dry run mode is now", "dry_run" = *dry_run);
+
+        Ok(Response::new(SetDryRunResponse {
+            dry_run_state: *dry_run,
+        }))
     }
 }
 

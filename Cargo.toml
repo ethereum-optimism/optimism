@@ -51,6 +51,8 @@ metrics-process = "2.3.1"
 metrics-util = "0.18.0"
 eyre = "0.6.12"
 paste = "1.0.15"
+tonic = "0.12"
+prost = "0.13"
 
 # dev dependencies for integration tests
 time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
@@ -61,6 +63,9 @@ lazy_static = "1.5.0"
 anyhow = "1.0"
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
+
+[build-dependencies]
+tonic-build = "0.12"
 
 [features]
 integration = []

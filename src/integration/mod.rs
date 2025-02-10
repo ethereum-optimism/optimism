@@ -1,3 +1,4 @@
+use crate::debug;
 use crate::server::EngineApiClient;
 use crate::server::PayloadCreator;
 use alloy_eips::BlockNumberOrTag;
@@ -6,6 +7,7 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId,
     PayloadStatus, PayloadStatusEnum,
 };
+use debug::debug_client::DebugClient;
 use jsonrpsee::http_client::{transport::HttpBackend, HttpClient};
 use jsonrpsee::proc_macros::rpc;
 use lazy_static::lazy_static;
@@ -26,6 +28,7 @@ use std::{
 };
 use thiserror::Error;
 use time::{format_description, OffsetDateTime};
+use tonic::transport::Channel;
 
 /// Default JWT token for testing purposes
 pub const DEFAULT_JWT_TOKEN: &str =
@@ -563,6 +566,10 @@ impl RollupBoostTestHarness {
         let mut block_creator = SimpleBlockGenerator::new(self);
         block_creator.init().await.unwrap();
         block_creator
+    }
+
+    pub async fn get_client(&self) -> DebugClient<Channel> {
+        DebugClient::connect("http://[::1]:50051").await.unwrap()
     }
 }
 

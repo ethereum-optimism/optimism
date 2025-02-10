@@ -1,5 +1,7 @@
-use clap::{arg, Parser};
+use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
+use debug::debug_client::DebugClient;
+use debug::SetDryRunRequest;
 use std::{net::SocketAddr, sync::Arc};
 
 use dotenv::dotenv;
@@ -33,9 +35,16 @@ mod metrics;
 mod proxy;
 mod server;
 
+pub mod debug {
+    tonic::include_proto!("debug");
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     #[clap(flatten)]
     builder: BuilderArgs,
 
@@ -83,11 +92,45 @@ struct Args {
     log_format: String,
 }
 
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Debug commands
+    Debug {
+        #[command(subcommand)]
+        command: DebugCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum DebugCommands {
+    /// First debug command
+    X {
+        // Add any specific arguments for x command here if needed
+    },
+}
+
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     // Load .env file
     dotenv().ok();
     let args: Args = Args::parse();
+
+    // Handle commands if present
+    if let Some(cmd) = args.command {
+        match cmd {
+            Commands::Debug { command } => match command {
+                DebugCommands::X {} => {
+                    let mut client = DebugClient::connect("http://[::1]:50051").await.unwrap();
+
+                    let request = tonic::Request::new(SetDryRunRequest {});
+                    let response = client.set_dry_run(request).await.unwrap();
+                    println!("Response: {:?}", response);
+
+                    return Ok(());
+                }
+            },
+        }
+    }
 
     // Initialize logging
     let log_format = args.log_format.to_lowercase();
@@ -169,6 +212,9 @@ async fn main() -> eyre::Result<()> {
 
     let rollup_boost =
         RollupBoostServer::new(l2_client, builder_client, boost_sync_enabled, metrics);
+
+    // Start the debug GRPC server
+    rollup_boost.start_tonic_server();
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
