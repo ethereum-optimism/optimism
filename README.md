@@ -1,6 +1,6 @@
 # Rollup Boost
 
-This is an implementation the block builder sidecar for Optimism Stack to enable external block production. To read more about the design, check out the [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/external-block-production.md).
+Rollup Boost is a block builder sidecar for Optimism Stack chains to enable external block production. To read more about the design, check out the [design doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/external-block-production.md).
 
 ## Usage
 
@@ -24,7 +24,7 @@ cargo run -- [OPTIONS]
 - `--log-level <LEVEL>`: Log level (default: info)
 - `--log-format <FORMAT>`: Log format (default: text)
 - `--metrics`: Enable metrics (default: false)
-- `--boost-sync`: Enable syncing the builder with the proposer op-node (default: false)
+- `--no-boost-sync`: Disables using the proposer to sync the builder node (default: true)
 
 ### Environment Variables
 
@@ -99,7 +99,7 @@ By default, `rollup-boost` will proxy all RPC calls from the proposer `op-node` 
 
 ### Boost Sync
 
-`rollup-boost` will sync the builder with the proposer `op-node` if the `--boost-sync` flag is set. After the builder is synced, boost sync improves the performance of keeping the builder in sync by removing the need to receive chain updates via p2p with the builder `op-node`. This entails additional engine api calls that are multiplexed to the builder from rollup-boost:
+By default, `rollup-boost` will sync the builder with the proposer `op-node`. After the builder is synced, boost sync improves the performance of keeping the builder in sync with the tip of the chainby removing the need to receive chain updates via p2p via the builder `op-node`. This entails additional engine api calls that are multiplexed to the builder from rollup-boost:
 
 - `engine_forkchoiceUpdatedV3`: this call will be multiplexed to the builder regardless of whether the call contains payload attributes or not.
 - `engine_newPayloadV3`: ensures the builder has the latest block if the local payload was used.
