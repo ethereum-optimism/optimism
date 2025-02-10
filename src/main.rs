@@ -1,12 +1,14 @@
-use clap::{arg, ArgGroup, Parser};
+use clap::{arg, Parser};
+use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
+use std::{net::SocketAddr, sync::Arc};
+
 use dotenv::dotenv;
-use error::Error;
-use http::{StatusCode, Uri};
+use eyre::bail;
+use http::StatusCode;
 use hyper::service::service_fn;
 use hyper::{server::conn::http1, Request, Response};
 use hyper_util::rt::TokioIo;
-use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::{HttpBody, HttpClient, HttpClientBuilder};
+use jsonrpsee::http_client::HttpBody;
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
 use metrics::ServerMetrics;
@@ -14,57 +16,35 @@ use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_util::layers::{PrefixLayer, Stack};
 use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::Config;
-use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Config, Resource};
 use proxy::ProxyLayer;
-use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
-use server::{EngineApiServer, EthEngineApi, HttpClientWrapper};
-use std::net::AddrParseError;
-use std::sync::Arc;
-use std::time::Duration;
-use std::{net::SocketAddr, path::PathBuf};
+use reth_rpc_layer::JwtSecret;
+use server::RollupBoostServer;
+
 use tokio::net::TcpListener;
-use tracing::error;
-use tracing::{info, Level};
+use tokio::signal::unix::{signal as unix_signal, SignalKind};
+use tracing::{error, info, Level};
 use tracing_subscriber::EnvFilter;
 
-mod error;
+mod client;
+#[cfg(all(feature = "integration", test))]
+mod integration;
 mod metrics;
 mod proxy;
 mod server;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
-#[clap(group(ArgGroup::new("jwt").required(true).multiple(false).args(&["jwt_token", "jwt_path"])))]
 struct Args {
-    /// JWT token for authentication
-    #[arg(long, env)]
-    jwt_token: Option<String>,
+    #[clap(flatten)]
+    builder: BuilderArgs,
 
-    /// Path to the JWT secret file
-    #[arg(long, env)]
-    jwt_path: Option<PathBuf>,
+    #[clap(flatten)]
+    l2_client: L2ClientArgs,
 
-    /// JWT token for authentication for the builder
-    #[arg(long, env)]
-    builder_jwt_token: Option<String>,
-
-    /// Path to the JWT secret file for the builder
-    #[arg(long, env)]
-    builder_jwt_path: Option<PathBuf>,
-
-    /// URL of the local l2 execution engine
-    #[arg(long, env, default_value = "http://localhost:8551")]
-    l2_url: String,
-
-    /// URL of the builder execution engine
-    #[arg(long, env)]
-    builder_url: String,
-
-    /// Use the proposer to sync the builder node
+    /// Disable using the proposer to sync the builder node
     #[arg(long, env, default_value = "false")]
-    boost_sync: bool,
+    no_boost_sync: bool,
 
     /// Host to run the server on
     #[arg(long, env, default_value = "0.0.0.0")]
@@ -101,20 +81,10 @@ struct Args {
     /// Log format
     #[arg(long, env, default_value = "text")]
     log_format: String,
-
-    /// Timeout for the builder client calls in milliseconds
-    #[arg(long, env, default_value = "200")]
-    builder_timeout: u64,
-
-    /// Timeout for the l2 client calls in milliseconds
-    #[arg(long, env, default_value = "2000")]
-    l2_timeout: u64,
 }
 
-type Result<T> = core::result::Result<T, Error>;
-
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> eyre::Result<()> {
     // Load .env file
     dotenv().ok();
     let args: Args = Args::parse();
@@ -144,14 +114,11 @@ async fn main() -> Result<()> {
         // Build metrics stack
         Stack::new(recorder)
             .push(PrefixLayer::new("rollup-boost"))
-            .install()
-            .map_err(|e| Error::InitMetrics(e.to_string()))?;
+            .install()?;
 
         // Start the metrics server
         let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
-        let addr: SocketAddr = metrics_addr
-            .parse()
-            .map_err(|e: AddrParseError| Error::InitMetrics(e.to_string()))?;
+        let addr: SocketAddr = metrics_addr.parse()?;
         tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task
 
         Some(Arc::new(ServerMetrics::default()))
@@ -159,94 +126,90 @@ async fn main() -> Result<()> {
         None
     };
 
-    // telemetry setup
+    // Telemetry setup
     if args.tracing {
         init_tracing(&args.otlp_endpoint);
     }
 
-    // Handle JWT secret
-    let jwt_secret = match (args.jwt_path, args.jwt_token) {
-        (Some(file), None) => {
-            // Read JWT secret from file
-            JwtSecret::from_file(&file).map_err(|e| Error::InvalidArgs(e.to_string()))?
-        }
-        (None, Some(secret)) => {
-            // Use the provided JWT secret
-            JwtSecret::from_hex(secret).map_err(|e| Error::InvalidArgs(e.to_string()))?
-        }
-        _ => {
-            // This case should not happen due to ArgGroup
-            return Err(Error::InvalidArgs(
-                "Either jwt_file or jwt_secret must be provided".into(),
-            ));
-        }
+    let l2_client_args = args.l2_client;
+
+    let l2_auth_jwt = if let Some(secret) = l2_client_args.l2_jwt_token {
+        secret
+    } else if let Some(path) = l2_client_args.l2_jwt_path.as_ref() {
+        JwtSecret::from_file(path)?
+    } else {
+        bail!("Missing L2 Client JWT secret");
     };
 
-    let builder_jwt_secret = match (args.builder_jwt_path, args.builder_jwt_token) {
-        (Some(file), None) => {
-            JwtSecret::from_file(&file).map_err(|e| Error::InvalidArgs(e.to_string()))?
-        }
-        (None, Some(secret)) => {
-            JwtSecret::from_hex(secret).map_err(|e| Error::InvalidArgs(e.to_string()))?
-        }
-        _ => jwt_secret,
+    let l2_client = ExecutionClient::new(
+        l2_client_args.l2_url.clone(),
+        l2_auth_jwt,
+        l2_client_args.l2_timeout,
+    )?;
+
+    let builder_args = args.builder;
+    let builder_auth_jwt = if let Some(secret) = builder_args.builder_jwt_token {
+        secret
+    } else if let Some(path) = builder_args.builder_jwt_path.as_ref() {
+        JwtSecret::from_file(path)?
+    } else {
+        bail!("Missing Builder JWT secret");
     };
 
-    // Initialize the l2 client
-    let l2_client = create_client(&args.l2_url, jwt_secret, args.l2_timeout)?;
+    let builder_client = ExecutionClient::new(
+        builder_args.builder_url.clone(),
+        builder_auth_jwt,
+        builder_args.builder_timeout,
+    )?;
 
-    // Initialize the builder client
-    let builder_client =
-        create_client(&args.builder_url, builder_jwt_secret, args.builder_timeout)?;
+    let boost_sync_enabled = !args.no_boost_sync;
+    if boost_sync_enabled {
+        info!("Boost sync enabled");
+    }
 
-    let eth_engine_api = EthEngineApi::new(
-        Arc::new(l2_client),
-        Arc::new(builder_client),
-        args.boost_sync,
-        metrics,
-    );
-    let mut module: RpcModule<()> = RpcModule::new(());
-    module
-        .merge(eth_engine_api.into_rpc())
-        .map_err(|e| Error::InitRPCServer(e.to_string()))?;
+    let rollup_boost =
+        RollupBoostServer::new(l2_client, builder_client, boost_sync_enabled, metrics);
 
-    // server setup
+    let module: RpcModule<()> = rollup_boost.try_into()?;
+
+    // Build and start the server
     info!("Starting server on :{}", args.rpc_port);
+
     let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-        args.l2_url
-            .parse::<Uri>()
-            .map_err(|e| Error::InvalidArgs(e.to_string()))?,
+        l2_client_args.l2_url,
+        l2_auth_jwt,
+        builder_args.builder_url,
+        builder_auth_jwt,
     ));
+
     let server = Server::builder()
         .set_http_middleware(service_builder)
-        .build(
-            format!("{}:{}", args.rpc_host, args.rpc_port)
-                .parse::<SocketAddr>()
-                .map_err(|e| Error::InitRPCServer(e.to_string()))?,
-        )
-        .await
-        .map_err(|e| Error::InitRPCServer(e.to_string()))?;
+        .build(format!("{}:{}", args.rpc_host, args.rpc_port).parse::<SocketAddr>()?)
+        .await?;
     let handle = server.start(module);
-    handle.stopped().await;
+
+    let stop_handle = handle.clone();
+
+    // Capture SIGINT and SIGTERM
+    let mut sigint = unix_signal(SignalKind::interrupt())?;
+    let mut sigterm = unix_signal(SignalKind::terminate())?;
+
+    tokio::select! {
+        _ = handle.stopped() => {
+            // The server has already shut down by itself
+            info!("Server stopped");
+        }
+        _ = sigint.recv() => {
+            info!("Received SIGINT, shutting down gracefully...");
+            let _ = stop_handle.stop();
+        }
+        _ = sigterm.recv() => {
+            info!("Received SIGTERM, shutting down gracefully...");
+            let _ = stop_handle.stop();
+        }
+    }
 
     Ok(())
-}
-
-fn create_client(
-    url: &str,
-    jwt_secret: JwtSecret,
-    timeout: u64,
-) -> Result<HttpClientWrapper<HttpClient<AuthClientService<HttpBackend>>>> {
-    // Create a middleware that adds a new JWT token to every request.
-    let auth_layer = AuthClientLayer::new(jwt_secret);
-    let client_middleware = tower::ServiceBuilder::new().layer(auth_layer);
-
-    let client = HttpClientBuilder::new()
-        .set_http_middleware(client_middleware)
-        .request_timeout(Duration::from_millis(timeout))
-        .build(url)
-        .map_err(|e| Error::InitRPCClient(e.to_string()))?;
-    Ok(HttpClientWrapper::new(client, url.to_string()))
 }
 
 fn init_tracing(endpoint: &str) {
@@ -272,10 +235,8 @@ fn init_tracing(endpoint: &str) {
     }
 }
 
-async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> Result<()> {
-    let listener = TcpListener::bind(addr)
-        .await
-        .map_err(|e| Error::InitMetrics(e.to_string()))?;
+async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre::Result<()> {
+    let listener = TcpListener::bind(addr).await?;
     info!("Metrics server running on {}", addr);
 
     loop {
@@ -311,16 +272,22 @@ async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> Resu
 #[cfg(test)]
 mod tests {
     use assert_cmd::Command;
+    use http::Uri;
     use jsonrpsee::core::client::ClientT;
+
     use jsonrpsee::http_client::transport::Error as TransportError;
+    use jsonrpsee::http_client::transport::HttpBackend;
+    use jsonrpsee::http_client::HttpClient;
+    use jsonrpsee::RpcModule;
     use jsonrpsee::{
         core::ClientError,
         rpc_params,
         server::{ServerBuilder, ServerHandle},
     };
     use predicates::prelude::*;
-    use reth_rpc_layer::{AuthLayer, JwtAuthValidator};
+    use reth_rpc_layer::{AuthClientService, AuthLayer, JwtAuthValidator, JwtSecret};
     use std::result::Result;
+    use std::str::FromStr;
 
     use super::*;
 
@@ -346,18 +313,19 @@ mod tests {
 
     async fn valid_jwt() {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
-        let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
-        let client = create_client(url.as_str(), secret, 2000);
-        let response = send_request(client.unwrap().client).await;
+
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000).unwrap();
+        let response = send_request(client.auth_client).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
     }
 
     async fn invalid_jwt() {
         let secret = JwtSecret::random();
-        let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
-        let client = create_client(url.as_str(), secret, 2000);
-        let response = send_request(client.unwrap().client).await;
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000).unwrap();
+        let response = send_request(client.auth_client).await;
         assert!(response.is_err());
         assert!(matches!(
             response.unwrap_err(),
@@ -367,7 +335,7 @@ mod tests {
     }
 
     async fn send_request(
-        client: HttpClient<AuthClientService<HttpBackend>>,
+        client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
     ) -> Result<String, ClientError> {
         let server = spawn_server().await;
 

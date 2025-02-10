@@ -12,12 +12,12 @@ cargo run -- [OPTIONS]
 
 ### Command-line Options
 
-- `--jwt-token <TOKEN>`: JWT token for authentication (required)
-- `--jwt-path <PATH>`: Path to the JWT secret file (required if `--jwt-token` is not provided)
+- `--l2-jwt-token <TOKEN>`: JWT token for L2 authentication (required)
+- `--l2-jwt-path <PATH>`: Path to the L2 JWT secret file (required if `--l2-jwt-token` is not provided)
 - `--l2-url <URL>`: URL of the local L2 execution engine (required)
 - `--builder-url <URL>`: URL of the builder execution engine (required)
-- `--builder-jwt-token <TOKEN>`: JWT token for builder authentication. defaults to the value of `--jwt-token` if not provided
-- `--builder-jwt-path <PATH>`: Path to the builder JWT secret file.
+- `--builder-jwt-token <TOKEN>`: JWT token for builder authentication (required)
+- `--builder-jwt-path <PATH>`: Path to the builder JWT secret file (required if `--builder-jwt-token` is not provided)
 - `--rpc-host <HOST>`: Host to run the server on (default: 0.0.0.0)
 - `--rpc-port <PORT>`: Port to run the server on (default: 8081)
 - `--tracing`: Enable tracing (default: false)
@@ -33,25 +33,25 @@ You can also set the options using environment variables. See .env.example to us
 ### Example
 
 ```
-cargo run -- --jwt-token your_jwt_token --l2-url http://localhost:8551 --builder-url http://localhost:8546
+cargo run --l2-jwt-token your_jwt_token --l2-url http://localhost:8545 --builder-jwt-token your_jwt_token --builder-url http://localhost:8546
 ```
 
 ## Core System Workflow
 
 1. `rollup-boost` receives an `engine_FCU` with the attributes to initiate block building:
-    - It relays the call to proposer `op-geth` as usual and multiplexes the call to builder.
-    - The FCU call returns the proposer payload id and internally maps the builder payload id to proposer payload id in the case the payload ids are not the same.
+   - It relays the call to proposer `op-geth` as usual and multiplexes the call to builder.
+   - The FCU call returns the proposer payload id and internally maps the builder payload id to proposer payload id in the case the payload ids are not the same.
 2. When `rollup-boost` receives an `engine_getPayload`:
-    - It queries proposer `op-geth` for a fallback block.
-    - In parallel, it queries builder for a block.
+   - It queries proposer `op-geth` for a fallback block.
+   - In parallel, it queries builder for a block.
 3. Upon receiving the builder block:
-    - `rollup-boost` validates the block with proposer `op-geth` using `engine_newPayload`.
-    - This validation ensures the block will be valid for proposer `op-geth`, preventing network stalls due to invalid blocks.
-    - If the external block is valid, it is returned to the proposer `op-node`. Otherwise, `rollup-boost` will return the fallback block.
+   - `rollup-boost` validates the block with proposer `op-geth` using `engine_newPayload`.
+   - This validation ensures the block will be valid for proposer `op-geth`, preventing network stalls due to invalid blocks.
+   - If the external block is valid, it is returned to the proposer `op-node`. Otherwise, `rollup-boost` will return the fallback block.
 4. The proposer `op-node` sends a `engine_newPayload` request to `rollup-boost` and another `engine_FCU` without attributes to update chain state.
-    - `rollup-boost` just relays the calls to proposer `op-geth`.
-    - Note that since we already called `engine_newPayload` on the proposer `op-geth` in the previous step, the block should be cached and add minimal latency.
-    - The builder `op-node` will receive blocks via p2p gossip and keep the builder node in sync via the engine api.
+   - `rollup-boost` just relays the calls to proposer `op-geth`.
+   - Note that since we already called `engine_newPayload` on the proposer `op-geth` in the previous step, the block should be cached and add minimal latency.
+   - The builder `op-node` will receive blocks via p2p gossip and keep the builder node in sync via the engine api.
 
 ```mermaid
 sequenceDiagram
@@ -72,7 +72,7 @@ sequenceDiagram
     rollup-boost->>op-node: proposer payload id
 
     Note over op-node, builder-op-geth: 2. Get Local and Builder Blocks
-    op-node->>rollup-boost: engine_getPayload 
+    op-node->>rollup-boost: engine_getPayload
     rollup-boost->>op-geth: engine_getPayload
     rollup-boost->>builder-op-geth: engine_getPayload
 
@@ -105,6 +105,7 @@ By default, `rollup-boost` will proxy all RPC calls from the proposer `op-node` 
 - `engine_newPayloadV3`: ensures the builder has the latest block if the local payload was used.
 
 ## License
+
 The code in this project is free software under the [MIT License](/LICENSE).
 
 ---

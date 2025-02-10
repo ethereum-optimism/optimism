@@ -1,2 +1,4 @@
 /target
 .env
+integration_logs
+.vscode
