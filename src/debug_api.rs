@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-const DEFAULT_DEBUG_API_PORT: &str = "5555";
+const DEFAULT_DEBUG_API_PORT: u16 = 5555;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SetDryRunRequest1 {}
@@ -31,14 +31,16 @@ impl DebugServer {
         Self { dry_run }
     }
 
-    pub async fn run(self) -> eyre::Result<()> {
+    pub async fn run(self, port: Option<u16>) -> eyre::Result<()> {
+        let port = port.unwrap_or(DEFAULT_DEBUG_API_PORT);
+
         let server = Server::builder()
-            .build(format!("127.0.0.1:{}", DEFAULT_DEBUG_API_PORT))
+            .build(format!("127.0.0.1:{}", port))
             .await?;
 
         let handle = server.start(self.into_rpc());
 
-        tracing::info!("Debug server started on port {}", DEFAULT_DEBUG_API_PORT);
+        tracing::info!("Debug server started on port {}", port);
 
         // In this example we don't care about doing shutdown so let's it run forever.
         // You may use the `ServerHandle` to shut it down or manage it yourself.
@@ -65,7 +67,7 @@ pub struct DebugClient {
 }
 
 impl DebugClient {
-    fn new(url: &str) -> eyre::Result<Self> {
+    pub fn new(url: &str) -> eyre::Result<Self> {
         let client = HttpClient::builder().build(url)?;
 
         Ok(Self { client })
@@ -94,7 +96,7 @@ mod tests {
         let dry_run = Arc::new(Mutex::new(false));
 
         let server = DebugServer::new(dry_run.clone());
-        let _ = server.run().await.unwrap();
+        let _ = server.run(None).await.unwrap();
 
         let client = DebugClient::default();
         let result = client.toggle_dry_run().await.unwrap();

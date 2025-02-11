@@ -86,6 +86,10 @@ struct Args {
     /// Log format
     #[arg(long, env, default_value = "text")]
     log_format: String,
+
+    /// Debug server port
+    #[arg(long, env, default_value = "5555")]
+    debug_server_port: u16,
 }
 
 #[derive(Subcommand, Debug)]
@@ -208,7 +212,9 @@ async fn main() -> eyre::Result<()> {
         RollupBoostServer::new(l2_client, builder_client, boost_sync_enabled, metrics);
 
     // Spawn the debug server
-    rollup_boost.start_debug_server().await?;
+    rollup_boost
+        .start_debug_server(args.debug_server_port)
+        .await?;
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 

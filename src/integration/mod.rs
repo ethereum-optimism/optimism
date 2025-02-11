@@ -567,7 +567,10 @@ impl RollupBoostTestHarness {
     }
 
     pub async fn get_client(&self) -> DebugClient {
-        DebugClient::default()
+        let rb_service = self._framework.services.get("rollup-boost").unwrap();
+        let endpoint = rb_service.get_endpoint("debug");
+
+        DebugClient::new(&endpoint).unwrap()
     }
 }
 
