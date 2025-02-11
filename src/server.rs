@@ -617,25 +617,6 @@ impl RollupBoostServer {
     }
 }
 
-/*
-#[tonic::async_trait]
-impl Debug for RollupBoostServer {
-    async fn set_dry_run(
-        &self,
-        _request: Request<SetDryRunRequest>,
-    ) -> Result<Response<SetDryRunResponse>, Status> {
-        let mut dry_run = self.dry_run.lock().await;
-        *dry_run = !*dry_run;
-
-        info!(message = "dry run mode is now", "dry_run" = *dry_run);
-
-        Ok(Response::new(SetDryRunResponse {
-            dry_run_state: *dry_run,
-        }))
-    }
-}
-*/
-
 #[cfg(test)]
 mod tests {
 
