@@ -62,8 +62,5 @@ anyhow = "1.0"
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
 
-[build-dependencies]
-tonic-build = "0.12"
-
 [features]
 integration = []
