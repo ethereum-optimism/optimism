@@ -208,7 +208,7 @@ async fn main() -> eyre::Result<()> {
         RollupBoostServer::new(l2_client, builder_client, boost_sync_enabled, metrics);
 
     // Spawn the debug server
-    rollup_boost.start_debug_server().await;
+    rollup_boost.start_debug_server().await?;
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
