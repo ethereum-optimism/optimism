@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use crate::debug_api::SetDryRunRequestAction;
     use crate::integration::RollupBoostTestHarness;
 
     #[tokio::test]
@@ -63,7 +64,10 @@ mod tests {
 
         // enable dry run mode
         {
-            let response = client.toggle_dry_run().await.unwrap();
+            let response = client
+                .set_dry_run(SetDryRunRequestAction::SetDryRun(true))
+                .await
+                .unwrap();
             assert!(response.dry_run_state, "Dry run mode should be enabled");
 
             // the new valid block should be created the the l2 builder
@@ -73,7 +77,10 @@ mod tests {
 
         // toggle again dry run mode
         {
-            let response = client.toggle_dry_run().await.unwrap();
+            let response = client
+                .set_dry_run(SetDryRunRequestAction::SetDryRun(false))
+                .await
+                .unwrap();
             assert!(!response.dry_run_state, "Dry run mode should be disabled");
 
             // the new valid block should be created the the builder

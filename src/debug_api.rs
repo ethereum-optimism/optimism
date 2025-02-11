@@ -9,17 +9,25 @@ use tokio::sync::Mutex;
 const DEFAULT_DEBUG_API_PORT: u16 = 5555;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SetDryRunRequest1 {}
+pub enum SetDryRunRequestAction {
+    ToggleDryRun,
+    SetDryRun(bool),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SetDryRunRequest {
+    pub action: SetDryRunRequestAction,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SetDryRunResponse1 {
+pub struct SetDryRunResponse {
     pub dry_run_state: bool,
 }
 
 #[rpc(server, client, namespace = "debug")]
 trait DebugApi {
     #[method(name = "setDryRun")]
-    async fn set_dry_run(&self, request: SetDryRunRequest1) -> RpcResult<SetDryRunResponse1>;
+    async fn set_dry_run(&self, request: SetDryRunRequest) -> RpcResult<SetDryRunResponse>;
 }
 
 pub struct DebugServer {
@@ -52,11 +60,19 @@ impl DebugServer {
 
 #[async_trait]
 impl DebugApiServer for DebugServer {
-    async fn set_dry_run(&self, _request: SetDryRunRequest1) -> RpcResult<SetDryRunResponse1> {
+    async fn set_dry_run(&self, _request: SetDryRunRequest) -> RpcResult<SetDryRunResponse> {
         let mut dry_run = self.dry_run.lock().await;
-        *dry_run = !*dry_run;
 
-        Ok(SetDryRunResponse1 {
+        match _request.action {
+            SetDryRunRequestAction::ToggleDryRun => {
+                *dry_run = !*dry_run;
+            }
+            SetDryRunRequestAction::SetDryRun(state) => {
+                *dry_run = state;
+            }
+        };
+
+        Ok(SetDryRunResponse {
             dry_run_state: *dry_run,
         })
     }
@@ -73,8 +89,11 @@ impl DebugClient {
         Ok(Self { client })
     }
 
-    pub async fn toggle_dry_run(&self) -> eyre::Result<SetDryRunResponse1> {
-        let request = SetDryRunRequest1 {};
+    pub async fn set_dry_run(
+        &self,
+        action: SetDryRunRequestAction,
+    ) -> eyre::Result<SetDryRunResponse> {
+        let request = SetDryRunRequest { action };
         let result = DebugApiClient::set_dry_run(&self.client, request).await?;
         Ok(result)
     }
@@ -99,12 +118,18 @@ mod tests {
         let _ = server.run(None).await.unwrap();
 
         let client = DebugClient::default();
-        let result = client.toggle_dry_run().await.unwrap();
+        let result = client
+            .set_dry_run(SetDryRunRequestAction::ToggleDryRun)
+            .await
+            .unwrap();
 
         assert_eq!(result.dry_run_state, true);
         assert_eq!(result.dry_run_state, *dry_run.lock().await);
 
-        let result = client.toggle_dry_run().await.unwrap();
+        let result = client
+            .set_dry_run(SetDryRunRequestAction::ToggleDryRun)
+            .await
+            .unwrap();
         assert_eq!(result.dry_run_state, false);
         assert_eq!(result.dry_run_state, *dry_run.lock().await);
     }

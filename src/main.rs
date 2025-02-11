@@ -1,6 +1,6 @@
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
-use debug_api::DebugClient;
+use debug_api::{DebugClient, SetDryRunRequestAction};
 use std::{net::SocketAddr, sync::Arc};
 
 use dotenv::dotenv;
@@ -103,10 +103,8 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum DebugCommands {
-    /// First debug command
-    X {
-        // Add any specific arguments for x command here if needed
-    },
+    /// Toggle dry run mode
+    DryRun {},
 }
 
 #[tokio::main]
@@ -119,9 +117,12 @@ async fn main() -> eyre::Result<()> {
     if let Some(cmd) = args.command {
         match cmd {
             Commands::Debug { command } => match command {
-                DebugCommands::X {} => {
+                DebugCommands::DryRun {} => {
                     let client = DebugClient::default();
-                    let result = client.toggle_dry_run().await.unwrap();
+                    let result = client
+                        .set_dry_run(SetDryRunRequestAction::ToggleDryRun)
+                        .await
+                        .unwrap();
                     println!("Response: {:?}", result);
 
                     return Ok(());
