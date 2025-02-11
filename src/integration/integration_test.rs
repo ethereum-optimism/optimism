@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{debug::SetDryRunRequest, integration::RollupBoostTestHarness};
+    use crate::integration::RollupBoostTestHarness;
 
     #[tokio::test]
     async fn test_integration_simple() -> eyre::Result<()> {
@@ -59,18 +59,12 @@ mod tests {
             );
         }
 
-        let mut client = harness.get_client().await;
+        let client = harness.get_client().await;
 
         // enable dry run mode
         {
-            let response = client
-                .set_dry_run(tonic::Request::new(SetDryRunRequest {}))
-                .await
-                .unwrap();
-            assert!(
-                response.into_inner().dry_run_state,
-                "Dry run mode should be enabled"
-            );
+            let response = client.toggle_dry_run().await.unwrap();
+            assert!(response.dry_run_state, "Dry run mode should be enabled");
 
             // the new valid block should be created the the l2 builder
             let (_block, block_creator) = block_generator.generate_block(false).await?;
@@ -79,14 +73,8 @@ mod tests {
 
         // toggle again dry run mode
         {
-            let response = client
-                .set_dry_run(tonic::Request::new(SetDryRunRequest {}))
-                .await
-                .unwrap();
-            assert!(
-                !response.into_inner().dry_run_state,
-                "Dry run mode should be disabled"
-            );
+            let response = client.toggle_dry_run().await.unwrap();
+            assert!(!response.dry_run_state, "Dry run mode should be disabled");
 
             // the new valid block should be created the the builder
             let (_block, block_creator) = block_generator.generate_block(false).await?;

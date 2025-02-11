@@ -1,7 +1,6 @@
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
-use debug::debug_client::DebugClient;
-use debug::SetDryRunRequest;
+use debug_api::DebugClient;
 use std::{net::SocketAddr, sync::Arc};
 
 use dotenv::dotenv;
@@ -29,15 +28,12 @@ use tracing::{error, info, Level};
 use tracing_subscriber::EnvFilter;
 
 mod client;
+mod debug_api;
 #[cfg(all(feature = "integration", test))]
 mod integration;
 mod metrics;
 mod proxy;
 mod server;
-
-pub mod debug {
-    tonic::include_proto!("debug");
-}
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
@@ -120,11 +116,9 @@ async fn main() -> eyre::Result<()> {
         match cmd {
             Commands::Debug { command } => match command {
                 DebugCommands::X {} => {
-                    let mut client = DebugClient::connect("http://[::1]:50051").await.unwrap();
-
-                    let request = tonic::Request::new(SetDryRunRequest {});
-                    let response = client.set_dry_run(request).await.unwrap();
-                    println!("Response: {:?}", response);
+                    let client = DebugClient::default();
+                    let result = client.toggle_dry_run().await.unwrap();
+                    println!("Response: {:?}", result);
 
                     return Ok(());
                 }
@@ -213,8 +207,8 @@ async fn main() -> eyre::Result<()> {
     let rollup_boost =
         RollupBoostServer::new(l2_client, builder_client, boost_sync_enabled, metrics);
 
-    // Start the debug GRPC server
-    rollup_boost.start_tonic_server();
+    // Spawn the debug server
+    rollup_boost.start_debug_server().await;
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 

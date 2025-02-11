@@ -1,13 +1,11 @@
 use crate::client::ExecutionClient;
-use crate::debug;
+use crate::debug_api;
 use crate::metrics::ServerMetrics;
 use alloy_primitives::B256;
-use debug::debug_server::{Debug, DebugServer};
-use debug::{SetDryRunRequest, SetDryRunResponse};
+use debug_api::DebugServer;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::time::Instant;
-use tonic::{transport::Server, Request, Response, Status};
 
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
@@ -134,15 +132,9 @@ impl RollupBoostServer {
         }
     }
 
-    pub fn start_tonic_server(&self) {
-        let self_clone = self.clone();
-
-        tokio::spawn(async {
-            Server::builder()
-                .add_service(DebugServer::new(self_clone))
-                .serve("[::1]:50051".parse().unwrap())
-                .await
-        });
+    pub async fn start_debug_server(&self) {
+        let server = DebugServer::new(self.dry_run.clone());
+        let _ = server.run().await.unwrap();
     }
 }
 
@@ -623,6 +615,7 @@ impl RollupBoostServer {
     }
 }
 
+/*
 #[tonic::async_trait]
 impl Debug for RollupBoostServer {
     async fn set_dry_run(
@@ -639,6 +632,7 @@ impl Debug for RollupBoostServer {
         }))
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
