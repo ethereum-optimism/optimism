@@ -1,0 +1,37 @@
+[
+  {
+    "bytes": "20",
+    "label": "_nextPriorityValidator",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
+    "bytes": "96",
+    "label": "_validatorTree",
+    "offset": 0,
+    "slot": "1",
+    "type": "struct BalancedWeightTree.Tree"
+  },
+  {
+    "bytes": "32",
+    "label": "_validatorInfo",
+    "offset": 0,
+    "slot": "4",
+    "type": "mapping(address => struct ValidatorManager.Validator)"
+  },
+  {
+    "bytes": "32",
+    "label": "_jail",
+    "offset": 0,
+    "slot": "5",
+    "type": "mapping(address => uint128)"
+  },
+  {
+    "bytes": "32",
+    "label": "_pendingChallengeReward",
+    "offset": 0,
+    "slot": "6",
+    "type": "mapping(uint256 => uint128)"
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "bytes": "32",
+    "label": "_vaults",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(address => struct AssetManager.Vault)"
+  }
+]

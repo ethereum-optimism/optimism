@@ -1,0 +1,205 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "51",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "32",
+    "label": "_hashedName",
+    "offset": 0,
+    "slot": "101",
+    "type": "bytes32"
+  },
+  {
+    "bytes": "32",
+    "label": "_hashedVersion",
+    "offset": 0,
+    "slot": "102",
+    "type": "bytes32"
+  },
+  {
+    "bytes": "32",
+    "label": "_name",
+    "offset": 0,
+    "slot": "103",
+    "type": "string"
+  },
+  {
+    "bytes": "32",
+    "label": "_version",
+    "offset": 0,
+    "slot": "104",
+    "type": "string"
+  },
+  {
+    "bytes": "1536",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "105",
+    "type": "uint256[48]"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "153",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "203",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "32",
+    "label": "_name",
+    "offset": 0,
+    "slot": "253",
+    "type": "string"
+  },
+  {
+    "bytes": "32",
+    "label": "_proposals",
+    "offset": 0,
+    "slot": "254",
+    "type": "mapping(uint256 => struct GovernorUpgradeable.ProposalCore)"
+  },
+  {
+    "bytes": "64",
+    "label": "_governanceCall",
+    "offset": 0,
+    "slot": "255",
+    "type": "struct DoubleEndedQueueUpgradeable.Bytes32Deque"
+  },
+  {
+    "bytes": "1472",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "257",
+    "type": "uint256[46]"
+  },
+  {
+    "bytes": "32",
+    "label": "_votingDelay",
+    "offset": 0,
+    "slot": "303",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "_votingPeriod",
+    "offset": 0,
+    "slot": "304",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "_proposalThreshold",
+    "offset": 0,
+    "slot": "305",
+    "type": "uint256"
+  },
+  {
+    "bytes": "1504",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "306",
+    "type": "uint256[47]"
+  },
+  {
+    "bytes": "32",
+    "label": "_proposalVotes",
+    "offset": 0,
+    "slot": "353",
+    "type": "mapping(uint256 => struct GovernorCountingSimpleUpgradeable.ProposalVote)"
+  },
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "354",
+    "type": "uint256[49]"
+  },
+  {
+    "bytes": "20",
+    "label": "token",
+    "offset": 0,
+    "slot": "403",
+    "type": "contract IERC5805Upgradeable"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "404",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "32",
+    "label": "_quorumNumerator",
+    "offset": 0,
+    "slot": "454",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "_quorumNumeratorHistory",
+    "offset": 0,
+    "slot": "455",
+    "type": "struct CheckpointsUpgradeable.Trace224"
+  },
+  {
+    "bytes": "1536",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "456",
+    "type": "uint256[48]"
+  },
+  {
+    "bytes": "20",
+    "label": "_timelock",
+    "offset": 0,
+    "slot": "504",
+    "type": "contract TimelockControllerUpgradeable"
+  },
+  {
+    "bytes": "32",
+    "label": "_timelockIds",
+    "offset": 0,
+    "slot": "505",
+    "type": "mapping(uint256 => bytes32)"
+  },
+  {
+    "bytes": "1536",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "506",
+    "type": "uint256[48]"
+  }
+]

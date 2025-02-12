@@ -1,0 +1,65 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "32",
+    "label": "_released",
+    "offset": 0,
+    "slot": "51",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "_erc20Released",
+    "offset": 0,
+    "slot": "52",
+    "type": "mapping(address => uint256)"
+  },
+  {
+    "bytes": "20",
+    "label": "_beneficiary",
+    "offset": 0,
+    "slot": "53",
+    "type": "address"
+  },
+  {
+    "bytes": "8",
+    "label": "_start",
+    "offset": 20,
+    "slot": "53",
+    "type": "uint64"
+  },
+  {
+    "bytes": "8",
+    "label": "_duration",
+    "offset": 0,
+    "slot": "54",
+    "type": "uint64"
+  },
+  {
+    "bytes": "1536",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "55",
+    "type": "uint256[48]"
+  }
+]

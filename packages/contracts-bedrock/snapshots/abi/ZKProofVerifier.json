@@ -1,0 +1,128 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISP1Verifier",
+        "name": "_sp1Verifier",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_zkVmProgramVKey",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "sp1Verifier",
+    "outputs": [
+      {
+        "internalType": "contract ISP1Verifier",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "zkVmProgramVKey",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "publicValues",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "proofBytes",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct KromaTypes.ZkVmProof",
+        "name": "_zkVmProof",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_storedSrcOutput",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_storedDstOutput",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_storedL1Head",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verifyZkVmProof",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "publicInputHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "zkVmProgramVKey",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "DstOutputMatched",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPublicInput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidZkVmVKey",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SrcOutputMismatched",
+    "type": "error"
+  }
+]

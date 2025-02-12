@@ -1,0 +1,892 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract L2OutputOracle",
+        "name": "_l2Oracle",
+        "type": "address"
+      },
+      {
+        "internalType": "contract ZKProofVerifier",
+        "name": "_zkProofVerifier",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_submissionInterval",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_creationPeriodSeconds",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_bisectionTimeout",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_provingTimeout",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_segmentsLengths",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "address",
+        "name": "_securityCouncil",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "BISECTION_TIMEOUT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "CREATION_PERIOD_SECONDS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "L2_ORACLE",
+    "outputs": [
+      {
+        "internalType": "contract L2OutputOracle",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "L2_ORACLE_SUBMISSION_INTERVAL",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PROVING_TIMEOUT",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SECURITY_COUNCIL",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ZK_PROOF_VERIFIER",
+    "outputs": [
+      {
+        "internalType": "contract ZKProofVerifier",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_challenger",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_pos",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_segments",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "bisect",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "cancelChallenge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_challenger",
+        "type": "address"
+      }
+    ],
+    "name": "challengerTimeout",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "challenges",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "turn",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint64",
+        "name": "timeoutAt",
+        "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "asserter",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "segSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "segStart",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "l1Head",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_l1BlockHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l1BlockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32[]",
+        "name": "_segments",
+        "type": "bytes32[]"
+      }
+    ],
+    "name": "createChallenge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "deletedOutputs",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "submitter",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "outputRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint128",
+        "name": "timestamp",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "l2BlockNumber",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_challenger",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_asserter",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_outputRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_publicInputHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "dismissChallenge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "forceDeleteOutput",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_challenger",
+        "type": "address"
+      }
+    ],
+    "name": "getChallenge",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint8",
+            "name": "turn",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timeoutAt",
+            "type": "uint64"
+          },
+          {
+            "internalType": "address",
+            "name": "asserter",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32[]",
+            "name": "segments",
+            "type": "bytes32[]"
+          },
+          {
+            "internalType": "uint256",
+            "name": "segSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "segStart",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l1Head",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct KromaTypes.Challenge",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_challenger",
+        "type": "address"
+      }
+    ],
+    "name": "getStatus",
+    "outputs": [
+      {
+        "internalType": "enum Colosseum.ChallengeStatus",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "_segmentsLengths",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "isInCreationPeriod",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_pos",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "zkVmProgramVKey",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "publicValues",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "proofBytes",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct KromaTypes.ZkVmProof",
+        "name": "_zkVmProof",
+        "type": "tuple"
+      }
+    ],
+    "name": "proveFaultWithZkVm",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "segmentsLengths",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verifiedPublicInputs",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "turn",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "Bisected",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengeCanceled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "asserter",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengeCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengeDismissed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengerTimedOut",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "asseter",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "OutputForceDeleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "Proven",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      }
+    ],
+    "name": "ReadyToProve",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyVerifiedPublicInput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CannotCancelChallenge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CreationPeriodPassed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FirstSegmentMismatched",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ImproperChallengeStatus",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ImproperChallengeStatusToCancel",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ImproperValidatorStatus",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAddressGiven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidOutputGiven",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPublicInputHash",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSegmentsLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidTurn",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1Reorged",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LastSegmentMatched",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotAllowedCaller",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotAllowedGenesisOutput",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyChallengerCanCancel",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutputAlreadyDeleted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutputAlreadyFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutputNotDeleted",
+    "type": "error"
+  }
+]

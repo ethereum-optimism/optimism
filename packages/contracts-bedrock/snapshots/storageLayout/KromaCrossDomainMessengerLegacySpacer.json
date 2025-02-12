@@ -1,0 +1,23 @@
+[
+  {
+    "bytes": "1600",
+    "label": "spacer_1_0_1600",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "1",
+    "label": "spacer_51_0_1",
+    "offset": 0,
+    "slot": "50",
+    "type": "bool"
+  },
+  {
+    "bytes": "1568",
+    "label": "spacer_52_0_1568",
+    "offset": 0,
+    "slot": "51",
+    "type": "uint256[49]"
+  }
+]

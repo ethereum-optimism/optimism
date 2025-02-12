@@ -1,12 +1,48 @@
 [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "contract IValidatorManager",
+        "name": "_validatorManager",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_colosseum",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_submissionInterval",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2BlockTime",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_startingBlockNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_startingTimestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_finalizationPeriodSeconds",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
   {
     "inputs": [],
-    "name": "CHALLENGER",
+    "name": "COLOSSEUM",
     "outputs": [
       {
         "internalType": "address",
@@ -45,19 +81,6 @@
   },
   {
     "inputs": [],
-    "name": "PROPOSER",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "SUBMISSION_INTERVAL",
     "outputs": [
       {
@@ -71,10 +94,10 @@
   },
   {
     "inputs": [],
-    "name": "challenger",
+    "name": "VALIDATOR_MANAGER",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract IValidatorManager",
         "name": "",
         "type": "address"
       }
@@ -105,18 +128,11 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_l2OutputIndex",
+        "name": "_outputIndex",
         "type": "uint256"
       }
     ],
-    "name": "deleteL2Outputs",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "finalizationPeriodSeconds",
+    "name": "finalizedAt",
     "outputs": [
       {
         "internalType": "uint256",
@@ -140,6 +156,11 @@
       {
         "components": [
           {
+            "internalType": "address",
+            "name": "submitter",
+            "type": "address"
+          },
+          {
             "internalType": "bytes32",
             "name": "outputRoot",
             "type": "bytes32"
@@ -155,7 +176,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct Types.OutputProposal",
+        "internalType": "struct KromaTypes.CheckpointOutput",
         "name": "",
         "type": "tuple"
       }
@@ -176,6 +197,11 @@
       {
         "components": [
           {
+            "internalType": "address",
+            "name": "submitter",
+            "type": "address"
+          },
+          {
             "internalType": "bytes32",
             "name": "outputRoot",
             "type": "bytes32"
@@ -191,7 +217,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct Types.OutputProposal",
+        "internalType": "struct KromaTypes.CheckpointOutput",
         "name": "",
         "type": "tuple"
       }
@@ -222,14 +248,23 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_submissionInterval",
+        "name": "_outputIndex",
         "type": "uint256"
-      },
+      }
+    ],
+    "name": "getSubmitter",
+    "outputs": [
       {
-        "internalType": "uint256",
-        "name": "_l2BlockTime",
-        "type": "uint256"
-      },
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
       {
         "internalType": "uint256",
         "name": "_startingBlockNumber",
@@ -239,21 +274,6 @@
         "internalType": "uint256",
         "name": "_startingTimestamp",
         "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "_proposer",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_challenger",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_finalizationPeriodSeconds",
-        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -262,13 +282,19 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "l2BlockTime",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_outputIndex",
         "type": "uint256"
+      }
+    ],
+    "name": "isFinalized",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -315,7 +341,95 @@
   },
   {
     "inputs": [],
+    "name": "nextFinalizeOutputIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "nextOutputIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextOutputMinL2Timestamp",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_l2OutputIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_newOutputRoot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "_submitter",
+        "type": "address"
+      }
+    ],
+    "name": "replaceL2Output",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_outputIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "setNextFinalizeOutputIndex",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingBlockNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingTimestamp",
     "outputs": [
       {
         "internalType": "uint256",
@@ -349,61 +463,9 @@
         "type": "uint256"
       }
     ],
-    "name": "proposeL2Output",
+    "name": "submitL2Output",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "proposer",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "startingBlockNumber",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "startingTimestamp",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "submissionInterval",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -437,6 +499,31 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "uint256",
+        "name": "outputIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newSubmitter",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "newOutputRoot",
+        "type": "bytes32"
+      }
+    ],
+    "name": "OutputReplaced",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "bytes32",
         "name": "outputRoot",
         "type": "bytes32"
@@ -460,26 +547,7 @@
         "type": "uint256"
       }
     ],
-    "name": "OutputProposed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "prevNextOutputIndex",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "newNextOutputIndex",
-        "type": "uint256"
-      }
-    ],
-    "name": "OutputsDeleted",
+    "name": "OutputSubmitted",
     "type": "event"
   }
 ]
