@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use crate::debug_api::SetDryRunRequestAction;
     use crate::integration::RollupBoostTestHarness;
 
     #[tokio::test]
@@ -35,6 +36,54 @@ mod tests {
         // process 5 more non empty blocks which are processed by the builder.
         // The builder should be on sync because it has received the new payload requests from rollup-boost.
         for _ in 0..5 {
+            let (_block, block_creator) = block_generator.generate_block(false).await?;
+            assert!(
+                block_creator.is_builder(),
+                "Block creator should be the builder"
+            );
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_integration_dry_run() -> eyre::Result<()> {
+        let harness = RollupBoostTestHarness::new("test_integration_dry_run").await?;
+        let mut block_generator = harness.get_block_generator().await;
+
+        // start creating 5 empty blocks which are processed by the builder
+        for _ in 0..5 {
+            let (_block, block_creator) = block_generator.generate_block(false).await?;
+            assert!(
+                block_creator.is_builder(),
+                "Block creator should be the builder"
+            );
+        }
+
+        let client = harness.get_client().await;
+
+        // enable dry run mode
+        {
+            let response = client
+                .set_dry_run(SetDryRunRequestAction::SetDryRun(true))
+                .await
+                .unwrap();
+            assert!(response.dry_run_state, "Dry run mode should be enabled");
+
+            // the new valid block should be created the the l2 builder
+            let (_block, block_creator) = block_generator.generate_block(false).await?;
+            assert!(block_creator.is_l2(), "Block creator should be l2");
+        }
+
+        // toggle again dry run mode
+        {
+            let response = client
+                .set_dry_run(SetDryRunRequestAction::SetDryRun(false))
+                .await
+                .unwrap();
+            assert!(!response.dry_run_state, "Dry run mode should be disabled");
+
+            // the new valid block should be created the the builder
             let (_block, block_creator) = block_generator.generate_block(false).await?;
             assert!(
                 block_creator.is_builder(),

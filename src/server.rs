@@ -1,6 +1,8 @@
 use crate::client::ExecutionClient;
+use crate::debug_api;
 use crate::metrics::ServerMetrics;
 use alloy_primitives::B256;
+use debug_api::DebugServer;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::time::Instant;
@@ -110,6 +112,7 @@ pub struct RollupBoostServer {
     pub boost_sync: bool,
     pub metrics: Option<Arc<ServerMetrics>>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
+    pub dry_run: Arc<Mutex<bool>>,
 }
 
 impl RollupBoostServer {
@@ -125,7 +128,15 @@ impl RollupBoostServer {
             boost_sync,
             metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
+            dry_run: Arc::new(Mutex::new(false)),
         }
+    }
+
+    pub async fn start_debug_server(&self, port: u16) -> eyre::Result<()> {
+        let server = DebugServer::new(self.dry_run.clone());
+        server.run(Some(port)).await?;
+
+        Ok(())
     }
 }
 
@@ -405,6 +416,18 @@ impl RollupBoostServer {
         let l2_client_future = self.l2_client.auth_client.get_payload_v3(payload_id);
 
         let builder_client_future = Box::pin(async move {
+            let dry_run = self.dry_run.lock().await;
+            if *dry_run {
+                info!(message = "dry run mode is enabled, skipping get payload builder call");
+
+                // We are in dry run mode, so we do not want to call the builder.
+                return Err(ClientError::Call(ErrorObject::owned(
+                    INVALID_REQUEST_CODE,
+                    "Dry run mode is enabled",
+                    None::<String>,
+                )));
+            }
+
             if let Some(metrics) = &self.metrics {
                 metrics.get_payload_count.increment(1);
             }

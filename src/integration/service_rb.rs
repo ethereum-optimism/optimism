@@ -50,6 +50,11 @@ impl Service for RollupBoostConfig {
             .arg(Arg::Port {
                 name: "rpc".into(),
                 preferred: 8112,
+            })
+            .arg("--debug-server-port")
+            .arg(Arg::Port {
+                name: "debug".into(),
+                preferred: 5555,
             });
 
         cmd

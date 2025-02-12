@@ -1,3 +1,4 @@
+use crate::debug_api::DebugClient;
 use crate::server::EngineApiClient;
 use crate::server::PayloadCreator;
 use alloy_eips::BlockNumberOrTag;
@@ -563,6 +564,13 @@ impl RollupBoostTestHarness {
         let mut block_creator = SimpleBlockGenerator::new(self);
         block_creator.init().await.unwrap();
         block_creator
+    }
+
+    pub async fn get_client(&self) -> DebugClient {
+        let rb_service = self._framework.services.get("rollup-boost").unwrap();
+        let endpoint = rb_service.get_endpoint("debug");
+
+        DebugClient::new(&endpoint).unwrap()
     }
 }
 
