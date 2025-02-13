@@ -19,6 +19,11 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Install op-reth
+        uses: flashbots/flashbots-toolchain@v0.2
+        with:
+          op-reth: latest
+
       - name: Download op-reth
         run: |
           ./scripts/download-op-reth.sh
