@@ -24,11 +24,6 @@ jobs:
         with:
           op-reth: latest
 
-      - name: Download op-reth
-        run: |
-          ./scripts/download-op-reth.sh
-          echo "$(pwd)" >> $GITHUB_PATH
-
       - name: Log Op-reth version
         run: |
           op-reth --version
