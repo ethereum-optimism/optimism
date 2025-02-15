@@ -14,7 +14,6 @@ use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 use reth_optimism_payload_builder::OpPayloadAttributes;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::collections::{HashMap, HashSet};
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -59,6 +58,9 @@ pub enum Arg {
     Port { name: String, preferred: u16 },
     Dir { name: String },
     Value(String),
+    // FilePath is an argument that writes the given content to a file in the test directory
+    // and returns the path to the file as an argument
+    FilePath { name: String, content: String },
 }
 
 impl From<String> for Arg {
@@ -128,18 +130,21 @@ impl ServiceCommand {
     }
 }
 
+pub struct ReadyParams {
+    pub log_pattern: String,
+    pub duration: Duration,
+}
+
 pub trait Service {
     fn command(&self) -> ServiceCommand;
-    fn ready(
-        &self,
-        service_instance: &mut ServiceInstance,
-    ) -> impl Future<Output = Result<(), IntegrationError>> + Send;
+    fn ready(&self) -> ReadyParams;
 }
 
 pub struct ServiceInstance {
     command_config: (String, Vec<String>),
     process: Option<Child>,
-    pub log_path: PathBuf,
+    log_path: PathBuf,
+    service: Box<dyn Service>,
     allocated_ports: HashMap<String, u16>,
 }
 
@@ -159,6 +164,7 @@ impl ServiceInstance {
         command_config: (String, Vec<String>),
         logs_dir: PathBuf,
         allocated_ports: HashMap<String, u16>,
+        service: Box<dyn Service>,
     ) -> Self {
         let log_path = logs_dir.join(format!("{}.log", name));
         Self {
@@ -166,6 +172,7 @@ impl ServiceInstance {
             command_config,
             log_path,
             allocated_ports,
+            service,
         }
     }
 
@@ -174,9 +181,13 @@ impl ServiceInstance {
             return Err(IntegrationError::ServiceAlreadyRunning);
         }
 
-        let log = open_log_file(&self.log_path)?;
+        let mut log = open_log_file(&self.log_path)?;
         let stdout = log.try_clone().map_err(|_| IntegrationError::LogError)?;
         let stderr = log.try_clone().map_err(|_| IntegrationError::LogError)?;
+
+        // print the command config on the log file
+        log.write_all(format!("Command config: {:?}\n", self.command_config).as_bytes())
+            .map_err(|_| IntegrationError::LogError)?;
 
         // build the command from the command config
         let mut cmd = {
@@ -207,12 +218,12 @@ impl ServiceInstance {
     }
 
     /// Start a service using its configuration and wait for it to be ready
-    pub async fn start_with_config<T: Service>(
-        &mut self,
-        config: &T,
-    ) -> Result<(), IntegrationError> {
+    pub fn start_and_ready(&mut self) -> Result<(), IntegrationError> {
         self.start()?;
-        config.ready(self).await?;
+
+        let params = self.service.ready();
+        self.wait_for_log(&params.log_pattern, params.duration)?;
+
         Ok(())
     }
 
@@ -257,6 +268,14 @@ impl ServiceInstance {
             file.read_to_string(&mut contents)
                 .map_err(|_| IntegrationError::LogError)?;
 
+            // Since we share the same log file for different executions of the same service during the lifespan
+            // of the test, we need to filter the logs and only consider the logs of the current execution.
+            // We can do this because we print at each service start the log "Command config: <commadn config>"
+            // So, we are going to search for the command config in the log and only consider the logs after that
+            if let Some(index) = contents.rfind("Command config:") {
+                contents = contents[index..].to_string();
+            }
+
             if contents.contains(pattern) {
                 return Ok(());
             }
@@ -293,6 +312,12 @@ impl IntegrationFramework {
         })
     }
 
+    fn get_mut_service(&mut self, name: &str) -> eyre::Result<&mut ServiceInstance> {
+        self.services
+            .get_mut(name)
+            .ok_or(eyre::eyre!("Service not found"))
+    }
+
     fn build_command(
         &mut self,
         service_name: &str,
@@ -313,6 +338,17 @@ impl IntegrationFramework {
                     std::fs::create_dir_all(&dir_path).map_err(|_| IntegrationError::SetupError)?;
                     command_args.push(
                         dir_path
+                            .to_str()
+                            .expect("Failed to convert path to string")
+                            .to_string(),
+                    );
+                }
+                Arg::FilePath { name, content } => {
+                    let file_path = self.test_dir.join(service_name).join(name);
+                    std::fs::write(&file_path, content)
+                        .map_err(|_| IntegrationError::SetupError)?;
+                    command_args.push(
+                        file_path
                             .to_str()
                             .expect("Failed to convert path to string")
                             .to_string(),
@@ -346,10 +382,10 @@ impl IntegrationFramework {
             .ok_or(IntegrationError::SetupError)
     }
 
-    pub async fn start<T: Service>(
+    pub async fn start(
         &mut self,
         name: &str,
-        config: &T,
+        config: Box<dyn Service>,
     ) -> Result<&mut ServiceInstance, IntegrationError> {
         let (allocated_ports, command_config) = self.build_command(name, config.command())?;
 
@@ -359,11 +395,12 @@ impl IntegrationFramework {
             command_config,
             self.logs_dir.clone(),
             allocated_ports,
+            config,
         );
         self.services.insert(name.to_string(), service);
         let service = self.services.get_mut(name).unwrap();
 
-        service.start_with_config(config).await?;
+        service.start_and_ready()?;
         Ok(service)
     }
 
@@ -495,6 +532,12 @@ pub struct RollupBoostTestHarness {
     _framework: IntegrationFramework, // Keep framework alive to maintain service ownership
 }
 
+/// Test node P2P configuration (private_key, enode_address)
+pub const TEST_NODE_P2P_ADDR: (&str, &str) = (
+    "a11ac89899cd86e36b6fb881ec1255b8a92a688790b7d950f8b7d8dd626671fb",
+    "3479db4d9217fb5d7a8ed4d61ac36e120b05d36c2eefb795dc42ff2e971f251a2315f5649ea1833271e020b9adc98d5db9973c7ed92d6b2f1f2223088c3d852f"
+);
+
 impl RollupBoostTestHarness {
     pub async fn new(test_name: &str) -> Result<Self, IntegrationError> {
         let mut framework = IntegrationFramework::new(test_name)?;
@@ -507,20 +550,31 @@ impl RollupBoostTestHarness {
         // Start L2 Reth instance
         let l2_reth_config = service_reth::RethConfig::new()
             .jwt_secret_path(jwt_path.clone())
-            .chain_config_path(genesis_path.clone());
+            .chain_config_path(genesis_path.clone())
+            .p2p_secret_key(TEST_NODE_P2P_ADDR.0.to_string());
 
         let l2_service = {
-            let service = framework.start("l2-reth", &l2_reth_config).await?;
-            service.get_endpoint("authrpc")
+            let service = framework.start("l2-reth", Box::new(l2_reth_config)).await?;
+            (service.get_endpoint("authrpc"), service.get_port("p2p"))
         };
 
         // Start Builder Reth instance
+
+        // The enode address depends on the p2p port of the L2 Reth instance
+        // TODO: We could also query the logs of the L2 Reth instance for the enode address and avoid this
+        let enode_address = format!(
+            "enode://{}@127.0.0.1:{}",
+            TEST_NODE_P2P_ADDR.1, l2_service.1
+        );
+
         let builder_reth_config = service_reth::RethConfig::new()
             .jwt_secret_path(jwt_path.clone())
-            .chain_config_path(genesis_path);
+            .chain_config_path(genesis_path)
+            .trusted_peer(enode_address);
+
         let builder_service = {
             let service = framework
-                .start("builder-reth", &builder_reth_config)
+                .start("builder", Box::new(builder_reth_config))
                 .await?;
             service.get_endpoint("authrpc")
         };
@@ -528,27 +582,26 @@ impl RollupBoostTestHarness {
         // Start Rollup-boost instance
         let rb_config = service_rb::RollupBoostConfig::new()
             .jwt_path(jwt_path)
-            .l2_url(l2_service)
+            .l2_url(l2_service.0)
             .builder_url(builder_service);
 
-        let _ = framework.start("rollup-boost", &rb_config).await?;
+        let _ = framework.start("rollup-boost", Box::new(rb_config)).await?;
 
         Ok(Self {
             _framework: framework,
         })
     }
 
-    pub async fn get_block_generator(&self) -> SimpleBlockGenerator {
+    pub async fn get_block_generator(&self) -> eyre::Result<SimpleBlockGenerator> {
         let rb_service = self._framework.services.get("rollup-boost").unwrap();
         let validator = BlockBuilderCreatorValidator::new(rb_service.log_path.clone());
 
         let engine_api = EngineApi::new(&rb_service.get_endpoint("rpc"), DEFAULT_JWT_TOKEN)
-            .map_err(|_| IntegrationError::SetupError)
-            .unwrap();
+            .map_err(|_| IntegrationError::SetupError)?;
 
         let mut block_creator = SimpleBlockGenerator::new(validator, engine_api);
-        block_creator.init().await.unwrap();
-        block_creator
+        block_creator.init().await?;
+        Ok(block_creator)
     }
 
     pub async fn get_client(&self) -> DebugClient {
