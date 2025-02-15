@@ -212,7 +212,14 @@ impl ServiceInstance {
 
     pub fn stop(&mut self) -> Result<(), IntegrationError> {
         if let Some(mut process) = self.process.take() {
-            process.kill().map_err(|_| IntegrationError::SpawnError)?;
+            nix::sys::signal::kill(
+                nix::unistd::Pid::from_raw(process.id() as i32),
+                nix::sys::signal::SIGINT,
+            )
+            .map_err(|_| IntegrationError::SpawnError)?;
+
+            // wait for the process to exit
+            process.wait().unwrap();
         }
         Ok(())
     }
