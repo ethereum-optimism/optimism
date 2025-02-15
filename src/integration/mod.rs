@@ -137,6 +137,7 @@ pub trait Service {
 }
 
 pub struct ServiceInstance {
+    command_config: (String, Vec<String>),
     process: Option<Child>,
     pub log_path: PathBuf,
     allocated_ports: HashMap<String, u16>,
@@ -153,16 +154,22 @@ pub struct IntegrationFramework {
 }
 
 impl ServiceInstance {
-    pub fn new(name: String, logs_dir: PathBuf, allocated_ports: HashMap<String, u16>) -> Self {
+    pub fn new(
+        name: String,
+        command_config: (String, Vec<String>),
+        logs_dir: PathBuf,
+        allocated_ports: HashMap<String, u16>,
+    ) -> Self {
         let log_path = logs_dir.join(format!("{}.log", name));
         Self {
             process: None,
+            command_config,
             log_path,
             allocated_ports,
         }
     }
 
-    pub fn start(&mut self, command: Command) -> Result<(), IntegrationError> {
+    pub fn start(&mut self) -> Result<(), IntegrationError> {
         if self.process.is_some() {
             return Err(IntegrationError::ServiceAlreadyRunning);
         }
@@ -171,7 +178,13 @@ impl ServiceInstance {
         let stdout = log.try_clone().map_err(|_| IntegrationError::LogError)?;
         let stderr = log.try_clone().map_err(|_| IntegrationError::LogError)?;
 
-        let mut cmd = command;
+        // build the command from the command config
+        let mut cmd = {
+            let command_config = self.command_config.clone();
+            let mut cmd = Command::new(command_config.0.clone());
+            cmd.args(&command_config.1);
+            cmd
+        };
         cmd.stdout(stdout).stderr(stderr);
 
         let child = match cmd.spawn() {
@@ -197,9 +210,8 @@ impl ServiceInstance {
     pub async fn start_with_config<T: Service>(
         &mut self,
         config: &T,
-        system_command: Command,
     ) -> Result<(), IntegrationError> {
-        self.start(system_command)?;
+        self.start()?;
         config.ready(self).await?;
         Ok(())
     }
@@ -285,29 +297,34 @@ impl IntegrationFramework {
         &mut self,
         service_name: &str,
         cmd: ServiceCommand,
-    ) -> Result<(HashMap<String, u16>, Command), IntegrationError> {
-        let mut command = Command::new(cmd.program);
+    ) -> Result<(HashMap<String, u16>, (String, Vec<String>)), IntegrationError> {
         let mut allocated_ports = HashMap::new();
+        let mut command_args = Vec::new();
 
         for arg in cmd.args {
             match arg {
                 Arg::Port { name, preferred } => {
                     let port = self.find_available_port(preferred)?;
                     allocated_ports.insert(name, port);
-                    command.arg(port.to_string());
+                    command_args.push(port.to_string());
                 }
                 Arg::Dir { name } => {
                     let dir_path = self.test_dir.join(service_name).join(name);
                     std::fs::create_dir_all(&dir_path).map_err(|_| IntegrationError::SetupError)?;
-                    command.arg(dir_path.to_str().expect("Failed to convert path to string"));
+                    command_args.push(
+                        dir_path
+                            .to_str()
+                            .expect("Failed to convert path to string")
+                            .to_string(),
+                    );
                 }
                 Arg::Value(value) => {
-                    command.arg(value);
+                    command_args.push(value);
                 }
             }
         }
 
-        Ok((allocated_ports, command))
+        Ok((allocated_ports, (cmd.program, command_args)))
     }
 
     fn find_available_port(&self, start: u16) -> Result<u16, IntegrationError> {
@@ -334,15 +351,19 @@ impl IntegrationFramework {
         name: &str,
         config: &T,
     ) -> Result<&mut ServiceInstance, IntegrationError> {
-        let (allocated_ports, command) = self.build_command(name, config.command())?;
+        let (allocated_ports, command_config) = self.build_command(name, config.command())?;
 
         // Store the service instance in the framework
-        let service =
-            ServiceInstance::new(name.to_string(), self.logs_dir.clone(), allocated_ports);
+        let service = ServiceInstance::new(
+            name.to_string(),
+            command_config,
+            self.logs_dir.clone(),
+            allocated_ports,
+        );
         self.services.insert(name.to_string(), service);
         let service = self.services.get_mut(name).unwrap();
 
-        service.start_with_config(config, command).await?;
+        service.start_with_config(config).await?;
         Ok(service)
     }
 
