@@ -61,6 +61,8 @@ lazy_static = "1.5.0"
 anyhow = "1.0"
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
+tokio-util = { version = "0.7.13" }
+nix = "0.15.0"
 
 [features]
 integration = []

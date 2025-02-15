@@ -1,11 +1,12 @@
-use crate::integration::{Arg, IntegrationError, Service, ServiceCommand, ServiceInstance};
-use futures_util::Future;
+use crate::integration::{Arg, ReadyParams, Service, ServiceCommand};
 use std::{path::PathBuf, time::Duration};
 
 #[derive(Default)]
 pub struct RethConfig {
     jwt_secret_path: Option<PathBuf>,
     chain_config_path: Option<PathBuf>,
+    p2p_secret_key: Option<String>,
+    trusted_peer: Option<String>,
 }
 
 impl RethConfig {
@@ -22,11 +23,21 @@ impl RethConfig {
         self.chain_config_path = Some(path.into());
         self
     }
+
+    pub fn p2p_secret_key(mut self, key: String) -> Self {
+        self.p2p_secret_key = Some(key);
+        self
+    }
+
+    pub fn trusted_peer(mut self, trusted_peer: String) -> Self {
+        self.trusted_peer = Some(trusted_peer);
+        self
+    }
 }
 
 impl Service for RethConfig {
     fn command(&self) -> ServiceCommand {
-        ServiceCommand::new("op-reth")
+        let mut cmd = ServiceCommand::new("op-reth")
             .arg("node")
             .arg("--authrpc.port")
             .arg(Arg::Port {
@@ -57,13 +68,26 @@ impl Service for RethConfig {
             })
             .arg("--color")
             .arg("never")
-            .arg("--ipcdisable")
+            .arg("--ipcdisable");
+
+        if let Some(p2p_secret_key) = &self.p2p_secret_key {
+            cmd = cmd.arg("--p2p-secret-key").arg(Arg::FilePath {
+                name: "p2p_secret_key".into(),
+                content: p2p_secret_key.clone(),
+            });
+        }
+
+        if let Some(trusted_peer) = &self.trusted_peer {
+            cmd = cmd.arg("--trusted-peers").arg(trusted_peer);
+        }
+
+        cmd
     }
 
-    fn ready(
-        &self,
-        service: &mut ServiceInstance,
-    ) -> impl Future<Output = Result<(), IntegrationError>> + Send {
-        async move { service.wait_for_log("Starting consensus", Duration::from_secs(5)) }
+    fn ready(&self) -> ReadyParams {
+        ReadyParams {
+            log_pattern: "Starting consensus".to_string(),
+            duration: Duration::from_secs(5),
+        }
     }
 }
