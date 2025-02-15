@@ -214,13 +214,6 @@ impl ServiceInstance {
         format!("http://localhost:{}", self.get_port(name))
     }
 
-    pub fn get_logs(&self) -> String {
-        let mut file = File::open(&self.log_path).unwrap();
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).unwrap();
-        contents
-    }
-
     pub fn wait_for_log(
         &mut self,
         pattern: &str,
@@ -479,7 +472,6 @@ pub trait BlockApi {
 /// Test flavor that sets up one Rollup-boost instance connected to two Reth nodes
 pub struct RollupBoostTestHarness {
     _framework: IntegrationFramework, // Keep framework alive to maintain service ownership
-    pub engine_api: EngineApi,
 }
 
 impl RollupBoostTestHarness {
@@ -518,50 +510,22 @@ impl RollupBoostTestHarness {
             .l2_url(l2_service)
             .builder_url(builder_service);
 
-        let rb_service = framework.start("rollup-boost", &rb_config).await?;
-
-        let engine_api = EngineApi::new(&rb_service.get_endpoint("rpc"), DEFAULT_JWT_TOKEN)
-            .map_err(|_| IntegrationError::SetupError)?;
+        let _ = framework.start("rollup-boost", &rb_config).await?;
 
         Ok(Self {
             _framework: framework,
-            engine_api,
         })
     }
 
-    pub fn get_block_creator(&self, block_hash: B256) -> Option<PayloadCreator> {
-        let service = self._framework.services.get("rollup-boost").unwrap();
-        let logs = service.get_logs();
-
-        let search_query = format!("returning block hash={:#x}", block_hash);
-
-        // Find the log line containing the block hash
-        for line in logs.lines() {
-            if line.contains(&search_query) {
-                // Extract the context=X part
-                if let Some(context_start) = line.find("context=") {
-                    let context = line[context_start..]
-                        .split_whitespace()
-                        .next()?
-                        .split('=')
-                        .nth(1)?;
-
-                    match context {
-                        "builder" => return Some(PayloadCreator::Builder),
-                        "l2" => return Some(PayloadCreator::L2),
-                        _ => panic!("Unknown context: {}", context),
-                    }
-                } else {
-                    panic!("no context found");
-                }
-            }
-        }
-
-        None
-    }
-
     pub async fn get_block_generator(&self) -> SimpleBlockGenerator {
-        let mut block_creator = SimpleBlockGenerator::new(self);
+        let rb_service = self._framework.services.get("rollup-boost").unwrap();
+        let validator = BlockBuilderCreatorValidator::new(rb_service.log_path.clone());
+
+        let engine_api = EngineApi::new(&rb_service.get_endpoint("rpc"), DEFAULT_JWT_TOKEN)
+            .map_err(|_| IntegrationError::SetupError)
+            .unwrap();
+
+        let mut block_creator = SimpleBlockGenerator::new(validator, engine_api);
         block_creator.init().await.unwrap();
         block_creator
     }
@@ -575,18 +539,18 @@ impl RollupBoostTestHarness {
 }
 
 /// A simple system that continuously generates empty blocks using the engine API
-pub struct SimpleBlockGenerator<'a> {
-    rollup_boost_service: &'a RollupBoostTestHarness,
-    engine_api: &'a EngineApi,
+pub struct SimpleBlockGenerator {
+    validator: BlockBuilderCreatorValidator,
+    engine_api: EngineApi,
     latest_hash: B256,
     timestamp: u64,
 }
 
-impl<'a> SimpleBlockGenerator<'a> {
-    pub fn new(rollup_boost_service: &'a RollupBoostTestHarness) -> Self {
+impl SimpleBlockGenerator {
+    pub fn new(validator: BlockBuilderCreatorValidator, engine_api: EngineApi) -> Self {
         Self {
-            rollup_boost_service,
-            engine_api: &rollup_boost_service.engine_api,
+            validator,
+            engine_api,
             latest_hash: B256::ZERO, // temporary value
             timestamp: 0,            // temporary value
         }
@@ -663,10 +627,57 @@ impl<'a> SimpleBlockGenerator<'a> {
 
         // Check who built the block in the rollup-boost logs
         let block_creator = self
-            .rollup_boost_service
-            .get_block_creator(new_block_hash)
-            .unwrap();
+            .validator
+            .get_block_creator(new_block_hash)?
+            .expect("block creator not found");
 
         Ok((new_block_hash, block_creator))
+    }
+}
+
+pub struct BlockBuilderCreatorValidator {
+    log_path: PathBuf,
+}
+
+impl BlockBuilderCreatorValidator {
+    pub fn new(log_path: PathBuf) -> Self {
+        Self { log_path }
+    }
+}
+
+impl BlockBuilderCreatorValidator {
+    pub fn get_block_creator(&self, block_hash: B256) -> eyre::Result<Option<PayloadCreator>> {
+        let mut file = File::open(&self.log_path).map_err(|_| IntegrationError::LogError)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .map_err(|_| IntegrationError::LogError)?;
+
+        let search_query = format!("returning block hash={:#x}", block_hash);
+
+        // Find the log line containing the block hash
+        for line in contents.lines() {
+            if line.contains(&search_query) {
+                // Extract the context=X part
+                if let Some(context_start) = line.find("context=") {
+                    let context = line[context_start..]
+                        .split_whitespace()
+                        .next()
+                        .ok_or(eyre::eyre!("no context found"))?
+                        .split('=')
+                        .nth(1)
+                        .ok_or(eyre::eyre!("no context found"))?;
+
+                    match context {
+                        "builder" => return Ok(Some(PayloadCreator::Builder)),
+                        "l2" => return Ok(Some(PayloadCreator::L2)),
+                        _ => panic!("Unknown context: {}", context),
+                    }
+                } else {
+                    panic!("no context found");
+                }
+            }
+        }
+
+        Ok(None)
     }
 }
