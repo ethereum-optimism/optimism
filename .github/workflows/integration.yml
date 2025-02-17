@@ -19,10 +19,10 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Download op-reth
-        run: |
-          ./scripts/download-op-reth.sh
-          echo "$(pwd)" >> $GITHUB_PATH
+      - name: Install op-reth
+        uses: flashbots/flashbots-toolchain@v0.2
+        with:
+          op-reth: latest
 
       - name: Log Op-reth version
         run: |
