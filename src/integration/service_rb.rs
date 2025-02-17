@@ -1,5 +1,4 @@
-use crate::integration::{Arg, IntegrationError, Service, ServiceCommand, ServiceInstance};
-use futures_util::Future;
+use crate::integration::{Arg, ReadyParams, Service, ServiceCommand};
 use std::{path::PathBuf, time::Duration};
 
 #[derive(Default)]
@@ -60,10 +59,10 @@ impl Service for RollupBoostConfig {
         cmd
     }
 
-    fn ready(
-        &self,
-        service: &mut ServiceInstance,
-    ) -> impl Future<Output = Result<(), IntegrationError>> + Send {
-        async move { service.wait_for_log("Starting server on", Duration::from_secs(5)) }
+    fn ready(&self) -> ReadyParams {
+        ReadyParams {
+            log_pattern: "Starting server on".to_string(),
+            duration: Duration::from_secs(5),
+        }
     }
 }
