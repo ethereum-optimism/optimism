@@ -1,3 +1,5 @@
+use crate::auth_layer::secret_to_bearer_header;
+use alloy_rpc_types_engine::JwtSecret;
 use http::header::AUTHORIZATION;
 use http::Uri;
 use hyper_util::client::legacy::connect::HttpConnector;
@@ -5,7 +7,6 @@ use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use jsonrpsee::core::{http_helpers, BoxError};
 use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
-use reth_rpc_layer::{secret_to_bearer_header, JwtSecret};
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
@@ -191,6 +192,7 @@ async fn forward_request(
 mod tests {
     use super::*;
     use alloy_primitives::{hex, Bytes, B256, U128, U64};
+    use alloy_rpc_types_engine::JwtSecret;
     use alloy_rpc_types_eth::erc4337::ConditionalOptions;
     use http_body_util::BodyExt;
     use hyper::service::service_fn;
@@ -204,7 +206,6 @@ mod tests {
         types::{ErrorCode, ErrorObject},
         RpcModule,
     };
-    use reth_rpc_layer::JwtSecret;
     use serde_json::json;
     use std::{
         net::{IpAddr, SocketAddr},

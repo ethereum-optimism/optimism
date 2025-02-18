@@ -1,9 +1,10 @@
+use crate::auth_layer::{AuthClientLayer, AuthClientService};
+use alloy_rpc_types_engine::{JwtError, JwtSecret};
 use clap::{arg, Parser};
 use http::Uri;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use paste::paste;
-use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,7 +17,7 @@ pub enum ExecutionClientError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
-    Jwt(#[from] reth_rpc_layer::JwtError),
+    Jwt(#[from] JwtError),
 }
 
 /// Client interface for interacting with execution layer node's Engine API.

@@ -1,8 +1,10 @@
+use crate::auth_layer::{AuthClientLayer, AuthClientService};
 use crate::debug_api::DebugClient;
 use crate::server::EngineApiClient;
 use crate::server::PayloadCreator;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
+use alloy_rpc_types_engine::JwtSecret;
 use alloy_rpc_types_engine::{
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId,
     PayloadStatus, PayloadStatusEnum,
@@ -10,10 +12,8 @@ use alloy_rpc_types_engine::{
 use jsonrpsee::http_client::{transport::HttpBackend, HttpClient};
 use jsonrpsee::proc_macros::rpc;
 use lazy_static::lazy_static;
-use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
+use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use proxy::{start_proxy_server, DynHandlerFn};
-use reth_optimism_payload_builder::OpPayloadAttributes;
-use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;

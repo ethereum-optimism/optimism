@@ -3,6 +3,7 @@ use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use debug_api::{DebugClient, SetDryRunRequestAction};
 use std::{net::SocketAddr, sync::Arc};
 
+use alloy_rpc_types_engine::JwtSecret;
 use dotenv::dotenv;
 use eyre::bail;
 use http::StatusCode;
@@ -19,7 +20,6 @@ use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Config, Resource};
 use proxy::ProxyLayer;
-use reth_rpc_layer::JwtSecret;
 use server::RollupBoostServer;
 
 use tokio::net::TcpListener;
@@ -27,6 +27,7 @@ use tokio::signal::unix::{signal as unix_signal, SignalKind};
 use tracing::{error, info, Level};
 use tracing_subscriber::EnvFilter;
 
+mod auth_layer;
 mod client;
 mod debug_api;
 #[cfg(all(feature = "integration", test))]
@@ -322,6 +323,8 @@ mod tests {
     use http::Uri;
     use jsonrpsee::core::client::ClientT;
 
+    use crate::auth_layer::AuthClientService;
+    use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::http_client::transport::Error as TransportError;
     use jsonrpsee::http_client::transport::HttpBackend;
     use jsonrpsee::http_client::HttpClient;
@@ -332,7 +335,7 @@ mod tests {
         server::{ServerBuilder, ServerHandle},
     };
     use predicates::prelude::*;
-    use reth_rpc_layer::{AuthClientService, AuthLayer, JwtAuthValidator, JwtSecret};
+    use reth_rpc_layer::{AuthLayer, JwtAuthValidator};
     use std::result::Result;
     use std::str::FromStr;
 

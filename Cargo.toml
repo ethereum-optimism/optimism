@@ -9,11 +9,11 @@ op-alloy-rpc-types = "0.7.3"
 op-alloy-rpc-jsonrpsee = { version = "0.9.6", features = ["client"] }
 alloy-rpc-types-engine = "0.7.3"
 alloy-rpc-types-eth = "0.7.3"
-alloy-primitives = "0.8.10"
+alloy-primitives = { version = "0.8.10", features = ["rand"] }
 alloy-eips = { version = "0.9.2", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1.4"
-tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.11", features = ["env-filter", "json"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "1.0"
 clap = { version = "4", features = ["derive", "env"] }
@@ -28,11 +28,6 @@ http-body-util = "0.1.2"
 hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 serde_json = "1.0.96"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222", features = [
-    "optimism",
-] }
-reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
 opentelemetry = { version = "0.26.0", features = ["trace"] }
 opentelemetry-http = "0.26.0"
 opentelemetry-otlp = { version = "0.26.0", features = [
@@ -64,6 +59,7 @@ predicates = "3.1.2"
 tokio-util = { version = "0.7.13" }
 nix = "0.15.0"
 bytes = "1.2"
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "e022b6fd92a33cd44e3ae51ee2fc2ecc0f773222" }
 
 [features]
 integration = []
