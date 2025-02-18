@@ -11,6 +11,7 @@ use jsonrpsee::http_client::{transport::HttpBackend, HttpClient};
 use jsonrpsee::proc_macros::rpc;
 use lazy_static::lazy_static;
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
+use proxy::{start_proxy_server, DynHandlerFn};
 use reth_optimism_payload_builder::OpPayloadAttributes;
 use reth_rpc_layer::{AuthClientLayer, AuthClientService, JwtSecret};
 use std::collections::{HashMap, HashSet};
@@ -32,6 +33,7 @@ pub const DEFAULT_JWT_TOKEN: &str =
     "688f5d737bad920bdfb2fc2f488d6b6209eebda1dae949a8de91398d932c517a";
 
 mod integration_test;
+mod proxy;
 mod service_rb;
 mod service_reth;
 
@@ -244,6 +246,14 @@ impl ServiceInstance {
         format!("http://localhost:{}", self.get_port(name))
     }
 
+    pub fn get_logs(&self) -> Result<String, IntegrationError> {
+        let mut file = File::open(&self.log_path).map_err(|_| IntegrationError::LogError)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .map_err(|_| IntegrationError::LogError)?;
+        Ok(contents)
+    }
+
     pub fn wait_for_log(
         &mut self,
         pattern: &str,
@@ -270,10 +280,7 @@ impl ServiceInstance {
                 return Err(IntegrationError::SpawnError);
             }
 
-            let mut file = File::open(&self.log_path).map_err(|_| IntegrationError::LogError)?;
-            let mut contents = String::new();
-            file.read_to_string(&mut contents)
-                .map_err(|_| IntegrationError::LogError)?;
+            let mut contents = self.get_logs()?;
 
             // Since we share the same log file for different executions of the same service during the lifespan
             // of the test, we need to filter the logs and only consider the logs of the current execution.
@@ -545,9 +552,28 @@ pub const TEST_NODE_P2P_ADDR: (&str, &str) = (
     "3479db4d9217fb5d7a8ed4d61ac36e120b05d36c2eefb795dc42ff2e971f251a2315f5649ea1833271e020b9adc98d5db9973c7ed92d6b2f1f2223088c3d852f"
 );
 
-impl RollupBoostTestHarness {
-    pub async fn new(test_name: &str) -> Result<Self, IntegrationError> {
-        let mut framework = IntegrationFramework::new(test_name)?;
+const PROXY_START_PORT: u16 = 4444;
+
+pub struct RollupBoostTestHarnessBuilder {
+    test_name: String,
+    proxy_handler: Option<DynHandlerFn>,
+}
+
+impl RollupBoostTestHarnessBuilder {
+    pub fn new(test_name: &str) -> Self {
+        Self {
+            test_name: test_name.to_string(),
+            proxy_handler: None,
+        }
+    }
+
+    pub fn proxy_handler(mut self, proxy_handler: DynHandlerFn) -> Self {
+        self.proxy_handler = Some(proxy_handler);
+        self
+    }
+
+    async fn build(self) -> Result<RollupBoostTestHarness, IntegrationError> {
+        let mut framework = IntegrationFramework::new(self.test_name.as_str())?;
 
         let jwt_path = framework.write_file("jwt.hex", DEFAULT_JWT_TOKEN)?;
 
@@ -579,12 +605,22 @@ impl RollupBoostTestHarness {
             .chain_config_path(genesis_path)
             .trusted_peer(enode_address);
 
-        let builder_service = {
+        let builder_authrpc_port = {
             let service = framework
                 .start("builder", Box::new(builder_reth_config))
                 .await?;
-            service.get_endpoint("authrpc")
+            service.get_port("authrpc")
         };
+
+        // run a proxy in between the builder and the rollup-boost if the proxy_handler is set
+        let builder_authrpc_port = if let Some(proxy_handler) = self.proxy_handler {
+            let proxy_port = framework.find_available_port(PROXY_START_PORT)?;
+            let _ = start_proxy_server(proxy_handler, proxy_port, builder_authrpc_port).await;
+            proxy_port
+        } else {
+            builder_authrpc_port
+        };
+        let builder_service = format!("http://127.0.0.1:{}", builder_authrpc_port);
 
         // Start Rollup-boost instance
         let rb_config = service_rb::RollupBoostConfig::new()
@@ -594,11 +630,13 @@ impl RollupBoostTestHarness {
 
         let _ = framework.start("rollup-boost", Box::new(rb_config)).await?;
 
-        Ok(Self {
+        Ok(RollupBoostTestHarness {
             _framework: framework,
         })
     }
+}
 
+impl RollupBoostTestHarness {
     pub async fn get_block_generator(&self) -> eyre::Result<SimpleBlockGenerator> {
         let rb_service = self._framework.services.get("rollup-boost").unwrap();
         let validator = BlockBuilderCreatorValidator::new(rb_service.log_path.clone());

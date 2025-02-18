@@ -482,6 +482,7 @@ impl RollupBoostServer {
             if let Some(metrics) = &self.metrics {
                 metrics.new_payload_count.increment(1);
             }
+
             let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
                 error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_rpc, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 e
@@ -495,6 +496,7 @@ impl RollupBoostServer {
                     parent.end();
                 }
             };
+
             if payload_status.is_invalid() {
                 error!(message = "builder payload was not valid", "url" = ?builder.auth_rpc, "payload_status" = %payload_status.status, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
                 Err(ClientError::Call(ErrorObject::owned(

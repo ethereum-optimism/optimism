@@ -5230,6 +5230,7 @@ dependencies = [
  "alloy-rpc-types-eth",
  "anyhow",
  "assert_cmd",
+ "bytes",
  "clap",
  "dotenv",
  "eyre",
