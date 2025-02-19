@@ -365,23 +365,22 @@ impl RollupBoostServer {
                             .unwrap_or_default();
                         if response.is_invalid() {
                             error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_rpc, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
+                        } else if let Some(external_id) = external_payload_id {
+                            info!(
+                                message = "called fork_choice_updated_v3 to builder with payload attributes",
+                                "url" = ?builder_client.auth_rpc,
+                                "payload_status" = %response.payload_status.status,
+                                "payload_id" = %external_id
+                            );
                         } else {
-                            if let Some(external_id) = external_payload_id {
-                                info!(
-                                    message = "called fork_choice_updated_v3 to builder with payload attributes",
-                                    "url" = ?builder_client.auth_rpc,
-                                    "payload_status" = %response.payload_status.status,
-                                    "payload_id" = %external_id
-                                );
-                            } else {
-                                info!(
-                                    message = "called fork_choice_updated_v3 to builder without payload attributes",
-                                    "url" = ?builder_client.auth_rpc,
-                                    "payload_status" = %response.payload_status.status
-                                );
-                            }
+                            info!(
+                                message = "called fork_choice_updated_v3 to builder without payload attributes",
+                                "url" = ?builder_client.auth_rpc,
+                                "payload_status" = %response.payload_status.status
+                            );
                         }
                     }
+
                     Err(e) => {
                         error!(
                             message = "error calling fork_choice_updated_v3 to builder",
