@@ -53,3 +53,17 @@ Additionally, execution engines such as op-rbuilder has rpc metrics exposed to c
 Tracing is enabled by setting the `--tracing` flag. This will start exporting traces to the otlp endpoint specified in the `--otlp-endpoint` flag. This endpoint is set to `http://localhost:4317` by default.
 
 Traces use the payload id to track the block building lifecycle. A distributed tracing system such as [Jaeger](https://www.jaegertracing.io/) can be used to visualize when the proposer triggers block building via `engine_forkchoiceUpdatedV3` and retrieve the block with `engine_getPayloadV3`.
+
+## Toubleshooting Builder Responses
+
+### Invalid Builder Payloads
+
+If there are logs around the builder payload being invalid, it is likely there is an issue with the builder and you will need to contact the builder operator to resolve it. In this case rollup-boost will use the local payload and chain liveness will not be affected. You can also manually set rollup-boost to dry run mode using the debug api to stop payload requests to the builder, silencing the error logs.
+
+It is also possible that either the builder or the proposer execution engine are not running on compatible hard fork versions. Please check that the clients are running on compatible versions of the op-stack.
+
+### Builder Syncing
+
+Alternatively, the builder may be syncing with the chain and not have a block to respond with. You can see in the logs the builder is syncing by checking whether the payload_status of builder calls is `SYNCING`.
+
+This is expected if the builder is still syncing with the chain. Chain liveness will not be affected as rollup-boost will use the local payload. Contact the builder operator if the sync status persists as the builder op-node may be offline or not peered correctly with the network. 

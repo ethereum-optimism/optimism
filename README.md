@@ -25,6 +25,7 @@ cargo run -- [OPTIONS]
 - `--log-format <FORMAT>`: Log format (default: text)
 - `--metrics`: Enable metrics (default: false)
 - `--no-boost-sync`: Disables using the proposer to sync the builder node (default: true)
+- `--debug-server-port <PORT>`: Port to run the debug server on (default: 5555)
 
 ### Environment Variables
 
@@ -103,6 +104,46 @@ By default, `rollup-boost` will sync the builder with the proposer `op-node`. Af
 
 - `engine_forkchoiceUpdatedV3`: this call will be multiplexed to the builder regardless of whether the call contains payload attributes or not.
 - `engine_newPayloadV3`: ensures the builder has the latest block if the local payload was used.
+
+## Debug Mode
+
+`rollup-boost` also includes a debug command to run rollup-boost with a dry run mode. This will stop get payload requests to the builder and always use the local payload.
+
+This is useful for testing interactions with external block builders in a production environment without jeopardizing OP stack liveness, especially for network upgrades.
+
+### Usage
+
+To run rollup-boost in debug mode with dry run enabled, you can use the following command:
+
+```
+cargo run -- debug --dry-run
+```
+
+### Debug API
+
+Dry run mode can also be configured via the debug api. This allows rollup-boost to stop requesting builder payloads during runtime without needing a restart. By default, the debug server runs on port 5555.
+
+To toggle dry run mode:
+
+```bash
+curl -X POST -H "Content-Type: application/json" --data '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "debug_setDryRun",
+    "params": [{"action":"toggle_dry_run"}]
+}' http://localhost:5555
+```
+
+To set the dry run state:
+
+```bash
+curl -X POST -H "Content-Type: application/json" --data '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "debug_setDryRun",
+    "params": [{"action":{"set_dry_run":true}}]
+}' http://localhost:5555
+```
 
 ## License
 
