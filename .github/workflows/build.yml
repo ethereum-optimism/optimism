@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - main
-      - test-build
-  pull_request:
 
 permissions:
   contents: write
