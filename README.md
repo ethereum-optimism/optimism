@@ -105,44 +105,61 @@ By default, `rollup-boost` will sync the builder with the proposer `op-node`. Af
 - `engine_forkchoiceUpdatedV3`: this call will be multiplexed to the builder regardless of whether the call contains payload attributes or not.
 - `engine_newPayloadV3`: ensures the builder has the latest block if the local payload was used.
 
-## Debug Mode
+## Debug API
 
-`rollup-boost` also includes a debug command to run rollup-boost with a dry run mode. This will stop get payload requests to the builder and always use the local payload.
+The Debug API is a json-rpc api that can be used to configure rollup-boost's execution mode. The execution mode determines how rollup-boost makes requests to the builder:
+
+- `enabled`: The builder receives all the engine API calls from rollup-boost.
+- `dry-run`: The builder receives all the engine API calls from rollup-boost except for the get payload request.
+- `disabled`: The builder does not receive any engine API calls from rollup-boost.
+
+By default, the debug server runs on port 5555. This allows rollup-boost to stop sending requests to the builder during runtime without needing a restart.
+
+To set dry run mode:
+
+```bash
+curl -X POST -H "Content-Type: application/json" --data '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "debug_setExecutionMode",
+    "params": [{"execution_mode":"dry_run"}]
+}' http://localhost:5555
+```
+
+To disable rollup-boost calls to the builder:
+
+```bash
+curl -X POST -H "Content-Type: application/json" --data '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "debug_setExecutionMode",
+    "params": [{"execution_mode":"disabled"}]
+}' http://localhost:5555
+```
+
+To get the current execution mode:
+
+```bash
+curl -X POST -H "Content-Type: application/json" --data '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "debug_getExecutionMode",
+    "params": []
+}' http://localhost:5555
+```
+
+### Debug Mode
+
+`rollup-boost` also includes a debug command to run rollup-boost with different execution modes. 
 
 This is useful for testing interactions with external block builders in a production environment without jeopardizing OP stack liveness, especially for network upgrades.
 
 ### Usage
 
-To run rollup-boost in debug mode with dry run enabled, you can use the following command:
+To run rollup-boost in debug mode with a specific execution mode, you can use the following command:
 
 ```
-cargo run -- debug --dry-run
-```
-
-### Debug API
-
-Dry run mode can also be configured via the debug api. This allows rollup-boost to stop requesting builder payloads during runtime without needing a restart. By default, the debug server runs on port 5555.
-
-To toggle dry run mode:
-
-```bash
-curl -X POST -H "Content-Type: application/json" --data '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "debug_setDryRun",
-    "params": [{"action":"toggle_dry_run"}]
-}' http://localhost:5555
-```
-
-To set the dry run state:
-
-```bash
-curl -X POST -H "Content-Type: application/json" --data '{
-    "jsonrpc": "2.0",
-    "id": 1,
-    "method": "debug_setDryRun",
-    "params": [{"action":{"set_dry_run":true}}]
-}' http://localhost:5555
+rollup-boost debug set-execution-mode [enabled|dry-run|disabled]
 ```
 
 ## License
