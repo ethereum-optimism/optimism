@@ -112,6 +112,9 @@ enum DebugCommands {
 async fn main() -> eyre::Result<()> {
     // Load .env file
     dotenv().ok();
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install TLS ring CryptoProvider");
     let args: Args = Args::parse();
 
     // Handle commands if present

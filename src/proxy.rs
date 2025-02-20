@@ -2,6 +2,7 @@ use crate::auth_layer::secret_to_bearer_header;
 use alloy_rpc_types_engine::JwtSecret;
 use http::header::AUTHORIZATION;
 use http::Uri;
+use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
@@ -55,9 +56,17 @@ impl<S> Layer<S> for ProxyLayer {
     type Service = ProxyService<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
+        let connector = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .expect("no native root CA certificates found")
+            .https_or_http()
+            .enable_http1()
+            .enable_http2()
+            .build();
+
         ProxyService {
             inner,
-            client: Client::builder(TokioExecutor::new()).build_http(),
+            client: Client::builder(TokioExecutor::new()).build(connector),
             l2_auth_uri: self.l2_auth_uri.clone(),
             l2_auth_secret: self.l2_auth_secret,
             builder_auth_uri: self.builder_auth_uri.clone(),
@@ -69,7 +78,7 @@ impl<S> Layer<S> for ProxyLayer {
 #[derive(Clone)]
 pub struct ProxyService<S> {
     inner: S,
-    client: Client<HttpConnector, HttpBody>,
+    client: Client<HttpsConnector<HttpConnector>, HttpBody>,
     l2_auth_uri: Uri,
     l2_auth_secret: JwtSecret,
     builder_auth_uri: Uri,
@@ -156,7 +165,7 @@ where
 
 /// Forwards an HTTP request to the `authrpc``, attaching the provided JWT authorization.
 async fn forward_request(
-    client: Client<HttpConnector, HttpBody>,
+    client: Client<HttpsConnector<HttpConnector>, HttpBody>,
     mut req: http::Request<HttpBody>,
     method: &str,
     uri: Uri,
@@ -386,6 +395,14 @@ mod tests {
 
             return Ok(hyper::Response::new(response.to_string()));
         }
+    }
+
+    #[cfg(test)]
+    #[ctor::ctor]
+    fn crypto_ring_init() {
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .unwrap();
     }
 
     #[tokio::test]
