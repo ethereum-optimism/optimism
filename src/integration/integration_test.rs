@@ -22,8 +22,6 @@ mod tests {
                 block_creator.is_builder(),
                 "Block creator should be the builder"
             );
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
         Ok(())
@@ -119,8 +117,6 @@ mod tests {
                 block_creator.is_builder(),
                 "Block creator should be the builder"
             );
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
         // stop the builder
@@ -182,7 +178,6 @@ mod tests {
                 block_creator.is_builder(),
                 "Block creator should be the builder"
             );
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
         // add the delay
@@ -192,7 +187,6 @@ mod tests {
         for _ in 0..3 {
             let (_block, block_creator) = block_generator.generate_block(false).await?;
             assert!(block_creator.is_l2(), "Block creator should be the builder");
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
         Ok(())
