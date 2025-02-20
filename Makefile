@@ -41,6 +41,10 @@ lint: ## Run the linters
 test: ## Run the tests for rollup-boost
 	cargo test --verbose --features "$(FEATURES)"
 
+.PHONY: test-integration
+test-integration: ## Run the integration tests for rollup-boost
+	cargo test --verbose --features integration -- integration::integration_test::tests
+
 .PHONY: lt
 lt: lint test ## Run "lint" and "test"
 
