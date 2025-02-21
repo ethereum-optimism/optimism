@@ -21,4 +21,10 @@ pub struct ServerMetrics {
 
     #[metric(describe = "Latency for `engine_forkChoiceUpdatedV3`")]
     pub fork_choice_updated_v3: Histogram,
+
+    #[metric(describe = "Count of blocks created by the builder")]
+    pub blocks_created_by_builder: Counter,
+
+    #[metric(describe = "Count of blocks created by the L2 builder")]
+    pub blocks_created_by_l2: Counter,
 }

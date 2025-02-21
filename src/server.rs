@@ -566,6 +566,14 @@ impl RollupBoostServer {
             let block_hash = inner_payload.block_hash();
             let block_number = inner_payload.block_number();
 
+            if let Some(metrics) = &self.metrics {
+                if context.is_builder() {
+                    metrics.blocks_created_by_builder.increment(1);
+                } else {
+                    metrics.blocks_created_by_l2.increment(1);
+                }
+            }
+
             // Note: This log message is used by integration tests to track payload context.
             // While not ideal to rely on log parsing, it provides a reliable way to verify behavior.
             // Happy to consider an alternative approach later on.
