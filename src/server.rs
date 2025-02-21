@@ -1,9 +1,9 @@
 use crate::client::ExecutionClient;
-use crate::debug_api;
+use crate::debug_api::DebugServer;
 use crate::metrics::ServerMetrics;
 use alloy_primitives::B256;
-use debug_api::DebugServer;
-use std::num::NonZero;
+use moka::sync::Cache;
+use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -11,96 +11,87 @@ use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
-use jsonrpsee::core::{async_trait, ClientError, RegisterMethodError, RpcResult};
-use jsonrpsee::types::error::INVALID_REQUEST_CODE;
-use jsonrpsee::types::ErrorObject;
 use jsonrpsee::RpcModule;
-use lru::LruCache;
+use jsonrpsee::RpcModule;
+use jsonrpsee::core::{ClientError, RegisterMethodError, RpcResult, async_trait};
+use jsonrpsee::types::error::INVALID_REQUEST_CODE;
+use jsonrpsee::types::{ErrorCode, ErrorObject};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use serde::{Deserialize, Serialize};
 
-use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 use jsonrpsee::proc_macros::rpc;
 
-const CACHE_SIZE: usize = 100;
+const CACHE_SIZE: u64 = 100;
 
 pub struct PayloadTraceContext {
-    tracer: Arc<BoxedTracer>,
-    block_hash_to_payload_ids: Arc<Mutex<LruCache<B256, Vec<PayloadId>>>>,
-    payload_id_to_span: Arc<Mutex<LruCache<PayloadId, Arc<BoxedSpan>>>>,
-    local_to_external_payload_ids: Arc<Mutex<LruCache<PayloadId, PayloadId>>>,
+    tracer: BoxedTracer,
+    block_hash_to_payload_ids: Cache<B256, Vec<PayloadId>>,
+    payload_id_to_span: Cache<PayloadId, Arc<BoxedSpan>>,
+    local_to_external_payload_ids: Cache<PayloadId, PayloadId>,
 }
 
 impl PayloadTraceContext {
     fn new() -> Self {
         PayloadTraceContext {
-            tracer: Arc::new(global::tracer("rollup-boost")),
-            block_hash_to_payload_ids: Arc::new(Mutex::new(LruCache::new(
-                NonZero::new(CACHE_SIZE).unwrap(),
-            ))),
-            payload_id_to_span: Arc::new(Mutex::new(LruCache::new(
-                NonZero::new(CACHE_SIZE).unwrap(),
-            ))),
-            local_to_external_payload_ids: Arc::new(Mutex::new(LruCache::new(
-                NonZero::new(CACHE_SIZE).unwrap(),
-            ))),
+            tracer: global::tracer("rollup-boost"),
+            block_hash_to_payload_ids: Cache::new(CACHE_SIZE),
+            payload_id_to_span: Cache::new(CACHE_SIZE),
+            local_to_external_payload_ids: Cache::new(CACHE_SIZE),
         }
     }
 
-    async fn store(&self, payload_id: PayloadId, parent_hash: B256, parent_span: BoxedSpan) {
-        let mut store = self.payload_id_to_span.lock().await;
-        store.put(payload_id, Arc::new(parent_span));
-        let mut store = self.block_hash_to_payload_ids.lock().await;
-        if let Some(payload_ids) = store.get_mut(&parent_hash) {
-            payload_ids.push(payload_id);
-        } else {
-            store.put(parent_hash, vec![payload_id]);
-        }
+    fn store(&self, payload_id: PayloadId, parent_hash: B256, parent_span: BoxedSpan) {
+        self.payload_id_to_span
+            .insert(payload_id, Arc::new(parent_span));
+        self.block_hash_to_payload_ids
+            .entry(parent_hash)
+            .and_upsert_with(|o| match o {
+                Some(e) => {
+                    let mut payloads = e.into_value();
+                    payloads.push(payload_id);
+                    payloads
+                }
+                None => {
+                    vec![payload_id]
+                }
+            });
     }
 
-    async fn retrieve_by_parent_hash(&self, parent_hash: &B256) -> Option<Vec<Arc<BoxedSpan>>> {
-        let mut block_hash_to_payload_ids = self.block_hash_to_payload_ids.lock().await;
-        let mut payload_id_to_span = self.payload_id_to_span.lock().await;
-        block_hash_to_payload_ids
+    fn retrieve_by_parent_hash(&self, parent_hash: &B256) -> Option<Vec<Arc<BoxedSpan>>> {
+        self.block_hash_to_payload_ids
             .get(parent_hash)
-            .map(move |payload_ids| {
+            .map(|payload_ids| {
                 payload_ids
-                    .clone()
                     .iter()
-                    .filter_map(move |payload_id| payload_id_to_span.get(payload_id).cloned())
+                    .filter_map(|payload_id| self.payload_id_to_span.get(payload_id))
                     .collect()
             })
     }
 
-    async fn retrieve_by_payload_id(&self, payload_id: &PayloadId) -> Option<Arc<BoxedSpan>> {
-        let mut store = self.payload_id_to_span.lock().await;
-        store.get(payload_id).cloned()
+    fn retrieve_by_payload_id(&self, payload_id: &PayloadId) -> Option<Arc<BoxedSpan>> {
+        self.payload_id_to_span.get(payload_id)
     }
 
-    async fn remove_by_parent_hash(&self, block_hash: &B256) {
-        let mut block_hash_to_payload_ids = self.block_hash_to_payload_ids.lock().await;
-        let mut payload_id_to_span = self.payload_id_to_span.lock().await;
-        if let Some(payload_ids) = block_hash_to_payload_ids.get_mut(block_hash) {
-            for payload_id in payload_ids {
-                payload_id_to_span.pop(payload_id);
+    fn remove_by_parent_hash(&self, block_hash: &B256) {
+        if let Some(payload_ids) = self.block_hash_to_payload_ids.remove(block_hash) {
+            for payload_id in payload_ids.iter() {
+                self.payload_id_to_span.remove(payload_id);
             }
         }
-        block_hash_to_payload_ids.pop(block_hash);
     }
 
-    async fn store_payload_id_mapping(&self, local_id: PayloadId, external_id: PayloadId) {
-        let mut local_to_external = self.local_to_external_payload_ids.lock().await;
-        local_to_external.put(local_id, external_id);
+    fn store_payload_id_mapping(&self, local_id: PayloadId, external_id: PayloadId) {
+        self.local_to_external_payload_ids
+            .insert(local_id, external_id);
     }
 
-    async fn get_external_payload_id(&self, local_id: &PayloadId) -> Option<PayloadId> {
-        let mut store = self.local_to_external_payload_ids.lock().await;
-        store.get(local_id).copied()
+    fn get_external_payload_id(&self, local_id: &PayloadId) -> Option<PayloadId> {
+        self.local_to_external_payload_ids.get(local_id)
     }
 }
 
@@ -307,7 +298,7 @@ impl RollupBoostServer {
                 (self.boost_sync, false)
             };
 
-        let execution_mode = self.execution_mode.lock().await;
+        let execution_mode = self.execution_mode.lock();
 
         println!("execution_mode: {:?}", execution_mode);
 
@@ -334,13 +325,11 @@ impl RollupBoostServer {
                     .set_attribute(KeyValue::new("payload_id", local_payload_id.to_string()));
                 let ctx =
                     Context::current().with_remote_span_context(parent_span.span_context().clone());
-                self.payload_trace_context
-                    .store(
-                        local_payload_id,
-                        fork_choice_state.head_block_hash,
-                        parent_span,
-                    )
-                    .await;
+                self.payload_trace_context.store(
+                    local_payload_id,
+                    fork_choice_state.head_block_hash,
+                    parent_span,
+                );
                 Some(
                     self.payload_trace_context
                         .tracer
@@ -368,8 +357,7 @@ impl RollupBoostServer {
                             // Only store mapping if local and external IDs are different
                             if local_id != external_id {
                                 payload_trace_context
-                                    .store_payload_id_mapping(local_id, external_id)
-                                    .await;
+                                    .store_payload_id_mapping(local_id, external_id);
                             }
                         }
                         let payload_id_str = external_payload_id
@@ -413,9 +401,7 @@ impl RollupBoostServer {
             if let Some(local_id) = l2_response.payload_id {
                 let payload_trace_context = self.payload_trace_context.clone();
 
-                payload_trace_context
-                    .store_payload_id_mapping(local_id, PayloadId::default())
-                    .await;
+                payload_trace_context.store_payload_id_mapping(local_id, PayloadId::default());
             } else {
                 error!(message = "no local payload id returned from l2 client", "head_block_hash" = %fork_choice_state.head_block_hash);
             }
@@ -434,7 +420,7 @@ impl RollupBoostServer {
         let l2_client_future = self.l2_client.get_payload_v3(payload_id);
 
         let builder_client_future = Box::pin(async move {
-            let execution_mode = self.execution_mode.lock().await;
+            let execution_mode = self.execution_mode.lock().clone();
             if !execution_mode.is_get_payload_enabled() {
                 info!(message = "dry run mode is enabled, skipping get payload builder call");
 
@@ -448,8 +434,7 @@ impl RollupBoostServer {
 
             let parent_span = self
                 .payload_trace_context
-                .retrieve_by_payload_id(&payload_id)
-                .await;
+                .retrieve_by_payload_id(&payload_id);
             let span = parent_span.clone().map(|span| {
                 self.payload_trace_context.tracer.start_with_context(
                     "get_payload",
@@ -462,7 +447,6 @@ impl RollupBoostServer {
             let external_payload_id = self
                 .payload_trace_context
                 .get_external_payload_id(&payload_id)
-                .await
                 .unwrap_or(payload_id);
 
             if external_payload_id == PayloadId::default() {
@@ -561,12 +545,11 @@ impl RollupBoostServer {
         let parent_hash = execution_payload.parent_hash();
         info!(message = "received new_payload_v3", "block_hash" = %block_hash);
         // async call to builder to sync the builder node
-        let execution_mode = self.execution_mode.lock().await;
+        let execution_mode = self.execution_mode.lock().clone();
         if self.boost_sync && !execution_mode.is_disabled() {
             let parent_spans = self
                 .payload_trace_context
-                .retrieve_by_parent_hash(&parent_hash)
-                .await;
+                .retrieve_by_parent_hash(&parent_hash);
             let spans: Option<Vec<BoxedSpan>> = parent_spans.as_ref().map(|spans| {
                 spans
                     .iter()
@@ -580,8 +563,7 @@ impl RollupBoostServer {
                     .collect()
             });
             self.payload_trace_context
-                .remove_by_parent_hash(&parent_hash)
-                .await;
+                .remove_by_parent_hash(&parent_hash);
 
             let builder = self.builder_client.clone();
             let builder_payload = payload.clone();
@@ -610,6 +592,7 @@ impl RollupBoostServer {
 }
 
 #[cfg(test)]
+#[allow(clippy::complexity)]
 mod tests {
 
     use super::*;
@@ -621,13 +604,13 @@ mod tests {
 
     use alloy_rpc_types_engine::JwtSecret;
     use http::Uri;
+    use jsonrpsee::RpcModule;
     use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
-    use jsonrpsee::RpcModule;
+    use parking_lot::Mutex;
     use std::net::SocketAddr;
     use std::str::FromStr;
     use std::sync::Arc;
-    use std::sync::Mutex;
     use tokio::time::sleep;
 
     const HOST: &str = "0.0.0.0";
@@ -785,14 +768,17 @@ mod tests {
         let fcu_response = test_harness.client.fork_choice_updated_v3(fcu, None).await;
         assert!(fcu_response.is_ok());
         let fcu_requests = test_harness.l2_mock.fcu_requests.clone();
-        let fcu_requests_mu = fcu_requests.lock().unwrap();
-        let fcu_requests_builder = test_harness.builder_mock.fcu_requests.clone();
-        let fcu_requests_builder_mu = fcu_requests_builder.lock().unwrap();
-        assert_eq!(fcu_requests_mu.len(), 1);
-        assert_eq!(fcu_requests_builder_mu.len(), 0);
-        let req: &(ForkchoiceState, Option<OpPayloadAttributes>) = fcu_requests_mu.first().unwrap();
-        assert_eq!(req.0, fcu);
-        assert_eq!(req.1, None);
+        {
+            let fcu_requests_mu = fcu_requests.lock();
+            let fcu_requests_builder = test_harness.builder_mock.fcu_requests.clone();
+            let fcu_requests_builder_mu = fcu_requests_builder.lock();
+            assert_eq!(fcu_requests_mu.len(), 1);
+            assert_eq!(fcu_requests_builder_mu.len(), 0);
+            let req: &(ForkchoiceState, Option<OpPayloadAttributes>) =
+                fcu_requests_mu.first().unwrap();
+            assert_eq!(req.0, fcu);
+            assert_eq!(req.1, None);
+        }
 
         // test new_payload_v3 success
         let new_payload_response = test_harness
@@ -811,26 +797,28 @@ mod tests {
             .await;
         assert!(new_payload_response.is_ok());
         let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
-        let new_payload_requests_mu = new_payload_requests.lock().unwrap();
-        let new_payload_requests_builder = test_harness.builder_mock.new_payload_requests.clone();
-        let new_payload_requests_builder_mu = new_payload_requests_builder.lock().unwrap();
-        assert_eq!(new_payload_requests_mu.len(), 1);
-        assert_eq!(new_payload_requests_builder_mu.len(), 0);
-        let req: &(ExecutionPayloadV3, Vec<FixedBytes<32>>, B256) =
-            new_payload_requests_mu.first().unwrap();
-        assert_eq!(
-            req.0,
-            test_harness
-                .l2_mock
-                .get_payload_response
-                .clone()
-                .unwrap()
-                .execution_payload
-                .clone()
-        );
-        assert_eq!(req.1, Vec::<FixedBytes<32>>::new());
-        assert_eq!(req.2, B256::ZERO);
-        drop(new_payload_requests_mu);
+        {
+            let new_payload_requests_mu = new_payload_requests.lock();
+            let new_payload_requests_builder =
+                test_harness.builder_mock.new_payload_requests.clone();
+            let new_payload_requests_builder_mu = new_payload_requests_builder.lock();
+            assert_eq!(new_payload_requests_mu.len(), 1);
+            assert_eq!(new_payload_requests_builder_mu.len(), 0);
+            let req: &(ExecutionPayloadV3, Vec<FixedBytes<32>>, B256) =
+                new_payload_requests_mu.first().unwrap();
+            assert_eq!(
+                req.0,
+                test_harness
+                    .l2_mock
+                    .get_payload_response
+                    .clone()
+                    .unwrap()
+                    .execution_payload
+                    .clone()
+            );
+            assert_eq!(req.1, Vec::<FixedBytes<32>>::new());
+            assert_eq!(req.2, B256::ZERO);
+        }
 
         // test get_payload_v3 success
         let get_payload_response = test_harness
@@ -839,16 +827,19 @@ mod tests {
             .await;
         assert!(get_payload_response.is_ok());
         let get_payload_requests = test_harness.l2_mock.get_payload_requests.clone();
-        let get_payload_requests_mu = get_payload_requests.lock().unwrap();
-        let get_payload_requests_builder = test_harness.builder_mock.get_payload_requests.clone();
-        let get_payload_requests_builder_mu = get_payload_requests_builder.lock().unwrap();
-        let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
-        let new_payload_requests_mu = new_payload_requests.lock().unwrap();
-        assert_eq!(get_payload_requests_builder_mu.len(), 1);
-        assert_eq!(get_payload_requests_mu.len(), 1);
-        assert_eq!(new_payload_requests_mu.len(), 2);
-        let req: &PayloadId = get_payload_requests_mu.first().unwrap();
-        assert_eq!(*req, PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1]));
+        {
+            let get_payload_requests_mu = get_payload_requests.lock();
+            let get_payload_requests_builder =
+                test_harness.builder_mock.get_payload_requests.clone();
+            let get_payload_requests_builder_mu = get_payload_requests_builder.lock();
+            let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
+            let new_payload_requests_mu = new_payload_requests.lock();
+            assert_eq!(get_payload_requests_builder_mu.len(), 1);
+            assert_eq!(get_payload_requests_mu.len(), 1);
+            assert_eq!(new_payload_requests_mu.len(), 2);
+            let req: &PayloadId = get_payload_requests_mu.first().unwrap();
+            assert_eq!(*req, PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1]));
+        }
 
         test_harness.cleanup().await;
     }
@@ -867,11 +858,13 @@ mod tests {
         sleep(std::time::Duration::from_millis(100)).await;
 
         let fcu_requests = test_harness.l2_mock.fcu_requests.clone();
-        let fcu_requests_mu = fcu_requests.lock().unwrap();
-        let fcu_requests_builder = test_harness.builder_mock.fcu_requests.clone();
-        let fcu_requests_builder_mu = fcu_requests_builder.lock().unwrap();
-        assert_eq!(fcu_requests_mu.len(), 1);
-        assert_eq!(fcu_requests_builder_mu.len(), 1);
+        {
+            let fcu_requests_mu = fcu_requests.lock();
+            let fcu_requests_builder = test_harness.builder_mock.fcu_requests.clone();
+            let fcu_requests_builder_mu = fcu_requests_builder.lock();
+            assert_eq!(fcu_requests_mu.len(), 1);
+            assert_eq!(fcu_requests_builder_mu.len(), 1);
+        }
 
         // test new_payload_v3 success
         let new_payload_response = test_harness
@@ -890,11 +883,14 @@ mod tests {
             .await;
         assert!(new_payload_response.is_ok());
         let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
-        let new_payload_requests_mu = new_payload_requests.lock().unwrap();
-        let new_payload_requests_builder = test_harness.builder_mock.new_payload_requests.clone();
-        let new_payload_requests_builder_mu = new_payload_requests_builder.lock().unwrap();
-        assert_eq!(new_payload_requests_mu.len(), 1);
-        assert_eq!(new_payload_requests_builder_mu.len(), 1);
+        {
+            let new_payload_requests_mu = new_payload_requests.lock();
+            let new_payload_requests_builder =
+                test_harness.builder_mock.new_payload_requests.clone();
+            let new_payload_requests_builder_mu = new_payload_requests_builder.lock();
+            assert_eq!(new_payload_requests_mu.len(), 1);
+            assert_eq!(new_payload_requests_builder_mu.len(), 1);
+        }
 
         test_harness.cleanup().await;
     }
@@ -931,7 +927,7 @@ mod tests {
         module
             .register_method("engine_forkchoiceUpdatedV3", move |params, _, _| {
                 let params: (ForkchoiceState, Option<OpPayloadAttributes>) = params.parse()?;
-                let mut fcu_requests = mock_engine_server.fcu_requests.lock().unwrap();
+                let mut fcu_requests = mock_engine_server.fcu_requests.lock();
                 fcu_requests.push(params);
 
                 let mut response = mock_engine_server.fcu_response.clone();
@@ -948,8 +944,7 @@ mod tests {
         module
             .register_method("engine_getPayloadV3", move |params, _, _| {
                 let params: (PayloadId,) = params.parse()?;
-                let mut get_payload_requests =
-                    mock_engine_server.get_payload_requests.lock().unwrap();
+                let mut get_payload_requests = mock_engine_server.get_payload_requests.lock();
                 get_payload_requests.push(params.0);
 
                 mock_engine_server.get_payload_response.clone()
@@ -959,8 +954,7 @@ mod tests {
         module
             .register_method("engine_newPayloadV3", move |params, _, _| {
                 let params: (ExecutionPayloadV3, Vec<B256>, B256) = params.parse()?;
-                let mut new_payload_requests =
-                    mock_engine_server.new_payload_requests.lock().unwrap();
+                let mut new_payload_requests = mock_engine_server.new_payload_requests.lock();
                 new_payload_requests.push(params);
 
                 mock_engine_server.new_payload_response.clone()
@@ -997,9 +991,11 @@ mod tests {
         // wait for builder to observe the FCU call
         sleep(std::time::Duration::from_millis(100)).await;
 
-        let builder_fcu_req = builder_mock.fcu_requests.lock().unwrap();
-        assert_eq!(builder_fcu_req.len(), 1);
-        assert_eq!(l2_mock.fcu_requests.lock().unwrap().len(), 1);
+        {
+            let builder_fcu_req = builder_mock.fcu_requests.lock();
+            assert_eq!(builder_fcu_req.len(), 1);
+            assert_eq!(l2_mock.fcu_requests.lock().len(), 1);
+        }
 
         // Test getPayload call
         let get_res = test_harness.client.get_payload_v3(same_id).await;
@@ -1008,13 +1004,17 @@ mod tests {
         // wait for builder to observe the getPayload call
         sleep(std::time::Duration::from_millis(100)).await;
 
-        let builder_gp_reqs = builder_mock.get_payload_requests.lock().unwrap();
-        assert_eq!(builder_gp_reqs.len(), 1);
-        assert_eq!(builder_gp_reqs[0], same_id);
+        {
+            let builder_gp_reqs = builder_mock.get_payload_requests.lock();
+            assert_eq!(builder_gp_reqs.len(), 1);
+            assert_eq!(builder_gp_reqs[0], same_id);
+        }
 
-        let local_gp_reqs = l2_mock.get_payload_requests.lock().unwrap();
-        assert_eq!(local_gp_reqs.len(), 1);
-        assert_eq!(local_gp_reqs[0], same_id);
+        {
+            let local_gp_reqs = l2_mock.get_payload_requests.lock();
+            assert_eq!(local_gp_reqs.len(), 1);
+            assert_eq!(local_gp_reqs[0], same_id);
+        }
 
         test_harness.cleanup().await;
     }
@@ -1047,8 +1047,8 @@ mod tests {
         // wait for builder to observe the FCU call
         sleep(std::time::Duration::from_millis(100)).await;
 
-        assert_eq!(l2_mock.fcu_requests.lock().unwrap().len(), 1);
-        assert_eq!(builder_mock.fcu_requests.lock().unwrap().len(), 1);
+        assert_eq!(l2_mock.fcu_requests.lock().len(), 1);
+        assert_eq!(builder_mock.fcu_requests.lock().len(), 1);
 
         // Test getPayload call with local->external mapping
         let get_res = test_harness.client.get_payload_v3(local_id).await;
@@ -1057,13 +1057,17 @@ mod tests {
         // wait for builder to observe the getPayload call
         sleep(std::time::Duration::from_millis(100)).await;
 
-        let builder_gp = builder_mock.get_payload_requests.lock().unwrap();
-        assert_eq!(builder_gp.len(), 1);
-        assert_eq!(builder_gp[0], external_id);
+        {
+            let builder_gp = builder_mock.get_payload_requests.lock();
+            assert_eq!(builder_gp.len(), 1);
+            assert_eq!(builder_gp[0], external_id);
+        }
 
-        let l2_gp = l2_mock.get_payload_requests.lock().unwrap();
-        assert_eq!(l2_gp.len(), 1);
-        assert_eq!(l2_gp[0], local_id);
+        {
+            let l2_gp = l2_mock.get_payload_requests.lock();
+            assert_eq!(l2_gp.len(), 1);
+            assert_eq!(l2_gp[0], local_id);
+        }
 
         test_harness.cleanup().await;
     }

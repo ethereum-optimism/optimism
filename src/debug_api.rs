@@ -1,10 +1,10 @@
-use jsonrpsee::core::{async_trait, RpcResult};
+use jsonrpsee::core::{RpcResult, async_trait};
 use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::server::Server;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use crate::server::ExecutionMode;
 
@@ -71,7 +71,7 @@ impl DebugApiServer for DebugServer {
         &self,
         request: SetExecutionModeRequest,
     ) -> RpcResult<SetExecutionModeResponse> {
-        let mut execution_mode = self.execution_mode.lock().await;
+        let mut execution_mode = self.execution_mode.lock();
         *execution_mode = request.execution_mode.clone();
 
         tracing::info!("Set execution mode to {:?}", request.execution_mode);
@@ -82,7 +82,7 @@ impl DebugApiServer for DebugServer {
     }
 
     async fn get_execution_mode(&self) -> RpcResult<GetExecutionModeResponse> {
-        let execution_mode = self.execution_mode.lock().await;
+        let execution_mode = self.execution_mode.lock();
         Ok(GetExecutionModeResponse {
             execution_mode: execution_mode.clone(),
         })
@@ -131,7 +131,7 @@ mod tests {
         let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));
 
         let server = DebugServer::new(execution_mode.clone());
-        let _ = server.run(None).await.unwrap();
+        server.run(None).await.unwrap();
 
         let client = DebugClient::default();
 
