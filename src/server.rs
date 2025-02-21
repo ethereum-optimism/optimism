@@ -20,9 +20,10 @@ use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttribute
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
+use serde::{Deserialize, Serialize};
 
 use tokio::sync::Mutex;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use jsonrpsee::proc_macros::rpc;
 
@@ -103,6 +104,28 @@ impl PayloadTraceContext {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, clap::ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionMode {
+    // Normal execution, sending all requests
+    Enabled,
+    // Not sending get_payload requests
+    DryRun,
+    // Not sending any requests
+    Disabled,
+}
+
+impl ExecutionMode {
+    fn is_get_payload_enabled(&self) -> bool {
+        // get payload is only enabled in 'enabled' mode
+        matches!(self, ExecutionMode::Enabled)
+    }
+
+    fn is_disabled(&self) -> bool {
+        matches!(self, ExecutionMode::Disabled)
+    }
+}
+
 #[derive(Clone)]
 pub struct RollupBoostServer {
     pub l2_client: ExecutionClient,
@@ -110,7 +133,7 @@ pub struct RollupBoostServer {
     pub boost_sync: bool,
     pub metrics: Option<Arc<ServerMetrics>>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
-    pub dry_run: Arc<Mutex<bool>>,
+    pub execution_mode: Arc<Mutex<ExecutionMode>>,
 }
 
 impl RollupBoostServer {
@@ -126,12 +149,12 @@ impl RollupBoostServer {
             boost_sync,
             metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
-            dry_run: Arc::new(Mutex::new(false)),
+            execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
         }
     }
 
     pub async fn start_debug_server(&self, port: u16) -> eyre::Result<()> {
-        let server = DebugServer::new(self.dry_run.clone());
+        let server = DebugServer::new(self.execution_mode.clone());
         server.run(Some(port)).await?;
 
         Ok(())
@@ -297,7 +320,13 @@ impl RollupBoostServer {
                 (self.boost_sync, false)
             };
 
-        if should_send_to_builder {
+        let execution_mode = self.execution_mode.lock().await;
+
+        println!("execution_mode: {:?}", execution_mode);
+
+        if execution_mode.is_disabled() {
+            debug!(message = "execution mode is disabled, skipping FCU call to builder", "head_block_hash" = %fork_choice_state.head_block_hash);
+        } else if should_send_to_builder {
             let span: Option<BoxedSpan> = if let Some(payload_attributes) =
                 payload_attributes.clone()
             {
@@ -422,8 +451,8 @@ impl RollupBoostServer {
         let l2_client_future = self.l2_client.auth_client.get_payload_v3(payload_id);
 
         let builder_client_future = Box::pin(async move {
-            let dry_run = self.dry_run.lock().await;
-            if *dry_run {
+            let execution_mode = self.execution_mode.lock().await;
+            if !execution_mode.is_get_payload_enabled() {
                 info!(message = "dry run mode is enabled, skipping get payload builder call");
 
                 // We are in dry run mode, so we do not want to call the builder.
@@ -562,7 +591,8 @@ impl RollupBoostServer {
         let parent_hash = execution_payload.parent_hash();
         info!(message = "received new_payload_v3", "block_hash" = %block_hash);
         // async call to builder to sync the builder node
-        if self.boost_sync {
+        let execution_mode = self.execution_mode.lock().await;
+        if self.boost_sync && !execution_mode.is_disabled() {
             if let Some(metrics) = &self.metrics {
                 metrics.new_payload_count.increment(1);
             }

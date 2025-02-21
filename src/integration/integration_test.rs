@@ -5,8 +5,8 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    use crate::debug_api::SetDryRunRequestAction;
     use crate::integration::RollupBoostTestHarnessBuilder;
+    use crate::server::ExecutionMode;
     use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
 
     #[tokio::test]
@@ -54,8 +54,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_integration_dry_run() -> eyre::Result<()> {
+    async fn test_integration_execution_mode() -> eyre::Result<()> {
+        // Create a counter that increases whenever we receive a new RPC call in the builder
+        let counter = Arc::new(Mutex::new(0));
+
+        let counter_for_handler = counter.clone();
+        let handler = Box::new(move |_method: &str, _params: Value, _result: Value| {
+            let mut counter = counter_for_handler.lock().unwrap();
+
+            *counter += 1;
+            None
+        });
+
         let harness = RollupBoostTestHarnessBuilder::new("test_integration_dry_run")
+            .proxy_handler(handler)
             .build()
             .await?;
         let mut block_generator = harness.get_block_generator().await?;
@@ -74,10 +86,10 @@ mod tests {
         // enable dry run mode
         {
             let response = client
-                .set_dry_run(SetDryRunRequestAction::SetDryRun(true))
+                .set_execution_mode(ExecutionMode::DryRun)
                 .await
                 .unwrap();
-            assert!(response.dry_run_state, "Dry run mode should be enabled");
+            assert_eq!(response.execution_mode, ExecutionMode::DryRun);
 
             // the new valid block should be created the the l2 builder
             let (_block, block_creator) = block_generator.generate_block(false).await?;
@@ -87,16 +99,48 @@ mod tests {
         // toggle again dry run mode
         {
             let response = client
-                .set_dry_run(SetDryRunRequestAction::SetDryRun(false))
+                .set_execution_mode(ExecutionMode::Enabled)
                 .await
                 .unwrap();
-            assert!(!response.dry_run_state, "Dry run mode should be disabled");
+            assert_eq!(response.execution_mode, ExecutionMode::Enabled);
 
             // the new valid block should be created the the builder
             let (_block, block_creator) = block_generator.generate_block(false).await?;
             assert!(
                 block_creator.is_builder(),
                 "Block creator should be the builder"
+            );
+        }
+
+        // sleep for 1 second so that it has time to send the last FCU request to the builder
+        // and there is not a race condition with the disable call
+        std::thread::sleep(Duration::from_secs(1));
+
+        tracing::info!("Setting execution mode to disabled");
+
+        // Set the execution mode to disabled and reset the counter in the proxy to 0
+        // to track the number of calls to the builder during the disabled mode which
+        // should be 0
+        {
+            let response = client
+                .set_execution_mode(ExecutionMode::Disabled)
+                .await
+                .unwrap();
+            assert_eq!(response.execution_mode, ExecutionMode::Disabled);
+
+            // reset the counter in the proxy
+            *counter.lock().unwrap() = 0;
+
+            // create 5 blocks which are processed by the l2 clients
+            for _ in 0..5 {
+                let (_block, block_creator) = block_generator.generate_block(false).await?;
+                assert!(block_creator.is_l2(), "Block creator should be l2");
+            }
+
+            assert_eq!(
+                *counter.lock().unwrap(),
+                0,
+                "Number of calls to the builder should be 0",
             );
         }
 

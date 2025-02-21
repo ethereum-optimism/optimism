@@ -1,6 +1,7 @@
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
-use debug_api::{DebugClient, SetDryRunRequestAction};
+use debug_api::DebugClient;
+use server::ExecutionMode;
 use std::{net::SocketAddr, sync::Arc};
 
 use alloy_rpc_types_engine::JwtSecret;
@@ -104,8 +105,11 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum DebugCommands {
-    /// Toggle dry run mode
-    DryRun {},
+    /// Set the execution mode
+    SetExecutionMode { execution_mode: ExecutionMode },
+
+    /// Get the execution mode
+    ExecutionMode {},
 }
 
 #[tokio::main]
@@ -121,13 +125,17 @@ async fn main() -> eyre::Result<()> {
     if let Some(cmd) = args.command {
         match cmd {
             Commands::Debug { command } => match command {
-                DebugCommands::DryRun {} => {
+                DebugCommands::SetExecutionMode { execution_mode } => {
                     let client = DebugClient::default();
-                    let result = client
-                        .set_dry_run(SetDryRunRequestAction::ToggleDryRun)
-                        .await
-                        .unwrap();
-                    println!("Response: {:?}", result);
+                    let result = client.set_execution_mode(execution_mode).await.unwrap();
+                    println!("Response: {:?}", result.execution_mode);
+
+                    return Ok(());
+                }
+                DebugCommands::ExecutionMode {} => {
+                    let client = DebugClient::default();
+                    let result = client.get_execution_mode().await.unwrap();
+                    println!("Execution mode: {:?}", result.execution_mode);
 
                     return Ok(());
                 }

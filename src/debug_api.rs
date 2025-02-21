@@ -6,37 +6,44 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use crate::server::ExecutionMode;
+
 const DEFAULT_DEBUG_API_PORT: u16 = 5555;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum SetDryRunRequestAction {
-    ToggleDryRun,
-    SetDryRun(bool),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SetDryRunRequest {
-    pub action: SetDryRunRequestAction,
+pub struct SetExecutionModeRequest {
+    pub execution_mode: ExecutionMode,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SetDryRunResponse {
-    pub dry_run_state: bool,
+pub struct SetExecutionModeResponse {
+    pub execution_mode: ExecutionMode,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GetExecutionModeResponse {
+    pub execution_mode: ExecutionMode,
 }
 
 #[rpc(server, client, namespace = "debug")]
 trait DebugApi {
-    #[method(name = "setDryRun")]
-    async fn set_dry_run(&self, request: SetDryRunRequest) -> RpcResult<SetDryRunResponse>;
+    #[method(name = "setExecutionMode")]
+    async fn set_execution_mode(
+        &self,
+        request: SetExecutionModeRequest,
+    ) -> RpcResult<SetExecutionModeResponse>;
+
+    #[method(name = "getExecutionMode")]
+    async fn get_execution_mode(&self) -> RpcResult<GetExecutionModeResponse>;
 }
 
 pub struct DebugServer {
-    dry_run: Arc<Mutex<bool>>,
+    execution_mode: Arc<Mutex<ExecutionMode>>,
 }
 
 impl DebugServer {
-    pub fn new(dry_run: Arc<Mutex<bool>>) -> Self {
-        Self { dry_run }
+    pub fn new(execution_mode: Arc<Mutex<ExecutionMode>>) -> Self {
+        Self { execution_mode }
     }
 
     pub async fn run(self, port: Option<u16>) -> eyre::Result<()> {
@@ -60,20 +67,24 @@ impl DebugServer {
 
 #[async_trait]
 impl DebugApiServer for DebugServer {
-    async fn set_dry_run(&self, _request: SetDryRunRequest) -> RpcResult<SetDryRunResponse> {
-        let mut dry_run = self.dry_run.lock().await;
+    async fn set_execution_mode(
+        &self,
+        request: SetExecutionModeRequest,
+    ) -> RpcResult<SetExecutionModeResponse> {
+        let mut execution_mode = self.execution_mode.lock().await;
+        *execution_mode = request.execution_mode.clone();
 
-        match _request.action {
-            SetDryRunRequestAction::ToggleDryRun => {
-                *dry_run = !*dry_run;
-            }
-            SetDryRunRequestAction::SetDryRun(state) => {
-                *dry_run = state;
-            }
-        };
+        tracing::info!("Set execution mode to {:?}", request.execution_mode);
 
-        Ok(SetDryRunResponse {
-            dry_run_state: *dry_run,
+        Ok(SetExecutionModeResponse {
+            execution_mode: request.execution_mode,
+        })
+    }
+
+    async fn get_execution_mode(&self) -> RpcResult<GetExecutionModeResponse> {
+        let execution_mode = self.execution_mode.lock().await;
+        Ok(GetExecutionModeResponse {
+            execution_mode: execution_mode.clone(),
         })
     }
 }
@@ -89,12 +100,17 @@ impl DebugClient {
         Ok(Self { client })
     }
 
-    pub async fn set_dry_run(
+    pub async fn set_execution_mode(
         &self,
-        action: SetDryRunRequestAction,
-    ) -> eyre::Result<SetDryRunResponse> {
-        let request = SetDryRunRequest { action };
-        let result = DebugApiClient::set_dry_run(&self.client, request).await?;
+        execution_mode: ExecutionMode,
+    ) -> eyre::Result<SetExecutionModeResponse> {
+        let request = SetExecutionModeRequest { execution_mode };
+        let result = DebugApiClient::set_execution_mode(&self.client, request).await?;
+        Ok(result)
+    }
+
+    pub async fn get_execution_mode(&self) -> eyre::Result<GetExecutionModeResponse> {
+        let result = DebugApiClient::get_execution_mode(&self.client).await?;
         Ok(result)
     }
 }
@@ -112,25 +128,33 @@ mod tests {
     #[tokio::test]
     async fn test_debug_client() {
         // spawn the server and try to modify it with the client
-        let dry_run = Arc::new(Mutex::new(false));
+        let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));
 
-        let server = DebugServer::new(dry_run.clone());
+        let server = DebugServer::new(execution_mode.clone());
         let _ = server.run(None).await.unwrap();
 
         let client = DebugClient::default();
+
+        // Test setting execution mode to Disabled
         let result = client
-            .set_dry_run(SetDryRunRequestAction::ToggleDryRun)
+            .set_execution_mode(ExecutionMode::Disabled)
             .await
             .unwrap();
+        assert_eq!(result.execution_mode, ExecutionMode::Disabled);
 
-        assert_eq!(result.dry_run_state, true);
-        assert_eq!(result.dry_run_state, *dry_run.lock().await);
+        // Verify with get_execution_mode
+        let status = client.get_execution_mode().await.unwrap();
+        assert_eq!(status.execution_mode, ExecutionMode::Disabled);
 
+        // Test setting execution mode back to Enabled
         let result = client
-            .set_dry_run(SetDryRunRequestAction::ToggleDryRun)
+            .set_execution_mode(ExecutionMode::Enabled)
             .await
             .unwrap();
-        assert_eq!(result.dry_run_state, false);
-        assert_eq!(result.dry_run_state, *dry_run.lock().await);
+        assert_eq!(result.execution_mode, ExecutionMode::Enabled);
+
+        // Verify again with get_execution_mode
+        let status = client.get_execution_mode().await.unwrap();
+        assert_eq!(status.execution_mode, ExecutionMode::Enabled);
     }
 }
