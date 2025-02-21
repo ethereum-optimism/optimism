@@ -305,7 +305,10 @@ async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre
                 tokio::task::spawn(async move {
                     let service = service_fn(move |_req: Request<hyper::body::Incoming>| {
                         let response = match _req.uri().path() {
-                            "/metrics" => Response::new(HttpBody::from(handle.render())),
+                            "/metrics" => Response::builder()
+                                .header("content-type", "text/plain")
+                                .body(HttpBody::from(handle.render()))
+                                .unwrap(),
                             _ => Response::builder()
                                 .status(StatusCode::NOT_FOUND)
                                 .body(HttpBody::empty())
