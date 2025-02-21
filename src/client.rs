@@ -7,7 +7,7 @@ use alloy_rpc_types_engine::{
     PayloadId, PayloadStatus,
 };
 use clap::{arg, Parser};
-use http::Uri;
+use http::{StatusCode, Uri};
 use jsonrpsee::core::{ClientError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -92,7 +92,11 @@ impl ExecutionClient {
                 }
             });
         if let Some(metrics) = &self.metrics {
-            metrics.record_fork_choice_updated_v3(start.elapsed(), self.payload_source.clone());
+            metrics.record_fork_choice_updated_v3(
+                start.elapsed(),
+                self.get_response_code(&response),
+                self.payload_source.clone(),
+            );
         }
         response
     }
@@ -119,7 +123,11 @@ impl ExecutionClient {
                 }
             });
         if let Some(metrics) = &self.metrics {
-            metrics.record_get_payload_v3(start.elapsed(), self.payload_source.clone());
+            metrics.record_get_payload_v3(
+                start.elapsed(),
+                self.get_response_code(&response),
+                self.payload_source.clone(),
+            );
         }
         response
     }
@@ -150,9 +158,20 @@ impl ExecutionClient {
                 }
             });
         if let Some(metrics) = &self.metrics {
-            metrics.record_new_payload_v3(start.elapsed(), self.payload_source.clone());
+            metrics.record_new_payload_v3(
+                start.elapsed(),
+                self.get_response_code(&response),
+                self.payload_source.clone(),
+            );
         }
         response
+    }
+
+    fn get_response_code<T>(&self, response: &RpcResult<T>) -> String {
+        match response {
+            Ok(_) => StatusCode::OK.to_string(),
+            Err(e) => e.code().to_string(),
+        }
     }
 }
 

@@ -3,7 +3,7 @@ use crate::metrics::ServerMetrics;
 use crate::server::PayloadSource;
 use alloy_rpc_types_engine::JwtSecret;
 use http::header::AUTHORIZATION;
-use http::Uri;
+use http::{StatusCode, Uri};
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
@@ -228,10 +228,10 @@ async fn forward_request(
                     );
                     e
                 })?;
-            let (http_status_code, rpc_status_code) = parse_response_code(&body_bytes);
+            let rpc_status_code = parse_response_code(&body_bytes);
             record_metrics(
                 metrics,
-                http_status_code,
+                parts.status.to_string(),
                 rpc_status_code,
                 method,
                 start,
@@ -251,7 +251,15 @@ async fn forward_request(
                 method = %method,
                 error = %e,
             );
-            record_metrics(metrics, String::new(), None, method, start, source).await;
+            record_metrics(
+                metrics,
+                StatusCode::INTERNAL_SERVER_ERROR.to_string(),
+                None,
+                method,
+                start,
+                source,
+            )
+            .await;
             Err(e.into())
         }
     }
@@ -287,7 +295,7 @@ async fn record_metrics(
     }
 }
 
-fn parse_response_code(body_bytes: &[u8]) -> (String, Option<String>) {
+fn parse_response_code(body_bytes: &[u8]) -> Option<String> {
     #[derive(serde::Deserialize, Debug)]
     struct RpcResponse {
         error: Option<JsonRpcError>,
@@ -301,12 +309,12 @@ fn parse_response_code(body_bytes: &[u8]) -> (String, Option<String>) {
     // Safely try to deserialize, return empty string on failure
     let rpc_status_code = serde_json::from_slice::<RpcResponse>(body_bytes)
                 .map_err(|e| {
-                    info!(target: "proxy::parse_response_code", message = "error deserializing body", error = %e);
+                    warn!(target: "proxy::parse_response_code", message = "error deserializing body", error = %e);
                 })
                 .ok()
                 .and_then(|r| r.error.map(|e| e.code.to_string()));
 
-    (String::new(), rpc_status_code)
+    rpc_status_code
 }
 
 #[cfg(test)]
