@@ -113,7 +113,9 @@ The Debug API is a json-rpc api that can be used to configure rollup-boost's exe
 - `dry-run`: The builder receives all the engine API calls from rollup-boost except for the get payload request.
 - `disabled`: The builder does not receive any engine API calls from rollup-boost.
 
-By default, the debug server runs on port 5555. This allows rollup-boost to stop sending requests to the builder during runtime without needing a restart.
+- disabled: The builder does not receive any engine API calls from rollup-boost. This allows rollup-boost to stop sending requests to the builder during runtime without needing a restart.
+
+By default, the debug server runs on port 5555. 
 
 To set dry run mode:
 
