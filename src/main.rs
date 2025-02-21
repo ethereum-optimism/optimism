@@ -1,6 +1,7 @@
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use debug_api::DebugClient;
+use metrics::ServerMetrics;
 use server::ExecutionMode;
 use std::{net::SocketAddr, sync::Arc};
 
@@ -14,14 +15,13 @@ use hyper_util::rt::TokioIo;
 use jsonrpsee::http_client::HttpBody;
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
-use metrics::ServerMetrics;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_util::layers::{PrefixLayer, Stack};
 use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Config, Resource};
 use proxy::ProxyLayer;
-use server::RollupBoostServer;
+use server::{PayloadSource, RollupBoostServer};
 
 use tokio::net::TcpListener;
 use tokio::signal::unix::{signal as unix_signal, SignalKind};
@@ -174,7 +174,6 @@ async fn main() -> eyre::Result<()> {
         let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
         let addr: SocketAddr = metrics_addr.parse()?;
         tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task
-
         Some(Arc::new(ServerMetrics::default()))
     } else {
         None
@@ -199,6 +198,8 @@ async fn main() -> eyre::Result<()> {
         l2_client_args.l2_url.clone(),
         l2_auth_jwt,
         l2_client_args.l2_timeout,
+        metrics.clone(),
+        PayloadSource::L2,
     )?;
 
     let builder_args = args.builder;
@@ -214,6 +215,8 @@ async fn main() -> eyre::Result<()> {
         builder_args.builder_url.clone(),
         builder_auth_jwt,
         builder_args.builder_timeout,
+        metrics.clone(),
+        PayloadSource::Builder,
     )?;
 
     let boost_sync_enabled = !args.no_boost_sync;
@@ -221,8 +224,12 @@ async fn main() -> eyre::Result<()> {
         info!("Boost sync enabled");
     }
 
-    let rollup_boost =
-        RollupBoostServer::new(l2_client, builder_client, boost_sync_enabled, metrics);
+    let rollup_boost = RollupBoostServer::new(
+        l2_client,
+        builder_client,
+        boost_sync_enabled,
+        metrics.clone(),
+    );
 
     // Spawn the debug server
     rollup_boost
@@ -239,6 +246,7 @@ async fn main() -> eyre::Result<()> {
         l2_auth_jwt,
         builder_args.builder_url,
         builder_auth_jwt,
+        metrics,
     ));
 
     let server = Server::builder()
@@ -335,6 +343,7 @@ mod tests {
     use jsonrpsee::core::client::ClientT;
 
     use crate::auth_layer::AuthClientService;
+    use crate::server::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::http_client::transport::Error as TransportError;
     use jsonrpsee::http_client::transport::HttpBackend;
@@ -376,7 +385,7 @@ mod tests {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
 
         let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
-        let client = ExecutionClient::new(auth_rpc, secret, 1000).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000, None, PayloadSource::L2).unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
@@ -385,7 +394,7 @@ mod tests {
     async fn invalid_jwt() {
         let secret = JwtSecret::random();
         let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
-        let client = ExecutionClient::new(auth_rpc, secret, 1000).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000, None, PayloadSource::L2).unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_err());
         assert!(matches!(

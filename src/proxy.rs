@@ -1,4 +1,6 @@
 use crate::auth_layer::secret_to_bearer_header;
+use crate::metrics::ServerMetrics;
+use crate::server::PayloadSource;
 use alloy_rpc_types_engine::JwtSecret;
 use http::header::AUTHORIZATION;
 use http::Uri;
@@ -8,10 +10,12 @@ use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use jsonrpsee::core::{http_helpers, BoxError};
 use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
+use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Instant;
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 const MULTIPLEX_METHODS: [&str; 4] = [
     "engine_",
@@ -34,6 +38,7 @@ pub struct ProxyLayer {
     l2_auth_secret: JwtSecret,
     builder_auth_uri: Uri,
     builder_auth_secret: JwtSecret,
+    metrics: Option<Arc<ServerMetrics>>,
 }
 
 impl ProxyLayer {
@@ -42,12 +47,14 @@ impl ProxyLayer {
         l2_auth_secret: JwtSecret,
         builder_auth_uri: Uri,
         builder_auth_secret: JwtSecret,
+        metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
         ProxyLayer {
             l2_auth_uri,
             l2_auth_secret,
             builder_auth_uri,
             builder_auth_secret,
+            metrics,
         }
     }
 }
@@ -71,6 +78,7 @@ impl<S> Layer<S> for ProxyLayer {
             l2_auth_secret: self.l2_auth_secret,
             builder_auth_uri: self.builder_auth_uri.clone(),
             builder_auth_secret: self.builder_auth_secret,
+            metrics: self.metrics.clone(),
         }
     }
 }
@@ -83,6 +91,7 @@ pub struct ProxyService<S> {
     l2_auth_secret: JwtSecret,
     builder_auth_uri: Uri,
     builder_auth_secret: JwtSecret,
+    metrics: Option<Arc<ServerMetrics>>,
 }
 
 impl<S> Service<HttpRequest<HttpBody>> for ProxyService<S>
@@ -112,6 +121,7 @@ where
         let builder_secret = self.builder_auth_secret;
         let l2_uri = self.l2_auth_uri.clone();
         let l2_secret = self.l2_auth_secret;
+        let metrics = self.metrics.clone();
 
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
@@ -134,7 +144,7 @@ where
                     let builder_req =
                         HttpRequest::from_parts(parts.clone(), HttpBody::from(body_bytes.clone()));
                     let builder_method = method.clone();
-
+                    let builder_metrics = metrics.clone();
                     tokio::spawn(async move {
                         let _ = forward_request(
                             builder_client,
@@ -142,13 +152,24 @@ where
                             &builder_method,
                             builder_uri,
                             builder_secret,
+                            builder_metrics,
+                            PayloadSource::Builder,
                         )
                         .await;
                     });
 
                     let l2_req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
                     info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
-                    forward_request(client, l2_req, &method, l2_uri, l2_secret).await
+                    forward_request(
+                        client,
+                        l2_req,
+                        &method,
+                        l2_uri,
+                        l2_secret,
+                        metrics,
+                        PayloadSource::L2,
+                    )
+                    .await
                 } else {
                     let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
                     info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
@@ -156,7 +177,16 @@ where
                 }
             } else {
                 let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
-                forward_request(client, req, &method, l2_uri, l2_secret).await
+                forward_request(
+                    client,
+                    req,
+                    &method,
+                    l2_uri,
+                    l2_secret,
+                    metrics,
+                    PayloadSource::L2,
+                )
+                .await
             }
         };
         Box::pin(fut)
@@ -170,7 +200,10 @@ async fn forward_request(
     method: &str,
     uri: Uri,
     auth: JwtSecret,
+    metrics: Option<Arc<ServerMetrics>>,
+    source: PayloadSource,
 ) -> Result<http::Response<HttpBody>, BoxError> {
+    let start = Instant::now();
     *req.uri_mut() = uri.clone();
     req.headers_mut()
         .insert(AUTHORIZATION, secret_to_bearer_header(&auth));
@@ -183,7 +216,33 @@ async fn forward_request(
     );
 
     match client.request(req).await {
-        Ok(resp) => Ok(resp.map(HttpBody::new)),
+        Ok(resp) => {
+            let (parts, body) = resp.into_parts();
+            let (body_bytes, _) = http_helpers::read_body(&parts.headers, body, u32::MAX)
+                .await
+                .map_err(|e| {
+                    warn!(
+                        target: "proxy::forward_request",
+                        message = "error reading body",
+                        error = %e,
+                    );
+                    e
+                })?;
+            let (http_status_code, rpc_status_code) = parse_response_code(&body_bytes);
+            record_metrics(
+                metrics,
+                http_status_code,
+                rpc_status_code,
+                method,
+                start,
+                source,
+            )
+            .await;
+            Ok(http::Response::from_parts(
+                parts,
+                HttpBody::from(body_bytes),
+            ))
+        }
         Err(e) => {
             error!(
                 target: "proxy::call",
@@ -192,9 +251,62 @@ async fn forward_request(
                 method = %method,
                 error = %e,
             );
+            record_metrics(metrics, String::new(), None, method, start, source).await;
             Err(e.into())
         }
     }
+}
+
+async fn record_metrics(
+    metrics: Option<Arc<ServerMetrics>>,
+    http_status_code: String,
+    rpc_status_code: Option<String>,
+    method: &str,
+    start: Instant,
+    source: PayloadSource,
+) {
+    if let Some(metrics) = &metrics {
+        match source {
+            PayloadSource::Builder => {
+                metrics.record_builder_forwarded_call(start.elapsed(), method.to_string());
+                metrics.increment_builder_rpc_response_count(
+                    http_status_code,
+                    rpc_status_code,
+                    method.to_string(),
+                );
+            }
+            PayloadSource::L2 => {
+                metrics.record_l2_forwarded_call(start.elapsed(), method.to_string());
+                metrics.increment_l2_rpc_response_count(
+                    http_status_code,
+                    rpc_status_code,
+                    method.to_string(),
+                );
+            }
+        }
+    }
+}
+
+fn parse_response_code(body_bytes: &[u8]) -> (String, Option<String>) {
+    #[derive(serde::Deserialize, Debug)]
+    struct RpcResponse {
+        error: Option<JsonRpcError>,
+    }
+
+    #[derive(serde::Deserialize, Debug)]
+    struct JsonRpcError {
+        code: i32,
+    }
+
+    // Safely try to deserialize, return empty string on failure
+    let rpc_status_code = serde_json::from_slice::<RpcResponse>(body_bytes)
+                .map_err(|e| {
+                    info!(target: "proxy::parse_response_code", message = "error deserializing body", error = %e);
+                })
+                .ok()
+                .and_then(|r| r.error.map(|e| e.code.to_string()));
+
+    (String::new(), rpc_status_code)
 }
 
 #[cfg(test)]
@@ -250,6 +362,7 @@ mod tests {
                 JwtSecret::random(),
                 format!("http://{}:{}", builder.addr.ip(), builder.addr.port()).parse::<Uri>()?,
                 JwtSecret::random(),
+                None,
             ));
 
             let temp_listener = TcpListener::bind("0.0.0.0:0").await?;
@@ -393,7 +506,7 @@ mod tests {
                 }
             };
 
-            return Ok(hyper::Response::new(response.to_string()));
+            Ok(hyper::Response::new(response.to_string()))
         }
     }
 
@@ -510,7 +623,7 @@ mod tests {
         .parse::<Uri>()
         .unwrap();
 
-        let proxy_layer = ProxyLayer::new(l2_auth_uri.clone(), jwt.clone(), l2_auth_uri, jwt);
+        let proxy_layer = ProxyLayer::new(l2_auth_uri.clone(), jwt, l2_auth_uri, jwt, None);
 
         // Create a layered server
         let server = ServerBuilder::default()
@@ -691,7 +804,7 @@ mod tests {
 
         test_harness
             .proxy_client
-            .request::<serde_json::Value, _>(expected_method, (gas_price.clone(),))
+            .request::<serde_json::Value, _>(expected_method, (gas_price,))
             .await?;
 
         let expected_price = json!(gas_price);
@@ -725,7 +838,7 @@ mod tests {
 
         test_harness
             .proxy_client
-            .request::<serde_json::Value, _>(expected_method, (gas_limit.clone(),))
+            .request::<serde_json::Value, _>(expected_method, (gas_limit,))
             .await?;
 
         let expected_price = json!(gas_limit);
@@ -759,7 +872,7 @@ mod tests {
 
         test_harness
             .proxy_client
-            .request::<serde_json::Value, _>(expected_method, (mock_data.clone(),))
+            .request::<serde_json::Value, _>(expected_method, (mock_data,))
             .await?;
 
         let expected_price = json!(mock_data);
