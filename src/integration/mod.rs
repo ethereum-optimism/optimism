@@ -1,7 +1,7 @@
 use crate::auth_layer::{AuthClientLayer, AuthClientService};
 use crate::debug_api::DebugClient;
 use crate::server::EngineApiClient;
-use crate::server::PayloadCreator;
+use crate::server::PayloadSource;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::JwtSecret;
@@ -710,7 +710,7 @@ impl SimpleBlockGenerator {
     pub async fn generate_block(
         &mut self,
         empty_blocks: bool,
-    ) -> eyre::Result<(B256, PayloadCreator)> {
+    ) -> eyre::Result<(B256, PayloadSource)> {
         // Submit forkchoice update with payload attributes for the next block
         let result = self
             .engine_api
@@ -793,7 +793,7 @@ impl BlockBuilderCreatorValidator {
 }
 
 impl BlockBuilderCreatorValidator {
-    pub fn get_block_creator(&self, block_hash: B256) -> eyre::Result<Option<PayloadCreator>> {
+    pub fn get_block_creator(&self, block_hash: B256) -> eyre::Result<Option<PayloadSource>> {
         let mut file = File::open(&self.log_path).map_err(|_| IntegrationError::LogError)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)
@@ -815,8 +815,8 @@ impl BlockBuilderCreatorValidator {
                         .ok_or(eyre::eyre!("no context found"))?;
 
                     match context {
-                        "builder" => return Ok(Some(PayloadCreator::Builder)),
-                        "l2" => return Ok(Some(PayloadCreator::L2)),
+                        "builder" => return Ok(Some(PayloadSource::Builder)),
+                        "l2" => return Ok(Some(PayloadSource::L2)),
                         _ => panic!("Unknown context: {}", context),
                     }
                 } else {
