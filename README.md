@@ -150,7 +150,7 @@ curl -X POST -H "Content-Type: application/json" --data '{
 
 ### Debug Mode
 
-`rollup-boost` also includes a debug command to run rollup-boost with different execution modes. 
+`rollup-boost` also includes a debug command to interact with the debug API from rollup-boost.
 
 This is useful for testing interactions with external block builders in a production environment without jeopardizing OP stack liveness, especially for network upgrades.
 
