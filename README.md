@@ -107,15 +107,31 @@ By default, `rollup-boost` will sync the builder with the proposer `op-node`. Af
 
 ## Debug API
 
-The Debug API is a json-rpc api that can be used to configure rollup-boost's execution mode. The execution mode determines how rollup-boost makes requests to the builder:
+The Debug API is a JSON-RPC API that can be used to configure rollup-boost's execution mode. The execution mode determines how rollup-boost makes requests to the builder:
 
 - `enabled`: The builder receives all the engine API calls from rollup-boost.
 - `dry-run`: The builder receives all the engine API calls from rollup-boost except for the get payload request.
-- `disabled`: The builder does not receive any engine API calls from rollup-boost.
+- `disabled`: The builder does not receive any engine API calls from rollup-boost. This allows rollup-boost to stop sending requests to the builder during runtime without needing a restart.
 
-- disabled: The builder does not receive any engine API calls from rollup-boost. This allows rollup-boost to stop sending requests to the builder during runtime without needing a restart.
+By default, the debug server runs on port 5555.
 
-By default, the debug server runs on port 5555. 
+### Specification
+
+The debug API implements the following methods:
+
+#### `debug_setExecutionMode`
+
+Sets the execution mode of rollup-boost.
+
+**Params**
+
+- execution_mode: The new execution mode (available options 'dry_run', 'enabled' or 'disabled').
+
+**Returns**
+
+- `execution_mode`: The new execution mode.
+
+**Example**
 
 To set dry run mode:
 
@@ -139,7 +155,19 @@ curl -X POST -H "Content-Type: application/json" --data '{
 }' http://localhost:5555
 ```
 
-To get the current execution mode:
+#### `debug_getExecutionMode`
+
+Gets the current execution mode of rollup-boost.
+
+**Params**
+
+None
+
+**Returns**
+
+- `execution_mode`: The current execution mode.
+
+**Example**
 
 ```bash
 curl -X POST -H "Content-Type: application/json" --data '{
@@ -150,7 +178,7 @@ curl -X POST -H "Content-Type: application/json" --data '{
 }' http://localhost:5555
 ```
 
-### Debug Mode
+### Debug Command
 
 `rollup-boost` also includes a debug command to interact with the debug API from rollup-boost.
 
