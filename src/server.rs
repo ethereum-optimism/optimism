@@ -12,10 +12,9 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use jsonrpsee::RpcModule;
-use jsonrpsee::RpcModule;
 use jsonrpsee::core::{ClientError, RegisterMethodError, RpcResult, async_trait};
+use jsonrpsee::types::ErrorObject;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
-use jsonrpsee::types::{ErrorCode, ErrorObject};
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
@@ -153,10 +152,6 @@ impl RollupBoostServer {
 
     pub fn execution_mode(&self) -> ExecutionMode {
         *self.execution_mode.lock()
-    }
-
-    pub fn set_execution_mode(&self, mode: ExecutionMode) {
-        *self.execution_mode.lock() = mode;
     }
 }
 

@@ -56,7 +56,6 @@ lazy_static = "1.5.0"
 parking_lot = "0.12.3"
 
 [dev-dependencies]
-parking_lot = "0.12.3"
 anyhow = "1.0"
 assert_cmd = "2.0.10"
 predicates = "3.1.2"

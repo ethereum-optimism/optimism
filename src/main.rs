@@ -15,11 +15,6 @@ use hyper_util::rt::TokioIo;
 use jsonrpsee::RpcModule;
 use jsonrpsee::http_client::HttpBody;
 use jsonrpsee::server::Server;
-<<<<<<< HEAD
-use jsonrpsee::RpcModule;
-=======
-use metrics::ServerMetrics;
->>>>>>> 44761b4 (Better LRU and fix for deadlock)
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_util::layers::{PrefixLayer, Stack};
 use opentelemetry::global;
