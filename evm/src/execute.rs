@@ -24,9 +24,7 @@ use reth_execution_types::BlockExecutionResult;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{transaction::signed::OpTransaction, DepositReceipt};
-use reth_primitives_traits::{
-    Block, NodePrimitives, RecoveredBlock, SealedBlock, SignedTransaction,
-};
+use reth_primitives_traits::{Block, NodePrimitives, SealedBlock, SignedTransaction};
 use revm::{context::TxEnv, context_interface::result::ResultAndState, DatabaseCommit};
 use revm_database::State;
 use revm_primitives::{Address, B256};
@@ -41,20 +39,15 @@ where
     type Primitives = N;
 
     fn create_strategy<'a, DB>(
-        &'a mut self,
+        &'a self,
         db: &'a mut State<DB>,
-        block: &'a RecoveredBlock<<Self::Primitives as NodePrimitives>::Block>,
+        block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
     ) -> impl BlockExecutionStrategy<Primitives = Self::Primitives, Error = BlockExecutionError> + 'a
     where
         DB: Database,
     {
         let evm = self.evm_for_block(db, block.header());
-        OpExecutionStrategy::new(
-            evm,
-            block.sealed_block(),
-            &self.chain_spec,
-            self.receipt_builder.as_ref(),
-        )
+        OpExecutionStrategy::new(evm, block, &self.chain_spec, self.receipt_builder.as_ref())
     }
 }
 
@@ -306,7 +299,7 @@ mod tests {
     use reth_evm::execute::{BasicBlockExecutorProvider, BlockExecutorProvider, Executor};
     use reth_optimism_chainspec::OpChainSpecBuilder;
     use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
-    use reth_primitives_traits::Account;
+    use reth_primitives_traits::{Account, RecoveredBlock};
     use reth_revm::{database::StateProviderDatabase, test_utils::StateProviderTest};
     use revm_optimism::constants::L1_BLOCK_CONTRACT;
     use std::{collections::HashMap, str::FromStr};
