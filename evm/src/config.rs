@@ -1,10 +1,10 @@
-use alloy_consensus::Header;
+use alloy_consensus::BlockHeader;
 use reth_optimism_forks::OpHardforks;
 use revm_optimism::OpSpecId;
 
 /// Map the latest active hardfork at the given header to a revm [`OpSpecId`].
-pub fn revm_spec(chain_spec: impl OpHardforks, header: &Header) -> OpSpecId {
-    revm_spec_by_timestamp_after_bedrock(chain_spec, header.timestamp)
+pub fn revm_spec(chain_spec: impl OpHardforks, header: impl BlockHeader) -> OpSpecId {
+    revm_spec_by_timestamp_after_bedrock(chain_spec, header.timestamp())
 }
 
 /// Returns the revm [`OpSpecId`] at the given timestamp.
@@ -42,6 +42,7 @@ pub fn revm_spec_by_timestamp_after_bedrock(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::Header;
     use reth_chainspec::ChainSpecBuilder;
     use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
 
@@ -98,35 +99,32 @@ mod tests {
             f(cs).build()
         }
         assert_eq!(
-            revm_spec(op_cs(|cs| cs.isthmus_activated()), &Default::default()),
+            revm_spec(op_cs(|cs| cs.isthmus_activated()), Header::default()),
             OpSpecId::ISTHMUS
         );
         assert_eq!(
-            revm_spec(op_cs(|cs| cs.holocene_activated()), &Default::default()),
+            revm_spec(op_cs(|cs| cs.holocene_activated()), Header::default()),
             OpSpecId::HOLOCENE
         );
         assert_eq!(
-            revm_spec(op_cs(|cs| cs.granite_activated()), &Default::default()),
+            revm_spec(op_cs(|cs| cs.granite_activated()), Header::default()),
             OpSpecId::GRANITE
         );
+        assert_eq!(revm_spec(op_cs(|cs| cs.fjord_activated()), Header::default()), OpSpecId::FJORD);
         assert_eq!(
-            revm_spec(op_cs(|cs| cs.fjord_activated()), &Default::default()),
-            OpSpecId::FJORD
-        );
-        assert_eq!(
-            revm_spec(op_cs(|cs| cs.ecotone_activated()), &Default::default()),
+            revm_spec(op_cs(|cs| cs.ecotone_activated()), Header::default()),
             OpSpecId::ECOTONE
         );
         assert_eq!(
-            revm_spec(op_cs(|cs| cs.canyon_activated()), &Default::default()),
+            revm_spec(op_cs(|cs| cs.canyon_activated()), Header::default()),
             OpSpecId::CANYON
         );
         assert_eq!(
-            revm_spec(op_cs(|cs| cs.bedrock_activated()), &Default::default()),
+            revm_spec(op_cs(|cs| cs.bedrock_activated()), Header::default()),
             OpSpecId::BEDROCK
         );
         assert_eq!(
-            revm_spec(op_cs(|cs| cs.regolith_activated()), &Default::default()),
+            revm_spec(op_cs(|cs| cs.regolith_activated()), Header::default()),
             OpSpecId::REGOLITH
         );
     }
