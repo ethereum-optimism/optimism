@@ -83,4 +83,5 @@ std = [
     "revm-database/std",
     "revm-optimism/std",
     "reth-evm/std",
+    "tracing/std",
 ]
