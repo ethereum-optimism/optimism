@@ -1,0 +1,38 @@
+name: Kurtosis Integration Tests
+
+on:
+  # Allow manual trigger
+  workflow_dispatch:
+  # Run nightly at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  integration-tests:
+    name: Run Kurtosis Integration Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Install Contender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev libfontconfig1-dev libfontconfig
+          ./scripts/ci/kurtosis.sh install-contender
+
+      - name: Install Kurtosis
+        run: ./scripts/ci/kurtosis.sh install
+
+      - name: Deploy Optimism Package
+        run: ./scripts/ci/kurtosis.sh deploy
+
+      - name: Run Integration Tests
+        run: ./scripts/ci/kurtosis.sh run

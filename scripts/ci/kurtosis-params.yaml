@@ -1,0 +1,15 @@
+optimism_package:
+  chains:
+    - participants:
+      - el_type: op-geth
+        el_image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101500.0
+        el_builder_image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101500.0
+      network_params:
+        network: "kurtosis"
+      additional_services: ["rollup-boost"]
+      mev_params:
+        rollup_boost_image: "flashbots/rollup-boost:0.3rc4"
+ethereum_package:
+  participants:
+  - el_type: geth
+    cl_type: teku
