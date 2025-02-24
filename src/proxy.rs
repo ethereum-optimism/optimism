@@ -307,14 +307,12 @@ fn parse_response_code(body_bytes: &[u8]) -> Option<String> {
     }
 
     // Safely try to deserialize, return empty string on failure
-    let rpc_status_code = serde_json::from_slice::<RpcResponse>(body_bytes)
+    serde_json::from_slice::<RpcResponse>(body_bytes)
                 .map_err(|e| {
                     warn!(target: "proxy::parse_response_code", message = "error deserializing body", error = %e);
                 })
                 .ok()
-                .and_then(|r| r.error.map(|e| e.code.to_string()));
-
-    rpc_status_code
+                .and_then(|r| r.error.map(|e| e.code.to_string()))
 }
 
 #[cfg(test)]

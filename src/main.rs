@@ -1,7 +1,7 @@
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use debug_api::DebugClient;
-use metrics::ServerMetrics;
+use metrics::{ClientMetrics, ServerMetrics};
 use server::ExecutionMode;
 use std::{net::SocketAddr, sync::Arc};
 
@@ -194,11 +194,16 @@ async fn main() -> eyre::Result<()> {
         bail!("Missing L2 Client JWT secret");
     };
 
+    let l2_metrics = if args.metrics {
+        Some(Arc::new(ClientMetrics::new(&PayloadSource::L2)))
+    } else {
+        None
+    };
     let l2_client = ExecutionClient::new(
         l2_client_args.l2_url.clone(),
         l2_auth_jwt,
         l2_client_args.l2_timeout,
-        metrics.clone(),
+        l2_metrics,
         PayloadSource::L2,
     )?;
 
@@ -211,11 +216,17 @@ async fn main() -> eyre::Result<()> {
         bail!("Missing Builder JWT secret");
     };
 
+    let builder_metrics = if args.metrics {
+        Some(Arc::new(ClientMetrics::new(&PayloadSource::Builder)))
+    } else {
+        None
+    };
+
     let builder_client = ExecutionClient::new(
         builder_args.builder_url.clone(),
         builder_auth_jwt,
         builder_args.builder_timeout,
-        metrics.clone(),
+        builder_metrics,
         PayloadSource::Builder,
     )?;
 

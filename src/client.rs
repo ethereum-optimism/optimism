@@ -1,5 +1,5 @@
 use crate::auth_layer::{AuthClientLayer, AuthClientService};
-use crate::metrics::ServerMetrics;
+use crate::metrics::ClientMetrics;
 use crate::server::{EngineApiClient, PayloadSource};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{
@@ -41,7 +41,7 @@ pub struct ExecutionClient {
     /// Uri of the RPC server for authenticated Engine API calls
     pub auth_rpc: Uri,
     /// Metrics for the client
-    pub metrics: Option<Arc<ServerMetrics>>,
+    pub metrics: Option<Arc<ClientMetrics>>,
     /// The source of the payload
     pub payload_source: PayloadSource,
 }
@@ -52,7 +52,7 @@ impl ExecutionClient {
         auth_rpc: Uri,
         auth_rpc_jwt_secret: JwtSecret,
         timeout: u64,
-        metrics: Option<Arc<ServerMetrics>>,
+        metrics: Option<Arc<ClientMetrics>>,
         payload_source: PayloadSource,
     ) -> Result<Self, ExecutionClientError> {
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
@@ -92,11 +92,8 @@ impl ExecutionClient {
                 }
             });
         if let Some(metrics) = &self.metrics {
-            metrics.record_fork_choice_updated_v3(
-                start.elapsed(),
-                self.get_response_code(&response),
-                self.payload_source.clone(),
-            );
+            metrics
+                .record_fork_choice_updated_v3(start.elapsed(), self.get_response_code(&response));
         }
         response
     }
@@ -123,11 +120,7 @@ impl ExecutionClient {
                 }
             });
         if let Some(metrics) = &self.metrics {
-            metrics.record_get_payload_v3(
-                start.elapsed(),
-                self.get_response_code(&response),
-                self.payload_source.clone(),
-            );
+            metrics.record_get_payload_v3(start.elapsed(), self.get_response_code(&response));
         }
         response
     }
@@ -158,11 +151,7 @@ impl ExecutionClient {
                 }
             });
         if let Some(metrics) = &self.metrics {
-            metrics.record_new_payload_v3(
-                start.elapsed(),
-                self.get_response_code(&response),
-                self.payload_source.clone(),
-            );
+            metrics.record_new_payload_v3(start.elapsed(), self.get_response_code(&response));
         }
         response
     }
