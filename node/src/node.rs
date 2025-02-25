@@ -13,7 +13,7 @@ use reth_evm::{
 };
 use reth_network::{NetworkConfig, NetworkHandle, NetworkManager, NetworkPrimitives, PeersInfo};
 use reth_node_api::{
-    AddOnsContext, FullNodeComponents, NodeAddOns, NodePrimitives, PrimitivesTy, TxTy,
+    AddOnsContext, FullNodeComponents, KeyHasherTy, NodeAddOns, NodePrimitives, PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
     components::{
@@ -340,7 +340,7 @@ where
         >,
     >,
 {
-    type Validator = OpEngineValidator;
+    type Validator = OpEngineValidator<N::Provider>;
 
     async fn engine_validator(&self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::Validator> {
         OpEngineValidatorBuilder::default().build(ctx).await
@@ -782,10 +782,13 @@ where
     >,
     Node: FullNodeComponents<Types = Types>,
 {
-    type Validator = OpEngineValidator;
+    type Validator = OpEngineValidator<Node::Provider>;
 
     async fn build(self, ctx: &AddOnsContext<'_, Node>) -> eyre::Result<Self::Validator> {
-        Ok(OpEngineValidator::new(ctx.config.chain.clone()))
+        Ok(OpEngineValidator::new::<KeyHasherTy<Types>>(
+            ctx.config.chain.clone(),
+            ctx.node.provider().clone(),
+        ))
     }
 }
 

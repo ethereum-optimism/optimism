@@ -34,6 +34,7 @@ reth-rpc-server-types.workspace = true
 reth-rpc-eth-api.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-tasks = { workspace = true, optional = true }
+reth-trie-common.workspace = true
 
 # op-reth
 reth-optimism-payload-builder.workspace = true
@@ -118,6 +119,7 @@ test-utils = [
     "reth-optimism-node/test-utils",
     "reth-optimism-primitives/arbitrary",
     "reth-primitives-traits/test-utils",
+    "reth-trie-common/test-utils",
 ]
 reth-codec = [
     "reth-primitives/reth-codec",

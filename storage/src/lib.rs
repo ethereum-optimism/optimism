@@ -9,7 +9,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod predeploys;
-pub use predeploys::withdrawals_root;
+pub use predeploys::{withdrawals_root, withdrawals_root_prehashed};
 
 #[cfg(test)]
 mod tests {
