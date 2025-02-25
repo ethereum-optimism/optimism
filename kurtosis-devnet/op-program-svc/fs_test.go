@@ -130,15 +130,11 @@ func TestProofFileSystem(t *testing.T) {
 		}
 
 		// Verify info.json is included in the directory listing
-		foundInfoJson := false
 		for _, file := range files {
 			if file.Name() == "info.json" {
-				foundInfoJson = true
-				break
+				return
 			}
 		}
-		if !foundInfoJson {
-			t.Error("info.json not found in directory listing")
-		}
+		t.Error("info.json not found in directory listing")
 	})
 }
