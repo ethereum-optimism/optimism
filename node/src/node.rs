@@ -17,8 +17,8 @@ use reth_node_api::{
 };
 use reth_node_builder::{
     components::{
-        ComponentsBuilder, ConsensusBuilder, ExecutorBuilder, NetworkBuilder,
-        PayloadServiceBuilder, PoolBuilder, PoolBuilderConfigOverrides,
+        BasicPayloadServiceBuilder, ComponentsBuilder, ConsensusBuilder, ExecutorBuilder,
+        NetworkBuilder, PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
     },
     node::{FullNodeTypes, NodeTypes, NodeTypesWithEngine},
     rpc::{EngineValidatorAddOn, EngineValidatorBuilder, RethRpcAddOns, RpcAddOns, RpcHandle},
@@ -89,7 +89,7 @@ impl OpNode {
     ) -> ComponentsBuilder<
         Node,
         OpPoolBuilder,
-        OpPayloadBuilder,
+        BasicPayloadServiceBuilder<OpPayloadBuilder>,
         OpNetworkBuilder,
         OpExecutorBuilder,
         OpConsensusBuilder,
@@ -111,9 +111,9 @@ impl OpNode {
                 OpPoolBuilder::default()
                     .with_enable_tx_conditional(self.args.enable_tx_conditional),
             )
-            .payload(
+            .payload(BasicPayloadServiceBuilder::new(
                 OpPayloadBuilder::new(compute_pending_block).with_da_config(self.da_config.clone()),
-            )
+            ))
             .network(OpNetworkBuilder {
                 disable_txpool_gossip,
                 disable_discovery_v4: !discovery_v4,
@@ -171,7 +171,7 @@ where
     type ComponentsBuilder = ComponentsBuilder<
         N,
         OpPoolBuilder,
-        OpPayloadBuilder,
+        BasicPayloadServiceBuilder<OpPayloadBuilder>,
         OpNetworkBuilder,
         OpExecutorBuilder,
         OpConsensusBuilder,
@@ -592,7 +592,7 @@ impl<Txs> OpPayloadBuilder<Txs> {
     /// given EVM config.
     #[expect(clippy::type_complexity)]
     pub fn build<Node, Evm, Pool>(
-        &self,
+        self,
         evm_config: Evm,
         ctx: &BuilderContext<Node>,
         pool: Pool,
@@ -632,7 +632,7 @@ impl<Txs> OpPayloadBuilder<Txs> {
     }
 }
 
-impl<Node, Pool, Txs> PayloadServiceBuilder<Node, Pool> for OpPayloadBuilder<Txs>
+impl<Node, Pool, Txs> PayloadBuilderBuilder<Node, Pool> for OpPayloadBuilder<Txs>
 where
     Node: FullNodeTypes<
         Types: NodeTypesWithEngine<
@@ -655,7 +655,7 @@ where
     >;
 
     async fn build_payload_builder(
-        &self,
+        self,
         ctx: &BuilderContext<Node>,
         pool: Pool,
     ) -> eyre::Result<Self::PayloadBuilder> {

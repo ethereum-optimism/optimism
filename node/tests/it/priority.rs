@@ -12,7 +12,8 @@ use reth_e2e_test_utils::{
 };
 use reth_node_api::{FullNodeTypes, NodeTypesWithEngine};
 use reth_node_builder::{
-    components::ComponentsBuilder, EngineNodeLauncher, NodeBuilder, NodeConfig,
+    components::{BasicPayloadServiceBuilder, ComponentsBuilder},
+    EngineNodeLauncher, NodeBuilder, NodeConfig,
 };
 use reth_node_core::args::DatadirArgs;
 use reth_optimism_chainspec::{OpChainSpec, OpChainSpecBuilder};
@@ -93,7 +94,7 @@ fn build_components<Node>(
 ) -> ComponentsBuilder<
     Node,
     OpPoolBuilder,
-    OpPayloadBuilder<CustomTxPriority>,
+    BasicPayloadServiceBuilder<OpPayloadBuilder<CustomTxPriority>>,
     OpNetworkBuilder,
     OpExecutorBuilder,
     OpConsensusBuilder,
@@ -112,10 +113,10 @@ where
     ComponentsBuilder::default()
         .node_types::<Node>()
         .pool(OpPoolBuilder::default())
-        .payload(
+        .payload(BasicPayloadServiceBuilder::new(
             OpPayloadBuilder::new(compute_pending_block)
                 .with_transactions(CustomTxPriority { chain_id }),
-        )
+        ))
         .network(OpNetworkBuilder { disable_txpool_gossip, disable_discovery_v4: !discovery_v4 })
         .executor(OpExecutorBuilder::default())
         .consensus(OpConsensusBuilder::default())
