@@ -9,6 +9,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// DaType determines how txData is submitted to L1.
+type DaType int
+
+const (
+	// DaTypeCalldata means that the (single) frame in the txData is submitted as calldata.
+	DaTypeCalldata DaType = iota
+	// DaTypeBlob means that the frame(s) in the txData are submitted as ethereum 4844 blobs.
+	DaTypeBlob
+	// DaTypeAltDA means that the frame(s) in the txData are submitted to an altda da-server.
+	DaTypeAltDA
+)
+
 // txData represents the data for a single transaction.
 //
 // Note: The batcher currently sends exactly one frame per transaction. This
@@ -16,7 +28,8 @@ import (
 // different channels.
 type txData struct {
 	frames []frameData
-	asBlob bool // indicates whether this should be sent as blob
+	// daType represents the DA type which the frames data will be submitted to.
+	daType DaType
 }
 
 func singleFrameTxData(frame frameData) txData {
