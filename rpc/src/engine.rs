@@ -17,6 +17,24 @@ use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::{EngineApi, EngineApiServer};
 use reth_transaction_pool::TransactionPool;
 
+/// The list of all supported Engine capabilities available over the engine endpoint.
+///
+/// Spec: <https://specs.optimism.io/protocol/exec-engine.html>
+pub const OP_CAPABILITIES: &[&str] = &[
+    "engine_forkchoiceUpdatedV2",
+    "engine_forkchoiceUpdatedV3",
+    "engine_exchangeTransitionConfigurationV1",
+    "engine_getClientVersionV1",
+    "engine_getPayloadV2",
+    "engine_getPayloadV3",
+    "engine_getPayloadV4",
+    "engine_newPayloadV2",
+    "engine_newPayloadV3",
+    "engine_newPayloadV4",
+    "engine_getPayloadBodiesByHashV1",
+    "engine_getPayloadBodiesByRangeV1",
+];
+
 /// Extension trait that gives access to Optimism engine API RPC methods.
 ///
 /// Note:
@@ -311,7 +329,7 @@ where
     }
 
     async fn exchange_capabilities(&self, _capabilities: Vec<String>) -> RpcResult<Vec<String>> {
-        EngineApiServer::exchange_capabilities(&self.inner, _capabilities).await
+        Ok(self.inner.capabilities().list())
     }
 }
 

@@ -1,5 +1,6 @@
 //! RPC component builder
 
+use reth_optimism_rpc::engine::OP_CAPABILITIES;
 pub use reth_optimism_rpc::OpEngineApi;
 
 use alloy_rpc_types_engine::ExecutionData;
@@ -34,7 +35,7 @@ where
     >;
 
     async fn build_engine_api(self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::EngineApi> {
-        let inner = self.inner.build_engine_api(ctx).await?;
+        let inner = self.inner.capabilities(OP_CAPABILITIES).build_engine_api(ctx).await?;
 
         Ok(OpEngineApi::new(inner))
     }
