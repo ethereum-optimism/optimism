@@ -132,9 +132,11 @@ where
         } else {
             // otherwise, add to pool with the appended conditional
             tx.set_conditional(condition);
-            let hash = self.pool().add_transaction(TransactionOrigin::External, tx).await.map_err(
-                |e| OpEthApiError::Eth(reth_rpc_eth_types::EthApiError::PoolError(e.into())),
-            )?;
+            let hash =
+                self.pool().add_transaction(TransactionOrigin::Private, tx).await.map_err(|e| {
+                    OpEthApiError::Eth(reth_rpc_eth_types::EthApiError::PoolError(e.into()))
+                })?;
+
             Ok(hash)
         }
     }
