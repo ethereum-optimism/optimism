@@ -308,7 +308,11 @@ impl FromRecoveredTx<OpTransactionSigned> for revm_optimism::OpTransaction<TxEnv
                 DepositTransactionParts {
                     is_system_transaction: tx.is_system_transaction,
                     source_hash: tx.source_hash,
-                    mint: tx.mint,
+                    // For consistency with op-geth, we always return `0x0` for mint if it is
+                    // missing This is because op-geth does not distinguish
+                    // between null and 0, because this value is decoded from RLP where null is
+                    // represented as 0
+                    mint: Some(tx.mint.unwrap_or_default()),
                 }
             } else {
                 Default::default()
