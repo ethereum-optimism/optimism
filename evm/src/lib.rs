@@ -132,7 +132,7 @@ where
     fn next_evm_env(
         &self,
         parent: &Self::Header,
-        attributes: NextBlockEnvAttributes,
+        attributes: NextBlockEnvAttributes<'_>,
     ) -> Result<EvmEnv<Self::Spec>, Self::Error> {
         // ensure we're not missing any timestamp based hardforks
         let spec_id = revm_spec_by_timestamp_after_bedrock(&self.chain_spec, attributes.timestamp);

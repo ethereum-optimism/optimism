@@ -19,12 +19,15 @@ use reth_basic_payload_builder::*;
 use reth_chain_state::{ExecutedBlock, ExecutedBlockWithTrieUpdates};
 use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks};
 use reth_evm::{
-    execute::{BlockExecutionError, BlockExecutionStrategy, BlockValidationError},
-    ConfigureEvm, ConfigureEvmFor, Database, EvmEnv, HaltReasonFor, NextBlockEnvAttributes,
+    execute::{
+        BlockExecutionError, BlockExecutionStrategy, BlockExecutionStrategyFactory,
+        BlockValidationError,
+    },
+    ConfigureEvm, ConfigureEvmFor, Database, Evm, HaltReasonFor, NextBlockEnvAttributes,
 };
 use reth_execution_types::ExecutionOutcome;
 use reth_optimism_consensus::calculate_receipt_root_no_memo_optimism;
-use reth_optimism_evm::{OpBlockExecutionInput, OpExecutionStrategy, OpReceiptBuilder};
+use reth_optimism_evm::OpReceiptBuilder;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::transaction::signed::OpTransaction;
 use reth_optimism_storage::predeploys;
@@ -44,7 +47,7 @@ use reth_revm::{
     witness::ExecutionWitnessRecord,
 };
 use reth_transaction_pool::{BestTransactionsAttributes, PoolTransaction, TransactionPool};
-use revm::context_interface::Block;
+use revm::context::{Block, BlockEnv};
 use std::sync::Arc;
 use tracing::{debug, trace, warn};
 
@@ -160,7 +163,7 @@ where
     Pool: TransactionPool<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks>,
     N: OpPayloadPrimitives,
-    EvmConfig: ConfigureEvmFor<N>,
+    EvmConfig: BlockExecutionStrategyFactory<Primitives = N>,
 {
     /// Constructs an Optimism payload from the transactions sent via the
     /// Payload attributes by the sequencer. If the `no_tx_pool` argument is passed in
@@ -178,10 +181,6 @@ where
     where
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
     {
-        let evm_env = self
-            .evm_env(&args.config.attributes, &args.config.parent_header)
-            .map_err(PayloadBuilderError::other)?;
-
         let BuildArguments { mut cached_reads, config, cancel, best_payload } = args;
 
         let ctx = OpPayloadBuilderCtx {
@@ -189,7 +188,6 @@ where
             da_config: self.config.da_config.clone(),
             chain_spec: self.client.chain_spec(),
             config,
-            evm_env,
             cancel,
             best_payload,
             receipt_builder: self.receipt_builder.clone(),
@@ -214,22 +212,6 @@ where
         .map(|out| out.with_cached_reads(cached_reads))
     }
 
-    /// Returns the configured [`EvmEnv`] for the targeted payload
-    /// (that has the `parent` as its parent).
-    pub fn evm_env(
-        &self,
-        attributes: &OpPayloadBuilderAttributes<N::SignedTx>,
-        parent: &Header,
-    ) -> Result<EvmEnv<EvmConfig::Spec>, EvmConfig::Error> {
-        let next_attributes = NextBlockEnvAttributes {
-            timestamp: attributes.timestamp(),
-            suggested_fee_recipient: attributes.suggested_fee_recipient(),
-            prev_randao: attributes.prev_randao(),
-            gas_limit: attributes.gas_limit.unwrap_or(parent.gas_limit),
-        };
-        self.evm_config.next_evm_env(parent, next_attributes)
-    }
-
     /// Computes the witness for the payload.
     pub fn payload_witness(
         &self,
@@ -239,15 +221,12 @@ where
         let attributes = OpPayloadBuilderAttributes::try_new(parent.hash(), attributes, 3)
             .map_err(PayloadBuilderError::other)?;
 
-        let evm_env = self.evm_env(&attributes, &parent).map_err(PayloadBuilderError::other)?;
-
         let config = PayloadConfig { parent_header: Arc::new(parent), attributes };
         let ctx: OpPayloadBuilderCtx<EvmConfig, Client::ChainSpec, N> = OpPayloadBuilderCtx {
             evm_config: self.evm_config.clone(),
             da_config: self.config.da_config.clone(),
             chain_spec: self.client.chain_spec(),
             config,
-            evm_env,
             cancel: Default::default(),
             best_payload: Default::default(),
             receipt_builder: self.receipt_builder.clone(),
@@ -269,7 +248,7 @@ where
     Client: StateProviderFactory + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks> + Clone,
     N: OpPayloadPrimitives,
     Pool: TransactionPool<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
-    EvmConfig: ConfigureEvmFor<N>,
+    EvmConfig: BlockExecutionStrategyFactory<Primitives = N>,
     Txs: OpPayloadTransactions<Pool::Transaction>,
 {
     type Attributes = OpPayloadBuilderAttributes<N::SignedTx>;
@@ -348,7 +327,7 @@ impl<Txs> OpBuilder<'_, Txs> {
     where
         N: OpPayloadPrimitives,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
-        EvmConfig: ConfigureEvmFor<N>,
+        EvmConfig: BlockExecutionStrategyFactory<Primitives = N>,
         ChainSpec: EthChainSpec + OpHardforks,
         DB: Database<Error = ProviderError> + AsRef<P>,
         P: StorageRootProvider,
@@ -356,19 +335,23 @@ impl<Txs> OpBuilder<'_, Txs> {
         let Self { best } = self;
         debug!(target: "payload_builder", id=%ctx.payload_id(), parent_header = ?ctx.parent().hash(), parent_number = ctx.parent().number, "building new payload");
 
-        let mut strategy = OpExecutionStrategy::new(
-            ctx.evm_config.evm_with_env(&mut *state, ctx.evm_env.clone()),
-            OpBlockExecutionInput {
-                number: ctx.evm_env.block_env.number,
-                timestamp: ctx.evm_env.block_env.timestamp,
-                parent_hash: ctx.parent().hash(),
-                gas_limit: ctx.evm_env.block_env.gas_limit,
-                parent_beacon_block_root: ctx.attributes().parent_beacon_block_root(),
-                beneficiary: ctx.evm_env.block_env.beneficiary,
-            },
-            &ctx.chain_spec,
-            ctx.receipt_builder.as_ref(),
-        );
+        let mut strategy = ctx
+            .evm_config
+            .strategy_for_next_block(
+                &mut *state,
+                ctx.parent(),
+                NextBlockEnvAttributes {
+                    timestamp: ctx.attributes().timestamp(),
+                    suggested_fee_recipient: ctx.attributes().suggested_fee_recipient(),
+                    prev_randao: ctx.attributes().prev_randao(),
+                    gas_limit: ctx.attributes().gas_limit.unwrap_or(ctx.parent().gas_limit),
+                    parent_beacon_block_root: ctx.attributes().parent_beacon_block_root(),
+                    withdrawals: None,
+                },
+            )
+            .map_err(PayloadBuilderError::other)?;
+
+        let block_env = strategy.evm_mut().block().clone();
 
         // 1. apply pre-execution changes
         strategy.apply_pre_execution_changes().map_err(|err| {
@@ -381,7 +364,7 @@ impl<Txs> OpBuilder<'_, Txs> {
 
         // 3. if mem pool transactions are requested we execute them
         if !ctx.attributes().no_tx_pool {
-            let best_txs = best(ctx.best_transaction_attributes());
+            let best_txs = best(ctx.best_transaction_attributes(strategy.evm_mut().block()));
             if ctx.execute_best_transactions(&mut info, &mut strategy, best_txs)?.is_some() {
                 return Ok(BuildOutcomeKind::Cancelled)
             }
@@ -411,7 +394,7 @@ impl<Txs> OpBuilder<'_, Txs> {
             None
         };
 
-        let payload = ExecutedPayload { receipts, info, withdrawals_root };
+        let payload = ExecutedPayload { receipts, info, withdrawals_root, block_env };
 
         Ok(BuildOutcomeKind::Better { payload })
     }
@@ -423,21 +406,21 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: OpPayloadBuilderCtx<EvmConfig, ChainSpec, N>,
     ) -> Result<BuildOutcomeKind<OpBuiltPayload<N>>, PayloadBuilderError>
     where
-        EvmConfig: ConfigureEvmFor<N>,
+        EvmConfig: BlockExecutionStrategyFactory<Primitives = N>,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
         DB: Database<Error = ProviderError> + AsRef<P>,
         P: StateRootProvider + HashedPostStateProvider + StorageRootProvider,
     {
-        let ExecutedPayload { receipts, info, withdrawals_root } =
+        let ExecutedPayload { receipts, info, withdrawals_root, block_env } =
             match self.execute(&mut state, &ctx)? {
                 BuildOutcomeKind::Better { payload } | BuildOutcomeKind::Freeze(payload) => payload,
                 BuildOutcomeKind::Cancelled => return Ok(BuildOutcomeKind::Cancelled),
                 BuildOutcomeKind::Aborted { fees } => return Ok(BuildOutcomeKind::Aborted { fees }),
             };
 
-        let block_number = ctx.block_number();
+        let block_number = block_env.number;
         let execution_outcome =
             ExecutionOutcome::new(state.take_bundle(), vec![receipts], block_number, Vec::new());
         let receipts_root = execution_outcome
@@ -477,7 +460,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let header = Header {
             parent_hash: ctx.parent().hash(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
-            beneficiary: ctx.evm_env.block_env.beneficiary,
+            beneficiary: block_env.beneficiary,
             state_root,
             transactions_root,
             receipts_root,
@@ -486,9 +469,9 @@ impl<Txs> OpBuilder<'_, Txs> {
             timestamp: ctx.attributes().payload_attributes.timestamp,
             mix_hash: ctx.attributes().payload_attributes.prev_randao,
             nonce: BEACON_NONCE.into(),
-            base_fee_per_gas: Some(ctx.base_fee()),
+            base_fee_per_gas: Some(block_env.basefee),
             number: ctx.parent().number + 1,
-            gas_limit: ctx.block_gas_limit(),
+            gas_limit: block_env.gas_limit,
             difficulty: U256::ZERO,
             gas_used: info.cumulative_gas_used,
             extra_data,
@@ -546,7 +529,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         ctx: &OpPayloadBuilderCtx<EvmConfig, ChainSpec, N>,
     ) -> Result<ExecutionWitness, PayloadBuilderError>
     where
-        EvmConfig: ConfigureEvmFor<N>,
+        EvmConfig: BlockExecutionStrategyFactory<Primitives = N>,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
         Txs: PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx>>,
@@ -591,6 +574,8 @@ pub struct ExecutedPayload<N: NodePrimitives> {
     pub withdrawals_root: Option<B256>,
     /// The transaction receipts.
     pub receipts: Vec<N::Receipt>,
+    /// The block env used during execution.
+    pub block_env: BlockEnv,
 }
 
 /// This acts as the container for executed transactions and its byproducts (receipts, gas used)
@@ -658,8 +643,6 @@ pub struct OpPayloadBuilderCtx<EvmConfig: ConfigureEvm, ChainSpec, N: NodePrimit
     pub chain_spec: Arc<ChainSpec>,
     /// How to build the payload.
     pub config: PayloadConfig<OpPayloadBuilderAttributes<N::SignedTx>>,
-    /// Evm Settings
-    pub evm_env: EvmEnv<EvmConfig::Spec>,
     /// Marker to check whether the job has been cancelled.
     pub cancel: CancelOnDrop,
     /// The currently best payload.
@@ -690,26 +673,6 @@ where
         self.chain_spec
             .is_shanghai_active_at_timestamp(self.attributes().timestamp())
             .then(|| &self.attributes().payload_attributes.withdrawals)
-    }
-
-    /// Returns the block gas limit to target.
-    pub fn block_gas_limit(&self) -> u64 {
-        self.attributes().gas_limit.unwrap_or(self.evm_env.block_env.gas_limit)
-    }
-
-    /// Returns the block number for the block.
-    pub fn block_number(&self) -> u64 {
-        self.evm_env.block_env.number
-    }
-
-    /// Returns the current base fee
-    pub fn base_fee(&self) -> u64 {
-        self.evm_env.block_env.basefee
-    }
-
-    /// Returns the current blob gas price.
-    pub fn get_blob_gasprice(&self) -> Option<u64> {
-        self.evm_env.block_env.blob_gasprice().map(|gasprice| gasprice as u64)
     }
 
     /// Returns the blob fields for the header.
@@ -744,8 +707,11 @@ where
     }
 
     /// Returns the current fee settings for transactions from the mempool
-    pub fn best_transaction_attributes(&self) -> BestTransactionsAttributes {
-        BestTransactionsAttributes::new(self.base_fee(), self.get_blob_gasprice())
+    pub fn best_transaction_attributes(&self, block_env: &BlockEnv) -> BestTransactionsAttributes {
+        BestTransactionsAttributes::new(
+            block_env.basefee,
+            block_env.blob_gasprice().map(|p| p as u64),
+        )
     }
 
     /// Returns the unique id for this payload job.
@@ -855,10 +821,10 @@ where
             Transaction: PoolTransaction<Consensus = EvmConfig::Transaction>,
         >,
     ) -> Result<Option<()>, PayloadBuilderError> {
-        let block_gas_limit = self.block_gas_limit();
+        let block_gas_limit = strategy.evm_mut().block().gas_limit;
         let block_da_limit = self.da_config.max_da_block_size();
         let tx_da_limit = self.da_config.max_da_tx_size();
-        let base_fee = self.base_fee();
+        let base_fee = strategy.evm_mut().block().basefee;
 
         while let Some(tx) = best_txs.next(()) {
             let tx = tx.into_consensus();

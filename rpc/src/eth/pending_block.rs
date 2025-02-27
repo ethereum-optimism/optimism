@@ -3,20 +3,20 @@
 use crate::OpEthApi;
 use alloy_consensus::{
     constants::EMPTY_WITHDRAWALS, proofs::calculate_transaction_root, transaction::Recovered,
-    Eip658Value, Header, Transaction as _, TxReceipt, EMPTY_OMMER_ROOT_HASH,
+    Header, Transaction as _, TxReceipt, EMPTY_OMMER_ROOT_HASH,
 };
 use alloy_eips::{eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE, BlockNumberOrTag};
 use alloy_primitives::{B256, U256};
-use op_alloy_consensus::{OpDepositReceipt, OpTxType};
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
-use reth_evm::{ConfigureEvm, HaltReasonFor};
+use reth_evm::execute::BlockExecutionStrategyFactory;
+use reth_node_api::NodePrimitives;
 use reth_optimism_consensus::calculate_receipt_root_no_memo_optimism;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
-use reth_primitives::{logs_bloom, BlockBody, RecoveredBlock};
+use reth_primitives::{logs_bloom, BlockBody, RecoveredBlock, SealedHeader};
 use reth_provider::{
-    BlockReader, BlockReaderIdExt, ChainSpecProvider, ProviderBlock, ProviderHeader,
-    ProviderReceipt, ProviderTx, ReceiptProvider, StateProviderFactory,
+    BlockExecutionResult, BlockReader, BlockReaderIdExt, ChainSpecProvider, ProviderBlock,
+    ProviderHeader, ProviderReceipt, ProviderTx, ReceiptProvider, StateProviderFactory,
 };
 use reth_rpc_eth_api::{
     helpers::{LoadPendingBlock, SpawnBlocking},
@@ -25,10 +25,7 @@ use reth_rpc_eth_api::{
 };
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
 use reth_transaction_pool::{PoolTransaction, TransactionPool};
-use revm::{
-    context::BlockEnv,
-    context_interface::{result::ExecutionResult, Block},
-};
+use revm::{context::BlockEnv, context_interface::Block};
 
 impl<N> LoadPendingBlock for OpEthApi<N>
 where
@@ -48,9 +45,12 @@ where
         > + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks>
                       + StateProviderFactory,
         Pool: TransactionPool<Transaction: PoolTransaction<Consensus = ProviderTx<N::Provider>>>,
-        Evm: ConfigureEvm<
-            Header = ProviderHeader<Self::Provider>,
-            Transaction = ProviderTx<Self::Provider>,
+        Evm: BlockExecutionStrategyFactory<
+            Primitives: NodePrimitives<
+                SignedTx = ProviderTx<Self::Provider>,
+                BlockHeader = ProviderHeader<Self::Provider>,
+                Receipt = ProviderReceipt<Self::Provider>,
+            >,
         >,
     >,
 {
@@ -98,25 +98,25 @@ where
     fn assemble_block(
         &self,
         block_env: &BlockEnv,
-        parent_hash: B256,
+        result: &BlockExecutionResult<ProviderReceipt<Self::Provider>>,
+        parent: &SealedHeader<ProviderHeader<Self::Provider>>,
         state_root: B256,
         transactions: Vec<Recovered<ProviderTx<Self::Provider>>>,
-        receipts: &[ProviderReceipt<Self::Provider>],
     ) -> reth_provider::ProviderBlock<Self::Provider> {
         let chain_spec = self.provider().chain_spec();
         let timestamp = block_env.timestamp;
 
         let transactions_root = calculate_transaction_root(&transactions);
         let receipts_root =
-            calculate_receipt_root_no_memo_optimism(receipts, &chain_spec, timestamp);
+            calculate_receipt_root_no_memo_optimism(&result.receipts, &chain_spec, timestamp);
 
-        let logs_bloom = logs_bloom(receipts.iter().flat_map(|r| r.logs()));
+        let logs_bloom = logs_bloom(result.receipts.iter().flat_map(|r| r.logs()));
         let is_cancun = chain_spec.is_cancun_active_at_timestamp(timestamp);
         let is_prague = chain_spec.is_prague_active_at_timestamp(timestamp);
         let is_shanghai = chain_spec.is_shanghai_active_at_timestamp(timestamp);
 
         let header = Header {
-            parent_hash,
+            parent_hash: parent.hash(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: block_env.beneficiary,
             state_root,
@@ -131,7 +131,7 @@ where
             number: block_env.number,
             gas_limit: block_env.gas_limit,
             difficulty: U256::ZERO,
-            gas_used: receipts.last().map(|r| r.cumulative_gas_used()).unwrap_or_default(),
+            gas_used: result.gas_used,
             blob_gas_used: is_cancun.then(|| {
                 transactions.iter().map(|tx| tx.blob_gas_used().unwrap_or_default()).sum::<u64>()
             }),
@@ -149,31 +149,6 @@ where
                 ommers: vec![],
                 withdrawals: None,
             },
-        }
-    }
-
-    fn assemble_receipt(
-        &self,
-        tx: &ProviderTx<Self::Provider>,
-        result: ExecutionResult<HaltReasonFor<N::Evm>>,
-        cumulative_gas_used: u64,
-    ) -> reth_provider::ProviderReceipt<Self::Provider> {
-        let receipt = alloy_consensus::Receipt {
-            status: Eip658Value::Eip658(result.is_success()),
-            cumulative_gas_used,
-            logs: result.into_logs().into_iter().collect(),
-        };
-
-        match tx.tx_type() {
-            OpTxType::Legacy => OpReceipt::Legacy(receipt),
-            OpTxType::Eip2930 => OpReceipt::Eip2930(receipt),
-            OpTxType::Eip1559 => OpReceipt::Eip1559(receipt),
-            OpTxType::Eip7702 => OpReceipt::Eip7702(receipt),
-            OpTxType::Deposit => OpReceipt::Deposit(OpDepositReceipt {
-                inner: receipt,
-                deposit_nonce: None,
-                deposit_receipt_version: None,
-            }),
         }
     }
 }

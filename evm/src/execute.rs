@@ -18,67 +18,67 @@ use reth_evm::{
     },
     state_change::post_block_balance_increments,
     system_calls::{OnStateHook, StateChangePostBlockSource, StateChangeSource, SystemCaller},
-    ConfigureEvm, Database, Evm,
+    Database, Evm, EvmFor, InspectorFor, NextBlockEnvAttributes,
 };
 use reth_execution_types::BlockExecutionResult;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{transaction::signed::OpTransaction, DepositReceipt};
-use reth_primitives_traits::{Block, NodePrimitives, SealedBlock, SignedTransaction};
+use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
 use revm::{context::TxEnv, context_interface::result::ResultAndState, DatabaseCommit};
 use revm_database::State;
-use revm_primitives::{Address, B256};
+use revm_primitives::B256;
 use tracing::trace;
 
 impl<ChainSpec, N> BlockExecutionStrategyFactory for OpEvmConfig<ChainSpec, N>
 where
-    ChainSpec: EthChainSpec + OpHardforks,
+    ChainSpec: EthChainSpec + OpHardforks + 'static,
     N: NodePrimitives<SignedTx: OpTransaction, Receipt: DepositReceipt>,
     revm_optimism::OpTransaction<TxEnv>: FromRecoveredTx<N::SignedTx>,
 {
     type Primitives = N;
+    type Strategy<'a, DB: Database + 'a, I: InspectorFor<&'a mut State<DB>, Self> + 'a> =
+        OpExecutionStrategy<'a, EvmFor<Self, &'a mut State<DB>, I>, N, &'a ChainSpec>;
+    type ExecutionCtx<'a> = OpBlockExecutionCtx;
 
-    fn create_strategy<'a, DB>(
-        &'a self,
-        db: &'a mut State<DB>,
-        block: &'a SealedBlock<<Self::Primitives as NodePrimitives>::Block>,
-    ) -> impl BlockExecutionStrategy<Primitives = Self::Primitives, Error = BlockExecutionError> + 'a
-    where
-        DB: Database,
-    {
-        let evm = self.evm_for_block(db, block.header());
-        OpExecutionStrategy::new(evm, block, &self.chain_spec, self.receipt_builder.as_ref())
-    }
-}
-
-/// Input for block execution.
-#[derive(Debug, Clone, Copy)]
-pub struct OpBlockExecutionInput {
-    /// Block number.
-    pub number: u64,
-    /// Block timestamp.
-    pub timestamp: u64,
-    /// Parent block hash.
-    pub parent_hash: B256,
-    /// Block gas limit.
-    pub gas_limit: u64,
-    /// Parent beacon block root.
-    pub parent_beacon_block_root: Option<B256>,
-    /// Block beneficiary.
-    pub beneficiary: Address,
-}
-
-impl<'a, B: Block> From<&'a SealedBlock<B>> for OpBlockExecutionInput {
-    fn from(block: &'a SealedBlock<B>) -> Self {
-        Self {
-            number: block.header().number(),
-            timestamp: block.header().timestamp(),
+    fn context_for_block<'a>(&self, block: &'a SealedBlock<N::Block>) -> Self::ExecutionCtx<'a> {
+        OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
-            gas_limit: block.header().gas_limit(),
             parent_beacon_block_root: block.header().parent_beacon_block_root(),
-            beneficiary: block.header().beneficiary(),
         }
     }
+
+    fn context_for_next_block<'a>(
+        &self,
+        parent: &SealedHeader<N::BlockHeader>,
+        attributes: NextBlockEnvAttributes<'a>,
+    ) -> Self::ExecutionCtx<'a> {
+        OpBlockExecutionCtx {
+            parent_hash: parent.hash(),
+            parent_beacon_block_root: attributes.parent_beacon_block_root,
+        }
+    }
+
+    fn create_strategy<'a, DB, I>(
+        &'a self,
+        evm: EvmFor<Self, &'a mut State<DB>, I>,
+        ctx: Self::ExecutionCtx<'a>,
+    ) -> Self::Strategy<'a, DB, I>
+    where
+        DB: Database,
+        I: reth_evm::InspectorFor<&'a mut State<DB>, Self> + 'a,
+    {
+        OpExecutionStrategy::new(evm, ctx, self.chain_spec.as_ref(), self.receipt_builder.as_ref())
+    }
+}
+
+/// Context for OP block execution.
+#[derive(Debug, Clone, Copy)]
+pub struct OpBlockExecutionCtx {
+    /// Parent block hash.
+    pub parent_hash: B256,
+    /// Parent beacon block root.
+    pub parent_beacon_block_root: Option<B256>,
 }
 
 /// Block execution strategy for Optimism.
@@ -89,8 +89,8 @@ pub struct OpExecutionStrategy<'a, E: Evm, N: NodePrimitives, ChainSpec> {
     /// Receipt builder.
     receipt_builder: &'a dyn OpReceiptBuilder<N::SignedTx, E::HaltReason, Receipt = N::Receipt>,
 
-    /// Input for block execution.
-    input: OpBlockExecutionInput,
+    /// Context for block execution.
+    ctx: OpBlockExecutionCtx,
     /// The EVM used by strategy.
     evm: E,
     /// Receipts of executed transactions.
@@ -112,20 +112,19 @@ where
     /// Creates a new [`OpExecutionStrategy`]
     pub fn new(
         evm: E,
-        input: impl Into<OpBlockExecutionInput>,
+        ctx: OpBlockExecutionCtx,
         chain_spec: ChainSpec,
         receipt_builder: &'a dyn OpReceiptBuilder<N::SignedTx, E::HaltReason, Receipt = N::Receipt>,
     ) -> Self {
-        let input = input.into();
         Self {
-            is_regolith: chain_spec.is_regolith_active_at_timestamp(input.timestamp),
+            is_regolith: chain_spec.is_regolith_active_at_timestamp(evm.block().timestamp),
             evm,
             system_caller: SystemCaller::new(chain_spec.clone()),
             chain_spec,
             receipt_builder,
             receipts: Vec::new(),
             gas_used: 0,
-            input,
+            ctx,
         }
     }
 }
@@ -139,30 +138,39 @@ where
 {
     type Primitives = N;
     type Error = BlockExecutionError;
+    type Evm = E;
 
     fn apply_pre_execution_changes(&mut self) -> Result<(), Self::Error> {
         // Set state clear flag if the block is after the Spurious Dragon hardfork.
         let state_clear_flag =
-            self.chain_spec.is_spurious_dragon_active_at_block(self.input.number);
+            self.chain_spec.is_spurious_dragon_active_at_block(self.evm.block().number);
         self.evm.db_mut().set_state_clear_flag(state_clear_flag);
 
         self.system_caller
-            .apply_beacon_root_contract_call(self.input.parent_beacon_block_root, &mut self.evm)?;
+            .apply_beacon_root_contract_call(self.ctx.parent_beacon_block_root, &mut self.evm)?;
 
         // Ensure that the create2deployer is force-deployed at the canyon transition. Optimism
         // blocks will always have at least a single transaction in them (the L1 info transaction),
         // so we can safely assume that this will always be triggered upon the transition and that
         // the above check for empty blocks will never be hit on OP chains.
-        ensure_create2_deployer(self.chain_spec.clone(), self.input.timestamp, self.evm.db_mut())
-            .map_err(|_| OpBlockExecutionError::ForceCreate2DeployerFail)?;
+        ensure_create2_deployer(
+            self.chain_spec.clone(),
+            self.evm.block().timestamp,
+            self.evm.db_mut(),
+        )
+        .map_err(|_| OpBlockExecutionError::ForceCreate2DeployerFail)?;
 
         Ok(())
     }
 
-    fn execute_transaction(&mut self, tx: Recovered<&N::SignedTx>) -> Result<u64, Self::Error> {
+    fn execute_transaction_with_result_closure(
+        &mut self,
+        tx: Recovered<&<Self::Primitives as NodePrimitives>::SignedTx>,
+        f: impl FnOnce(&revm::context::result::ExecutionResult<<Self::Evm as Evm>::HaltReason>),
+    ) -> Result<u64, Self::Error> {
         // The sum of the transaction’s gas limit, Tg, and the gas utilized in this block prior,
         // must be no greater than the block’s gasLimit.
-        let block_available_gas = self.input.gas_limit - self.gas_used;
+        let block_available_gas = self.evm.block().gas_limit - self.gas_used;
         if tx.gas_limit() > block_available_gas && (self.is_regolith || !tx.is_deposit()) {
             return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
                 transaction_gas_limit: tx.gas_limit(),
@@ -202,6 +210,8 @@ where
         let ResultAndState { result, state } = result_and_state;
         self.evm.db_mut().commit(state);
 
+        f(&result);
+
         let gas_used = result.gas_used();
 
         // append gas used
@@ -232,7 +242,8 @@ where
                         // this is only set for post-Canyon deposit
                         // transactions.
                         deposit_receipt_version: (tx.is_deposit() &&
-                            self.chain_spec.is_canyon_active_at_timestamp(self.input.timestamp))
+                            self.chain_spec
+                                .is_canyon_active_at_timestamp(self.evm.block().timestamp))
                         .then_some(1),
                     })
                 }
@@ -269,6 +280,10 @@ where
 
     fn with_state_hook(&mut self, hook: Option<Box<dyn OnStateHook>>) {
         self.system_caller.with_state_hook(hook);
+    }
+
+    fn evm_mut(&mut self) -> &mut Self::Evm {
+        &mut self.evm
     }
 }
 
