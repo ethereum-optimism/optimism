@@ -452,8 +452,18 @@ impl<T> Default for OpPoolBuilder<T> {
 }
 
 impl<T> OpPoolBuilder<T> {
-    fn with_enable_tx_conditional(mut self, enable_tx_conditional: bool) -> Self {
+    /// Sets the `enable_tx_conditional` flag on the pool builder.
+    pub fn with_enable_tx_conditional(mut self, enable_tx_conditional: bool) -> Self {
         self.enable_tx_conditional = enable_tx_conditional;
+        self
+    }
+
+    /// Sets the [`PoolBuilderConfigOverrides`] on the pool builder.
+    pub fn with_pool_config_overrides(
+        mut self,
+        pool_config_overrides: PoolBuilderConfigOverrides,
+    ) -> Self {
+        self.pool_config_overrides = pool_config_overrides;
         self
     }
 }
