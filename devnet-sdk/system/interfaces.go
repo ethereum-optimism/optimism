@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type genSystem[T Chain] interface {
@@ -25,6 +26,19 @@ type LowLevelSystem = genSystem[LowLevelChain]
 // Chain represents an Ethereum chain (L1 or L2)
 type Chain interface {
 	ID() types.ChainID
+	// If an instance of an implementation this interface represents an L1 chain,
+	// then then the wallets returned should be either validator wallets or test wallets,
+	// both useful in the context of sending transactions on the L1.
+	//
+	// If an instance of an implementation of this interface represents an L2 chain,
+	// then the wallets returned should be a combination of:
+	// 1. L2 admin wallets: wallets with admin priviledges for administrating an
+	//      L2's bridge contracts, etc on L1. Despite inclusion on the L2 wallet list, these wallets
+	//      are not useful for sending transactions on the L2 and do not control any L2 balance.
+	// 2. L2 test wallets: wallets controlling balance on the L2 for purposes of
+	//      testing. The balance on these wallets will originate unbacked L2 ETH from
+	//      the L2 genesis definition which cannot be withdrawn without maybe "stealing"
+	//      the backing from other deposits.
 	Wallets(ctx context.Context) ([]Wallet, error)
 	ContractsRegistry() interfaces.ContractsRegistry
 	SupportsEIP(ctx context.Context, eip uint64) bool
@@ -32,6 +46,18 @@ type Chain interface {
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
+	ChainConfig() (*params.ChainConfig, error)
+
+	// BlockByONumber retrieves a block from the chain by its number.
+	// If the number is nil, the latest block is returned.
+	BlockByNumber(ctx context.Context, number *big.Int) (*coreTypes.Block, error)
+
+	// LatestBlock retrieves the latest block from the chain.
+	LatestBlock(ctx context.Context) (*coreTypes.Block, error)
+
+	// BlockByHash retrieves a block from the chain by its hash.
+	BlockByHash(ctx context.Context, hash common.Hash) (*coreTypes.Block, error)
+	Addresses() map[string]common.Address
 }
 
 // LowLevelChain is a Chain that gives direct access to the low level RPC client.

@@ -42,6 +42,7 @@ const (
 	Granite  ForkName = "granite"
 	Holocene ForkName = "holocene"
 	Isthmus  ForkName = "isthmus"
+	Jovian   ForkName = "jovian"
 	Interop  ForkName = "interop"
 	// ADD NEW FORKS TO AllForks BELOW!
 	None ForkName = "none"

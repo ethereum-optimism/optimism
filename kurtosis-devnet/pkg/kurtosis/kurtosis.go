@@ -151,7 +151,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	}
 
 	// Get contract addresses
-	deployerState, err := d.enclaveObserver.EnclaveObserve(ctx, d.enclave)
+	deployerData, err := d.enclaveObserver.EnclaveObserve(ctx, d.enclave)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse deployer state: %w", err)
 	}
@@ -173,14 +173,15 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	finder := NewServiceFinder(inspectResult.UserServices)
 	if nodes, services := finder.FindL1Services(); len(nodes) > 0 {
 		chain := &descriptors.Chain{
+			ID:       deployerData.L1ChainID,
 			Name:     "Ethereum",
 			Services: services,
 			Nodes:    nodes,
 			JWT:      jwtData.L1JWT,
 		}
-		if deployerState.State != nil {
-			chain.Addresses = descriptors.AddressMap(deployerState.State.Addresses)
-			chain.Wallets = d.getWallets(deployerState.Wallets)
+		if deployerData.State != nil {
+			chain.Addresses = descriptors.AddressMap(deployerData.State.Addresses)
+			chain.Wallets = d.getWallets(deployerData.L1ValidatorWallets)
 		}
 		env.L1 = chain
 	}
@@ -198,12 +199,11 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 		}
 
 		// Add contract addresses if available
-		if deployerState.State != nil && deployerState.State.Deployments != nil {
-			if addresses, ok := deployerState.State.Deployments[chainSpec.NetworkID]; ok {
-				chain.Addresses = descriptors.AddressMap(addresses.Addresses)
-			}
-			if wallets, ok := deployerState.State.Deployments[chainSpec.NetworkID]; ok {
-				chain.Wallets = d.getWallets(wallets.Wallets)
+		if deployerData.State != nil && deployerData.State.Deployments != nil {
+			if deployment, ok := deployerData.State.Deployments[chainSpec.NetworkID]; ok {
+				chain.Addresses = descriptors.AddressMap(deployment.Addresses)
+				chain.Wallets = d.getWallets(append(deployment.L2Wallets, deployment.L1Wallets...))
+				chain.ChainConfig = deployment.ChainConfig
 			}
 		}
 
