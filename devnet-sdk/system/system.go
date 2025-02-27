@@ -44,11 +44,12 @@ func (s *system) Identifier() string {
 
 func (s *system) addChains(chains ...*descriptors.Chain) error {
 	for _, chainDesc := range chains {
-		if chainDesc.ID == "" {
+		if chainDesc.Name == "Ethereum" {
 			l1, err := chainFromDescriptor(chainDesc)
 			if err != nil {
 				return fmt.Errorf("failed to add L1 chain: %w", err)
 			}
+			fmt.Println("L1 chain ID: ", l1.ID())
 			s.l1 = l1
 		} else {
 			l2, err := chainFromDescriptor(chainDesc)

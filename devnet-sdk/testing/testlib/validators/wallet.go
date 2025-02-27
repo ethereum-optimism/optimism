@@ -12,10 +12,24 @@ import (
 
 type WalletGetter = func(context.Context) system.Wallet
 
-func walletFundsValidator(chainIdx uint64, minFunds types.Balance, userMarker interface{}) systest.PreconditionValidator {
+// walletFundsValidator creates a PreconditionValidator that ensures a wallet with sufficient funds
+// is available on the specified chain. If successful, it stores the wallet in the context
+// using the provided userMarker as the key.
+//
+// Parameters:
+//   - chain: The chain to check for wallets
+//   - minFunds: The minimum balance required for a wallet to be selected
+//   - userMarker: A unique object to use as a key for storing the wallet in the context
+//
+// The validator:
+// 1. Retrieves all wallets from the specified chain
+// 2. Checks each wallet to find one with at least the minimum required balance
+// 3. If found, stores the wallet in the context with the provided marker
+//
+// Returns an error if no wallet with sufficient funds is found.
+func walletFundsValidator(chain system.Chain, minFunds types.Balance, userMarker interface{}) systest.PreconditionValidator {
 	constraint := constraints.WithBalance(minFunds)
 	return func(t systest.T, sys system.System) (context.Context, error) {
-		chain := sys.L2s()[chainIdx]
 		wallets, err := chain.Wallets(t.Context())
 		if err != nil {
 			return nil, err
@@ -28,14 +42,28 @@ func walletFundsValidator(chainIdx uint64, minFunds types.Balance, userMarker in
 		}
 
 		return nil, fmt.Errorf("no available wallet with balance of at least of %s", minFunds)
-
 	}
 }
 
-func AcquireL2WalletWithFunds(chainIdx uint64, minFunds types.Balance) (WalletGetter, systest.PreconditionValidator) {
-	userMarker := new(byte)
-	validator := walletFundsValidator(chainIdx, minFunds, userMarker)
+func AcquireL2WalletWithFunds(chainIndex uint64, minFunds types.Balance) (WalletGetter, systest.PreconditionValidator) {
+	walletMarker := new(byte)
 	return func(ctx context.Context) system.Wallet {
-		return ctx.Value(userMarker).(system.Wallet)
-	}, validator
+			return ctx.Value(walletMarker).(system.Wallet)
+		}, func(t systest.T, sys system.System) (context.Context, error) {
+			if len(sys.L2s()) <= int(chainIndex) {
+				return nil, fmt.Errorf("chain index %d out of range, only %d L2 chains available", chainIndex, len(sys.L2s()))
+			}
+			chain := sys.L2s()[chainIndex]
+			return walletFundsValidator(chain, minFunds, walletMarker)(t, sys)
+		}
+}
+
+func AcquireL1WalletWithFunds(minFunds types.Balance) (WalletGetter, systest.PreconditionValidator) {
+	walletMarker := &struct{}{}
+	return func(ctx context.Context) system.Wallet {
+			return ctx.Value(walletMarker).(system.Wallet)
+		}, func(t systest.T, sys system.System) (context.Context, error) {
+			chain := sys.L1()
+			return walletFundsValidator(chain, minFunds, walletMarker)(t, sys)
+		}
 }

@@ -52,10 +52,12 @@ func TestSystemWrapETH(t *testing.T) {
 	chainIdx := uint64(0) // We'll use the first L2 chain for this test
 
 	walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(chainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
+	_, interopValidator := validators.AcquireInteropConfig(chainIdx, true)
 
 	systest.SystemTest(t,
 		smokeTestScenario(chainIdx, walletGetter),
 		fundsValidator,
+		interopValidator,
 	)
 }
 
