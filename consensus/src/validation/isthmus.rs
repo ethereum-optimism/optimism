@@ -2,11 +2,6 @@
 
 use crate::OpConsensusError;
 use alloy_consensus::BlockHeader;
-use core::fmt;
-use reth_optimism_storage::predeploys::{withdrawals_root, withdrawals_root_prehashed};
-use reth_storage_api::StorageRootProvider;
-use reth_trie_common::HashedStorage;
-use revm::database::BundleState;
 
 /// Verifies that `withdrawals_root` (i.e. `l2tol1-msg-passer` storage root since Isthmus) field is
 /// set in block header.
@@ -24,19 +19,20 @@ pub fn ensure_withdrawals_storage_root_is_some<H: BlockHeader>(
 /// Takes state updates resulting from execution of block.
 ///
 /// See <https://specs.optimism.io/protocol/isthmus/exec-engine.html#l2tol1messagepasser-storage-root-in-header>.
+#[cfg(feature = "std")]
 pub fn verify_withdrawals_root<DB, H>(
-    state_updates: &BundleState,
+    state_updates: &revm::database::BundleState,
     state: DB,
     header: H,
 ) -> Result<(), OpConsensusError>
 where
-    DB: StorageRootProvider,
-    H: BlockHeader + fmt::Debug,
+    DB: reth_storage_api::StorageRootProvider,
+    H: BlockHeader + core::fmt::Debug,
 {
     let header_storage_root =
         header.withdrawals_root().ok_or(OpConsensusError::L2WithdrawalsRootMissing)?;
 
-    let storage_root = withdrawals_root(state_updates, state)
+    let storage_root = reth_optimism_storage::predeploys::withdrawals_root(state_updates, state)
         .map_err(OpConsensusError::L2WithdrawalsRootCalculationFail)?;
 
     if header_storage_root != storage_root {
@@ -53,23 +49,27 @@ where
 /// `L2ToL1MessagePasser.sol` predeploy post block execution.
 ///
 /// Takes pre-hashed storage updates of `L2ToL1MessagePasser.sol` predeploy, resulting from
-/// execution of block, if any. Otherwise takes empty [`HashedStorage::default`].
+/// execution of block, if any. Otherwise takes empty [`reth_trie_common::HashedStorage::default`].
 ///
 /// See <https://specs.optimism.io/protocol/isthmus/exec-engine.html#l2tol1messagepasser-storage-root-in-header>.
+#[cfg(feature = "std")]
 pub fn verify_withdrawals_root_prehashed<DB, H>(
-    hashed_storage_updates: HashedStorage,
+    hashed_storage_updates: reth_trie_common::HashedStorage,
     state: DB,
     header: H,
 ) -> Result<(), OpConsensusError>
 where
-    DB: StorageRootProvider,
-    H: BlockHeader + fmt::Debug,
+    DB: reth_storage_api::StorageRootProvider,
+    H: BlockHeader + core::fmt::Debug,
 {
     let header_storage_root =
         header.withdrawals_root().ok_or(OpConsensusError::L2WithdrawalsRootMissing)?;
 
-    let storage_root = withdrawals_root_prehashed(hashed_storage_updates, state)
-        .map_err(OpConsensusError::L2WithdrawalsRootCalculationFail)?;
+    let storage_root = reth_optimism_storage::predeploys::withdrawals_root_prehashed(
+        hashed_storage_updates,
+        state,
+    )
+    .map_err(OpConsensusError::L2WithdrawalsRootCalculationFail)?;
 
     if header_storage_root != storage_root {
         return Err(OpConsensusError::L2WithdrawalsRootMismatch {
@@ -97,6 +97,7 @@ mod test {
         providers::BlockchainProvider, test_utils::create_test_provider_factory_with_node_types,
         StateWriter,
     };
+    use reth_revm::db::BundleState;
     use reth_storage_api::StateProviderFactory;
     use reth_trie::{test_utils::storage_root_prehashed, HashedStorage};
     use reth_trie_common::HashedPostState;

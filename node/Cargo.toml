@@ -42,7 +42,7 @@ reth-optimism-evm.workspace = true
 reth-optimism-rpc.workspace = true
 reth-optimism-txpool.workspace = true
 reth-optimism-chainspec.workspace = true
-reth-optimism-consensus.workspace = true
+reth-optimism-consensus = { workspace = true, features = ["std"] }
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["serde", "serde-bincode-compat", "reth-codec"] }
 

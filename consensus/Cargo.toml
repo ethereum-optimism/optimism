@@ -18,7 +18,7 @@ reth-chainspec.workspace = true
 reth-consensus-common.workspace = true
 reth-consensus.workspace = true
 reth-primitives-traits.workspace = true
-reth-storage-api.workspace = true
+reth-storage-api = { workspace = true, optional = true }
 reth-storage-errors.workspace = true
 reth-trie-common.workspace = true
 
@@ -26,8 +26,8 @@ reth-trie-common.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-chainspec.workspace = true
 # remove this after feature cleanup
-reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
-reth-optimism-storage.workspace = true
+reth-optimism-primitives = { workspace = true, features = ["serde"] }
+reth-optimism-storage = { workspace = true, optional = true }
 
 # ethereum
 alloy-eips.workspace = true
@@ -56,6 +56,9 @@ op-alloy-consensus.workspace = true
 [features]
 default = ["std"]
 std = [
+    "dep:reth-optimism-storage",
+    "dep:reth-storage-api",
+    "reth-optimism-primitives/reth-codec",
     "reth-chainspec/std",
     "reth-consensus/std",
     "reth-consensus-common/std",
