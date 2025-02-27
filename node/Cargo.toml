@@ -56,6 +56,7 @@ alloy-primitives.workspace = true
 op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-engine.workspace = true
+alloy-rpc-types-eth.workspace = true
 alloy-consensus.workspace = true
 
 # misc
