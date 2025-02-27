@@ -7,7 +7,6 @@ use reth_e2e_test_utils::{
 };
 use reth_node_api::NodeTypesWithDBAdapter;
 use reth_optimism_chainspec::OpChainSpecBuilder;
-use reth_optimism_primitives::OpTransactionSigned;
 use reth_payload_builder::EthPayloadBuilderAttributes;
 use reth_provider::providers::BlockchainProvider;
 use reth_tasks::TaskManager;
@@ -36,7 +35,7 @@ pub async fn advance_chain(
     length: usize,
     node: &mut OpNode,
     wallet: Arc<Mutex<Wallet>>,
-) -> eyre::Result<Vec<(OpBuiltPayload, OpPayloadBuilderAttributes<OpTransactionSigned>)>> {
+) -> eyre::Result<Vec<OpBuiltPayload>> {
     node.advance(length as u64, |_| {
         let wallet = wallet.clone();
         Box::pin(async move {

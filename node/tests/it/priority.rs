@@ -187,7 +187,7 @@ async fn test_custom_block_priority_config() {
         .await
         .unwrap();
     assert_eq!(block_payloads.len(), 1);
-    let (block_payload, _) = block_payloads.first().unwrap();
+    let block_payload = block_payloads.first().unwrap();
     let block_payload = block_payload.block().clone();
     assert_eq!(block_payload.body().transactions.len(), 2); // L1 block info tx + end-of-block custom tx
 
