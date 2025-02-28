@@ -142,6 +142,7 @@ impl RollupBoostServer {
         builder_client: ExecutionClient,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
+        initial_execution_mode: ExecutionMode,
     ) -> Self {
         Self {
             l2_client,
@@ -149,7 +150,7 @@ impl RollupBoostServer {
             boost_sync,
             metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
-            execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
+            execution_mode: Arc::new(Mutex::new(initial_execution_mode)),
         }
     }
 

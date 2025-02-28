@@ -92,6 +92,10 @@ struct Args {
     /// Debug server port
     #[arg(long, env, default_value = "5555")]
     debug_server_port: u16,
+
+    /// Execution mode to start rollup boost with
+    #[arg(long, env, default_value = "enabled")]
+    execution_mode: ExecutionMode,
 }
 
 #[derive(Subcommand, Debug)]
@@ -240,6 +244,7 @@ async fn main() -> eyre::Result<()> {
         builder_client,
         boost_sync_enabled,
         metrics.clone(),
+        args.execution_mode,
     );
 
     // Spawn the debug server
