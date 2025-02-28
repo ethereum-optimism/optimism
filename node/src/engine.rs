@@ -1,10 +1,9 @@
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
-use alloy_rpc_types_engine::{
-    ExecutionData, ExecutionPayload, ExecutionPayloadEnvelopeV2, ExecutionPayloadV1,
-};
+use alloy_rpc_types_engine::{ExecutionPayloadEnvelopeV2, ExecutionPayloadV1};
 use op_alloy_rpc_types_engine::{
-    OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpPayloadAttributes,
+    OpExecutionData, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
+    OpPayloadAttributes,
 };
 use reth_chainspec::ChainSpec;
 use reth_consensus::ConsensusError;
@@ -20,9 +19,10 @@ use reth_node_api::{
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::isthmus;
 use reth_optimism_forks::{OpHardfork, OpHardforks};
-use reth_optimism_payload_builder::{OpBuiltPayload, OpPayloadBuilderAttributes};
+use reth_optimism_payload_builder::{
+    OpBuiltPayload, OpExecutionPayloadValidator, OpPayloadBuilderAttributes,
+};
 use reth_optimism_primitives::{OpBlock, OpPrimitives, ADDRESS_L2_TO_L1_MESSAGE_PASSER};
-use reth_payload_validator::ExecutionPayloadValidator;
 use reth_primitives::{RecoveredBlock, SealedBlock};
 use reth_provider::StateProviderFactory;
 use reth_trie_common::{HashedPostState, KeyHasher};
@@ -53,16 +53,14 @@ where
     type ExecutionPayloadEnvelopeV2 = ExecutionPayloadEnvelopeV2;
     type ExecutionPayloadEnvelopeV3 = OpExecutionPayloadEnvelopeV3;
     type ExecutionPayloadEnvelopeV4 = OpExecutionPayloadEnvelopeV4;
-    type ExecutionData = ExecutionData;
+    type ExecutionData = OpExecutionData;
 
     fn block_to_payload(
         block: SealedBlock<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
         >,
-    ) -> ExecutionData {
-        let (payload, sidecar) =
-            ExecutionPayload::from_block_unchecked(block.hash(), &block.into_block());
-        ExecutionData { payload, sidecar }
+    ) -> OpExecutionData {
+        OpExecutionData::from_block_unchecked(block.hash(), &block.into_block())
     }
 }
 
@@ -80,7 +78,7 @@ impl<N: NodePrimitives> PayloadTypes for OpPayloadTypes<N> {
 /// Validator for Optimism engine API.
 #[derive(Debug, Clone)]
 pub struct OpEngineValidator<P> {
-    inner: ExecutionPayloadValidator<OpChainSpec>,
+    inner: OpExecutionPayloadValidator<OpChainSpec>,
     provider: P,
     hashed_addr_l2tol1_msg_passer: B256,
 }
@@ -90,7 +88,7 @@ impl<P> OpEngineValidator<P> {
     pub fn new<KH: KeyHasher>(chain_spec: Arc<OpChainSpec>, provider: P) -> Self {
         let hashed_addr_l2tol1_msg_passer = KH::hash_key(ADDRESS_L2_TO_L1_MESSAGE_PASSER);
         Self {
-            inner: ExecutionPayloadValidator::new(chain_spec),
+            inner: OpExecutionPayloadValidator::new(chain_spec),
             provider,
             hashed_addr_l2tol1_msg_passer,
         }
@@ -108,13 +106,14 @@ where
     P: StateProviderFactory + Unpin + 'static,
 {
     type Block = OpBlock;
-    type ExecutionData = ExecutionData;
+    type ExecutionData = OpExecutionData;
 
     fn ensure_well_formed_payload(
         &self,
-        payload: ExecutionData,
+        payload: Self::ExecutionData,
     ) -> Result<RecoveredBlock<Self::Block>, NewPayloadError> {
-        let sealed_block = self.inner.ensure_well_formed_payload(payload)?;
+        let sealed_block =
+            self.inner.ensure_well_formed_payload(payload).map_err(NewPayloadError::other)?;
         sealed_block.try_recover().map_err(|e| NewPayloadError::Other(e.into()))
     }
 
@@ -148,7 +147,7 @@ where
 
 impl<Types, P> EngineValidator<Types> for OpEngineValidator<P>
 where
-    Types: EngineTypes<PayloadAttributes = OpPayloadAttributes, ExecutionData = ExecutionData>,
+    Types: EngineTypes<PayloadAttributes = OpPayloadAttributes, ExecutionData = OpExecutionData>,
     P: StateProviderFactory + Unpin + 'static,
 {
     fn validate_execution_requests(

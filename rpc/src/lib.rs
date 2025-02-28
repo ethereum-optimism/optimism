@@ -17,7 +17,7 @@ pub mod witness;
 
 #[cfg(feature = "client")]
 pub use engine::OpEngineApiClient;
-pub use engine::{OpEngineApi, OpEngineApiServer, OP_CAPABILITIES};
+pub use engine::{op_capabilities, OpEngineApi, OpEngineApiServer, OP_CAPABILITIES};
 pub use error::{OpEthApiError, OpInvalidTransactionError, SequencerClientError};
 pub use eth::{OpEthApi, OpReceiptBuilder};
 pub use sequencer::SequencerClient;

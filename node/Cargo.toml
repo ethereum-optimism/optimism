@@ -35,6 +35,8 @@ reth-rpc-eth-api.workspace = true
 reth-rpc-eth-types.workspace = true
 reth-tasks = { workspace = true, optional = true }
 reth-trie-common.workspace = true
+reth-node-core.workspace = true
+reth-rpc-engine-api.workspace = true
 
 # op-reth
 reth-optimism-payload-builder.workspace = true

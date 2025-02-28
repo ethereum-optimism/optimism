@@ -24,6 +24,9 @@ pub use node::{OpNetworkPrimitives, OpNode};
 pub mod rpc;
 pub use rpc::OpEngineApiBuilder;
 
+pub mod version;
+pub use version::OP_NAME_CLIENT;
+
 pub use reth_optimism_txpool as txpool;
 
 /// Helpers for running test node instances.
