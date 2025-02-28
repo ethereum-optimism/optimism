@@ -11,7 +11,7 @@ use reth_node_api::{
 };
 use reth_node_builder::rpc::{EngineApiBuilder, EngineValidatorBuilder};
 use reth_node_core::version::{CARGO_PKG_VERSION, CLIENT_CODE, VERGEN_GIT_SHA};
-use reth_optimism_rpc::engine::op_capabilities;
+use reth_optimism_rpc::engine::OP_ENGINE_CAPABILITIES;
 use reth_payload_builder::PayloadStore;
 use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
 
@@ -19,7 +19,6 @@ use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
 #[derive(Debug, Default)]
 pub struct OpEngineApiBuilder<EV> {
     engine_validator_builder: EV,
-    capabilities: Option<EngineCapabilities>,
 }
 
 impl<N, EV> EngineApiBuilder<N> for OpEngineApiBuilder<EV>
@@ -41,7 +40,7 @@ where
     >;
 
     async fn build_engine_api(self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::EngineApi> {
-        let Self { engine_validator_builder, capabilities } = self;
+        let Self { engine_validator_builder } = self;
 
         let engine_validator = engine_validator_builder.build(ctx).await?;
         let client = ClientVersionV1 {
@@ -58,7 +57,7 @@ where
             ctx.node.pool().clone(),
             Box::new(ctx.node.task_executor().clone()),
             client,
-            capabilities.unwrap_or_else(op_capabilities),
+            EngineCapabilities::new(OP_ENGINE_CAPABILITIES.iter().copied()),
             engine_validator,
         );
 
