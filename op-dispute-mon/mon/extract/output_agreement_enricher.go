@@ -2,16 +2,22 @@ package extract
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
-	"time"
 
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+)
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+var (
+	ErrRollupRpcRequired = errors.New("rollup rpc required")
+	outputRootGameTypes  = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
 )
 
 type OutputRollupClient interface {
@@ -23,22 +29,30 @@ type OutputMetrics interface {
 	RecordOutputFetchTime(float64)
 }
 
-type AgreementEnricher struct {
+type OutputAgreementEnricher struct {
 	log     log.Logger
 	metrics OutputMetrics
 	client  OutputRollupClient
+	clock   clock.Clock
 }
 
-func NewAgreementEnricher(logger log.Logger, metrics OutputMetrics, client OutputRollupClient) *AgreementEnricher {
-	return &AgreementEnricher{
+func NewOutputAgreementEnricher(logger log.Logger, metrics OutputMetrics, client OutputRollupClient, cl clock.Clock) *OutputAgreementEnricher {
+	return &OutputAgreementEnricher{
 		log:     logger,
 		metrics: metrics,
 		client:  client,
+		clock:   cl,
 	}
 }
 
 // Enrich validates the specified root claim against the output at the given block number.
-func (o *AgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
+func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
+	if !slices.Contains(outputRootGameTypes, game.GameType) {
+		return nil
+	}
+	if o.client == nil {
+		return fmt.Errorf("%w but required for game type %v", ErrRollupRpcRequired, game.GameType)
+	}
 	output, err := o.client.OutputAtBlock(ctx, game.L2BlockNumber)
 	if err != nil {
 		// string match as the error comes from the remote server so we can't use Errors.Is sadly.
@@ -49,7 +63,7 @@ func (o *AgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, ca
 		}
 		return fmt.Errorf("failed to get output at block: %w", err)
 	}
-	o.metrics.RecordOutputFetchTime(float64(time.Now().Unix()))
+	o.metrics.RecordOutputFetchTime(float64(o.clock.Now().Unix()))
 	game.ExpectedRootClaim = common.Hash(output.OutputRoot)
 	rootMatches := game.RootClaim == game.ExpectedRootClaim
 	if !rootMatches {

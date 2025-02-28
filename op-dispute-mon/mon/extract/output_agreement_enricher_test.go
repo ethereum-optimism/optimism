@@ -3,9 +3,13 @@ package extract
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
+	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -14,8 +18,66 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDetector_CheckRootAgreement(t *testing.T) {
+func TestDetector_CheckOutputRootAgreement(t *testing.T) {
 	t.Parallel()
+
+	t.Run("ErrorWhenNoRollupClient", func(t *testing.T) {
+		validator, _, _ := setupOutputValidatorTest(t)
+		validator.client = nil
+		game := &types.EnrichedGameData{
+			GameMetadata: challengerTypes.GameMetadata{
+				GameType: 0,
+			},
+			L1HeadNum:     200,
+			L2BlockNumber: 0,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.ErrorIs(t, err, ErrRollupRpcRequired)
+	})
+
+	t.Run("SkipNonOutputRootGameTypes", func(t *testing.T) {
+		gameTypes := []uint32{4, 5, 7, 8, 10, 49812}
+		for _, gameType := range gameTypes {
+			gameType := gameType
+			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
+				validator, _, metrics := setupOutputValidatorTest(t)
+				validator.client = nil // Should not error even though there's no rollup client
+				game := &types.EnrichedGameData{
+					GameMetadata: challengerTypes.GameMetadata{
+						GameType: gameType,
+					},
+					L1HeadNum:     200,
+					L2BlockNumber: 0,
+					RootClaim:     mockRootClaim,
+				}
+				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+				require.NoError(t, err)
+				require.Zero(t, metrics.fetchTime)
+			})
+		}
+	})
+
+	t.Run("FetchAllOutputRootGameTypes", func(t *testing.T) {
+		gameTypes := []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
+		for _, gameType := range gameTypes {
+			gameType := gameType
+			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
+				validator, _, metrics := setupOutputValidatorTest(t)
+				game := &types.EnrichedGameData{
+					GameMetadata: challengerTypes.GameMetadata{
+						GameType: gameType,
+					},
+					L1HeadNum:     200,
+					L2BlockNumber: 0,
+					RootClaim:     mockRootClaim,
+				}
+				err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+				require.NoError(t, err)
+				require.NotZero(t, metrics.fetchTime, "should have fetched output root")
+			})
+		}
+	})
 
 	t.Run("OutputFetchFails", func(t *testing.T) {
 		validator, rollup, metrics := setupOutputValidatorTest(t)
@@ -136,11 +198,11 @@ func TestDetector_CheckRootAgreement(t *testing.T) {
 	})
 }
 
-func setupOutputValidatorTest(t *testing.T) (*AgreementEnricher, *stubRollupClient, *stubOutputMetrics) {
+func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRollupClient, *stubOutputMetrics) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	client := &stubRollupClient{safeHeadNum: 99999999999}
 	metrics := &stubOutputMetrics{}
-	validator := NewAgreementEnricher(logger, metrics, client)
+	validator := NewOutputAgreementEnricher(logger, metrics, client, clock.NewDeterministicClock(time.Unix(9824924, 499)))
 	return validator, client, metrics
 }
 
