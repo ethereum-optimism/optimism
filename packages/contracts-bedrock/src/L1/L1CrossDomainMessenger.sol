@@ -8,10 +8,10 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
-import { IOptimismPortal } from "interfaces/L1/IOptimismPortal.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IOptimismPortal } from "interfaces/L1/IOptimismPortal.sol";
 
 /// @custom:proxied true
 /// @title L1CrossDomainMessenger
