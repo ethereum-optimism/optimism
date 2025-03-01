@@ -15,10 +15,9 @@ workspace = true
 reth-chainspec.workspace = true
 reth-primitives-traits.workspace = true
 reth-optimism-forks.workspace = true
-#
 reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
 reth-trie-common.workspace = true
-reth-storage-api.workspace = true
+reth-storage-api = { workspace = true, features = ["db-api"] }
 
 # ethereum
 alloy-eips.workspace = true
