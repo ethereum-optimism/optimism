@@ -8,6 +8,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
+mod chain;
+pub use chain::OptStorage;
+
 pub mod predeploys;
 pub use predeploys::{withdrawals_root, withdrawals_root_prehashed};
 
@@ -18,7 +23,7 @@ mod tests {
         CompactClientVersion, CompactU256, CompactU64, StoredBlockBodyIndices,
         StoredBlockWithdrawals,
     };
-    use reth_primitives::Account;
+    use reth_primitives_traits::Account;
     use reth_prune_types::{PruneCheckpoint, PruneMode, PruneSegment};
     use reth_stages_types::{
         AccountHashingCheckpoint, CheckpointBlockRange, EntitiesCheckpoint, ExecutionCheckpoint,

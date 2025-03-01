@@ -12,16 +12,22 @@ workspace = true
 
 [dependencies]
 # reth
-reth-primitives.workspace = true
+reth-chainspec.workspace = true
+reth-primitives-traits.workspace = true
+reth-optimism-forks.workspace = true
+#
+reth-optimism-primitives = { workspace = true, features = ["serde", "reth-codec"] }
 reth-trie-common.workspace = true
 reth-storage-api.workspace = true
 
 # ethereum
+alloy-eips.workspace = true
 alloy-primitives.workspace = true
+alloy-consensus.workspace = true
 revm.workspace = true
 
 [dev-dependencies]
-reth-codecs.workspace = true
+reth-codecs = { workspace = true, features = ["test-utils"] }
 reth-db-api.workspace = true
 reth-prune-types.workspace = true
 reth-stages-types.workspace = true
@@ -29,11 +35,16 @@ reth-stages-types.workspace = true
 [features]
 default = ["std"]
 std = [
-    "reth-primitives/std",
     "reth-trie-common/std",
     "reth-storage-api/std",
     "alloy-primitives/std",
     "revm/std",
     "reth-prune-types/std",
     "reth-stages-types/std",
+    "alloy-consensus/std",
+    "reth-chainspec/std",
+    "reth-optimism-forks/std",
+    "reth-optimism-primitives/std",
+    "reth-primitives-traits/std",
+    "alloy-eips/std",
 ]
