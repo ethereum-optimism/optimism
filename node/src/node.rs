@@ -21,7 +21,10 @@ use reth_node_builder::{
         NetworkBuilder, PayloadBuilderBuilder, PoolBuilder, PoolBuilderConfigOverrides,
     },
     node::{FullNodeTypes, NodeTypes, NodeTypesWithEngine},
-    rpc::{EngineValidatorAddOn, EngineValidatorBuilder, RethRpcAddOns, RpcAddOns, RpcHandle},
+    rpc::{
+        EngineValidatorAddOn, EngineValidatorBuilder, EthApiBuilder, RethRpcAddOns, RpcAddOns,
+        RpcHandle,
+    },
     BuilderContext, DebugNode, Node, NodeAdapter, NodeComponentsBuilder,
 };
 use reth_optimism_chainspec::OpChainSpec;
@@ -34,7 +37,7 @@ use reth_optimism_payload_builder::{
 };
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives, OpReceipt, OpTransactionSigned};
 use reth_optimism_rpc::{
-    eth::ext::OpEthExtApi,
+    eth::{ext::OpEthExtApi, OpEthApiBuilder},
     miner::{MinerApiExtServer, OpMinerExtApi},
     witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
     OpEthApi, OpEthApiError, SequencerClient,
@@ -224,12 +227,16 @@ impl NodeTypesWithEngine for OpNode {
 
 /// Add-ons w.r.t. optimism.
 #[derive(Debug)]
-pub struct OpAddOns<N: FullNodeComponents> {
+pub struct OpAddOns<N>
+where
+    N: FullNodeComponents,
+    OpEthApiBuilder: EthApiBuilder<N>,
+{
     /// Rpc add-ons responsible for launching the RPC servers and instantiating the RPC handlers
     /// and eth-api.
     pub rpc_add_ons: RpcAddOns<
         N,
-        OpEthApi<N>,
+        OpEthApiBuilder,
         OpEngineValidatorBuilder,
         OpEngineApiBuilder<OpEngineValidatorBuilder>,
     >,
@@ -242,13 +249,21 @@ pub struct OpAddOns<N: FullNodeComponents> {
     enable_tx_conditional: bool,
 }
 
-impl<N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>> Default for OpAddOns<N> {
+impl<N> Default for OpAddOns<N>
+where
+    N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>,
+    OpEthApiBuilder: EthApiBuilder<N>,
+{
     fn default() -> Self {
         Self::builder().build()
     }
 }
 
-impl<N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>> OpAddOns<N> {
+impl<N> OpAddOns<N>
+where
+    N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>,
+    OpEthApiBuilder: EthApiBuilder<N>,
+{
     /// Build a [`OpAddOns`] using [`OpAddOnsBuilder`].
     pub fn builder() -> OpAddOnsBuilder {
         OpAddOnsBuilder::default()
@@ -357,6 +372,7 @@ where
             Engine = OpEngineTypes,
         >,
     >,
+    OpEthApiBuilder: EthApiBuilder<N>,
 {
     type Validator = OpEngineValidator<N::Provider>;
 
@@ -403,15 +419,14 @@ impl OpAddOnsBuilder {
     pub fn build<N>(self) -> OpAddOns<N>
     where
         N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>,
+        OpEthApiBuilder: EthApiBuilder<N>,
     {
         let Self { sequencer_client, da_config, enable_tx_conditional } = self;
 
         let sequencer_client_clone = sequencer_client.clone();
         OpAddOns {
             rpc_add_ons: RpcAddOns::new(
-                move |ctx| {
-                    OpEthApi::<N>::builder().with_sequencer(sequencer_client_clone).build(ctx)
-                },
+                OpEthApiBuilder::default().with_sequencer(sequencer_client_clone),
                 Default::default(),
                 Default::default(),
             ),

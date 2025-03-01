@@ -15,13 +15,13 @@ use op_alloy_network::Optimism;
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_evm::ConfigureEvm;
 use reth_network_api::NetworkInfo;
-use reth_node_api::NodePrimitives;
-use reth_node_builder::EthApiBuilderCtx;
+use reth_node_api::{BlockTy, FullNodeComponents, ReceiptTy};
+use reth_node_builder::rpc::EthApiBuilder;
 use reth_optimism_primitives::OpPrimitives;
 use reth_provider::{
     BlockNumReader, BlockReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider,
-    NodePrimitivesProvider, ProviderBlock, ProviderHeader, ProviderReceipt, ProviderTx,
-    StageCheckpointReader, StateProviderFactory,
+    ProviderBlock, ProviderHeader, ProviderReceipt, ProviderTx, StageCheckpointReader,
+    StateProviderFactory,
 };
 use reth_rpc::eth::{core::EthApiInner, DevSigner};
 use reth_rpc_eth_api::{
@@ -29,9 +29,9 @@ use reth_rpc_eth_api::{
         AddDevSigners, EthApiSpec, EthFees, EthSigner, EthState, LoadBlock, LoadFee, LoadState,
         SpawnBlocking, Trace,
     },
-    EthApiTypes, FromEvmError, RpcNodeCore, RpcNodeCoreExt,
+    EthApiTypes, FromEvmError, FullEthApiServer, RpcNodeCore, RpcNodeCoreExt,
 };
-use reth_rpc_eth_types::{EthStateCache, FeeHistoryCache, GasPriceOracle};
+use reth_rpc_eth_types::{EthConfig, EthStateCache, FeeHistoryCache, GasPriceOracle};
 use reth_tasks::{
     pool::{BlockingTaskGuard, BlockingTaskPool},
     TaskSpawner,
@@ -113,6 +113,7 @@ impl<N> RpcNodeCore for OpEthApi<N>
 where
     N: OpNodeCore,
 {
+    type Primitives = OpPrimitives;
     type Provider = N::Provider;
     type Pool = N::Pool;
     type Evm = <N as RpcNodeCore>::Evm;
@@ -295,7 +296,7 @@ impl<N: OpNodeCore> OpEthApiInner<N> {
     }
 }
 
-/// A type that knows how to build a [`OpEthApi`].
+/// Builds [`OpEthApi`] for Optimism.
 #[derive(Debug, Default)]
 pub struct OpEthApiBuilder {
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
@@ -304,7 +305,7 @@ pub struct OpEthApiBuilder {
 }
 
 impl OpEthApiBuilder {
-    /// Creates a [`OpEthApiBuilder`] instance from [`EthApiBuilderCtx`].
+    /// Creates a [`OpEthApiBuilder`] instance from core components.
     pub const fn new() -> Self {
         Self { sequencer_client: None }
     }
@@ -316,41 +317,35 @@ impl OpEthApiBuilder {
     }
 }
 
-impl OpEthApiBuilder {
-    /// Builds an instance of [`OpEthApi`]
-    pub fn build<N>(self, ctx: &EthApiBuilderCtx<N>) -> OpEthApi<N>
-    where
-        N: OpNodeCore<
-            Provider: BlockReaderIdExt<
-                Block = <<N::Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::Block,
-                Receipt = <<N::Provider as NodePrimitivesProvider>::Primitives as NodePrimitives>::Receipt,
-            > + ChainSpecProvider
-                          + CanonStateSubscriptions
-                          + Clone
-                          + 'static,
-        >,
-    {
-        let blocking_task_pool =
-            BlockingTaskPool::build().expect("failed to build blocking task pool");
+impl<N> EthApiBuilder<N> for OpEthApiBuilder
+where
+    N: FullNodeComponents,
+    OpEthApi<N>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
+{
+    type EthApi = OpEthApi<N>;
 
-        let eth_api = EthApiInner::new(
-            ctx.provider.clone(),
-            ctx.pool.clone(),
-            ctx.network.clone(),
-            ctx.cache.clone(),
-            ctx.new_gas_price_oracle(),
-            ctx.config.rpc_gas_cap,
-            ctx.config.rpc_max_simulate_blocks,
-            ctx.config.eth_proof_window,
-            blocking_task_pool,
-            ctx.new_fee_history_cache(),
-            ctx.evm_config.clone(),
-            Box::new(ctx.executor.clone()),
-            ctx.config.proof_permits,
-        );
+    fn build_eth_api(
+        self,
+        core_components: &N,
+        config: EthConfig,
+        cache: EthStateCache<BlockTy<N::Types>, ReceiptTy<N::Types>>,
+    ) -> Self::EthApi {
+        let Self { sequencer_client } = self;
+        let eth_api = reth_rpc::EthApiBuilder::new(
+            core_components.provider().clone(),
+            core_components.pool().clone(),
+            core_components.network().clone(),
+            core_components.evm_config().clone(),
+        )
+        .eth_cache(cache)
+        .task_spawner(core_components.task_executor().clone())
+        .gas_cap(config.rpc_gas_cap.into())
+        .max_simulate_blocks(config.rpc_max_simulate_blocks)
+        .eth_proof_window(config.eth_proof_window)
+        .fee_history_cache_config(config.fee_history_cache)
+        .proof_permits(config.proof_permits)
+        .build_inner();
 
-        OpEthApi {
-            inner: Arc::new(OpEthApiInner { eth_api, sequencer_client: self.sequencer_client }),
-        }
+        OpEthApi { inner: Arc::new(OpEthApiInner { eth_api, sequencer_client }) }
     }
 }
