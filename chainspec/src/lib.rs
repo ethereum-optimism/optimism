@@ -336,7 +336,7 @@ impl From<Genesis> for OpChainSpec {
             (OpHardfork::Granite.boxed(), genesis_info.granite_time),
             (OpHardfork::Holocene.boxed(), genesis_info.holocene_time),
             (OpHardfork::Isthmus.boxed(), genesis_info.isthmus_time),
-            // (OpHardfork::Interop.boxed(), genesis_info.interop_time),
+            (OpHardfork::Interop.boxed(), genesis_info.interop_time),
         ];
 
         let mut time_hardforks = time_hardfork_opts
