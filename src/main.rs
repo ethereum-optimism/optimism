@@ -126,7 +126,7 @@ async fn main() -> eyre::Result<()> {
     let args: Args = Args::parse();
 
     let debug_addr = format!("{}:{}", args.debug_host, args.debug_server_port);
-    
+
     // Handle commands if present
     if let Some(cmd) = args.command {
         let debug_addr = format!("http://{}", debug_addr);
@@ -147,7 +147,7 @@ async fn main() -> eyre::Result<()> {
                     Ok(())
                 }
             },
-        }
+        };
     }
 
     // Initialize logging
@@ -250,9 +250,7 @@ async fn main() -> eyre::Result<()> {
     );
 
     // Spawn the debug server
-    rollup_boost
-        .start_debug_server(debug_addr.as_str())
-        .await?;
+    rollup_boost.start_debug_server(debug_addr.as_str()).await?;
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 

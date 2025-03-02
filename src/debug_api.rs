@@ -45,9 +45,7 @@ impl DebugServer {
     }
 
     pub async fn run(self, debug_addr: &str) -> eyre::Result<()> {
-        let server = Server::builder()
-            .build(debug_addr)
-            .await?;
+        let server = Server::builder().build(debug_addr).await?;
 
         let handle = server.start(self.into_rpc());
 
@@ -95,7 +93,7 @@ impl DebugClient {
 
         Ok(Self { client })
     }
-    
+
     pub async fn set_execution_mode(
         &self,
         execution_mode: ExecutionMode,
