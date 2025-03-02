@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -41,8 +40,7 @@ func NewSuperAgreementEnricher(logger log.Logger, metrics OutputMetrics, client 
 }
 
 func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
-	// TODO: Would be better to have a bool flag that another enricher sets to indicate if the game uses super roots
-	if slices.Contains(outputRootGameTypes, game.GameType) {
+	if game.UsesOutputRoots() {
 		return nil
 	}
 	if e.client == nil {

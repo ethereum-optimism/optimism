@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -17,7 +16,6 @@ import (
 
 var (
 	ErrRollupRpcRequired = errors.New("rollup rpc required")
-	outputRootGameTypes  = []uint32{0, 1, 2, 3, 6, 254, 255, 1337}
 )
 
 type OutputRollupClient interface {
@@ -47,7 +45,7 @@ func NewOutputAgreementEnricher(logger log.Logger, metrics OutputMetrics, client
 
 // Enrich validates the specified root claim against the output at the given block number.
 func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
-	if !slices.Contains(outputRootGameTypes, game.GameType) {
+	if !game.UsesOutputRoots() {
 		return nil
 	}
 	if o.client == nil {
