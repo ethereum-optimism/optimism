@@ -194,12 +194,6 @@ github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
 github.com/ethereum-optimism/op-geth v1.101500.2-rc.1 h1:CCQtyKKobjMbK9jYd676YbH6Xcvntdn6jIOxFTCb5B8=
 github.com/ethereum-optimism/op-geth v1.101500.2-rc.1/go.mod h1:OMpyVMMy5zpAAHlR5s/aGbXRk+7cIKczUEIJj54APbY=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250205201532-8ff62ada16e1 h1:OqRYDcjiOx5QCLn5krpd3BK1CW+VfSZx7YIa6zY9ePE=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250205201532-8ff62ada16e1/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250226225001-eda352a0be39 h1:PKn3dL9W0FyGC/oynhP6T43P0Xm80W+woW53lRUp2nE=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250226225001-eda352a0be39/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250227173852-b4f7e4022c2e h1:CWdI4k9JxMvWLv6HjWuAFJuuEwMEEwKdW/mOVnrNBD8=
-github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250227173852-b4f7e4022c2e/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250228185245-d4bb112dc979 h1:P37l7EFCz5KxE20+yPa3LWiH2Cg+xx6lQ4mOKYCZFPs=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250228185245-d4bb112dc979/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
 github.com/ethereum/c-kzg-4844 v1.0.0 h1:0X1LBXxaEtYD9xsyj9B9ctQEZIpnvVDeoBx8aHEwTNA=
@@ -402,8 +396,8 @@ github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097/go.mod h1
 github.com/ipfs/go-cid v0.4.1 h1:A/T3qGvxi4kpKWWcPC/PgbvDA2bjVLO7n4UeVwnbs/s=
 github.com/ipfs/go-cid v0.4.1/go.mod h1:uQHwDeX4c6CtyrFwdqyhpNcxVewur1M7l7fNU7LKwZk=
 github.com/ipfs/go-datastore v0.5.0/go.mod h1:9zhEApYMTl17C8YDp7JmU7sQZi2/wqiYh73hakZ90Bk=
-github.com/ipfs/go-datastore v0.6.0 h1:JKyz+Gvz1QEZw0LsX1IBn+JFCJQH4SJVFtM4uWU0Myk=
-github.com/ipfs/go-datastore v0.6.0/go.mod h1:rt5M3nNbSO/8q1t4LNkLyUwRs8HupMeN/8O4Vn9YAT8=
+github.com/ipfs/go-datastore v0.8.1 h1:p4+tWJuopShJgB3kIK0MMvnH6CFPvi7g/S44f2/EHQA=
+github.com/ipfs/go-datastore v0.8.1/go.mod h1:W+pI1NsUsz3tcsAACMtfC+IZdnQTnC/7VfPoJBQuts0=
 github.com/ipfs/go-detect-race v0.0.1 h1:qX/xay2W3E4Q1U7d9lNs1sU9nvguX0a7319XbyQ6cOk=
 github.com/ipfs/go-detect-race v0.0.1/go.mod h1:8BNT7shDZPo99Q74BpGMK+4D8Mn4j46UU0LZ723meps=
 github.com/ipfs/go-ds-badger v0.3.0 h1:xREL3V0EH9S219kFFueOYJJTcjgNSZ2HY1iSvN7U1Ro=
@@ -749,8 +743,8 @@ github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUc
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
-github.com/rogpeppe/go-internal v1.12.0 h1:exVL4IDcn6na9z1rAb56Vxr+CgyK3nn3O+epU5NdKM8=
-github.com/rogpeppe/go-internal v1.12.0/go.mod h1:E+RYuTGaKKdloAfM02xzb0FW3Paa99yedzYV+kq4uf4=
+github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR38lUII=
+github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/rs/cors v1.11.0 h1:0B9GE/r9Bc2UxRMMtymBkHTenPkHDv0CW4Y98GBY+po=
 github.com/rs/cors v1.11.0/go.mod h1:XyqrcTp5zjWr1wsJ8PIRZssZ8b/WMcMf71DJnit4EMU=
 github.com/rs/xid v1.6.0 h1:fV591PaemRlL6JfRxGDEPl69wICngIQ3shQtzfy2gxU=
