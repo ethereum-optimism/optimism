@@ -13,9 +13,6 @@ extern crate alloc;
 mod chain;
 pub use chain::OptStorage;
 
-pub mod predeploys;
-pub use predeploys::{withdrawals_root, withdrawals_root_prehashed};
-
 #[cfg(test)]
 mod tests {
     use reth_codecs::{test_utils::UnusedBits, validate_bitflag_backwards_compat};

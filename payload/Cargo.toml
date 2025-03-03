@@ -34,7 +34,6 @@ reth-optimism-consensus.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
-reth-optimism-storage.workspace = true
 
 # ethereum
 revm.workspace = true

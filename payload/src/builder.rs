@@ -26,11 +26,10 @@ use reth_evm::{
     ConfigureEvm, ConfigureEvmFor, Database, Evm, HaltReasonFor,
 };
 use reth_execution_types::ExecutionOutcome;
-use reth_optimism_consensus::calculate_receipt_root_no_memo_optimism;
+use reth_optimism_consensus::{calculate_receipt_root_no_memo_optimism, isthmus};
 use reth_optimism_evm::{OpNextBlockEnvAttributes, OpReceiptBuilder};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::transaction::signed::OpTransaction;
-use reth_optimism_storage::predeploys;
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::PayloadBuilderAttributes;
 use reth_payload_util::{BestPayloadTransactions, NoopPayloadTransactions, PayloadTransactions};
@@ -392,7 +391,7 @@ impl<Txs> OpBuilder<'_, Txs> {
         let withdrawals_root = if ctx.is_isthmus_active() {
             // withdrawals root field in block header is used for storage root of L2 predeploy
             // `l2tol1-message-passer`
-            Some(predeploys::withdrawals_root(&state.bundle_state, state.database.as_ref())?)
+            Some(isthmus::withdrawals_root(&state.bundle_state, state.database.as_ref())?)
         } else if ctx.is_canyon_active() {
             Some(EMPTY_WITHDRAWALS)
         } else {
