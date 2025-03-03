@@ -38,7 +38,7 @@ pub fn extract_l1_info<B: BlockBody>(body: &B) -> Result<L1BlockInfo, OpBlockExe
     extract_l1_info_from_tx(l1_info_tx)
 }
 
-/// Extracts the [`L1BlockInfo`] from the the L1 info transaction (first transaction) in the L2
+/// Extracts the [`L1BlockInfo`] from the L1 info transaction (first transaction) in the L2
 /// block.
 ///
 /// Returns an error if the calldata is shorter than 4 bytes.

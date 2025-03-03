@@ -1,4 +1,4 @@
-//! Utilities for interacting the the optimism superchain registry
+//! Utilities for interacting the optimism superchain registry
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
