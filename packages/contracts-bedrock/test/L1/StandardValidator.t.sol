@@ -1135,12 +1135,20 @@ contract StandardValidatorV200_Test is StandardValidatorTest {
         super._mockValidationCalls();
 
         // Override version numbers for V200
-        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.3.0"));
-        vm.mockCall(address(optimismPortal), abi.encodeCall(ISemver.version, ()), abi.encode("3.12.0"));
+        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.3.1"));
+        vm.mockCall(address(optimismPortal), abi.encodeCall(ISemver.version, ()), abi.encode("3.13.0"));
         vm.mockCall(address(systemConfig), abi.encodeCall(ISemver.version, ()), abi.encode("2.4.0"));
         vm.mockCall(address(optimismMintableERC20Factory), abi.encodeCall(ISemver.version, ()), abi.encode("1.10.1"));
         vm.mockCall(address(l1CrossDomainMessenger), abi.encodeCall(ISemver.version, ()), abi.encode("2.5.0"));
-        vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.2.1"));
+        vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.2.2"));
         vm.mockCall(address(disputeGameFactory), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.1"));
+        vm.mockCall(address(permissionedASR), abi.encodeCall(ISemver.version, ()), abi.encode("2.2.2"));
+        vm.mockCall(address(permissionedDelayedWETH), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
+        vm.mockCall(address(permissionlessASR), abi.encodeCall(ISemver.version, ()), abi.encode("2.2.2"));
+        vm.mockCall(address(permissionlessDelayedWETH), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
+        vm.mockCall(address(mips), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
+        vm.mockCall(address(permissionedDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
+        vm.mockCall(address(permissionlessDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
+        vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.4"));
     }
 }
