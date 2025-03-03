@@ -621,11 +621,11 @@ contract StandardValidatorV200 is StandardValidatorBase {
     }
 
     function l1ERC721BridgeVersion() public pure override returns (string memory) {
-        return "2.3.0";
+        return "2.3.1";
     }
 
     function optimismPortalVersion() public pure override returns (string memory) {
-        return "3.12.0";
+        return "3.13.0";
     }
 
     function systemConfigVersion() public pure override returns (string memory) {
@@ -641,10 +641,30 @@ contract StandardValidatorV200 is StandardValidatorBase {
     }
 
     function l1StandardBridgeVersion() public pure override returns (string memory) {
-        return "2.2.1";
+        return "2.2.2";
     }
 
     function disputeGameFactoryVersion() public pure override returns (string memory) {
         return "1.0.1";
+    }
+
+    function anchorStateRegistryVersion() public pure override returns (string memory) {
+        return "2.2.2";
+    }
+
+    function delayedWETHVersion() public pure override returns (string memory) {
+        return "1.3.0";
+    }
+
+    function mipsVersion() public pure override returns (string memory) {
+        return "1.3.0";
+    }
+
+    function permissionedDisputeGameVersion() public pure override returns (string memory) {
+        return "1.4.1";
+    }
+
+    function preimageOracleVersion() public pure override returns (string memory) {
+        return "1.1.4";
     }
 }

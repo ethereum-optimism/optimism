@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/mockrpc"
 )
 
-func TestValidate(t *testing.T) {
+func TestValidate_Mocked(t *testing.T) {
 	tests := []struct {
 		version   string
 		validator func(rpcClient *rpc.Client) Validator
