@@ -791,7 +791,8 @@ jobs:
           no_output_timeout: <<parameters.test_timeout>>
       - run:
           name: Print failed test traces
-          command: just test-rerun
+          command: |
+            just test-rerun | tee failed-test-traces.log
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
@@ -801,6 +802,9 @@ jobs:
           disable_search: true
           files: ./packages/contracts-bedrock/lcov-all.info
           flags: contracts-bedrock-tests
+      - store_artifacts:
+          path: packages/contracts-bedrock/failed-test-traces.log
+          when: on_fail
       - notify-failures-on-develop
 
   contracts-bedrock-tests-upgrade:
@@ -847,7 +851,8 @@ jobs:
           no_output_timeout: 15m
       - run:
           name: Print failed test traces
-          command: just test-upgrade-rerun
+          command: |
+            just test-upgrade-rerun | tee failed-test-traces.log
           environment:
             FOUNDRY_FUZZ_SEED: 42424242
             FOUNDRY_FUZZ_RUNS: 1
@@ -866,6 +871,9 @@ jobs:
           when: always
           paths:
             - "/root/.foundry/cache"
+      - store_artifacts:
+          path: packages/contracts-bedrock/failed-test-traces.log
+          when: on_fail
       - notify-failures-on-develop
 
   contracts-bedrock-checks:

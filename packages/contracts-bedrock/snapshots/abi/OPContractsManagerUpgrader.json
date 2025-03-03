@@ -213,28 +213,6 @@
         "internalType": "struct OPContractsManager.OpChainConfig[]",
         "name": "_opChainConfigs",
         "type": "tuple[]"
-      },
-      {
-        "components": [
-          {
-            "internalType": "contract ISuperchainConfig",
-            "name": "superchainConfig",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IProtocolVersions",
-            "name": "protocolVersions",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IProxyAdmin",
-            "name": "superchainProxyAdmin",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct OPContractsManagerUpgrader.UpgradeInput",
-        "name": "_upgradeInput",
-        "type": "tuple"
       }
     ],
     "name": "upgrade",
@@ -311,17 +289,6 @@
   {
     "inputs": [],
     "name": "ReservedBitsSet",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract ISystemConfig",
-        "name": "systemConfig",
-        "type": "address"
-      }
-    ],
-    "name": "SuperchainConfigMismatch",
     "type": "error"
   },
   {

@@ -63,7 +63,7 @@ test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
 # Default block number for the forked upgrade path.
-export pinnedBlockNumber := env_var_or_default('FORK_BLOCK_NUMBER', '21387830')
+export pinnedBlockNumber := env_var_or_default('FORK_BLOCK_NUMBER', '21971446')
 print-pinned-block-number:
   echo $pinnedBlockNumber
 
@@ -81,6 +81,7 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_BLOCK_NUMBER=$pinnedBlockNumber
   export FORK_RPC_URL=$ETH_RPC_URL
   export FORK_TEST=true
+  export USE_MT_CANNON=true
   {{ARGS}} \
   --match-path "test/{L1,dispute,cannon}/**"
 
