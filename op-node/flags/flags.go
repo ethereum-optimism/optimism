@@ -443,6 +443,14 @@ var (
 		Category: RollupCategory,
 		Hidden:   true,
 	}
+
+	ExperimentalOPStackAPI = &cli.BoolFlag{
+		Name:     "experimental.opstack-api",
+		Usage:    "Enables experimental opstack RPC namespace",
+		Required: false,
+		EnvVars:  prefixEnvVars("EXPERIMENTAL_OPSTACK_API"),
+		Category: MiscCategory,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -498,6 +506,7 @@ var optionalFlags = []cli.Flag{
 	InteropRPCPort,
 	InteropJWTSecret,
 	IgnoreMissingPectraBlobSchedule,
+	ExperimentalOPStackAPI,
 }
 
 var DeprecatedFlags = []cli.Flag{

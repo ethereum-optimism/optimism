@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
@@ -35,4 +36,8 @@ func (n *Signer) ID() seqtypes.SignerID {
 func (n *Signer) Sign(ctx context.Context, block work.Block) (work.SignedBlock, error) {
 	n.log.Info("No-op sign", "block", block)
 	return nil, nil
+}
+
+func (n *Signer) ChainID() eth.ChainID {
+	return eth.ChainID{}
 }

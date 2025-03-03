@@ -63,6 +63,7 @@ type Signer interface {
 	ID() seqtypes.SignerID
 	io.Closer
 	Sign(ctx context.Context, block Block) (SignedBlock, error)
+	ChainID() eth.ChainID
 }
 
 // Committer commits to a (signed) block to become canonical.

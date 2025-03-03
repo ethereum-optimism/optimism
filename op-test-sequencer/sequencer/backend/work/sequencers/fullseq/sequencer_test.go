@@ -121,6 +121,10 @@ func (m *mockSigner) Sign(ctx context.Context, block work.Block) (work.SignedBlo
 	return &mockSignedBlock{bl: block}, m.err
 }
 
+func (m *mockSigner) ChainID() eth.ChainID {
+	return eth.ChainIDFromUInt64(123)
+}
+
 var _ work.Signer = (*mockSigner)(nil)
 
 type mockCommitter struct {
