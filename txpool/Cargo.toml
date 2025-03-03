@@ -33,7 +33,7 @@ op-alloy-consensus.workspace = true
 op-alloy-flz.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-forks.workspace = true
-reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
+reth-optimism-primitives.workspace = true
 
 # metrics
 reth-metrics.workspace = true
