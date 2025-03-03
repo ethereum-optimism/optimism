@@ -21,7 +21,8 @@ import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerDeployer,
-    IOPContractsManagerUpgrader
+    IOPContractsManagerUpgrader,
+    IOPContractsManagerContractsContainer
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -152,6 +153,7 @@ contract DeployImplementationsInput is BaseDeployIO {
 
 contract DeployImplementationsOutput is BaseDeployIO {
     IOPContractsManager internal _opcm;
+    IOPContractsManagerContractsContainer internal _opcmContractsContainer;
     IOPContractsManagerGameTypeAdder internal _opcmGameTypeAdder;
     IOPContractsManagerDeployer internal _opcmDeployer;
     IOPContractsManagerUpgrader internal _opcmUpgrader;
@@ -174,6 +176,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         // forgefmt: disable-start
         if (_sel == this.opcm.selector) _opcm = IOPContractsManager(_addr);
+        else if (_sel == this.opcmContractsContainer.selector) _opcmContractsContainer = IOPContractsManagerContractsContainer(_addr);
         else if (_sel == this.opcmGameTypeAdder.selector) _opcmGameTypeAdder = IOPContractsManagerGameTypeAdder(_addr);
         else if (_sel == this.opcmDeployer.selector) _opcmDeployer = IOPContractsManagerDeployer(_addr);
         else if (_sel == this.opcmUpgrader.selector) _opcmUpgrader = IOPContractsManagerUpgrader(_addr);
@@ -225,6 +228,11 @@ contract DeployImplementationsOutput is BaseDeployIO {
     function opcm() public view returns (IOPContractsManager) {
         DeployUtils.assertValidContractAddress(address(_opcm));
         return _opcm;
+    }
+
+    function opcmContractsContainer() public view returns (IOPContractsManagerContractsContainer) {
+        DeployUtils.assertValidContractAddress(address(_opcmContractsContainer));
+        return _opcmContractsContainer;
     }
 
     function opcmGameTypeAdder() public view returns (IOPContractsManagerGameTypeAdder) {
@@ -518,9 +526,10 @@ contract DeployImplementations is Script {
             mipsImpl: address(_dio.mipsSingleton())
         });
 
-        deployOPCMGameTypeAdder(_dio, _blueprints, implementations);
-        deployOPCMDeployer(_dio, _blueprints, implementations);
-        deployOPCMUpgrader(_dio, _blueprints, implementations);
+        deployOPCMBPImplsContainer(_dio, _blueprints, implementations);
+        deployOPCMGameTypeAdder(_dio);
+        deployOPCMDeployer(_dio);
+        deployOPCMUpgrader(_dio);
 
         opcm_ = IOPContractsManager(
             DeployUtils.createDeterministic({
@@ -813,7 +822,7 @@ contract DeployImplementations is Script {
         _dio.set(_dio.anchorStateRegistryImpl.selector, address(impl));
     }
 
-    function deployOPCMGameTypeAdder(
+    function deployOPCMBPImplsContainer(
         DeployImplementationsOutput _dio,
         IOPContractsManager.Blueprints memory _blueprints,
         IOPContractsManager.Implementations memory _implementations
@@ -821,11 +830,25 @@ contract DeployImplementations is Script {
         public
         virtual
     {
+        IOPContractsManagerContractsContainer impl = IOPContractsManagerContractsContainer(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManager.sol:OPContractsManagerContractsContainer",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (_blueprints, _implementations))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OPContractsManagerBPImplsContainerImpl");
+        _dio.set(_dio.opcmContractsContainer.selector, address(impl));
+    }
+
+    function deployOPCMGameTypeAdder(DeployImplementationsOutput _dio) public virtual {
         IOPContractsManagerGameTypeAdder impl = IOPContractsManagerGameTypeAdder(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager.sol:OPContractsManagerGameTypeAdder",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (_blueprints, _implementations))
+                    abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (_dio.opcmContractsContainer()))
                 ),
                 _salt: _salt
             })
@@ -834,19 +857,12 @@ contract DeployImplementations is Script {
         _dio.set(_dio.opcmGameTypeAdder.selector, address(impl));
     }
 
-    function deployOPCMDeployer(
-        DeployImplementationsOutput _dio,
-        IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
-    )
-        public
-        virtual
-    {
+    function deployOPCMDeployer(DeployImplementationsOutput _dio) public virtual {
         IOPContractsManagerDeployer impl = IOPContractsManagerDeployer(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager.sol:OPContractsManagerDeployer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (_blueprints, _implementations))
+                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (_dio.opcmContractsContainer()))
                 ),
                 _salt: _salt
             })
@@ -855,19 +871,12 @@ contract DeployImplementations is Script {
         _dio.set(_dio.opcmDeployer.selector, address(impl));
     }
 
-    function deployOPCMUpgrader(
-        DeployImplementationsOutput _dio,
-        IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
-    )
-        public
-        virtual
-    {
+    function deployOPCMUpgrader(DeployImplementationsOutput _dio) public virtual {
         IOPContractsManagerUpgrader impl = IOPContractsManagerUpgrader(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager.sol:OPContractsManagerUpgrader",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (_blueprints, _implementations))
+                    abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (_dio.opcmContractsContainer()))
                 ),
                 _salt: _salt
             })
@@ -932,19 +941,12 @@ contract DeployImplementations is Script {
 // resolve https://github.com/ethereum-optimism/optimism/issues/11783, we just assume this new role
 // is the same as the proxy admin owner.
 contract DeployImplementationsInterop is DeployImplementations {
-    function deployOPCMDeployer(
-        DeployImplementationsOutput _dio,
-        IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
-    )
-        public
-        override
-    {
+    function deployOPCMDeployer(DeployImplementationsOutput _dio) public override {
         IOPContractsManagerDeployer impl = IOPContractsManagerDeployer(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager.sol:OPContractsManagerDeployerInterop",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (_blueprints, _implementations))
+                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (_dio.opcmContractsContainer()))
                 ),
                 _salt: _salt
             })

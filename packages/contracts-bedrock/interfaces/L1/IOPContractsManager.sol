@@ -22,14 +22,24 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 
+interface IOPContractsManagerContractsContainer {
+    function __constructor__(
+        IOPContractsManager.Blueprints memory _blueprints,
+        IOPContractsManager.Implementations memory _implementations
+    )
+        external;
+
+    function blueprints() external view returns (IOPContractsManager.Blueprints memory);
+    function implementations() external view returns (IOPContractsManager.Implementations memory);
+}
+
 interface IOPContractsManagerGameTypeAdder {
     event GameTypeAdded(
         uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
     );
 
     function __constructor__(
-        IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
+        IOPContractsManagerContractsContainer _contractsContainer
     )
         external;
 
@@ -38,33 +48,36 @@ interface IOPContractsManagerGameTypeAdder {
         returns (IOPContractsManager.AddGameOutput[] memory);
 
     function updatePrestate(IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs, address _superchainConfig) external;
+
+    function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
 
 interface IOPContractsManagerDeployer {
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
 
     function __constructor__(
-        IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
+        IOPContractsManagerContractsContainer _contractsContainer
     )
         external;
 
     function deploy(IOPContractsManager.DeployInput memory _input, address _superchainConfig, address _deployer)
         external
         returns (IOPContractsManager.DeployOutput memory);
+
+    function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
 
 interface IOPContractsManagerUpgrader {
     event Upgraded(uint256 indexed l2ChainId, address indexed systemConfig, address indexed upgrader);
 
-
     function __constructor__(
-        IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
+        IOPContractsManagerContractsContainer _contractsContainer
     )
         external;
 
     function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
+
+    function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
 
 

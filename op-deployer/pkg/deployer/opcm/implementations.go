@@ -31,6 +31,7 @@ func (input *DeployImplementationsInput) InputSet() bool {
 
 type DeployImplementationsOutput struct {
 	Opcm                             common.Address
+	OpcmContractsContainer           common.Address
 	OpcmGameTypeAdder                common.Address
 	OpcmDeployer                     common.Address
 	OpcmUpgrader                     common.Address

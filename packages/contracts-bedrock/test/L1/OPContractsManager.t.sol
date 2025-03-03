@@ -41,7 +41,8 @@ import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerDeployer,
-    IOPContractsManagerUpgrader
+    IOPContractsManagerUpgrader,
+    IOPContractsManagerContractsContainer
 } from "interfaces/L1/IOPContractsManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
@@ -50,7 +51,8 @@ import {
     OPContractsManager,
     OPContractsManagerGameTypeAdder,
     OPContractsManagerDeployer,
-    OPContractsManagerUpgrader
+    OPContractsManagerUpgrader,
+    OPContractsManagerContractsContainer
 } from "src/L1/OPContractsManager.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
@@ -187,10 +189,13 @@ contract OPContractsManager_InternalMethods_Test is Test {
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
+        OPContractsManagerContractsContainer container =
+            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls);
+
         opcmHarness = new OPContractsManager_Harness({
-            _opcmGameTypeAdder: new OPContractsManagerGameTypeAdder(emptyBlueprints, emptyImpls),
-            _opcmDeployer: new OPContractsManagerDeployer(emptyBlueprints, emptyImpls),
-            _opcmUpgrader: new OPContractsManagerUpgrader(emptyBlueprints, emptyImpls),
+            _opcmGameTypeAdder: new OPContractsManagerGameTypeAdder(container),
+            _opcmDeployer: new OPContractsManagerDeployer(container),
+            _opcmUpgrader: new OPContractsManagerUpgrader(container),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
@@ -643,7 +648,22 @@ contract OPContractsManager_AddGameType_Test is Test {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerGameTypeAdder",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (blueprints, impls))
+                    abi.encodeCall(
+                        IOPContractsManagerGameTypeAdder.__constructor__,
+                        (
+                            IOPContractsManagerContractsContainer(
+                                DeployUtils.createDeterministic({
+                                    _name: "OPContractsManagerContractsContainer",
+                                    _args: DeployUtils.encodeConstructor(
+                                        abi.encodeCall(
+                                            IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls)
+                                        )
+                                    ),
+                                    _salt: DeployUtils.DEFAULT_SALT
+                                })
+                            )
+                        )
+                    )
                 ),
                 _salt: DeployUtils.DEFAULT_SALT
             })
@@ -653,7 +673,7 @@ contract OPContractsManager_AddGameType_Test is Test {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerDeployer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (blueprints, impls))
+                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (opcmGameTypeAdder.contractsContainer()))
                 ),
                 _salt: DeployUtils.DEFAULT_SALT
             })
@@ -663,7 +683,7 @@ contract OPContractsManager_AddGameType_Test is Test {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerUpgrader",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (blueprints, impls))
+                    abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (opcmGameTypeAdder.contractsContainer()))
                 ),
                 _salt: DeployUtils.DEFAULT_SALT
             })
@@ -987,6 +1007,16 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
+        IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerContractsContainer",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls))
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
+
         opcm = IOPContractsManager(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
@@ -998,7 +1028,7 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
                                 DeployUtils.createDeterministic({
                                     _name: "OPContractsManagerGameTypeAdder",
                                     _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (blueprints, impls))
+                                        abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (container))
                                     ),
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
@@ -1007,7 +1037,7 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
                                 DeployUtils.createDeterministic({
                                     _name: "OPContractsManagerDeployer",
                                     _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (blueprints, impls))
+                                        abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (container))
                                     ),
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
@@ -1016,7 +1046,7 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
                                 DeployUtils.createDeterministic({
                                     _name: "OPContractsManagerUpgrader",
                                     _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (blueprints, impls))
+                                        abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (container))
                                     ),
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
