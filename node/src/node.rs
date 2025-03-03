@@ -29,7 +29,7 @@ use reth_node_builder::{
 };
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::OpBeaconConsensus;
-use reth_optimism_evm::{BasicOpReceiptBuilder, OpEvmConfig};
+use reth_optimism_evm::{BasicOpReceiptBuilder, OpEvmConfig, OpNextBlockEnvAttributes};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     builder::OpPayloadTransactions,
@@ -279,7 +279,10 @@ where
             Storage = OpStorage,
             Engine = OpEngineTypes,
         >,
-        Evm: ConfigureEvmEnv<TxEnv = revm_optimism::OpTransaction<TxEnv>>,
+        Evm: ConfigureEvmEnv<
+            TxEnv = revm_optimism::OpTransaction<TxEnv>,
+            NextBlockEnvCtx = OpNextBlockEnvAttributes,
+        >,
     >,
     OpEthApiError: FromEvmError<N::Evm>,
     <<N as FullNodeComponents>::Pool as TransactionPool>::Transaction: MaybeConditionalTransaction,
@@ -351,7 +354,10 @@ where
             Storage = OpStorage,
             Engine = OpEngineTypes,
         >,
-        Evm: ConfigureEvm<TxEnv = revm_optimism::OpTransaction<TxEnv>>,
+        Evm: ConfigureEvm<
+            TxEnv = revm_optimism::OpTransaction<TxEnv>,
+            NextBlockEnvCtx = OpNextBlockEnvAttributes,
+        >,
     >,
     OpEthApiError: FromEvmError<N::Evm>,
     <<N as FullNodeComponents>::Pool as TransactionPool>::Transaction: MaybeConditionalTransaction,

@@ -1,6 +1,24 @@
 use alloy_consensus::BlockHeader;
 use reth_optimism_forks::OpHardforks;
 use revm_optimism::OpSpecId;
+use revm_primitives::{Address, Bytes, B256};
+
+/// Context relevant for execution of a next block w.r.t OP.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpNextBlockEnvAttributes {
+    /// The timestamp of the next block.
+    pub timestamp: u64,
+    /// The suggested fee recipient for the next block.
+    pub suggested_fee_recipient: Address,
+    /// The randomness value for the next block.
+    pub prev_randao: B256,
+    /// Block gas limit.
+    pub gas_limit: u64,
+    /// The parent beacon block root.
+    pub parent_beacon_block_root: Option<B256>,
+    /// Encoded EIP-1559 parameters to include into block's `extra_data` field.
+    pub extra_data: Bytes,
+}
 
 /// Map the latest active hardfork at the given header to a revm [`OpSpecId`].
 pub fn revm_spec(chain_spec: impl OpHardforks, header: impl BlockHeader) -> OpSpecId {

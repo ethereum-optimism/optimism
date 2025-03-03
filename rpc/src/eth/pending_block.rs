@@ -3,7 +3,7 @@
 use crate::OpEthApi;
 use alloy_consensus::{
     constants::EMPTY_WITHDRAWALS, proofs::calculate_transaction_root, transaction::Recovered,
-    Header, Transaction as _, TxReceipt, EMPTY_OMMER_ROOT_HASH,
+    BlockHeader, Header, Transaction as _, TxReceipt, EMPTY_OMMER_ROOT_HASH,
 };
 use alloy_eips::{eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE, BlockNumberOrTag};
 use alloy_primitives::{B256, U256};
@@ -11,6 +11,7 @@ use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_evm::execute::BlockExecutionStrategyFactory;
 use reth_node_api::NodePrimitives;
 use reth_optimism_consensus::calculate_receipt_root_no_memo_optimism;
+use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
 use reth_primitives::{logs_bloom, BlockBody, RecoveredBlock, SealedHeader};
@@ -51,6 +52,7 @@ where
                 BlockHeader = ProviderHeader<Self::Provider>,
                 Receipt = ProviderReceipt<Self::Provider>,
             >,
+            NextBlockEnvCtx = OpNextBlockEnvAttributes,
         >,
     >,
 {
@@ -61,6 +63,20 @@ where
         Option<PendingBlock<ProviderBlock<Self::Provider>, ProviderReceipt<Self::Provider>>>,
     > {
         self.inner.eth_api.pending_block()
+    }
+
+    fn next_env_attributes(
+        &self,
+        parent: &SealedHeader<ProviderHeader<Self::Provider>>,
+    ) -> Result<<Self::Evm as reth_evm::ConfigureEvmEnv>::NextBlockEnvCtx, Self::Error> {
+        Ok(OpNextBlockEnvAttributes {
+            timestamp: parent.timestamp().saturating_add(12),
+            suggested_fee_recipient: parent.beneficiary(),
+            prev_randao: B256::random(),
+            gas_limit: parent.gas_limit(),
+            parent_beacon_block_root: parent.parent_beacon_block_root(),
+            extra_data: parent.extra_data.clone(),
+        })
     }
 
     /// Returns the locally built pending block

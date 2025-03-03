@@ -8,6 +8,7 @@ use reth_chainspec::ChainSpecProvider;
 use reth_evm::{execute::BlockExecutionStrategyFactory, ConfigureEvm};
 use reth_node_api::NodePrimitives;
 use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_payload_builder::{OpPayloadBuilder, OpPayloadPrimitives};
 use reth_primitives::SealedHeader;
 use reth_provider::{
@@ -69,7 +70,10 @@ where
         + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
-    EvmConfig: BlockExecutionStrategyFactory<Primitives = Provider::Primitives> + 'static,
+    EvmConfig: BlockExecutionStrategyFactory<
+            Primitives = Provider::Primitives,
+            NextBlockEnvCtx = OpNextBlockEnvAttributes,
+        > + 'static,
 {
     async fn execute_payload(
         &self,
