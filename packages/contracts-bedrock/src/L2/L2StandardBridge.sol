@@ -57,9 +57,9 @@ contract L2StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.12.0
+    /// @custom:semver 1.13.0
     function version() public pure virtual returns (string memory) {
-        return "1.12.0";
+        return "1.13.0";
     }
 
     /// @notice Constructs the L2StandardBridge contract.

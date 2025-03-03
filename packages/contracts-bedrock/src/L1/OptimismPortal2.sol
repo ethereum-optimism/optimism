@@ -178,9 +178,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.13.0
+    /// @custom:semver 3.14.0
     function version() public pure virtual returns (string memory) {
-        return "3.13.0";
+        return "3.14.0";
     }
 
     /// @notice Constructs the OptimismPortal contract.
@@ -255,7 +255,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @param _byteCount Number of bytes in the calldata.
     /// @return The minimum gas limit for a deposit.
     function minimumGasLimit(uint64 _byteCount) public pure returns (uint64) {
-        return _byteCount * 16 + 21000;
+        return _byteCount * 40 + 21000;
     }
 
     /// @notice Accepts value so that users can send ETH directly to this contract and have the

@@ -116,6 +116,9 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("RELAY_CONSTANT_OVERHEAD()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("RELAY_GAS_CHECK_BUFFER()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("RELAY_RESERVED_GAS()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("TX_BASE_GAS()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("FLOOR_CALLDATA_OVERHEAD()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("ENCODING_OVERHEAD()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("baseGas(bytes,uint32)") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("failedMessages(bytes32)") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("initialize(address,address)") });
