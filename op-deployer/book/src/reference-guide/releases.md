@@ -23,8 +23,6 @@ you get one that works. Note that this workflow is **not recommended** for produ
 
 ## Adding Support for New Contract Versions
 
-
-
 Adding support for a new contract version is a multi-step process. Here's a high-level overview. For the sake of 
 simplicity we will assume you are adding support for a new `rc` release.
 
