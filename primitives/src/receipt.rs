@@ -254,6 +254,7 @@ mod compact {
         tx_type: OpTxType,
         success: bool,
         cumulative_gas_used: u64,
+        #[allow(clippy::owned_cow)]
         logs: Cow<'a, Vec<Log>>,
         deposit_nonce: Option<u64>,
         deposit_receipt_version: Option<u64>,
