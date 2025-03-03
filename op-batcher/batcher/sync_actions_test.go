@@ -316,8 +316,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			newSyncStatus: eth.SyncStatus{
 				HeadL1:      eth.BlockRef{Number: 5},
 				CurrentL1:   eth.BlockRef{Number: 2},
-				SafeL2:      eth.L2BlockRef{Number: 104, Hash: block103.Hash()},
-				LocalSafeL2: eth.L2BlockRef{Number: 0, Hash: block104.Hash()},
+				SafeL2:      eth.L2BlockRef{Number: 104, Hash: block104.Hash()},
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
