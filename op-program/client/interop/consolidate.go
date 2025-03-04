@@ -120,7 +120,6 @@ func singleRoundConsolidation(
 	if err != nil {
 		return fmt.Errorf("failed to get dependency set: %w", err)
 	}
-	// TODO(XXX): The l2PreimageOracle doesn't contain the state data of replaced blocks.
 	deps, err := newConsolidateCheckDeps(depset, bootInfo, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle)
 	if err != nil {
 		return fmt.Errorf("failed to create consolidate check deps: %w", err)
@@ -176,6 +175,7 @@ func singleRoundConsolidation(
 				chainAgreedPrestate,
 				tasks,
 				optimisticBlock,
+				// Update the preimage oracle database with the replaced block data
 				l2PreimageOracle.KeyValueStore(),
 			)
 			if err != nil {
