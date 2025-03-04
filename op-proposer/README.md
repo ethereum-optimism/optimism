@@ -31,7 +31,7 @@ with an inclusion-proof of a withdrawn message (as registered in the L2 withdraw
 ```bash
 go run ./op-proposer/cmd \
         --l1-eth-rpc http://l1:8545 \
-      --rollup-rpc: http://op-node:8545 \
+      --rollup-rpc http://op-node:8545 \
       --game-factory-address=changeme \
       --game-type=changeme
 ```
