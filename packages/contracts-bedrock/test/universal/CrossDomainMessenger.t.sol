@@ -50,7 +50,10 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
 
         // Calculate the expected floor cost
         uint64 expectedFloorCost = l1CrossDomainMessenger.TX_BASE_GAS()
-            + (uint64(largeMessage.length) * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD());
+            + (
+                uint64(largeMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                    * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD()
+            );
 
         // Verify that the result is at least the floor cost
         assertTrue(baseGasResult >= expectedFloorCost, "baseGas should return at least the floor cost");
@@ -66,7 +69,10 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
 
         // Calculate the expected floor cost
         uint64 floorCost = l1CrossDomainMessenger.TX_BASE_GAS()
-            + (uint64(smallMessage.length) * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD());
+            + (
+                uint64(smallMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                    * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD()
+            );
 
         // Calculate the expected execution gas (simplified version of what's in the contract)
         uint64 executionGas = l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
@@ -78,7 +84,10 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
             );
 
         uint64 expectedExecutionGasWithOverhead = l1CrossDomainMessenger.TX_BASE_GAS() + executionGas
-            + (uint64(smallMessage.length) * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD());
+            + (
+                uint64(smallMessage.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                    * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD()
+            );
 
         // Verify that the result is the execution gas (which should be higher than floor cost)
         assertTrue(
@@ -95,10 +104,6 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
     function testFuzz_baseGas_maxLogic_succeeds(bytes calldata _message, uint32 _minGasLimit) external view {
         uint64 baseGasResult = l1CrossDomainMessenger.baseGas(_message, _minGasLimit);
 
-        // Calculate the expected floor cost
-        uint64 floorCost = l1CrossDomainMessenger.TX_BASE_GAS()
-            + (uint64(_message.length) * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD());
-
         // Calculate the expected execution gas
         uint64 executionGas = l1CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
             + l1CrossDomainMessenger.RELAY_CALL_OVERHEAD() + l1CrossDomainMessenger.RELAY_RESERVED_GAS()
@@ -108,13 +113,18 @@ contract CrossDomainMessenger_BaseGas_Test is CommonTest {
                     / l1CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()
             );
 
-        uint64 executionGasWithOverhead =
-            executionGas + (uint64(_message.length) * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD());
+        uint64 executionGasWithOverhead = executionGas
+            + (
+                uint64(_message.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                    * l1CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD()
+            );
 
         // The result should be at least the maximum of the two calculations
         uint64 expectedMinimum = uint64(
             Math.max(
-                executionGasWithOverhead, uint64(_message.length) * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD()
+                executionGasWithOverhead,
+                uint64(_message.length + l1CrossDomainMessenger.ENCODING_OVERHEAD())
+                    * l1CrossDomainMessenger.FLOOR_CALLDATA_OVERHEAD()
             )
         );
         expectedMinimum += l1CrossDomainMessenger.TX_BASE_GAS();
