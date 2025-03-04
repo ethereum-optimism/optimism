@@ -91,8 +91,8 @@ contract EOA_isEOA_Test is Test {
         // Generate a random 23 byte code.
         bytes memory code = vm.randomBytes(23);
 
-        // If the code happens to be a 7702 EOA, change it.
-        if (code[0] == 0xEF && code[1] == 0x01 && code[2] == 0x00) {
+        // If the code happens to be EOF code, change it!
+        if (code[0] == 0xEF) {
             code[0] = 0xFE; // Anything but EF!
         }
 
