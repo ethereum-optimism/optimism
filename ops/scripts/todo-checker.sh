@@ -109,6 +109,7 @@ for todo in $todos; do
 
     # Check issue state
     STATE=$(echo "$RESPONSE" | jq -r .state)
+
     if [[ "$STATE" == "closed" ]] && $CHECK_CLOSED; then
         echo -e "${RED}[Error]:${NC} Issue #$ISSUE_NUM is closed. Please remove the TODO in ${GREEN}$FILE:$LINE_NUM${NC} referencing ${YELLOW}$ISSUE_REFERENCE${NC} (${CYAN}https://github.com/$GH_URL_PATH${NC})"
         exit 1
