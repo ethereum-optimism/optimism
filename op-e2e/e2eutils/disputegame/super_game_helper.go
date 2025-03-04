@@ -2,6 +2,7 @@ package disputegame
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -32,7 +33,15 @@ func NewSuperGameHelper(t *testing.T, require *require.Assertions, client *ethcl
 			CorrectOutputProvider: correctOutputProvider,
 			System:                system,
 			DescribePosition: func(pos types.Position, splitDepth types.Depth) string {
-				return ""
+
+				if pos.Depth() > splitDepth {
+					return ""
+				}
+				timestamp, step, err := correctOutputProvider.ComputeStep(pos)
+				if err != nil {
+					return ""
+				}
+				return fmt.Sprintf("Timestamp: %v, Step: %v", timestamp, step)
 			},
 		},
 	}

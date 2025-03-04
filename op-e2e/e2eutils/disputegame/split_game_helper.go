@@ -10,9 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -566,70 +564,4 @@ func (g *SplitGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	candidate, err := g.Game.ResolveClaimTx(uint64(claimIdx))
 	g.Require.NoError(err, "Failed to create resolve claim candidate tx")
 	transactions.RequireSendTx(g.T, ctx, g.Client, candidate, g.PrivKey)
-}
-
-// ChallengePeriod returns the challenge period fetched from the PreimageOracle contract.
-// The returned uint64 value is the number of seconds for the challenge period.
-func (g *SplitGameHelper) ChallengePeriod(ctx context.Context) uint64 {
-	oracle := g.oracle(ctx)
-	period, err := oracle.ChallengePeriod(ctx)
-	g.Require.NoError(err, "Failed to get challenge period")
-	return period
-}
-
-// WaitForChallengePeriodStart waits for the challenge period to start for a given large preimage claim.
-func (g *SplitGameHelper) WaitForChallengePeriodStart(ctx context.Context, sender common.Address, data *types.PreimageOracleData) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
-		defer cancel()
-		timestamp := g.ChallengePeriodStartTime(ctx, sender, data)
-		g.T.Log("Waiting for challenge period start", "timestamp", timestamp, "key", data.OracleKey, "game", g.Addr)
-		return timestamp > 0, nil
-	})
-	if err != nil {
-		g.LogGameData(ctx)
-		g.Require.NoErrorf(err, "Failed to get challenge start period for preimage data %v", data)
-	}
-}
-
-// ChallengePeriodStartTime returns the start time of the challenge period for a given large preimage claim.
-// If the returned start time is 0, the challenge period has not started.
-func (g *SplitGameHelper) ChallengePeriodStartTime(ctx context.Context, sender common.Address, data *types.PreimageOracleData) uint64 {
-	oracle := g.oracle(ctx)
-	uuid := preimages.NewUUID(sender, data)
-	metadata, err := oracle.GetProposalMetadata(ctx, rpcblock.Latest, keccakTypes.LargePreimageIdent{
-		Claimant: sender,
-		UUID:     uuid,
-	})
-	g.Require.NoError(err, "Failed to get proposal metadata")
-	if len(metadata) == 0 {
-		return 0
-	}
-	return metadata[0].Timestamp
-}
-
-func (g *SplitGameHelper) WaitForPreimageInOracle(ctx context.Context, data *types.PreimageOracleData) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	oracle := g.oracle(ctx)
-	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		g.T.Logf("Waiting for preimage (%v) to be present in oracle", common.Bytes2Hex(data.OracleKey))
-		return oracle.GlobalDataExists(ctx, data)
-	})
-	g.Require.NoErrorf(err, "Did not find preimage (%v) in oracle", common.Bytes2Hex(data.OracleKey))
-}
-
-func (g *SplitGameHelper) UploadPreimage(ctx context.Context, data *types.PreimageOracleData) {
-	oracle := g.oracle(ctx)
-	tx, err := oracle.AddGlobalDataTx(data)
-	g.Require.NoError(err, "Failed to create preimage upload tx")
-	transactions.RequireSendTx(g.T, ctx, g.Client, tx, g.PrivKey)
-}
-
-func (g *SplitGameHelper) oracle(ctx context.Context) contracts.PreimageOracleContract {
-	oracle, err := g.Game.GetOracle(ctx)
-	g.Require.NoError(err, "Failed to create oracle contract")
-	return oracle
 }
