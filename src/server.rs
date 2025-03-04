@@ -730,7 +730,7 @@ mod tests {
             .unwrap();
 
             let rollup_boost_client =
-                RollupBoostServer::new(l2_client, builder_client, boost_sync, None);
+                RollupBoostServer::new(l2_client, builder_client, boost_sync, None, ExecutionMode::Enabled);
 
             let module: RpcModule<()> = rollup_boost_client.try_into().unwrap();
 
