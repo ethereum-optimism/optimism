@@ -154,6 +154,15 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 	}
 
 	// Processing for EIP-7685 requests would happen here, but is skipped on OP.
+	// Kept here to minimize diff.
+	if b.dataProvider.Config().IsPrague(b.header.Number, b.header.Time) && !b.dataProvider.Config().IsIsthmus(b.header.Time) {
+		_requests := [][]byte{}
+		// EIP-6110 - no-op because we just ignore all deposit requests, so no need to parse logs
+		// EIP-7002
+		core.ProcessWithdrawalQueue(&_requests, b.evm)
+		// EIP-7251
+		core.ProcessConsolidationQueue(&_requests, b.evm)
+	}
 
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
 	if err != nil {
