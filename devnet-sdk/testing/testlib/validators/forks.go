@@ -120,8 +120,6 @@ func forkConfigValidator(chainIdx uint64, forkName rollup.ForkName, shouldBeActi
 // ForkConfigGetter is a function type that retrieves a ForkConfig from a context.
 type ForkConfigGetter = func(context.Context) *ForkConfig
 
-type forkConfigMarker struct{}
-
 // AcquireForkConfig returns a ForkConfigGetter and a PreconditionValidator
 // that ensures a ForkConfig is available for the specified L2 chain.
 // The ForkConfig can be used to check if various forks are activated.
