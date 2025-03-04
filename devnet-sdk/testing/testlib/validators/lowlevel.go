@@ -64,8 +64,6 @@ func lowLevelSystemValidator(sysMarker interface{}) systest.PreconditionValidato
 	}
 }
 
-type sysMarker struct{}
-
 func AcquireLowLevelSystem() (LowLevelSystemGetter, systest.PreconditionValidator) {
 	sysMarker := new(byte)
 	validator := lowLevelSystemValidator(sysMarker)

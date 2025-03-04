@@ -126,7 +126,7 @@ type forkConfigMarker struct{}
 // that ensures a ForkConfig is available for the specified L2 chain.
 // The ForkConfig can be used to check if various forks are activated.
 func acquireForkConfig(chainIdx uint64, forkName rollup.ForkName, shouldBeActive bool) (ForkConfigGetter, systest.PreconditionValidator) {
-	forkConfigMarker := &forkConfigMarker{}
+	forkConfigMarker := new(byte)
 	validator := forkConfigValidator(chainIdx, forkName, shouldBeActive, forkConfigMarker)
 	return func(ctx context.Context) *ForkConfig {
 		return ctx.Value(forkConfigMarker).(*ForkConfig)
@@ -163,7 +163,7 @@ func exactForkValidator(chainIdx uint64, forkName rollup.ForkName, forkConfigMar
 // AcquireRequiresExactL2Fork returns a validator that ensures a specific L2 chain is exactly at a specific fork,
 // meaning the specified fork must be active but no later forks may be activated.
 func AcquireRequiresExactL2Fork(chainIdx uint64, forkName rollup.ForkName) (ForkConfigGetter, systest.PreconditionValidator) {
-	forkConfigMarker := &forkConfigMarker{}
+	forkConfigMarker := new(byte)
 	validator := exactForkValidator(chainIdx, forkName, forkConfigMarker)
 	return func(ctx context.Context) *ForkConfig {
 		return ctx.Value(forkConfigMarker).(*ForkConfig)
@@ -195,7 +195,7 @@ func interopValidator(chainIdx uint64, shouldBeEnabled bool, forkConfigMarker in
 // that ensures a ForkConfig is available for the specified L2 chain and checks
 // if interop is enabled or disabled as specified.
 func AcquireInteropConfig(chainIdx uint64, shouldBeEnabled bool) (ForkConfigGetter, systest.PreconditionValidator) {
-	forkConfigMarker := &forkConfigMarker{}
+	forkConfigMarker := new(byte)
 	validator := interopValidator(chainIdx, shouldBeEnabled, forkConfigMarker)
 	return func(ctx context.Context) *ForkConfig {
 		return ctx.Value(forkConfigMarker).(*ForkConfig)

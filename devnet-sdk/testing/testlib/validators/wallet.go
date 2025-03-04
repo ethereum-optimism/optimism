@@ -59,7 +59,7 @@ func AcquireL2WalletWithFunds(chainIndex uint64, minFunds types.Balance) (Wallet
 }
 
 func AcquireL1WalletWithFunds(minFunds types.Balance) (WalletGetter, systest.PreconditionValidator) {
-	walletMarker := &struct{}{}
+	walletMarker := new(byte)
 	return func(ctx context.Context) system.Wallet {
 			return ctx.Value(walletMarker).(system.Wallet)
 		}, func(t systest.T, sys system.System) (context.Context, error) {
