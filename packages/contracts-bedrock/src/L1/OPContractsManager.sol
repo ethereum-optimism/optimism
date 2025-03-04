@@ -58,7 +58,7 @@ contract OPContractsManagerContractsContainer {
     }
 }
 
-contract OPContractsManagerBase {
+abstract contract OPContractsManagerBase {
     /// @notice The blueprint contract addresses contract.
     OPContractsManagerContractsContainer public immutable contractsContainer;
 
