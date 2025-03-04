@@ -179,6 +179,7 @@ type AstNode struct {
 	StateMutability  string            `json:"stateMutability,omitempty"`
 	Virtual          bool              `json:"virtual,omitempty"`
 	Visibility       string            `json:"visibility,omitempty"`
+	FunctionSelector string            `json:"functionSelector,omitempty"`
 
 	// Variable specific
 	Constant         bool                 `json:"constant,omitempty"`
@@ -262,6 +263,8 @@ type Expression struct {
 	ReferencedDeclaration  int                   `json:"referencedDeclaration,omitempty"`
 	ArgumentTypes          []AstTypeDescriptions `json:"argumentTypes,omitempty"`
 	Value                  interface{}           `json:"value,omitempty"`
+	MemberName             string                `json:"memberName,omitempty"`
+	Expression             *Expression           `json:"expression,omitempty"`
 }
 
 type ForgeArtifact struct {
