@@ -108,10 +108,9 @@ func SetupInterop(t helpers.Testing) *InteropSetup {
 	logger := testlog.Logger(t, log.LevelDebug)
 
 	recipe := interopgen.InteropDevRecipe{
-		L1ChainID:         900100,
-		L2ChainIDs:        []uint64{900200, 900201},
-		GenesisTimestamp:  uint64(time.Now().Unix() + 3),
-		MessageExpiryTime: messageExpiryTime,
+		L1ChainID:        900100,
+		L2ChainIDs:       []uint64{900200, 900201},
+		GenesisTimestamp: uint64(time.Now().Unix() + 3),
 	}
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
