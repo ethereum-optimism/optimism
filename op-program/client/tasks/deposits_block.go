@@ -17,6 +17,12 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+type BuildDepositOnlyBlockOptions struct {
+	// StoreBlockData controls whether block data, including intermediate trie nodes from transactions and receipts
+	// of the derived block should be stored in the l2.KeyValueStore.
+	StoreBlockData bool
+}
+
 // BuildDepositOnlyBlock builds a deposits-only block replacement for the specified optimistic block and returns the block hash and output root
 // for the new block.
 // The specified l2OutputRoot must be the output root of the optimistic block's parent.
@@ -29,8 +35,10 @@ func BuildDepositOnlyBlock(
 	agreedL2OutputRoot eth.Bytes32,
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
+	db l2.KeyValueStore,
+	options BuildDepositOnlyBlockOptions,
 ) (common.Hash, eth.Bytes32, error) {
-	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, common.Hash(agreedL2OutputRoot), memorydb.New())
+	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, common.Hash(agreedL2OutputRoot), db)
 	if err != nil {
 		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to create oracle-backed L2 chain: %w", err)
 	}
@@ -84,6 +92,12 @@ func BuildDepositOnlyBlock(
 	blockHash, outputRoot, err := l2Source.L2OutputRoot(uint64(payload.ExecutionPayload.BlockNumber))
 	if err != nil {
 		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to get L2 output root: %w", err)
+	}
+	if options.StoreBlockData {
+		if err := storeBlockData(blockHash, db, engineBackend); err != nil {
+			return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to write tx/receipts trie nodes: %w", err)
+		}
+		logger.Info("Trie nodes written")
 	}
 	return blockHash, outputRoot, nil
 }

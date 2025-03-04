@@ -46,6 +46,16 @@ type consolidateState struct {
 	replacedChains map[eth.ChainID]bool
 }
 
+func (s *consolidateState) isReplaced(chainID eth.ChainID) bool {
+	return s.replacedChains[chainID]
+}
+
+func (s *consolidateState) setReplaced(transitionStateIndex int, chainID eth.ChainID, outputRoot eth.Bytes32, replacementBlockHash common.Hash) {
+	s.PendingProgress[transitionStateIndex].OutputRoot = outputRoot
+	s.PendingProgress[transitionStateIndex].BlockHash = replacementBlockHash
+	s.replacedChains[chainID] = true
+}
+
 func RunConsolidation(
 	logger log.Logger,
 	bootInfo *boot.BootInfoInterop,
@@ -66,10 +76,12 @@ func RunConsolidation(
 	// We will be updating the transition state as blocks are replaced, so make a copy
 	copy(consolidateState.PendingProgress, transitionState.PendingProgress)
 
+	consolidateOracle := NewConsolidateOracle(l2PreimageOracle)
+
 	// Keep consolidating until there are no more invalid blocks to replace
 loop:
 	for {
-		err := singleRoundConsolidation(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, &consolidateState, superRoot, tasks)
+		err := singleRoundConsolidation(logger, bootInfo, l1PreimageOracle, consolidateOracle, &consolidateState, superRoot, tasks)
 		switch {
 		case err == nil:
 			break loop
@@ -98,7 +110,7 @@ func singleRoundConsolidation(
 	logger log.Logger,
 	bootInfo *boot.BootInfoInterop,
 	l1PreimageOracle l1.Oracle,
-	l2PreimageOracle l2.Oracle,
+	l2PreimageOracle *ConsolidateOracle,
 	consolidateState *consolidateState,
 	superRoot *eth.SuperV1,
 	tasks taskExecutor,
@@ -108,6 +120,7 @@ func singleRoundConsolidation(
 	if err != nil {
 		return fmt.Errorf("failed to get dependency set: %w", err)
 	}
+	// TODO(XXX): The l2PreimageOracle doesn't contain the state data of replaced blocks.
 	deps, err := newConsolidateCheckDeps(depset, bootInfo, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle)
 	if err != nil {
 		return fmt.Errorf("failed to create consolidate check deps: %w", err)
@@ -117,7 +130,7 @@ func singleRoundConsolidation(
 	for i, chain := range superRoot.Chains {
 		// Do not check chains that have been replaced with a deposits-only block.
 		// They are already cross-safe because deposits-only blocks cannot contain executing messages.
-		if consolidateState.replacedChains[chain.ChainID] {
+		if consolidateState.isReplaced(chain.ChainID) {
 			continue
 		}
 
@@ -163,6 +176,7 @@ func singleRoundConsolidation(
 				chainAgreedPrestate,
 				tasks,
 				optimisticBlock,
+				l2PreimageOracle.KeyValueStore(),
 			)
 			if err != nil {
 				return err
@@ -175,9 +189,7 @@ func singleRoundConsolidation(
 				"replacedOutputRoot", superRoot.Chains[i].Output,
 			)
 			superRoot.Chains[i].Output = outputRoot
-			consolidateState.PendingProgress[i].OutputRoot = outputRoot
-			consolidateState.PendingProgress[i].BlockHash = replacementBlockHash
-			consolidateState.replacedChains[chain.ChainID] = true
+			consolidateState.setReplaced(i, chain.ChainID, outputRoot, replacementBlockHash)
 		}
 	}
 	return ErrInvalidBlockReplacement
@@ -348,6 +360,7 @@ func buildDepositOnlyBlock(
 	chainAgreedPrestate eth.ChainIDAndOutput,
 	tasks taskExecutor,
 	optimisticBlock *ethtypes.Block,
+	db l2.KeyValueStore,
 ) (common.Hash, eth.Bytes32, error) {
 	rollupCfg, err := bootInfo.Configs.RollupConfig(chainAgreedPrestate.ChainID)
 	if err != nil {
@@ -366,6 +379,7 @@ func buildDepositOnlyBlock(
 		l1PreimageOracle,
 		l2PreimageOracle,
 		optimisticBlock,
+		db,
 	)
 	if err != nil {
 		return common.Hash{}, eth.Bytes32{}, err

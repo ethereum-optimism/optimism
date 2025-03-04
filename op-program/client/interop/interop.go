@@ -53,6 +53,7 @@ type taskExecutor interface {
 		l1Oracle l1.Oracle,
 		l2Oracle l2.Oracle,
 		optimisticBlock *ethtypes.Block,
+		db l2.KeyValueStore,
 	) (blockHash common.Hash, outputRoot eth.Bytes32, err error)
 }
 
@@ -214,6 +215,7 @@ func (t *interopTaskExecutor) BuildDepositOnlyBlock(
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
 	optimisticBlock *ethtypes.Block,
+	db l2.KeyValueStore,
 ) (common.Hash, eth.Bytes32, error) {
 	return tasks.BuildDepositOnlyBlock(
 		logger,
@@ -224,5 +226,7 @@ func (t *interopTaskExecutor) BuildDepositOnlyBlock(
 		agreedL2OutputRoot,
 		l1Oracle,
 		l2Oracle,
+		db,
+		tasks.BuildDepositOnlyBlockOptions{StoreBlockData: true},
 	)
 }
