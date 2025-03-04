@@ -139,9 +139,6 @@ func erc20BridgeTestScenario(lowLevelSystemGetter validators.LowLevelSystemGette
 		require.NoError(t, err)
 		require.True(t, big.NewInt(0).Cmp(initialL2Balance) == 0, "Initial L2 token balance should be 0, actual was %s", initialL2Balance.String())
 
-		// Get the L1 standard bridge contract
-		l1Chain.ChainConfig()
-
 		l1StandardBridgeAddress, ok := l2Chain.Addresses()["l1StandardBridgeProxy"]
 		require.True(t, ok, fmt.Errorf("no L1 proxy address configured for this test"))
 
