@@ -11,8 +11,10 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -112,6 +114,21 @@ func (m *mockChain) PendingNonceAt(ctx context.Context, address common.Address) 
 }
 func (m *mockChain) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return true
+}
+func (m *mockChain) Addresses() map[string]common.Address {
+	return map[string]common.Address{}
+}
+func (m *mockChain) BlockByHash(ctx context.Context, hash common.Hash) (*coreTypes.Block, error) {
+	return nil, nil
+}
+func (m *mockChain) BlockByNumber(ctx context.Context, number *big.Int) (*coreTypes.Block, error) {
+	return nil, nil
+}
+func (m *mockChain) ChainConfig() (*params.ChainConfig, error) {
+	return params.MainnetChainConfig, nil
+}
+func (m *mockChain) LatestBlock(ctx context.Context) (*coreTypes.Block, error) {
+	return nil, nil
 }
 
 type mockWallet struct {
