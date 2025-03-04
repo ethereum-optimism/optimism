@@ -20,14 +20,16 @@ import (
 type ConsolidateOracle struct {
 	o  l2.Oracle
 	db l2.KeyValueStore
+	ts *interopTypes.TransitionState
 }
 
 var _ l2.Oracle = &ConsolidateOracle{}
 
-func NewConsolidateOracle(oracle l2.Oracle) *ConsolidateOracle {
+func NewConsolidateOracle(oracle l2.Oracle, transitionState *interopTypes.TransitionState) *ConsolidateOracle {
 	return &ConsolidateOracle{
 		o:  oracle,
 		db: memorydb.New(),
+		ts: transitionState,
 	}
 }
 
@@ -106,7 +108,7 @@ func (o *ConsolidateOracle) Hinter() l2Types.OracleHinter {
 }
 
 func (o *ConsolidateOracle) TransitionStateByRoot(root common.Hash) *interopTypes.TransitionState {
-	return o.o.TransitionStateByRoot(root)
+	return o.ts
 }
 
 func (o *ConsolidateOracle) headerByBlockHash(blockHash common.Hash) *types.Header {

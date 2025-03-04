@@ -27,7 +27,7 @@ func TestConsolidateOracle_NoConsolidatedData(t *testing.T) {
 
 	t.Run("BlockByHash", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		block, _ := testutils.RandomBlock(rng, 1)
 		mock.On("BlockByHash", block.Hash(), eth.ChainIDFromUInt64(chainID)).Return(block)
 		actual := oracle.BlockByHash(block.Hash(), eth.ChainIDFromUInt64(chainID))
@@ -36,7 +36,7 @@ func TestConsolidateOracle_NoConsolidatedData(t *testing.T) {
 	})
 	t.Run("OutputByRoot", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		root := common.Hash{0xaa}
 		output := testutils.RandomOutputV0(rng)
 		mock.On("OutputByRoot", root, eth.ChainIDFromUInt64(chainID)).Return(output)
@@ -46,7 +46,7 @@ func TestConsolidateOracle_NoConsolidatedData(t *testing.T) {
 	})
 	t.Run("BlockDataByHash", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		block, _ := testutils.RandomBlock(rng, 1)
 		mock.On("BlockDataByHash", block.Hash(), block.Hash(), eth.ChainIDFromUInt64(chainID)).Return(block)
 		actual := oracle.BlockDataByHash(block.Hash(), block.Hash(), eth.ChainIDFromUInt64(chainID))
@@ -55,7 +55,7 @@ func TestConsolidateOracle_NoConsolidatedData(t *testing.T) {
 	})
 	t.Run("ReceiptsByBlockHash", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		block, receipts := testutils.RandomBlock(rng, 1)
 		mock.On("ReceiptsByBlockHash", block.Hash(), eth.ChainIDFromUInt64(chainID)).Return(block, types.Receipts(receipts))
 		actual, actualReceipts := oracle.ReceiptsByBlockHash(block.Hash(), eth.ChainIDFromUInt64(chainID))
@@ -65,7 +65,7 @@ func TestConsolidateOracle_NoConsolidatedData(t *testing.T) {
 	})
 	t.Run("NodeByHash", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		node := []byte{12, 3, 4}
 		hash := common.Hash{0xaa}
 		mock.On("NodeByHash", hash, eth.ChainIDFromUInt64(chainID)).Return(node)
@@ -75,7 +75,7 @@ func TestConsolidateOracle_NoConsolidatedData(t *testing.T) {
 	})
 	t.Run("CodeByHash", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		code := []byte{12, 3, 4}
 		hash := common.Hash{0xaa}
 		mock.On("CodeByHash", hash, eth.ChainIDFromUInt64(chainID)).Return(code)
@@ -85,16 +85,16 @@ func TestConsolidateOracle_NoConsolidatedData(t *testing.T) {
 	})
 	t.Run("TransitionStateByRoot", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		ts := &interopTypes.TransitionState{SuperRoot: []byte{0xbb}}
+		oracle := NewConsolidateOracle(mock, ts)
 		root := common.Hash{0xaa}
-		mock.On("TransitionStateByRoot", root).Return(&interopTypes.TransitionState{})
 		actual := oracle.TransitionStateByRoot(root)
-		require.Equal(t, &interopTypes.TransitionState{}, actual)
+		require.Equal(t, ts, actual)
 		mock.AssertExpectations(t)
 	})
 	t.Run("Hinter", func(t *testing.T) {
 		mock := new(OracleMock)
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		mock.On("Hinter").Return(new(OracleHinterStub))
 		actual := oracle.Hinter()
 		require.Equal(t, new(OracleHinterStub), actual)
@@ -110,7 +110,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 	defer mock.AssertExpectations(t)
 
 	t.Run("BlockByHash", func(t *testing.T) {
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		db := oracle.KeyValueStore()
 		storeBlock(t, db, block, receipts)
 
@@ -123,7 +123,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 		}
 	})
 	t.Run("ReceiptsByBlockHash", func(t *testing.T) {
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		db := oracle.KeyValueStore()
 		storeBlock(t, db, block, receipts)
 
@@ -140,7 +140,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 		}
 	})
 	t.Run("OutputByRoot", func(t *testing.T) {
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		db := oracle.KeyValueStore()
 		key := common.Hash{0xaa}
 		dbKey := preimage.Keccak256Key(key).PreimageKey()
@@ -151,7 +151,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 		require.Equal(t, output, actual.Marshal())
 	})
 	t.Run("NodeByHash", func(t *testing.T) {
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		db := oracle.KeyValueStore()
 		key := common.Hash{0xaa}
 		db.Put(key[:], []byte{1, 2, 3})
@@ -161,7 +161,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 		require.Equal(t, []byte{1, 2, 3}, actual)
 	})
 	t.Run("CodeByHash", func(t *testing.T) {
-		oracle := NewConsolidateOracle(mock)
+		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		db := oracle.KeyValueStore()
 		key := common.Hash{0xaa}
 		db.Put(key[:], []byte{1, 2, 3})

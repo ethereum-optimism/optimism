@@ -75,8 +75,10 @@ func RunConsolidation(
 	}
 	// We will be updating the transition state as blocks are replaced, so make a copy
 	copy(consolidateState.PendingProgress, transitionState.PendingProgress)
-
-	consolidateOracle := NewConsolidateOracle(l2PreimageOracle)
+	// Use a reference to the transition state so the consolidate oracle has a recent view.
+	// The TransitionStateByRoot method isn't expected to be used during consolidation,
+	// but we pass the state for safety in case this changes in the future.
+	consolidateOracle := NewConsolidateOracle(l2PreimageOracle, consolidateState.TransitionState)
 
 	// Keep consolidating until there are no more invalid blocks to replace
 loop:
