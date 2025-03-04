@@ -25,6 +25,7 @@ cargo run -- [OPTIONS]
 - `--log-format <FORMAT>`: Log format (default: text)
 - `--metrics`: Enable metrics (default: false)
 - `--no-boost-sync`: Disables using the proposer to sync the builder node (default: true)
+- `--debug-host <HOST>`: Host to run the server on (default: 127.0.0.1)
 - `--debug-server-port <PORT>`: Port to run the debug server on (default: 5555)
 
 ### Environment Variables
