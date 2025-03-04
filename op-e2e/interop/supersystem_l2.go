@@ -100,7 +100,6 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, "sequencer", l2Out)
 	opNode := s.newNodeForL2(id, "sequencer", l2Out, operatorKeys, l2Geth, true)
-	// TODO(#11886): proposer does not work with the generated world as there is no DisputeGameFactoryProxy
 	proposer := s.newProposerForL2(id, operatorKeys)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
