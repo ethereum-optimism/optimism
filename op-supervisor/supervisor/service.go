@@ -257,6 +257,5 @@ func (su *SupervisorService) Stopped() bool {
 
 func (su *SupervisorService) RPC() string {
 	// the RPC endpoint is assumed to be HTTP
-	// TODO(#11032): make this flexible for ws if the server supports it
 	return "http://" + su.rpcServer.Endpoint()
 }
