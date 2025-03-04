@@ -54,6 +54,7 @@ ALLOWED_FILES=(
   "src/L1/L1StandardBridge.sol"
   "src/L1/OPContractsManager.sol"
   "src/L1/OPContractsManagerInterop.sol"
+  "src/L1/OPPrestateUpdater.sol"
   "src/L1/OptimismPortal2.sol"
   "src/L1/OptimismPortalInterop.sol"
   "src/L1/ProtocolVersions.sol"
