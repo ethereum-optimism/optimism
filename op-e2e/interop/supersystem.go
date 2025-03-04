@@ -347,7 +347,6 @@ func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 // but if in the future these maps can diverge, the indexes for username would also diverge
 // NOTE: The first 20 accounts are implicitly funded by the Recipe's World Deployment
 // see: op-chain-ops/interopgen/recipe.go
-// TODO(#11887): make the funded account quantity specified in the recipe so SuperSystems can know which accounts are funded
 func (s *interopE2ESystem) AddUser(username string) {
 	for id, l2 := range s.l2s {
 		bigID, _ := big.NewInt(0).SetString(id, 10)

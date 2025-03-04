@@ -31,7 +31,6 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 		Prefund: make(map[common.Address]*big.Int),
 	}
 
-	// TODO(#11887): consider making the number of prefunded keys configurable.
 	l1Users := devkeys.ChainUserKeys(l1Cfg.ChainID)
 	for i := uint64(0); i < 20; i++ {
 		userAddr, err := addrs.Address(l1Users(i))
@@ -264,7 +263,6 @@ func InteropL2DevConfig(l1ChainID, l2ChainID uint64, addrs devkeys.Addresses, me
 		DisputeMaxClockDuration: 302400, // 3.5 days (input in seconds)
 	}
 
-	// TODO(#11887): consider making the number of prefunded keys configurable.
 	l2Users := devkeys.ChainUserKeys(new(big.Int).SetUint64(l2ChainID))
 	for i := uint64(0); i < 20; i++ {
 		userAddr, err := addrs.Address(l2Users(i))
