@@ -184,7 +184,8 @@ func singleRoundConsolidation(
 			logger.Info(
 				"Replaced block",
 				"chain", chain.ChainID,
-				"block", optimisticBlock.NumberU64(),
+				"replacedBlock", eth.ToBlockID(optimisticBlock),
+				"replacementBlockHash", replacementBlockHash,
 				"outputRoot", outputRoot,
 				"replacedOutputRoot", superRoot.Chains[i].Output,
 			)
