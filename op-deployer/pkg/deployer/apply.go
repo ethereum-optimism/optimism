@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
@@ -39,6 +40,7 @@ type ApplyConfig struct {
 	Logger           log.Logger
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
+	PreStateBuilder  *prestate.PrestateBuilderClient
 }
 
 func (a *ApplyConfig) Check() error {
@@ -82,6 +84,15 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		privateKey := cliCtx.String(PrivateKeyFlagName)
 		cacheDir := cliCtx.String(CacheDirFlagName)
 		depTarget, err := NewDeploymentTarget(cliCtx.String(DeploymentTargetFlag.Name))
+		opProgramSvcUrl := cliCtx.String(OpProgramSvcUrlFlag.Name)
+
+		var preStateBuilder *prestate.PrestateBuilderClient
+		if opProgramSvcUrl == "" {
+			l.Warn("opProgramSvcUrl is not set, prestate generation will fail")
+		} else {
+			preStateBuilder = prestate.NewPrestateBuilderClient(opProgramSvcUrl)
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to parse deployment target: %w", err)
 		}
@@ -95,6 +106,7 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			DeploymentTarget: depTarget,
 			Logger:           l,
 			CacheDir:         cacheDir,
+			PreStateBuilder:  preStateBuilder,
 		})
 	}
 }
@@ -123,6 +135,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		Logger:             cfg.Logger,
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
 		CacheDir:           cfg.CacheDir,
+		PreStateBuilder:    cfg.PreStateBuilder,
 	}); err != nil {
 		return err
 	}
@@ -144,6 +157,7 @@ type ApplyPipelineOpts struct {
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
+	PreStateBuilder    *prestate.PrestateBuilderClient
 }
 
 func ApplyPipeline(
@@ -339,6 +353,16 @@ func ApplyPipeline(
 					return pipeline.SetStartBlockGenesisStrategy(pEnv, st, chainID)
 				}
 				return pipeline.SetStartBlockLiveStrategy(ctx, pEnv, st, chainID)
+			},
+		})
+	}
+
+	if opts.PreStateBuilder != nil {
+		// Generate the prestate for all chains
+		pline = append(pline, pipelineStage{
+			"deploy-pre-state",
+			func() error {
+				return pipeline.GeneratePreState(ctx, pEnv, intent, st, opts.PreStateBuilder)
 			},
 		})
 	}
