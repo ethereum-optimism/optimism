@@ -95,7 +95,9 @@ func BuildDepositOnlyBlock(
 	marshaledOutput := output.Marshal()
 	outputRoot := eth.Bytes32(crypto.Keccak256Hash(marshaledOutput))
 	outputRootKey := preimage.Keccak256Key(outputRoot).PreimageKey()
-	db.Put(outputRootKey[:], marshaledOutput)
+	if err := db.Put(outputRootKey[:], marshaledOutput); err != nil {
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to store L2 output: %w", err)
+	}
 
 	return payload.ExecutionPayload.BlockHash, outputRoot, nil
 }

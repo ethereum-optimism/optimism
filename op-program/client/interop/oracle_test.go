@@ -145,7 +145,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 		key := common.Hash{0xaa}
 		dbKey := preimage.Keccak256Key(key).PreimageKey()
 		output := testutils.RandomOutputV0(rng).Marshal()
-		db.Put(dbKey[:], output)
+		require.NoError(t, db.Put(dbKey[:], output))
 
 		actual := oracle.OutputByRoot(key, chainID)
 		require.Equal(t, output, actual.Marshal())
@@ -154,7 +154,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		db := oracle.KeyValueStore()
 		key := common.Hash{0xaa}
-		db.Put(key[:], []byte{1, 2, 3})
+		require.NoError(t, db.Put(key[:], []byte{1, 2, 3}))
 		storeBlock(t, db, block, receipts)
 
 		actual := oracle.NodeByHash(key, chainID)
@@ -164,7 +164,7 @@ func TestConsolidateOracle_WithConsolidatedData(t *testing.T) {
 		oracle := NewConsolidateOracle(mock, &interopTypes.TransitionState{})
 		db := oracle.KeyValueStore()
 		key := common.Hash{0xaa}
-		db.Put(key[:], []byte{1, 2, 3})
+		require.NoError(t, db.Put(key[:], []byte{1, 2, 3}))
 		storeBlock(t, db, block, receipts)
 
 		actual := oracle.CodeByHash(key, chainID)
