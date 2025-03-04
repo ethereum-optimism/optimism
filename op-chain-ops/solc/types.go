@@ -209,6 +209,7 @@ type AstNode struct {
 	TrueBody     *AstBlock    `json:"trueBody,omitempty"`
 	FalseBody    *AstBlock    `json:"falseBody,omitempty"`
 	Operator     string       `json:"operator,omitempty"`
+	Statements   *[]AstNode   `json:"statements,omitempty"`
 }
 
 type AstBaseContract struct {

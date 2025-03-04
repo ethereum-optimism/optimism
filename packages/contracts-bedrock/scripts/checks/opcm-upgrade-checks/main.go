@@ -103,7 +103,41 @@ func processFile(artifactPath string) (*common.Void, []error) {
 }
 
 func upgradesContract(nodes []solc.AstNode, typeName string) bool {
+	// Loop through all statements finding any external call to an upgrade function with a contract type of `typeName`
 	for _, node := range nodes {
+		// To support nested statements or blocks.
+		if node.Statements != nil {
+			found := upgradesContract(*node.Statements, typeName)
+			if found {
+				return found
+			}
+		}
+
+		// To support conditions.
+		if node.Condition != nil {
+			if node.TrueBody != nil {
+				found := upgradesContract(node.TrueBody.Statements, typeName)
+				if found {
+					return found
+				}
+			}
+			if node.FalseBody != nil {
+				found := upgradesContract(node.FalseBody.Statements, typeName)
+				if found {
+					return found
+				}
+			}
+		}
+
+		// To support loops.
+		if node.Body != nil {
+			found := upgradesContract(node.Body.Statements, typeName)
+			if found {
+				return found
+			}
+		}
+
+		// If not nested, check if the statement is an external call to an upgrade function with a contract type of `typeName`
 		if node.NodeType == "ExpressionStatement" {
 			if node.Expression.Expression != nil {
 				if node.Expression.Expression.MemberName == "upgrade" && node.Expression.Expression.Expression.TypeDescriptions.TypeString == typeName {
@@ -113,6 +147,7 @@ func upgradesContract(nodes []solc.AstNode, typeName string) bool {
 		}
 	}
 
+	// Else return false.
 	return false
 }
 
