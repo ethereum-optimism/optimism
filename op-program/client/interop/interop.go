@@ -227,6 +227,5 @@ func (t *interopTaskExecutor) BuildDepositOnlyBlock(
 		l1Oracle,
 		l2Oracle,
 		db,
-		tasks.BuildDepositOnlyBlockOptions{StoreBlockData: true},
 	)
 }
