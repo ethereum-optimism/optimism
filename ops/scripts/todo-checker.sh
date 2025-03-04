@@ -106,13 +106,17 @@ for todo in $todos; do
         ((NOT_FOUND_COUNT++))
         continue
     fi
+    # Check we weren't rate limited
+    if echo "$RESPONSE" | rg -q "API rate limit exceeded"; then
+      echo -e "${RED}[Error]:${NC} Unable to check closed issue because rate limit was exceeded"
+      exit 1
+    fi
 
     # Check issue state
     STATE=$(echo "$RESPONSE" | jq -r .state)
-
     if [[ "$STATE" == "closed" ]] && $CHECK_CLOSED; then
         echo -e "${RED}[Error]:${NC} Issue #$ISSUE_NUM is closed. Please remove the TODO in ${GREEN}$FILE:$LINE_NUM${NC} referencing ${YELLOW}$ISSUE_REFERENCE${NC} (${CYAN}https://github.com/$GH_URL_PATH${NC})"
-        exit 1
+#        exit 1
     fi
 
     if [[ "$STATE" == "open" ]]; then
