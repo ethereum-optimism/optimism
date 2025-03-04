@@ -191,7 +191,6 @@ func newConsolidateCheckDeps(
 		progress := transitionState.PendingProgress[i]
 		// This is the optimistic head. It's OK if it's replaced by a deposits-only block.
 		// Because by then the replacement block won't be used for hazard checks.
-		// TODO(#14012): for extra safety, ensure the l2 oracle used for checks isn't affected by block reexec.
 		head := oracle.BlockByHash(progress.BlockHash, chain.ChainID)
 		blockByHash := func(hash common.Hash) *ethtypes.Block {
 			return oracle.BlockByHash(hash, chain.ChainID)
