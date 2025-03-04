@@ -51,7 +51,7 @@ pub struct OpEvmConfig<ChainSpec = OpChainSpec, N: NodePrimitives = OpPrimitives
     chain_spec: Arc<ChainSpec>,
     evm_factory: OpEvmFactory,
     receipt_builder: Arc<dyn OpReceiptBuilder<N::SignedTx, OpHaltReason, Receipt = N::Receipt>>,
-    block_assember: OpBlockAssembler<ChainSpec>,
+    block_assembler: OpBlockAssembler<ChainSpec>,
 }
 
 impl<ChainSpec, N: NodePrimitives> Clone for OpEvmConfig<ChainSpec, N> {
@@ -60,7 +60,7 @@ impl<ChainSpec, N: NodePrimitives> Clone for OpEvmConfig<ChainSpec, N> {
             chain_spec: self.chain_spec.clone(),
             evm_factory: OpEvmFactory::default(),
             receipt_builder: self.receipt_builder.clone(),
-            block_assember: self.block_assember.clone(),
+            block_assembler: self.block_assembler.clone(),
         }
     }
 }
@@ -79,7 +79,7 @@ impl<ChainSpec, N: NodePrimitives> OpEvmConfig<ChainSpec, N> {
         receipt_builder: impl OpReceiptBuilder<N::SignedTx, OpHaltReason, Receipt = N::Receipt>,
     ) -> Self {
         Self {
-            block_assember: OpBlockAssembler::new(chain_spec.clone()),
+            block_assembler: OpBlockAssembler::new(chain_spec.clone()),
             chain_spec,
             evm_factory: OpEvmFactory::default(),
             receipt_builder: Arc::new(receipt_builder),

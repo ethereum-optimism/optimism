@@ -50,7 +50,7 @@ where
     type BlockAssembler = OpBlockAssembler<ChainSpec>;
 
     fn block_assembler(&self) -> &Self::BlockAssembler {
-        &self.block_assember
+        &self.block_assembler
     }
 
     fn context_for_block<'a>(&self, block: &'a SealedBlock<N::Block>) -> Self::ExecutionCtx<'a> {
