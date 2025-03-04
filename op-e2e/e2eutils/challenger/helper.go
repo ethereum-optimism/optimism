@@ -47,7 +47,7 @@ type EndpointProvider interface {
 
 type System interface {
 	RollupCfgs() []*rollup.Config
-	L2Genesises() []*core.Genesis
+	L2Geneses() []*core.Genesis
 	PrestateVariant() PrestateVariant
 }
 type Helper struct {
@@ -127,7 +127,7 @@ func FindMonorepoRoot(t *testing.T) string {
 	return ""
 }
 
-func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Config, l2Genesises []*core.Genesis, prestateVariant PrestateVariant) {
+func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) {
 	require := require.New(t)
 	root := FindMonorepoRoot(t)
 	c.Cannon.VmBin = root + "cannon/bin/cannon"
@@ -140,7 +140,7 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Conf
 	}
 	c.Cannon.SnapshotFreq = 10_000_000
 
-	for _, l2Genesis := range l2Genesises {
+	for _, l2Genesis := range l2Geneses {
 		genesisBytes, err := json.Marshal(l2Genesis)
 		require.NoError(err, "marshall l2 genesis config")
 		genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
@@ -160,14 +160,14 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Conf
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Genesises(), system.PrestateVariant())
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Genesises(), system.PrestateVariant())
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 

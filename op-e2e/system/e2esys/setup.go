@@ -443,7 +443,7 @@ func (sys *System) L2Genesis() *core.Genesis {
 	return sys.L2GenesisCfg
 }
 
-func (sys *System) L2Genesises() []*core.Genesis {
+func (sys *System) L2Geneses() []*core.Genesis {
 	return []*core.Genesis{sys.L2GenesisCfg}
 }
 

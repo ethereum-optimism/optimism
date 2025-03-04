@@ -83,7 +83,7 @@ type DisputeSystem interface {
 
 	DisputeGameFactoryAddr() common.Address
 	RollupCfgs() []*rollup.Config
-	L2Genesises() []*core.Genesis
+	L2Geneses() []*core.Genesis
 	PrestateVariant() challenger.PrestateVariant
 
 	AdvanceTime(time.Duration)

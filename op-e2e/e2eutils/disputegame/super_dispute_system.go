@@ -78,7 +78,7 @@ func (s *SuperDisputeSystem) RollupCfgs() []*rollup.Config {
 	return cfgs
 }
 
-func (s *SuperDisputeSystem) L2Genesises() []*core.Genesis {
+func (s *SuperDisputeSystem) L2Geneses() []*core.Genesis {
 	networks := s.sys.L2IDs()
 	cfgs := make([]*core.Genesis, len(networks))
 	for i, network := range networks {
