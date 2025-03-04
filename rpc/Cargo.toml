@@ -32,7 +32,6 @@ reth-rpc-engine-api.workspace = true
 
 # op-reth
 reth-optimism-chainspec.workspace = true
-reth-optimism-consensus.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-txpool.workspace = true

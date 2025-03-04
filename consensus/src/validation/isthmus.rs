@@ -92,7 +92,7 @@ where
 /// `L2ToL1MessagePasser.sol` predeploy post block execution.
 ///
 /// Takes pre-hashed storage updates of `L2ToL1MessagePasser.sol` predeploy, resulting from
-/// execution of block, if any. Otherwise takes empty [`reth_trie_common::HashedStorage::default`].
+/// execution of block, if any. Otherwise takes empty [`HashedStorage::default`].
 ///
 /// See <https://specs.optimism.io/protocol/isthmus/exec-engine.html#l2tol1messagepasser-storage-root-in-header>.
 pub fn verify_withdrawals_root_prehashed<DB, H>(

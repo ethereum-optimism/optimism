@@ -30,7 +30,6 @@ reth-chain-state.workspace = true
 reth-payload-validator.workspace = true
 
 # op-reth
-reth-optimism-consensus.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }

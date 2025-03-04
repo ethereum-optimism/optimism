@@ -1,14 +1,15 @@
 //! Optimism block execution strategy.
 
 use crate::{
-    l1::ensure_create2_deployer, BasicOpReceiptBuilder, OpBlockExecutionError, OpEvmConfig,
-    OpReceiptBuilder, ReceiptBuilderCtx,
+    l1::ensure_create2_deployer, BasicOpReceiptBuilder, OpBlockAssembler, OpBlockExecutionError,
+    OpEvmConfig, OpReceiptBuilder, ReceiptBuilderCtx,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use alloy_consensus::{
     transaction::Recovered, BlockHeader, Eip658Value, Header, Receipt, Transaction as _, TxReceipt,
 };
 use alloy_evm::FromRecoveredTx;
+use alloy_primitives::Bytes;
 use op_alloy_consensus::OpDepositReceipt;
 use reth_chainspec::EthChainSpec;
 use reth_evm::{
@@ -30,21 +31,33 @@ use revm_database::State;
 use revm_primitives::B256;
 use tracing::trace;
 
-impl<ChainSpec, N> BlockExecutionStrategyFactory for OpEvmConfig<ChainSpec, N>
+impl<ChainSpec, N, T> BlockExecutionStrategyFactory for OpEvmConfig<ChainSpec, N>
 where
     ChainSpec: EthChainSpec + OpHardforks + 'static,
-    N: NodePrimitives<SignedTx: OpTransaction, Receipt: DepositReceipt>,
-    revm_optimism::OpTransaction<TxEnv>: FromRecoveredTx<N::SignedTx>,
+    T: SignedTransaction + OpTransaction,
+    N: NodePrimitives<
+        Receipt: DepositReceipt,
+        SignedTx = T,
+        BlockHeader = Header,
+        BlockBody = alloy_consensus::BlockBody<T>,
+    >,
+    revm_optimism::OpTransaction<TxEnv>: FromRecoveredTx<T>,
 {
     type Primitives = N;
     type Strategy<'a, DB: Database + 'a, I: InspectorFor<&'a mut State<DB>, Self> + 'a> =
         OpExecutionStrategy<'a, EvmFor<Self, &'a mut State<DB>, I>, N, &'a ChainSpec>;
     type ExecutionCtx<'a> = OpBlockExecutionCtx;
+    type BlockAssembler = OpBlockAssembler<ChainSpec>;
+
+    fn block_assembler(&self) -> &Self::BlockAssembler {
+        &self.block_assember
+    }
 
     fn context_for_block<'a>(&self, block: &'a SealedBlock<N::Block>) -> Self::ExecutionCtx<'a> {
         OpBlockExecutionCtx {
             parent_hash: block.header().parent_hash(),
             parent_beacon_block_root: block.header().parent_beacon_block_root(),
+            extra_data: block.header().extra_data().clone(),
         }
     }
 
@@ -56,6 +69,7 @@ where
         OpBlockExecutionCtx {
             parent_hash: parent.hash(),
             parent_beacon_block_root: attributes.parent_beacon_block_root,
+            extra_data: attributes.extra_data,
         }
     }
 
@@ -73,12 +87,14 @@ where
 }
 
 /// Context for OP block execution.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct OpBlockExecutionCtx {
     /// Parent block hash.
     pub parent_hash: B256,
     /// Parent beacon block root.
     pub parent_beacon_block_root: Option<B256>,
+    /// The block's extra data.
+    pub extra_data: Bytes,
 }
 
 /// Block execution strategy for Optimism.
@@ -253,9 +269,7 @@ where
         Ok(gas_used)
     }
 
-    fn apply_post_execution_changes(
-        mut self,
-    ) -> Result<BlockExecutionResult<N::Receipt>, Self::Error> {
+    fn finish(mut self) -> Result<(Self::Evm, BlockExecutionResult<N::Receipt>), Self::Error> {
         let balance_increments = post_block_balance_increments::<Header>(
             &self.chain_spec.clone(),
             self.evm.block(),
@@ -275,7 +289,14 @@ where
         );
 
         let gas_used = self.receipts.last().map(|r| r.cumulative_gas_used()).unwrap_or_default();
-        Ok(BlockExecutionResult { receipts: self.receipts, requests: Default::default(), gas_used })
+        Ok((
+            self.evm,
+            BlockExecutionResult {
+                receipts: self.receipts,
+                requests: Default::default(),
+                gas_used,
+            },
+        ))
     }
 
     fn with_state_hook(&mut self, hook: Option<Box<dyn OnStateHook>>) {

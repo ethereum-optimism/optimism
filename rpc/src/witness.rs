@@ -22,18 +22,16 @@ use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{oneshot, Semaphore};
 
 /// An extension to the `debug_` namespace of the RPC API.
-pub struct OpDebugWitnessApi<Pool, Provider: NodePrimitivesProvider, EvmConfig: ConfigureEvm> {
+pub struct OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     inner: Arc<OpDebugWitnessApiInner<Pool, Provider, EvmConfig>>,
 }
 
-impl<Pool, Provider: NodePrimitivesProvider, EvmConfig: ConfigureEvm>
-    OpDebugWitnessApi<Pool, Provider, EvmConfig>
-{
+impl<Pool, Provider, EvmConfig> OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     /// Creates a new instance of the `OpDebugWitnessApi`.
     pub fn new(
         provider: Provider,
         task_spawner: Box<dyn TaskSpawner>,
-        builder: OpPayloadBuilder<Pool, Provider, EvmConfig, Provider::Primitives>,
+        builder: OpPayloadBuilder<Pool, Provider, EvmConfig>,
     ) -> Self {
         let semaphore = Arc::new(Semaphore::new(3));
         let inner = OpDebugWitnessApiInner { provider, builder, task_spawner, semaphore };
@@ -97,28 +95,20 @@ where
     }
 }
 
-impl<Pool, Provider, EvmConfig> Clone for OpDebugWitnessApi<Pool, Provider, EvmConfig>
-where
-    EvmConfig: ConfigureEvm,
-    Provider: NodePrimitivesProvider,
-{
+impl<Pool, Provider, EvmConfig> Clone for OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     fn clone(&self) -> Self {
         Self { inner: Arc::clone(&self.inner) }
     }
 }
-impl<Pool, Provider, EvmConfig> Debug for OpDebugWitnessApi<Pool, Provider, EvmConfig>
-where
-    EvmConfig: ConfigureEvm,
-    Provider: NodePrimitivesProvider,
-{
+impl<Pool, Provider, EvmConfig> Debug for OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpDebugWitnessApi").finish_non_exhaustive()
     }
 }
 
-struct OpDebugWitnessApiInner<Pool, Provider: NodePrimitivesProvider, EvmConfig: ConfigureEvm> {
+struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig> {
     provider: Provider,
-    builder: OpPayloadBuilder<Pool, Provider, EvmConfig, Provider::Primitives>,
+    builder: OpPayloadBuilder<Pool, Provider, EvmConfig>,
     task_spawner: Box<dyn TaskSpawner>,
     semaphore: Arc<Semaphore>,
 }
