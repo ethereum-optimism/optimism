@@ -510,35 +510,47 @@ func TestEVM_SingleStep_MthiMtlo(t *testing.T) {
 }
 
 func TestEVM_SingleStep_BeqBne(t *testing.T) {
+	initialPC := Word(800)
+	negative := func(value Word) uint16 {
+		flipped := testutil.FlipSign(value)
+		return uint16(flipped)
+	}
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
-		name   string
-		imm    uint32
-		opcode uint32
-		rs     Word
-		rt     Word
+		name           string
+		imm            uint16
+		opcode         uint32
+		rs             Word
+		rt             Word
+		expectedNextPC Word
 	}{
-		{name: "bne", opcode: uint32(0x5), imm: uint32(0x10), rs: Word(0xaa), rt: Word(0xdeadbeef)},       // bne $t0, $t1, 16
-		{name: "beq", opcode: uint32(0x4), imm: uint32(0x10), rs: Word(0xdeadbeef), rt: Word(0xdeadbeef)}, // beq $t0, $t1, 16
+		// on success, expectedNextPC should be: (imm * 4) + pc + 4
+		{name: "bne, success", opcode: uint32(0x5), imm: 10, rs: Word(0x123), rt: Word(0x456), expectedNextPC: 844},                                  // bne $t0, $t1, 16
+		{name: "bne, success, signed-extended offset", opcode: uint32(0x5), imm: negative(3), rs: Word(0x123), rt: Word(0x456), expectedNextPC: 792}, // bne $t0, $t1, 16
+		{name: "bne, fail", opcode: uint32(0x5), imm: 10, rs: Word(0x123), rt: Word(0x123), expectedNextPC: 808},                                     // bne $t0, $t1, 16
+		{name: "beq, success", opcode: uint32(0x4), imm: 10, rs: Word(0x123), rt: Word(0x123), expectedNextPC: 844},                                  // beq $t0, $t1, 16
+		{name: "beq, success, sign-extended offset", opcode: uint32(0x4), imm: negative(25), rs: Word(0x123), rt: Word(0x123), expectedNextPC: 704},  // beq $t0, $t1, 16
+		{name: "beq, fail", opcode: uint32(0x4), imm: 10, rs: Word(0x123), rt: Word(0x456), expectedNextPC: 808},                                     // beq $t0, $t1, 16
 	}
 	for _, v := range versions {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(initialPC))
 				state := goVm.GetState()
 				rsReg := uint32(9)
 				rtReg := uint32(8)
-				insn := tt.opcode<<26 | rsReg<<21 | rtReg<<16 | tt.imm
+				insn := tt.opcode<<26 | rsReg<<21 | rtReg<<16 | uint32(tt.imm)
 				state.GetRegistersRef()[rtReg] = tt.rt
 				state.GetRegistersRef()[rsReg] = tt.rs
-				testutil.StoreInstruction(state.GetMemory(), 0, insn)
+				testutil.StoreInstruction(state.GetMemory(), initialPC, insn)
 				step := state.GetStep()
+
 				// Setup expectations
 				expected := testutil.NewExpectedState(state)
 				expected.Step = state.GetStep() + 1
 				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + Word(tt.imm<<2)
+				expected.NextPC = tt.expectedNextPC
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
