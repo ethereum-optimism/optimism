@@ -6,9 +6,8 @@ import (
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/lmittmann/w3"
-	"github.com/lmittmann/w3/module/eth"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/time/rate"
 
@@ -24,20 +23,19 @@ import (
 )
 
 type Verifier struct {
-	apiKey       string
-	l1ChainID    uint64
-	l2ChainID    common.Hash
-	st           *state.State
-	artifactsFS  foundry.StatDirFs
-	log          log.Logger
-	etherscanUrl string
-	rateLimiter  *rate.Limiter
-	w3Client     *w3.Client
-	numVerified  int
-	numSkipped   int
+	l1ChainID   uint64
+	l2ChainID   common.Hash
+	st          *state.State
+	artifactsFS foundry.StatDirFs
+	log         log.Logger
+	etherscan   *EtherscanClient
+	l1Client    *ethclient.Client
+	numVerified int
+	numSkipped  int
+	numFailed   int
 }
 
-func NewVerifier(apiKey string, l1ChainID uint64, l2ChainID common.Hash, st *state.State, artifactsFS foundry.StatDirFs, l log.Logger, w3Client *w3.Client) (*Verifier, error) {
+func NewVerifier(apiKey string, l1ChainID uint64, l2ChainID common.Hash, st *state.State, artifactsFS foundry.StatDirFs, l log.Logger, l1Client *ethclient.Client) (*Verifier, error) {
 	etherscanUrl := getAPIEndpoint(l1ChainID)
 	if etherscanUrl == "" {
 		return nil, fmt.Errorf("unsupported L1 chain ID: %d", l1ChainID)
@@ -47,16 +45,16 @@ func NewVerifier(apiKey string, l1ChainID uint64, l2ChainID common.Hash, st *sta
 		l2ChainID = st.AppliedIntent.Chains[0].ID
 	}
 
+	etherscan := NewEtherscanClient(apiKey, etherscanUrl, rate.NewLimiter(rate.Limit(3), 2))
+
 	return &Verifier{
-		apiKey:       apiKey,
-		l1ChainID:    l1ChainID,
-		l2ChainID:    l2ChainID,
-		st:           st,
-		artifactsFS:  artifactsFS,
-		log:          l,
-		etherscanUrl: etherscanUrl,
-		rateLimiter:  rate.NewLimiter(rate.Limit(3), 2),
-		w3Client:     w3Client,
+		l1ChainID:   l1ChainID,
+		l2ChainID:   l2ChainID,
+		st:          st,
+		artifactsFS: artifactsFS,
+		log:         l,
+		l1Client:    l1Client,
+		etherscan:   etherscan,
 	}, nil
 }
 
@@ -83,16 +81,17 @@ func VerifyCLI(cliCtx *cli.Context) error {
 
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
-	w3Client, err := w3.Dial(l1RPCUrl)
+	l1Client, err := ethclient.Dial(l1RPCUrl)
 	if err != nil {
 		return fmt.Errorf("failed to connect to L1: %w", err)
 	}
-	defer w3Client.Close()
+	defer l1Client.Close()
 
-	var l1ChainId uint64
-	if err := w3Client.Call(eth.ChainID().Returns(&l1ChainId)); err != nil {
+	chainId, err := l1Client.ChainID(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to get chain ID: %w", err)
 	}
+	l1ChainId := chainId.Uint64()
 
 	st, err := pipeline.ReadState(workdir)
 	if err != nil {
@@ -109,13 +108,13 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	}
 	l.Info("Downloaded artifacts", "path", artifactsFS)
 
-	v, err := NewVerifier(etherscanAPIKey, l1ChainId, l2ChainID, st, artifactsFS, l, w3Client)
+	v, err := NewVerifier(etherscanAPIKey, l1ChainId, l2ChainID, st, artifactsFS, l, l1Client)
 	if err != nil {
 		return fmt.Errorf("failed to create verifier: %w", err)
 	}
 
 	defer func() {
-		v.log.Info("final results", "numVerified", v.numVerified, "numSkipped", v.numSkipped)
+		v.log.Info("final results", "numVerified", v.numVerified, "numSkipped", v.numSkipped, "numFailed", v.numFailed)
 	}()
 
 	if bundleName == "" && contractName == "" {
@@ -176,8 +175,8 @@ func (v *Verifier) verifyContractBundle(bundleName string) error {
 			addr := field.Interface().(common.Address)
 			if addr != (common.Address{}) { // Skip zero addresses
 				name := typ.Field(i).Name
-				if err := v.verifyContract(addr, name); err != nil {
-					return fmt.Errorf("failed to verify %s: %w", name, err)
+				if err := v.verifySingleContract(context.Background(), name, bundleName); err != nil {
+					v.log.Error("failed to verify contract", "name", name, "bundle", bundleName, "error", err)
 				}
 			}
 		}
@@ -197,5 +196,47 @@ func (v *Verifier) verifySingleContract(ctx context.Context, contractName string
 		return fmt.Errorf("failed to find address for contract %s: %w", contractName, err)
 	}
 
-	return v.verifyContract(addr, contractName)
+	if err := v.verifyContract(addr, contractName); err != nil {
+		v.numFailed++
+		return err
+	}
+
+	return nil
+}
+
+func (v *Verifier) verifyContract(address common.Address, contractName string) error {
+	verified, err := v.etherscan.isVerified(address)
+	if err != nil {
+		return fmt.Errorf("failed to check verification status: %w", err)
+	}
+	if verified {
+		v.log.Info("Contract is already verified", "name", contractName, "address", address.Hex())
+		v.numSkipped++
+		return nil
+	}
+
+	v.log.Info("Formatting etherscan verification request", "name", contractName, "address", address.Hex())
+	artifact, err := v.getContractArtifact(contractName)
+	if err != nil {
+		return fmt.Errorf("failed to get contract source: %w", err)
+	}
+
+	constructorArgs, err := v.getConstructorArgs(context.Background(), address, contractName)
+	if err != nil {
+		return fmt.Errorf("failed to get constructor args: %w", err)
+	}
+
+	reqId, err := v.etherscan.verifySourceCode(address, artifact, constructorArgs)
+	if err != nil {
+		return fmt.Errorf("failed to verify contract: %w", err)
+	}
+
+	v.log.Info("Verification request submitted", "name", contractName, "address", address.Hex())
+	if err = v.etherscan.pollVerificationStatus(reqId); err != nil {
+		return fmt.Errorf("failed when checking verification status: %w", err)
+	}
+
+	v.log.Info("Verification complete", "name", contractName, "address", address.Hex())
+	v.numVerified++
+	return nil
 }

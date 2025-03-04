@@ -15,10 +15,9 @@ type contractArtifact struct {
 	Optimizer       OptimizerSettings
 	EVMVersion      string
 	StandardInput   string
-	ConstructorArgs string
 }
 
-// Map state.json struct's contract field names to forge artifact names
+// Map state.json struct fields to forge artifact names
 var contractNameExceptions = map[string]string{
 	"OptimismPortalImpl":          "OptimismPortal2",
 	"L1StandardBridgeProxy":       "L1ChugSplashProxy",
@@ -88,18 +87,11 @@ func (v *Verifier) getContractArtifact(name string) (*contractArtifact, error) {
 	}
 	v.log.Info("contractName", "name", contractName)
 
-	constructorArgs, err := v.getEncodedConstructorArgs(name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get constructor args: %w", err)
-	}
-	v.log.Debug("constructorArgs", "args", constructorArgs)
-
 	return &contractArtifact{
 		ContractName:    contractName,
 		CompilerVersion: art.Metadata.Compiler.Version,
 		Optimizer:       optimizer,
 		EVMVersion:      art.Metadata.Settings.EVMVersion,
 		StandardInput:   string(standardInputJSON),
-		ConstructorArgs: constructorArgs,
 	}, nil
 }

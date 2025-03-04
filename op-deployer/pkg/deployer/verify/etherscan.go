@@ -10,12 +10,28 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"golang.org/x/time/rate"
 )
 
-type EtherscanResponse struct {
+type EtherscanGenericResp struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
 	Result  string `json:"result"`
+}
+
+type EtherscanContractCreationResp struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Result  []struct {
+		ContractCreator string `json:"contractCreator"`
+		TxHash          string `json:"txHash"`
+	} `json:"result"`
+}
+
+type EtherscanClient struct {
+	apiKey      string
+	url         string
+	rateLimiter *rate.Limiter
 }
 
 func getAPIEndpoint(chainID uint64) string {
@@ -29,122 +45,130 @@ func getAPIEndpoint(chainID uint64) string {
 	}
 }
 
-func (v *Verifier) verifyContract(address common.Address, contractName string) error {
-	verified, err := v.isVerified(address)
-	if err != nil {
-		return fmt.Errorf("failed to check verification status: %w", err)
+func NewEtherscanClient(apiKey string, url string, rateLimiter *rate.Limiter) *EtherscanClient {
+	return &EtherscanClient{
+		apiKey:      apiKey,
+		url:         url,
+		rateLimiter: rateLimiter,
 	}
-	if verified {
-		v.log.Info("Contract is already verified", "name", contractName, "address", address.Hex())
-		v.numSkipped++
-		return nil
-	}
-
-	v.log.Info("Formatting etherscan verification request", "name", contractName, "address", address.Hex())
-	source, err := v.getContractArtifact(contractName)
-	if err != nil {
-		return fmt.Errorf("failed to get contract source: %w", err)
-	}
-
-	optimized := "0"
-	if source.Optimizer.Enabled {
-		optimized = "1"
-	}
-
-	data := url.Values{
-		"apikey":                {v.apiKey},
-		"module":                {"contract"},
-		"action":                {"verifysourcecode"},
-		"contractaddress":       {address.Hex()},
-		"codeformat":            {"solidity-standard-json-input"},
-		"sourceCode":            {source.StandardInput},
-		"contractname":          {source.ContractName},
-		"compilerversion":       {fmt.Sprintf("v%s", source.CompilerVersion)},
-		"optimizationUsed":      {optimized},
-		"runs":                  {fmt.Sprintf("%d", source.Optimizer.Runs)},
-		"evmversion":            {source.EVMVersion},
-		"constructorArguements": {source.ConstructorArgs},
-	}
-
-	req, err := http.NewRequest("POST", v.etherscanUrl, strings.NewReader(data.Encode()))
-	if err != nil {
-		return fmt.Errorf("failed to create verification request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := v.sendRateLimitedRequest(req)
-	if err != nil {
-		return fmt.Errorf("failed to submit verification request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var result EtherscanResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if result.Status != "1" {
-		return fmt.Errorf("verification request failed: status=%s message=%s result=%s",
-			result.Status, result.Message, result.Result)
-	}
-	v.log.Info("Verification request submitted", "name", contractName, "address", address.Hex())
-	err = v.checkVerificationStatus(result.Result)
-	if err == nil {
-		v.log.Info("Verification complete", "name", contractName, "address", address.Hex())
-		v.numVerified++
-	}
-	return err
 }
 
 // sendRateLimitedRequest is a helper function which waits for a rate limit token
 // before sending a request
-func (v *Verifier) sendRateLimitedRequest(req *http.Request) (*http.Response, error) {
-	if err := v.rateLimiter.Wait(context.Background()); err != nil {
+func (c *EtherscanClient) sendRateLimitedRequest(req *http.Request) (*http.Response, error) {
+	if err := c.rateLimiter.Wait(context.Background()); err != nil {
 		return nil, fmt.Errorf("rate limiter error: %w", err)
 	}
-
 	return http.DefaultClient.Do(req)
 }
 
-func (v *Verifier) isVerified(address common.Address) (bool, error) {
+// getContractCreation returns the txHash of the contract creation tx
+// (useful for extracting constructor args)
+func (c *EtherscanClient) getContractCreation(address common.Address) (common.Hash, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s?module=contract&action=getcontractcreation&contractaddresses=%s&apikey=%s",
+		c.url, address.Hex(), c.apiKey), nil)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to create contract creation request: %w", err)
+	}
+
+	resp, err := c.sendRateLimitedRequest(req)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to send contract creation request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var creationResp EtherscanContractCreationResp
+	if err := json.NewDecoder(resp.Body).Decode(&creationResp); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to decode contract creation response: %w", err)
+	}
+
+	txHash := common.HexToHash(creationResp.Result[0].TxHash)
+	return txHash, nil
+}
+
+func (c *EtherscanClient) verifySourceCode(address common.Address, artifact *contractArtifact, constructorArgs string) (string, error) {
+	optimized := "0"
+	if artifact.Optimizer.Enabled {
+		optimized = "1"
+	}
+
+	data := url.Values{
+		"apikey":                {c.apiKey},
+		"module":                {"contract"},
+		"action":                {"verifysourcecode"},
+		"contractaddress":       {address.Hex()},
+		"codeformat":            {"solidity-standard-json-input"},
+		"sourceCode":            {artifact.StandardInput},
+		"contractname":          {artifact.ContractName},
+		"compilerversion":       {fmt.Sprintf("v%s", artifact.CompilerVersion)},
+		"optimizationUsed":      {optimized},
+		"runs":                  {fmt.Sprintf("%d", artifact.Optimizer.Runs)},
+		"evmversion":            {artifact.EVMVersion},
+		"constructorArguements": {constructorArgs},
+	}
+
+	req, err := http.NewRequest("POST", c.url, strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("failed to create verification request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := c.sendRateLimitedRequest(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to submit verification request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result EtherscanGenericResp
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if result.Status != "1" {
+		return "", fmt.Errorf("verification request failed: status=%s message=%s result=%s",
+			result.Status, result.Message, result.Result)
+	}
+
+	return result.Result, nil
+}
+
+func (c *EtherscanClient) isVerified(address common.Address) (bool, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?module=contract&action=getabi&address=%s&apikey=%s",
-		v.etherscanUrl, address.Hex(), v.apiKey), nil)
+		c.url, address.Hex(), c.apiKey), nil)
 	if err != nil {
 		return false, err
 	}
 
-	resp, err := v.sendRateLimitedRequest(req)
+	resp, err := c.sendRateLimitedRequest(req)
 	if err != nil {
 		return false, err
 	}
 	defer resp.Body.Close()
 
-	var result EtherscanResponse
+	var result EtherscanGenericResp
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return false, err
 	}
 
-	v.log.Debug("Contract verification status", "status", result.Status, "message", result.Message)
 	return result.Status == "1", nil
 }
 
-func (v *Verifier) checkVerificationStatus(reqId string) error {
+func (c *EtherscanClient) pollVerificationStatus(reqId string) error {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s?apikey=%s&module=contract&action=checkverifystatus&guid=%s",
-		v.etherscanUrl, v.apiKey, reqId), nil)
+		c.url, c.apiKey, reqId), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create checkverifystatus request: %w", err)
 	}
 
 	for i := 0; i < 10; i++ { // Try 10 times with increasing delays
-		v.log.Info("Checking verification status", "guid", reqId)
 		time.Sleep(time.Duration(i+2) * time.Second)
 
-		resp, err := v.sendRateLimitedRequest(req)
+		resp, err := c.sendRateLimitedRequest(req)
 		if err != nil {
 			return fmt.Errorf("failed to send checkverifystatus request: %w", err)
 		}
 		defer resp.Body.Close()
 
-		var result EtherscanResponse
+		var result EtherscanGenericResp
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			return fmt.Errorf("failed to decode checkverifystatus response: %w", err)
 		}
@@ -153,7 +177,6 @@ func (v *Verifier) checkVerificationStatus(reqId string) error {
 			return nil
 		}
 		if result.Result == "Already Verified" {
-			v.log.Info("Contract is already verified")
 			return nil
 		}
 		if result.Result != "Pending in queue" {
