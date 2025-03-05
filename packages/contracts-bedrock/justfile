@@ -74,7 +74,6 @@ print-pinned-block-number:
 #   Reusing the default block number greatly speeds up the test execution time by caching the
 #   rpc call responses in ~/.foundry/cache/rpc. The default block will need to be updated
 #   when the L1 chain is upgraded.
-# TODO(opcm upgrades): unskip the "NMC" tests which fail on the forked upgrade path with "UnexpectedRootClaim" errors.
 prepare-upgrade-env *ARGS : build-go-ffi
   #!/bin/bash
   echo "Running upgrade tests at block $pinnedBlockNumber"
