@@ -26,11 +26,11 @@ func (dsi *DeploySuperchainInput) InputSet() bool {
 }
 
 type DeploySuperchainOutput struct {
-	SuperchainProxyAdmin  common.Address
-	SuperchainConfigImpl  common.Address
-	SuperchainConfigProxy common.Address
-	ProtocolVersionsImpl  common.Address
-	ProtocolVersionsProxy common.Address
+	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`
+	SuperchainConfigImpl  common.Address `json:"superchainConfigImplAddress"`
+	SuperchainConfigProxy common.Address `json:"superchainConfigProxyAddress"`
+	ProtocolVersionsImpl  common.Address `json:"protocolVersionsImplAddress"`
+	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxyAddress"`
 }
 
 func (output *DeploySuperchainOutput) CheckOutput(input common.Address) error {
