@@ -3,8 +3,8 @@ authors = ["Rollup Boost Core Contributors"]
 language = "en"
 multilingual = false
 src = "book"
-title = "Rollup Boost Book"
-description = "A book on how rollup-boost works"
+title = "Rollup Boost"
+description = "The Rollup Boost is a sidecar to enable rollup extensions"
 
 [output.html]
 theme = "book/theme"

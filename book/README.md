@@ -1,3 +1,3 @@
 # rollup-boost book
 
-Rollup Boost is a sidecar that enables external builders on rollups.
+Rollup Boost is a sidecar that enables rollup extensions.
