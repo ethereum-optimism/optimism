@@ -99,7 +99,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	paused := cliCtx.Bool(PausedFlagName)
 	requiredVersionStr := cliCtx.String(RequiredProtocolVersionFlagName)
 	recommendedVersionStr := cliCtx.String(RecommendedProtocolVersionFlagName)
-	outfile := cliCtx.String(OutfileFlagName)
+	outfile := getDefaultOutfile(cliCtx.Command.Name, cliCtx.String(OutfileFlagName), cliCtx.String(deployer.WorkdirFlagName))
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	cfg := SuperchainConfig{
 		L1RPCUrl:                  l1RPCUrl,
@@ -127,9 +127,14 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to deploy superchain: %w", err)
 	}
 
-	if err := jsonutil.WriteJSON(dso, ioutil.ToStdOutOrFileOrNoop(outfile, 0o755)); err != nil {
+	outTarget := ioutil.ToStdOutOrFileOrNoop(outfile, 0o755)
+	if err := jsonutil.WriteJSON(dso, outTarget); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
+	if outfile != "-" {
+		l.Info("results written to file", "filepath", outfile)
+	}
+
 	return nil
 }
 

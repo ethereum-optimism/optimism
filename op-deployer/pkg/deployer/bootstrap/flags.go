@@ -1,6 +1,9 @@
 package bootstrap
 
 import (
+	"fmt"
+	"path/filepath"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -32,6 +35,12 @@ var (
 		Usage:   "Output file. Use - for stdout.",
 		EnvVars: deployer.PrefixEnvVar("OUTFILE"),
 		Value:   "-",
+	}
+	WorkdirFlag = &cli.StringFlag{
+		Name:    deployer.WorkdirFlagName,
+		Usage:   "Working directory.",
+		EnvVars: deployer.PrefixEnvVar("WORKDIR"),
+		Value:   "",
 	}
 	ArtifactsLocatorFlag = &cli.StringFlag{
 		Name:    ArtifactsLocatorFlagName,
@@ -149,6 +158,7 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
+	WorkdirFlag,
 	ArtifactsLocatorFlag,
 	L1ContractsReleaseFlag,
 	MIPSVersionFlag,
@@ -167,6 +177,7 @@ var ProxyFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
+	WorkdirFlag,
 	ArtifactsLocatorFlag,
 	ProxyOwnerFlag,
 }
@@ -175,6 +186,7 @@ var SuperchainFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
+	WorkdirFlag,
 	ArtifactsLocatorFlag,
 	SuperchainProxyAdminOwnerFlag,
 	ProtocolVersionsOwnerFlag,
@@ -188,6 +200,7 @@ var ValidatorFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
+	WorkdirFlag,
 	ArtifactsLocatorFlag,
 	ConfigFileFlag,
 }
@@ -217,4 +230,11 @@ var Commands = []*cli.Command{
 		Flags:  cliapp.ProtectFlags(ValidatorFlags),
 		Action: ValidatorCLI,
 	},
+}
+
+func getDefaultOutfile(commandName, outfile, workdir string) string {
+	if workdir != "" {
+		return filepath.Join(workdir, fmt.Sprintf("bootstrap_%s.json", commandName))
+	}
+	return outfile
 }
