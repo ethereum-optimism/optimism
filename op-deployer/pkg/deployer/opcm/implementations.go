@@ -31,6 +31,10 @@ func (input *DeployImplementationsInput) InputSet() bool {
 
 type DeployImplementationsOutput struct {
 	Opcm                             common.Address
+	OpcmContractsContainer           common.Address
+	OpcmGameTypeAdder                common.Address
+	OpcmDeployer                     common.Address
+	OpcmUpgrader                     common.Address
 	DelayedWETHImpl                  common.Address
 	OptimismPortalImpl               common.Address
 	PreimageOracleSingleton          common.Address
@@ -86,10 +90,7 @@ func DeployImplementations(
 	defer cleanupDeploy()
 
 	opcmContract := "OPContractsManager"
-	if input.UseInterop {
-		opcmContract = "OPContractsManagerInterop"
-	}
-	if err := host.RememberOnLabel("OPContractsManager", opcmContract+".sol", opcmContract); err != nil {
+	if err := host.RememberOnLabel("OPContractsManager", "OPContractsManager.sol", opcmContract); err != nil {
 		return output, fmt.Errorf("failed to link OPContractsManager label: %w", err)
 	}
 

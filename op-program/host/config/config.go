@@ -49,7 +49,7 @@ var (
 )
 
 type Config struct {
-	L2ChainID eth.ChainID // TODO: Forbid for interop
+	L2ChainID eth.ChainID
 	Rollups   []*rollup.Config
 	// DataDir is the directory to read/write pre-image data from/to.
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
@@ -66,7 +66,7 @@ type Config struct {
 	L1RPCKind   sources.RPCProviderKind
 
 	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot for pre-interop mode
-	L2Head common.Hash // TODO: Forbid for interop
+	L2Head common.Hash
 	// L2OutputRoot is the agreed L2 output root to start derivation from
 	L2OutputRoot common.Hash
 	// L2URLs are the URLs of the L2 nodes to fetch L2 data from, these are the canonical URL for L2 data

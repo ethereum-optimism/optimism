@@ -10,7 +10,6 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
@@ -22,6 +21,65 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+
+interface IOPContractsManagerContractsContainer {
+    function __constructor__(
+        IOPContractsManager.Blueprints memory _blueprints,
+        IOPContractsManager.Implementations memory _implementations
+    )
+        external;
+
+    function blueprints() external view returns (IOPContractsManager.Blueprints memory);
+    function implementations() external view returns (IOPContractsManager.Implementations memory);
+}
+
+interface IOPContractsManagerGameTypeAdder {
+    event GameTypeAdded(
+        uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
+    );
+
+    function __constructor__(
+        IOPContractsManagerContractsContainer _contractsContainer
+    )
+        external;
+
+    function addGameType(IOPContractsManager.AddGameInput[] memory _gameConfigs, address _superchainConfig)
+        external
+        returns (IOPContractsManager.AddGameOutput[] memory);
+
+    function updatePrestate(IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs, address _superchainConfig) external;
+
+    function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
+}
+
+interface IOPContractsManagerDeployer {
+    event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
+
+    function __constructor__(
+        IOPContractsManagerContractsContainer _contractsContainer
+    )
+        external;
+
+    function deploy(IOPContractsManager.DeployInput memory _input, address _superchainConfig, address _deployer)
+        external
+        returns (IOPContractsManager.DeployOutput memory);
+
+    function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
+}
+
+interface IOPContractsManagerUpgrader {
+    event Upgraded(uint256 indexed l2ChainId, address indexed systemConfig, address indexed upgrader);
+
+    function __constructor__(
+        IOPContractsManagerContractsContainer _contractsContainer
+    )
+        external;
+
+    function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
+
+    function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
+}
+
 
 interface IOPContractsManager {
     // -------- Structs --------
@@ -153,36 +211,8 @@ interface IOPContractsManager {
     /// version of the L1 smart contracts is deployed. It takes the format of `op-contracts/vX.Y.Z`.
     function l1ContractsRelease() external view returns (string memory);
 
-    // -------- Events --------
-
-    /// @notice Emitted when a new OP Stack chain is deployed.
-    /// @param l2ChainId Chain ID of the new chain.
-    /// @param deployer Address that deployed the chain.
-    /// @param deployOutput ABI-encoded output of the deployment.
-    event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
-
-    /// @notice Emitted when a chain is upgraded
-    /// @param systemConfig Address of the chain's SystemConfig contract
-    /// @param upgrader Address that initiated the upgrade
-    event Upgraded(uint256 indexed l2ChainId, ISystemConfig indexed systemConfig, address indexed upgrader);
-
-    /// @notice Emitted when a new game type is added to a chain
-    /// @param l2ChainId Chain ID of the chain
-    /// @param gameType Type of the game being added
-    /// @param newDisputeGame Address of the deployed dispute game
-    /// @param oldDisputeGame Address of the old dispute game
-    event GameTypeAdded(uint256 indexed l2ChainId, GameType indexed gameType, IDisputeGame newDisputeGame, IDisputeGame oldDisputeGame);
-
     // -------- Errors --------
 
-    error BytesArrayTooLong();
-    error DeploymentFailed();
-    error EmptyInitcode();
-    error IdentityPrecompileCallFailed();
-    error NotABlueprint();
-    error ReservedBitsSet();
-    error UnexpectedPreambleData(bytes data);
-    error UnsupportedERCVersion(uint8 version);
     error OnlyUpgradeController();
 
     /// @notice Thrown when an address is the zero address.
@@ -219,15 +249,18 @@ interface IOPContractsManager {
 
     error PrestateNotSet();
 
+    error PrestateRequired();
+
     // -------- Methods --------
 
     function __constructor__(
+        IOPContractsManagerGameTypeAdder _opcmGameTypeAdder,
+        IOPContractsManagerDeployer _opcmDeployer,
+        IOPContractsManagerUpgrader _opcmUpgrader,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
         string memory _l1ContractsRelease,
-        Blueprints memory _blueprints,
-        Implementations memory _implementations,
         address _upgradeController
     )
         external;
@@ -242,6 +275,10 @@ interface IOPContractsManager {
     /// must be added in ascending GameType order.
     function addGameType(AddGameInput[] memory _gameConfigs) external returns (AddGameOutput[] memory);
 
+    /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
+    /// @param _prestateUpdateInputs The new prestate hash to use
+    function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) external;
+
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
     /// configuration's convention. This convention is `versionByte || keccak256(bytes32(chainId))[:19]`,
     /// where || denotes concatenation`, versionByte is 0x00, and chainId is a uint256.
@@ -250,6 +287,12 @@ interface IOPContractsManager {
 
     /// @notice Returns the blueprint contract addresses.
     function blueprints() external view returns (Blueprints memory);
+
+    function opcmDeployer() external view returns (IOPContractsManagerDeployer);
+
+    function opcmUpgrader() external view returns (IOPContractsManagerUpgrader);
+
+    function opcmGameTypeAdder() external view returns (IOPContractsManagerGameTypeAdder);
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);

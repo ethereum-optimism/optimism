@@ -23,18 +23,14 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 
 contract StandardValidatorBase {
     ISuperchainConfig public superchainConfig;
-    IProtocolVersions public protocolVersions;
     address public l1PAOMultisig;
     address public mips;
     address public challenger;
 
     // Implementation addresses as state variables
-    address public superchainConfigImpl;
-    address public protocolVersionsImpl;
     address public l1ERC721BridgeImpl;
     address public optimismPortalImpl;
     address public systemConfigImpl;
@@ -47,8 +43,6 @@ contract StandardValidatorBase {
     address public mipsImpl;
 
     struct ImplementationsBase {
-        address superchainConfigImpl;
-        address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
         address systemConfigImpl;
@@ -64,20 +58,16 @@ contract StandardValidatorBase {
     constructor(
         ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
         address _l1PAOMultisig,
         address _mips,
         address _challenger
     ) {
         superchainConfig = _superchainConfig;
-        protocolVersions = _protocolVersions;
         l1PAOMultisig = _l1PAOMultisig;
         mips = _mips;
         challenger = _challenger;
 
         // Set implementation addresses from struct
-        superchainConfigImpl = _implementations.superchainConfigImpl;
-        protocolVersionsImpl = _implementations.protocolVersionsImpl;
         l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
         optimismPortalImpl = _implementations.optimismPortalImpl;
         systemConfigImpl = _implementations.systemConfigImpl;
@@ -101,8 +91,7 @@ contract StandardValidatorBase {
         view
         returns (string memory)
     {
-        _errors = assertValidSuperchainConfig(_errors, _admin);
-        _errors = assertValidProtocolVersions(_errors, _admin);
+        _errors = assertValidSuperchainConfig(_errors);
         _errors = assertValidProxyAdmin(_errors, _admin);
         _errors = assertValidSystemConfig(_errors, _sysCfg, _admin);
         _errors = assertValidL1CrossDomainMessenger(_errors, _sysCfg, _admin);
@@ -114,14 +103,6 @@ contract StandardValidatorBase {
         _errors = assertValidPermissionedDisputeGame(_errors, _sysCfg, _absolutePrestate, _l2ChainID, _admin);
         _errors = assertValidPermissionlessDisputeGame(_errors, _sysCfg, _absolutePrestate, _l2ChainID, _admin);
         return _errors;
-    }
-
-    function superchainConfigVersion() public pure virtual returns (string memory) {
-        return "1.1.0";
-    }
-
-    function protocolVersionsVersion() public pure virtual returns (string memory) {
-        return "1.0.0";
     }
 
     function l1ERC721BridgeVersion() public pure virtual returns (string memory) {
@@ -172,35 +153,8 @@ contract StandardValidatorBase {
         return "1.1.2";
     }
 
-    function assertValidSuperchainConfig(
-        string memory _errors,
-        IProxyAdmin _admin
-    )
-        internal
-        view
-        returns (string memory)
-    {
-        _errors = internalRequire(stringEq(superchainConfig.version(), superchainConfigVersion()), "SPRCFG-10", _errors);
-        _errors = internalRequire(
-            _admin.getProxyImplementation(address(superchainConfig)) == superchainConfigImpl, "SPRCFG-20", _errors
-        );
-        _errors = internalRequire(!superchainConfig.paused(), "SPRCFG-30", _errors);
-        return _errors;
-    }
-
-    function assertValidProtocolVersions(
-        string memory _errors,
-        IProxyAdmin _admin
-    )
-        internal
-        view
-        returns (string memory)
-    {
-        _errors = internalRequire(stringEq(protocolVersions.version(), protocolVersionsVersion()), "PVER-10", _errors);
-        _errors = internalRequire(
-            _admin.getProxyImplementation(address(protocolVersions)) == protocolVersionsImpl, "PVER-20", _errors
-        );
-
+    function assertValidSuperchainConfig(string memory _errors) internal view returns (string memory) {
+        _errors = internalRequire(!superchainConfig.paused(), "SPRCFG-10", _errors);
         return _errors;
     }
 
@@ -504,7 +458,7 @@ contract StandardValidatorBase {
             string.concat(_errorPrefix, "-20"),
             _errors
         );
-        _errors = internalRequire(_weth.owner() == challenger, string.concat(_errorPrefix, "-30"), _errors);
+        _errors = internalRequire(_weth.owner() == l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == 1 weeks, string.concat(_errorPrefix, "-40"), _errors);
         return _errors;
     }
@@ -513,22 +467,18 @@ contract StandardValidatorBase {
         string memory _errors,
         IDisputeGameFactory _dgf,
         IAnchorStateRegistry _asr,
-        IProxyAdmin _admin,
+        IProxyAdmin,
         GameType _gameType,
         string memory _errorPrefix
     )
         internal
         view
+        virtual
         returns (string memory)
     {
         _errorPrefix = string.concat(_errorPrefix, "-ANCHORP");
         _errors = internalRequire(
             stringEq(_asr.version(), anchorStateRegistryVersion()), string.concat(_errorPrefix, "-10"), _errors
-        );
-        _errors = internalRequire(
-            _admin.getProxyImplementation(address(_asr)) == anchorStateRegistryImpl,
-            string.concat(_errorPrefix, "-20"),
-            _errors
         );
         _errors = internalRequire(
             address(_asr.disputeGameFactory()) == address(_dgf), string.concat(_errorPrefix, "-30"), _errors
@@ -598,12 +548,11 @@ contract StandardValidatorV180 is StandardValidatorBase {
     constructor(
         ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
         address _l1PAOMultisig,
         address _mips,
         address _challenger
     )
-        StandardValidatorBase(_implementations, _superchainConfig, _protocolVersions, _l1PAOMultisig, _mips, _challenger)
+        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
     { }
 
     function validate(InputV180 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -630,12 +579,11 @@ contract StandardValidatorV200 is StandardValidatorBase {
     constructor(
         ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
         address _l1PAOMultisig,
         address _mips,
         address _challenger
     )
-        StandardValidatorBase(_implementations, _superchainConfig, _protocolVersions, _l1PAOMultisig, _mips, _challenger)
+        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
     { }
 
     function validate(InputV200 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -650,20 +598,34 @@ contract StandardValidatorV200 is StandardValidatorBase {
         return _errors;
     }
 
-    function superchainConfigVersion() public pure override returns (string memory) {
-        return "1.2.0";
-    }
-
-    function protocolVersionsVersion() public pure override returns (string memory) {
-        return "1.1.0";
+    function assertValidAnchorStateRegistry(
+        string memory _errors,
+        IDisputeGameFactory _dgf,
+        IAnchorStateRegistry _asr,
+        IProxyAdmin _admin,
+        GameType _gameType,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        override
+        returns (string memory)
+    {
+        _errors = super.assertValidAnchorStateRegistry(_errors, _dgf, _asr, _admin, _gameType, _errorPrefix);
+        _errors = internalRequire(
+            _admin.getProxyImplementation(address(_asr)) == anchorStateRegistryImpl,
+            string.concat(_errorPrefix, "-ANCHORP-20"),
+            _errors
+        );
+        return _errors;
     }
 
     function l1ERC721BridgeVersion() public pure override returns (string memory) {
-        return "2.3.0";
+        return "2.3.1";
     }
 
     function optimismPortalVersion() public pure override returns (string memory) {
-        return "3.12.0";
+        return "3.13.0";
     }
 
     function systemConfigVersion() public pure override returns (string memory) {
@@ -679,10 +641,30 @@ contract StandardValidatorV200 is StandardValidatorBase {
     }
 
     function l1StandardBridgeVersion() public pure override returns (string memory) {
-        return "2.2.1";
+        return "2.2.2";
     }
 
     function disputeGameFactoryVersion() public pure override returns (string memory) {
         return "1.0.1";
+    }
+
+    function anchorStateRegistryVersion() public pure override returns (string memory) {
+        return "2.2.2";
+    }
+
+    function delayedWETHVersion() public pure override returns (string memory) {
+        return "1.3.0";
+    }
+
+    function mipsVersion() public pure override returns (string memory) {
+        return "1.3.0";
+    }
+
+    function permissionedDisputeGameVersion() public pure override returns (string memory) {
+        return "1.4.1";
+    }
+
+    function preimageOracleVersion() public pure override returns (string memory) {
+        return "1.1.4";
     }
 }

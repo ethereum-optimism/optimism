@@ -7,6 +7,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { EOA } from "src/libraries/EOA.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -177,9 +178,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.12.1
+    /// @custom:semver 3.14.0
     function version() public pure virtual returns (string memory) {
-        return "3.12.1";
+        return "3.14.0";
     }
 
     /// @notice Constructs the OptimismPortal contract.
@@ -254,7 +255,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @param _byteCount Number of bytes in the calldata.
     /// @return The minimum gas limit for a deposit.
     function minimumGasLimit(uint64 _byteCount) public pure returns (uint64) {
-        return _byteCount * 16 + 21000;
+        return _byteCount * 40 + 21000;
     }
 
     /// @notice Accepts value so that users can send ETH directly to this contract and have the
@@ -469,7 +470,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
-        if (msg.sender != tx.origin) {
+        if (!EOA.isSenderEOA()) {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 

@@ -68,6 +68,37 @@ type InteropActors struct {
 	ChainB     *Chain
 }
 
+func (actors *InteropActors) PrepareChainState(t helpers.Testing) {
+	// Initialize both chain states
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	t.Log("Sequencers should initialize, and produce initial reset requests")
+
+	// Process the anchor point
+	actors.Supervisor.ProcessFull(t)
+	t.Log("Supervisor should have anchor points now")
+
+	// Sync supervisors, i.e. the reset request makes it to the supervisor now
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	t.Log("Supervisor has events now")
+
+	// Pick up the reset request
+	actors.Supervisor.ProcessFull(t)
+	t.Log("Supervisor processed initial resets")
+
+	// Process reset work
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	t.Log("Processed!")
+
+	// Verify initial state
+	statusA := actors.ChainA.Sequencer.SyncStatus()
+	statusB := actors.ChainB.Sequencer.SyncStatus()
+	require.Equal(t, uint64(0), statusA.UnsafeL2.Number)
+	require.Equal(t, uint64(0), statusB.UnsafeL2.Number)
+}
+
 // messageExpiryTime is the time in seconds that a message will be valid for on the L2 chain.
 // At a 2 second block time, this should be small enough to cover all events buffered in the supervisor event queue.
 const messageExpiryTime = 120 // 2 minutes
@@ -77,10 +108,9 @@ func SetupInterop(t helpers.Testing) *InteropSetup {
 	logger := testlog.Logger(t, log.LevelDebug)
 
 	recipe := interopgen.InteropDevRecipe{
-		L1ChainID:         900100,
-		L2ChainIDs:        []uint64{900200, 900201},
-		GenesisTimestamp:  uint64(time.Now().Unix() + 3),
-		MessageExpiryTime: messageExpiryTime,
+		L1ChainID:        900100,
+		L2ChainIDs:       []uint64{900200, 900201},
+		GenesisTimestamp: uint64(time.Now().Unix() + 3),
 	}
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
@@ -165,7 +195,7 @@ func worldToDepSet(t helpers.Testing, worldOutput *interopgen.WorldOutput) *deps
 			HistoryMinTime: 0,
 		}
 	}
-	depSet, err := depset.NewStaticConfigDependencySet(depSetCfg)
+	depSet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(depSetCfg, messageExpiryTime)
 	require.NoError(t, err)
 	return depSet
 }

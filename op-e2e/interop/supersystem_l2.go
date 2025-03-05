@@ -55,6 +55,10 @@ type l2Net struct {
 	nodes    map[string]*l2Node
 }
 
+func (s *interopE2ESystem) L2GethEndpoint(id string, name string) endpoint.RPC {
+	net := s.l2s[id]
+	return net.nodes[name].l2Geth.UserRPC()
+}
 func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Client {
 	net := s.l2s[id]
 	node := net.nodes[name]
@@ -75,6 +79,12 @@ func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Clien
 		})
 	node.gethClient = ethclient.NewClient(rpcCl)
 	return node.gethClient
+}
+
+func (s *interopE2ESystem) L2RollupEndpoint(id string, name string) endpoint.RPC {
+	net := s.l2s[id]
+	node := net.nodes[name]
+	return node.opNode.UserRPC()
 }
 
 func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.RollupClient {
@@ -100,7 +110,6 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, "sequencer", l2Out)
 	opNode := s.newNodeForL2(id, "sequencer", l2Out, operatorKeys, l2Geth, true)
-	// TODO(#11886): proposer does not work with the generated world as there is no DisputeGameFactoryProxy
 	proposer := s.newProposerForL2(id, operatorKeys)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
@@ -167,7 +176,7 @@ func (s *interopE2ESystem) newNodeForL2(
 			//SupervisorAddr:   s.supervisor.RPC(),
 			RPCAddr:          "127.0.0.1",
 			RPCPort:          0,
-			RPCJwtSecretPath: "jwt.secret",
+			RPCJwtSecretPath: s.t.TempDir() + "/jwt.secret",
 		},
 		P2P:                         nil, // disabled P2P setup for now
 		L1EpochPollInterval:         time.Second * 2,
@@ -221,7 +230,7 @@ func (s *interopE2ESystem) newProposerForL2(
 	logger := s.logger.New("role", "proposer"+id)
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          s.l1.UserRPC().RPC(),
-		SupervisorRpc:     s.Supervisor().RPC(),
+		SupervisorRpcs:    []string{s.Supervisor().RPC()},
 		DGFAddress:        s.worldDeployment.L2s[id].DisputeGameFactoryProxy.Hex(),
 		ProposalInterval:  6 * time.Second,
 		DisputeGameType:   1, // Permissioned game type is the only one currently deployed

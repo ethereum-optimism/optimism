@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"reflect"
 
+	"github.com/ethereum-optimism/superchain-registry/validation"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -229,7 +231,7 @@ func (c *Intent) checkL1Prod() error {
 		return err
 	}
 
-	if _, ok := versions[c.L1ContractsLocator.Tag]; !ok {
+	if _, ok := versions[validation.Semver(c.L1ContractsLocator.Tag)]; !ok {
 		return fmt.Errorf("tag '%s' not found in standard versions", c.L1ContractsLocator.Tag)
 	}
 
@@ -253,7 +255,7 @@ func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash
 		return NewIntentStandardOverrides(l1ChainId, l2ChainIds)
 
 	default:
-		return Intent{}, fmt.Errorf("intent config type not supported")
+		return Intent{}, fmt.Errorf("intent type not supported: %s (valid types: %s, %s, %s)", configType, IntentTypeStandard, IntentTypeCustom, IntentTypeStandardOverrides)
 	}
 }
 

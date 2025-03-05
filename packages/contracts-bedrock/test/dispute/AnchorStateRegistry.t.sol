@@ -105,11 +105,9 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_Init {
         assertEq(root.raw(), gameProxy.rootClaim().raw());
         assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
     }
-}
 
-contract AnchorStateRegistry_GetAnchorRoot_TestFail is AnchorStateRegistry_Init {
-    /// @notice Tests that getAnchorRoot will revert if the anchor game is blacklisted.
-    function test_getAnchorRoot_blacklistedGame_fails() public {
+    /// @notice Tests that getAnchorRoot returns even if the anchor game is blacklisted.
+    function test_getAnchorRoot_blacklistedGame_succeeds() public {
         // Mock the game to be resolved.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(block.timestamp));
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
@@ -126,8 +124,11 @@ contract AnchorStateRegistry_GetAnchorRoot_TestFail is AnchorStateRegistry_Init 
             abi.encodeCall(optimismPortal2.disputeGameBlacklist, (gameProxy)),
             abi.encode(true)
         );
-        vm.expectRevert(IAnchorStateRegistry.AnchorStateRegistry_AnchorGameBlacklisted.selector);
-        anchorStateRegistry.getAnchorRoot();
+
+        // Get the anchor root.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
+        assertEq(root.raw(), gameProxy.rootClaim().raw());
+        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
     }
 }
 
@@ -363,27 +364,31 @@ contract AnchorStateRegistry_IsGameResolved_Test is AnchorStateRegistry_Init {
     }
 }
 
-contract AnchorStateRegistry_IsGameAirgapped_TestFail is AnchorStateRegistry_Init {
-    /// @notice Tests that isGameAirgapped will return true if the game is airgapped.
+contract AnchorStateRegistry_IsGameFinalized_Test is AnchorStateRegistry_Init {
+    /// @notice Tests that isGameFinalized will return true if the game is finalized.
     /// @param _resolvedAtTimestamp The resolvedAt timestamp to use for the test.
-    function testFuzz_isGameAirgapped_isAirgapped_succeeds(uint256 _resolvedAtTimestamp) public {
+    function testFuzz_isGameFinalized_isFinalized_succeeds(uint256 _resolvedAtTimestamp) public {
         // Warp forward by disputeGameFinalityDelaySeconds.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
 
         // Bound resolvedAt to be at least disputeGameFinalityDelaySeconds in the past.
+        // Must be greater than 0.
         _resolvedAtTimestamp =
-            bound(_resolvedAtTimestamp, 0, block.timestamp - optimismPortal2.disputeGameFinalityDelaySeconds() - 1);
+            bound(_resolvedAtTimestamp, 1, block.timestamp - optimismPortal2.disputeGameFinalityDelaySeconds() - 1);
 
         // Mock the resolvedAt timestamp.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(_resolvedAtTimestamp));
 
-        // Game should be airgapped.
-        assertTrue(anchorStateRegistry.isGameAirgapped(gameProxy));
+        // Mock the status to be DEFENDER_WINS.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
+
+        // Game should be finalized.
+        assertTrue(anchorStateRegistry.isGameFinalized(gameProxy));
     }
 
-    /// @notice Tests that isGameAirgapped will return false if the game is not airgapped.
+    /// @notice Tests that isGameFinalized will return false if the game is not finalized.
     /// @param _resolvedAtTimestamp The resolvedAt timestamp to use for the test.
-    function testFuzz_isGameAirgapped_isNotAirgapped_succeeds(uint256 _resolvedAtTimestamp) public {
+    function testFuzz_isGameFinalized_isNotAirgapped_succeeds(uint256 _resolvedAtTimestamp) public {
         // Warp forward by disputeGameFinalityDelaySeconds.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
 
@@ -395,8 +400,20 @@ contract AnchorStateRegistry_IsGameAirgapped_TestFail is AnchorStateRegistry_Ini
         // Mock the resolvedAt timestamp.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.resolvedAt, ()), abi.encode(_resolvedAtTimestamp));
 
-        // Game should not be airgapped.
-        assertFalse(anchorStateRegistry.isGameAirgapped(gameProxy));
+        // Game should not be finalized.
+        assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
+    }
+
+    /// @notice Tests that isGameFinalized will return false if the game is not resolved.
+    function test_isGameFinalized_isNotResolved_succeeds() public {
+        // Warp forward by disputeGameFinalityDelaySeconds.
+        vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds());
+
+        // Mock the status call to be IN_PROGRESS.
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.IN_PROGRESS));
+
+        // Game should not be finalized.
+        assertFalse(anchorStateRegistry.isGameFinalized(gameProxy));
     }
 }
 
