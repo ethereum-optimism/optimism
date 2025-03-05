@@ -190,7 +190,7 @@ func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
 }
 
 func chainFromDescriptor(d *descriptors.Chain) (Chain, error) {
-	// TODO: handle incorrect descriptors better. We could panic here.
+	
 	firstNodeRPC := d.Nodes[0].Services["el"].Endpoints["rpc"]
 	rpcURL := fmt.Sprintf("http://%s:%d", firstNodeRPC.Host, firstNodeRPC.Port)
 
