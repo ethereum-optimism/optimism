@@ -140,7 +140,7 @@ var (
 	}
 	ContractNameFlag = &cli.StringFlag{
 		Name:    ContractNameFlagName,
-		Usage:   "contract name (matching a field within state.json)",
+		Usage:   "contract name (matching a field within a contract bundle struct)",
 		EnvVars: PrefixEnvVar("CONTRACT_NAME"),
 	}
 )
