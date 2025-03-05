@@ -309,8 +309,6 @@ impl RollupBoostServer {
 
         let execution_mode = self.execution_mode.lock().await;
 
-        println!("execution_mode: {:?}", execution_mode);
-
         if execution_mode.is_disabled() {
             debug!(message = "execution mode is disabled, skipping FCU call to builder", "head_block_hash" = %fork_choice_state.head_block_hash);
         } else if should_send_to_builder {
