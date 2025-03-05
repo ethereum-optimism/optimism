@@ -13,19 +13,19 @@ import (
 )
 
 const (
-	EnvVarPrefix            = "DEPLOYER"
-	L1RPCURLFlagName        = "l1-rpc-url"
-	CacheDirFlagName        = "cache-dir"
-	L1ChainIDFlagName       = "l1-chain-id"
-	L2ChainIDsFlagName      = "l2-chain-ids"
-	WorkdirFlagName         = "workdir"
-	OutdirFlagName          = "outdir"
-	PrivateKeyFlagName      = "private-key"
-	IntentTypeFlagName      = "intent-type"
-	EtherscanAPIKeyFlagName = "etherscan-api-key"
-	ContractBundleFlagName  = "contract-bundle"
-	ContractNameFlagName    = "contract-name"
-	L2ChainIDFlagName       = "l2-chain-id"
+	EnvVarPrefix             = "DEPLOYER"
+	L1RPCURLFlagName         = "l1-rpc-url"
+	CacheDirFlagName         = "cache-dir"
+	L1ChainIDFlagName        = "l1-chain-id"
+	ArtifactsLocatorFlagName = "artifacts-locator"
+	L2ChainIDsFlagName       = "l2-chain-ids"
+	WorkdirFlagName          = "workdir"
+	OutdirFlagName           = "outdir"
+	PrivateKeyFlagName       = "private-key"
+	IntentTypeFlagName       = "intent-type"
+	EtherscanAPIKeyFlagName  = "etherscan-api-key"
+	InputFileFlagName        = "input-file"
+	ContractNameFlagName     = "contract-name"
 )
 
 type DeploymentTarget string
@@ -72,6 +72,11 @@ var (
 			"L1_RPC_URL",
 		},
 	}
+	ArtifactsLocatorFlag = &cli.StringFlag{
+		Name:    ArtifactsLocatorFlagName,
+		Usage:   "Locator for artifacts.",
+		EnvVars: PrefixEnvVar("ARTIFACTS_LOCATOR"),
+	}
 	CacheDirFlag = &cli.StringFlag{
 		Name: CacheDirFlagName,
 		Usage: "Cache directory. " +
@@ -89,11 +94,6 @@ var (
 		Name:    L2ChainIDsFlagName,
 		Usage:   "Comma-separated list of L2 chain IDs to deploy.",
 		EnvVars: PrefixEnvVar("L2_CHAIN_IDS"),
-	}
-	L2ChainIDFlag = &cli.StringFlag{
-		Name:    L2ChainIDFlagName,
-		Usage:   "Single L2 chain ID",
-		EnvVars: PrefixEnvVar("L2_CHAIN_ID"),
 	}
 	WorkdirFlag = &cli.StringFlag{
 		Name:    WorkdirFlagName,
@@ -133,10 +133,10 @@ var (
 		EnvVars:  PrefixEnvVar("ETHERSCAN_API_KEY"),
 		Required: true,
 	}
-	ContractBundleFlag = &cli.StringFlag{
-		Name:    ContractBundleFlagName,
-		Usage:   "contract bundle/grouping (superchain|implementations|opchain)",
-		EnvVars: PrefixEnvVar("CONTRACT_BUNDLE"),
+	InputFileFlag = &cli.StringFlag{
+		Name:    InputFileFlagName,
+		Usage:   "filepath of input file for command",
+		EnvVars: PrefixEnvVar("INPUT_FILE"),
 	}
 	ContractNameFlag = &cli.StringFlag{
 		Name:    ContractNameFlagName,
@@ -169,11 +169,11 @@ var UpgradeFlags = []cli.Flag{
 
 var VerifyFlags = []cli.Flag{
 	L1RPCURLFlag,
+	ArtifactsLocatorFlag,
 	WorkdirFlag,
 	EtherscanAPIKeyFlag,
-	ContractBundleFlag,
+	InputFileFlag,
 	ContractNameFlag,
-	L2ChainIDFlag,
 }
 
 func PrefixEnvVar(name string) []string {

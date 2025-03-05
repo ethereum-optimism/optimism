@@ -29,6 +29,7 @@ var contractNameExceptions = map[string]string{
 
 func getArtifactName(name string) string {
 	lookupName := strings.TrimSuffix(name, "Address")
+	lookupName = strings.ToUpper(string(lookupName[0])) + lookupName[1:]
 
 	if artifactName, exists := contractNameExceptions[lookupName]; exists {
 		return artifactName
@@ -81,7 +82,7 @@ func (v *Verifier) getContractArtifact(name string) (*contractArtifact, error) {
 		contractName = contractFile + ":" + name
 		break
 	}
-	v.log.Info("contractName", "name", contractName)
+	v.log.Info("Compilation target", "target", contractName)
 
 	return &contractArtifact{
 		ContractName:    contractName,

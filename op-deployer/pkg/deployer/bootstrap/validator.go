@@ -95,7 +95,7 @@ func ValidatorCLI(cliCtx *cli.Context) error {
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
 	outfile := getDefaultOutfile(cliCtx.Command.Name, cliCtx.String(OutfileFlagName), cliCtx.String(deployer.WorkdirFlagName))
-	artifactsURLStr := cliCtx.String(ArtifactsLocatorFlagName)
+	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	configFile := cliCtx.String(ConfigFileFlag.Name)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 
