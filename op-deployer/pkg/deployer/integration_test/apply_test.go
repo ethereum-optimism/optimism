@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
@@ -147,8 +148,9 @@ func TestEndToEndApply(t *testing.T) {
 		validateOPChainDeployment(t, cg, st, intent, false)
 	})
 
-	t.Run("with calldata broadcasts", func(t *testing.T) {
+	t.Run("with calldata broadcasts and prestate generation", func(t *testing.T) {
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+		mockPreStateBuilder := defaultMockPreStateBuilder()
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -161,10 +163,18 @@ func TestEndToEndApply(t *testing.T) {
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
 				CacheDir:           testCacheDir,
+				PreStateBuilder:    mockPreStateBuilder,
 			},
 		))
 
 		require.Greater(t, len(st.DeploymentCalldata), 0)
+		require.Equal(t, 1, mockPreStateBuilder.invocations)
+		require.Equal(t, len(intent.Chains), mockPreStateBuilder.lastOptsCount)
+		require.NotNil(t, st.PrestateManifest)
+		for _, val := range *st.PrestateManifest {
+			require.NotEmpty(t, val)
+			require.True(t, common.IsHexAddress(val))
+		}
 	})
 }
 
@@ -342,7 +352,17 @@ func TestInteropDeployment(t *testing.T) {
 	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
 	intent.UseInterop = true
 
+	mockPreStateBuilder := defaultMockPreStateBuilder()
+	opts.PreStateBuilder = mockPreStateBuilder
+
 	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+	require.Equal(t, 1, mockPreStateBuilder.invocations)
+	require.Equal(t, len(intent.Chains)+1, mockPreStateBuilder.lastOptsCount) // + 1 for the additional GeneratedInteropDepSet opt which gets set with useInterop=true
+	require.NotNil(t, st.PrestateManifest)
+	for _, val := range *st.PrestateManifest {
+		require.NotEmpty(t, val)
+		require.True(t, common.IsHexAddress(val))
+	}
 
 	chainState := st.Chains[0]
 	depManagerSlot := common.HexToHash("0x1708e077affb93e89be2665fb0fb72581be66f84dc00d25fed755ae911905b1c")
@@ -438,9 +458,13 @@ func TestInvalidL2Genesis(t *testing.T) {
 			opts, intent, _ := setupGenesisChain(t, defaultL1ChainID)
 			intent.GlobalDeployOverrides = tt.overrides
 
+			mockPreStateBuilder := defaultMockPreStateBuilder()
+			opts.PreStateBuilder = mockPreStateBuilder
+
 			err := deployer.ApplyPipeline(ctx, opts)
 			require.Error(t, err)
 			require.ErrorContains(t, err, "failed to combine L2 init config")
+			require.Equal(t, 0, mockPreStateBuilder.invocations)
 		})
 	}
 }
@@ -541,6 +565,30 @@ func TestIntentConfiguration(t *testing.T) {
 			tt.assertions(t, st)
 		})
 	}
+}
+
+type mockPreStateBuilder struct {
+	buildPrestate func(ctx context.Context, opts ...prestate.PrestateBuilderOption) (prestate.PrestateManifest, error)
+	invocations   int
+	lastOptsCount int
+}
+
+func defaultMockPreStateBuilder() *mockPreStateBuilder {
+	return &mockPreStateBuilder{
+		buildPrestate: func(ctx context.Context, opts ...prestate.PrestateBuilderOption) (prestate.PrestateManifest, error) {
+			return prestate.PrestateManifest(map[string]string{
+				"prestate":         "0x0374fe3399429aed8c34cb33608da7e15cdab7f7aba6d9e994a1fdb9dd04e1a3",
+				"prestate_interop": "0x0329740c6b4f3441e11ee61a920d6a2ebca6cf6e246076eaf8b500d6a90bb6e2",
+				"prestate_mt64":    "0x03e0fd1bc0e5fc6b77542f9834975b6bf55cd0008e64e8c50c47d157292f17cc",
+			}), nil
+		},
+	}
+}
+
+func (m *mockPreStateBuilder) BuildPrestate(ctx context.Context, opts ...prestate.PrestateBuilderOption) (prestate.PrestateManifest, error) {
+	m.invocations++
+	m.lastOptsCount = len(opts)
+	return m.buildPrestate(ctx, opts...)
 }
 
 func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOpts, *state.Intent, *state.State) {

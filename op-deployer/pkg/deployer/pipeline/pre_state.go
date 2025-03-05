@@ -10,7 +10,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 )
 
-func GeneratePreState(ctx context.Context, pEnv *Env, globalIntent *state.Intent, st *state.State, preStateBuilder *prestate.PrestateBuilderClient) error {
+type PreStateBuilder interface {
+	BuildPrestate(ctx context.Context, opts ...prestate.PrestateBuilderOption) (prestate.PrestateManifest, error)
+}
+
+func GeneratePreState(ctx context.Context, pEnv *Env, globalIntent *state.Intent, st *state.State, preStateBuilder PreStateBuilder) error {
 	lgr := pEnv.Logger.New("stage", "generate-pre-state")
 
 	if preStateBuilder == nil {

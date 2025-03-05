@@ -40,7 +40,7 @@ type ApplyConfig struct {
 	Logger           log.Logger
 	CacheDir         string
 	privateKeyECDSA  *ecdsa.PrivateKey
-	PreStateBuilder  *prestate.PrestateBuilderClient
+	PreStateBuilder  pipeline.PreStateBuilder
 }
 
 func (a *ApplyConfig) Check() error {
@@ -86,10 +86,8 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		depTarget, err := NewDeploymentTarget(cliCtx.String(DeploymentTargetFlag.Name))
 		opProgramSvcUrl := cliCtx.String(OpProgramSvcUrlFlag.Name)
 
-		var preStateBuilder *prestate.PrestateBuilderClient
-		if opProgramSvcUrl == "" {
-			l.Warn("opProgramSvcUrl is not set, prestate generation will fail")
-		} else {
+		var preStateBuilder pipeline.PreStateBuilder
+		if opProgramSvcUrl != "" {
 			preStateBuilder = prestate.NewPrestateBuilderClient(opProgramSvcUrl)
 		}
 
@@ -157,7 +155,7 @@ type ApplyPipelineOpts struct {
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
 	CacheDir           string
-	PreStateBuilder    *prestate.PrestateBuilderClient
+	PreStateBuilder    pipeline.PreStateBuilder
 }
 
 func ApplyPipeline(
