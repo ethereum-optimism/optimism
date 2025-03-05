@@ -95,13 +95,19 @@ func (c *EtherscanClient) verifySourceCode(address common.Address, artifact *con
 		optimized = "1"
 	}
 
+	standardInput := newStandardInput(artifact)
+	standardInputJSON, err := json.Marshal(standardInput)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate standard input: %w", err)
+	}
+
 	data := url.Values{
 		"apikey":                {c.apiKey},
 		"module":                {"contract"},
 		"action":                {"verifysourcecode"},
 		"contractaddress":       {address.Hex()},
 		"codeformat":            {"solidity-standard-json-input"},
-		"sourceCode":            {artifact.StandardInput},
+		"sourceCode":            {string(standardInputJSON)},
 		"contractname":          {artifact.ContractName},
 		"compilerversion":       {fmt.Sprintf("v%s", artifact.CompilerVersion)},
 		"optimizationUsed":      {optimized},
@@ -224,20 +230,16 @@ type OutputSelectionDetails struct {
 	All []string `json:"*"`
 }
 
-func newStandardInput(
-	sources map[string]SourceContent,
-	optimizer OptimizerSettings,
-	evmVersion string,
-) StandardInput {
+func newStandardInput(artifact *contractArtifact) StandardInput {
 	return StandardInput{
 		Language: "Solidity",
-		Sources:  sources,
+		Sources:  artifact.Sources,
 		Settings: Settings{
 			Optimizer: OptimizerSettings{
-				Enabled: optimizer.Enabled,
-				Runs:    optimizer.Runs,
+				Enabled: artifact.Optimizer.Enabled,
+				Runs:    artifact.Optimizer.Runs,
 			},
-			EVMVersion: evmVersion,
+			EVMVersion: artifact.EVMVersion,
 			Metadata: MetadataSettings{
 				UseLiteralContent: true,
 				BytecodeHash:      "none",

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
 type contractArtifact struct {
@@ -14,7 +15,8 @@ type contractArtifact struct {
 	CompilerVersion string
 	Optimizer       OptimizerSettings
 	EVMVersion      string
-	StandardInput   string
+	Sources         map[string]SourceContent
+	ConstructorArgs abi.Arguments
 }
 
 // Map state.json struct fields to forge artifact names
@@ -73,12 +75,6 @@ func (v *Verifier) getContractArtifact(name string) (*contractArtifact, error) {
 		return nil, fmt.Errorf("failed to parse optimizer settings: %w", err)
 	}
 
-	standardInput := newStandardInput(sources, optimizer, art.Metadata.Settings.EVMVersion)
-	standardInputJSON, err := json.Marshal(standardInput)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate standard input: %w", err)
-	}
-
 	// Get the contract name from the compilation target
 	var contractName string
 	for contractFile, name := range art.Metadata.Settings.CompilationTarget {
@@ -92,6 +88,7 @@ func (v *Verifier) getContractArtifact(name string) (*contractArtifact, error) {
 		CompilerVersion: art.Metadata.Compiler.Version,
 		Optimizer:       optimizer,
 		EVMVersion:      art.Metadata.Settings.EVMVersion,
-		StandardInput:   string(standardInputJSON),
+		Sources:         sources,
+		ConstructorArgs: art.ABI.Constructor.Inputs,
 	}, nil
 }

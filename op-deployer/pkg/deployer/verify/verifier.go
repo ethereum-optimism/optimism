@@ -2,7 +2,10 @@ package verify
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -66,8 +69,11 @@ func VerifyCLI(cliCtx *cli.Context) error {
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	workdir := cliCtx.String(deployer.WorkdirFlagName)
 	etherscanAPIKey := cliCtx.String(deployer.EtherscanAPIKeyFlagName)
+	if etherscanAPIKey == "" {
+		return fmt.Errorf("etherscan API key is required")
+	}
+
 	bundleName := cliCtx.String(deployer.ContractBundleFlagName)
-	contractName := cliCtx.String(deployer.ContractNameFlagName)
 	l2ChainIDRaw := cliCtx.String(deployer.L2ChainIDFlagName)
 
 	var l2ChainID common.Hash
@@ -117,53 +123,94 @@ func VerifyCLI(cliCtx *cli.Context) error {
 		v.log.Info("final results", "numVerified", v.numVerified, "numSkipped", v.numSkipped, "numFailed", v.numFailed)
 	}()
 
-	if bundleName == "" && contractName == "" {
-		if err := v.verifyAll(ctx); err != nil {
+	if bundleName == "" {
+		if err := v.verifyAll(ctx, workdir); err != nil {
 			return err
 		}
-	} else if bundleName != "" && contractName == "" {
-		if err := v.verifyContractBundle(bundleName); err != nil {
-			return err
-		}
-	} else if bundleName != "" && contractName != "" {
-		if err := v.verifySingleContract(ctx, contractName, bundleName); err != nil {
-			return err
-		}
-	} else {
-		// If a contract name is provided without a contract bundle, report an error.
-		return fmt.Errorf("contract-name flag provided without contract-bundle flag")
+	} else if err := v.verifyContractBundle(ctx, workdir, bundleName); err != nil {
+		return err
 	}
-	v.log.Info("--- SUCCESS ---")
+	v.log.Info("--- COMPLETE ---")
 	return nil
 }
 
-func (v *Verifier) verifyAll(ctx context.Context) error {
+func (v *Verifier) verifyAll(ctx context.Context, workdir string) error {
 	for _, bundleName := range inspect.ContractBundles {
-		if err := v.verifyContractBundle(bundleName); err != nil {
+		if err := v.verifyContractBundle(ctx, workdir, bundleName); err != nil {
 			return fmt.Errorf("failed to verify bundle %s: %w", bundleName, err)
 		}
 	}
 	return nil
 }
 
-func (v *Verifier) verifyContractBundle(bundleName string) error {
-	// Retrieve the L1 contracts from state.
-	l1Contracts, err := inspect.L1(v.st, v.l2ChainID)
-	if err != nil {
-		return fmt.Errorf("failed to extract L1 contracts from state: %w", err)
+func (v *Verifier) getContractBundle(workdir string, bundleName string) (interface{}, error) {
+	bundleFilePath := filepath.Join(workdir, fmt.Sprintf("bootstrap_%s.json", bundleName))
+
+	var bundle interface{}
+
+	// Check if the bundle file exists
+	if _, err := os.Stat(bundleFilePath); err == nil {
+		// File exists, read and parse it
+		v.log.Info("Found bundle file", "path", bundleFilePath)
+		bundleData, err := os.ReadFile(bundleFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read bundle file %s: %w", bundleFilePath, err)
+		}
+
+		// Parse the file based on bundle type
+		switch bundleName {
+		case inspect.SuperchainBundle:
+			var superchainBundle inspect.SuperchainDeployment
+			if err := json.Unmarshal(bundleData, &superchainBundle); err != nil {
+				return nil, fmt.Errorf("failed to parse superchain bundle: %w", err)
+			}
+			bundle = superchainBundle
+
+		case inspect.ImplementationsBundle:
+			var implBundle inspect.ImplementationsDeployment
+			if err := json.Unmarshal(bundleData, &implBundle); err != nil {
+				return nil, fmt.Errorf("failed to parse implementations bundle: %w", err)
+			}
+			bundle = implBundle
+
+		case inspect.OpChainBundle:
+			var opChainBundle inspect.OpChainDeployment
+			if err := json.Unmarshal(bundleData, &opChainBundle); err != nil {
+				return nil, fmt.Errorf("failed to parse opchain bundle: %w", err)
+			}
+			bundle = opChainBundle
+
+		default:
+			return nil, fmt.Errorf("invalid contract bundle: %s", bundleName)
+		}
+		v.log.Info("Using bundle file", "path", bundleFilePath)
+	} else {
+		v.log.Info("Bundle file not found, using state file", "bundle", bundleName)
+		l1Contracts, err := inspect.L1(v.st, v.l2ChainID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract L1 contracts from state: %w", err)
+		}
+
+		// Select the appropriate bundle based on the input bundleName.
+		switch bundleName {
+		case inspect.SuperchainBundle:
+			bundle = l1Contracts.SuperchainDeployment
+		case inspect.ImplementationsBundle:
+			bundle = l1Contracts.ImplementationsDeployment
+		case inspect.OpChainBundle:
+			bundle = l1Contracts.OpChainDeployment
+		default:
+			return nil, fmt.Errorf("invalid contract bundle: %s", bundleName)
+		}
 	}
 
-	// Select the appropriate bundle based on the input bundleName.
-	var bundle interface{}
-	switch bundleName {
-	case inspect.SuperchainBundle:
-		bundle = l1Contracts.SuperchainDeployment
-	case inspect.ImplementationsBundle:
-		bundle = l1Contracts.ImplementationsDeployment
-	case inspect.OpChainBundle:
-		bundle = l1Contracts.OpChainDeployment
-	default:
-		return fmt.Errorf("invalid contract bundle: %s", bundleName)
+	return bundle, nil
+}
+
+func (v *Verifier) verifyContractBundle(ctx context.Context, workdir string, bundleName string) error {
+	bundle, err := v.getContractBundle(workdir, bundleName)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve bundle: %w", err)
 	}
 
 	// Use reflection to iterate over fields of the bundle.
@@ -174,9 +221,10 @@ func (v *Verifier) verifyContractBundle(bundleName string) error {
 		if field.Type() == reflect.TypeOf(common.Address{}) {
 			addr := field.Interface().(common.Address)
 			if addr != (common.Address{}) { // Skip zero addresses
-				name := typ.Field(i).Name
-				if err := v.verifySingleContract(context.Background(), name, bundleName); err != nil {
-					v.log.Error("failed to verify contract", "name", name, "bundle", bundleName, "error", err)
+				contractName := typ.Field(i).Name
+				if err := v.verifySingleContract(ctx, addr, contractName); err != nil {
+					v.numFailed++
+					v.log.Error("failed to verify contract", "name", contractName, "bundle", bundleName, "error", err)
 				}
 			}
 		}
@@ -184,27 +232,7 @@ func (v *Verifier) verifyContractBundle(bundleName string) error {
 	return nil
 }
 
-func (v *Verifier) verifySingleContract(ctx context.Context, contractName string, bundleName string) error {
-	l1Contracts, err := inspect.L1(v.st, v.l2ChainID)
-	if err != nil {
-		return fmt.Errorf("failed to extract L1 contracts from state: %w", err)
-	}
-
-	v.log.Info("Looking up contract address", "name", contractName, "bundle", bundleName)
-	addr, err := l1Contracts.GetContractAddress(contractName, bundleName)
-	if err != nil {
-		return fmt.Errorf("failed to find address for contract %s: %w", contractName, err)
-	}
-
-	if err := v.verifyContract(addr, contractName); err != nil {
-		v.numFailed++
-		return err
-	}
-
-	return nil
-}
-
-func (v *Verifier) verifyContract(address common.Address, contractName string) error {
+func (v *Verifier) verifySingleContract(ctx context.Context, address common.Address, contractName string) error {
 	verified, err := v.etherscan.isVerified(address)
 	if err != nil {
 		return fmt.Errorf("failed to check verification status: %w", err)
@@ -215,13 +243,13 @@ func (v *Verifier) verifyContract(address common.Address, contractName string) e
 		return nil
 	}
 
-	v.log.Info("Formatting etherscan verification request", "name", contractName, "address", address.Hex())
+	v.log.Info("Formatting etherscan verify request", "name", contractName, "address", address.Hex())
 	artifact, err := v.getContractArtifact(contractName)
 	if err != nil {
 		return fmt.Errorf("failed to get contract source: %w", err)
 	}
 
-	constructorArgs, err := v.getConstructorArgs(context.Background(), address, contractName)
+	constructorArgs, err := v.getConstructorArgs(ctx, address, artifact)
 	if err != nil {
 		return fmt.Errorf("failed to get constructor args: %w", err)
 	}
@@ -230,8 +258,8 @@ func (v *Verifier) verifyContract(address common.Address, contractName string) e
 	if err != nil {
 		return fmt.Errorf("failed to verify contract: %w", err)
 	}
-
 	v.log.Info("Verification request submitted", "name", contractName, "address", address.Hex())
+
 	if err = v.etherscan.pollVerificationStatus(reqId); err != nil {
 		return fmt.Errorf("failed when checking verification status: %w", err)
 	}
