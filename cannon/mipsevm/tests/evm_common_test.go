@@ -338,11 +338,17 @@ func TestEVM_SingleStep_CloClz(t *testing.T) {
 func TestEVM_SingleStep_MovzMovn(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
-		name  string
-		funct uint32
+		name          string
+		funct         uint32
+		testValue     Word
+		shouldSucceed bool
 	}{
-		{name: "movz", funct: uint32(0xa)},
-		{name: "movn", funct: uint32(0xb)},
+		{name: "movz, success", funct: uint32(0xa), testValue: 0, shouldSucceed: true},
+		{name: "movz, failure, testVal=1", funct: uint32(0xa), testValue: 1, shouldSucceed: false},
+		{name: "movz, failure, testVal=2", funct: uint32(0xa), testValue: 2, shouldSucceed: false},
+		{name: "movn, success, testVal=1", funct: uint32(0xb), testValue: 1, shouldSucceed: true},
+		{name: "movn, success, testVal=2", funct: uint32(0xb), testValue: 2, shouldSucceed: true},
+		{name: "movn, failure", funct: uint32(0xb), testValue: 0, shouldSucceed: false},
 	}
 	for _, v := range versions {
 		for i, tt := range cases {
@@ -354,39 +360,21 @@ func TestEVM_SingleStep_MovzMovn(t *testing.T) {
 				rtReg := uint32(10)
 				rdReg := uint32(8)
 				insn := rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
-				var t2 Word
-				if tt.funct == 0xa {
-					t2 = 0x0
-				} else {
-					t2 = 0x1
-				}
-				state.GetRegistersRef()[rtReg] = t2
+
+				state.GetRegistersRef()[rtReg] = tt.testValue
 				state.GetRegistersRef()[rsReg] = Word(0xb)
 				state.GetRegistersRef()[rdReg] = Word(0xa)
 				testutil.StoreInstruction(state.GetMemory(), 0, insn)
 				step := state.GetStep()
+
 				// Setup expectations
 				expected := testutil.NewExpectedState(state)
 				expected.ExpectStep()
-				expected.Registers[rdReg] = state.GetRegistersRef()[rsReg]
+				if tt.shouldSucceed {
+					expected.Registers[rdReg] = state.GetRegistersRef()[rsReg]
+				}
 
 				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				// Check expectations
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-
-				if tt.funct == 0xa {
-					t2 = 0x1
-				} else {
-					t2 = 0x0
-				}
-				state.GetRegistersRef()[rtReg] = t2
-				expected.ExpectStep()
-				expected.Registers[rtReg] = t2
-				expected.Registers[rdReg] = state.GetRegistersRef()[rdReg]
-
-				stepWitness, err = goVm.Step(true)
 				require.NoError(t, err)
 				// Check expectations
 				expected.Validate(t, state)
