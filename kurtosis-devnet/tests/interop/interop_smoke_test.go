@@ -2,7 +2,6 @@ package interop
 
 import (
 	"context"
-	"log/slog"
 	"math/big"
 	"testing"
 
@@ -11,18 +10,22 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
 		ctx := t.Context()
-		logger := slog.With("test", "TestMinimal", "devnet", sys.Identifier())
+
+		logger := testlog.Logger(t, log.LevelInfo)
+		logger = logger.With("test", "TestMinimal", "devnet", sys.Identifier())
 
 		chain := sys.L2s()[chainIdx]
 		logger = logger.With("chain", chain.ID())
-		logger.InfoContext(ctx, "starting test")
+		logger.Info("starting test")
 
 		funds := sdktypes.NewBalance(big.NewInt(0.5 * constants.ETH))
 		user := walletGetter(ctx)
@@ -30,19 +33,19 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 		scw0Addr := constants.SuperchainWETH
 		scw0, err := chain.ContractsRegistry().SuperchainWETH(scw0Addr)
 		require.NoError(t, err)
-		logger.InfoContext(ctx, "using SuperchainWETH", "contract", scw0Addr)
+		logger.Info("using SuperchainWETH", "contract", scw0Addr)
 
 		initialBalance, err := scw0.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
 		logger = logger.With("user", user.Address())
-		logger.InfoContext(ctx, "initial balance retrieved", "balance", initialBalance)
+		logger.Info("initial balance retrieved", "balance", initialBalance)
 
-		logger.InfoContext(ctx, "sending ETH to contract", "amount", funds)
+		logger.Info("sending ETH to contract", "amount", funds)
 		require.NoError(t, user.SendETH(scw0Addr, funds).Send(ctx).Wait())
 
 		balance, err := scw0.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
-		logger.InfoContext(ctx, "final balance retrieved", "balance", balance)
+		logger.Info("final balance retrieved", "balance", balance)
 
 		require.Equal(t, initialBalance.Add(funds), balance)
 	}
@@ -61,7 +64,7 @@ func TestSystemWrapETH(t *testing.T) {
 
 func TestInteropSystemNoop(t *testing.T) {
 	systest.InteropSystemTest(t, func(t systest.T, sys system.InteropSystem) {
-		slog.Info("noop")
+		testlog.Logger(t, log.LevelInfo).Info("noop")
 	})
 }
 
@@ -95,9 +98,9 @@ func TestSmokeTestFailure(t *testing.T) {
 
 func lowLevelSystemScenario(sysGetter validators.LowLevelSystemGetter) systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
-		logger := slog.With("test", "TestLowLevelSystem", "devnet", sys.Identifier())
+		logger := testlog.Logger(t, log.LevelInfo).With("test", "TestLowLevelSystem", "devnet", sys.Identifier())
 		_ = sysGetter(t.Context())
-		logger.InfoContext(t.Context(), "low level system acquired")
+		logger.Info("low level system acquired")
 	}
 }
 
