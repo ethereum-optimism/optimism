@@ -1,6 +1,4 @@
-# INTERFACES.md
-
-## Introduction
+# Interfaces
 
 This document outlines the guidelines and best practices for using and creating interfaces in the
 `contracts-bedrock` package.
