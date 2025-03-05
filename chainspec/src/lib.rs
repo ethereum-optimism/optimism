@@ -241,6 +241,10 @@ impl EthChainSpec for OpChainSpec {
     fn is_optimism(&self) -> bool {
         true
     }
+
+    fn final_paris_total_difficulty(&self) -> Option<U256> {
+        self.inner.final_paris_total_difficulty()
+    }
 }
 
 impl Hardforks for OpChainSpec {
@@ -268,14 +272,6 @@ impl Hardforks for OpChainSpec {
 impl EthereumHardforks for OpChainSpec {
     fn ethereum_fork_activation(&self, fork: EthereumHardfork) -> ForkCondition {
         self.fork(fork)
-    }
-
-    fn get_final_paris_total_difficulty(&self) -> Option<U256> {
-        self.inner.get_final_paris_total_difficulty()
-    }
-
-    fn final_paris_total_difficulty(&self, block_number: u64) -> Option<U256> {
-        self.inner.final_paris_total_difficulty(block_number)
     }
 }
 

@@ -129,7 +129,7 @@ pub struct OpExecutionStrategy<'a, E: Evm, Tx, R, ChainSpec> {
 impl<'a, E, Tx, R, ChainSpec> OpExecutionStrategy<'a, E, Tx, R, ChainSpec>
 where
     E: Evm,
-    ChainSpec: OpHardforks,
+    ChainSpec: OpHardforks + Clone,
 {
     /// Creates a new [`OpExecutionStrategy`]
     pub fn new(
@@ -178,12 +178,8 @@ where
         // blocks will always have at least a single transaction in them (the L1 info transaction),
         // so we can safely assume that this will always be triggered upon the transition and that
         // the above check for empty blocks will never be hit on OP chains.
-        ensure_create2_deployer(
-            self.chain_spec.clone(),
-            self.evm.block().timestamp,
-            self.evm.db_mut(),
-        )
-        .map_err(|_| OpBlockExecutionError::ForceCreate2DeployerFail)?;
+        ensure_create2_deployer(&self.chain_spec, self.evm.block().timestamp, self.evm.db_mut())
+            .map_err(|_| OpBlockExecutionError::ForceCreate2DeployerFail)?;
 
         Ok(())
     }
@@ -279,12 +275,8 @@ where
     }
 
     fn finish(mut self) -> Result<(Self::Evm, BlockExecutionResult<R>), BlockExecutionError> {
-        let balance_increments = post_block_balance_increments::<Header>(
-            &self.chain_spec.clone(),
-            self.evm.block(),
-            &[],
-            None,
-        );
+        let balance_increments =
+            post_block_balance_increments::<Header>(&self.chain_spec, self.evm.block(), &[], None);
         // increment balances
         self.evm
             .db_mut()
