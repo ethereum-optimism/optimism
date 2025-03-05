@@ -532,6 +532,20 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             assertValidOpChainConfig(_opChainConfigs[i]);
             ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
 
+            // -------- Upgrade Contracts Stored in SystemConfig --------
+
+            // OptimismPortal and L1CrossDomainMessenger are being upgraded to include the fixes
+            // for EIP-7623 (minimum gas limits for L1 -> L2 messages).
+            upgradeTo(_opChainConfigs[i].proxyAdmin, opChainAddrs.optimismPortal, impls.optimismPortalImpl);
+            upgradeTo(
+                _opChainConfigs[i].proxyAdmin, opChainAddrs.l1CrossDomainMessenger, impls.l1CrossDomainMessengerImpl
+            );
+
+            // L1ERC721Bridge and L1StandardBridge are being upgraded to include the tweaks to the
+            // EOA checking code for EIP-7702 (code length == 23).
+            upgradeTo(_opChainConfigs[i].proxyAdmin, opChainAddrs.l1ERC721Bridge, impls.l1ERC721BridgeImpl);
+            upgradeTo(_opChainConfigs[i].proxyAdmin, opChainAddrs.l1StandardBridge, impls.l1StandardBridgeImpl);
+
             // -------- Discover and Upgrade Proofs Contracts --------
 
             // All chains have the Permissioned Dispute Game.
@@ -1216,9 +1230,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.7.0
+    /// @custom:semver 1.8.0
     function version() public pure virtual returns (string memory) {
-        return "1.7.0";
+        return "1.8.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
