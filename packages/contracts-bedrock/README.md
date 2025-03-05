@@ -46,7 +46,7 @@ OP Stack smart contracts are published to NPM and can be installed via:
 npm install @eth-optimism/contracts-bedrock
 ```
 
-Refer to the [Optimism Developer Docs](https://docs.optimism.io/builders/dapp-developers/contracts/system-contracts#using-system-contracts-in-solidity) for additional information about how to use this package.
+Refer to the [Optimism Developer Docs](https://github.com/ethereum-optimism/docs/blob/442f4c65188a2876becd3fefed40535eb39538f0/pages/builders/app-developers/contracts/system-contracts.mdx#using-system-contracts-in-solidity) for additional information about how to use this package.
 
 ### Using OP Stack Contracts in JavaScript
 
@@ -56,11 +56,11 @@ Contract ABIs and addresses are published to NPM in a separate package and can b
 npm install @eth-optimism/contracts-ts
 ```
 
-Refer to the [Optimism Developer Docs](https://docs.optimism.io/builders/dapp-developers/contracts/system-contracts#using-system-contracts-in-javascript) for additional information about how to use this package.
+Refer to the [Optimism Developer Docs](https://github.com/ethereum-optimism/docs/blob/442f4c65188a2876becd3fefed40535eb39538f0/pages/builders/app-developers/contracts/system-contracts.mdx#using-system-contracts-in-javascript) for additional information about how to use this package.
 
 ### Deployed Addresses
 
-See the [Optimism Developer Docs](https://docs.optimism.io/chain/addresses) for the deployed addresses of these smart contracts for OP Mainnet and OP Sepolia.
+See the [Optimism Developer Docs](https://docs.optimism.io/superchain/addresses) for the deployed addresses of these smart contracts for OP Mainnet and OP Sepolia.
 
 ## Contributing
 
