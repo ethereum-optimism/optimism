@@ -266,6 +266,10 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		holocene := ctx.Uint64(opflags.HoloceneOverrideFlagName)
 		rollupConfig.HoloceneTime = &holocene
 	}
+	if ctx.IsSet(opflags.PectraBlobScheduleOverrideFlagName) {
+		pectrablobschedule := ctx.Uint64(opflags.PectraBlobScheduleOverrideFlagName)
+		rollupConfig.PectraBlobScheduleTime = &pectrablobschedule
+	}
 }
 
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {

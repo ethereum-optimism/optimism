@@ -231,3 +231,11 @@ func NewOpProgramCfg(
 	dfault.DependencySet = fi.DependencySet
 	return dfault
 }
+
+func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
+	t.Helper()
+	env.Batcher.ActSubmitAll(t)
+	env.Miner.ActL1StartBlock(12)(t)
+	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+	env.Miner.ActL1EndBlock(t)
+}

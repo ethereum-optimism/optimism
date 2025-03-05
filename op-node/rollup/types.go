@@ -141,14 +141,22 @@ type Config struct {
 	// L1 address that declares the protocol versions, optional (Beta feature)
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
 
-	// AltDAConfig. We are in the process of migrating to the AltDAConfig from these legacy top level values
-	AltDAConfig *AltDAConfig `json:"alt_da,omitempty"`
-
 	// ChainOpConfig is the OptimismConfig of the execution layer ChainConfig.
 	// It is used during safe chain consolidation to translate zero SystemConfig EIP1559
 	// parameters to the protocol values, like the execution layer does.
 	// If missing, it is loaded by the op-node from the embedded superchain config at startup.
 	ChainOpConfig *params.OptimismConfig `json:"chain_op_config,omitempty"`
+
+	// Optional Features
+
+	// AltDAConfig. We are in the process of migrating to the AltDAConfig from these legacy top level values
+	AltDAConfig *AltDAConfig `json:"alt_da,omitempty"`
+
+	// PectraBlobScheduleTime sets the time until which (but not including) the blob base fee
+	// calculations for the L1 Block Info use the pre-Prague blob parameters.
+	// This feature is optional and if not active, the L1 Block Info calculation uses the Prague
+	// blob parameters for the first L1 Prague block, as was intended.
+	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -685,7 +693,8 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		networkL1 = "unknown L1"
 	}
 
-	log.Info("Rollup Config", "l2_chain_id", c.L2ChainID, "l2_network", networkL2, "l1_chain_id", c.L1ChainID,
+	ctx := []any{
+		"l2_chain_id", c.L2ChainID, "l2_network", networkL2, "l1_chain_id", c.L1ChainID,
 		"l1_network", networkL1, "l2_start_time", c.Genesis.L2Time, "l2_block_hash", c.Genesis.L2.Hash.String(),
 		"l2_block_number", c.Genesis.L2.Number, "l1_block_hash", c.Genesis.L1.Hash.String(),
 		"l1_block_number", c.Genesis.L1.Number, "regolith_time", fmtForkTimeOrUnset(c.RegolithTime),
@@ -697,8 +706,15 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"holocene_time", fmtForkTimeOrUnset(c.HoloceneTime),
 		"isthmus_time", fmtForkTimeOrUnset(c.IsthmusTime),
 		"interop_time", fmtForkTimeOrUnset(c.InteropTime),
-		"alt_da", c.AltDAConfig != nil,
-	)
+	}
+	if c.AltDAConfig != nil {
+		ctx = append(ctx, "alt_da", *c.AltDAConfig)
+	}
+	if c.PectraBlobScheduleTime != nil {
+		// only print in config if set at all
+		ctx = append(ctx, "pectra_blob_schedule_time", fmtForkTimeOrUnset(c.PectraBlobScheduleTime))
+	}
+	log.Info("Rollup Config", ctx...)
 }
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {
