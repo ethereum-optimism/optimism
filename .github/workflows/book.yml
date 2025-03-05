@@ -79,7 +79,7 @@ jobs:
         run: mdbook build
 
       - name: Build docs
-        run: cargo docs
+        run: cargo doc --all-features --no-deps
         env:
           RUSTDOCFLAGS: --cfg docsrs --show-type-layout --generate-link-to-definition --enable-index-page -Zunstable-options
 
@@ -114,7 +114,7 @@ jobs:
     # Only deploy if a push to main
     if: github.ref_name == 'main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    needs: [test, lint, build]
+    needs: [build]
 
     # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
     permissions:
