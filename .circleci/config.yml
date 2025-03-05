@@ -1459,7 +1459,7 @@ workflows:
           requires:
             - contracts-bedrock-build
       - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade op-mainnet
+          name: contracts-bedrock-tests-upgrade
           fork_op_chain: op
           fork_base_chain: mainnet
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
