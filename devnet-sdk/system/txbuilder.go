@@ -3,8 +3,9 @@ package system
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -78,7 +79,7 @@ func NewTxBuilder(ctx context.Context, chain Chain, opts ...TxBuilderOption) *Tx
 		}
 	}
 
-	slog.InfoContext(ctx, "Instantiated TxBuilder",
+	log.Info("Instantiated TxBuilder",
 		"supportedTxTypes", builder.supportedTxTypes,
 		"forcedTxType", builder.forcedTxType,
 		"gasLimitMargin", builder.gasLimitMarginPercent,

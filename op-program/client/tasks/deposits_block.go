@@ -6,12 +6,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -20,6 +22,7 @@ import (
 // BuildDepositOnlyBlock builds a deposits-only block replacement for the specified optimistic block and returns the block hash and output root
 // for the new block.
 // The specified l2OutputRoot must be the output root of the optimistic block's parent.
+// The provided l2.KeyValueStore is used to store state diff that's applied to the deposits-only block, which also includes the output root and any transaction and receipt trie nodes of the new block.
 func BuildDepositOnlyBlock(
 	logger log.Logger,
 	cfg *rollup.Config,
@@ -29,8 +32,9 @@ func BuildDepositOnlyBlock(
 	agreedL2OutputRoot eth.Bytes32,
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
+	db l2.KeyValueStore,
 ) (common.Hash, eth.Bytes32, error) {
-	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, common.Hash(agreedL2OutputRoot), memorydb.New())
+	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, common.Hash(agreedL2OutputRoot), db)
 	if err != nil {
 		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to create oracle-backed L2 chain: %w", err)
 	}
@@ -81,11 +85,21 @@ func BuildDepositOnlyBlock(
 		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to update forkchoice state (no build): %w", eth.ForkchoiceUpdateErr(result.PayloadStatus))
 	}
 
-	blockHash, outputRoot, err := l2Source.L2OutputRoot(uint64(payload.ExecutionPayload.BlockNumber))
-	if err != nil {
-		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to get L2 output root: %w", err)
+	if err := storeBlockData(payload.ExecutionPayload.BlockHash, db, engineBackend); err != nil {
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to write tx/receipts trie nodes: %w", err)
 	}
-	return blockHash, outputRoot, nil
+	output, err := l2Source.L2OutputAtBlockHash(payload.ExecutionPayload.BlockHash)
+	if err != nil {
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to get L2 output: %w", err)
+	}
+	marshaledOutput := output.Marshal()
+	outputRoot := eth.Bytes32(crypto.Keccak256Hash(marshaledOutput))
+	outputRootKey := preimage.Keccak256Key(outputRoot).PreimageKey()
+	if err := db.Put(outputRootKey[:], marshaledOutput); err != nil {
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to store L2 output: %w", err)
+	}
+
+	return payload.ExecutionPayload.BlockHash, outputRoot, nil
 }
 
 func getL2Output(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l2Oracle l2.Oracle, l1Oracle l1.Oracle, block *types.Block) (*eth.OutputV0, error) {

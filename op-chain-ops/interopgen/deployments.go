@@ -10,6 +10,10 @@ type L1Deployment struct {
 
 type Implementations struct {
 	Opcm                             common.Address `json:"OPCM"`
+	OpcmContractsContainer           common.Address `json:"OPCMContractsContainer"`
+	OpcmGameTypeAdder                common.Address `json:"OPCMGameTypeAdder"`
+	OpcmDeployer                     common.Address `json:"OPCMDeployer"`
+	OpcmUpgrader                     common.Address `json:"OPCMUpgrader"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
 	PreimageOracleSingleton          common.Address `json:"PreimageOracleSingleton"`

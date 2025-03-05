@@ -136,23 +136,31 @@ func (b *BlockProcessor) CheckTxWithinGasLimit(tx *types.Transaction) error {
 	return nil
 }
 
-func (b *BlockProcessor) AddTx(tx *types.Transaction) error {
+func (b *BlockProcessor) AddTx(tx *types.Transaction) (*types.Receipt, error) {
 	txIndex := len(b.transactions)
 	b.state.SetTxContext(tx.Hash(), txIndex)
 	receipt, err := core.ApplyTransaction(b.evm, b.gasPool, b.state, b.header, tx, &b.header.GasUsed)
 	if err != nil {
-		return fmt.Errorf("failed to apply transaction to L2 block (tx %d): %w", txIndex, err)
+		return nil, fmt.Errorf("failed to apply transaction to L2 block (tx %d): %w", txIndex, err)
 	}
 	b.receipts = append(b.receipts, receipt)
 	b.transactions = append(b.transactions, tx)
-	return nil
+	return receipt, nil
 }
 
 func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 	body := types.Body{
 		Transactions: b.transactions,
 	}
+	if b.dataProvider.Config().IsPrague(b.header.Number, b.header.Time) {
+		_requests := [][]byte{}
+		// EIP-6110 - no-op because we just ignore all deposit requests, so no need to parse logs
+		// EIP-7002
+		core.ProcessWithdrawalQueue(&_requests, b.evm)
+		// EIP-7251
+		core.ProcessConsolidationQueue(&_requests, b.evm)
 
+	}
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
 	if err != nil {
 		return nil, nil, err

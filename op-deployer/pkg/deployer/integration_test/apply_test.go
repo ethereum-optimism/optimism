@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -81,6 +82,8 @@ func TestEndToEndApply(t *testing.T) {
 
 	loc, _ := testutil.LocalArtifacts(t)
 
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
 	t.Run("two chains one after another", func(t *testing.T) {
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
 		cg := ethClientCodeGetter(ctx, l1Client)
@@ -95,6 +98,7 @@ func TestEndToEndApply(t *testing.T) {
 				State:              st,
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
+				CacheDir:           testCacheDir,
 			},
 		))
 
@@ -112,6 +116,7 @@ func TestEndToEndApply(t *testing.T) {
 				State:              st,
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
+				CacheDir:           testCacheDir,
 			},
 		))
 
@@ -123,8 +128,9 @@ func TestEndToEndApply(t *testing.T) {
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
 		intent.L1ContractsLocator = artifacts.DefaultL1ContractsLocator
 		intent.L2ContractsLocator = artifacts.DefaultL2ContractsLocator
+		cg := ethClientCodeGetter(ctx, l1Client)
 
-		require.ErrorIs(t, deployer.ApplyPipeline(
+		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
 			deployer.ApplyPipelineOpts{
 				DeploymentTarget:   deployer.DeploymentTargetLive,
@@ -134,8 +140,12 @@ func TestEndToEndApply(t *testing.T) {
 				State:              st,
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
+				CacheDir:           testCacheDir,
 			},
-		), pipeline.ErrRefusingToDeployTaggedReleaseWithoutOPCM)
+		))
+
+		validateSuperchainDeployment(t, st, cg)
+		validateOPChainDeployment(t, cg, st, intent, false)
 	})
 
 	t.Run("with calldata broadcasts", func(t *testing.T) {
@@ -151,6 +161,7 @@ func TestEndToEndApply(t *testing.T) {
 				State:              st,
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
+				CacheDir:           testCacheDir,
 			},
 		))
 
@@ -550,6 +561,8 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 
 	intent, st := newIntent(t, l1ChainIDBig, dk, l2ChainID1, loc, loc)
 
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
 	opts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:   deployer.DeploymentTargetGenesis,
 		DeployerPrivateKey: priv,
@@ -557,6 +570,7 @@ func setupGenesisChain(t *testing.T, l1ChainID uint64) (deployer.ApplyPipelineOp
 		State:              st,
 		Logger:             lgr,
 		StateWriter:        pipeline.NoopStateWriter(),
+		CacheDir:           testCacheDir,
 	}
 
 	return opts, intent, st

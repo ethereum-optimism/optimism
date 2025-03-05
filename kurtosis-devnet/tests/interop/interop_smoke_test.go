@@ -1,7 +1,7 @@
 package interop
 
 import (
-	"log/slog"
+	"context"
 	"math/big"
 	"testing"
 
@@ -10,17 +10,22 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
 		ctx := t.Context()
-		logger := slog.With("test", "TestMinimal", "devnet", sys.Identifier())
 
-		chain := sys.L2(chainIdx)
+		logger := testlog.Logger(t, log.LevelInfo)
+		logger = logger.With("test", "TestMinimal", "devnet", sys.Identifier())
+
+		chain := sys.L2s()[chainIdx]
 		logger = logger.With("chain", chain.ID())
-		logger.InfoContext(ctx, "starting test")
+		logger.Info("starting test")
 
 		funds := sdktypes.NewBalance(big.NewInt(0.5 * constants.ETH))
 		user := walletGetter(ctx)
@@ -28,19 +33,19 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 		scw0Addr := constants.SuperchainWETH
 		scw0, err := chain.ContractsRegistry().SuperchainWETH(scw0Addr)
 		require.NoError(t, err)
-		logger.InfoContext(ctx, "using SuperchainWETH", "contract", scw0Addr)
+		logger.Info("using SuperchainWETH", "contract", scw0Addr)
 
 		initialBalance, err := scw0.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
 		logger = logger.With("user", user.Address())
-		logger.InfoContext(ctx, "initial balance retrieved", "balance", initialBalance)
+		logger.Info("initial balance retrieved", "balance", initialBalance)
 
-		logger.InfoContext(ctx, "sending ETH to contract", "amount", funds)
+		logger.Info("sending ETH to contract", "amount", funds)
 		require.NoError(t, user.SendETH(scw0Addr, funds).Send(ctx).Wait())
 
 		balance, err := scw0.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
-		logger.InfoContext(ctx, "final balance retrieved", "balance", balance)
+		logger.Info("final balance retrieved", "balance", balance)
 
 		require.Equal(t, initialBalance.Add(funds), balance)
 	}
@@ -59,37 +64,50 @@ func TestSystemWrapETH(t *testing.T) {
 
 func TestInteropSystemNoop(t *testing.T) {
 	systest.InteropSystemTest(t, func(t systest.T, sys system.InteropSystem) {
-		slog.Info("noop")
+		testlog.Logger(t, log.LevelInfo).Info("noop")
 	})
 }
 
-// TODO Since the mocked wallet now has to receive a valid private key,
-// this test makes little sense
-//
-// func TestSmokeTestFailure(t *testing.T) {
-// 	// Create mock failing system
-// 	mockAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
-// 	mockWallet := &mockFailingWallet{
-// 		addr: mockAddr,
-// 		key:  "mock-key",
-// 		bal:  sdktypes.NewBalance(big.NewInt(1000000)),
-// 	}
-// 	mockChain := &mockFailingChain{
-// 		id:     sdktypes.ChainID(big.NewInt(1234)),
-// 		wallet: mockWallet,
-// 		reg:    &mockRegistry{},
-// 	}
-// 	mockSys := &mockFailingSystem{chain: mockChain}
+func TestSmokeTestFailure(t *testing.T) {
+	// Create mock failing system
+	mockAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	mockWallet := &mockFailingWallet{
+		addr: mockAddr,
+		bal:  sdktypes.NewBalance(big.NewInt(1000000)),
+	}
+	mockChain := newMockFailingChain(
+		sdktypes.ChainID(big.NewInt(1234)),
+		[]system.Wallet{mockWallet},
+	)
+	mockSys := &mockFailingSystem{chain: mockChain}
 
-// 	// Run the smoke test logic and capture failures
-// 	sentinel := &struct{}{}
-// 	rt := NewRecordingT(context.WithValue(context.TODO(), sentinel, mockWallet))
-// 	rt.TestScenario(
-// 		smokeTestScenario(0, sentinel),
-// 		mockSys,
-// 	)
+	// Run the smoke test logic and capture failures
+	getter := func(ctx context.Context) system.Wallet {
+		return mockWallet
+	}
+	rt := NewRecordingT(context.TODO())
+	rt.TestScenario(
+		smokeTestScenario(0, getter),
+		mockSys,
+	)
 
-// 	// Verify that the test failed due to SendETH error
-// 	require.True(t, rt.Failed(), "test should have failed")
-// 	require.Contains(t, rt.Logs(), "transaction failure", "unexpected failure message")
-// }
+	// Verify that the test failed due to SendETH error
+	require.True(t, rt.Failed(), "test should have failed")
+	require.Contains(t, rt.Logs(), "transaction failure", "unexpected failure message")
+}
+
+func lowLevelSystemScenario(sysGetter validators.LowLevelSystemGetter) systest.SystemTestFunc {
+	return func(t systest.T, sys system.System) {
+		logger := testlog.Logger(t, log.LevelInfo).With("test", "TestLowLevelSystem", "devnet", sys.Identifier())
+		_ = sysGetter(t.Context())
+		logger.Info("low level system acquired")
+	}
+}
+
+func TestLowLevelSystem(t *testing.T) {
+	lowLevelSys, validator := validators.AcquireLowLevelSystem()
+	systest.SystemTest(t,
+		lowLevelSystemScenario(lowLevelSys),
+		validator,
+	)
+}
