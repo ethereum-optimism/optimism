@@ -100,14 +100,18 @@ contract ForkLive is Deployer {
 
         string memory superchainToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/superchain.toml"));
         string memory opToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/", opChain(), ".toml"));
-        string memory standardVersionsToml = vm.readFile(string.concat(validationBasePath, "standard-versions-", baseChain(), ".json"));
+        string memory standardVersionsToml =
+            vm.readFile(string.concat(validationBasePath, "standard-versions-", baseChain(), ".toml"));
 
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
         artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
         // Superchain shared contracts
         saveProxyAndImpl("SuperchainConfig", superchainToml, ".superchain_config_addr");
         saveProxyAndImpl("ProtocolVersions", superchainToml, ".protocol_versions_addr");
-        artifacts.save("OPContractsManager", vm.parseTomlAddress(standardVersionsToml, ".op_contracts_manager.implementation_address"));
+        artifacts.save(
+            "OPContractsManager",
+            vm.parseTomlAddress(standardVersionsToml, ".op_contracts_manager.implementation_address")
+        );
 
         // Core contracts
         artifacts.save("ProxyAdmin", vm.parseTomlAddress(opToml, ".addresses.ProxyAdmin"));
