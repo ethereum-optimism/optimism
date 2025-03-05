@@ -62,8 +62,8 @@ type InteropDSL struct {
 	createdUsers uint64
 }
 
-func NewInteropDSL(t helpers.Testing) *InteropDSL {
-	setup := SetupInterop(t)
+func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
+	setup := SetupInterop(t, opts...)
 	actors := setup.CreateActors()
 	actors.PrepareChainState(t)
 

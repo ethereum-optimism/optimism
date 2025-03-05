@@ -769,6 +769,19 @@ func TestInteropFaultProofsInvalidBlock(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
+func TestInteropFaultProofs_VariedBlockTimes(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	system := dsl.NewInteropDSL(t, dsl.SetBlockTimeForChainA(1), dsl.SetBlockTimeForChainB(2))
+	actors := system.Actors
+
+	system.AddL2Block(system.Actors.ChainA)
+	system.AddL2Block(system.Actors.ChainB)
+
+	assertTime(t, actors.ChainA, 1, 1, 0, 0)
+	assertTime(t, actors.ChainB, 2, 2, 0, 0)
+	// TODO(#14479): Complete test case
+}
+
 func runFppAndChallengerTests(gt *testing.T, system *dsl.InteropDSL, tests []*transitionTest) {
 	for _, test := range tests {
 		test := test
@@ -871,6 +884,15 @@ func WithInteropEnabled(t helpers.StatefulTesting, actors *dsl.InteropActors, de
 			})
 		}
 	}
+}
+
+func assertTime(t helpers.Testing, chain *dsl.Chain, unsafe, crossUnsafe, localSafe, safe uint64) {
+	start := chain.L2Genesis.Timestamp
+	status := chain.Sequencer.SyncStatus()
+	require.Equal(t, start+unsafe, status.UnsafeL2.Time, "Unsafe")
+	require.Equal(t, start+crossUnsafe, status.CrossUnsafeL2.Time, "Cross Unsafe")
+	require.Equal(t, start+localSafe, status.LocalSafeL2.Time, "Local safe")
+	require.Equal(t, start+safe, status.SafeL2.Time, "Safe")
 }
 
 type transitionTest struct {
