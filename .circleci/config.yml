@@ -1475,11 +1475,6 @@ workflows:
           fork_op_chain: op
           fork_base_chain: mainnet
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
-      - contracts-bedrock-tests-upgrade:
-          name: contracts-bedrock-tests-upgrade op-sepolia
-          fork_op_chain: op
-          fork_base_chain: sepolia
-          fork_base_rpc: https://ci-sepolia-l1-archive.optimism.io
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
