@@ -34,8 +34,8 @@ type EtherscanClient struct {
 	rateLimiter *rate.Limiter
 }
 
-func getAPIEndpoint(chainID uint64) string {
-	switch chainID {
+func getAPIEndpoint(l1ChainID uint64) string {
+	switch l1ChainID {
 	case 1:
 		return "https://api.etherscan.io/api" // mainnet
 	case 11155111:
@@ -80,6 +80,9 @@ func (c *EtherscanClient) getContractCreation(address common.Address) (common.Ha
 	var creationResp EtherscanContractCreationResp
 	if err := json.NewDecoder(resp.Body).Decode(&creationResp); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to decode contract creation response: %w", err)
+	}
+	if creationResp.Status != "1" {
+		return common.Hash{}, fmt.Errorf("contract creation query failed: %s", creationResp.Message)
 	}
 
 	txHash := common.HexToHash(creationResp.Result[0].TxHash)
