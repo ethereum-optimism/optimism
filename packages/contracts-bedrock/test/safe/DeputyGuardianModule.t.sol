@@ -241,7 +241,7 @@ contract DeputyGuardianModule_setRespectedGameType_Test is DeputyGuardianModule_
     /// guardian.
     function testFuzz_setRespectedGameType_succeeds(GameType _gameType) external {
         // Game type(uint32).max is reserved for setting the respectedGameTypeUpdatedAt timestamp.
-        // TODO(kelvin): Remove this once we've removed the hack.
+        // TODO(#14638): Remove this once we've removed the hack.
         uint32 boundedGameType = uint32(bound(_gameType.raw(), 0, type(uint32).max - 1));
         _gameType = GameType.wrap(boundedGameType);
 
