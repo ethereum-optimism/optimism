@@ -8,8 +8,6 @@ use tokio::sync::Mutex;
 
 use crate::server::ExecutionMode;
 
-const DEFAULT_DEBUG_API_PORT: u16 = 5555;
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SetExecutionModeRequest {
     pub execution_mode: ExecutionMode,
@@ -46,16 +44,12 @@ impl DebugServer {
         Self { execution_mode }
     }
 
-    pub async fn run(self, port: Option<u16>) -> eyre::Result<()> {
-        let port = port.unwrap_or(DEFAULT_DEBUG_API_PORT);
-
-        let server = Server::builder()
-            .build(format!("127.0.0.1:{}", port))
-            .await?;
+    pub async fn run(self, debug_addr: &str) -> eyre::Result<()> {
+        let server = Server::builder().build(debug_addr).await?;
 
         let handle = server.start(self.into_rpc());
 
-        tracing::info!("Debug server started on port {}", port);
+        tracing::info!("Debug server listening on addr {}", debug_addr);
 
         // In this example we don't care about doing shutdown so let's it run forever.
         // You may use the `ServerHandle` to shut it down or manage it yourself.
@@ -115,15 +109,11 @@ impl DebugClient {
     }
 }
 
-impl Default for DebugClient {
-    fn default() -> Self {
-        Self::new(format!("http://localhost:{}", DEFAULT_DEBUG_API_PORT).as_str()).unwrap()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const DEFAULT_ADDR: &str = "127.0.0.1:5555";
 
     #[tokio::test]
     async fn test_debug_client() {
@@ -131,9 +121,9 @@ mod tests {
         let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));
 
         let server = DebugServer::new(execution_mode.clone());
-        let _ = server.run(None).await.unwrap();
+        let _ = server.run(DEFAULT_ADDR).await.unwrap();
 
-        let client = DebugClient::default();
+        let client = DebugClient::new(format!("http://{}", DEFAULT_ADDR).as_str()).unwrap();
 
         // Test setting execution mode to Disabled
         let result = client

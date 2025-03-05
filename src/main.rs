@@ -89,6 +89,10 @@ struct Args {
     #[arg(long, env, default_value = "text")]
     log_format: String,
 
+    /// Host to run the debug server on
+    #[arg(long, env, default_value = "127.0.0.1")]
+    debug_host: String,
+
     /// Debug server port
     #[arg(long, env, default_value = "5555")]
     debug_server_port: u16,
@@ -121,26 +125,29 @@ async fn main() -> eyre::Result<()> {
         .expect("Failed to install TLS ring CryptoProvider");
     let args: Args = Args::parse();
 
+    let debug_addr = format!("{}:{}", args.debug_host, args.debug_server_port);
+
     // Handle commands if present
     if let Some(cmd) = args.command {
-        match cmd {
+        let debug_addr = format!("http://{}", debug_addr);
+        return match cmd {
             Commands::Debug { command } => match command {
                 DebugCommands::SetExecutionMode { execution_mode } => {
-                    let client = DebugClient::default();
+                    let client = DebugClient::new(debug_addr.as_str())?;
                     let result = client.set_execution_mode(execution_mode).await.unwrap();
                     println!("Response: {:?}", result.execution_mode);
 
-                    return Ok(());
+                    Ok(())
                 }
                 DebugCommands::ExecutionMode {} => {
-                    let client = DebugClient::default();
-                    let result = client.get_execution_mode().await.unwrap();
+                    let client = DebugClient::new(debug_addr.as_str())?;
+                    let result = client.get_execution_mode().await?;
                     println!("Execution mode: {:?}", result.execution_mode);
 
-                    return Ok(());
+                    Ok(())
                 }
             },
-        }
+        };
     }
 
     // Initialize logging
@@ -243,9 +250,7 @@ async fn main() -> eyre::Result<()> {
     );
 
     // Spawn the debug server
-    rollup_boost
-        .start_debug_server(args.debug_server_port)
-        .await?;
+    rollup_boost.start_debug_server(debug_addr.as_str()).await?;
 
     let module: RpcModule<()> = rollup_boost.try_into()?;
 
