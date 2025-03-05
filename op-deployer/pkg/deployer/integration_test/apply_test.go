@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -172,8 +173,8 @@ func TestEndToEndApply(t *testing.T) {
 		require.Equal(t, len(intent.Chains), mockPreStateBuilder.lastOptsCount)
 		require.NotNil(t, st.PrestateManifest)
 		for _, val := range *st.PrestateManifest {
-			require.NotEmpty(t, val)
-			require.True(t, common.IsHexAddress(val))
+			_, err := hexutil.Decode(val) // the not-empty val check is covered here as well
+			require.NoError(t, err)
 		}
 	})
 }
@@ -360,8 +361,8 @@ func TestInteropDeployment(t *testing.T) {
 	require.Equal(t, len(intent.Chains)+1, mockPreStateBuilder.lastOptsCount) // + 1 for the additional GeneratedInteropDepSet opt which gets set with useInterop=true
 	require.NotNil(t, st.PrestateManifest)
 	for _, val := range *st.PrestateManifest {
-		require.NotEmpty(t, val)
-		require.True(t, common.IsHexAddress(val))
+		_, err := hexutil.Decode(val) // the not-empty val check is covered here as well
+		require.NoError(t, err)
 	}
 
 	chainState := st.Chains[0]
