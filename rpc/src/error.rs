@@ -8,6 +8,7 @@ use reth_rpc_eth_types::{error::api::FromEvmHalt, EthApiError};
 use reth_rpc_server_types::result::{internal_rpc_err, rpc_err};
 use revm::context_interface::result::{EVMError, InvalidTransaction};
 use revm_optimism::{OpHaltReason, OpTransactionError};
+use std::fmt::Display;
 
 /// Optimism specific errors, that extend [`EthApiError`].
 #[derive(Debug, thiserror::Error)]
@@ -94,7 +95,7 @@ impl TryFrom<OpTransactionError> for OpInvalidTransactionError {
     }
 }
 
-/// Transaction conditional related error type
+/// Transaction conditional related errors.
 #[derive(Debug, thiserror::Error)]
 pub enum TxConditionalErr {
     /// Transaction conditional cost exceeded maximum allowed
@@ -103,15 +104,32 @@ pub enum TxConditionalErr {
     /// Invalid conditional parameters
     #[error("invalid conditional parameters")]
     InvalidCondition,
+    /// Internal error
+    #[error("internal error: {0}")]
+    Internal(String),
+    /// Thrown if the conditional's storage value doesn't match the latest state's.
+    #[error("storage value mismatch")]
+    StorageValueMismatch,
+    /// Thrown when the conditional's storage root doesn't match the latest state's root.
+    #[error("storage root mismatch")]
+    StorageRootMismatch,
+}
+
+impl TxConditionalErr {
+    /// Creates an internal error variant
+    pub fn internal<E: Display>(err: E) -> Self {
+        Self::Internal(err.to_string())
+    }
 }
 
 impl From<TxConditionalErr> for jsonrpsee_types::error::ErrorObject<'static> {
     fn from(err: TxConditionalErr) -> Self {
-        jsonrpsee_types::error::ErrorObject::owned(
-            INVALID_PARAMS_CODE,
-            err.to_string(),
-            None::<String>,
-        )
+        let code = match &err {
+            TxConditionalErr::Internal(_) => INTERNAL_ERROR_CODE,
+            _ => INVALID_PARAMS_CODE,
+        };
+
+        jsonrpsee_types::error::ErrorObject::owned(code, err.to_string(), None::<String>)
     }
 }
 
