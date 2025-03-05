@@ -18,6 +18,7 @@ import (
 
 var (
 	_ Chain  = (*mockChain)(nil)
+	_ Node   = (*mockNode)(nil)
 	_ Wallet = (*mockWallet)(nil)
 )
 
@@ -75,24 +76,14 @@ func newMockChain() *mockChain {
 	}
 }
 
+func (m *mockChain) Node() Node {
+	args := m.Called()
+	return args.Get(0).(Node)
+}
+
 func (m *mockChain) ID() types.ChainID {
 	args := m.Called()
 	return args.Get(0).(types.ChainID)
-}
-
-func (m *mockChain) GasPrice(ctx context.Context) (*big.Int, error) {
-	args := m.Called(ctx)
-	return args.Get(0).(*big.Int), args.Error(1)
-}
-
-func (m *mockChain) GasLimit(ctx context.Context, tx TransactionData) (uint64, error) {
-	args := m.Called(ctx, tx)
-	return args.Get(0).(uint64), args.Error(1)
-}
-
-func (m *mockChain) PendingNonceAt(ctx context.Context, addr common.Address) (uint64, error) {
-	args := m.Called(ctx, addr)
-	return args.Get(0).(uint64), args.Error(1)
 }
 
 func (m *mockChain) SupportsEIP(ctx context.Context, eip uint64) bool {
@@ -117,6 +108,29 @@ func (m *mockChain) Client() (*ethclient.Client, error) {
 
 func (m *mockChain) Wallets(ctx context.Context) ([]Wallet, error) {
 	return nil, nil
+}
+
+type mockNode struct {
+	mock.Mock
+}
+
+func newMockNode() *mockNode {
+	return &mockNode{}
+}
+
+func (m *mockNode) GasPrice(ctx context.Context) (*big.Int, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(*big.Int), args.Error(1)
+}
+
+func (m *mockNode) GasLimit(ctx context.Context, tx TransactionData) (uint64, error) {
+	args := m.Called(ctx, tx)
+	return args.Get(0).(uint64), args.Error(1)
+}
+
+func (m *mockNode) PendingNonceAt(ctx context.Context, addr common.Address) (uint64, error) {
+	args := m.Called(ctx, addr)
+	return args.Get(0).(uint64), args.Error(1)
 }
 
 func TestNewTxBuilder(t *testing.T) {
@@ -200,6 +214,7 @@ func TestNewTxBuilder(t *testing.T) {
 func TestBuildTx(t *testing.T) {
 	ctx := context.Background()
 	chain := newMockChain()
+	node := newMockNode()
 	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	to := common.HexToAddress("0x0987654321098765432109876543210987654321")
 	chainID := big.NewInt(1)
@@ -218,9 +233,12 @@ func TestBuildTx(t *testing.T) {
 			setupMock: func() {
 				chain.On("SupportsEIP", ctx, uint64(1559)).Return(false).Once()
 				chain.On("SupportsEIP", ctx, uint64(4844)).Return(false).Once()
-				chain.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
-				chain.On("GasPrice", ctx).Return(gasPrice, nil).Once()
-				chain.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasPrice", ctx).Return(gasPrice, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
 			},
 			opts: []TxOption{
 				WithFrom(addr),
@@ -235,10 +253,13 @@ func TestBuildTx(t *testing.T) {
 			setupMock: func() {
 				chain.On("SupportsEIP", ctx, uint64(1559)).Return(true).Once()
 				chain.On("SupportsEIP", ctx, uint64(4844)).Return(false).Once()
-				chain.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
-				chain.On("GasPrice", ctx).Return(gasPrice, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasPrice", ctx).Return(gasPrice, nil).Once()
 				chain.On("ID").Return(chainID).Once()
-				chain.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
 			},
 			opts: []TxOption{
 				WithFrom(addr),
@@ -253,10 +274,13 @@ func TestBuildTx(t *testing.T) {
 			setupMock: func() {
 				chain.On("SupportsEIP", ctx, uint64(1559)).Return(true).Once()
 				chain.On("SupportsEIP", ctx, uint64(4844)).Return(false).Once()
-				chain.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
-				chain.On("GasPrice", ctx).Return(gasPrice, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasPrice", ctx).Return(gasPrice, nil).Once()
 				chain.On("ID").Return(chainID).Once()
-				chain.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
 			},
 			opts: []TxOption{
 				WithFrom(addr),
@@ -279,10 +303,13 @@ func TestBuildTx(t *testing.T) {
 			setupMock: func() {
 				chain.On("SupportsEIP", ctx, uint64(1559)).Return(true).Once()
 				chain.On("SupportsEIP", ctx, uint64(4844)).Return(true).Once()
-				chain.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
-				chain.On("GasPrice", ctx).Return(gasPrice, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("PendingNonceAt", ctx, addr).Return(nonce, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasPrice", ctx).Return(gasPrice, nil).Once()
 				chain.On("ID").Return(chainID).Once()
-				chain.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil).Once()
 			},
 			opts: []TxOption{
 				WithFrom(addr),
@@ -319,6 +346,7 @@ func TestBuildTx(t *testing.T) {
 func TestCalculateGasLimit(t *testing.T) {
 	ctx := context.Background()
 	chain := newMockChain()
+	node := newMockNode()
 	addr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	tests := []struct {
@@ -366,7 +394,8 @@ func TestCalculateGasLimit(t *testing.T) {
 			chain.On("SupportsEIP", ctx, uint64(4844)).Return(false).Once()
 
 			if tt.expectEstimate {
-				chain.On("GasLimit", ctx, tt.opts).Return(tt.estimatedGas, nil).Once()
+				chain.On("Node").Return(node).Once()
+				node.On("GasLimit", ctx, tt.opts).Return(tt.estimatedGas, nil).Once()
 			}
 
 			builder := NewTxBuilder(ctx, chain, WithGasLimitMargin(tt.margin))

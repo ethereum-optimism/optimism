@@ -10,8 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -65,6 +63,12 @@ type chain struct {
 	clients  *clientManager
 	registry interfaces.ContractsRegistry
 	mu       sync.Mutex
+
+	node Node
+}
+
+func (c *chain) Node() Node {
+	return c.node
 }
 
 func (c *chain) Client() (*ethclient.Client, error) {
@@ -72,12 +76,15 @@ func (c *chain) Client() (*ethclient.Client, error) {
 }
 
 func newChain(chainID string, rpcUrl string, users map[string]Wallet) *chain {
-	return &chain{
+	clients := newClientManager()
+	chain := &chain{
 		id:      chainID,
 		rpcUrl:  rpcUrl,
 		users:   users,
-		clients: newClientManager(),
+		clients: clients,
+		node:    newNode(rpcUrl, clients),
 	}
+	return chain
 }
 
 func (c *chain) ContractsRegistry() interfaces.ContractsRegistry {
@@ -124,42 +131,6 @@ func (c *chain) ID() types.ChainID {
 		return types.ChainID(big.NewInt(0))
 	}
 	return types.ChainID(id)
-}
-
-func (c *chain) GasPrice(ctx context.Context) (*big.Int, error) {
-	client, err := c.Client()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get client: %w", err)
-	}
-	return client.SuggestGasPrice(ctx)
-}
-
-func (c *chain) GasLimit(ctx context.Context, tx TransactionData) (uint64, error) {
-	client, err := c.Client()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get client: %w", err)
-	}
-
-	msg := ethereum.CallMsg{
-		From:  tx.From(),
-		To:    tx.To(),
-		Value: tx.Value(),
-		Data:  tx.Data(),
-	}
-	estimated, err := client.EstimateGas(ctx, msg)
-	if err != nil {
-		return 0, fmt.Errorf("failed to estimate gas: %w", err)
-	}
-
-	return estimated, nil
-}
-
-func (c *chain) PendingNonceAt(ctx context.Context, address common.Address) (uint64, error) {
-	client, err := c.Client()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get client: %w", err)
-	}
-	return client.PendingNonceAt(ctx, address)
 }
 
 func checkHeader(ctx context.Context, client *ethclient.Client, check func(*coreTypes.Header) bool) bool {

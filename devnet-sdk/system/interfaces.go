@@ -28,7 +28,10 @@ type Chain interface {
 	Wallets(ctx context.Context) ([]Wallet, error)
 	ContractsRegistry() interfaces.ContractsRegistry
 	SupportsEIP(ctx context.Context, eip uint64) bool
+	Node() Node
+}
 
+type Node interface {
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)

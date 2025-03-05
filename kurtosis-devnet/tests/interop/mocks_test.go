@@ -134,6 +134,7 @@ func newMockFailingChain(id types.ChainID, wallets []system.Wallet) *mockFailing
 	}
 }
 
+func (m *mockFailingChain) Node() system.Node                  { return nil }
 func (m *mockFailingChain) RPCURL() string                     { return "mock://failing" }
 func (m *mockFailingChain) Client() (*ethclient.Client, error) { return ethclient.Dial(m.RPCURL()) }
 func (m *mockFailingChain) ID() types.ChainID                  { return m.id }

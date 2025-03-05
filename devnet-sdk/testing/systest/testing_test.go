@@ -78,6 +78,7 @@ func (m *mockTBRecorder) Skipped() bool { return m.skipped }
 // mockChain implements a minimal system.Chain for testing
 type mockChain struct{}
 
+func (m *mockChain) Node() system.Node                               { return nil }
 func (m *mockChain) RPCURL() string                                  { return "http://localhost:8545" }
 func (m *mockChain) Client() (*ethclient.Client, error)              { return ethclient.Dial(m.RPCURL()) }
 func (m *mockChain) ID() types.ChainID                               { return types.ChainID(big.NewInt(1)) }
