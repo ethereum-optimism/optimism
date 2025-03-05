@@ -901,17 +901,18 @@ func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txRef]) {
 func (l *BatchSubmitter) recordFailedDARequest(id txID, err error) {
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()
+	failover := errors.Is(err, altda.ErrAltDADown)
 	if err != nil {
-		l.Log.Warn("DA request failed", logFields(id, err)...)
+		l.Log.Warn("DA request failed", append([]interface{}{"failoverToEthDA", failover}, logFields(id, err)...)...)
 	}
-	l.channelMgr.TxFailed(id)
+	l.channelMgr.TxFailed(id, failover)
 }
 
 func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()
 	l.Log.Warn("Transaction failed to send", logFields(id, err)...)
-	l.channelMgr.TxFailed(id)
+	l.channelMgr.TxFailed(id, false)
 }
 
 func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {

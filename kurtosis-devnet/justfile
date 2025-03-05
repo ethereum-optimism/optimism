@@ -155,10 +155,13 @@ eigenda-memstore-devnet-restart-batcher:
       --altda.da-server=http://da-server-op-kurtosis:3100 \
       --altda.da-service \
       --altda.max-concurrent-da-requests=1 \
-      --max-channel-duration=25 \
+      --max-channel-duration=2 \
       --target-num-frames=1 \
       --max-l1-tx-size-bytes=1000 \
       --batch-type=1
+[group('eigenda')]
+eigenda-memstore-devnet-test:
+    go test ./tests/eigenda/...
 
 # Simple devnet
 simple-devnet: (devnet "simple.yaml")

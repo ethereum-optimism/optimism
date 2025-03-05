@@ -51,7 +51,7 @@ optimism_package:
         image: {{ localDockerImage "op-batcher" }}
         extra_params:
           - --altda.max-concurrent-da-requests=1
-          - --max-channel-duration=25
+          - --max-channel-duration=2
           - --target-num-frames=1
           - --max-l1-tx-size-bytes=1000
           - --batch-type=1
@@ -68,7 +68,7 @@ optimism_package:
         cannon_prestates_url: "http://fileserver/proofs/op-program/cannon"
         extra_params: []
       da_server_params:
-        image: ghcr.io/layr-labs/eigenda-proxy:v1.6.4
+        image: ghcr.io/layr-labs/eigenda-proxy:v1.6.5
         cmd:
           - --addr
           - 0.0.0.0
@@ -86,6 +86,8 @@ optimism_package:
 ethereum_package:
   participants:
     - el_type: geth
+      el_extra_params:
+        - --graphql # needed to query for batcher-inbox txs to test failover working correctly
       cl_type: teku
   network_params:
     preset: minimal

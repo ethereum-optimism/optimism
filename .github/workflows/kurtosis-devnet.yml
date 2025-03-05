@@ -50,3 +50,5 @@ jobs:
           experimental: true
       - run: just eigenda-memstore-devnet-start
         working-directory: kurtosis-devnet
+      - run: just eigenda-memstore-devnet-test
+        working-directory: kurtosis-devnet

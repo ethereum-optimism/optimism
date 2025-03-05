@@ -21,6 +21,19 @@ const (
 	DaTypeAltDA
 )
 
+func (d DaType) String() string {
+	switch d {
+	case DaTypeCalldata:
+		return "calldata"
+	case DaTypeBlob:
+		return "blob"
+	case DaTypeAltDA:
+		return "alt_da"
+	default:
+		return fmt.Sprintf("unknown_da_type_%d", d)
+	}
+}
+
 // txData represents the data for a single transaction.
 //
 // Note: The batcher currently sends exactly one frame per transaction. This

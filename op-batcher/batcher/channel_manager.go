@@ -92,12 +92,13 @@ func (s *channelManager) pendingBlocks() int {
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
-// in the failed transaction.
-func (s *channelManager) TxFailed(_id txID) {
+// in the failed transaction. failoverToEthDA should be set to true when using altDA
+// and altDA is down. This will switch the channel to submit frames to ethDA instead.
+func (s *channelManager) TxFailed(_id txID, failoverToEthDA bool) {
 	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
-		channel.TxFailed(id)
+		channel.TxFailed(id, failoverToEthDA)
 	} else {
 		s.log.Warn("transaction from unknown channel marked as failed", "id", id)
 	}
@@ -317,7 +318,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"compression_algo", cfg.CompressorConfig.CompressionAlgo,
 		"target_num_frames", cfg.TargetNumFrames,
 		"max_frame_size", cfg.MaxFrameSize,
-		"da_type", cfg.DaType,
+		"da_type", cfg.DaType.String(),
 	)
 	s.metr.RecordChannelOpened(pc.ID(), s.pendingBlocks())
 
