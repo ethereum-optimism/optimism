@@ -1,0 +1,133 @@
+# Documentation and mdbook related jobs. 
+# Heavily inspired by Reth https://github.com/paradigmxyz/reth/blob/main/.github/workflows/book.yml
+
+name: book
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: test
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mdbook
+        run: |
+          mkdir mdbook
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.14/mdbook-v0.4.14-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook
+          echo $(pwd)/mdbook >> $GITHUB_PATH
+
+      - name: Install mdbook-template
+        run: |
+          mkdir mdbook-template
+          curl -sSL https://github.com/sgoudham/mdbook-template/releases/latest/download/mdbook-template-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook-template
+          echo $(pwd)/mdbook-template >> $GITHUB_PATH
+
+      - name: Run tests
+        run: mdbook test
+
+  lint:
+    runs-on: ubuntu-latest
+    name: lint
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mdbook-linkcheck
+        run: |
+          mkdir mdbook-linkcheck
+          curl -sSL -o mdbook-linkcheck.zip https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases/latest/download/mdbook-linkcheck.x86_64-unknown-linux-gnu.zip
+          unzip mdbook-linkcheck.zip -d ./mdbook-linkcheck
+          chmod +x $(pwd)/mdbook-linkcheck/mdbook-linkcheck
+          echo $(pwd)/mdbook-linkcheck >> $GITHUB_PATH
+
+      - name: Run linkcheck
+        run: mdbook-linkcheck --standalone
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install mdbook
+        run: |
+          mkdir mdbook
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.14/mdbook-v0.4.14-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook
+          echo $(pwd)/mdbook >> $GITHUB_PATH
+
+      - name: Install mdbook-template
+        run: |
+          mkdir mdbook-template
+          curl -sSL https://github.com/sgoudham/mdbook-template/releases/latest/download/mdbook-template-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook-template
+          echo $(pwd)/mdbook-template >> $GITHUB_PATH
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Build book
+        run: mdbook build
+
+      - name: Build docs
+        run: cargo docs
+        env:
+          RUSTDOCFLAGS: --cfg docsrs --show-type-layout --generate-link-to-definition --enable-index-page -Zunstable-options
+
+      - name: Move docs to book folder
+        run: |
+          mv target/doc target/book/docs
+
+      - name: Archive artifact
+        shell: sh
+        run: |
+          chmod -c -R +rX "target/book" |
+          while read line; do
+             echo "::warning title=Invalid file permissions automatically fixed::$line"
+          done
+          tar \
+            --dereference --hard-dereference \
+            --directory "target/book" \
+            -cvf "$RUNNER_TEMP/artifact.tar" \
+            --exclude=.git \
+            --exclude=.github \
+            .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    # Only deploy if a push to main
+    if: github.ref_name == 'main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [test, lint, build]
+
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    timeout-minutes: 60
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
