@@ -149,6 +149,7 @@ func (s *interopE2ESystem) L1Beacon() *fakebeacon.FakeBeacon {
 }
 
 func (s *interopE2ESystem) AdvanceL1Time(duration time.Duration) {
+	require.NotNil(s.t, s.timeTravelClock, "Attempting to time travel without enabling it.")
 	s.timeTravelClock.AdvanceTime(duration)
 }
 
