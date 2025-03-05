@@ -631,37 +631,51 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 	cases := []struct {
 		name       string
 		funct      uint16
+		rsReg      uint32
+		jumpTo     Word
 		rdReg      uint32
+		pc         Word
+		nextPC     Word
 		expectLink bool
+		errorMsg   string
 	}{
-		{name: "jr", funct: uint16(0x8), rdReg: uint32(0)},                       // jr t0
-		{name: "jalr", funct: uint16(0x9), rdReg: uint32(0x9), expectLink: true}, // jalr t1, t0
+		{name: "jr", funct: uint16(0x8), rsReg: 8, jumpTo: 0x34, pc: 0, nextPC: 4},                                                                                       // jr t0
+		{name: "jr, delay slot", funct: uint16(0x8), rsReg: 8, jumpTo: 0x34, pc: 0, nextPC: 8, errorMsg: "jump in delay slot"},                                           // jr t0
+		{name: "jalr", funct: uint16(0x9), rsReg: 8, jumpTo: 0x34, rdReg: uint32(0x9), expectLink: true, pc: 0, nextPC: 4},                                               // jalr t1, t0
+		{name: "jalr, delay slot", funct: uint16(0x9), rsReg: 8, jumpTo: 0x34, rdReg: uint32(0x9), expectLink: true, pc: 0, nextPC: 100, errorMsg: "jump in delay slot"}, // jalr t1, t0
 	}
 	for _, v := range versions {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
-				rsReg := uint32(8)
-				insn := rsReg<<21 | tt.rdReg<<11 | uint32(tt.funct)
-				state.GetRegistersRef()[rsReg] = Word(0x34)
+				insn := tt.rsReg<<21 | tt.rdReg<<11 | uint32(tt.funct)
+				state.GetRegistersRef()[tt.rsReg] = tt.jumpTo
 				testutil.StoreInstruction(state.GetMemory(), 0, insn)
 				step := state.GetStep()
-				// Setup expectations
-				expected := testutil.NewExpectedState(state)
-				expected.Step = state.GetStep() + 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetRegistersRef()[rsReg]
-				if tt.expectLink {
-					expected.Registers[tt.rdReg] = state.GetPC() + 8
-				}
 
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				// Check expectations
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+				if tt.errorMsg != "" {
+					proofData := v.ProofGenerator(t, goVm.GetState())
+					errorMatcher := testutil.CreateErrorStringMatcher(tt.errorMsg)
+					require.Panics(t, func() { _, _ = goVm.Step(false) })
+					testutil.AssertEVMReverts(t, state, v.Contracts, nil, proofData, errorMatcher)
+				} else {
+					// Setup expectations
+					expected := testutil.NewExpectedState(state)
+					expected.Step = state.GetStep() + 1
+					expected.PC = state.GetCpu().NextPC
+					expected.NextPC = tt.jumpTo
+					if tt.expectLink {
+						expected.Registers[tt.rdReg] = state.GetPC() + 8
+					}
+
+					stepWitness, err := goVm.Step(true)
+					require.NoError(t, err)
+					// Check expectations
+					expected.Validate(t, state)
+					testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+				}
 			})
 		}
 	}
