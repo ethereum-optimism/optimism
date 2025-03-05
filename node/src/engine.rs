@@ -279,7 +279,6 @@ mod test {
     use reth_trie_common::KeccakKeyHasher;
 
     fn get_chainspec() -> Arc<OpChainSpec> {
-        let hardforks = OpHardfork::base_sepolia();
         Arc::new(OpChainSpec {
             inner: ChainSpec {
                 chain: BASE_SEPOLIA.inner.chain,
@@ -288,7 +287,7 @@ mod test {
                 paris_block_and_final_difficulty: BASE_SEPOLIA
                     .inner
                     .paris_block_and_final_difficulty,
-                hardforks,
+                hardforks: BASE_SEPOLIA.inner.hardforks.clone(),
                 base_fee_params: BASE_SEPOLIA.inner.base_fee_params.clone(),
                 prune_delete_limit: 10000,
                 ..Default::default()

@@ -6,7 +6,7 @@ use alloy_chains::Chain;
 use alloy_primitives::{b256, U256};
 use reth_chainspec::{BaseFeeParams, BaseFeeParamsKind, ChainSpec, Hardfork};
 use reth_ethereum_forks::EthereumHardfork;
-use reth_optimism_forks::OpHardfork;
+use reth_optimism_forks::{OpHardfork, OP_MAINNET_HARDFORKS};
 use reth_primitives_traits::SealedHeader;
 
 /// The Optimism Mainnet spec
@@ -15,7 +15,7 @@ pub static OP_MAINNET: LazyLock<Arc<OpChainSpec>> = LazyLock::new(|| {
     // manually from trusted source
     let genesis = serde_json::from_str(include_str!("../res/genesis/optimism.json"))
         .expect("Can't deserialize Optimism Mainnet genesis json");
-    let hardforks = OpHardfork::op_mainnet();
+    let hardforks = OP_MAINNET_HARDFORKS.clone();
     OpChainSpec {
         inner: ChainSpec {
             chain: Chain::optimism_mainnet(),

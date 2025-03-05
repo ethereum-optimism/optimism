@@ -16,6 +16,7 @@ workspace = true
 reth-ethereum-forks.workspace = true
 
 # ethereum
+alloy-op-hardforks.workspace = true
 alloy-chains.workspace = true
 alloy-primitives.workspace = true
 
@@ -40,4 +41,5 @@ serde = [
     "alloy-chains/serde",
     "alloy-primitives/serde",
     "reth-ethereum-forks/serde",
+    "alloy-op-hardforks/serde",
 ]
