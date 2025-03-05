@@ -357,15 +357,13 @@ func ApplyPipeline(
 		})
 	}
 
-	if opts.PreStateBuilder != nil {
-		// Generate the prestate for all chains
-		pline = append(pline, pipelineStage{
-			"deploy-pre-state",
-			func() error {
-				return pipeline.GeneratePreState(ctx, pEnv, intent, st, opts.PreStateBuilder)
-			},
-		})
-	}
+	// Generate the prestate for all chains
+	pline = append(pline, pipelineStage{
+		"deploy-pre-state",
+		func() error {
+			return pipeline.GeneratePreState(ctx, pEnv, intent, st, opts.PreStateBuilder)
+		},
+	})
 
 	// Run through the pipeline.
 	for _, stage := range pline {

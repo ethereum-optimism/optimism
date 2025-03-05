@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -375,7 +374,7 @@ func TestAltDADeployment(t *testing.T) {
 	require.NotEmpty(t, chainState.DataAvailabilityChallengeProxyAddress)
 	require.NotEmpty(t, chainState.DataAvailabilityChallengeImplAddress)
 
-	_, rollupCfg, err := inspect.GenesisAndRollup(st, chainState.ID)
+	_, rollupCfg, err := pipeline.RenderGenesisAndRollup(st, chainState.ID, nil)
 	require.NoError(t, err)
 	require.EqualValues(t, &rollup.AltDAConfig{
 		CommitmentType:     altda.KeccakCommitmentString,
