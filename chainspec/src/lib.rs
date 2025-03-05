@@ -173,7 +173,11 @@ impl OpChainSpecBuilder {
     /// This function panics if the chain ID and genesis is not set ([`Self::chain`] and
     /// [`Self::genesis`])
     pub fn build(self) -> OpChainSpec {
-        OpChainSpec { inner: self.inner.build() }
+        let mut inner = self.inner.build();
+        inner.genesis_header =
+            SealedHeader::seal_slow(make_op_genesis_header(&inner.genesis, &inner.hardforks));
+
+        OpChainSpec { inner }
     }
 }
 
@@ -359,13 +363,12 @@ impl From<Genesis> for OpChainSpec {
         ordered_hardforks.append(&mut block_hardforks);
 
         let hardforks = ChainHardforks::new(ordered_hardforks);
+        let genesis_header = SealedHeader::seal_slow(make_genesis_header(&genesis, &hardforks));
 
         Self {
             inner: ChainSpec {
                 chain: genesis.config.chain_id.into(),
-                genesis_header: SealedHeader::new_unhashed(make_genesis_header(
-                    &genesis, &hardforks,
-                )),
+                genesis_header,
                 genesis,
                 hardforks,
                 // We assume no OP network merges, and set the paris block and total difficulty to
