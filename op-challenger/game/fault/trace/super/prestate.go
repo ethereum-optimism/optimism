@@ -39,5 +39,5 @@ func (s *SuperRootPrestateProvider) AbsolutePreState(ctx context.Context) (eth.S
 	} else if err != nil {
 		return nil, err
 	}
-	return responseToSuper(response), nil
+	return response.ToSuper()
 }
