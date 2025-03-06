@@ -145,10 +145,20 @@ impl OpReceiptFieldsBuilder {
         self.l1_blob_base_fee = l1_block_info.l1_blob_base_fee.map(|fee| fee.saturating_to());
         self.l1_blob_base_fee_scalar =
             l1_block_info.l1_blob_base_fee_scalar.map(|scalar| scalar.saturating_to());
-        self.operator_fee_scalar =
-            l1_block_info.operator_fee_scalar.map(|scalar| scalar.saturating_to());
-        self.operator_fee_constant =
-            l1_block_info.operator_fee_constant.map(|constant| constant.saturating_to());
+
+        // If the operator fee params are both set to 0, we don't add them to the receipt.
+        let operator_fee_scalar_has_non_zero_value: bool =
+            l1_block_info.operator_fee_scalar.is_some_and(|scalar| !scalar.is_zero());
+
+        let operator_fee_constant_has_non_zero_value =
+            l1_block_info.operator_fee_constant.is_some_and(|constant| !constant.is_zero());
+
+        if operator_fee_scalar_has_non_zero_value || operator_fee_constant_has_non_zero_value {
+            self.operator_fee_scalar =
+                l1_block_info.operator_fee_scalar.map(|scalar| scalar.saturating_to());
+            self.operator_fee_constant =
+                l1_block_info.operator_fee_constant.map(|constant| constant.saturating_to());
+        }
 
         Ok(self)
     }
@@ -263,7 +273,7 @@ impl OpReceiptBuilder {
 #[cfg(test)]
 mod test {
     use super::*;
-    use alloy_primitives::hex;
+    use alloy_primitives::{hex, U256};
     use op_alloy_network::eip2718::Decodable2718;
     use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET};
     use reth_primitives::{Block, BlockBody};
@@ -384,6 +394,52 @@ mod test {
             TX_META_TX_1_OP_MAINNET_BLOCK_124665056.l1_block_info.operator_fee_constant,
             "incorrect operator fee constant"
         );
+    }
+
+    #[test]
+    fn op_non_zero_operator_fee_params_included_in_receipt() {
+        let tx_1 =
+            OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice())
+                .unwrap();
+
+        let mut l1_block_info = op_revm::L1BlockInfo::default();
+
+        l1_block_info.operator_fee_scalar = Some(U256::ZERO);
+        l1_block_info.operator_fee_constant = Some(U256::from(2));
+
+        let receipt_meta = OpReceiptFieldsBuilder::new(BLOCK_124665056_TIMESTAMP, 124665056)
+            .l1_block_info(&OP_MAINNET, &tx_1, &mut l1_block_info)
+            .expect("should parse revm l1 info")
+            .build();
+
+        let L1BlockInfo { operator_fee_scalar, operator_fee_constant, .. } =
+            receipt_meta.l1_block_info;
+
+        assert_eq!(operator_fee_scalar, Some(0), "incorrect operator fee scalar");
+        assert_eq!(operator_fee_constant, Some(2), "incorrect operator fee constant");
+    }
+
+    #[test]
+    fn op_zero_operator_fee_params_not_included_in_receipt() {
+        let tx_1 =
+            OpTransactionSigned::decode_2718(&mut TX_1_OP_MAINNET_BLOCK_124665056.as_slice())
+                .unwrap();
+
+        let mut l1_block_info = op_revm::L1BlockInfo::default();
+
+        l1_block_info.operator_fee_scalar = Some(U256::ZERO);
+        l1_block_info.operator_fee_constant = Some(U256::ZERO);
+
+        let receipt_meta = OpReceiptFieldsBuilder::new(BLOCK_124665056_TIMESTAMP, 124665056)
+            .l1_block_info(&OP_MAINNET, &tx_1, &mut l1_block_info)
+            .expect("should parse revm l1 info")
+            .build();
+
+        let L1BlockInfo { operator_fee_scalar, operator_fee_constant, .. } =
+            receipt_meta.l1_block_info;
+
+        assert_eq!(operator_fee_scalar, None, "incorrect operator fee scalar");
+        assert_eq!(operator_fee_constant, None, "incorrect operator fee constant");
     }
 
     // <https://github.com/paradigmxyz/reth/issues/12177>
