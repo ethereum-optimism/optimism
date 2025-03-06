@@ -153,7 +153,7 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, runConfig RunConfig, roll
 	var prestateSource prestateFetcher
 	if strings.HasPrefix(runConfig.PrestateFilename, "file:") {
 		path := runConfig.PrestateFilename[len("file:"):]
-		r.log.Info("Using local prestate", "type", runConfig.TraceType, "path", path)
+		r.log.Info("Using local file prestate", "type", runConfig.TraceType, "path", path)
 		prestateSource = &LocalPrestateFetcher{path: path}
 	} else if runConfig.PrestateFilename != "" {
 		r.log.Info("Using named prestate", "type", runConfig.TraceType, "filename", runConfig.PrestateFilename)
