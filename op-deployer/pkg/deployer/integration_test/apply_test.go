@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -24,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -148,8 +148,9 @@ func TestEndToEndApply(t *testing.T) {
 		validateOPChainDeployment(t, cg, st, intent, false)
 	})
 
-	t.Run("with calldata broadcasts", func(t *testing.T) {
+	t.Run("with calldata broadcasts and prestate generation", func(t *testing.T) {
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
+		mockPreStateBuilder := devnet.NewMockPreStateBuilder()
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -162,10 +163,18 @@ func TestEndToEndApply(t *testing.T) {
 				Logger:             lgr,
 				StateWriter:        pipeline.NoopStateWriter(),
 				CacheDir:           testCacheDir,
+				PreStateBuilder:    mockPreStateBuilder,
 			},
 		))
 
 		require.Greater(t, len(st.DeploymentCalldata), 0)
+		require.Equal(t, 1, mockPreStateBuilder.Invocations())
+		require.Equal(t, len(intent.Chains), mockPreStateBuilder.LastOptsCount())
+		require.NotNil(t, st.PrestateManifest)
+		for _, val := range *st.PrestateManifest {
+			_, err := hexutil.Decode(val) // the not-empty val check is covered here as well
+			require.NoError(t, err)
+		}
 	})
 }
 
@@ -343,7 +352,17 @@ func TestInteropDeployment(t *testing.T) {
 	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
 	intent.UseInterop = true
 
+	mockPreStateBuilder := devnet.NewMockPreStateBuilder()
+	opts.PreStateBuilder = mockPreStateBuilder
+
 	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+	require.Equal(t, 1, mockPreStateBuilder.Invocations())
+	require.Equal(t, len(intent.Chains)+1, mockPreStateBuilder.LastOptsCount()) // + 1 for the additional GeneratedInteropDepSet opt which gets set with useInterop=true
+	require.NotNil(t, st.PrestateManifest)
+	for _, val := range *st.PrestateManifest {
+		_, err := hexutil.Decode(val) // the not-empty val check is covered here as well
+		require.NoError(t, err)
+	}
 
 	chainState := st.Chains[0]
 	depManagerSlot := common.HexToHash("0x1708e077affb93e89be2665fb0fb72581be66f84dc00d25fed755ae911905b1c")
@@ -375,7 +394,7 @@ func TestAltDADeployment(t *testing.T) {
 	require.NotEmpty(t, chainState.DataAvailabilityChallengeProxyAddress)
 	require.NotEmpty(t, chainState.DataAvailabilityChallengeImplAddress)
 
-	_, rollupCfg, err := inspect.GenesisAndRollup(st, chainState.ID)
+	_, rollupCfg, err := pipeline.RenderGenesisAndRollup(st, chainState.ID, nil)
 	require.NoError(t, err)
 	require.EqualValues(t, &rollup.AltDAConfig{
 		CommitmentType:     altda.KeccakCommitmentString,
@@ -439,9 +458,13 @@ func TestInvalidL2Genesis(t *testing.T) {
 			opts, intent, _ := setupGenesisChain(t, defaultL1ChainID)
 			intent.GlobalDeployOverrides = tt.overrides
 
+			mockPreStateBuilder := devnet.NewMockPreStateBuilder()
+			opts.PreStateBuilder = mockPreStateBuilder
+
 			err := deployer.ApplyPipeline(ctx, opts)
 			require.Error(t, err)
 			require.ErrorContains(t, err, "failed to combine L2 init config")
+			require.Equal(t, 0, mockPreStateBuilder.Invocations())
 		})
 	}
 }
