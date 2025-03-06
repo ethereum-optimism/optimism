@@ -19,20 +19,24 @@ type contractArtifact struct {
 	ConstructorArgs abi.Arguments
 }
 
-// Map state.json struct fields to forge artifact names
+// Map state.json struct fields to forge artifact paths
 var contractNameExceptions = map[string]string{
-	"OptimismPortalImpl":          "OptimismPortal2",
-	"L1StandardBridgeProxy":       "L1ChugSplashProxy",
-	"L1CrossDomainMessengerProxy": "ResolvedDelegateProxy",
-	"Opcm":                        "OPContractsManager",
+	"OptimismPortalImpl":          "OptimismPortal2.sol/OptimismPortal2.json",
+	"L1StandardBridgeProxy":       "L1ChugSplashProxy.sol/L1ChugSplashProxy.json",
+	"L1CrossDomainMessengerProxy": "ResolvedDelegateProxy.sol/ResolvedDelegateProxy.json",
+	"Opcm":                        "OPContractsManager.sol/OPContractsManager.json",
+	"OpcmContractsContainer":      "OPContractsManager.sol/OPContractsManagerContractsContainer.json",
+	"OpcmGameTypeAdder":           "OPContractsManager.sol/OPContractsManagerGameTypeAdder.json",
+	"OpcmDeployer":                "OPContractsManager.sol/OPContractsManagerDeployer.json",
+	"OpcmUpgrader":                "OPContractsManager.sol/OPContractsManagerUpgrader.json",
 }
 
-func getArtifactName(name string) string {
+func getArtifactPath(name string) string {
 	lookupName := strings.TrimSuffix(name, "Address")
 	lookupName = strings.ToUpper(string(lookupName[0])) + lookupName[1:]
 
-	if artifactName, exists := contractNameExceptions[lookupName]; exists {
-		return artifactName
+	if artifactPath, exists := contractNameExceptions[lookupName]; exists {
+		return artifactPath
 	}
 
 	lookupName = strings.TrimSuffix(lookupName, "Proxy")
@@ -41,15 +45,14 @@ func getArtifactName(name string) string {
 
 	// If it was a proxy and not a special case, return "Proxy"
 	if strings.HasSuffix(name, "ProxyAddress") {
-		return "Proxy"
+		return path.Join("Proxy.sol", "Proxy.json")
 	}
 
-	return lookupName
+	return path.Join(lookupName+".sol", lookupName+".json")
 }
 
 func (v *Verifier) getContractArtifact(name string) (*contractArtifact, error) {
-	artifactName := getArtifactName(name)
-	artifactPath := path.Join(artifactName+".sol", artifactName+".json")
+	artifactPath := getArtifactPath(name)
 
 	v.log.Info("Opening artifact", "path", artifactPath, "name", name)
 	f, err := v.artifactsFS.Open(artifactPath)
