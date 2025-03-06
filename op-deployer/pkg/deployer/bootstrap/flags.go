@@ -1,9 +1,6 @@
 package bootstrap
 
 import (
-	"fmt"
-	"path/filepath"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -35,17 +32,6 @@ var (
 		Usage:   "Output file. Use - for stdout.",
 		EnvVars: deployer.PrefixEnvVar("OUTFILE"),
 		Value:   "-",
-	}
-	WorkdirFlag = &cli.StringFlag{
-		Name:    deployer.WorkdirFlagName,
-		Usage:   "Working directory.",
-		EnvVars: deployer.PrefixEnvVar("WORKDIR"),
-		Value:   "",
-	}
-	L1ContractsReleaseFlag = &cli.StringFlag{
-		Name:    L1ContractsReleaseFlagName,
-		Usage:   "Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.",
-		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
 	}
 	WithdrawalDelaySecondsFlag = &cli.Uint64Flag{
 		Name:    WithdrawalDelaySecondsFlagName,
@@ -122,6 +108,11 @@ var (
 		Usage:   "Recommended protocol version (semver)",
 		EnvVars: deployer.PrefixEnvVar("RECOMMENDED_PROTOCOL_VERSION"),
 	}
+	L1ContractsReleaseFlag = &cli.StringFlag{
+		Name:    L1ContractsReleaseFlagName,
+		Usage:   "Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.",
+		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
+	}
 	SuperchainConfigProxyFlag = &cli.StringFlag{
 		Name:    "superchain-config-proxy",
 		Usage:   "Superchain config proxy.",
@@ -153,7 +144,6 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
-	WorkdirFlag,
 	deployer.ArtifactsLocatorFlag,
 	L1ContractsReleaseFlag,
 	MIPSVersionFlag,
@@ -172,7 +162,6 @@ var ProxyFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
-	WorkdirFlag,
 	deployer.ArtifactsLocatorFlag,
 	ProxyOwnerFlag,
 }
@@ -181,7 +170,6 @@ var SuperchainFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
-	WorkdirFlag,
 	deployer.ArtifactsLocatorFlag,
 	SuperchainProxyAdminOwnerFlag,
 	ProtocolVersionsOwnerFlag,
@@ -195,7 +183,6 @@ var ValidatorFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
-	WorkdirFlag,
 	deployer.ArtifactsLocatorFlag,
 	ConfigFileFlag,
 }
@@ -225,11 +212,4 @@ var Commands = []*cli.Command{
 		Flags:  cliapp.ProtectFlags(ValidatorFlags),
 		Action: ValidatorCLI,
 	},
-}
-
-func getDefaultOutfile(commandName, outfile, workdir string) string {
-	if workdir != "" {
-		return filepath.Join(workdir, fmt.Sprintf("bootstrap_%s.json", commandName))
-	}
-	return outfile
 }

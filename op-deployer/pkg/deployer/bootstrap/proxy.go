@@ -76,7 +76,7 @@ func ProxyCLI(cliCtx *cli.Context) error {
 
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
-	outfile := getDefaultOutfile(cliCtx.Command.Name, cliCtx.String(OutfileFlagName), cliCtx.String(deployer.WorkdirFlagName))
+	outfile := cliCtx.String(OutfileFlagName)
 	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 

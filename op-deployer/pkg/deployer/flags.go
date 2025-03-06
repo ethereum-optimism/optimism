@@ -170,7 +170,6 @@ var UpgradeFlags = []cli.Flag{
 var VerifyFlags = []cli.Flag{
 	L1RPCURLFlag,
 	ArtifactsLocatorFlag,
-	WorkdirFlag,
 	EtherscanAPIKeyFlag,
 	InputFileFlag,
 	ContractNameFlag,

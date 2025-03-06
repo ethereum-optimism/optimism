@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -116,7 +115,7 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 	cfg.Logger = l
 
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
-	outfile := getDefaultOutfile(cliCtx.Command.Name, cliCtx.String(OutfileFlagName), cliCtx.String(deployer.WorkdirFlagName))
+	outfile := cliCtx.String(OutfileFlagName)
 	dio, err := Implementations(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to deploy implementations: %w", err)
