@@ -189,12 +189,12 @@ func TestEVM_SingleStep_Operators(t *testing.T) {
 func TestEVM_SingleStep_Bitwise(t *testing.T) {
 	// bitwise operations that use the full word size
 	cases := []operatorTestCase{
-		{name: "and", funct: 0x24, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(160)},                                                          // and t0, s1, s2
-		{name: "andi", opcode: 0xc, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(0)},                                                // andi t0, s1, 40
-		{name: "or", funct: 0x25, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1530)},                                                          // or t0, s1, s2
-		{name: "ori", opcode: 0xd, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},                                                // ori t0, s1, 40
-		{name: "xor", funct: 0x26, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1370)},                                                         // xor t0, s1, s2
-		{name: "xori", opcode: 0xe, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},                                               // xori t0, s1, 40
+		{name: "and", funct: 0x24, isImm: false, rs: Word(0b1010_1100), rt: Word(0b1100_0101), expectRes: Word(0b1000_0100)},                                   // and t0, s1, s2
+		{name: "andi", opcode: 0xc, isImm: true, rs: Word(0b1010_1100), rt: Word(1), imm: uint16(0b1100_0101), expectRes: Word(0b1000_0100)},                   // andi t0, s1, 40
+		{name: "or", funct: 0x25, isImm: false, rs: Word(0b1010_1100), rt: Word(0b1100_0101), expectRes: Word(0b1110_1101)},                                    // or t0, s1, s2
+		{name: "ori", opcode: 0xd, isImm: true, rs: Word(0b1010_1100), rt: Word(0xFFFF_FFFF), imm: uint16(0b1100_0101), expectRes: Word(0b1110_1101)},          // ori t0, s1, 40
+		{name: "xor", funct: 0x26, isImm: false, rs: Word(0b1010_1100), rt: Word(0b1100_0101), expectRes: Word(0b0110_1001)},                                   // xor t0, s1, s2
+		{name: "xori", opcode: 0xe, isImm: true, rs: Word(0b1010_1100), rt: Word(1), imm: uint16(0b1100_0101), expectRes: Word(0b0110_1001)},                   // xori t0, s1, 40
 		{name: "nor", funct: 0x27, isImm: false, rs: Word(0x4B0), rt: Word(0x1EA), expectRes: signExtend64(0xFFFF_FA05)},                                       // nor t0, s1, s2
 		{name: "slt, success, positive vals", funct: 0x2a, isImm: false, rs: 1, rt: Word(5), expectRes: Word(1)},                                               // slt t0, s1, s2
 		{name: "slt, success, mixed vals", funct: 0x2a, isImm: false, rs: signExtend64(0xFF_FF_FF_FE), rt: Word(5), expectRes: Word(1)},                        // slt t0, s1, s2
