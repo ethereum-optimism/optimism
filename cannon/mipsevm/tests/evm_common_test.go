@@ -186,19 +186,26 @@ func TestEVM_SingleStep_Operators(t *testing.T) {
 	testOperators(t, cases, true)
 }
 
-func TestEVM_SingleStep_Bitwise32(t *testing.T) {
-	testutil.Cannon32OnlyTest(t, "These tests are fully covered for 64-bits in TestEVM_SingleStep_Bitwise64")
+func TestEVM_SingleStep_Bitwise(t *testing.T) {
 	// bitwise operations that use the full word size
 	cases := []operatorTestCase{
-		{name: "and", funct: 0x24, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(160)},            // and t0, s1, s2
-		{name: "andi", opcode: 0xc, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(0)},  // andi t0, s1, 40
-		{name: "or", funct: 0x25, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1530)},            // or t0, s1, s2
-		{name: "ori", opcode: 0xd, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},  // ori t0, s1, 40
-		{name: "xor", funct: 0x26, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1370)},           // xor t0, s1, s2
-		{name: "xori", opcode: 0xe, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)}, // xori t0, s1, 40
-		{name: "nor", funct: 0x27, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(4294965765)},     // nor t0, s1, s2
-		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: Word(5), expectRes: Word(1)},             // slt t0, s1, s2
-		{name: "sltu", funct: 0x2b, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(0)},             // sltu t0, s1, s2
+		{name: "and", funct: 0x24, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(160)},                                                          // and t0, s1, s2
+		{name: "andi", opcode: 0xc, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(0)},                                                // andi t0, s1, 40
+		{name: "or", funct: 0x25, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1530)},                                                          // or t0, s1, s2
+		{name: "ori", opcode: 0xd, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},                                                // ori t0, s1, 40
+		{name: "xor", funct: 0x26, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1370)},                                                         // xor t0, s1, s2
+		{name: "xori", opcode: 0xe, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},                                               // xori t0, s1, 40
+		{name: "nor", funct: 0x27, isImm: false, rs: Word(0x4B0), rt: Word(0x1EA), expectRes: signExtend64(0xFFFF_FA05)},                                       // nor t0, s1, s2
+		{name: "slt, success, positive vals", funct: 0x2a, isImm: false, rs: 1, rt: Word(5), expectRes: Word(1)},                                               // slt t0, s1, s2
+		{name: "slt, success, mixed vals", funct: 0x2a, isImm: false, rs: signExtend64(0xFF_FF_FF_FE), rt: Word(5), expectRes: Word(1)},                        // slt t0, s1, s2
+		{name: "slt, success, negative vals", funct: 0x2a, isImm: false, rs: signExtend64(0xFF_FF_FF_FD), rt: signExtend64(0xFF_FF_FF_FE), expectRes: Word(1)}, // slt t0, s1, s2
+		{name: "slt, fail, negative values", funct: 0x2a, isImm: false, rs: signExtend64(0xFF_FF_FF_FE), rt: signExtend64(0xFF_FF_FF_FD), expectRes: Word(0)},  // slt t0, s1, s2
+		{name: "slt, fail, positive values", funct: 0x2a, isImm: false, rs: 555, rt: 123, expectRes: Word(0)},                                                  // slt t0, s1, s2
+		{name: "slt, fail, mixed values", funct: 0x2a, isImm: false, rs: 555, rt: signExtend64(0xFF_FF_FF_FD), expectRes: Word(0)},                             // slt t0, s1, s2
+		{name: "sltu, success", funct: 0x2b, isImm: false, rs: Word(490), rt: Word(1200), expectRes: Word(1)},                                                  // sltu t0, s1, s2
+		{name: "sltu, success, large values", funct: 0x2b, isImm: false, rs: signExtend64(0xFF_FF_FF_FD), rt: signExtend64(0xFF_FF_FF_FE), expectRes: Word(1)}, // sltu t0, s1, s2
+		{name: "sltu, fail", funct: 0x2b, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(0)},                                                     // sltu t0, s1, s2
+		{name: "sltu, fail, large values", funct: 0x2b, isImm: false, rs: signExtend64(0xFF_FF_FF_FE), rt: signExtend64(0xFF_FF_FF_FD), expectRes: Word(0)},    // sltu t0, s1, s2
 	}
 	testOperators(t, cases, false)
 }
