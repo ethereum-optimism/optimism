@@ -212,6 +212,10 @@ func TestEVM_SingleStep_Bitwise(t *testing.T) {
 		{name: "sltu, success, large values", funct: 0x2b, isImm: false, rs: signExtend64(0xFF_FF_FF_FD), rt: signExtend64(0xFF_FF_FF_FE), expectRes: Word(1)}, // sltu t0, s1, s2
 		{name: "sltu, fail", funct: 0x2b, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(0)},                                                     // sltu t0, s1, s2
 		{name: "sltu, fail, large values", funct: 0x2b, isImm: false, rs: signExtend64(0xFF_FF_FF_FE), rt: signExtend64(0xFF_FF_FF_FD), expectRes: Word(0)},    // sltu t0, s1, s2
+		{name: "sltiu, success", opcode: 0xb, isImm: true, rs: Word(490), imm: 1200, expectRes: Word(1)},
+		{name: "sltiu, success, large values", opcode: 0xb, isImm: true, rs: signExtend64(0xFF_FF_FF_FD), imm: 0xFFFE, expectRes: Word(1)},
+		{name: "sltiu, fail", opcode: 0xb, isImm: true, rs: Word(1200), imm: 490, expectRes: Word(0)},
+		{name: "sltiu, fail, large values", opcode: 0xb, isImm: true, rs: signExtend64(0xFF_FF_FF_FE), imm: 0xFFFD, expectRes: Word(0)},
 	}
 	testOperators(t, cases, false)
 }
