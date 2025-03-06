@@ -31,8 +31,8 @@ type Verifier struct {
 }
 
 func NewVerifier(apiKey string, l1ChainID uint64, artifactsFS foundry.StatDirFs, l log.Logger, l1Client *ethclient.Client) (*Verifier, error) {
-	etherscanUrl := getAPIEndpoint(l1ChainID)
-	if etherscanUrl == "" {
+	etherscanUrl, err := getAPIEndpoint(l1ChainID)
+	if err != nil {
 		return nil, fmt.Errorf("unsupported L1 chain ID: %d", l1ChainID)
 	}
 

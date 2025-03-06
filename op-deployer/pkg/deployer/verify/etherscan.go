@@ -34,14 +34,14 @@ type EtherscanClient struct {
 	rateLimiter *rate.Limiter
 }
 
-func getAPIEndpoint(l1ChainID uint64) string {
+func getAPIEndpoint(l1ChainID uint64) (string, error) {
 	switch l1ChainID {
 	case 1:
-		return "https://api.etherscan.io/api" // mainnet
+		return "https://api.etherscan.io/api", nil // mainnet
 	case 11155111:
-		return "https://api-sepolia.etherscan.io/api" // sepolia
+		return "https://api-sepolia.etherscan.io/api", nil // sepolia
 	default:
-		return ""
+		return "", fmt.Errorf("unsupported L1 chain ID: %d", l1ChainID)
 	}
 }
 
@@ -169,8 +169,6 @@ func (c *EtherscanClient) pollVerificationStatus(reqId string) error {
 	}
 
 	for i := 0; i < 10; i++ { // Try 10 times with increasing delays
-		time.Sleep(time.Duration(i+2) * time.Second)
-
 		resp, err := c.sendRateLimitedRequest(req)
 		if err != nil {
 			return fmt.Errorf("failed to send checkverifystatus request: %w", err)
@@ -191,6 +189,7 @@ func (c *EtherscanClient) pollVerificationStatus(reqId string) error {
 		if result.Result != "Pending in queue" {
 			return fmt.Errorf("verification failed: %s, %s", result.Result, result.Message)
 		}
+		time.Sleep(time.Duration(i+2) * time.Second)
 	}
 	return fmt.Errorf("verification timed out")
 }
