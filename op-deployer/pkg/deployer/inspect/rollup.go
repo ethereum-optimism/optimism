@@ -21,7 +21,10 @@ func RollupCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to read intent: %w", err)
 	}
 
-	_, rollupConfig, err := GenesisAndRollup(globalState, cfg.ChainID)
+	_, rollupConfig, err := pipeline.RenderGenesisAndRollup(globalState, cfg.ChainID, nil)
+	if rollupConfig.HoloceneTime == nil {
+		rollupConfig.Genesis.SystemConfig.MarshalPreHolocene = true
+	}
 	if err != nil {
 		return fmt.Errorf("failed to generate rollup config: %w", err)
 	}
