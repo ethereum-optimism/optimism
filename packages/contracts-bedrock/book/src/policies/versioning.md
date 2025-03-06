@@ -107,20 +107,23 @@ discouraged. If a change is required to a release candidate after it has been ta
 
 ### Additional Release Candidates
 
-Sometimes additional release candidate versions are needed.
-The process for this is:
+Sometimes additional release candidate versions are needed, in that case, the follow process should be used.
+This process is designed to (1) ensures fixes are made on both the release and the trunk branch
+ and (2) avoids the need to stop development efforts on the trunk branch.
 
-1. Make the fixes on `develop`. Bump the contract semvers as normal.
+
+1. Make the fixes on `develop`. *For whatever the normal semver level increment should be, bump that value by 5.*
 2. Create a new release branch, named `proposal/op-contracts/X.Y.Z-rc.n+1` off of the rc tag.
-3. Cherry pick the fixes from `develop` into that branch.
-   When bumping a contract semver on release branch, we must avoid a collision, wherein a
-   contract could have the same semver, but different source/bytecode on the two branches.
-   In order to avoid this...
-3. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
+3. Cherry pick the fixes from `develop` into that branch. *Bump the semvers as normal, ensuring that the resulting version is less than the one on `develop`.
+4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
    Create a new release for this tag per the instructions above.
 
-This flow (1) ensures fixes are made on both the release and the trunk branch, (2) mitigates the risk of forgetting to merge the release back into the develop branch,
- and (3) avoids the need to stop development efforts on the trunk branch.
+Note: The reason for the larger semver increment on `develop` is to prevent a collision, wherein a
+contract could have the same semver, but different source/bytecode on the two branches.
+
+For example: if the current version of a contract is `1.1.1` and a minor bump is required (most common for a bug fix),
+   then the fixed version should become `1.8.0` on `develop`. Then on the release branch is should become
+   `1.2.0`.
 
 ### Merging Back to Develop After Governance Approval
 
