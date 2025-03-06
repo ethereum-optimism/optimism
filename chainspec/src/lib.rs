@@ -629,7 +629,7 @@ mod tests {
         let genesis = BASE_MAINNET.genesis_header();
         assert_eq!(
             genesis.hash_slow(),
-            b256!("f712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd")
+            b256!("0xf712aa9241cc24369b143cf6dce85f0902a9731e70d66818a3a5845b296c73dd")
         );
         let base_fee = genesis
             .next_block_base_fee(BASE_MAINNET.base_fee_params_at_timestamp(genesis.timestamp))
@@ -643,7 +643,7 @@ mod tests {
         let genesis = BASE_SEPOLIA.genesis_header();
         assert_eq!(
             genesis.hash_slow(),
-            b256!("0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4")
+            b256!("0x0dcc9e089e30b90ddfc55be9a37dd15bc551aeee999d2e2b51414c54eaf934e4")
         );
         let base_fee = genesis
             .next_block_base_fee(BASE_SEPOLIA.base_fee_params_at_timestamp(genesis.timestamp))
@@ -657,7 +657,7 @@ mod tests {
         let genesis = OP_SEPOLIA.genesis_header();
         assert_eq!(
             genesis.hash_slow(),
-            b256!("102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d")
+            b256!("0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d")
         );
         let base_fee = genesis
             .next_block_base_fee(OP_SEPOLIA.base_fee_params_at_timestamp(genesis.timestamp))

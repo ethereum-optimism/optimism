@@ -21,7 +21,7 @@ pub static OP_MAINNET: LazyLock<Arc<OpChainSpec>> = LazyLock::new(|| {
             chain: Chain::optimism_mainnet(),
             genesis_header: SealedHeader::new(
                 make_op_genesis_header(&genesis, &hardforks),
-                b256!("7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b"),
+                b256!("0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b"),
             ),
             genesis,
             paris_block_and_final_difficulty: Some((0, U256::from(0))),

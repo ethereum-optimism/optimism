@@ -313,7 +313,7 @@ mod tests {
 
         assert_eq!(
             deposit_tx.to,
-            TxKind::Call(address!("a75127121d28a9bf848f3b70e7eea26570aa7700"))
+            TxKind::Call(address!("0xa75127121d28a9bf848f3b70e7eea26570aa7700"))
         );
         assert_eq!(deposit_tx.nonce, 240);
         assert_eq!(deposit_tx.gas_price, 1001500);
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(system_tx.gas_limit, 173950);
         assert_eq!(
             system_tx.to,
-            TxKind::Call(address!("a0cc33dd6f4819d473226257792afe230ec3c67f"))
+            TxKind::Call(address!("0xa0cc33dd6f4819d473226257792afe230ec3c67f"))
         );
         assert_eq!(system_tx.value, U256::ZERO);
         assert_eq!(system_tx.chain_id, Some(10));

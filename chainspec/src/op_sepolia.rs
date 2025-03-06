@@ -19,7 +19,7 @@ pub static OP_SEPOLIA: LazyLock<Arc<OpChainSpec>> = LazyLock::new(|| {
             chain: Chain::from_named(NamedChain::OptimismSepolia),
             genesis_header: SealedHeader::new(
                 make_op_genesis_header(&genesis, &hardforks),
-                b256!("102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d"),
+                b256!("0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d"),
             ),
             genesis,
             paris_block_and_final_difficulty: Some((0, U256::from(0))),

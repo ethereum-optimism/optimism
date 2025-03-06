@@ -10,7 +10,7 @@ use revm::database::BundleState;
 
 /// The L2 contract `L2ToL1MessagePasser`, stores commitments to withdrawal transactions.
 pub const ADDRESS_L2_TO_L1_MESSAGE_PASSER: Address =
-    address!("4200000000000000000000000000000000000016");
+    address!("0x4200000000000000000000000000000000000016");
 
 /// Verifies that `withdrawals_root` (i.e. `l2tol1-msg-passer` storage root since Isthmus) field is
 /// set in block header.
