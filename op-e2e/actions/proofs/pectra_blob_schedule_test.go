@@ -24,6 +24,7 @@ func TestPectraBlobSchedule(gt *testing.T) {
 		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
 		// fix blob schedule after 2 L1 blocks
 		dc.L2GenesisPectraBlobScheduleTimeOffset = ptr(hexutil.Uint64(24))
+		// set genesis excess blob gas so there are >0 blob base fees for some blocks
 		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))
 	}
 

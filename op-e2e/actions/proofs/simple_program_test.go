@@ -1,18 +1,24 @@
-package proofs
+package proofs_test
 
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
 func runSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
+	testSetup := func(dc *genesis.DeployConfig) {
+		// dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))
+	}
+	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
 
 	// Build an empty block on L2
 	env.Sequencer.ActL2StartBlock(t)

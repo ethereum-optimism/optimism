@@ -230,7 +230,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 
 	if s.l1Cfg.Config.IsPrague(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		// Don't process requests for now.
-		reqHash := types.CalcRequestsHash([][]byte{{}})
+		reqHash := types.CalcRequestsHash([][]byte{})
 		s.l1BuildingHeader.RequestsHash = &reqHash
 	}
 
