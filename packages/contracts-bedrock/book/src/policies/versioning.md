@@ -92,14 +92,15 @@ For example, the [Fault Proofs governance proposal](https://gov.optimism.io/t/up
 
 To accommodate this, once contract changes are ready for governance approval, the release flow is:
 
-- On the `develop` branch, bump the version of all contracts to be included in this release to their respective `X.Y.Z-rc.n`. The `X.Y.Z` here refers to the contract-specific versions, so it differs per-contract. The `-rc.n` begins as `-rc.1` for all contracts.
-  - Any `-beta.n` and `+feature-name` identifiers are removed at this point.
-  - Contracts that are not included as part of this release are left untouched.
-- Branch off of `develop` and create a branch named `proposal/op-contracts/vX.Y.Z`. Here, `X.Y.Z` is the new version of the monorepo release.
-  - Using the `proposal/` prefix signals that this branch is for a governance proposal, and intentionally does not convey whether or not the proposal has passed.
-- Open a PR into the `proposal/op-contracts/vX.Y.Z` branch that removes the `-rc.1` suffixes from all contracts, and merge it into the `proposal/op-contracts/vX.Y.Z` branch.
-  - After merge, the new commit on the `proposal/op-contracts/vX.Y.Z` branch is the commit hash that will be tagged as `op-contracts/vX.Y.Z-rc.1`, used to deploy the contracts, and proposed to governance.
-  - Sometimes additional release candidates are needed before proposal—see [Additional Release Candidates](#additional-release-candidates) for more information on this flow.
+1. Go to https://github.com/ethereum-optimism/optimism/releases/new
+2. Enter the release title as `op-contracts/vX.Y.Z-rc.1`
+3. In the "choose a tag" dropdown, enter the same `op-contracts/vX.Y.Z-rc.1` and click the "Create new tag" option that shows up
+4. Populate the release notes.
+5. Check "set as pre-release" since it's not yet governance approved
+6. Uncheck "Set as the latest release" and "Create a discussion for this release".
+7. Click publish release.
+8. After governance vote passes, edit the relase to uncheck "set as pre-release", and remove the `-rc.1` tag.
+
 - Once the governance approval is posted, any lock on contracts on `develop` is released.
 - Once governance approves the proposal:
     - Create the official `op-contracts/vX.Y.Z` off of this `proposal/op-contracts/vX.Y.Z` branch. It should be at the same commit as the most recent release candidate.
