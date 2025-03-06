@@ -18,7 +18,7 @@ There are five parts to the versioning and release process:
 
 ## Semver Rules
 
-Version increments follow the [style guide rules](contributing/STYLE_GUIDE.mdLE_GUIDE.md#versioning) for when to bump major, minor, and patch versions in individual contracts:
+Version increments follow the [style guide rules](../contributing/style-guide.md#versioning) for when to bump major, minor, and patch versions in individual contracts:
 
 > - `patch` releases are to be used only for changes that do NOT modify contract bytecode (such as updating comments).
 > - `minor` releases are to be used for changes that modify bytecode OR changes that expand the contract ABI provided that these changes do NOT break the existing interface.
