@@ -91,6 +91,8 @@ func TestEVM_SingleStep_Bitwise64(t *testing.T) {
 	cases := []operatorTestCase{
 		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: Word(5), expectRes: Word(0)},             // slt t0, s1, s2
 		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FF_FF_FF_FF_FE, rt: Word(5), expectRes: Word(1)}, // slt t0, s1, s2
+		{name: "slti", opcode: 0xa, isImm: true, rs: 0xFF_FF_FF_FE, imm: 5, expectRes: Word(0)},                  // slt t0, s1, s2
+		{name: "slti", opcode: 0xa, isImm: true, rs: 0xFF_FF_FF_FF_FF_FF_FF_FE, imm: 5, expectRes: Word(1)},      // slt t0, s1, s2
 	}
 	testOperators(t, cases, false)
 }

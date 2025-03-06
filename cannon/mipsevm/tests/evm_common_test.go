@@ -202,6 +202,12 @@ func TestEVM_SingleStep_Bitwise(t *testing.T) {
 		{name: "slt, fail, negative values", funct: 0x2a, isImm: false, rs: signExtend64(0xFF_FF_FF_FE), rt: signExtend64(0xFF_FF_FF_FD), expectRes: Word(0)},  // slt t0, s1, s2
 		{name: "slt, fail, positive values", funct: 0x2a, isImm: false, rs: 555, rt: 123, expectRes: Word(0)},                                                  // slt t0, s1, s2
 		{name: "slt, fail, mixed values", funct: 0x2a, isImm: false, rs: 555, rt: signExtend64(0xFF_FF_FF_FD), expectRes: Word(0)},                             // slt t0, s1, s2
+		{name: "slti, success, positive vals", opcode: 0xa, isImm: true, rs: 1, imm: 5, expectRes: Word(1)},
+		{name: "slti, success, mixed vals", opcode: 0xa, isImm: true, rs: signExtend64(0xFF_FF_FF_FE), imm: 5, expectRes: Word(1)},
+		{name: "slti, success, negative vals", opcode: 0xa, isImm: true, rs: signExtend64(0xFF_FF_FF_FD), imm: 0xFFFE, expectRes: Word(1)},
+		{name: "slti, fail, negative values", opcode: 0xa, isImm: true, rs: signExtend64(0xFF_FF_FF_FE), imm: 0xFFFD, expectRes: Word(0)},
+		{name: "slti, fail, positive values", opcode: 0xa, isImm: true, rs: 555, imm: 123, expectRes: Word(0)},
+		{name: "slti, fail, mixed values", opcode: 0xa, isImm: true, rs: 555, imm: 0xFFFD, expectRes: Word(0)},
 		{name: "sltu, success", funct: 0x2b, isImm: false, rs: Word(490), rt: Word(1200), expectRes: Word(1)},                                                  // sltu t0, s1, s2
 		{name: "sltu, success, large values", funct: 0x2b, isImm: false, rs: signExtend64(0xFF_FF_FF_FD), rt: signExtend64(0xFF_FF_FF_FE), expectRes: Word(1)}, // sltu t0, s1, s2
 		{name: "sltu, fail", funct: 0x2b, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(0)},                                                     // sltu t0, s1, s2
