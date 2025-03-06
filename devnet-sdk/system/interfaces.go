@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type genSystem[T Chain] interface {
@@ -29,12 +30,14 @@ type Chain interface {
 	ContractsRegistry() interfaces.ContractsRegistry
 	SupportsEIP(ctx context.Context, eip uint64) bool
 	Node() Node
+	Config() (*params.ChainConfig, error)
 }
 
 type Node interface {
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*coreTypes.Block, error)
 }
 
 // LowLevelChain is a Chain that gives direct access to the low level RPC client.

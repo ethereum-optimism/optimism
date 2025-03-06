@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -56,15 +57,14 @@ func (m *clientManager) Client(rpcURL string) (*ethclient.Client, error) {
 }
 
 type chain struct {
-	id     string
-	rpcUrl string
-
-	users    map[string]Wallet
-	clients  *clientManager
-	registry interfaces.ContractsRegistry
-	mu       sync.Mutex
-
-	node Node
+	id          string
+	rpcUrl      string
+	users       map[string]Wallet
+	clients     *clientManager
+	registry    interfaces.ContractsRegistry
+	mu          sync.Mutex
+	node        Node
+	chainConfig *params.ChainConfig
 }
 
 func (c *chain) Node() Node {
@@ -75,14 +75,15 @@ func (c *chain) Client() (*ethclient.Client, error) {
 	return c.clients.Client(c.rpcUrl)
 }
 
-func newChain(chainID string, rpcUrl string, users map[string]Wallet) *chain {
+func newChain(chainID string, rpcUrl string, users map[string]Wallet, chainConfig *params.ChainConfig) *chain {
 	clients := newClientManager()
 	chain := &chain{
-		id:      chainID,
-		rpcUrl:  rpcUrl,
-		users:   users,
-		clients: clients,
-		node:    newNode(rpcUrl, clients),
+		id:          chainID,
+		rpcUrl:      rpcUrl,
+		users:       users,
+		clients:     clients,
+		node:        newNode(rpcUrl, clients),
+		chainConfig: chainConfig,
 	}
 	return chain
 }
@@ -160,12 +161,19 @@ func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return false
 }
 
+func (c *chain) Config() (*params.ChainConfig, error) {
+	if c.chainConfig == nil {
+		return nil, fmt.Errorf("chain config not configured on L1 chains yet")
+	}
+	return c.chainConfig, nil
+}
+
 func chainFromDescriptor(d *descriptors.Chain) (Chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
 	firstNodeRPC := d.Nodes[0].Services["el"].Endpoints["rpc"]
 	rpcURL := fmt.Sprintf("http://%s:%d", firstNodeRPC.Host, firstNodeRPC.Port)
 
-	c := newChain(d.ID, rpcURL, nil) // Create chain first
+	c := newChain(d.ID, rpcURL, nil, d.Config) // Create chain first
 
 	users := make(map[string]Wallet)
 	for key, w := range d.Wallets {

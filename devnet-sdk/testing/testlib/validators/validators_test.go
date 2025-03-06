@@ -2,6 +2,7 @@ package validators
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -9,12 +10,19 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
+
+func Uint64Ptr(x uint64) *uint64 {
+	return &x
+}
 
 // TestSystemTestHelper tests the basic implementation of systemTestHelper
 func TestValidators(t *testing.T) {
@@ -22,6 +30,7 @@ func TestValidators(t *testing.T) {
 		walletGetter1, validator1 := AcquireL2WalletWithFunds(0, types.NewBalance(big.NewInt(1)))
 		walletGetter2, validator2 := AcquireL2WalletWithFunds(0, types.NewBalance(big.NewInt(10)))
 		lowLevelSystemGetter, validator3 := AcquireLowLevelSystem()
+		chainConfigGetter, l2ForkValidator := AcquireL2WithFork(0, rollup.Isthmus)
 
 		// We create a system that has a low-level L1 chain and at least one wallet
 		systestSystem := &mockSystem{
@@ -35,6 +44,10 @@ func TestValidators(t *testing.T) {
 						&mockWallet{
 							balance: types.NewBalance(big.NewInt(11)),
 						},
+					},
+					config: &params.ChainConfig{
+						Optimism:    &params.OptimismConfig{},
+						IsthmusTime: Uint64Ptr(0),
 					},
 				},
 			},
@@ -56,12 +69,17 @@ func TestValidators(t *testing.T) {
 		systestT = systestT.WithContext(ctx3)
 		require.NoError(t, err)
 
+		ctx4, err := l2ForkValidator(systestT, systestSystem)
+		systestT = systestT.WithContext(ctx4)
+		require.NoError(t, err)
+
 		ctx := systestT.Context()
 
 		// Now we call all the getters to make sure they work
 		wallet1 := walletGetter1(ctx)
 		wallet2 := walletGetter2(ctx)
 		lowLevelSystem := lowLevelSystemGetter(ctx)
+		chainConfig := chainConfigGetter(ctx)
 
 		// And we ensure that the values are not mismatched
 		require.NotEqual(t, wallet1, wallet2)
@@ -70,6 +88,129 @@ func TestValidators(t *testing.T) {
 
 		// And that we got a lowlevelSystem
 		require.NotNil(t, lowLevelSystem)
+
+		// And that we got a chain config
+		require.NotNil(t, chainConfig)
+	})
+
+	t.Run("test AcquireL2WithFork - fork active", func(t *testing.T) {
+		// Create a system with the Isthmus fork active
+		systestSystem := &mockSystem{
+			l2s: []system.Chain{
+				&mockChain{
+					config: &params.ChainConfig{
+						Optimism:    &params.OptimismConfig{},
+						IsthmusTime: Uint64Ptr(50),
+					},
+				},
+			},
+		}
+
+		// Get the validator for requiring Isthmus fork to be active
+		chainConfigGetter, validator := AcquireL2WithFork(0, rollup.Isthmus)
+		systestT := systest.NewT(t)
+
+		// Apply the validator
+		ctx, err := validator(systestT, systestSystem)
+		require.NoError(t, err, "Validator should pass when fork is active")
+
+		// Verify the chain config getter works
+		chainConfig := chainConfigGetter(ctx)
+		require.NotNil(t, chainConfig)
+		isActive, err := IsForkActivated(chainConfig, rollup.Isthmus, 100)
+		require.NoError(t, err)
+		require.True(t, isActive)
+	})
+
+	t.Run("test AcquireL2WithFork - fork not active", func(t *testing.T) {
+		// Create a system where the Isthmus fork is not yet active
+		systestSystem := &mockSystem{
+			l2s: []system.Chain{
+				&mockChain{
+					config: &params.ChainConfig{
+						Optimism:    &params.OptimismConfig{},
+						IsthmusTime: Uint64Ptr(150),
+					},
+				},
+			},
+		}
+
+		// Get the validator for requiring Isthmus fork to be active
+		_, validator := AcquireL2WithFork(0, rollup.Isthmus)
+		systestT := systest.NewT(t)
+
+		// Apply the validator - should fail since fork is not active
+		_, err := validator(systestT, systestSystem)
+		require.Error(t, err, "Validator should fail when fork is not active")
+		require.Contains(t, err.Error(), "does not have fork", "Error message should indicate fork is not active")
+	})
+
+	t.Run("test AcquireRequiresNotL2Fork - fork not active", func(t *testing.T) {
+		// Create a system where the Isthmus fork is not yet active
+		systestSystem := &mockSystem{
+			l2s: []system.Chain{
+				&mockChain{
+					config: &params.ChainConfig{
+						Optimism:    &params.OptimismConfig{},
+						IsthmusTime: Uint64Ptr(150), // Activates after current timestamp
+					},
+				},
+			},
+		}
+
+		// Get the validator for requiring Isthmus fork to not be active
+		chainConfigGetter, validator := AcquireL2WithoutFork(0, rollup.Isthmus)
+		systestT := systest.NewT(t)
+
+		// Apply the validator
+		ctx, err := validator(systestT, systestSystem)
+		require.NoError(t, err, "Validator should pass when fork is not active")
+
+		// Verify the chain config getter works
+		chainConfig := chainConfigGetter(ctx)
+		require.NotNil(t, chainConfig)
+		isActive, err := IsForkActivated(chainConfig, rollup.Isthmus, 100)
+		require.NoError(t, err)
+		require.False(t, isActive)
+	})
+
+	t.Run("test AcquireRequiresNotL2Fork - fork active", func(t *testing.T) {
+		// Create a system with the Isthmus fork active
+		systestSystem := &mockSystem{
+			l2s: []system.Chain{
+				&mockChain{
+					config: &params.ChainConfig{
+						Optimism:    &params.OptimismConfig{},
+						IsthmusTime: Uint64Ptr(50),
+					},
+				},
+			},
+		}
+
+		// Get the validator for requiring Isthmus fork to not be active
+		_, validator := AcquireL2WithoutFork(0, rollup.Isthmus)
+		systestT := systest.NewT(t)
+
+		// Apply the validator - should fail since fork is active
+		_, err := validator(systestT, systestSystem)
+		require.Error(t, err, "Validator should fail when fork is active")
+		require.Contains(t, err.Error(), "has fork", "Error message should indicate fork is active")
+	})
+
+	t.Run("chain index out of range", func(t *testing.T) {
+		// Create a system with no L2 chains
+		systestSystem := &mockSystem{
+			l2s: []system.Chain{},
+		}
+
+		// Try to get chain config for an invalid chain index
+		_, validator := AcquireL2WithFork(0, rollup.Isthmus)
+		systestT := systest.NewT(t)
+
+		// Apply the validator - should fail since chain index is out of range
+		_, err := validator(systestT, systestSystem)
+		require.Error(t, err, "Validator should fail when chain index is out of range")
+		require.Contains(t, err.Error(), "chain index 0 out of range", "Error message should indicate chain index out of range")
 	})
 }
 
@@ -92,9 +233,9 @@ func (sys *mockSystem) L2s() []system.Chain {
 
 type mockChain struct {
 	wallets []system.Wallet
+	config  *params.ChainConfig
 }
 
-func (m *mockChain) Node() system.Node                               { return nil }
 func (m *mockChain) RPCURL() string                                  { return "http://localhost:8545" }
 func (m *mockChain) Client() (*ethclient.Client, error)              { return ethclient.Dial(m.RPCURL()) }
 func (m *mockChain) ID() types.ChainID                               { return types.ChainID(big.NewInt(1)) }
@@ -113,6 +254,54 @@ func (m *mockChain) PendingNonceAt(ctx context.Context, address common.Address) 
 }
 func (m *mockChain) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return true
+}
+func (m *mockChain) Config() (*params.ChainConfig, error) {
+	if m.config == nil {
+		return nil, fmt.Errorf("chain config not implemented")
+	}
+	return m.config, nil
+}
+func (m *mockChain) Node() system.Node {
+	return newMockNode(m.config)
+}
+
+type mockNode struct {
+	chainConfig *params.ChainConfig
+}
+
+func newMockNode(chainConfig *params.ChainConfig) *mockNode {
+	return &mockNode{
+		chainConfig: chainConfig,
+	}
+}
+
+func (m *mockNode) GasPrice(ctx context.Context) (*big.Int, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockNode) GasLimit(ctx context.Context, tx system.TransactionData) (uint64, error) {
+	return 0, fmt.Errorf("not implemented")
+}
+
+func (m *mockNode) PendingNonceAt(ctx context.Context, addr common.Address) (uint64, error) {
+	return 0, fmt.Errorf("not implemented")
+}
+
+func (m *mockNode) BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error) {
+	isIsthmusActivated, err := IsForkActivated(m.chainConfig, rollup.Isthmus, 100)
+	if err != nil {
+		return nil, err
+	}
+	var blockConfig *ethtypes.BlockConfig
+	if isIsthmusActivated {
+		blockConfig = ethtypes.DefaultBlockConfig
+	} else {
+		blockConfig = ethtypes.IsthmusBlockConfig
+	}
+
+	return ethtypes.NewBlock(&ethtypes.Header{
+		Time: 100,
+	}, &ethtypes.Body{Withdrawals: []*ethtypes.Withdrawal{}}, nil, nil, blockConfig), nil
 }
 
 type mockWallet struct {
@@ -156,8 +345,6 @@ func (m mockWallet) Transactor() *bind.TransactOpts {
 var (
 	_ system.Chain         = (*mockChain)(nil)
 	_ system.LowLevelChain = (*mockChain)(nil)
-
-	_ system.System = (*mockSystem)(nil)
-
-	_ system.Wallet = (*mockWallet)(nil)
+	_ system.System        = (*mockSystem)(nil)
+	_ system.Wallet        = (*mockWallet)(nil)
 )

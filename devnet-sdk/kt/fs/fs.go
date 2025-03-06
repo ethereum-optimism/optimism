@@ -46,7 +46,8 @@ func NewEnclaveFSWithContext(ctx EnclaveContextIface) *EnclaveFS {
 }
 
 type Artifact struct {
-	reader *tar.Reader
+	rawData []byte
+	reader  *tar.Reader
 }
 
 func (fs *EnclaveFS) GetAllArtifactNames(ctx context.Context) ([]string, error) {
@@ -69,30 +70,37 @@ func (fs *EnclaveFS) GetArtifact(ctx context.Context, name string) (*Artifact, e
 		return nil, err
 	}
 
+	// Store the raw data
 	buffer := bytes.NewBuffer(artifact)
 	zipReader, err := gzip.NewReader(buffer)
 	if err != nil {
 		return nil, err
 	}
 	tarReader := tar.NewReader(zipReader)
-	return &Artifact{reader: tarReader}, nil
+	return &Artifact{
+		rawData: artifact,
+		reader:  tarReader,
+	}, nil
 }
 
-type ArtifactFileWriter struct {
-	path   string
-	writer io.Writer
-}
-
-func NewArtifactFileWriter(path string, writer io.Writer) *ArtifactFileWriter {
-	return &ArtifactFileWriter{
-		path:   path,
-		writer: writer,
+func (a *Artifact) newReader() (*tar.Reader, error) {
+	buffer := bytes.NewBuffer(a.rawData)
+	zipReader, err := gzip.NewReader(buffer)
+	if err != nil {
+		return nil, err
 	}
+	return tar.NewReader(zipReader), nil
 }
 
 func (a *Artifact) Download(path string) error {
+	// Create a new reader for this operation
+	reader, err := a.newReader()
+	if err != nil {
+		return fmt.Errorf("failed to create reader: %w", err)
+	}
+
 	for {
-		header, err := a.reader.Next()
+		header, err := reader.Next()
 		if err == io.EOF {
 			return nil
 		}
@@ -120,7 +128,7 @@ func (a *Artifact) Download(path string) error {
 			}
 
 			// Copy contents from tar reader to file
-			if _, err := io.Copy(f, a.reader); err != nil {
+			if _, err := io.Copy(f, reader); err != nil {
 				f.Close()
 				return fmt.Errorf("failed to write contents to %s: %w", fpath, err)
 			}
@@ -132,6 +140,12 @@ func (a *Artifact) Download(path string) error {
 }
 
 func (a *Artifact) ExtractFiles(writers ...*ArtifactFileWriter) error {
+	// Create a new reader for this operation
+	reader, err := a.newReader()
+	if err != nil {
+		return fmt.Errorf("failed to create reader: %w", err)
+	}
+
 	paths := make(map[string]io.Writer)
 	for _, writer := range writers {
 		canonicalPath := filepath.Clean(writer.path)
@@ -139,9 +153,12 @@ func (a *Artifact) ExtractFiles(writers ...*ArtifactFileWriter) error {
 	}
 
 	for {
-		header, err := a.reader.Next()
+		header, err := reader.Next()
 		if err == io.EOF {
 			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
 		}
 
 		headerPath := filepath.Clean(header.Name)
@@ -150,9 +167,9 @@ func (a *Artifact) ExtractFiles(writers ...*ArtifactFileWriter) error {
 		}
 
 		writer := paths[headerPath]
-		_, err = io.Copy(writer, a.reader)
+		_, err = io.Copy(writer, reader)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to copy content: %w", err)
 		}
 	}
 
@@ -205,5 +222,17 @@ func NewArtifactFileReader(path string, reader io.Reader) *ArtifactFileReader {
 	return &ArtifactFileReader{
 		path:   path,
 		reader: reader,
+	}
+}
+
+type ArtifactFileWriter struct {
+	path   string
+	writer io.Writer
+}
+
+func NewArtifactFileWriter(path string, writer io.Writer) *ArtifactFileWriter {
+	return &ArtifactFileWriter{
+		path:   path,
+		writer: writer,
 	}
 }

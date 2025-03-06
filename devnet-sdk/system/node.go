@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	coreTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
@@ -58,4 +59,12 @@ func (n *node) PendingNonceAt(ctx context.Context, address common.Address) (uint
 		return 0, fmt.Errorf("failed to get client: %w", err)
 	}
 	return client.PendingNonceAt(ctx, address)
+}
+
+func (n *node) BlockByNumber(ctx context.Context, number *big.Int) (*coreTypes.Block, error) {
+	client, err := n.clients.Client(n.rpcUrl)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client: %w", err)
+	}
+	return client.BlockByNumber(ctx, number)
 }

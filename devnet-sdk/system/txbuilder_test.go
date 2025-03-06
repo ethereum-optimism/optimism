@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -110,6 +112,10 @@ func (m *mockChain) Wallets(ctx context.Context) ([]Wallet, error) {
 	return nil, nil
 }
 
+func (m *mockChain) Config() (*params.ChainConfig, error) {
+	return nil, fmt.Errorf("not implemented for mock chain")
+}
+
 type mockNode struct {
 	mock.Mock
 }
@@ -131,6 +137,11 @@ func (m *mockNode) GasLimit(ctx context.Context, tx TransactionData) (uint64, er
 func (m *mockNode) PendingNonceAt(ctx context.Context, addr common.Address) (uint64, error) {
 	args := m.Called(ctx, addr)
 	return args.Get(0).(uint64), args.Error(1)
+}
+
+func (m *mockNode) BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error) {
+	args := m.Called(ctx, number)
+	return args.Get(0).(*ethtypes.Block), args.Error(1)
 }
 
 func TestNewTxBuilder(t *testing.T) {
