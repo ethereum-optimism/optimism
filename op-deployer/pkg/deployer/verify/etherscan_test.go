@@ -183,7 +183,8 @@ func TestIsVerified(t *testing.T) {
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp)
+				err := json.NewEncoder(w).Encode(resp)
+				require.NoError(t, err)
 			})
 
 			testAddr := common.HexToAddress(testAddressHex)
@@ -243,7 +244,8 @@ func TestPollVerificationStatus(t *testing.T) {
 				}
 
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp)
+				err := json.NewEncoder(w).Encode(resp)
+				require.NoError(t, err)
 			})
 
 			err := client.pollVerificationStatus("test_guid")
