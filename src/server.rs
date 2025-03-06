@@ -132,6 +132,7 @@ impl RollupBoostServer {
         builder_client: ExecutionClient,
         boost_sync: bool,
         metrics: Option<Arc<ServerMetrics>>,
+        initial_execution_mode: ExecutionMode,
     ) -> Self {
         Self {
             l2_client,
@@ -139,14 +140,13 @@ impl RollupBoostServer {
             boost_sync,
             metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
-            execution_mode: Arc::new(Mutex::new(ExecutionMode::Enabled)),
+            execution_mode: Arc::new(Mutex::new(initial_execution_mode)),
         }
     }
 
-    pub async fn start_debug_server(&self, port: u16) -> eyre::Result<()> {
+    pub async fn start_debug_server(&self, debug_addr: &str) -> eyre::Result<()> {
         let server = DebugServer::new(self.execution_mode.clone());
-        server.run(Some(port)).await?;
-
+        server.run(debug_addr).await?;
         Ok(())
     }
 
@@ -303,44 +303,46 @@ impl RollupBoostServer {
 
         let execution_mode = self.execution_mode();
 
-        println!("execution_mode: {:?}", execution_mode);
-
         if execution_mode.is_disabled() {
             debug!(message = "execution mode is disabled, skipping FCU call to builder", "head_block_hash" = %fork_choice_state.head_block_hash);
         } else if should_send_to_builder {
-            let span: Option<BoxedSpan> = if let Some(payload_attributes) =
-                payload_attributes.clone()
-            {
-                let mut parent_span = self
-                    .payload_trace_context
-                    .tracer
-                    .start_with_context("build-block", &Context::current());
-                let local_payload_id = l2_response.payload_id.expect("local payload_id is None");
-                parent_span.set_attribute(KeyValue::new(
-                    "parent_hash",
-                    fork_choice_state.head_block_hash.to_string(),
-                ));
-                parent_span.set_attribute(KeyValue::new(
-                    "timestamp",
-                    payload_attributes.payload_attributes.timestamp as i64,
-                ));
-                parent_span
-                    .set_attribute(KeyValue::new("payload_id", local_payload_id.to_string()));
-                let ctx =
-                    Context::current().with_remote_span_context(parent_span.span_context().clone());
-                self.payload_trace_context.store(
-                    local_payload_id,
-                    fork_choice_state.head_block_hash,
-                    parent_span,
-                );
-                Some(
-                    self.payload_trace_context
+            let span: Option<BoxedSpan> =
+                if let (Some(payload_attributes), Some(local_payload_id)) =
+                    (payload_attributes.clone(), l2_response.payload_id)
+                {
+                    let mut parent_span = self
+                        .payload_trace_context
+
                         .tracer
-                        .start_with_context("fcu", &ctx),
-                )
-            } else {
-                None
-            };
+                        .start_with_context("build-block", &Context::current());
+
+                    parent_span.set_attribute(KeyValue::new(
+                        "parent_hash",
+                        fork_choice_state.head_block_hash.to_string(),
+                    ));
+                    parent_span.set_attribute(KeyValue::new(
+                        "timestamp",
+                        payload_attributes.payload_attributes.timestamp as i64,
+                    ));
+                    parent_span
+                        .set_attribute(KeyValue::new("payload_id", local_payload_id.to_string()));
+                    let ctx = Context::current()
+                        .with_remote_span_context(parent_span.span_context().clone());
+                    self.payload_trace_context
+                        .store(
+                            local_payload_id,
+                            fork_choice_state.head_block_hash,
+                            parent_span,
+                        )
+                        .await;
+                    Some(
+                        self.payload_trace_context
+                            .tracer
+                            .start_with_context("fcu", &ctx),
+                    )
+                } else {
+                    None
+                };
 
             // async call to builder to trigger payload building and sync
             let builder_client = self.builder_client.clone();
@@ -363,10 +365,10 @@ impl RollupBoostServer {
                                     .store_payload_id_mapping(local_id, external_id);
                             }
                         }
-                        let payload_id_str = external_payload_id
-                            .map(|id| id.to_string())
-                            .unwrap_or_default();
                         if response.is_invalid() {
+                            let payload_id_str = external_payload_id
+                                .map(|id| id.to_string())
+                                .unwrap_or_default();
                             error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_rpc, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
                         } else if let Some(external_id) = external_payload_id {
                             info!(
@@ -714,8 +716,13 @@ mod tests {
             )
             .unwrap();
 
-            let rollup_boost_client =
-                RollupBoostServer::new(l2_client, builder_client, boost_sync, None);
+            let rollup_boost_client = RollupBoostServer::new(
+                l2_client,
+                builder_client,
+                boost_sync,
+                None,
+                ExecutionMode::Enabled,
+            );
 
             let module: RpcModule<()> = rollup_boost_client.try_into().unwrap();
 
