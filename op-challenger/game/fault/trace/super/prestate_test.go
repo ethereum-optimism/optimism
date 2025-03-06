@@ -39,8 +39,7 @@ func TestAbsolutePreState(t *testing.T) {
 				},
 			},
 		}
-		expectedPreimage, err := response.ToSuper()
-		require.NoError(t, err)
+		expectedPreimage := responseToSuper(response)
 		rootProvider := &stubRootProvider{
 			rootsByTimestamp: map[uint64]eth.SuperRootResponse{
 				100: response,

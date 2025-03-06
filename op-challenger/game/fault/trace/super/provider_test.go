@@ -45,8 +45,7 @@ func TestGet(t *testing.T) {
 		stubSupervisor.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
 		require.NoError(t, err)
-		expected, err := response.ToSuper()
-		require.NoError(t, err)
+		expected := responseToSuper(response)
 		require.Equal(t, common.Hash(eth.SuperRoot(expected)), claim)
 	})
 
@@ -67,8 +66,7 @@ func TestGet(t *testing.T) {
 		stubSupervisor.Add(response)
 		claim, err := provider.Get(context.Background(), types.NewPosition(gameDepth, big.NewInt(StepsPerTimestamp-1)))
 		require.NoError(t, err)
-		expected, err := response.ToSuper()
-		require.NoError(t, err)
+		expected := responseToSuper(response)
 		require.Equal(t, common.Hash(eth.SuperRoot(expected)), claim)
 	})
 
@@ -98,8 +96,7 @@ func TestGet(t *testing.T) {
 		stubSupervisor.Add(response)
 		claim, err := provider.Get(context.Background(), types.RootPosition)
 		require.NoError(t, err)
-		expected, err := response.ToSuper()
-		require.NoError(t, err)
+		expected := responseToSuper(response)
 		require.Equal(t, common.Hash(eth.SuperRoot(expected)), claim)
 	})
 

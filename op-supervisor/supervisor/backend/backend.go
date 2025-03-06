@@ -662,16 +662,14 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 			crossSafeSource = source.ID()
 		}
 	}
-	super := eth.SuperV1{
+	superRoot := eth.SuperRoot(&eth.SuperV1{
 		Timestamp: uint64(timestamp),
 		Chains:    superRootChains,
-	}
-	superRoot := eth.SuperRoot(&super)
+	})
 	return eth.SuperRootResponse{
 		CrossSafeDerivedFrom: crossSafeSource,
 		Timestamp:            uint64(timestamp),
 		SuperRoot:            superRoot,
-		Version:              super.Version(),
 		Chains:               chainInfos,
 	}, nil
 }
