@@ -95,7 +95,8 @@ func TestGetContractCreation(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		err := json.NewEncoder(w).Encode(resp)
+		require.NoError(t, err)
 	})
 
 	testAddr := common.HexToAddress(testAddressHex)
@@ -114,7 +115,8 @@ func TestGetContractCreationError(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		err := json.NewEncoder(w).Encode(resp)
+		require.NoError(t, err)
 	})
 
 	testAddr := common.HexToAddress(testAddressHex)
@@ -144,7 +146,8 @@ func TestVerifySourceCode(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		err = json.NewEncoder(w).Encode(resp)
+		require.NoError(t, err)
 	})
 
 	testAddr := common.HexToAddress(testAddressHex)
