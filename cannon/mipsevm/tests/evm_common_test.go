@@ -195,7 +195,7 @@ func TestEVM_SingleStep_Bitwise(t *testing.T) {
 		{name: "ori", opcode: 0xd, isImm: true, rs: Word(0b1010_1100), rt: Word(0xFFFF_FFFF), imm: uint16(0b1100_0101), expectRes: Word(0b1110_1101)},          // ori t0, s1, 40
 		{name: "xor", funct: 0x26, isImm: false, rs: Word(0b1010_1100), rt: Word(0b1100_0101), expectRes: Word(0b0110_1001)},                                   // xor t0, s1, s2
 		{name: "xori", opcode: 0xe, isImm: true, rs: Word(0b1010_1100), rt: Word(1), imm: uint16(0b1100_0101), expectRes: Word(0b0110_1001)},                   // xori t0, s1, 40
-		{name: "nor", funct: 0x27, isImm: false, rs: Word(0x4B0), rt: Word(0x1EA), expectRes: signExtend64(0xFFFF_FA05)},                                       // nor t0, s1, s2
+		{name: "nor", funct: 0x27, isImm: false, rs: Word(0b1010_1100), rt: Word(0b1100_0101), expectRes: signExtend64(0b0001_0010 | 0xFFFF_FF00)},             // nor t0, s1, s2
 		{name: "slt, success, positive vals", funct: 0x2a, isImm: false, rs: 1, rt: Word(5), expectRes: Word(1)},                                               // slt t0, s1, s2
 		{name: "slt, success, mixed vals", funct: 0x2a, isImm: false, rs: signExtend64(0xFF_FF_FF_FE), rt: Word(5), expectRes: Word(1)},                        // slt t0, s1, s2
 		{name: "slt, success, negative vals", funct: 0x2a, isImm: false, rs: signExtend64(0xFF_FF_FF_FD), rt: signExtend64(0xFF_FF_FF_FE), expectRes: Word(1)}, // slt t0, s1, s2
