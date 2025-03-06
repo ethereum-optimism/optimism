@@ -312,7 +312,6 @@ impl RollupBoostServer {
                 {
                     let mut parent_span = self
                         .payload_trace_context
-
                         .tracer
                         .start_with_context("build-block", &Context::current());
 
@@ -328,13 +327,11 @@ impl RollupBoostServer {
                         .set_attribute(KeyValue::new("payload_id", local_payload_id.to_string()));
                     let ctx = Context::current()
                         .with_remote_span_context(parent_span.span_context().clone());
-                    self.payload_trace_context
-                        .store(
-                            local_payload_id,
-                            fork_choice_state.head_block_hash,
-                            parent_span,
-                        )
-                        .await;
+                    self.payload_trace_context.store(
+                        local_payload_id,
+                        fork_choice_state.head_block_hash,
+                        parent_span,
+                    );
                     Some(
                         self.payload_trace_context
                             .tracer
