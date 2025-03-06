@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"reflect"
@@ -14,9 +15,12 @@ import (
 
 	"github.com/Layr-Labs/eigenda-proxy/clients/memconfig_client"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/enclaves"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
 	"github.com/stretchr/testify/require"
@@ -35,12 +39,10 @@ const enclaveName = "eigenda-memstore-devnet"
 //
 // Note: because this test relies on modifying the proxy's memstore config, it should be run in isolation.
 // That is, if we ever implement more kurtosis tests, they would currently need to be run sequentially.
-//
-// TODO: We will also need to test the failover behavior of the node, which currently doesn't finalize after failover (fixed in https://github.com/Layr-Labs/optimism/pull/23)
 func TestFailoverToEthDACalldata(t *testing.T) {
 	deadline, ok := t.Deadline()
 	if !ok {
-		deadline = time.Now().Add(1 * time.Minute)
+		deadline = time.Now().Add(10 * time.Minute)
 	}
 	ctxWithDeadline, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
@@ -48,7 +50,7 @@ func TestFailoverToEthDACalldata(t *testing.T) {
 	harness := newHarness(t)
 	t.Cleanup(func() {
 		// switch proxy back to normal mode, in case test gets cancelled
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		err := harness.clients.proxyMemconfigClient.Failback(ctx)
 		if err != nil {
@@ -75,7 +77,7 @@ func TestFailoverToEthDACalldata(t *testing.T) {
 	harness.requireBatcherTxsToBeFromLayer(t, fromBlock, fromBlock+l1BlocksQueriedForBatcherTxs, DALayerEigenDA)
 
 	// 2. Failover and check that the commitments are now EthDACalldata
-	t.Logf("Failover over... changing proxy's config to return 503 errors")
+	t.Logf("Failing over... changing proxy's config to return 503 errors")
 	err := harness.clients.proxyMemconfigClient.Failover(ctxWithDeadline)
 	require.NoError(t, err)
 
@@ -86,6 +88,16 @@ func TestFailoverToEthDACalldata(t *testing.T) {
 	require.NoError(t, err)
 
 	harness.requireBatcherTxsToBeFromLayer(t, afterFailoverFromBlockNum, afterFailoverToBlockNum, DALayerEthCalldata)
+
+	// We also check that the op-node is still finalizing blocks after the failover
+	syncStatus, err := harness.clients.opNodeClient.SyncStatus(ctxWithDeadline)
+	require.NoError(t, err)
+	afterFailoverFinalizedL2 := syncStatus.FinalizedL2
+	t.Logf("Current finalized L2 block: %d. Waiting for next block to finalize to make sure finalization is still happening.", afterFailoverFinalizedL2.Number)
+	// On average would expect this to take half an epoch, aka 16 L1 blocks, which at 6 sec/block means 1.5 minutes.
+	// This generally takes longer (3-6 minutes), but I'm not quite sure why.
+	_, err = geth.WaitForBlockToBeFinalized(new(big.Int).SetUint64(afterFailoverFinalizedL2.Number+1), harness.clients.opGethClient, 6*time.Minute)
+	require.NoError(t, err, "op-node should still be finalizing blocks after failover")
 
 	// 3. Failback and check that the commitments are EigenDA again
 	t.Logf("Failing back... changing proxy's config to start processing PUT requests normally again")
@@ -105,6 +117,7 @@ func TestFailoverToEthDACalldata(t *testing.T) {
 // Test Harness, which contains all the state needed to run the tests.
 // harness also defines some higher-level "require" methods that are used in the tests.
 type harness struct {
+	logger              log.Logger
 	endpoints           *EnclaveServicePublicEndpoints
 	clients             *EnclaveServiceClients
 	batchInboxAddr      common.Address
@@ -112,6 +125,8 @@ type harness struct {
 }
 
 func newHarness(t *testing.T) *harness {
+	logger := testlog.Logger(t, slog.LevelInfo)
+
 	// We leave 20 seconds to build the entire testHarness.
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -128,14 +143,11 @@ func newHarness(t *testing.T) *harness {
 	require.NoError(t, err)
 	t.Logf("Endpoints: %+v", endpoints)
 
-	clients, err := getClientsFromEndpoints(endpoints)
+	clients, err := getClientsFromEndpoints(ctxWithTimeout, logger, endpoints)
 	require.NoError(t, err)
 
-	// Get the batch inbox address
-	var rollupConfigMap struct {
-		BatchInboxAddress string `json:"batch_inbox_address"`
-	}
-	err = clients.opNodeClient.CallContext(ctxWithTimeout, &rollupConfigMap, "optimism_rollupConfig")
+	// Get the batch inbox address from the rollup config
+	rollupConfig, err := clients.opNodeClient.RollupConfig(ctxWithTimeout)
 	require.NoError(t, err)
 
 	// Get the current L1 block number
@@ -143,9 +155,10 @@ func newHarness(t *testing.T) *harness {
 	require.NoError(t, err)
 
 	return &harness{
+		logger:              logger,
 		endpoints:           endpoints,
 		clients:             clients,
-		batchInboxAddr:      common.HexToAddress(rollupConfigMap.BatchInboxAddress),
+		batchInboxAddr:      rollupConfig.BatchInboxAddress,
 		testStartL1BlockNum: testStartL1BlockNum,
 	}
 }
@@ -315,6 +328,7 @@ func fetchBatcherTxs(gethL1Endpoint string, batchInbox string, fromBlockNum, toB
 // The public endpoints are the ones that are exposed to the host machine.
 type EnclaveServicePublicEndpoints struct {
 	OpNodeEndpoint       string `kurtosis:"op-cl-1-op-node-op-geth-op-kurtosis,http"`
+	OpGethEndpoint       string `kurtosis:"op-el-1-op-geth-op-node-op-kurtosis,rpc"`
 	GethL1Endpoint       string `kurtosis:"el-1-geth-teku,rpc"`
 	EigendaProxyEndpoint string `kurtosis:"da-server-op-kurtosis,http"`
 	// Adding new endpoints is as simple as adding a new field with a kurtosis tag
@@ -374,17 +388,29 @@ func getPublicEndpointsFromKurtosis(enclaveCtx *enclaves.EnclaveContext) (*Encla
 }
 
 type EnclaveServiceClients struct {
-	opNodeClient         *rpc.Client
-	gethL1Client         *ethclient.Client
+	// opNode and opGeth are the L2 clients for the rollup.
+	opNodeClient *sources.RollupClient
+	// opGeth is the client for the L2 execution layer client.
+	opGethClient *ethclient.Client
+	// gethL1 is the client for the L1 chain execution layer client.
+	gethL1Client *ethclient.Client
+	// proxyMemconfigClient is the client for the eigenda-proxy's memstore config API.
+	// It allows us to toggle the proxy's failover behavior.
 	proxyMemconfigClient *ProxyMemconfigClient
 }
 
-func getClientsFromEndpoints(endpoints *EnclaveServicePublicEndpoints) (*EnclaveServiceClients, error) {
-	opNodeClient, err := rpc.Dial(endpoints.OpNodeEndpoint)
+func getClientsFromEndpoints(ctx context.Context, logger log.Logger, endpoints *EnclaveServicePublicEndpoints) (*EnclaveServiceClients, error) {
+	opNodeClient, err := dial.DialRollupClientWithTimeout(ctx, 10*time.Second, logger, endpoints.OpNodeEndpoint)
 	if err != nil {
-		return nil, fmt.Errorf("rpc.Dial: %w", err)
+		return nil, fmt.Errorf("dial.DialRollupClientWithTimeout: %w", err)
 	}
 
+	opGethClient, err := dial.DialEthClientWithTimeout(ctx, 10*time.Second, logger, endpoints.OpGethEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("dial.DialEthClientWithTimeout: %w", err)
+	}
+
+	// TODO: prob also change to use dial.DialEthClient?
 	gethL1Client, err := ethclient.Dial(endpoints.GethL1Endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("ethclient.Dial: %w", err)
@@ -396,6 +422,7 @@ func getClientsFromEndpoints(endpoints *EnclaveServicePublicEndpoints) (*Enclave
 
 	return &EnclaveServiceClients{
 		opNodeClient:         opNodeClient,
+		opGethClient:         opGethClient,
 		gethL1Client:         gethL1Client,
 		proxyMemconfigClient: proxyMemconfigClient,
 	}, nil
