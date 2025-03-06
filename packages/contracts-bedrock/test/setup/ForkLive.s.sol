@@ -108,7 +108,7 @@ contract ForkLive is Deployer {
         // Superchain shared contracts
         saveProxyAndImpl("SuperchainConfig", superchainToml, ".superchain_config_addr");
         saveProxyAndImpl("ProtocolVersions", superchainToml, ".protocol_versions_addr");
-        artifacts.save("OPContractsManager", vm.parseTomlAddress(standardVersionsToml, "$.op_contracts_manager.address"));
+        artifacts.save("OPContractsManager", vm.parseTomlAddress(standardVersionsToml, "$.RELEASE.op_contracts_manager.address"));
 
         // Core contracts
         artifacts.save("ProxyAdmin", vm.parseTomlAddress(opToml, ".addresses.ProxyAdmin"));
