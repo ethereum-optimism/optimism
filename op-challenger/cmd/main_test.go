@@ -953,7 +953,9 @@ func TestDepsetConfig(t *testing.T) {
 	for _, traceType := range types.TraceTypes {
 		if traceType == types.TraceTypeSuperCannon || traceType == types.TraceTypeSuperPermissioned {
 			t.Run("Required-"+traceType.String(), func(t *testing.T) {
-				verifyArgsInvalid(t, "flag network or depset-config/cannon-depset-config is required", addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
+				verifyArgsInvalid(t,
+					"flag network or rollup-config/cannon-rollup-config, l2-genesis/cannon-l2-genesis and depset-config/cannon-depset-config is required",
+					addRequiredArgsExcept(traceType, "--network", "--rollup-config=rollup.json", "--l2-genesis=genesis.json"))
 			})
 		} else {
 			t.Run("NotRequired-"+traceType.String(), func(t *testing.T) {
