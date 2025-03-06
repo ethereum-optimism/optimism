@@ -106,7 +106,7 @@ contract ForkLive is Deployer {
         string memory standardVersionsToml =
             vm.readFile(string.concat(validationBasePath, "standard-versions-", baseChain(), ".toml"));
 
-        standardVersionsToml = standardVersionsToml.replace('"op-contracts/v1.8.0"', "RELEASE");
+        standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
 
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
         artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
