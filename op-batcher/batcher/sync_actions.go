@@ -57,11 +57,11 @@ func computeSyncActions[T channelStatuser](
 ) (syncActions, bool) {
 
 	m := l.With(
-		"syncStatus.headL1", newSyncStatus.HeadL1,
-		"syncStatus.currentL1", newSyncStatus.CurrentL1,
-		"syncStatus.localSafeL2", newSyncStatus.LocalSafeL2,
-		"syncStatus.safeL2", newSyncStatus.SafeL2,
-		"syncStatus.unsafeL2", newSyncStatus.UnsafeL2,
+		"syncStatus.headL1", newSyncStatus.HeadL1.TerminalString(),
+		"syncStatus.currentL1", newSyncStatus.CurrentL1.TerminalString(),
+		"syncStatus.localSafeL2", newSyncStatus.LocalSafeL2.TerminalString(),
+		"syncStatus.safeL2", newSyncStatus.SafeL2.TerminalString(),
+		"syncStatus.unsafeL2", newSyncStatus.UnsafeL2.TerminalString(),
 	)
 
 	safeL2 := newSyncStatus.SafeL2
@@ -78,7 +78,7 @@ func computeSyncActions[T channelStatuser](
 
 	if newSyncStatus.CurrentL1.Number < prevCurrentL1.Number {
 		// This can happen when the sequencer restarts
-		m.Warn("sequencer currentL1 reversed", "prevCurrentL1", prevCurrentL1)
+		m.Warn("sequencer currentL1 reversed", "prevCurrentL1", prevCurrentL1.TerminalString())
 		return syncActions{}, true
 	}
 
@@ -94,7 +94,7 @@ func computeSyncActions[T channelStatuser](
 		s := syncActions{
 			blocksToLoad: allUnsafeBlocks,
 		}
-		m.Info("no blocks in state", "syncActions", s)
+		m.Info("no blocks in state", "syncActions", s.TerminalString())
 		return s, false
 	}
 
@@ -112,7 +112,7 @@ func computeSyncActions[T channelStatuser](
 
 	if nextSafeBlockNum < oldestBlockInStateNum {
 		m.Warn("next safe block is below oldest block in state",
-			"syncActions", startAfresh,
+			"syncActions", startAfresh.TerminalString(),
 			"oldestBlockInStateNum", oldestBlockInStateNum)
 		return startAfresh, false
 	}
@@ -128,16 +128,16 @@ func computeSyncActions[T channelStatuser](
 		// The sequencer may have derived the safe chain
 		// from channels sent by a previous batcher instance.
 		m.Warn("safe head above newest block in state, clearing channel manager state",
-			"syncActions", startAfresh,
-			"newestBlockInState", eth.ToBlockID(newestBlockInState),
+			"syncActions", startAfresh.TerminalString(),
+			"newestBlockInState", eth.ToBlockID(newestBlockInState).TerminalString(),
 		)
 		return startAfresh, false
 	}
 
 	if numBlocksToDequeue > 0 && blocks[numBlocksToDequeue-1].Hash() != safeL2.Hash {
 		m.Warn("safe chain reorg, clearing channel manager state",
-			"syncActions", startAfresh,
-			"existingBlock", eth.ToBlockID(blocks[numBlocksToDequeue-1]))
+			"syncActions", startAfresh.TerminalString(),
+			"existingBlock", eth.ToBlockID(blocks[numBlocksToDequeue-1]).TerminalString())
 		return startAfresh, false
 	}
 
@@ -152,8 +152,8 @@ func computeSyncActions[T channelStatuser](
 			// that the derivation pipeline may have stalled
 			// e.g. because of Holocene strict ordering rules.
 			m.Warn("sequencer did not make expected progress",
-				"syncActions", startAfresh,
-				"existingBlock", ch.LatestL2())
+				"syncActions", startAfresh.TerminalString(),
+				"existingBlock", ch.LatestL2().TerminalString())
 			return startAfresh, false
 		}
 	}
@@ -179,6 +179,6 @@ func computeSyncActions[T channelStatuser](
 		channelsToPrune: numChannelsToPrune,
 		blocksToLoad:    allUnsafeBlocksAboveState,
 	}
-	m.Debug("computed sync actions", "syncActions", a)
+	m.Debug("computed sync actions", "syncActions", a.TerminalString())
 	return a, false
 }
