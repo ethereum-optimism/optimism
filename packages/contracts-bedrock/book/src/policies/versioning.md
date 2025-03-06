@@ -101,11 +101,9 @@ To accommodate this, once contract changes are ready for governance approval, th
 7. Click publish release.
 8. After governance vote passes, edit the relase to uncheck "set as pre-release", and remove the `-rc.1` tag.
 
-- Once the governance approval is posted, any lock on contracts on `develop` is released.
-- Once governance approves the proposal:
-    - Create the official `op-contracts/vX.Y.Z` off of this `proposal/op-contracts/vX.Y.Z` branch. It should be at the same commit as the most recent release candidate.
-    - Merge the proposal branch into `develop` and set the version of all contracts to the appropriate `X.Y.Z` after considering any changes made to `develop` since the release candidate was created.
-  - See [Merging Back to Develop After Governance Approval](#merging-back-to-develop-after-governance-approval) for more information on how to choose the resulting contract versions when merging back into `develop`.
+Although the tools exist to apply a [code freeze](./code-freezes.md) to specific contracts, this is
+discouraged. If a change is required to a release candidate after it has been tagged, the
+[Additional Release Candidates](#additional-release-candidates) for more information on this flow.
 
 ### Additional Release Candidates
 
