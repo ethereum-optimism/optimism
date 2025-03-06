@@ -686,6 +686,30 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 	}
 }
 
+func TestEVM_SingleStep_Sync(t *testing.T) {
+	versions := GetMipsVersionTestCases(t)
+	syncInsn := uint32(0x0000_000F)
+	for _, v := range versions {
+		testName := fmt.Sprintf("Sync (%v)", v.Name)
+		t.Run(testName, func(t *testing.T) {
+			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(248)))
+			state := goVm.GetState()
+			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syncInsn)
+			step := state.GetStep()
+
+			// Setup expectations
+			expected := testutil.NewExpectedState(state)
+			expected.ExpectStep()
+
+			stepWitness, err := goVm.Step(true)
+			require.NoError(t, err)
+			// Check expectations
+			expected.Validate(t, state)
+			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+		})
+	}
+}
+
 func TestEVM_MMap(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
