@@ -1,9 +1,11 @@
 package interop
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
 	"math/big"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
@@ -365,174 +367,91 @@ func TestInteropFaultProofs(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
-func TestInteropFaultProofs_Cycle(gt *testing.T) {
-	t := helpers.NewDefaultTesting(gt)
-
-	system := dsl.NewInteropDSL(t)
-	actors := system.Actors
-
-	alice := system.CreateUser()
-	emitter := dsl.NewEmitterContract(t)
-	system.AddL2Block(actors.ChainA, dsl.WithL2BlockTransactions(emitter.Deploy(alice)))
-	system.AddL2Block(actors.ChainB, dsl.WithL2BlockTransactions(emitter.Deploy(alice)))
-
-	assertHeads(t, actors.ChainA, 1, 0, 1, 0)
-	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
-
-	actEmitA := emitter.EmitMessage(alice, "hello")
-	actEmitB := emitter.EmitMessage(alice, "world")
-
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
-
-	// create init messages
-	emitTxA := actEmitA(actors.ChainA)
-	emitTxA.Include()
-	emitTxB := actEmitB(actors.ChainB)
-	emitTxB.Include()
-
-	// execute them within the same block
-	actExecA := system.InboxContract.Execute(alice, emitTxB) // Exec msg on chain A referencing chain B
-	actExecB := system.InboxContract.Execute(alice, emitTxA) // Exec msg on chain B referencing chain A
-	actExecA(actors.ChainA).Include()
-	actExecB(actors.ChainB).Include()
-
-	actors.ChainA.Sequencer.ActL2EndBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
-	actors.ChainA.Sequencer.SyncSupervisor(t)
-	actors.ChainB.Sequencer.SyncSupervisor(t)
-	actors.Supervisor.ProcessFull(t)
-	actors.ChainA.Sequencer.ActL2PipelineFull(t)
-	actors.ChainB.Sequencer.ActL2PipelineFull(t)
-
-	assertHeads(t, actors.ChainA, 2, 0, 2, 0)
-	assertHeads(t, actors.ChainB, 2, 0, 2, 0)
-
-	system.SubmitBatchData()
-	assertHeads(t, actors.ChainA, 2, 2, 2, 2)
-	assertHeads(t, actors.ChainB, 2, 2, 2, 2)
-
-	endTimestamp := system.Actors.ChainA.Sequencer.L2Safe().Time
-	startTimestamp := endTimestamp - 1
-	end := system.Outputs.SuperRoot(endTimestamp)
-
-	paddingStep := func(step uint64) []byte {
-		return system.Outputs.TransitionState(startTimestamp, step,
-			system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
-			system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
-		).Marshal()
+func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
+	cases := []intraBlockTestCase{
+		new(cascadeInvalidBlockCase),
+		new(swapCascadeInvalidBlockCase),
+		new(cyclicDependencyInvalidCase),
+		new(cyclicDependencyValidCase),
+		new(longDependencyChainValidCase),
 	}
+	for _, c := range cases {
+		c := c
+		name := reflect.TypeOf(c).Elem().Name()
+		if name == "cascadeInvalidBlockCase" || name == "swapCascadeInvalidBlockCase" || name == "cyclicDependencyInvalidCase" {
+			// TODO(#14307): Support cascading block invalidations in the supervisor
+			gt.Skip("Skipping cascade invalid block case")
+		}
+		gt.Run(name, func(gt *testing.T) {
+			t := helpers.NewDefaultTesting(gt)
+			system := dsl.NewInteropDSL(t)
 
-	tests := []*transitionTest{
-		{
-			name:               "Consolidate-AllValid",
-			agreedClaim:        paddingStep(consolidateStep),
-			disputedClaim:      end.Marshal(),
-			disputedTraceIndex: consolidateStep,
-			expectValid:        true,
-		},
-		{
-			name:               "Consolidate-AllValid-InvalidNoChange",
-			agreedClaim:        paddingStep(consolidateStep),
-			disputedClaim:      paddingStep(consolidateStep),
-			disputedTraceIndex: consolidateStep,
-			expectValid:        false,
-		},
+			actors := system.Actors
+			alice := system.CreateUser()
+			emitterContract := dsl.NewEmitterContract(t)
+			// Deploy emitter contract to both chains
+			system.AddL2Block(actors.ChainA, dsl.WithL2BlockTransactions(
+				emitterContract.Deploy(alice),
+			))
+			system.AddL2Block(actors.ChainB, dsl.WithL2BlockTransactions(
+				emitterContract.Deploy(alice),
+			))
+			assertHeads(t, actors.ChainA, 1, 0, 1, 0)
+			assertHeads(t, actors.ChainB, 1, 0, 1, 0)
+
+			actors.ChainA.Sequencer.ActL2StartBlock(t)
+			actors.ChainB.Sequencer.ActL2StartBlock(t)
+			c.Setup(t, system, emitterContract, actors)
+			actors.ChainA.Sequencer.ActL2EndBlock(t)
+			actors.ChainB.Sequencer.ActL2EndBlock(t)
+
+			system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
+				opts.SkipCrossSafeUpdate = true
+			})
+
+			endTimestamp := actors.ChainB.Sequencer.L2Unsafe().Time
+			startTimestamp := endTimestamp - 1
+			optimisticEnd := system.Outputs.SuperRoot(endTimestamp)
+
+			preConsolidation := system.Outputs.TransitionState(startTimestamp, consolidateStep,
+				system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
+				system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
+			).Marshal()
+
+			// Induce block replacement
+			system.ProcessCrossSafe()
+			c.RunCrossSafeChecks(t, system, actors)
+			crossSafeEnd := system.Outputs.SuperRoot(endTimestamp)
+			optimisticIsCrossSafe := bytes.Equal(optimisticEnd.Marshal(), crossSafeEnd.Marshal())
+
+			tests := []*transitionTest{
+				{
+					name:               "Consolidate",
+					agreedClaim:        preConsolidation,
+					disputedClaim:      crossSafeEnd.Marshal(),
+					disputedTraceIndex: consolidateStep,
+					expectValid:        true,
+				},
+				{
+					name:               "Consolidate-InvalidNoChange",
+					agreedClaim:        preConsolidation,
+					disputedClaim:      preConsolidation,
+					disputedTraceIndex: consolidateStep,
+					expectValid:        false,
+				},
+			}
+			if !optimisticIsCrossSafe {
+				tests = append(tests, &transitionTest{
+					name:               "Consolidate-ExpectInvalidPendingBlock",
+					agreedClaim:        preConsolidation,
+					disputedClaim:      optimisticEnd.Marshal(),
+					disputedTraceIndex: consolidateStep,
+					expectValid:        false,
+				})
+			}
+			runFppAndChallengerTests(gt, system, tests)
+		})
 	}
-	runFppAndChallengerTests(gt, system, tests)
-}
-
-func TestInteropFaultProofs_CascadeInvalidBlock(gt *testing.T) {
-	// TODO(#14307): Support cascading block invalidations
-	gt.Skip("TODO(#14307): Support cascading block invalidations")
-	t := helpers.NewDefaultTesting(gt)
-
-	system := dsl.NewInteropDSL(t)
-
-	actors := system.Actors
-	alice := system.CreateUser()
-	emitterContract := dsl.NewEmitterContract(t)
-	// Deploy emitter contract to both chains
-	system.AddL2Block(actors.ChainA, dsl.WithL2BlockTransactions(
-		emitterContract.Deploy(alice),
-	))
-	system.AddL2Block(actors.ChainB, dsl.WithL2BlockTransactions(
-		emitterContract.Deploy(alice),
-	))
-
-	assertHeads(t, actors.ChainA, 1, 0, 1, 0)
-	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
-
-	// Create initiating and executing messages within the same block
-	var (
-		chainAExecTx *dsl.GeneratedTransaction
-		chainBExecTx *dsl.GeneratedTransaction
-		chainBInitTx *dsl.GeneratedTransaction
-	)
-	{
-		actors.ChainA.Sequencer.ActL2StartBlock(t)
-		actors.ChainB.Sequencer.ActL2StartBlock(t)
-
-		chainAInitTx := emitterContract.EmitMessage(alice, "chainA message")(actors.ChainA)
-		chainAInitTx.Include()
-
-		// Create messages with a conflicting payload on chain B, while also emitting an initiating message
-		chainBExecTx := system.InboxContract.Execute(alice, chainAInitTx,
-			dsl.WithPayload([]byte("this message was never emitted")))(actors.ChainB)
-		chainBExecTx.Include()
-		chainBInitTx = emitterContract.EmitMessage(alice, "chainB message")(actors.ChainB)
-		chainBInitTx.Include()
-
-		// Create a message with a valid message on chain A, pointing to the initiating message on B from the same block
-		// as an invalid message.
-		chainAExecTx = system.InboxContract.Execute(alice, chainBInitTx)(actors.ChainA)
-		chainAExecTx.Include()
-
-		actors.ChainA.Sequencer.ActL2EndBlock(t)
-		actors.ChainB.Sequencer.ActL2EndBlock(t)
-	}
-	assertHeads(t, actors.ChainA, 2, 0, 1, 0)
-	assertHeads(t, actors.ChainB, 2, 0, 1, 0)
-
-	system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
-		opts.SkipCrossSafeUpdate = true
-	})
-
-	endTimestamp := actors.ChainB.Sequencer.L2Unsafe().Time
-	startTimestamp := endTimestamp - 1
-	optimisticEnd := system.Outputs.SuperRoot(endTimestamp)
-
-	preConsolidation := system.Outputs.TransitionState(startTimestamp, consolidateStep,
-		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
-		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
-	).Marshal()
-
-	// Induce block replacement
-	system.ProcessCrossSafe()
-	// assert that the invalid message txs were reorged out
-	chainBExecTx.CheckNotIncluded()
-	chainBInitTx.CheckNotIncluded() // Should have been reorged out with chainBExecTx
-	chainAExecTx.CheckNotIncluded() // Reorged out because chainBInitTx was reorged out
-
-	crossSafeEnd := system.Outputs.SuperRoot(endTimestamp)
-
-	tests := []*transitionTest{
-		{
-			name:               "Consolidate-ExpectInvalidPendingBlock",
-			agreedClaim:        preConsolidation,
-			disputedClaim:      optimisticEnd.Marshal(),
-			disputedTraceIndex: consolidateStep,
-			expectValid:        false,
-		},
-		{
-			name:               "Consolidate-ReplaceInvalidBlocks",
-			agreedClaim:        preConsolidation,
-			disputedClaim:      crossSafeEnd.Marshal(),
-			disputedTraceIndex: consolidateStep,
-			expectValid:        true,
-		},
-	}
-	runFppAndChallengerTests(gt, system, tests)
 }
 
 func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
@@ -905,4 +824,163 @@ type transitionTest struct {
 	expectValid        bool
 	skipProgram        bool
 	skipChallenger     bool
+}
+
+type intraBlockTestCase interface {
+	// Setup is called to create a single-block test scenario
+	Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitterContract *dsl.EmitterContract, actors *dsl.InteropActors)
+	// RunCrossSafeChecks is called after cross-safe updates are applied to the system
+	RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors)
+}
+
+type cascadeInvalidBlockCase struct {
+	chainAInitTx *dsl.GeneratedTransaction
+	chainBExecTx *dsl.GeneratedTransaction
+	chainBInitTx *dsl.GeneratedTransaction
+	chainAExecTx *dsl.GeneratedTransaction
+}
+
+func (c *cascadeInvalidBlockCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+	alice := system.CreateUser()
+	chainAInitTx := emitter.EmitMessage(alice, "chainA message")(actors.ChainA)
+	chainAInitTx.IncludeOK()
+
+	// Create messages with a conflicting payload on chain B, while also emitting an initiating message
+	c.chainBExecTx = system.InboxContract.Execute(alice, c.chainAInitTx,
+		dsl.WithPayload([]byte("this message was never emitted")))(actors.ChainB)
+	c.chainBExecTx.IncludeOK()
+	c.chainBInitTx = emitter.EmitMessage(alice, "chainB message")(actors.ChainB)
+	c.chainBInitTx.IncludeOK()
+
+	// Create a message with a valid message on chain A, pointing to the initiating message on B from the same block
+	// as an invalid message.
+	c.chainAExecTx = system.InboxContract.Execute(alice, c.chainBInitTx)(actors.ChainA)
+	c.chainAExecTx.IncludeOK()
+}
+
+func (c *cascadeInvalidBlockCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
+	// assert that the invalid message txs were reorged out
+	c.chainAInitTx.CheckNotIncluded()
+	c.chainAExecTx.CheckNotIncluded() // Reorged out because chainBInitTx was reorged out
+	c.chainBExecTx.CheckNotIncluded()
+	c.chainBInitTx.CheckNotIncluded() // Should have been reorged out with chainBExecTx
+}
+
+type swapCascadeInvalidBlockCase struct {
+	cascadeInvalidBlockCase
+}
+
+func (c *swapCascadeInvalidBlockCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+	swap := *actors
+	chainA := swap.ChainA
+	swap.ChainA = swap.ChainB
+	swap.ChainB = chainA
+	c.cascadeInvalidBlockCase.Setup(t, system, emitter, &swap)
+}
+
+type cyclicDependencyValidCase struct {
+	chainAInitTx *dsl.GeneratedTransaction
+	chainBInitTx *dsl.GeneratedTransaction
+	chainAExecTx *dsl.GeneratedTransaction
+	chainBExecTx *dsl.GeneratedTransaction
+}
+
+func (c *cyclicDependencyValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+	alice := system.CreateUser()
+	actEmitA := emitter.EmitMessage(alice, "hello")
+	actEmitB := emitter.EmitMessage(alice, "world")
+
+	// Exec(A) -> Init(B)
+	// Exec(B) -> Init(A)
+	emitTxA := actEmitA(actors.ChainA)
+	emitTxA.IncludeOK()
+	emitTxB := actEmitB(actors.ChainB)
+	emitTxB.IncludeOK()
+
+	actExecA := system.InboxContract.Execute(alice, emitTxB)
+	actExecB := system.InboxContract.Execute(alice, emitTxA)
+	execTxA := actExecA(actors.ChainA)
+	execTxA.IncludeOK()
+	execTxB := actExecB(actors.ChainB)
+	execTxB.IncludeOK()
+
+	c.chainAInitTx = emitTxA
+	c.chainBInitTx = emitTxB
+	c.chainAExecTx = execTxA
+	c.chainBExecTx = execTxB
+}
+
+func (c *cyclicDependencyValidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
+	assertHeads(t, actors.ChainA, 2, 2, 2, 2)
+	assertHeads(t, actors.ChainB, 2, 2, 2, 2)
+	c.chainAInitTx.CheckIncluded()
+	c.chainBInitTx.CheckIncluded()
+	c.chainAExecTx.CheckIncluded()
+	c.chainBExecTx.CheckIncluded()
+}
+
+type cyclicDependencyInvalidCase struct {
+	execATx *dsl.GeneratedTransaction
+	execBTx *dsl.GeneratedTransaction
+}
+
+func (c *cyclicDependencyInvalidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+	alice := system.CreateUser()
+
+	// Create an exec message for chain B without including it
+	pendingExecBOpts := dsl.WithPendingMessage(emitter, actors.ChainB, 0, "message from B")
+
+	// Exec(A) -> Exec(B) -> Exec(A)
+	actExecA := system.InboxContract.Execute(alice, nil, pendingExecBOpts)
+	c.execATx = actExecA(actors.ChainA)
+	c.execATx.IncludeOK()
+	actExecB := system.InboxContract.Execute(alice, c.execATx)
+	c.execBTx = actExecB(actors.ChainB)
+	c.execBTx.IncludeOK()
+}
+
+func (c *cyclicDependencyInvalidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
+	c.execATx.CheckNotIncluded()
+	c.execBTx.CheckNotIncluded()
+}
+
+type longDependencyChainValidCase struct {
+	initTxA *dsl.GeneratedTransaction
+	execs   []*dsl.GeneratedTransaction
+}
+
+func (c *longDependencyChainValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+	alice := system.CreateUser()
+	const depth = 10
+
+	// Exec(B_0) -> Exec(A_0) -> Exec(B_1) -> Exec(A_1) -> Exec(B_2) -> Exec(A_2) -> ... -> Init(A)
+	initTxA := emitter.EmitMessage(alice, "chain A")(actors.ChainA)
+	initTxA.IncludeOK()
+
+	var execs []*dsl.GeneratedTransaction
+
+	exec := system.InboxContract.Execute(alice, initTxA)(actors.ChainB)
+	exec.IncludeOK()
+	execs = append(execs, exec)
+	lastExecChain := actors.ChainB
+	for i := 1; i < depth; i++ {
+		if lastExecChain == actors.ChainA {
+			lastExecChain = actors.ChainB
+		} else {
+			lastExecChain = actors.ChainA
+		}
+		exec := system.InboxContract.Execute(alice, execs[i-1])(lastExecChain)
+		exec.IncludeOK()
+		execs = append(execs, exec)
+	}
+
+	c.execs = execs
+	c.initTxA = initTxA
+}
+
+func (c *longDependencyChainValidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
+	for _, exec := range c.execs {
+		exec.CheckIncluded()
+	}
+	c.initTxA.CheckIncluded()
 }
