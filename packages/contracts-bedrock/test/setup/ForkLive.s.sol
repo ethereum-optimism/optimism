@@ -14,6 +14,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 // Libraries
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import {LibString} from "solady/src/utils/LibString.sol";
 
 // Interfaces
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -36,6 +37,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 ///         This contract must not have constructor logic because it is set into state using `etch`.
 contract ForkLive is Deployer {
     using stdToml for string;
+    using LibString for string;
 
     bool public useOpsRepo;
 
@@ -100,8 +102,11 @@ contract ForkLive is Deployer {
 
         string memory superchainToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/superchain.toml"));
         string memory opToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/", opChain(), ".toml"));
+
         string memory standardVersionsToml =
             vm.readFile(string.concat(validationBasePath, "standard-versions-", baseChain(), ".toml"));
+
+        standardVersionsToml = standardVersionsToml.replace('"op-contracts/v1.8.0"', "RELEASE");
 
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
         artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
