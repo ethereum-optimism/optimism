@@ -110,10 +110,17 @@ discouraged. If a change is required to a release candidate after it has been ta
 Sometimes additional release candidate versions are needed.
 The process for this is:
 
-- Make the fixes on `develop`. Increment the `-rc.n` qualifier for the changed contracts only.
-- Open a PR into the `proposal/op-contracts/vX.Y.Z` branch that incorporates the changes from `develop`.
-- Open another PR to remove the new `-rc.2` version identifiers from the changed contracts. Tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
-- This flow (1) ensures develop stays up to date during the release process, (2) mitigates the risk of forgetting to merge the release back into the develop branch, and (3) mitigates the risk of the merge into develop removing the required `-rc.n` version that is needed until the release is approved.
+1. Make the fixes on `develop`. Bump the contract semvers as normal.
+2. Create a new release branch, named `proposal/op-contracts/X.Y.Z-rc.n+1` off of the rc tag.
+3. Cherry pick the fixes from `develop` into that branch.
+   When bumping a contract semver on release branch, we must avoid a collision, wherein a
+   contract could have the same semver, but different source/bytecode on the two branches.
+   In order to avoid this...
+3. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
+   Create a new release for this tag per the instructions above.
+
+This flow (1) ensures fixes are made on both the release and the trunk branch, (2) mitigates the risk of forgetting to merge the release back into the develop branch,
+ and (3) avoids the need to stop development efforts on the trunk branch.
 
 ### Merging Back to Develop After Governance Approval
 
