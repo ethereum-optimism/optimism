@@ -1,5 +1,6 @@
 use alloy_consensus::{BlockHeader, Transaction};
 use alloy_eips::Encodable2718;
+use op_revm::L1BlockInfo;
 use parking_lot::RwLock;
 use reth_chainspec::ChainSpecProvider;
 use reth_optimism_evm::RethL1BlockInfo;
@@ -12,7 +13,6 @@ use reth_transaction_pool::{
     EthPoolTransaction, EthTransactionValidator, TransactionOrigin, TransactionValidationOutcome,
     TransactionValidator,
 };
-use revm_optimism::L1BlockInfo;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,

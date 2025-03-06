@@ -56,7 +56,7 @@ where
         self.inner.provider()
     }
 
-    /// Validates the conditional's `known acounts` settings against the current state.
+    /// Validates the conditional's `known accounts` settings against the current state.
     async fn validate_known_accounts(
         &self,
         condition: &TransactionConditional,

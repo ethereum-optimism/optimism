@@ -2,12 +2,12 @@
 
 use alloy_rpc_types_eth::{error::EthRpcErrorCode, BlockError};
 use jsonrpsee_types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
+use op_revm::{OpHaltReason, OpTransactionError};
 use reth_optimism_evm::OpBlockExecutionError;
 use reth_rpc_eth_api::AsEthApiError;
 use reth_rpc_eth_types::{error::api::FromEvmHalt, EthApiError};
 use reth_rpc_server_types::result::{internal_rpc_err, rpc_err};
 use revm::context_interface::result::{EVMError, InvalidTransaction};
-use revm_optimism::{OpHaltReason, OpTransactionError};
 use std::fmt::Display;
 
 /// Optimism specific errors, that extend [`EthApiError`].

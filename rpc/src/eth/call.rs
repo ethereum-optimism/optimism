@@ -3,6 +3,7 @@ use crate::{OpEthApi, OpEthApiError};
 use alloy_consensus::TxType;
 use alloy_primitives::{Bytes, TxKind, U256};
 use alloy_rpc_types_eth::transaction::TransactionRequest;
+use op_revm::OpTransaction;
 use reth_evm::{ConfigureEvm, EvmEnv, SpecFor};
 use reth_provider::ProviderHeader;
 use reth_rpc_eth_api::{
@@ -11,7 +12,6 @@ use reth_rpc_eth_api::{
 };
 use reth_rpc_eth_types::{revm_utils::CallFees, EthApiError, RpcInvalidTransactionError};
 use revm::{context::TxEnv, context_interface::Block, Database};
-use revm_optimism::OpTransaction;
 
 impl<N> EthCall for OpEthApi<N>
 where

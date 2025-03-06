@@ -280,7 +280,7 @@ where
             Engine = OpEngineTypes,
         >,
         Evm: ConfigureEvmEnv<
-            TxEnv = revm_optimism::OpTransaction<TxEnv>,
+            TxEnv = op_revm::OpTransaction<TxEnv>,
             NextBlockEnvCtx = OpNextBlockEnvAttributes,
         >,
     >,
@@ -354,7 +354,7 @@ where
             Engine = OpEngineTypes,
         >,
         Evm: ConfigureEvm<
-            TxEnv = revm_optimism::OpTransaction<TxEnv>,
+            TxEnv = op_revm::OpTransaction<TxEnv>,
             NextBlockEnvCtx = OpNextBlockEnvAttributes,
         >,
     >,

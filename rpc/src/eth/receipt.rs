@@ -111,12 +111,12 @@ impl OpReceiptFieldsBuilder {
         }
     }
 
-    /// Applies [`L1BlockInfo`](revm_optimism::L1BlockInfo).
+    /// Applies [`L1BlockInfo`](op_revm::L1BlockInfo).
     pub fn l1_block_info(
         mut self,
         chain_spec: &OpChainSpec,
         tx: &OpTransactionSigned,
-        l1_block_info: &mut revm_optimism::L1BlockInfo,
+        l1_block_info: &mut op_revm::L1BlockInfo,
     ) -> Result<Self, OpEthApiError> {
         let raw_tx = tx.encoded_2718();
         let block_number = self.block_number;
@@ -218,7 +218,7 @@ impl OpReceiptBuilder {
         meta: TransactionMeta,
         receipt: &OpReceipt,
         all_receipts: &[OpReceipt],
-        l1_block_info: &mut revm_optimism::L1BlockInfo,
+        l1_block_info: &mut op_revm::L1BlockInfo,
     ) -> Result<Self, OpEthApiError> {
         let timestamp = meta.timestamp;
         let block_number = meta.block_number;

@@ -52,7 +52,7 @@ op-alloy-rpc-types-engine.workspace = true
 op-alloy-rpc-jsonrpsee.workspace = true
 op-alloy-consensus.workspace = true
 revm.workspace = true
-revm-optimism.workspace = true
+op-revm.workspace = true
 
 # async
 parking_lot.workspace = true

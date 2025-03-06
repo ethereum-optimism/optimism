@@ -24,6 +24,7 @@ use derive_more::{AsRef, Deref};
 use op_alloy_consensus::{
     DepositTransaction, OpPooledTransaction, OpTxEnvelope, OpTypedTransaction, TxDeposit,
 };
+use op_revm::transaction::deposit::DepositTransactionParts;
 #[cfg(any(test, feature = "reth-codec"))]
 use proptest as _;
 use reth_primitives_traits::{
@@ -33,7 +34,6 @@ use reth_primitives_traits::{
     InMemorySize, SignedTransaction,
 };
 use revm_context::TxEnv;
-use revm_optimism::transaction::deposit::DepositTransactionParts;
 
 /// Signed transaction.
 #[cfg_attr(any(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
@@ -214,7 +214,7 @@ impl OpTransaction for OpTransactionSigned {
     }
 }
 
-impl FromRecoveredTx<OpTransactionSigned> for revm_optimism::OpTransaction<TxEnv> {
+impl FromRecoveredTx<OpTransactionSigned> for op_revm::OpTransaction<TxEnv> {
     fn from_recovered_tx(tx: &OpTransactionSigned, sender: Address) -> Self {
         let envelope = tx.encoded_2718();
 

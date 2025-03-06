@@ -1,6 +1,6 @@
 use alloy_consensus::BlockHeader;
+use op_revm::OpSpecId;
 use reth_optimism_forks::OpHardforks;
-use revm_optimism::OpSpecId;
 use revm_primitives::{Address, Bytes, B256};
 
 /// Context relevant for execution of a next block w.r.t OP.

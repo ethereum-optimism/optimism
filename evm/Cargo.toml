@@ -39,7 +39,7 @@ reth-optimism-primitives.workspace = true
 revm.workspace = true
 revm-database.workspace = true
 revm-primitives.workspace = true
-revm-optimism.workspace = true
+op-revm.workspace = true
 
 # misc
 derive_more.workspace = true
@@ -81,7 +81,7 @@ std = [
     "alloy-evm/std",
     "alloy-op-evm/std",
     "revm-database/std",
-    "revm-optimism/std",
+    "op-revm/std",
     "reth-evm/std",
     "tracing/std",
 ]

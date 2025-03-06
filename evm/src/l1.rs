@@ -3,11 +3,11 @@
 use crate::{error::L1BlockInfoError, OpBlockExecutionError};
 use alloy_consensus::Transaction;
 use alloy_primitives::{address, b256, hex, Address, Bytes, B256, U256};
+use op_revm::{L1BlockInfo, OpSpecId};
 use reth_execution_errors::BlockExecutionError;
 use reth_optimism_forks::OpHardforks;
 use reth_primitives_traits::BlockBody;
 use revm::{primitives::HashMap, state::Bytecode, DatabaseCommit};
-use revm_optimism::{L1BlockInfo, OpSpecId};
 use tracing::trace;
 
 /// The address of the create2 deployer

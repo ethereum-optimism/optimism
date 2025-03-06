@@ -24,7 +24,7 @@ alloy-consensus.workspace = true
 alloy-rlp.workspace = true
 alloy-eips = { workspace = true, features = ["k256"] }
 revm-context.workspace = true
-revm-optimism.workspace = true
+op-revm.workspace = true
 secp256k1 = { workspace = true, optional = true }
 
 # op
@@ -71,7 +71,7 @@ std = [
     "alloy-rlp/std",
     "reth-zstd-compressors?/std",
     "op-alloy-consensus/std",
-    "revm-optimism/std",
+    "op-revm/std",
     "alloy-rpc-types-eth?/std",
     "alloy-serde?/std",
     "revm-context/std",
@@ -100,7 +100,7 @@ serde = [
     "op-alloy-consensus/serde",
     "rand?/serde",
     "secp256k1?/serde",
-    "revm-optimism/serde",
+    "op-revm/serde",
     "alloy-rpc-types-eth?/serde",
     "revm-context/serde",
 ]
