@@ -5,7 +5,7 @@ However, there are some changes to accommodate the unique nature of smart contra
 
 There are five parts to the versioning and release process:
 
-- [Semver Rules](#semver-rules): Follows the rules defined in the [style guide](contributing/STYLE_GUIDE.mdLE_GUIDE.md#versioning) for when to bump major, minor, and patch versions in individual contracts.
+- [Semver Rules](#semver-rules): Follows the rules defined in the [style guide](contributing/style-guide.md#versioning) for when to bump major, minor, and patch versions in individual contracts.
 - [Individual Contract Versioning](#individual-contract-versioning): The versioning scheme for individual contracts and includes beta, release candidate, and feature tags.
 - [Monorepo Contracts Release Versioning](#monorepo-contracts-release-versioning): The versioning scheme for monorepo smart contract releases.
 - [Release Process](#release-process): The process for deploying contracts, creating a governance proposal, and the required associated releases.
