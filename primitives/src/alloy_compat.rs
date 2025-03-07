@@ -11,9 +11,10 @@ impl TryFrom<AnyRpcTransaction> for OpTransactionSigned {
     type Error = ConversionError;
 
     fn try_from(tx: AnyRpcTransaction) -> Result<Self, Self::Error> {
-        let WithOtherFields { inner: AlloyRpcTransaction { inner, from, .. }, other: _ } = tx;
+        let WithOtherFields { inner: AlloyRpcTransaction { inner, .. }, other: _ } = tx.0;
+        let from = inner.signer();
 
-        let (transaction, signature, hash) = match inner {
+        let (transaction, signature, hash) = match inner.into_inner() {
             AnyTxEnvelope::Ethereum(TxEnvelope::Legacy(tx)) => {
                 let (tx, signature, hash) = tx.into_parts();
                 (OpTypedTransaction::Legacy(tx), signature, hash)
@@ -52,7 +53,7 @@ where
     Self: From<T>,
 {
     fn from(value: AlloyRpcTransaction<T>) -> Self {
-        value.inner.into()
+        value.inner.into_inner().into()
     }
 }
 

@@ -1,5 +1,5 @@
 use alloy_consensus::{
-    transaction::{from_eip155_value, RlpEcdsaTx},
+    transaction::{from_eip155_value, RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
     Header, TxEip1559, TxEip2930, TxEip7702, TxLegacy,
 };
 use alloy_eips::{

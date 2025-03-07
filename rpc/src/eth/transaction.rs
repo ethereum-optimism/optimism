@@ -86,18 +86,16 @@ where
         tx: Recovered<OpTransactionSigned>,
         tx_info: TransactionInfo,
     ) -> Result<Self::Transaction, Self::Error> {
-        let (tx, from) = tx.into_parts();
+        let tx = tx.convert::<OpTxEnvelope>();
         let mut deposit_receipt_version = None;
         let mut deposit_nonce = None;
 
-        let inner: OpTxEnvelope = tx.into();
-
-        if inner.is_deposit() {
+        if tx.is_deposit() {
             // for depost tx we need to fetch the receipt
             self.inner
                 .eth_api
                 .provider()
-                .receipt_by_hash(inner.tx_hash())
+                .receipt_by_hash(tx.tx_hash())
                 .map_err(Self::Error::from_eth_err)?
                 .inspect(|receipt| {
                     if let OpReceipt::Deposit(receipt) = receipt {
@@ -111,7 +109,7 @@ where
             block_hash, block_number, index: transaction_index, base_fee, ..
         } = tx_info;
 
-        let effective_gas_price = if inner.is_deposit() {
+        let effective_gas_price = if tx.is_deposit() {
             // For deposits, we must always set the `gasPrice` field to 0 in rpc
             // deposit tx don't have a gas price field, but serde of `Transaction` will take care of
             // it
@@ -119,18 +117,17 @@ where
         } else {
             base_fee
                 .map(|base_fee| {
-                    inner.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
+                    tx.effective_tip_per_gas(base_fee).unwrap_or_default() + base_fee as u128
                 })
-                .unwrap_or_else(|| inner.max_fee_per_gas())
+                .unwrap_or_else(|| tx.max_fee_per_gas())
         };
 
         Ok(Transaction {
             inner: alloy_rpc_types_eth::Transaction {
-                inner,
+                inner: tx,
                 block_hash,
                 block_number,
                 transaction_index,
-                from,
                 effective_gas_price: Some(effective_gas_price),
             },
             deposit_nonce,
@@ -153,7 +150,7 @@ where
     }
 
     fn otterscan_api_truncate_input(tx: &mut Self::Transaction) {
-        let input = match &mut tx.inner.inner {
+        let input = match tx.inner.inner.inner_mut() {
             OpTxEnvelope::Eip1559(tx) => &mut tx.tx_mut().input,
             OpTxEnvelope::Eip2930(tx) => &mut tx.tx_mut().input,
             OpTxEnvelope::Legacy(tx) => &mut tx.tx_mut().input,

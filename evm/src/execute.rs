@@ -219,7 +219,7 @@ where
 
         // Execute transaction.
         let result_and_state =
-            self.evm.transact(&tx).map_err(move |err| BlockExecutionError::evm(err, hash))?;
+            self.evm.transact(tx).map_err(move |err| BlockExecutionError::evm(err, hash))?;
 
         trace!(
             target: "evm",
@@ -240,7 +240,7 @@ where
 
         self.receipts.push(
             match self.receipt_builder.build_receipt(ReceiptBuilderCtx {
-                tx: tx.tx(),
+                tx: tx.inner(),
                 result,
                 cumulative_gas_used: self.gas_used,
             }) {
