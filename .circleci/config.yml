@@ -1480,6 +1480,16 @@ workflows:
           fork_op_chain: base
           fork_base_chain: mainnet
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade ink-mainnet
+          fork_op_chain: ink
+          fork_base_chain: mainnet
+          fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
+      - contracts-bedrock-tests-upgrade:
+          name: contracts-bedrock-tests-upgrade unichain-mainnet
+          fork_op_chain: unichain
+          fork_base_chain: mainnet
+          fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
