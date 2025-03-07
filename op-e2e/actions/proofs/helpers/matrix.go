@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-program/client/claim"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type RunTest[cfg any] func(t *testing.T, testCfg *TestCfg[cfg])
@@ -73,6 +75,27 @@ func (ts *TestMatrix[cfg]) AddTestCase(
 		CheckResult: checkResult,
 	})
 	return ts
+}
+
+func (ts *TestMatrix[cfg]) AddDefaultTestCases(
+	testCfg cfg,
+	forkMatrix ForkMatrix,
+	runTest RunTest[cfg],
+) *TestMatrix[cfg] {
+	return ts.AddTestCase(
+		"HonestClaim",
+		testCfg,
+		forkMatrix,
+		runTest,
+		ExpectNoError(),
+	).AddTestCase(
+		"JunkClaim",
+		testCfg,
+		forkMatrix,
+		runTest,
+		ExpectError(claim.ErrClaimNotValid),
+		WithL2Claim(common.HexToHash("0xdeadbeef")),
+	)
 }
 
 type Hardfork struct {

@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 
@@ -102,8 +103,8 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		}
 
 		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
-			header.BlobGasUsed = new(uint64)
-			header.ExcessBlobGas = new(uint64)
+			excessBlobGas := eip4844.CalcExcessBlobGas(s.l1Cfg.Config, parent, header.Time)
+			header.ExcessBlobGas = &excessBlobGas
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
 
@@ -193,7 +194,6 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 		if sidecar != nil {
 			s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
 		}
-		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
 }
 
@@ -223,9 +223,8 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 
 	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	if isCancun {
-		parent := s.l1Chain.GetHeaderByHash(s.l1BuildingHeader.ParentHash)
-		excessBlobGas := eip4844.CalcExcessBlobGas(s.l1Cfg.Config, parent, s.l1BuildingHeader.Time)
-		s.l1BuildingHeader.ExcessBlobGas = &excessBlobGas
+		blobGasUsed := uint64(len(s.l1BuildingBlobSidecars)) * params.BlobTxBlobGasPerBlob
+		s.l1BuildingHeader.BlobGasUsed = &blobGasUsed
 	}
 
 	if s.l1Cfg.Config.IsPrague(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
