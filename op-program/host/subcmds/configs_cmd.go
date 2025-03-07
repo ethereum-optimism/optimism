@@ -13,7 +13,7 @@ import (
 var (
 	ConfigsChainIDFlag = &cli.StringFlag{
 		Name:  "chain-id",
-		Usage: "Chain ID to report chain configuration for (includes custom embedded chain configs)",
+		Usage: "Chain ID to report chain configuration for",
 	}
 	ConfigsNetworkFlag = &cli.StringFlag{
 		Name:  "network",
@@ -24,7 +24,7 @@ var (
 var ConfigsCommand = &cli.Command{
 	Name:        "configs",
 	Usage:       "List the supported chain configurations",
-	Description: "List the supported chain configurations. Lists all known named networks by default.",
+	Description: "List the supported chain configurations.",
 	Action:      ListConfigs,
 	Flags: []cli.Flag{
 		ConfigsChainIDFlag,
@@ -48,21 +48,27 @@ func ListConfigs(ctx *cli.Context) error {
 		}
 	}
 	if !ctx.IsSet(ConfigsChainIDFlag.Name) && !ctx.IsSet(ConfigsNetworkFlag.Name) {
-		return listNamedChains()
+		return listAllChains()
 	}
 	return nil
 }
 
-func listNamedChains() error {
+func listAllChains() error {
 	chainNames := superchain.ChainNames()
 	for _, name := range chainNames {
-		err2 := listNamedChain(name)
-		if err2 != nil {
-			return err2
+		if err := listNamedChain(name); err != nil {
+			return err
 		}
 	}
-	fmt.Println("NOTE: This does not include any embedded custom chain configurations.")
-	fmt.Println("Use --chain-id option to check check if a custom chain configuration is present.")
+	customChainIDs, err := chainconfig.CustomChainIDs()
+	if err != nil {
+		return err
+	}
+	for _, chainID := range customChainIDs {
+		if err := listChain(chainID); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -78,6 +84,11 @@ func listNamedChain(name string) error {
 
 func listChain(chainID eth.ChainID) error {
 	cfg, err := chainconfig.RollupConfigByChainID(chainID)
+	if err != nil {
+		return err
+	}
+	// Double check the L2 genesis is really available
+	_, err = chainconfig.ChainConfigByChainID(chainID)
 	if err != nil {
 		return err
 	}

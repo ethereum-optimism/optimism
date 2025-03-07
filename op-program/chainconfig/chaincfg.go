@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/superutil"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -24,6 +25,29 @@ func OPSepoliaChainConfig() *params.ChainConfig {
 
 //go:embed configs/*json
 var customChainConfigFS embed.FS
+
+func CustomChainIDs() ([]eth.ChainID, error) {
+	return customChainIDs(customChainConfigFS)
+}
+
+func customChainIDs(customChainFS embed.FS) ([]eth.ChainID, error) {
+	entries, err := customChainFS.ReadDir("configs")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list custom configs: %w", err)
+	}
+	var chainIDs []eth.ChainID
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), "-genesis-l2.json") {
+			chainID, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l2.json"))
+			if err != nil {
+				return nil, fmt.Errorf("incorrectly named genesis-l2 config (%s): %w", entry.Name(), err)
+			}
+			chainIDs = append(chainIDs, chainID)
+		}
+	}
+
+	return chainIDs, nil
+}
 
 func RollupConfigByChainID(chainID eth.ChainID) (*rollup.Config, error) {
 	config, err := rollup.LoadOPStackRollupConfig(eth.EvilChainIDToUInt64(chainID))
