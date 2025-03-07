@@ -164,7 +164,7 @@ func TestSystemFromDevnet(t *testing.T) {
 }
 
 func TestWallet(t *testing.T) {
-	chain := newChain("1", "http://localhost:8545", nil, nil)
+	chain := newChain("1", "http://localhost:8545", nil, nil, map[string]types.Address{})
 
 	tests := []struct {
 		name        string
@@ -204,7 +204,7 @@ func TestWallet(t *testing.T) {
 }
 
 func TestChainUser(t *testing.T) {
-	chain := newChain("1", "http://localhost:8545", nil, nil)
+	chain := newChain("1", "http://localhost:8545", nil, nil, map[string]types.Address{})
 
 	testWallet, err := newWallet("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", common.HexToAddress("0x123"), chain)
 	assert.Nil(t, err)

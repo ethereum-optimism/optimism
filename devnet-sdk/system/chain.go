@@ -65,6 +65,7 @@ type chain struct {
 	mu          sync.Mutex
 	node        Node
 	chainConfig *params.ChainConfig
+	addresses   descriptors.AddressMap
 }
 
 func (c *chain) Node() Node {
@@ -75,7 +76,7 @@ func (c *chain) Client() (*ethclient.Client, error) {
 	return c.clients.Client(c.rpcUrl)
 }
 
-func newChain(chainID string, rpcUrl string, users map[string]Wallet, chainConfig *params.ChainConfig) *chain {
+func newChain(chainID string, rpcUrl string, users map[string]Wallet, chainConfig *params.ChainConfig, addresses descriptors.AddressMap) *chain {
 	clients := newClientManager()
 	chain := &chain{
 		id:          chainID,
@@ -84,6 +85,7 @@ func newChain(chainID string, rpcUrl string, users map[string]Wallet, chainConfi
 		clients:     clients,
 		node:        newNode(rpcUrl, clients),
 		chainConfig: chainConfig,
+		addresses:   addresses,
 	}
 	return chain
 }
@@ -168,15 +170,22 @@ func (c *chain) Config() (*params.ChainConfig, error) {
 	return c.chainConfig, nil
 }
 
+func (c *chain) Addresses() descriptors.AddressMap {
+	return c.addresses
+}
+
 func chainFromDescriptor(d *descriptors.Chain) (Chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
 	firstNodeRPC := d.Nodes[0].Services["el"].Endpoints["rpc"]
 	rpcURL := fmt.Sprintf("http://%s:%d", firstNodeRPC.Host, firstNodeRPC.Port)
 
-	c := newChain(d.ID, rpcURL, nil, d.Config) // Create chain first
+	c := newChain(d.ID, rpcURL, nil, d.Config, d.Addresses) // Create chain first
 
 	users := make(map[string]Wallet)
 	for key, w := range d.Wallets {
+		// TODO: The assumption that the wallet will necessarily be used on chain `d` may
+		// be problematic if the L2 admin wallets are to be used to sign L1 transactions.
+		// TBD on whether they belong somewhere other than `d.Wallets`.
 		k, err := newWallet(w.PrivateKey, w.Address, c)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create wallet: %w", err)

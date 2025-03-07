@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
@@ -263,6 +264,10 @@ func (m *mockChain) Config() (*params.ChainConfig, error) {
 }
 func (m *mockChain) Node() system.Node {
 	return newMockNode(m.config)
+}
+
+func (m *mockChain) Addresses() descriptors.AddressMap {
+	return descriptors.AddressMap{}
 }
 
 type mockNode struct {

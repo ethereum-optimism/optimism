@@ -12,8 +12,11 @@ import (
 
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -35,7 +38,8 @@ type DeploymentStateAddresses map[string]DeploymentAddresses
 
 type DeploymentState struct {
 	Addresses DeploymentAddresses `json:"addresses"`
-	Wallets   WalletList          `json:"wallets"`
+	L1Wallets WalletList          `json:"l1_wallets"`
+	L2Wallets WalletList          `json:"l2_wallets"`
 	Config    *params.ChainConfig `json:"chain_config"`
 }
 
@@ -62,8 +66,8 @@ type Wallet struct {
 type WalletList []*Wallet
 
 type DeployerData struct {
-	Wallets WalletList     `json:"wallets"`
-	State   *DeployerState `json:"state"`
+	L1ValidatorWallets WalletList     `json:"wallets"`
+	State              *DeployerState `json:"state"`
 }
 
 type Deployer struct {
@@ -273,14 +277,14 @@ func (d *Deployer) ExtractData(ctx context.Context) (*DeployerData, error) {
 		return nil, err
 	}
 
-	a, err := fs.GetArtifact(ctx, d.deployerArtifactName)
+	deployerArtifact, err := fs.GetArtifact(ctx, d.deployerArtifactName)
 	if err != nil {
 		return nil, err
 	}
 
 	stateBuffer := bytes.NewBuffer(nil)
 	walletsBuffer := bytes.NewBuffer(nil)
-	if err := a.ExtractFiles(
+	if err := deployerArtifact.ExtractFiles(
 		ktfs.NewArtifactFileWriter(d.stateName, stateBuffer),
 		ktfs.NewArtifactFileWriter(d.walletsName, walletsBuffer),
 	); err != nil {
@@ -297,26 +301,26 @@ func (d *Deployer) ExtractData(ctx context.Context) (*DeployerData, error) {
 		return nil, err
 	}
 
-	for id, l1Wallets := range l1WalletsForL2Admin {
-		if deployment, exists := state.Deployments[id]; exists {
-			deployment.Wallets = l1Wallets
-			state.Deployments[id] = deployment
-		}
+	// Generate test wallets from the standard "test test test..." mnemonic
+	// These are the same wallets funded in L2Genesis.s.sol's devAccounts array
+	devWallets, err := d.getDevWallets()
+	if err != nil {
+		return nil, err
 	}
 
-	// retrieve L2 genesis files
 	for id, deployment := range state.Deployments {
+		if l1Wallets, exists := l1WalletsForL2Admin[id]; exists {
+			deployment.L1Wallets = l1Wallets
+		}
+		deployment.L2Wallets = devWallets
+
 		genesisBuffer := bytes.NewBuffer(nil)
 		genesisName, err := d.renderGenesisNameTemplate(id)
 		if err != nil {
 			return nil, err
 		}
 
-		a, err = fs.GetArtifact(ctx, d.deployerArtifactName)
-		if err != nil {
-			return nil, err
-		}
-		if err := a.ExtractFiles(
+		if err := deployerArtifact.ExtractFiles(
 			ktfs.NewArtifactFileWriter(genesisName, genesisBuffer),
 		); err != nil {
 			return nil, err
@@ -333,14 +337,14 @@ func (d *Deployer) ExtractData(ctx context.Context) (*DeployerData, error) {
 		state.Deployments[id] = deployment
 	}
 
-	l1ValidatorWallets, err := d.getKnownWallets(ctx, fs)
+	l1ValidatorWallets, err := d.getL1ValidatorWallets(deployerArtifact)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DeployerData{
-		State:   state,
-		Wallets: l1ValidatorWallets,
+		State:              state,
+		L1ValidatorWallets: l1ValidatorWallets,
 	}, nil
 }
 
@@ -357,4 +361,36 @@ func (d *Deployer) renderGenesisNameTemplate(chainID string) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// getDevWallets generates the set of test wallets used in L2Genesis.s.sol
+// These wallets are derived from the standard test mnemonic
+func (d *Deployer) getDevWallets() ([]*Wallet, error) {
+	m, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create mnemonic dev keys: %w", err)
+	}
+
+	// Generate 30 wallets to match L2Genesis.s.sol's devAccounts array
+	testWallets := make([]*Wallet, 0, 30)
+	for i := 0; i < 30; i++ {
+		key := devkeys.UserKey(uint64(i))
+		addr, err := m.Address(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get address for test wallet %d: %w", i, err)
+		}
+
+		sec, err := m.Secret(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get secret key for test wallet %d: %w", i, err)
+		}
+
+		testWallets = append(testWallets, &Wallet{
+			Name:       fmt.Sprintf("dev-account-%d", i),
+			Address:    addr,
+			PrivateKey: hexutil.Bytes(crypto.FromECDSA(sec)).String(),
+		})
+	}
+
+	return testWallets, nil
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +90,8 @@ func TestChainWallet(t *testing.T) {
 	wallet, err := newWallet("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", testAddr, nil)
 	assert.Nil(t, err)
 
-	chain := newChain("1", "http://localhost:8545", map[string]Wallet{"user1": wallet}, nil)
+	chain := newChain("1", "http://localhost:8545", map[string]Wallet{
+		"user1": wallet}, nil, map[string]common.Address{})
 
 	t.Run("finds wallet meeting constraints", func(t *testing.T) {
 		constraint := &addressConstraint{addr: testAddr}
@@ -154,7 +156,7 @@ func TestChainID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			chain := newChain(tt.idString, "", nil, nil)
+			chain := newChain(tt.idString, "", nil, nil, map[string]types.Address{})
 			got := chain.ID()
 			// Compare the underlying big.Int values
 			assert.Equal(t, 0, tt.want.Cmp(got))
@@ -164,7 +166,7 @@ func TestChainID(t *testing.T) {
 
 func TestSupportsEIP(t *testing.T) {
 	ctx := context.Background()
-	chain := newChain("1", "http://localhost:8545", nil, nil)
+	chain := newChain("1", "http://localhost:8545", nil, nil, map[string]types.Address{})
 
 	// Since we can't reliably test against a live node, we're just testing the error case
 	t.Run("returns false for connection error", func(t *testing.T) {
@@ -174,7 +176,7 @@ func TestSupportsEIP(t *testing.T) {
 }
 
 func TestContractsRegistry(t *testing.T) {
-	chain := newChain("1", "http://localhost:8545", nil, nil)
+	chain := newChain("1", "http://localhost:8545", nil, nil, map[string]types.Address{})
 
 	t.Run("returns empty registry on error", func(t *testing.T) {
 		registry := chain.ContractsRegistry()

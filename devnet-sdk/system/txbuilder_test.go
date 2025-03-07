@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -114,6 +115,11 @@ func (m *mockChain) Wallets(ctx context.Context) ([]Wallet, error) {
 
 func (m *mockChain) Config() (*params.ChainConfig, error) {
 	return nil, fmt.Errorf("not implemented for mock chain")
+}
+
+func (m *mockChain) Addresses() descriptors.AddressMap {
+	args := m.Called()
+	return args.Get(0).(descriptors.AddressMap)
 }
 
 type mockNode struct {

@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	devnetsdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func TestTransactionProcessor_Sign(t *testing.T) {
 	client := new(mockEthClient)
 
 	// Create a wallet with the test key
-	chain := newChain(chainID.String(), "http://localhost:8545", nil, nil)
+	chain := newChain(chainID.String(), "http://localhost:8545", nil, nil, map[string]devnetsdktypes.Address{})
 	wallet, err := newWallet(testKey, testAddr, chain)
 	assert.NoError(t, err)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,11 +27,25 @@ type LowLevelSystem = genSystem[LowLevelChain]
 // Chain represents an Ethereum chain (L1 or L2)
 type Chain interface {
 	ID() types.ChainID
+	// If an instance of an implementation this interface represents an L1 chain,
+	// then then the wallets returned should be either validator wallets or test wallets,
+	// both useful in the context of sending transactions on the L1.
+	//
+	// If an instance of an implementation of this interface represents an L2 chain,
+	// then the wallets returned should be a combination of:
+	// 1. L2 admin wallets: wallets with admin priviledges for administrating an
+	//      L2's bridge contracts, etc on L1. Despite inclusion on the L2 wallet list, these wallets
+	//      are not useful for sending transactions on the L2 and do not control any L2 balance.
+	// 2. L2 test wallets: wallets controlling balance on the L2 for purposes of
+	//      testing. The balance on these wallets will originate unbacked L2 ETH from
+	//      the L2 genesis definition which cannot be withdrawn without maybe "stealing"
+	//      the backing from other deposits.
 	Wallets(ctx context.Context) ([]Wallet, error)
 	ContractsRegistry() interfaces.ContractsRegistry
 	SupportsEIP(ctx context.Context, eip uint64) bool
 	Node() Node
 	Config() (*params.ChainConfig, error)
+	Addresses() descriptors.AddressMap
 }
 
 type Node interface {

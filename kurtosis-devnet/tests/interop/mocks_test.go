@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/empty"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -161,8 +161,8 @@ func (m *mockFailingChain) SupportsEIP(ctx context.Context, eip uint64) bool {
 func (m *mockFailingChain) Config() (*params.ChainConfig, error) {
 	return nil, fmt.Errorf("not implemented")
 }
-func (m *mockFailingChain) BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error) {
-	return nil, fmt.Errorf("not implemented")
+func (m *mockFailingChain) Addresses() descriptors.AddressMap {
+	return map[string]common.Address{}
 }
 
 // mockFailingSystem implements system.System

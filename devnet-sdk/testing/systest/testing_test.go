@@ -7,12 +7,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -103,8 +103,8 @@ func (m *mockChain) SupportsEIP(ctx context.Context, eip uint64) bool {
 func (m *mockChain) Config() (*params.ChainConfig, error) {
 	return nil, fmt.Errorf("not implemented on mockChain")
 }
-func (m *mockChain) BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error) {
-	return nil, fmt.Errorf("not implemented on mockChain")
+func (m *mockChain) Addresses() descriptors.AddressMap {
+	return descriptors.AddressMap{}
 }
 
 // mockSystem implements a minimal system.System for testing

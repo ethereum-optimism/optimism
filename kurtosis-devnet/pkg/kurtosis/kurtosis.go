@@ -180,7 +180,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 		}
 		if deployerState.State != nil {
 			chain.Addresses = descriptors.AddressMap(deployerState.State.Addresses)
-			chain.Wallets = d.getWallets(deployerState.Wallets)
+			chain.Wallets = d.getWallets(deployerState.L1ValidatorWallets)
 		}
 		env.L1 = chain
 	}
@@ -202,7 +202,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 			if deployment, ok := deployerState.State.Deployments[chainSpec.NetworkID]; ok {
 				chain.Addresses = descriptors.AddressMap(deployment.Addresses)
 				chain.Config = deployment.Config
-				chain.Wallets = d.getWallets(deployment.Wallets)
+				chain.Wallets = d.getWallets(append(deployment.L2Wallets, deployment.L1Wallets...))
 			}
 		}
 
