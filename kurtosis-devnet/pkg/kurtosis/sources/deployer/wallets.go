@@ -41,12 +41,12 @@ func (d *Deployer) getL1ValidatorWallets(deployerArtifact *ktfs.Artifact) ([]*Wa
 		return nil, err
 	}
 
-	mnemonics, err := getMnemonics(mnemonicsBuffer)
+	mnemonic, err := getMnemonics(mnemonicsBuffer)
 	if err != nil {
 		return nil, err
 	}
 
-	m, _ := devkeys.NewMnemonicDevKeys(mnemonics)
+	m, _ := devkeys.NewMnemonicDevKeys(mnemonic)
 	knownWallets := make([]*Wallet, 0)
 
 	var keys []devkeys.Key
