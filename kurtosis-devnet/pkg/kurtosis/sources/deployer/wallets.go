@@ -17,7 +17,7 @@ const (
 	numWallets = 21
 )
 
-func getMnemonics(r io.Reader) (string, error) {
+func getMnemonic(r io.Reader) (string, error) {
 	type mnemonicConfig struct {
 		Mnemonic string `yaml:"mnemonic"`
 		Count    int    `yaml:"count"` // TODO: what does this mean? it seems much larger than the number of wallets
@@ -34,14 +34,14 @@ func getMnemonics(r io.Reader) (string, error) {
 }
 
 func (d *Deployer) getL1ValidatorWallets(deployerArtifact *ktfs.Artifact) ([]*Wallet, error) {
-	mnemonicsBuffer := bytes.NewBuffer(nil)
+	mnemonicBuffer := bytes.NewBuffer(nil)
 	if err := deployerArtifact.ExtractFiles(
-		ktfs.NewArtifactFileWriter(d.l1ValidatorMnemonicName, mnemonicsBuffer),
+		ktfs.NewArtifactFileWriter(d.l1ValidatorMnemonicName, mnemonicBuffer),
 	); err != nil {
 		return nil, err
 	}
 
-	mnemonic, err := getMnemonics(mnemonicsBuffer)
+	mnemonic, err := getMnemonic(mnemonicBuffer)
 	if err != nil {
 		return nil, err
 	}
