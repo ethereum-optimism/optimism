@@ -23,10 +23,10 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "calldata", useSetCodeTx: false,
+			name: "dynamicFeeTx", useSetCodeTx: false,
 		},
 		{
-			name: "setCode", useSetCodeTx: true,
+			name: "setCodeTx", useSetCodeTx: true,
 		},
 	}
 
@@ -119,8 +119,8 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 		// Cache safe head before verifier sync
 		safeL2Before := verifier.SyncStatus().SafeL2
 
-		// Build L2 unsafe chain and batch it to L1 using either calldata or
-		// EIP-7702 setCode txs
+		// Build L2 unsafe chain and batch it to L1 using either DynamicFee or
+		// EIP-7702 SetCode txs
 		// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-7702.md
 		buildUnsafeL2AndSubmit(testCfg.Custom.useSetCodeTx)
 
