@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 )
@@ -62,10 +61,10 @@ func TestGetAPIEndpoint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := getAPIEndpoint(tt.chainID)
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expected, result)
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, result)
 			}
 		})
 	}
@@ -73,12 +72,12 @@ func TestGetAPIEndpoint(t *testing.T) {
 
 func TestGetContractCreation(t *testing.T) {
 	client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "GET", r.Method)
-		assert.Contains(t, r.URL.String(), "module=contract")
-		assert.Contains(t, r.URL.String(), "action=getcontractcreation")
+		require.Equal(t, "GET", r.Method)
+		require.Contains(t, r.URL.String(), "module=contract")
+		require.Contains(t, r.URL.String(), "action=getcontractcreation")
 
 		testAddr := common.HexToAddress(testAddressHex)
-		assert.Contains(t, r.URL.String(), testAddr.Hex())
+		require.Contains(t, r.URL.String(), testAddr.Hex())
 
 		resp := EtherscanContractCreationResp{
 			Status:  "1",
@@ -103,7 +102,7 @@ func TestGetContractCreation(t *testing.T) {
 	txHash, err := client.getContractCreation(testAddr)
 
 	require.NoError(t, err)
-	assert.Equal(t, testTxHashHex, txHash.Hex())
+	require.Equal(t, testTxHashHex, txHash.Hex())
 }
 
 func TestGetContractCreationError(t *testing.T) {
@@ -123,21 +122,21 @@ func TestGetContractCreationError(t *testing.T) {
 	_, err := client.getContractCreation(testAddr)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "contract creation query failed")
+	require.Contains(t, err.Error(), "contract creation query failed")
 }
 
 func TestVerifySourceCode(t *testing.T) {
 	client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
+		require.Equal(t, "POST", r.Method)
+		require.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
 
 		err := r.ParseForm()
 		require.NoError(t, err)
 
-		assert.Equal(t, testAPIKey, r.Form.Get("apikey"))
-		assert.Equal(t, "contract", r.Form.Get("module"))
-		assert.Equal(t, "verifysourcecode", r.Form.Get("action"))
-		assert.Equal(t, testAddressHex, r.Form.Get("contractaddress"))
+		require.Equal(t, testAPIKey, r.Form.Get("apikey"))
+		require.Equal(t, "contract", r.Form.Get("module"))
+		require.Equal(t, "verifysourcecode", r.Form.Get("action"))
+		require.Equal(t, testAddressHex, r.Form.Get("contractaddress"))
 
 		resp := EtherscanGenericResp{
 			Status:  "1",
@@ -156,7 +155,7 @@ func TestVerifySourceCode(t *testing.T) {
 	guid, err := client.verifySourceCode(testAddr, artifact, "0x1234")
 
 	require.NoError(t, err)
-	assert.Equal(t, testGUID, guid)
+	require.Equal(t, testGUID, guid)
 }
 
 func TestIsVerified(t *testing.T) {
@@ -172,9 +171,9 @@ func TestIsVerified(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "GET", r.Method)
-				assert.Contains(t, r.URL.String(), "module=contract")
-				assert.Contains(t, r.URL.String(), "action=getabi")
+				require.Equal(t, "GET", r.Method)
+				require.Contains(t, r.URL.String(), "module=contract")
+				require.Contains(t, r.URL.String(), "action=getabi")
 
 				resp := EtherscanGenericResp{
 					Status:  tt.responseStatus,
@@ -191,7 +190,7 @@ func TestIsVerified(t *testing.T) {
 			result, err := client.isVerified(testAddr)
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.expected, result)
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -233,9 +232,9 @@ func TestPollVerificationStatus(t *testing.T) {
 			responseIndex := 0
 
 			client, _ := createTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "GET", r.Method)
-				assert.Contains(t, r.URL.String(), "module=contract")
-				assert.Contains(t, r.URL.String(), "action=checkverifystatus")
+				require.Equal(t, "GET", r.Method)
+				require.Contains(t, r.URL.String(), "module=contract")
+				require.Contains(t, r.URL.String(), "action=checkverifystatus")
 
 				// Get the appropriate response based on the current index
 				resp := tt.responses[responseIndex]
@@ -252,7 +251,7 @@ func TestPollVerificationStatus(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errorMessage)
+				require.Contains(t, err.Error(), tt.errorMessage)
 			} else {
 				require.NoError(t, err)
 			}
@@ -265,15 +264,15 @@ func TestNewStandardInput(t *testing.T) {
 
 	result := newStandardInput(artifact)
 
-	assert.Equal(t, "Solidity", result.Language)
-	assert.Equal(t, artifact.Sources, result.Sources)
-	assert.Equal(t, artifact.Optimizer.Enabled, result.Settings.Optimizer.Enabled)
-	assert.Equal(t, artifact.Optimizer.Runs, result.Settings.Optimizer.Runs)
-	assert.Equal(t, artifact.EVMVersion, result.Settings.EVMVersion)
-	assert.True(t, result.Settings.Metadata.UseLiteralContent)
-	assert.Equal(t, "none", result.Settings.Metadata.BytecodeHash)
+	require.Equal(t, "Solidity", result.Language)
+	require.Equal(t, artifact.Sources, result.Sources)
+	require.Equal(t, artifact.Optimizer.Enabled, result.Settings.Optimizer.Enabled)
+	require.Equal(t, artifact.Optimizer.Runs, result.Settings.Optimizer.Runs)
+	require.Equal(t, artifact.EVMVersion, result.Settings.EVMVersion)
+	require.True(t, result.Settings.Metadata.UseLiteralContent)
+	require.Equal(t, "none", result.Settings.Metadata.BytecodeHash)
 
-	assert.Contains(t, result.Settings.OutputSelection.All["*"].All, "abi")
-	assert.Contains(t, result.Settings.OutputSelection.All["*"].All, "evm.bytecode.object")
-	assert.Contains(t, result.Settings.OutputSelection.All["*"].All, "metadata")
+	require.Contains(t, result.Settings.OutputSelection.All["*"].All, "abi")
+	require.Contains(t, result.Settings.OutputSelection.All["*"].All, "evm.bytecode.object")
+	require.Contains(t, result.Settings.OutputSelection.All["*"].All, "metadata")
 }
