@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
@@ -60,7 +59,6 @@ func TestManualABIPacking(t *testing.T) {
 	require.NoError(t, err)
 
 	proposal := source.Proposal{
-		Version:   eth.Bytes32{},
 		Root:      testutils.RandomHash(rng),
 		CurrentL1: testutils.RandomBlockID(rng),
 		Legacy: source.LegacyProposalData{

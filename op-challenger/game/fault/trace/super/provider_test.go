@@ -34,6 +34,7 @@ func TestGet(t *testing.T) {
 			CrossSafeDerivedFrom: l1Head,
 			Timestamp:            poststateTimestamp,
 			SuperRoot:            eth.Bytes32{0xaa},
+			Version:              eth.SuperRootVersionV1,
 			Chains: []eth.ChainRootInfo{
 				{
 					ChainID:   eth.ChainIDFromUInt64(1),
@@ -56,6 +57,7 @@ func TestGet(t *testing.T) {
 			CrossSafeDerivedFrom: l1Head,
 			Timestamp:            prestateTimestamp + 1,
 			SuperRoot:            eth.Bytes32{0xaa},
+			Version:              eth.SuperRootVersionV1,
 			Chains: []eth.ChainRootInfo{
 				{
 					ChainID:   eth.ChainIDFromUInt64(1),
@@ -87,6 +89,7 @@ func TestGet(t *testing.T) {
 			CrossSafeDerivedFrom: eth.BlockID{Number: l1Head.Number - 10, Hash: common.Hash{0xcc}},
 			Timestamp:            poststateTimestamp,
 			SuperRoot:            eth.Bytes32{0xaa},
+			Version:              eth.SuperRootVersionV1,
 			Chains: []eth.ChainRootInfo{
 				{
 					ChainID:   eth.ChainIDFromUInt64(1),
@@ -109,6 +112,7 @@ func TestGet(t *testing.T) {
 			CrossSafeDerivedFrom: eth.BlockID{Number: l1Head.Number + 1, Hash: common.Hash{0xaa}},
 			Timestamp:            poststateTimestamp,
 			SuperRoot:            eth.Bytes32{0xaa},
+			Version:              eth.SuperRootVersionV1,
 			Chains: []eth.ChainRootInfo{
 				{
 					ChainID:   eth.ChainIDFromUInt64(1),
@@ -372,6 +376,7 @@ func createValidSuperRoots(l1Head eth.BlockID) (superRootData, superRootData) {
 		CrossSafeDerivedFrom: l1Head,
 		Timestamp:            prestateTimestamp,
 		SuperRoot:            eth.SuperRoot(prevSuper),
+		Version:              eth.SuperRootVersionV1,
 		Chains: []eth.ChainRootInfo{
 			{
 				ChainID:   eth.ChainIDFromUInt64(1),
@@ -389,6 +394,7 @@ func createValidSuperRoots(l1Head eth.BlockID) (superRootData, superRootData) {
 		CrossSafeDerivedFrom: l1Head,
 		Timestamp:            prestateTimestamp + 1,
 		SuperRoot:            eth.SuperRoot(nextSuper),
+		Version:              eth.SuperRootVersionV1,
 		Chains: []eth.ChainRootInfo{
 			{
 				ChainID:   eth.ChainIDFromUInt64(1),
