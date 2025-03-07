@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 
@@ -103,6 +102,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		}
 
 		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
+			header.BlobGasUsed = new(uint64)
 			excessBlobGas := eip4844.CalcExcessBlobGas(s.l1Cfg.Config, parent, header.Time)
 			header.ExcessBlobGas = &excessBlobGas
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
@@ -194,6 +194,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 		if sidecar != nil {
 			s.l1BuildingBlobSidecars = append(s.l1BuildingBlobSidecars, sidecar)
 		}
+		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
 }
 
@@ -221,12 +222,6 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 		withdrawals = make([]*types.Withdrawal, 0)
 	}
 
-	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
-	if isCancun {
-		blobGasUsed := uint64(len(s.l1BuildingBlobSidecars)) * params.BlobTxBlobGasPerBlob
-		s.l1BuildingHeader.BlobGasUsed = &blobGasUsed
-	}
-
 	if s.l1Cfg.Config.IsPrague(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		// Don't process requests for now.
 		reqHash := types.CalcRequestsHash([][]byte{})
@@ -235,6 +230,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 
 	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
 
+	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	// Write state changes to db
 	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
 	if err != nil {
