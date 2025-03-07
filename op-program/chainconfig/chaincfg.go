@@ -37,7 +37,7 @@ func rollupConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*rollup
 	// Load custom rollup configs from embed FS
 	file, err := customChainFS.Open(fmt.Sprintf("configs/%v-rollup.json", chainID))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("no rollup config available for chain ID: %d", chainID)
+		return nil, fmt.Errorf("no rollup config available for chain ID: %v", chainID)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get rollup config for chain ID %v: %w", chainID, err)
 	}
@@ -59,7 +59,7 @@ func chainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*params.
 	// Load from custom chain configs from embed FS
 	data, err := customChainFS.ReadFile(fmt.Sprintf("configs/%v-genesis-l2.json", chainID))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("no chain config available for chain ID: %d", chainID)
+		return nil, fmt.Errorf("no chain config available for chain ID: %v", chainID)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get chain config for chain ID %v: %w", chainID, err)
 	}
@@ -92,7 +92,7 @@ func dependencySetByChainID(chainID eth.ChainID, customChainFS embed.FS) (depset
 	// Load custom dependency set configs from embed FS
 	data, err := customChainFS.ReadFile("configs/depsets.json")
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("no dependency set available for chain ID: %d", chainID)
+		return nil, fmt.Errorf("no dependency set available for chain ID: %v", chainID)
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get dependency set for chain ID %v: %w", chainID, err)
 	}
@@ -108,5 +108,5 @@ func dependencySetByChainID(chainID eth.ChainID, customChainFS embed.FS) (depset
 			return depSet, nil
 		}
 	}
-	return nil, fmt.Errorf("no dependency set config includes chain ID: %d", chainID)
+	return nil, fmt.Errorf("no dependency set config includes chain ID: %v", chainID)
 }
