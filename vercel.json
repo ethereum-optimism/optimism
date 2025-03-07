@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "buildCommand": "chmod +x ./.vercel/build.sh && ./.vercel/build.sh",
+  "outputDirectory": "vercel-output",
+  "github": {
+    "silent": false,
+    "autoJobCancelation": true
+  }
+}
