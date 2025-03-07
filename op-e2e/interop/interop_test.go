@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"math/big"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -120,6 +121,9 @@ func TestInterop_SupervisorFinality(t *testing.T) {
 		supervisor := s2.SupervisorClient()
 		require.Eventually(t, func() bool {
 			final, err := supervisor.FinalizedL1(context.Background())
+			if err != nil && strings.Contains(err.Error(), "not initialized") {
+				return false
+			}
 			require.NoError(t, err)
 			return final.Number > 0
 			// this test takes about 30 seconds, with a longer Eventually timeout for CI
@@ -370,6 +374,9 @@ func TestMultiNode(t *testing.T) {
 		supervisor := s2.SupervisorClient()
 		require.Eventually(t, func() bool {
 			final, err := supervisor.FinalizedL1(context.Background())
+			if err != nil && strings.Contains(err.Error(), "not initialized") {
+				return false
+			}
 			require.NoError(t, err)
 			return final.Number > 0
 			// this test takes about 30 seconds, with a longer Eventually timeout for CI
