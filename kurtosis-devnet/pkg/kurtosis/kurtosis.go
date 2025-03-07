@@ -173,6 +173,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	finder := NewServiceFinder(inspectResult.UserServices)
 	if nodes, services := finder.FindL1Services(); len(nodes) > 0 {
 		chain := &descriptors.Chain{
+			ID:       deployerState.L1ChainID,
 			Name:     "Ethereum",
 			Services: services,
 			Nodes:    nodes,
