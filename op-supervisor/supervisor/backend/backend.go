@@ -423,7 +423,7 @@ func (su *SupervisorBackend) DependencySet() depset.DependencySet {
 // Query methods
 // ----------------------------
 
-func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHash common.Hash, executingDescriptor types.ExecutingDescriptor) (types.SafetyLevel, error) {
+func (su *SupervisorBackend) CheckMessage(ctx context.Context, identifier types.Identifier, payloadHash common.Hash, executingDescriptor types.ExecutingDescriptor) (types.SafetyLevel, error) {
 	logHash := types.PayloadHashToLogHash(payloadHash, identifier.Origin)
 	chainID := identifier.ChainID
 	blockNum := identifier.BlockNumber
@@ -458,6 +458,7 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 }
 
 func (su *SupervisorBackend) CheckMessagesV2(
+	ctx context.Context,
 	messages []types.Message,
 	minSafety types.SafetyLevel,
 	executingDescriptor types.ExecutingDescriptor) error {
@@ -466,7 +467,7 @@ func (su *SupervisorBackend) CheckMessagesV2(
 	for _, msg := range messages {
 		su.logger.Debug("Checking message",
 			"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String(), "executingTimestamp", executingDescriptor.Timestamp)
-		safety, err := su.CheckMessage(msg.Identifier, msg.PayloadHash, executingDescriptor)
+		safety, err := su.CheckMessage(ctx, msg.Identifier, msg.PayloadHash, executingDescriptor)
 		if err != nil {
 			su.logger.Error("Check message failed", "err", err,
 				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String(), "executingTimestamp", executingDescriptor.Timestamp)
@@ -486,6 +487,7 @@ func (su *SupervisorBackend) CheckMessagesV2(
 }
 
 func (su *SupervisorBackend) CheckMessages(
+	ctx context.Context,
 	messages []types.Message,
 	minSafety types.SafetyLevel) error {
 	su.logger.Debug("Checking messages", "count", len(messages), "minSafety", minSafety)
@@ -495,7 +497,7 @@ func (su *SupervisorBackend) CheckMessages(
 			"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
 		// Guarantee message expiry checks do not fail by setting the executing timestamp to the message timestamp
 		// This is intentionally done to avoid breaking checkMessagesV1 which doesn't handle message expiry checks
-		safety, err := su.CheckMessage(msg.Identifier, msg.PayloadHash, types.ExecutingDescriptor{Timestamp: msg.Identifier.Timestamp})
+		safety, err := su.CheckMessage(ctx, msg.Identifier, msg.PayloadHash, types.ExecutingDescriptor{Timestamp: msg.Identifier.Timestamp})
 		if err != nil {
 			su.logger.Error("Check message failed", "err", err,
 				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
@@ -590,8 +592,12 @@ func (su *SupervisorBackend) Finalized(ctx context.Context, chainID eth.ChainID)
 	return v.ID(), nil
 }
 
-func (su *SupervisorBackend) FinalizedL1() eth.BlockRef {
-	return su.chainDBs.FinalizedL1()
+func (su *SupervisorBackend) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
+	v := su.chainDBs.FinalizedL1()
+	if v == (eth.BlockRef{}) {
+		return eth.BlockRef{}, errors.New("finality of L1 is not initialized")
+	}
+	return v, nil
 }
 
 func (su *SupervisorBackend) IsLocalUnsafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error {
@@ -676,7 +682,7 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 	}, nil
 }
 
-func (su *SupervisorBackend) SyncStatus() (eth.SupervisorSyncStatus, error) {
+func (su *SupervisorBackend) SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error) {
 	return su.statusTracker.SyncStatus()
 }
 
