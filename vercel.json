@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "buildCommand": "chmod +x ./.vercel/build.sh && ./.vercel/build.sh",
+  "outputDirectory": "vercel-output",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./book/",
+  "github": {
+    "silent": false,
+    "autoJobCancelation": true
+  }
+}

@@ -2,12 +2,12 @@
 authors = ["Rollup Boost Core Contributors"]
 language = "en"
 multilingual = false
-src = "book"
+src = "src"
 title = "Rollup Boost"
 description = "The Rollup Boost is a sidecar to enable rollup extensions"
 
 [output.html]
-theme = "book/theme"
+theme = "theme"
 git-repository-url = "https://github.com/flashbots/rollup-boost"
 default-theme = "ayu"
 no-section-label = true
@@ -17,4 +17,4 @@ enable = true
 level = 1
 
 [build]
-build-dir = "target/book"
+build-dir = "book"
