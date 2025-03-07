@@ -180,7 +180,11 @@ func init() {
 
 	// Start at warning level since alloc generation is heavy on the logs,
 	// which reduces CI performance.
-	oplog.SetGlobalLogHandler(errHandler)
+	if os.Getenv("SHOW_INIT_LOG") == "true" {
+		oplog.SetGlobalLogHandler(handler)
+	} else {
+		oplog.SetGlobalLogHandler(errHandler)
+	}
 
 	for _, allocType := range allocTypes {
 		if allocType == AllocTypeL2OO {
