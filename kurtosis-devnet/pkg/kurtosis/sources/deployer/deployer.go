@@ -107,7 +107,7 @@ func WithGenesisArtifactName(name string) DeployerOption {
 	}
 }
 
-func WithMnemonicsName(name string) DeployerOption {
+func WithMnemonicName(name string) DeployerOption {
 	return func(d *Deployer) {
 		d.l1ValidatorMnemonicName = name
 	}
