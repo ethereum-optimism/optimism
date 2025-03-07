@@ -13,7 +13,7 @@ env:
   REGISTRY_IMAGE: flashbots/rollup-boost
 
 jobs:
-  build:
+  release:
     name: Publish Docker Image
     strategy:
       matrix:
