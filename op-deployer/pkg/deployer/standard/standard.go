@@ -39,13 +39,14 @@ const (
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
 	ContractsV170Beta1L2Tag = "op-contracts/v1.7.0-beta.1+l2-contracts"
 	ContractsV200Tag        = "op-contracts/v2.0.0-rc.1"
+	ContractsV300Tag        = "op-contracts/v3.0.0-rc.1"
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
 
-var DefaultL1ContractsTag = ContractsV200Tag
+var DefaultL1ContractsTag = ContractsV300Tag
 
-var DefaultL2ContractsTag = ContractsV170Beta1L2Tag
+var DefaultL2ContractsTag = ContractsV300Tag
 
 type TaggedRelease struct {
 	ArtifactsHash common.Hash
@@ -73,16 +74,20 @@ var taggedReleases = map[string]TaggedRelease{
 		ArtifactsHash: common.HexToHash("32e11c96e07b83619f419595facb273368dccfe2439287549e7b436c9b522204"),
 		ContentHash:   common.HexToHash("1cec51ed629c0394b8fb17ff2c6fa45c406c30f94ebbd37d4c90ede6c29ad608"),
 	},
+	ContractsV300Tag: {
+		ArtifactsHash: common.HexToHash("497e55cc6d9dfb74615d1bac0f4d05ae5ef995972689adcc036ee3adf4522677"),
+		ContentHash:   common.HexToHash("e2527ea1ddcd47bc60310baea4c3183de1520880561b6c7837213290b925a2e8"),
+	},
 }
 
 var _ embed.FS
 
 func IsSupportedL1Version(tag string) bool {
-	return tag == ContractsV200Tag
+	return tag == ContractsV300Tag
 }
 
 func IsSupportedL2Version(tag string) bool {
-	return tag == ContractsV170Beta1L2Tag
+	return tag == ContractsV300Tag
 }
 
 func L1VersionsFor(chainID uint64) (validation.Versions, error) {
@@ -211,8 +216,11 @@ func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployCon
 	switch tag {
 	case ContractsV160Tag, ContractsV170Beta1L2Tag:
 		return sched
+	case ContractsV180Tag, ContractsV200Tag:
+		sched.ActivateForkAtGenesis(rollup.Holocene)
 	default:
 		sched.ActivateForkAtGenesis(rollup.Holocene)
+		sched.ActivateForkAtGenesis(rollup.Isthmus)
 	}
 
 	return sched
