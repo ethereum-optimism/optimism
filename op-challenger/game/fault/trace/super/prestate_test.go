@@ -26,6 +26,7 @@ func TestAbsolutePreState(t *testing.T) {
 		response := eth.SuperRootResponse{
 			Timestamp: 100,
 			SuperRoot: eth.Bytes32{0x11},
+			Version:   eth.SuperRootVersionV1,
 			Chains: []eth.ChainRootInfo{
 				{
 					ChainID:   eth.ChainID{2987},

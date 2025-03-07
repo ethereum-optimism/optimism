@@ -26,6 +26,7 @@ func TestSplitAdapter(t *testing.T) {
 	t.Run("FromAbsolutePrestate", func(t *testing.T) {
 		creator, rootProvider, adapter := setupSplitAdapterTest(t, depth, prestateTimestamp, poststateTimestamp)
 		prestateResponse := eth.SuperRootResponse{
+			Version:   eth.SuperRootVersionV1,
 			Timestamp: prestateTimestamp,
 		}
 		rootProvider.Add(prestateResponse)
@@ -50,6 +51,7 @@ func TestSplitAdapter(t *testing.T) {
 	t.Run("AfterClaimedBlock", func(t *testing.T) {
 		creator, rootProvider, adapter := setupSplitAdapterTest(t, depth, prestateTimestamp, poststateTimestamp)
 		prestateResponse := eth.SuperRootResponse{
+			Version:   eth.SuperRootVersionV1,
 			Timestamp: poststateTimestamp,
 		}
 		rootProvider.Add(prestateResponse)
@@ -80,10 +82,12 @@ func TestSplitAdapter(t *testing.T) {
 	t.Run("MiddleOfTimestampTransition", func(t *testing.T) {
 		creator, rootProvider, adapter := setupSplitAdapterTest(t, depth, prestateTimestamp, poststateTimestamp)
 		prestateResponse := eth.SuperRootResponse{
+			Version:   eth.SuperRootVersionV1,
 			Timestamp: prestateTimestamp,
 		}
 		rootProvider.Add(prestateResponse)
 		rootProvider.Add(eth.SuperRootResponse{
+			Version:   eth.SuperRootVersionV1,
 			Timestamp: prestateTimestamp + 1,
 		})
 		preClaim := types.Claim{
