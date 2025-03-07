@@ -338,12 +338,17 @@ func (d *Deployer) ExtractData(ctx context.Context) (*DeployerData, error) {
 		state.Deployments[id] = deployment
 	}
 
-	l1ValidatorWallets, err := d.getL1ValidatorWallets(deployerArtifact)
+	l1GenesisArtifact, err := fs.GetArtifact(ctx, d.genesisArtifactName)
 	if err != nil {
 		return nil, err
 	}
 
-	l1ChainID, err := d.getL1ChainID(deployerArtifact)
+	l1ValidatorWallets, err := d.getL1ValidatorWallets(l1GenesisArtifact)
+	if err != nil {
+		return nil, err
+	}
+
+	l1ChainID, err := d.getL1ChainID(l1GenesisArtifact)
 	if err != nil {
 		return nil, err
 	}
