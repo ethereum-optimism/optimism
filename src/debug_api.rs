@@ -127,8 +127,7 @@ mod tests {
         let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));
 
         let server = DebugServer::new(execution_mode.clone());
-
-        server.run(None).await.unwrap();
+        server.run(DEFAULT_ADDR).await.unwrap();
 
         let client = DebugClient::new(format!("http://{}", DEFAULT_ADDR).as_str()).unwrap();
 

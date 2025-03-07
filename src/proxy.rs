@@ -629,7 +629,7 @@ mod tests {
         .parse::<Uri>()
         .unwrap();
 
-        let proxy_layer = ProxyLayer::new(l2_auth_uri.clone(), jwt, l2_auth_uri, jwt);
+        let proxy_layer = ProxyLayer::new(l2_auth_uri.clone(), jwt, l2_auth_uri, jwt, None);
 
         // Create a layered server
         let server = ServerBuilder::default()
