@@ -92,41 +92,43 @@ func processFile(file string) (*SemverLockResult, []error) {
 	// Check if the contract has a version function or variable with @custom:semver tag
 	hasSemverTag := false
 	for _, node := range artifact.Ast.Nodes {
-		if node.NodeType == "ContractDefinition" && node.Name == contractName {
-			// Check each node inside the contract
-			for _, subNode := range node.Nodes {
-				// Look for function or variable declarations named "version"
-				if (subNode.NodeType == "FunctionDefinition" ||
-					subNode.NodeType == "VariableDeclaration") &&
-					subNode.Name == "version" {
-					if subNode.Documentation != nil {
-						// Handle documentation based on its actual type
-						var docText string
-						switch doc := subNode.Documentation.(type) {
-						case string:
-							docText = doc
-						case map[string]interface{}:
-							if text, ok := doc["text"].(string); ok {
-								docText = text
-							}
-						case solc.AstDocumentation:
-							docText = doc.Text
-						case *solc.AstDocumentation:
-							docText = doc.Text
-						}
-						if strings.Contains(docText, "@custom:semver") {
-							hasSemverTag = true
-							break
-						}
-					}
-				}
+		if node.NodeType != "ContractDefinition" || node.Name != contractName {
+			continue
+		}
+		// Check each node inside the contract
+		for _, subNode := range node.Nodes {
+			// Skip nodes that aren't version functions or variables
+			if (subNode.NodeType != "FunctionDefinition" &&
+				subNode.NodeType != "VariableDeclaration") ||
+				subNode.Name != "version" {
+				continue
 			}
-			if hasSemverTag {
+			if subNode.Documentation == nil {
+				continue
+			}
+			// Handle documentation based on its actual type
+			var docText string
+			switch doc := subNode.Documentation.(type) {
+			case string:
+				docText = doc
+			case map[string]interface{}:
+				if text, ok := doc["text"].(string); ok {
+					docText = text
+				}
+			case solc.AstDocumentation:
+				docText = doc.Text
+			case *solc.AstDocumentation:
+				docText = doc.Text
+			}
+			if strings.Contains(docText, "@custom:semver") {
+				hasSemverTag = true
 				break
 			}
 		}
+		if hasSemverTag {
+			break
+		}
 	}
-
 	if !hasSemverTag {
 		return nil, nil
 	}
