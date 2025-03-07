@@ -1,0 +1,29 @@
+REPO_ROOT := `realpath ..`
+KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
+ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-acceptor:v0.1.1")
+
+# Default recipe - runs the acceptance tests with default parameters
+default:
+    @just acceptance-test
+
+# Run acceptance tests against a devnet
+acceptance-test devnet="simple" gate="localnet":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # First run the appropriate devnet from the kurtosis-devnet directory if needed.
+    # We ignore failures here because if the devnet is already running then this command will fail.
+    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+
+    # Print which image is being used (for debugging)
+    echo "Using acceptor image: {{ACCEPTOR_IMAGE}}"
+
+    # Run op-acceptor with the repository mounted at the correct Go module path
+    docker run \
+        -v "$(pwd)/acceptance-tests.yaml:/acceptance-tests.yaml" \
+        -v "{{REPO_ROOT}}:/go/src/github.com/ethereum-optimism/optimism" \
+        {{ACCEPTOR_IMAGE}} \
+        --testdir "/go/src/github.com/ethereum-optimism/optimism" \
+        --gate {{gate}} \
+        --validators /acceptance-tests.yaml \
+        --log.level info
