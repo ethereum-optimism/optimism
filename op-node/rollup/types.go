@@ -153,9 +153,11 @@ type Config struct {
 	AltDAConfig *AltDAConfig `json:"alt_da,omitempty"`
 
 	// PectraBlobScheduleTime sets the time until which (but not including) the blob base fee
-	// calculations for the L1 Block Info use the pre-Prague blob parameters.
+	// calculations for the L1 Block Info use the pre-Prague=Cancun blob parameters.
 	// This feature is optional and if not active, the L1 Block Info calculation uses the Prague
 	// blob parameters for the first L1 Prague block, as was intended.
+	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
+	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
 }
 

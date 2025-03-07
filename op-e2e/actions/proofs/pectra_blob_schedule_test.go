@@ -15,30 +15,38 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+type pectraBlobScheduleTestCfg struct {
+	offset          *uint64
+	expectCancunBBF bool
+}
+
 func TestPectraBlobSchedule(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
 	matrix.AddDefaultTestCases(
-		true, // use PectraBlobSchedule
+		// aligned with an L1 timestamp
+		pectraBlobScheduleTestCfg{ptr(uint64(24)), true},
 		helpers.NewForkMatrix(helpers.Holocene),
 		testPectraBlobSchedule,
 	).AddDefaultTestCases(
-		false, // don't use PectraBlobSchedule
+		// in the middle between two L1 timestamps
+		pectraBlobScheduleTestCfg{ptr(uint64(18)), true},
+		helpers.NewForkMatrix(helpers.Holocene),
+		testPectraBlobSchedule,
+	).AddDefaultTestCases(
+		pectraBlobScheduleTestCfg{nil, false},
 		helpers.NewForkMatrix(helpers.Holocene),
 		testPectraBlobSchedule,
 	)
 }
 
 func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-	usePectraBlobSchedule := testCfg.Custom.(bool) // two flavors of this test
+	tcfg := testCfg.Custom.(pectraBlobScheduleTestCfg) // two flavors of this test
 	t := actionsHelpers.NewDefaultTesting(gt)
 	testSetup := func(dc *genesis.DeployConfig) {
 		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
-		if usePectraBlobSchedule {
-			// fix blob schedule after 2 L1 blocks
-			dc.L2GenesisPectraBlobScheduleTimeOffset = ptr(hexutil.Uint64(24))
-		}
+		dc.L2GenesisPectraBlobScheduleTimeOffset = (*hexutil.Uint64)(tcfg.offset)
 		// set genesis excess blob gas so there are >0 blob base fees for some blocks
 		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))
 	}
@@ -46,8 +54,8 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
 
 	// sanity check
-	if usePectraBlobSchedule {
-		require.Equal(t, *env.Sd.RollupCfg.PectraBlobScheduleTime, env.Sd.L2Cfg.Timestamp+24)
+	if tcfg.offset != nil {
+		require.Equal(t, *env.Sd.RollupCfg.PectraBlobScheduleTime, env.Sd.L2Cfg.Timestamp+*tcfg.offset)
 	}
 
 	engine := env.Engine
@@ -66,7 +74,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	miner.ActEmptyBlock(t)
 	l1_1 := miner.L1Chain().CurrentHeader()
 	t.Logf("Header1: Number: %v, Time: %v, ExcessBlobGas: %v", l1_1.Number, l1_1.Time, *l1_1.ExcessBlobGas)
-	if usePectraBlobSchedule {
+	if tcfg.offset != nil {
 		require.Less(t, l1_1.Time, *env.Sd.RollupCfg.PectraBlobScheduleTime)
 	}
 
@@ -84,7 +92,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	// This is the critical assertion of this test. With the PectraBlobSchedule set, the blob
 	// base fee is still calculated using the Cancun schedule, without it with the same as the
 	// Prague schedule of L1.
-	if usePectraBlobSchedule {
+	if tcfg.expectCancunBBF {
 		require.Equal(t, cancunBBF1, bbf1)
 	} else {
 		require.Equal(t, pragueBBF1, bbf1)
@@ -93,8 +101,12 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	miner.ActEmptyBlock(t)
 	l1_2 := miner.L1Chain().CurrentHeader()
 	t.Logf("Header2: Number: %v, Time: %v, ExcessBlobGas: %v", l1_2.Number, l1_2.Time, *l1_2.ExcessBlobGas)
-	if usePectraBlobSchedule {
-		require.Equal(t, l1_2.Time, *env.Sd.RollupCfg.PectraBlobScheduleTime)
+	if tcfg.offset != nil {
+		if *tcfg.offset%12 == 0 {
+			require.Equal(t, l1_2.Time, *env.Sd.RollupCfg.PectraBlobScheduleTime)
+		} else {
+			require.Greater(t, l1_2.Time, *env.Sd.RollupCfg.PectraBlobScheduleTime)
+		}
 	}
 
 	sequencer.ActL1HeadSignal(t)
