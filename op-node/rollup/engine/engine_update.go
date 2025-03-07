@@ -23,19 +23,24 @@ func isDepositTx(opaqueTx eth.Data) (bool, error) {
 // It walks the transactions from the start until it finds a non-deposit tx.
 // An error is returned if any looked at transaction cannot be decoded
 func lastDeposit(txns []eth.Data) (int, error) {
-	var lastDeposit int
-	for i, tx := range txns {
-		deposit, err := isDepositTx(tx)
-		if err != nil {
-			return 0, fmt.Errorf("invalid transaction at idx %d", i)
-		}
-		if deposit {
-			lastDeposit = i
-		} else {
-			break
-		}
-	}
-	return lastDeposit, nil
+    var lastDeposit int
+    for i, tx := range txns {
+        deposit, err := isDepositTx(tx)
+        if err != nil {
+            return 0, fmt.Errorf("invalid transaction at idx %d", i)
+        }
+        if deposit {
+            lastDeposit = i
+        } else {
+            for j := 0; j < i; j++ {
+                if isDeposit, err := isDepositTx(txns[j]); err != nil || !isDeposit {
+                    return 0, fmt.Errorf("non-deposit transaction found before last deposit at idx %d", j)
+                }
+            }
+            break
+        }
+    }
+    return lastDeposit, nil
 }
 
 func sanityCheckPayload(payload *eth.ExecutionPayload) error {
