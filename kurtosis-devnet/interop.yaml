@@ -37,6 +37,7 @@ optimism_package:
         }
       extra_params:
       - {{ $flags.log_level }}
+      network: "kurtosis"
   chains:
     - participants:
       - el_type: op-geth

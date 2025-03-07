@@ -15,6 +15,7 @@ optimism_package:
       image: {{ dig "overrides" "images" "op_supervisor" (localDockerImage "op-supervisor") $context }}
       extra_params:
       - {{ dig "overrides" "flags" "log_level" "!!str" $context }}
+      network: "kurtosis"
 {{ end }}
   chains:
   {{ range $l2_id, $l2 := $l2s }}
