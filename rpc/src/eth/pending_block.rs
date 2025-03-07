@@ -94,7 +94,7 @@ where
         let block_id = latest.hash().into();
         let block = self
             .provider()
-            .block_with_senders(block_id, Default::default())
+            .recovered_block(block_id, Default::default())
             .map_err(Self::Error::from_eth_err)?
             .ok_or(EthApiError::HeaderNotFound(block_id.into()))?;
 
