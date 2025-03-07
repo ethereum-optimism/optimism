@@ -364,6 +364,9 @@ func TestInteropDeployment(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	require.NotNil(t, st.InteropDepSet)
+	require.Equal(t, len(intent.Chains), len(st.InteropDepSet.Dependencies))
+
 	chainState := st.Chains[0]
 	depManagerSlot := common.HexToHash("0x1708e077affb93e89be2665fb0fb72581be66f84dc00d25fed755ae911905b1c")
 	checkImmutable(t, st.L1StateDump.Data.Accounts, st.ImplementationsDeployment.SystemConfigImplAddress, depManagerSlot)
