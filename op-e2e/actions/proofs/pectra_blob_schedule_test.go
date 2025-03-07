@@ -81,7 +81,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	bbf1, err := l1Block.BlobBaseFee(opts)
 	require.NoError(t, err)
 	t.Logf("BlobBaseFee1: %v", bbf1)
-	// This is the critical assertion of this test. With the PecktraBlobSchedule set, the blob
+	// This is the critical assertion of this test. With the PectraBlobSchedule set, the blob
 	// base fee is still calculated using the Cancun schedule, without it with the same as the
 	// Prague schedule of L1.
 	if usePectraBlobSchedule {

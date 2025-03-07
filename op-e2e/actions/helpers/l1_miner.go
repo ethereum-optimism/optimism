@@ -224,8 +224,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 
 	if s.l1Cfg.Config.IsPrague(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		// Don't process requests for now.
-		reqHash := types.CalcRequestsHash([][]byte{})
-		s.l1BuildingHeader.RequestsHash = &reqHash
+		s.l1BuildingHeader.RequestsHash = &types.EmptyRequestsHash
 	}
 
 	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)

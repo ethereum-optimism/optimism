@@ -455,7 +455,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 
 		// Apply Cancun blob base fee calculation if this chain needs the L1 Pectra
-		// blob schedule fix (mostly Sepolia OP-Stack chains).
+		// blob schedule fix (mostly Holesky and Sepolia OP-Stack chains).
 		if t := rollupCfg.PectraBlobScheduleTime; t != nil && block.Time() < *t {
 			if ebg := block.ExcessBlobGas(); ebg != nil {
 				l1BlockInfo.BlobBaseFee = eth.CalcBlobFeeCancun(*ebg)

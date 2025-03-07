@@ -232,6 +232,8 @@ func NewOpProgramCfg(
 	return dfault
 }
 
+// BatchAndMine batches the current unsafe chain to L1 and mines the L1 block containing the
+// batcher transaction.
 func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
 	t.Helper()
 	env.Batcher.ActSubmitAll(t)
