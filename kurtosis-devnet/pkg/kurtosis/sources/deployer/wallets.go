@@ -36,7 +36,7 @@ func getMnemonics(r io.Reader) (string, error) {
 func (d *Deployer) getL1ValidatorWallets(deployerArtifact *ktfs.Artifact) ([]*Wallet, error) {
 	mnemonicsBuffer := bytes.NewBuffer(nil)
 	if err := deployerArtifact.ExtractFiles(
-		ktfs.NewArtifactFileWriter(d.mnemonicsName, mnemonicsBuffer),
+		ktfs.NewArtifactFileWriter(d.l1ValidatorMnemonicName, mnemonicsBuffer),
 	); err != nil {
 		return nil, err
 	}
