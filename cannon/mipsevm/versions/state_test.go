@@ -20,14 +20,14 @@ func TestNewFromState(t *testing.T) {
 		actual, err := NewFromState(singlethreaded.CreateEmptyState())
 		require.NoError(t, err)
 		require.IsType(t, &singlethreaded.State{}, actual.FPVMState)
-		require.Equal(t, GetCurrentSinglethreaded(), actual.Version)
+		require.Equal(t, GetCurrentSingleThreaded(), actual.Version)
 	})
 
 	t.Run("multithreaded-latestVersion", func(t *testing.T) {
 		actual, err := NewFromState(multithreaded.CreateEmptyState())
 		require.NoError(t, err)
 		require.IsType(t, &multithreaded.State{}, actual.FPVMState)
-		require.Equal(t, GetCurrentMultithreaded(), actual.Version)
+		require.Equal(t, GetCurrentMultiThreaded(), actual.Version)
 	})
 }
 
@@ -58,8 +58,8 @@ func TestVersionsOtherThanZeroDoNotSupportJSON(t *testing.T) {
 		version     StateVersion
 		createState func() mipsevm.FPVMState
 	}{
-		{GetCurrentSinglethreaded(), func() mipsevm.FPVMState { return singlethreaded.CreateEmptyState() }},
-		{GetCurrentMultithreaded(), func() mipsevm.FPVMState { return multithreaded.CreateEmptyState() }},
+		{GetCurrentSingleThreaded(), func() mipsevm.FPVMState { return singlethreaded.CreateEmptyState() }},
+		{GetCurrentMultiThreaded(), func() mipsevm.FPVMState { return multithreaded.CreateEmptyState() }},
 	}
 	for _, test := range tests {
 		test := test

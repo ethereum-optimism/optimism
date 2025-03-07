@@ -61,7 +61,7 @@ func LoadELF(ctx *cli.Context) error {
 		return err
 	}
 	switch ver {
-	case versions.GetCurrentSinglethreaded():
+	case versions.GetCurrentSingleThreaded():
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -72,7 +72,7 @@ func LoadELF(ctx *cli.Context) error {
 			}
 			return program.PatchStack(state)
 		}
-	case versions.GetCurrentMultithreaded(), versions.GetCurrentMultithreaded64():
+	case versions.GetCurrentMultiThreaded(), versions.GetCurrentMultiThreaded64():
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}

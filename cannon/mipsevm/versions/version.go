@@ -89,17 +89,17 @@ func GetStateVersionStrings() []string {
 	return vers
 }
 
-// GetCurrentMultithreaded64 returns the 64-bit multithreaded VM version that is currently supported
-func GetCurrentMultithreaded64() StateVersion {
+// GetCurrentMultiThreaded64 returns the 64-bit multithreaded VM version that is currently supported
+func GetCurrentMultiThreaded64() StateVersion {
 	return VersionMultiThreaded64_v3
 }
 
-// GetCurrentMultithreaded returns the 32-bit multithreaded VM version that is currently supported
-func GetCurrentMultithreaded() StateVersion {
+// GetCurrentMultiThreaded returns the 32-bit multithreaded VM version that is currently supported
+func GetCurrentMultiThreaded() StateVersion {
 	return VersionMultiThreaded_v2
 }
 
-// GetCurrentSinglethreaded returns the 32-bit single-threaded VM version that is currently supported
-func GetCurrentSinglethreaded() StateVersion {
+// GetCurrentSingleThreaded returns the 32-bit single-threaded VM version that is currently supported
+func GetCurrentSingleThreaded() StateVersion {
 	return VersionSingleThreaded2
 }

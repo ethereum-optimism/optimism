@@ -39,18 +39,18 @@ func NewFromState(state mipsevm.FPVMState) (*VersionedState, error) {
 			return nil, ErrUnsupportedMipsArch
 		}
 		return &VersionedState{
-			Version:   GetCurrentSinglethreaded(),
+			Version:   GetCurrentSingleThreaded(),
 			FPVMState: state,
 		}, nil
 	case *multithreaded.State:
 		if arch.IsMips32 {
 			return &VersionedState{
-				Version:   GetCurrentMultithreaded(),
+				Version:   GetCurrentMultiThreaded(),
 				FPVMState: state,
 			}, nil
 		} else {
 			return &VersionedState{
-				Version:   GetCurrentMultithreaded64(),
+				Version:   GetCurrentMultiThreaded64(),
 				FPVMState: state,
 			}, nil
 		}
@@ -81,7 +81,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 	}
 
 	switch s.Version {
-	case GetCurrentSinglethreaded():
+	case GetCurrentSingleThreaded():
 		if !arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}
@@ -91,7 +91,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 		}
 		s.FPVMState = state
 		return nil
-	case GetCurrentMultithreaded():
+	case GetCurrentMultiThreaded():
 		if !arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}
@@ -101,7 +101,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 		}
 		s.FPVMState = state
 		return nil
-	case GetCurrentMultithreaded64():
+	case GetCurrentMultiThreaded64():
 		if arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}
