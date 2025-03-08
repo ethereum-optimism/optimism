@@ -3,7 +3,6 @@ package deploy
 import (
 	"context"
 	"io"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,9 +15,7 @@ func TestDeployFileserver(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tmpDir, err := os.MkdirTemp("", "deploy-fileserver-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create a mock deployer function
 	mockDeployerFunc := func(opts ...kurtosis.KurtosisDeployerOptions) (deployer, error) {

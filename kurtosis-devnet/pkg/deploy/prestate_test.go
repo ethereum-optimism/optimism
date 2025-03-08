@@ -33,12 +33,10 @@ func TestLocalPrestate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir, err := os.MkdirTemp("", "prestate-test")
-			require.NoError(t, err)
-			defer os.RemoveAll(tmpDir)
+			tmpDir := t.TempDir()
 
 			// Create a mock justfile for each test case
-			err = os.WriteFile(filepath.Join(tmpDir, "justfile"), []byte(`
+			err := os.WriteFile(filepath.Join(tmpDir, "justfile"), []byte(`
 _prestate-build target:
 	@echo "Mock prestate build"
 `), 0644)

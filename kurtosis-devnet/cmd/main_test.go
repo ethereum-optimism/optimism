@@ -87,13 +87,11 @@ func TestParseFlags(t *testing.T) {
 
 func TestMainFuncValidatesConfig(t *testing.T) {
 	// Create a temporary directory for test files
-	tmpDir, err := os.MkdirTemp("", "main-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create test template
 	templatePath := filepath.Join(tmpDir, "template.yaml")
-	err = os.WriteFile(templatePath, []byte("name: test"), 0644)
+	err := os.WriteFile(templatePath, []byte("name: test"), 0644)
 	require.NoError(t, err)
 
 	// Create environment output path

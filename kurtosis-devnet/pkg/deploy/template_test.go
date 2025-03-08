@@ -12,9 +12,7 @@ import (
 
 func TestRenderTemplate(t *testing.T) {
 	// Create a temporary directory for test files
-	tmpDir, err := os.MkdirTemp("", "template-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create a test template file
 	templateContent := `
@@ -23,7 +21,7 @@ image: {{localDockerImage "test-project"}}
 artifacts: {{localContractArtifacts "l1"}}`
 
 	templatePath := filepath.Join(tmpDir, "template.yaml")
-	err = os.WriteFile(templatePath, []byte(templateContent), 0644)
+	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
 	require.NoError(t, err)
 
 	// Create a test data file

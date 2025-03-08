@@ -72,13 +72,11 @@ func TestDeploy(t *testing.T) {
 	defer cancel()
 
 	// Create a temporary directory for the environment output
-	tmpDir, err := os.MkdirTemp("", "deploy-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create a simple template file
 	templatePath := filepath.Join(tmpDir, "template.yaml")
-	err = os.WriteFile(templatePath, []byte("test: {{ .Config }}"), 0644)
+	err := os.WriteFile(templatePath, []byte("test: {{ .Config }}"), 0644)
 	require.NoError(t, err)
 
 	// Create a simple data file
