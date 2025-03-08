@@ -1,13 +1,12 @@
 //! Loads and formats OP transaction RPC response.
 
-use alloy_consensus::Transaction as _;
+use alloy_consensus::{transaction::Recovered, Transaction as _};
 use alloy_primitives::{Bytes, PrimitiveSignature as Signature, Sealable, Sealed, B256};
 use alloy_rpc_types_eth::TransactionInfo;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_rpc_types::{OpTransactionRequest, Transaction};
 use reth_node_api::FullNodeComponents;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
-use reth_primitives::Recovered;
 use reth_provider::{
     BlockReader, BlockReaderIdExt, ProviderTx, ReceiptProvider, TransactionsProvider,
 };

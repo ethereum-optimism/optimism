@@ -10,7 +10,7 @@ use reth_node_api::NodePrimitives;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
-use reth_primitives::{RecoveredBlock, SealedHeader};
+use reth_primitives_traits::{RecoveredBlock, SealedHeader};
 use reth_provider::{
     BlockReader, BlockReaderIdExt, ChainSpecProvider, ProviderBlock, ProviderHeader,
     ProviderReceipt, ProviderTx, ReceiptProvider, StateProviderFactory,
@@ -37,7 +37,7 @@ where
             Transaction = OpTransactionSigned,
             Block = OpBlock,
             Receipt = OpReceipt,
-            Header = reth_primitives::Header,
+            Header = alloy_consensus::Header,
         > + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks>
                       + StateProviderFactory,
         Pool: TransactionPool<Transaction: PoolTransaction<Consensus = ProviderTx<N::Provider>>>,

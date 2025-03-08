@@ -273,10 +273,10 @@ impl OpReceiptBuilder {
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloy_consensus::{Block, BlockBody};
     use alloy_primitives::{hex, U256};
     use op_alloy_network::eip2718::Decodable2718;
     use reth_optimism_chainspec::{BASE_MAINNET, OP_MAINNET};
-    use reth_primitives::{Block, BlockBody};
 
     /// OP Mainnet transaction at index 0 in block 124665056.
     ///
