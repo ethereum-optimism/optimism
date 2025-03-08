@@ -1,135 +1,96 @@
-<div align="center">
-  <br />
-  <br />
-  <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
-  <br />
-  <h3><a href="https://optimism.io">Optimism</a> is Ethereum, scaled.</h3>
-  <br />
-</div>
+![](./assets/EigenDA_TextLogo_White.svg)
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**
+# EigenDA powered Optimism-Fork
 
-- [What is Optimism?](#what-is-optimism)
-- [Documentation](#documentation)
-- [Specification](#specification)
-- [Community](#community)
-- [Contributing](#contributing)
-- [Security Policy and Vulnerability Reporting](#security-policy-and-vulnerability-reporting)
-- [Directory Structure](#directory-structure)
-- [Development and Release Process](#development-and-release-process)
-  - [Overview](#overview)
-  - [Production Releases](#production-releases)
-  - [Development branch](#development-branch)
-- [License](#license)
+[![golang](https://github.com/Layr-Labs/optimism/actions/workflows/test-golang.yml/badge.svg)](https://github.com/Layr-Labs/optimism/actions/workflows/test-golang.yml)
+[![kurtosis](https://github.com/Layr-Labs/optimism/actions/workflows/kurtosis-devnet.yml/badge.svg)](https://github.com/Layr-Labs/optimism/actions/workflows/kurtosis-devnet.yml)
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+This is repo contains our fork of [optimism](https://github.com/ethereum-optimism/optimism) to support EigenDA.
 
-## What is Optimism?
+- [EigenDA powered Optimism-Fork](#eigenda-powered-optimism-fork)
+  - [EigenDA Proxy](#eigenda-proxy)
+  - [Fork Features](#fork-features)
+    - [1. High Throughput (large parallel blobs)](#1-high-throughput-large-parallel-blobs)
+    - [2. Failover (for Liveness)](#2-failover-for-liveness)
+    - [3. Security (for Safety)](#3-security-for-safety)
+  - [Testing](#testing)
+    - [CI](#ci)
+    - [Unit Tests](#unit-tests)
+    - [op-e2e Tests](#op-e2e-tests)
+    - [Kurtosis Devnet Tests](#kurtosis-devnet-tests)
+  - [Releases and Branching Strategy](#releases-and-branching-strategy)
 
-[Optimism](https://www.optimism.io/) is a project dedicated to scaling Ethereum's technology and expanding its ability to coordinate people from across the world to build effective decentralized economies and governance systems. The [Optimism Collective](https://www.optimism.io/vision) builds open-source software that powers scalable blockchains and aims to address key governance and economic challenges in the wider Ethereum ecosystem. Optimism operates on the principle of **impact=profit**, the idea that individuals who positively impact the Collective should be proportionally rewarded with profit. **Change the incentives and you change the world.**
+## EigenDA Proxy
 
-In this repository you'll find numerous core components of the OP Stack, the decentralized software stack maintained by the Optimism Collective that powers Optimism and forms the backbone of blockchains like [OP Mainnet](https://explorer.optimism.io/) and [Base](https://base.org). The OP Stack is designed to be aggressively open-source — you are welcome to explore, modify, and extend this code.
+OP's altda spec has both op-batcher and op-nodes interface with AltDA layers via a [da-server](https://specs.optimism.io/experimental/alt-da.html#da-server). EigenDA's implementation of the da-server is called the [EigenDA Proxy](https://github.com/Layr-Labs/eigenda-proxy). The proxy hides EigenDA's async grpc API behind a simple POST/GET sync (blocking) REST API.
 
-## Documentation
+## Fork Features
 
-- If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
-- If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started) and make sure to understand this repository's [Development and Release Process](#development-and-release-process)
+There are 3 important features for any rollup:
+1. Performance
+2. Liveness
+3. Safety
 
-## Specification
+The upstream code in optimism's repo currently does not support these features for altda rollups. The goal of our fork is to provide these for downstream altda rollups. We will try to upstream as many changes as possible, but the op-team has stopped being receptive to our PRs since the pectra upgrade.
 
-Detailed specifications for the OP Stack can be found within the [OP Stack Specs](https://github.com/ethereum-optimism/specs) repository.
+We describe below the current feature-set of the upstream altda code. See release notes for the latest features.
 
-## Community
+### 1. High Throughput (large parallel blobs)
 
-General discussion happens most frequently on the [Optimism discord](https://discord.gg/optimism).
-Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
+Because POSTs to the EigenDA Proxy are blocking (see [EigenDA Proxy](#eigenda-proxy) section), the throughput which a rollup can achieve is limited by the number and size of parallel blobs it can submit. The upstream code supports [parallel blobs submissions](https://github.com/ethereum-optimism/optimism/pull/11698) pre-holocene, but the [Holocene strict ordering rules](https://specs.optimism.io/protocol/holocene/derivation.html) have broken that implementation.
 
-## Contributing
+We will implement a new parallel blobs submission mechanism which is compatible with the Holocene strict ordering rules, and also enable submitting large blobs (EigenDA allows blobs up to 16MiB currently).
 
-The OP Stack is a collaborative project. By collaborating on free, open software and shared standards, the Optimism Collective aims to prevent siloed software development and rapidly accelerate the development of the Ethereum ecosystem. Come contribute, build the future, and redefine power, together.
+### 2. Failover (for Liveness)
 
-[CONTRIBUTING.md](./CONTRIBUTING.md) contains a detailed explanation of the contributing process for this repository. Make sure to use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to properly set up your development environment.
+The upstream altda code does not support failover. If the EigenDA network goes down, the rollup will be stuck.
 
-[Good First Issues](https://github.com/ethereum-optimism/optimism/issues?q=is:open+is:issue+label:D-good-first-issue) are a great place to look for tasks to tackle if you're not sure where to start, and see [CONTRIBUTING.md](./CONTRIBUTING.md) for info on larger projects.
+We will implement a failover mechanism to allow the rollup to continue processing transactions even if the EigenDA network is down.
 
-## Security Policy and Vulnerability Reporting
+### 3. Security (for Safety)
 
-Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
-Bounty hunters are encouraged to check out the [Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
-The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
+The upstream derivation pipeline and challenger code does not currently support the EigenDA security model.
 
-## Directory Structure
+Because making altda fraud proofs secure is very involved, we have opted to first secure zk integrations like [op-succinct](https://github.com/succinctlabs/op-succinct) and [risc0-kailua](https://github.com/risc0/kailua) by using [op-rs](https://op-rs.github.io/kona/)'s stack. See our [Hokulea](https://github.com/Layr-Labs/hokulea) repo for the latest on this.
 
-<pre>
-├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
-├── <a href="./kurtosis-devnet">kurtosis-devnet</a>: OP-Stack Kurtosis devnet
-├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
-├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
-├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
-├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-node">op-node</a>: rollup consensus-layer client
-├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
-├── <a href="./op-program">op-program</a>: Fault proof program
-├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
-├── <a href="./op-service">op-service</a>: Common codebase utilities
-├── <a href="./op-ufm">op-ufm</a>: Simulations for monitoring end-to-end transaction latency
-├── <a href="./op-wheel">op-wheel</a>: Database utilities
-├── <a href="./ops">ops</a>: Various operational packages
-├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
-├── <a href="./semgrep">semgrep</a>: Semgrep rules and tests
-</pre>
+## Testing
 
-## Development and Release Process
+### CI
 
-### Overview
+OP uses circleci for CI, but we migrated to github actions for this fork. The unit and op-e2e tests are purely golang and so run as part of the [test-golang.yml](./.github/workflows/test-golang.yml) github workflow, whereas the kurtosis tests are run as part of the [test-kurtosis.yml](./.github/workflows/test-kurtosis.yml) workflow.
 
-Please read this section carefully if you're planning to fork or make frequent PRs into this repository.
+### Unit Tests
 
-### Production Releases
+For each feature we add simple unit tests where fits.
 
-Production releases are always tags, versioned as `<component-name>/v<semver>`.
-For example, an `op-node` release might be versioned as `op-node/v1.1.2`, and  smart contract releases might be versioned as `op-contracts/v1.0.0`.
-Release candidates are versioned in the format `op-node/v1.1.2-rc.1`.
-We always start with `rc.1` rather than `rc`.
+### op-e2e Tests
 
-For contract releases, refer to the GitHub release notes for a given release which will list the specific contracts being released. Not all contracts are considered production ready within a release and many are under active development.
+We also add integration tests using op-e2e's framework. These tests are very useful as they are run purely in golang in a single process with very fast block times, but they are limited in that proxy is not spin up and the batcher available there is only a fake.
 
-Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code only, and **DO NOT** include smart contracts.
-This naming scheme is required by Golang.
-In the above list, this means these `v<semver>` releases contain all `op-*` components and exclude all `contracts-*` components.
+### Kurtosis Devnet Tests
 
-`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
-Basically, geth’s version is our minor version.
-For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
-Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
-Since we cannot left-pad with zeroes, the geth major version is not padded.
+For full e2e tests we leverage optimism's [kurtosis devnet](./kurtosis-devnet/README.md). See the config file to spin up a devnet with eigenda-proxy in [memstore](./kurtosis-devnet/eigenda-memstore.yaml) mode and [holesky](./kurtosis-devnet/eigenda-holesky.yaml) mode, as well as the available eigenda group commands in the [justfile](./kurtosis-devnet/justfile):
+```sh
+$ just --list
+Available recipes:
+    ...
 
-See the [Node Software Releases](https://docs.optimism.io/builders/node-operators/releases) page of the documentation for more information about releases for the latest node components.
+    [eigenda]
+    eigenda-holesky-devnet-clean
+    eigenda-holesky-devnet-start                     # EigenDA devnet that uses eigenda-proxy connected to eigenda holesky testnet network
+    eigenda-memstore-devnet-clean
+    eigenda-memstore-devnet-configs
+    eigenda-memstore-devnet-failback
+    eigenda-memstore-devnet-failover                 # to failover to ethDA. Use `eigenda-memstore-devnet-failback` to revert.
+    eigenda-memstore-devnet-grafana
+    eigenda-memstore-devnet-restart-batcher          # Restart batcher with new flags or image.
+    eigenda-memstore-devnet-start                    # EigenDA devnet that uses the eigenda-proxy in memstore mode (simulates an eigenda network but generates random certs)
+    eigenda-memstore-devnet-sync-status
+    eigenda-memstore-devnet-test
+```
 
-The full set of components that have releases are:
+## Releases and Branching Strategy
 
-- `op-batcher`
-- `op-contracts`
-- `op-challenger`
-- `op-node`
-- `op-proposer`
+We maintain an `eigenda-develop` branch which is our main development branch which keeps a linear history containing new feature work, fixes, as well as upstream merges. To make downstream integrations easier, we create release-specific branches which contain cleaned up history of commits on top of a specific upstream release. For example, the second eigenda-fork release in the below picture would be named `op-batcher/v1.11.2-eigenda.2`, and will consist of a cleaned-up history of commits (one per feature/service pair) on top of the upstream [op-batcher/v1.11.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.11.2) release. We will strive to make our releases on top of op [production releases](https://github.com/ethereum-optimism/optimism?tab=readme-ov-file#production-releases), unless an urgent fix is needed.
 
-All other components and packages should be considered development components only and do not have releases.
-
-### Development branch
-
-The primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
-`develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://docs.optimism.io/chain/networks).
-If you're making a backwards compatible change, please direct your pull request towards `develop`.
-
-**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**
-Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
-If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
-Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.
-
-## License
-
-All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+![](./assets/fork-branching-and-releases.png)
