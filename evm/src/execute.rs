@@ -383,7 +383,7 @@ mod tests {
             gas_limit: 1_000_000,
             gas_used: 42_000,
             receipts_root: b256!(
-                "83465d1e7d01578c0d609be33570f91242f013e9e295b0879905346abbd63731"
+                "0x83465d1e7d01578c0d609be33570f91242f013e9e295b0879905346abbd63731"
             ),
             ..Default::default()
         };
@@ -459,7 +459,7 @@ mod tests {
             gas_limit: 1_000_000,
             gas_used: 42_000,
             receipts_root: b256!(
-                "fffc85c4004fd03c7bfbe5491fae98a7473126c099ac11e8286fd0013f15f908"
+                "0xfffc85c4004fd03c7bfbe5491fae98a7473126c099ac11e8286fd0013f15f908"
             ),
             ..Default::default()
         };

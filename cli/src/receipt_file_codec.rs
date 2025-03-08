@@ -121,7 +121,7 @@ impl TryFrom<OpGethReceipt> for OpReceipt {
 #[cfg(test)]
 pub(crate) mod test {
     use alloy_consensus::{Receipt, TxReceipt};
-    use alloy_primitives::{hex, LogData};
+    use alloy_primitives::{address, b256, hex, LogData};
 
     use super::*;
 
@@ -141,8 +141,8 @@ pub(crate) mod test {
             cumulative_gas_used: receipt.receipt.cumulative_gas_used(),
             bloom: Bloom::from(hex!("00000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000400000000000100000000000000200000000002000000000000001000000000000000000004000000000000000000000000000040000400000100400000000000000100000000000000000000000000000020000000000000000000000000000000000000000000000001000000000000000000000100000000000000000000000000000000000000000000000000000000000000088000000080000000000010000000000000000000000000000800008000120000000000000000000000000000000002000")),
             logs: receipt.receipt.logs().to_vec(),
-            tx_hash: B256::from(hex!("5e77a04531c7c107af1882d76cbff9486d0a9aa53701c30888509d4f5f2b003a")), contract_address: Address::from(hex!("0000000000000000000000000000000000000000")), gas_used: 202813,
-            block_hash: B256::from(hex!("bee7192e575af30420cae0c7776304ac196077ee72b048970549e4f08e875453")),
+            tx_hash: b256!("0x5e77a04531c7c107af1882d76cbff9486d0a9aa53701c30888509d4f5f2b003a"), contract_address: address!("0x0000000000000000000000000000000000000000"), gas_used: 202813,
+            block_hash: b256!("0xbee7192e575af30420cae0c7776304ac196077ee72b048970549e4f08e875453"),
             block_number: receipt.number,
             transaction_index: 0,
             l1_gas_price: 1,
@@ -154,18 +154,12 @@ pub(crate) mod test {
 
     pub(crate) fn receipt_block_1() -> ReceiptWithBlockNumber<OpReceipt> {
         let log_1 = Log {
-            address: Address::from(hex!("8ce8c13d816fe6daf12d6fd9e4952e1fc88850af")),
+            address: address!("0x8ce8c13d816fe6daf12d6fd9e4952e1fc88850af"),
             data: LogData::new(
                 vec![
-                    B256::from(hex!(
-                        "0109fc6f55cf40689f02fbaad7af7fe7bbac8a3d2186600afc7d3e10cac60271"
-                    )),
-                    B256::from(hex!(
-                        "0000000000000000000000000000000000000000000000000000000000014218"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000070b17c0fe982ab4a7ac17a4c25485643151a1f2d"
-                    )),
+                    b256!("0x0109fc6f55cf40689f02fbaad7af7fe7bbac8a3d2186600afc7d3e10cac60271"),
+                    b256!("0x0000000000000000000000000000000000000000000000000000000000014218"),
+                    b256!("0x00000000000000000000000070b17c0fe982ab4a7ac17a4c25485643151a1f2d"),
                 ],
                 Bytes::from(hex!(
                     "00000000000000000000000000000000000000000000000000000000618d8837"
@@ -175,21 +169,13 @@ pub(crate) mod test {
         };
 
         let log_2 = Log {
-            address: Address::from(hex!("8ce8c13d816fe6daf12d6fd9e4952e1fc88850af")),
+            address: address!("0x8ce8c13d816fe6daf12d6fd9e4952e1fc88850af"),
             data: LogData::new(
                 vec![
-                    B256::from(hex!(
-                        "92e98423f8adac6e64d0608e519fd1cefb861498385c6dee70d58fc926ddc68c"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000000000000000000000000000000000000d0e3ebf0"
-                    )),
-                    B256::from(hex!(
-                        "0000000000000000000000000000000000000000000000000000000000014218"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000070b17c0fe982ab4a7ac17a4c25485643151a1f2d"
-                    )),
+                    b256!("0x92e98423f8adac6e64d0608e519fd1cefb861498385c6dee70d58fc926ddc68c"),
+                    b256!("0x00000000000000000000000000000000000000000000000000000000d0e3ebf0"),
+                    b256!("0x0000000000000000000000000000000000000000000000000000000000014218"),
+                    b256!("0x00000000000000000000000070b17c0fe982ab4a7ac17a4c25485643151a1f2d"),
                 ],
                 Bytes::default(),
             )
@@ -197,15 +183,11 @@ pub(crate) mod test {
         };
 
         let log_3 = Log {
-            address: Address::from(hex!("8ce8c13d816fe6daf12d6fd9e4952e1fc88850af")),
+            address: address!("0x8ce8c13d816fe6daf12d6fd9e4952e1fc88850af"),
             data: LogData::new(
                 vec![
-                    B256::from(hex!(
-                        "fe25c73e3b9089fac37d55c4c7efcba6f04af04cebd2fc4d6d7dbb07e1e5234f"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000000000000000000000000007edc6ca0bb68348000"
-                    )),
+                    b256!("0xfe25c73e3b9089fac37d55c4c7efcba6f04af04cebd2fc4d6d7dbb07e1e5234f"),
+                    b256!("0x00000000000000000000000000000000000000000000007edc6ca0bb68348000"),
                 ],
                 Bytes::default(),
             )
@@ -223,21 +205,13 @@ pub(crate) mod test {
 
     pub(crate) fn receipt_block_2() -> ReceiptWithBlockNumber<OpReceipt> {
         let log_1 = Log {
-            address: Address::from(hex!("8ce8c13d816fe6daf12d6fd9e4952e1fc88850af")),
+            address: address!("0x8ce8c13d816fe6daf12d6fd9e4952e1fc88850af"),
             data: LogData::new(
                 vec![
-                    B256::from(hex!(
-                        "92e98423f8adac6e64d0608e519fd1cefb861498385c6dee70d58fc926ddc68c"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000000000000000000000000000000000000d0ea0e40"
-                    )),
-                    B256::from(hex!(
-                        "0000000000000000000000000000000000000000000000000000000000014218"
-                    )),
-                    B256::from(hex!(
-                        "000000000000000000000000e5e7492282fd1e3bfac337a0beccd29b15b7b240"
-                    )),
+                    b256!("0x92e98423f8adac6e64d0608e519fd1cefb861498385c6dee70d58fc926ddc68c"),
+                    b256!("0x00000000000000000000000000000000000000000000000000000000d0ea0e40"),
+                    b256!("0x0000000000000000000000000000000000000000000000000000000000014218"),
+                    b256!("0x000000000000000000000000e5e7492282fd1e3bfac337a0beccd29b15b7b240"),
                 ],
                 Bytes::default(),
             )
@@ -245,15 +219,11 @@ pub(crate) mod test {
         };
 
         let log_2 = Log {
-            address: Address::from(hex!("8ce8c13d816fe6daf12d6fd9e4952e1fc88850af")),
+            address: address!("0x8ce8c13d816fe6daf12d6fd9e4952e1fc88850af"),
             data: LogData::new(
                 vec![
-                    B256::from(hex!(
-                        "fe25c73e3b9089fac37d55c4c7efcba6f04af04cebd2fc4d6d7dbb07e1e5234f"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000000000000000000000000007eda7867e0c7d48000"
-                    )),
+                    b256!("0xfe25c73e3b9089fac37d55c4c7efcba6f04af04cebd2fc4d6d7dbb07e1e5234f"),
+                    b256!("0x00000000000000000000000000000000000000000000007eda7867e0c7d48000"),
                 ],
                 Bytes::default(),
             )
@@ -271,21 +241,13 @@ pub(crate) mod test {
 
     pub(crate) fn receipt_block_3() -> ReceiptWithBlockNumber<OpReceipt> {
         let log_1 = Log {
-            address: Address::from(hex!("8ce8c13d816fe6daf12d6fd9e4952e1fc88850af")),
+            address: address!("0x8ce8c13d816fe6daf12d6fd9e4952e1fc88850af"),
             data: LogData::new(
                 vec![
-                    B256::from(hex!(
-                        "92e98423f8adac6e64d0608e519fd1cefb861498385c6dee70d58fc926ddc68c"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000000000000000000000000000000000000d101e54b"
-                    )),
-                    B256::from(hex!(
-                        "0000000000000000000000000000000000000000000000000000000000014218"
-                    )),
-                    B256::from(hex!(
-                        "000000000000000000000000fa011d8d6c26f13abe2cefed38226e401b2b8a99"
-                    )),
+                    b256!("0x92e98423f8adac6e64d0608e519fd1cefb861498385c6dee70d58fc926ddc68c"),
+                    b256!("0x00000000000000000000000000000000000000000000000000000000d101e54b"),
+                    b256!("0x0000000000000000000000000000000000000000000000000000000000014218"),
+                    b256!("0x000000000000000000000000fa011d8d6c26f13abe2cefed38226e401b2b8a99"),
                 ],
                 Bytes::default(),
             )
@@ -293,15 +255,11 @@ pub(crate) mod test {
         };
 
         let log_2 = Log {
-            address: Address::from(hex!("8ce8c13d816fe6daf12d6fd9e4952e1fc88850af")),
+            address: address!("0x8ce8c13d816fe6daf12d6fd9e4952e1fc88850af"),
             data: LogData::new(
                 vec![
-                    B256::from(hex!(
-                        "fe25c73e3b9089fac37d55c4c7efcba6f04af04cebd2fc4d6d7dbb07e1e5234f"
-                    )),
-                    B256::from(hex!(
-                        "00000000000000000000000000000000000000000000007ed8842f0627748000"
-                    )),
+                    b256!("0xfe25c73e3b9089fac37d55c4c7efcba6f04af04cebd2fc4d6d7dbb07e1e5234f"),
+                    b256!("0x00000000000000000000000000000000000000000000007ed8842f0627748000"),
                 ],
                 Bytes::default(),
             )

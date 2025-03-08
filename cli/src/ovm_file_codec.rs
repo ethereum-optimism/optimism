@@ -293,7 +293,7 @@ impl Decodable2718 for OvmTransactionSigned {
 mod tests {
     use crate::ovm_file_codec::OvmTransactionSigned;
     use alloy_consensus::Typed2718;
-    use alloy_primitives::{address, hex, TxKind, B256, U256};
+    use alloy_primitives::{address, b256, hex, TxKind, U256};
     use op_alloy_consensus::OpTypedTransaction;
     const DEPOSIT_FUNCTION_SELECTOR: [u8; 4] = [0xb6, 0xb5, 0x5f, 0x25];
     use alloy_rlp::Decodable;
@@ -379,7 +379,7 @@ mod tests {
         );
         assert_eq!(
             system_decoded.hash,
-            B256::from(hex!("e20b11349681dd049f8df32f5cdbb4c68d46b537685defcd86c7fa42cfe75b9e"))
+            b256!("0xe20b11349681dd049f8df32f5cdbb4c68d46b537685defcd86c7fa42cfe75b9e")
         );
     }
 }
