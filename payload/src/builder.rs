@@ -17,8 +17,8 @@ use reth_chain_state::{ExecutedBlock, ExecutedBlockWithTrieUpdates};
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     execute::{
-        BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutionStrategy,
-        BlockExecutionStrategyFactory, BlockValidationError,
+        BlockBuilder, BlockBuilderOutcome, BlockExecutionError, BlockExecutionStrategyFactory,
+        BlockExecutor, BlockValidationError,
     },
     Database, Evm,
 };
@@ -378,7 +378,7 @@ impl<Txs> OpBuilder<'_, Txs> {
 
         builder.apply_pre_execution_changes().map_err(PayloadBuilderError::evm)?;
         ctx.execute_sequencer_transactions(&mut builder)?;
-        builder.into_strategy().apply_post_execution_changes().map_err(PayloadBuilderError::evm)?;
+        builder.into_executor().apply_post_execution_changes().map_err(PayloadBuilderError::evm)?;
 
         let ExecutionWitnessRecord { hashed_state, codes, keys } =
             ExecutionWitnessRecord::from_executed_state(&db);

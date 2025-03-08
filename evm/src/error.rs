@@ -52,9 +52,6 @@ pub enum OpBlockExecutionError {
     /// Thrown when force deploy of create2deployer code fails.
     #[error("failed to force create2deployer account code")]
     ForceCreate2DeployerFail,
-    /// Thrown when a blob transaction is included in a sequencer's block.
-    #[error("blob transaction included in sequencer block")]
-    BlobTransactionRejected,
     /// Thrown when a database account could not be loaded.
     #[error("failed to load account {_0}")]
     AccountLoadFailed(alloy_primitives::Address),

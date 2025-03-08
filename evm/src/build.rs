@@ -1,9 +1,10 @@
-use crate::{OpBlockExecutionCtx, OpNextBlockEnvAttributes};
 use alloc::sync::Arc;
 use alloy_consensus::{
     constants::EMPTY_WITHDRAWALS, proofs, BlockBody, Header, TxReceipt, EMPTY_OMMER_ROOT_HASH,
 };
 use alloy_eips::merge::BEACON_NONCE;
+use alloy_evm::block::BlockExecutorFactory;
+use alloy_op_evm::OpBlockExecutionCtx;
 use alloy_primitives::logs_bloom;
 use reth_evm::execute::{BlockAssembler, BlockAssemblerInput, BlockExecutionStrategyFactory};
 use reth_execution_errors::BlockExecutionError;
@@ -43,8 +44,7 @@ where
             BlockBody = alloy_consensus::BlockBody<T>,
             SignedTx = T,
         >,
-        NextBlockEnvCtx = OpNextBlockEnvAttributes,
-        ExecutionCtx<'a> = OpBlockExecutionCtx,
+        BlockExecutorFactory: BlockExecutorFactory<ExecutionCtx<'a> = OpBlockExecutionCtx>,
     >,
 {
     fn assemble_block(
@@ -72,7 +72,10 @@ where
         let withdrawals_root = if self.chain_spec.is_isthmus_active_at_timestamp(timestamp) {
             // withdrawals root field in block header is used for storage root of L2 predeploy
             // `l2tol1-message-passer`
-            Some(isthmus::withdrawals_root(bundle_state, state_provider)?)
+            Some(
+                isthmus::withdrawals_root(bundle_state, state_provider)
+                    .map_err(BlockExecutionError::other)?,
+            )
         } else if self.chain_spec.is_canyon_active_at_timestamp(timestamp) {
             Some(EMPTY_WITHDRAWALS)
         } else {
