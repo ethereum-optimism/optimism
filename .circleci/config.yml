@@ -1220,6 +1220,9 @@ jobs:
       - utils/checkout-with-mise
       - setup_remote_docker
       - run: make -C op-program verify-reproducibility
+      - store_artifacts:
+          path: ./op-program/temp/logs
+          when: always
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
