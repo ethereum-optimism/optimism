@@ -316,3 +316,149 @@ func TestChannelTxFailed(t *testing.T) {
 	// There should be a frame in the pending channel now
 	require.Equal(t, 1, m.currentChannel.PendingFrames())
 }
+
+// TestChannel_StaleTransactions tests the handling of stale transactions
+// when a channel is closed with pending transactions
+func TestChannel_StaleTransactions(t *testing.T) {
+	require := require.New(t)
+	log := testlog.Logger(t, log.LevelCrit)
+	ch, err := newChannelWithChannelOut(log, metrics.NoopMetrics, ChannelConfig{
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: derive.Zlib,
+		},
+	}, &rollup.Config{}, latestL1BlockOrigin)
+	require.NoError(err)
+	chID := ch.ID()
+
+	// Create and add some frames
+	mockframes := makeMockFrameDatas(chID, 3)
+	ch.channelBuilder.frames = mockframes
+
+	// Get transactions and verify they are pending
+	tx1 := ch.NextTxData()
+	tx2 := ch.NextTxData()
+	tx3 := ch.NextTxData()
+
+	tx1ID := tx1.ID().String()
+	tx2ID := tx2.ID().String()
+	tx3ID := tx3.ID().String()
+
+	require.Contains(ch.pendingTransactions, tx1ID)
+	require.Contains(ch.pendingTransactions, tx2ID)
+	require.Contains(ch.pendingTransactions, tx3ID)
+	require.Empty(ch.staleTransactions)
+
+	// Close the channel and verify transactions moved to stale
+	ch.Close()
+	require.Empty(ch.pendingTransactions)
+	require.Contains(ch.staleTransactions, tx1ID)
+	require.Contains(ch.staleTransactions, tx2ID)
+	require.Contains(ch.staleTransactions, tx3ID)
+
+	// Test confirmation of stale transaction
+	ch.TxConfirmed(tx1ID, eth.BlockID{Number: 1})
+	require.NotContains(ch.staleTransactions, tx1ID)
+	require.Contains(ch.staleTransactions, tx2ID)
+	require.Contains(ch.staleTransactions, tx3ID)
+
+	// Test failed stale transaction
+	ch.TxFailed(tx2ID)
+	require.NotContains(ch.staleTransactions, tx2ID)
+	require.Contains(ch.staleTransactions, tx3ID)
+
+	// Verify isFullySubmitted considers stale transactions
+	require.False(ch.isFullySubmitted(), "channel should not be fully submitted with stale transactions")
+	ch.TxConfirmed(tx3ID, eth.BlockID{Number: 2})
+	require.Empty(ch.staleTransactions)
+	require.True(ch.isFullySubmitted(), "channel should be fully submitted with no stale transactions")
+}
+
+// TestChannel_StaleTransactionsTimeout tests that stale transactions
+// are properly handled when checking for channel timeout
+func TestChannel_StaleTransactionsTimeout(t *testing.T) {
+	require := require.New(t)
+	log := testlog.Logger(t, log.LevelCrit)
+	ch, err := newChannelWithChannelOut(log, metrics.NoopMetrics, ChannelConfig{
+		ChannelTimeout: 100,
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: derive.Zlib,
+		},
+	}, &rollup.Config{}, latestL1BlockOrigin)
+	require.NoError(err)
+	chID := ch.ID()
+
+	// Create and add some frames
+	mockframes := makeMockFrameDatas(chID, 2)
+	ch.channelBuilder.frames = mockframes
+
+	// Get transactions
+	tx1 := ch.NextTxData()
+	tx2 := ch.NextTxData()
+
+	tx1ID := tx1.ID().String()
+	tx2ID := tx2.ID().String()
+
+	// Close channel to make transactions stale
+	ch.Close()
+	require.Contains(ch.staleTransactions, tx1ID)
+	require.Contains(ch.staleTransactions, tx2ID)
+
+	// Confirm transactions with blocks that would cause timeout
+	ch.TxConfirmed(tx1ID, eth.BlockID{Number: 1})
+	ch.TxConfirmed(tx2ID, eth.BlockID{Number: 102})
+
+	// Verify timeout is detected
+	require.True(ch.isTimedOut(), "channel should timeout when stale transactions are confirmed too far apart")
+}
+
+// TestChannel_MixedTransactionStates tests handling of transactions
+// in different states (pending, stale, confirmed)
+func TestChannel_MixedTransactionStates(t *testing.T) {
+	require := require.New(t)
+	log := testlog.Logger(t, log.LevelCrit)
+	ch, err := newChannelWithChannelOut(log, metrics.NoopMetrics, ChannelConfig{
+		CompressorConfig: compressor.Config{
+			CompressionAlgo: derive.Zlib,
+		},
+	}, &rollup.Config{}, latestL1BlockOrigin)
+	require.NoError(err)
+	chID := ch.ID()
+
+	// Create and add some frames
+	mockframes := makeMockFrameDatas(chID, 3)
+	ch.channelBuilder.frames = mockframes
+
+	// Get transactions
+	tx1 := ch.NextTxData()
+	tx2 := ch.NextTxData()
+	tx3 := ch.NextTxData()
+
+	tx1ID := tx1.ID().String()
+	tx2ID := tx2.ID().String()
+	tx3ID := tx3.ID().String()
+
+	// Confirm one transaction
+	ch.TxConfirmed(tx1ID, eth.BlockID{Number: 1})
+	require.Contains(ch.confirmedTransactions, tx1ID)
+	require.NotContains(ch.pendingTransactions, tx1ID)
+
+	// Close channel to make remaining transactions stale
+	ch.Close()
+	require.Contains(ch.staleTransactions, tx2ID)
+	require.Contains(ch.staleTransactions, tx3ID)
+	require.Empty(ch.pendingTransactions)
+
+	// Verify isFullySubmitted state
+	require.False(ch.isFullySubmitted(), "channel should not be fully submitted with stale transactions")
+
+	// Confirm one stale transaction and fail another
+	ch.TxConfirmed(tx2ID, eth.BlockID{Number: 2})
+	ch.TxFailed(tx3ID)
+
+	// Verify final state
+	require.Contains(ch.confirmedTransactions, tx1ID)
+	require.Contains(ch.confirmedTransactions, tx2ID)
+	require.Empty(ch.staleTransactions)
+	require.Empty(ch.pendingTransactions)
+	require.True(ch.isFullySubmitted(), "channel should be fully submitted after handling all transactions")
+}
