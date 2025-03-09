@@ -24,6 +24,8 @@ type channel struct {
 	pendingTransactions map[string]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[string]eth.BlockID
+	// Set of stale txID -> tx data. For tracking transactions that were pending when channel was cleared
+	staleTransactions map[string]txData
 
 	// Inclusion block number of first confirmed TX
 	minInclusionBlock uint64
@@ -40,6 +42,7 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 		channelBuilder:        cb,
 		pendingTransactions:   make(map[string]txData),
 		confirmedTransactions: make(map[string]eth.BlockID),
+		staleTransactions:     make(map[string]txData),
 		minInclusionBlock:     math.MaxUint64,
 	}
 }
@@ -54,6 +57,9 @@ func (c *channel) TxFailed(id string) {
 		// all again.
 		c.channelBuilder.RewindFrameCursor(data.Frames()[0])
 		delete(c.pendingTransactions, id)
+	} else if _, ok := c.staleTransactions[id]; ok {
+		c.log.Trace("marked stale transaction as failed", "id", id)
+		delete(c.staleTransactions, id)
 	} else {
 		c.log.Warn("unknown transaction marked as failed", "id", id)
 	}
@@ -66,10 +72,15 @@ func (c *channel) TxFailed(id string) {
 func (c *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) bool {
 	c.metr.RecordBatchTxSuccess()
 	c.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
+
 	if _, ok := c.pendingTransactions[id]; !ok {
+		// Check if this was a stale transaction
+		if _, isStale := c.staleTransactions[id]; isStale {
+			c.log.Info("confirmed stale transaction", "id", id, "block", inclusionBlock)
+			delete(c.staleTransactions, id)
+			return false
+		}
 		c.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)
-		// TODO: This can occur if we clear the channel while there are still pending transactions
-		// We need to keep track of stale transactions instead
 		return false
 	}
 	delete(c.pendingTransactions, id)
@@ -113,7 +124,7 @@ func (c *channel) isTimedOut() bool {
 
 // isFullySubmitted returns true if the channel has been fully submitted (all transactions are confirmed).
 func (c *channel) isFullySubmitted() bool {
-	return c.IsFull() && len(c.pendingTransactions)+c.PendingFrames() == 0
+	return c.IsFull() && len(c.pendingTransactions)+len(c.staleTransactions)+c.PendingFrames() == 0
 }
 
 func (c *channel) NoneSubmitted() bool {
@@ -215,6 +226,11 @@ func (c *channel) OldestL2() eth.BlockID {
 }
 
 func (c *channel) Close() {
+	// Move any pending transactions to stale transactions before closing
+	for id, txData := range c.pendingTransactions {
+		c.staleTransactions[id] = txData
+		delete(c.pendingTransactions, id)
+	}
 	c.channelBuilder.Close()
 }
 
