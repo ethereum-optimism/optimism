@@ -28,7 +28,7 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 		logger = logger.With("chain", chain.ID())
 		logger.Info("starting test")
 
-		funds := sdktypes.NewBalance(big.NewInt(0.5 * constants.ETH))
+		funds := sdktypes.NewBalance(new(big.Int).Div(big.NewInt(constants.ETH), big.NewInt(2)))
 		user := walletGetter(ctx)
 
 		scw0Addr := constants.SuperchainWETH
