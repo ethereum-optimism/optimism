@@ -29,6 +29,9 @@ func (db *ChainsDB) LatestBlockNum(chain eth.ChainID) (num uint64, ok bool) {
 	return bl.Number, ok
 }
 
+// IsCrossUnsafe checks if the given block is less than the cross-unsafe block number.
+// It does not check if the block is actually cross-unsafe (ie, known in the database).
+// TODO(#14765): Check Consistency of IsCrossUnsafe and return error if inconsistent
 func (db *ChainsDB) IsCrossUnsafe(chainID eth.ChainID, block eth.BlockID) error {
 	v, ok := db.crossUnsafe.Get(chainID)
 	if !ok {
@@ -41,10 +44,12 @@ func (db *ChainsDB) IsCrossUnsafe(chainID eth.ChainID, block eth.BlockID) error 
 	if block.Number > crossUnsafe.Number {
 		return types.ErrFuture
 	}
-	// TODO(#11693): make cross-unsafe reorg safe
 	return nil
 }
 
+// ParentBlock returns a block with a number one less than the given block number.
+// It does not check if the block obtained is truly the parent of the given block.
+// TODO(#14765): Check Consistency of ParentBlock (or replace with FindSealedBlock)
 func (db *ChainsDB) ParentBlock(chainID eth.ChainID, parentOf eth.BlockID) (parent eth.BlockID, err error) {
 	logDB, ok := db.logDBs.Get(chainID)
 	if !ok {
@@ -53,7 +58,6 @@ func (db *ChainsDB) ParentBlock(chainID eth.ChainID, parentOf eth.BlockID) (pare
 	if parentOf.Number == 0 {
 		return eth.BlockID{}, nil
 	}
-	// TODO(#11693): make parent-lookup reorg safe
 	got, err := logDB.FindSealedBlock(parentOf.Number - 1)
 	if err != nil {
 		return eth.BlockID{}, err
