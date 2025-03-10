@@ -153,7 +153,7 @@ var sepoliaDev0Cfg = rollup.Config{
 	FjordTime:               u64Ptr(1715961600),
 	GraniteTime:             u64Ptr(1723046400),
 	HoloceneTime:            u64Ptr(1731682800),
-	PectraBlobScheduleTime:  u64Ptr(1742486400),
+	PectraBlobScheduleTime:  u64Ptr(1741687200),
 	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
 	ChainOpConfig:           defaultOpConfig,
 }
