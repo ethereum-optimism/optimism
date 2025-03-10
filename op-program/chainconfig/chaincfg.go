@@ -108,7 +108,7 @@ func mustLoadChainConfig(name string) *params.ChainConfig {
 }
 
 func DependencySetByChainID(chainID eth.ChainID) (depset.DependencySet, error) {
-	// TODO(#13887): Load from the superchain registry when available.
+	// TODO(#14771): Load from the superchain registry when available.
 	return dependencySetByChainID(chainID, customChainConfigFS)
 }
 
