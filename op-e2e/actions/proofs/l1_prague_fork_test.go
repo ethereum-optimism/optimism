@@ -134,6 +134,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			require.Equal(t, uint64(0), verifier.SyncStatus().SafeL2.L1Origin.Number, "l1 origin of l2 safe should not have changed (SetCode / type 4 batcher tx ignored)")
 		} else {
 			require.Greater(t, safeL2After.Number, safeL2Before.Number, "safe head should have progressed (DynamicFee / type 2 batcher tx derived from)")
+			require.Equal(t, verifier.SyncStatus().UnsafeL2.Number, safeL2After.Number, "safe head should equal unsafe head (DynamicFee / type 2 batcher tx derived from)")
 			require.Equal(t, uint64(3), verifier.SyncStatus().SafeL2.L1Origin.Number, "l1 origin of l2 safe should have progressed (DynamicFee / type 2 batcher tx tx derived from)")
 		}
 
