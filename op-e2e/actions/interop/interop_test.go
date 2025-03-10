@@ -439,3 +439,36 @@ func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, chainBSubmittedIn.NumberU64(), source.Number)
 }
+
+func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	aliceA := setupUser(t, is, actors.ChainA, 0)
+
+	// Execute a fake log on chain A
+	chainBHead := actors.ChainB.Sequencer.SyncStatus().UnsafeL2
+	nonExistentID := inbox.Identifier{
+		Origin:      aliceA.address,
+		BlockNumber: big.NewInt(int64(chainBHead.Number)),
+		LogIndex:    common.Big0,
+		Timestamp:   big.NewInt(int64(chainBHead.Time)),
+		ChainId:     actors.ChainB.RollupCfg.L2ChainID,
+	}
+	nonExistentHash := crypto.Keccak256Hash([]byte("fake message"))
+	tx := newExecuteMessageTxFromIDAndHash(t, aliceA, actors.ChainA, nonExistentID, nonExistentHash)
+	includeTxOnChainBasic(t, actors.ChainA, tx, aliceA.address)
+	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
+
+	// Sync the system
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+
+	// Assert that chainA's block is not cross-safe but chainB's is.
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
+}

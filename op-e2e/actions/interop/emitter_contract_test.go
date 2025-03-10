@@ -113,20 +113,26 @@ func newEmitMessageTx(t helpers.Testing, chain *dsl.Chain, user *userWithKeys, e
 	return tx
 }
 
+// newExecuteMessageTx creates a new executing message tx based on the given initializing tx.
 func newExecuteMessageTx(t helpers.Testing, destChain *dsl.Chain, executor *userWithKeys, srcChain *dsl.Chain, srcTx *types.Transaction) *types.Transaction {
 	// Create the id and payload
 	id := idForTx(t, srcTx, srcChain)
 	receipt, err := srcChain.SequencerEngine.EthClient().TransactionReceipt(t.Ctx(), srcTx.Hash())
 	require.NoError(t, err)
 	payload := stypes.LogToMessagePayload(receipt.Logs[0])
+	hash := crypto.Keccak256Hash(payload)
 
 	// Create the tx to validate the message
+	return newExecuteMessageTxFromIDAndHash(t, executor, destChain, id, hash)
+}
+
+// newExecuteMessageTxFromIDAndHash creates a new executing message tx for the given id and hash.
+func newExecuteMessageTxFromIDAndHash(t helpers.Testing, executor *userWithKeys, destChain *dsl.Chain, id inbox.Identifier, hash common.Hash) *types.Transaction {
 	inboxContract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, destChain.SequencerEngine.EthClient())
 	require.NoError(t, err)
 	auth := newL2TxOpts(t, executor.secret, destChain)
-	tx, err := inboxContract.ValidateMessage(auth, id, crypto.Keccak256Hash(payload))
+	tx, err := inboxContract.ValidateMessage(auth, id, hash)
 	require.NoError(t, err)
-
 	return tx
 }
 
