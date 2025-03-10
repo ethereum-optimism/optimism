@@ -1219,7 +1219,10 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - setup_remote_docker
-      - run: make -C op-program verify-reproducibility
+      - run:
+          name: Verify reproducibility
+          command: make -C op-program verify-reproducibility
+          no_output_timeout: 30m
       - store_artifacts:
           path: ./op-program/temp/logs
           when: always

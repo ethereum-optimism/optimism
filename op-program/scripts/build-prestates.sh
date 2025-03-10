@@ -1,4 +1,4 @@
-#!/bin/bash
+  #!/bin/bash
 set -euo pipefail
 SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
@@ -48,7 +48,7 @@ do
     else
       cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
     fi
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\"}]")
+    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon32\"}]")
     echo "Built ${VERSION}: ${HASH}"
 
     if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
