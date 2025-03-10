@@ -1215,6 +1215,31 @@ contract StandardValidatorV300_Test is StandardValidatorTest {
         validate(false);
     }
 
+    /// @notice Tests validation of operator fee settings in SystemConfig
+    function test_validate_systemConfig_operatorFees_succeeds() public {
+        // Test invalid operator fee scalar
+        _mockValidationCalls();
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
+        assertEq("SYSCON-110", validate(true));
+
+        // Test invalid operator fee constant
+        _mockValidationCalls();
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(1));
+        assertEq("SYSCON-120", validate(true));
+
+        // Test both invalid
+        _mockValidationCalls();
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(1));
+        assertEq("SYSCON-110,SYSCON-120", validate(true));
+
+        // Test both valid (should be included in _mockValidationCalls, but let's be explicit)
+        _mockValidationCalls();
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(0));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(0));
+        assertEq("", validate(true));
+    }
+
     function _testDisputeGame(
         string memory errorPrefix,
         address _disputeGame,
@@ -1239,6 +1264,10 @@ contract StandardValidatorV300_Test is StandardValidatorTest {
 
     function _mockValidationCalls() internal virtual override {
         super._mockValidationCalls();
+
+        // Mock operator fee calls with valid values
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(0));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(0));
 
         // Override version numbers for V300
         vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.4.0"));

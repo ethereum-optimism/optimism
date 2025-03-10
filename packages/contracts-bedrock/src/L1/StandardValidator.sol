@@ -170,6 +170,7 @@ contract StandardValidatorBase {
     )
         internal
         view
+        virtual
         returns (string memory)
     {
         ISemver _semver = ISemver(address(_sysCfg));
@@ -696,6 +697,22 @@ contract StandardValidatorV300 is StandardValidatorBase {
             revert(string.concat("StandardValidatorV300: ", _errors));
         }
 
+        return _errors;
+    }
+
+    function assertValidSystemConfig(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        override
+        returns (string memory)
+    {
+        _errors = super.assertValidSystemConfig(_errors, _sysCfg, _admin);
+        _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
+        _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
         return _errors;
     }
 
