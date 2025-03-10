@@ -309,8 +309,8 @@ func (d *consolidateCheckDeps) IsLocalUnsafe(chainID eth.ChainID, block eth.Bloc
 	return nil
 }
 
-func (d *consolidateCheckDeps) ParentBlock(chainID eth.ChainID, parentOf eth.BlockID) (parent eth.BlockID, err error) {
-	block, err := d.CanonBlockByNumber(d.oracle, parentOf.Number-1, chainID)
+func (d *consolidateCheckDeps) FindBlockID(chainID eth.ChainID, num uint64) (blockID eth.BlockID, err error) {
+	block, err := d.CanonBlockByNumber(d.oracle, num, chainID)
 	if err != nil {
 		return eth.BlockID{}, err
 	}
