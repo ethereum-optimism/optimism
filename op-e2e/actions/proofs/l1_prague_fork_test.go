@@ -1,15 +1,12 @@
 package proofs_test
 
 import (
-	"fmt"
 	"testing"
 
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
-	"github.com/ethereum-optimism/optimism/op-program/client/claim"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -21,13 +18,11 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 		useSetCodeTx bool
 	}
 
-	testCases := []testCase{
-		{
-			name: "dynamicFeeTx", useSetCodeTx: false,
-		},
-		{
-			name: "setCodeTx", useSetCodeTx: true,
-		},
+	dynamiceFeeCase := testCase{
+		name: "dynamicFeeTx", useSetCodeTx: false,
+	}
+	setCodeCase := testCase{
+		name: "setCodeTx", useSetCodeTx: true,
 	}
 
 	runL1PragueTest := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
@@ -143,22 +138,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 
 	matrix := helpers.NewMatrix[testCase]()
 	defer matrix.Run(gt)
-
-	for _, tc := range testCases {
-		matrix.AddTestCase(
-			fmt.Sprintf("HonestClaim-%s", tc.name),
-			tc,
-			helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork),
-			runL1PragueTest,
-			helpers.ExpectNoError(),
-		)
-		matrix.AddTestCase(
-			fmt.Sprintf("JunkClaim-%s", tc.name),
-			tc,
-			helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork),
-			runL1PragueTest,
-			helpers.ExpectError(claim.ErrClaimNotValid),
-			helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
-		)
-	}
+	matrix.
+		AddDefaultTestCasesWithName(dynamiceFeeCase.name, dynamiceFeeCase, helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork), runL1PragueTest).
+		AddDefaultTestCasesWithName(setCodeCase.name, setCodeCase, helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork), runL1PragueTest)
 }
