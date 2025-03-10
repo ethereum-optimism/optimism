@@ -108,6 +108,7 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 
 	// Use maps.keys to ensure the versions are sorted in descending order.
 	sortedKeys := maps.Keys(versions)
+	slices.Sort(sortedKeys)
 	slices.Reverse(sortedKeys)
 
 	for _, semver := range sortedKeys {
