@@ -1,4 +1,4 @@
-package proofs
+package proofs_test
 
 import (
 	"fmt"
@@ -39,8 +39,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 				},
 			),
 			func(dp *genesis.DeployConfig) {
-				t := hexutil.Uint64(24) // Activate at second l1 block
-				dp.L1PragueTimeOffset = &t
+				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24)) // Activate at second l1 block
 			},
 		)
 
