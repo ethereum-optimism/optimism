@@ -6,7 +6,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { GameType, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 
 interface IAnchorStateRegistry {
     error AnchorStateRegistry_Unauthorized();
@@ -25,7 +25,7 @@ interface IAnchorStateRegistry {
         ISuperchainConfig _superchainConfig,
         IDisputeGameFactory _disputeGameFactory,
         IOptimismPortal2 _portal,
-        OutputRoot memory _startingAnchorRoot
+        Proposal memory _startingAnchorRoot
     )
         external;
 

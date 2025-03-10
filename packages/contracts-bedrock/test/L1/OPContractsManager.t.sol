@@ -57,7 +57,7 @@ import {
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
-import { OutputRoot, GameTypes } from "src/dispute/lib/Types.sol";
+import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 
 // Exposes internal functions for testing.
 contract OPContractsManager_Harness is OPContractsManager {
@@ -765,9 +765,9 @@ contract OPContractsManager_AddGameType_Test is Test {
                 basefeeScalar: 1,
                 blobBasefeeScalar: 1,
                 startingAnchorRoot: abi.encode(
-                    OutputRoot({
+                    Proposal({
                         root: Hash.wrap(0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef),
-                        l2BlockNumber: 0
+                        l2SequenceNumber: 0
                     })
                 ),
                 l2ChainId: 100,
@@ -1117,9 +1117,9 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
                 basefeeScalar: 1,
                 blobBasefeeScalar: 1,
                 startingAnchorRoot: abi.encode(
-                    OutputRoot({
+                    Proposal({
                         root: Hash.wrap(0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef),
-                        l2BlockNumber: 0
+                        l2SequenceNumber: 0
                     })
                 ),
                 l2ChainId: 100,

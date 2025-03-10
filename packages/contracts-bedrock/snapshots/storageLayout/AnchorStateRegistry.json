@@ -46,6 +46,6 @@
     "label": "startingAnchorRoot",
     "offset": 0,
     "slot": "4",
-    "type": "struct OutputRoot"
+    "type": "struct Proposal"
   }
 ]

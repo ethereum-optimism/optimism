@@ -5,7 +5,7 @@ pragma solidity ^0.8.15;
 import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
-import { GameType, GameStatus, Hash, Claim, VMStatuses, OutputRoot } from "src/dispute/lib/Types.sol";
+import { GameType, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -58,9 +58,9 @@ contract AnchorStateRegistry_Initialize_TestFail is AnchorStateRegistry_Init {
             superchainConfig,
             disputeGameFactory,
             optimismPortal2,
-            OutputRoot({
+            Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
-                l2BlockNumber: 0
+                l2SequenceNumber: 0
             })
         );
     }

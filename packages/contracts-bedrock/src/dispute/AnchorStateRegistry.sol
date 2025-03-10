@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 // Libraries
-import { GameType, OutputRoot, Claim, GameStatus, Hash } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal, Claim, GameStatus, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -39,7 +39,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     IFaultDisputeGame public anchorGame;
 
     /// @notice The starting anchor root.
-    OutputRoot internal startingAnchorRoot;
+    Proposal internal startingAnchorRoot;
 
     /// @notice Emitted when an anchor state is not updated.
     /// @param game Game that was not used as the new anchor game.
@@ -72,7 +72,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
         ISuperchainConfig _superchainConfig,
         IDisputeGameFactory _disputeGameFactory,
         IOptimismPortal2 _portal,
-        OutputRoot memory _startingAnchorRoot
+        Proposal memory _startingAnchorRoot
     )
         external
         initializer
@@ -103,7 +103,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     function getAnchorRoot() public view returns (Hash, uint256) {
         // Return the starting anchor root if there is no anchor game.
         if (address(anchorGame) == address(0)) {
-            return (startingAnchorRoot.root, startingAnchorRoot.l2BlockNumber);
+            return (startingAnchorRoot.root, startingAnchorRoot.l2SequenceNumber);
         }
 
         // Otherwise, return the anchor root.

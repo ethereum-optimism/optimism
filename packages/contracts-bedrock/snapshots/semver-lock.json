@@ -17,7 +17,7 @@
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
     "initCodeHash": "0x216fe3ceef5d3e839d18a00383793bd326f20944fc3b55ef099a26a22141de18",
-    "sourceCodeHash": "0xd1de3414a3db731447cb6172df23a00cb1664783de56a93fb29f87d6bc8b8bb0"
+    "sourceCodeHash": "0xe63854b09a727475f9c2562e6a65a824de26ee3847443808cc4527db59c6635d"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0xd1651b8a6f4d25611a0105d5cc7c1da3921417bd44da870ec63bf5ccd1bc7c63",
@@ -157,7 +157,7 @@
   },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
     "initCodeHash": "0x08cc5a5e41eadb6c411fa6387ddc0cf12be360855599dd622cce84c0ba081e77",
-    "sourceCodeHash": "0xe0aaa79f7184724ff0fba2e92e85f652f936fecd099288edb0a0f6b0e0240f34"
+    "sourceCodeHash": "0x6e85e94a2cb973aecf96c906709dcc9fe1cfbbc03fb5e0dcd0006c93538a83fa"
   },
   "src/dispute/DelayedWETH.sol:DelayedWETH": {
     "initCodeHash": "0xdd0b5e523f3b53563fe0b6e6165fb73605b14910ffa32a7cbed855cdebab47c6",
@@ -168,19 +168,19 @@
     "sourceCodeHash": "0x08efbce44394f555a4e656816897029e2e80e455e4200a1b887fc18993294660"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
-    "initCodeHash": "0xd86a649deaa0d5ca6c4b60afb941c52fd2b5d10857657defda3629faaff6d77e",
-    "sourceCodeHash": "0xf5d3760949af227ea161f552a1d0c5d605a26bfd24dc428f674c011cb7f0a416"
+    "initCodeHash": "0x25522a3a65f8d1885387e0fd5923342766b7bde88ee56ad6cbb9bc3083b74ae9",
+    "sourceCodeHash": "0xf1f542be76738924c86c23cb775b1a2f20c34dc9baa81e1c2e7085626edc8e42"
   },
   "src/dispute/PermissionedDisputeGame.sol:PermissionedDisputeGame": {
-    "initCodeHash": "0x63ab07ca14b77da770de1814b112e1a21ea984c5132b8ff3beaab2cf88018c19",
+    "initCodeHash": "0x26744e662285e39990a64bd463a3da5749896b8aa8cc1912a05766eaed3073f5",
     "sourceCodeHash": "0xba32e6f35777426839a60e5556c09844e805eaabc14b9d3732cc64f2a99ce7fc"
   },
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame": {
-    "initCodeHash": "0x397d9eda98459859f30f170f0d3c6f4320d474ea36510ae7ece020800b80ba22",
-    "sourceCodeHash": "0xb08789200c909d24c8ebfbde9b9c55c50b9ebae2d21e761464c1b5abbbe59317"
+    "initCodeHash": "0xf9a41717faf5c9ad3c0c5ec977686aa7c2bb7dbd0e30ce609361d6ce56b4d268",
+    "sourceCodeHash": "0x147408cc658a263ea3835e273c6dc7101d4155633c78b302dc6332f603250f08"
   },
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
-    "initCodeHash": "0x9613232c1c11abee8782e2e9a5bb963923c73643d8c228e558f06082e8886f67",
+    "initCodeHash": "0x4cf4fab09acd8540c3a959f126dab8fc80d4ed5fc29dde7b562be36803da29c2",
     "sourceCodeHash": "0xaefa8af211cee1b34063252f62020cd468175a2ab9cfc46b4e4cb03190e2d659"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
