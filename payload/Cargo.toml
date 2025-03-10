@@ -33,6 +33,7 @@ reth-payload-validator.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
+reth-optimism-txpool.workspace = true
 
 # ethereum
 revm.workspace = true

@@ -10,6 +10,7 @@ use reth_node_api::NodePrimitives;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_payload_builder::{OpPayloadBuilder, OpPayloadPrimitives};
+use reth_optimism_txpool::OpPooledTx;
 use reth_primitives_traits::SealedHeader;
 use reth_provider::{
     BlockReaderIdExt, NodePrimitivesProvider, ProviderError, ProviderResult, StateProviderFactory,
@@ -17,7 +18,7 @@ use reth_provider::{
 pub use reth_rpc_api::DebugExecutionWitnessApiServer;
 use reth_rpc_server_types::{result::internal_rpc_err, ToRpcResult};
 use reth_tasks::TaskSpawner;
-use reth_transaction_pool::{PoolTransaction, TransactionPool};
+use reth_transaction_pool::TransactionPool;
 use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{oneshot, Semaphore};
 
@@ -58,9 +59,7 @@ impl<Pool, Provider, EvmConfig> DebugExecutionWitnessApiServer<OpPayloadAttribut
     for OpDebugWitnessApi<Pool, Provider, EvmConfig>
 where
     Pool: TransactionPool<
-            Transaction: PoolTransaction<
-                Consensus = <Provider::Primitives as NodePrimitives>::SignedTx,
-            >,
+            Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
         > + 'static,
     Provider: BlockReaderIdExt<Header = alloy_consensus::Header>
         + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>
