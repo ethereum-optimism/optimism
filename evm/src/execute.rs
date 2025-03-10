@@ -1,65 +1,9 @@
 //! Optimism block execution strategy.
 
-use crate::{OpBlockAssembler, OpEvmConfig, OpRethReceiptBuilder};
+use crate::{OpEvmConfig, OpRethReceiptBuilder};
 use alloc::sync::Arc;
-use alloy_consensus::{BlockHeader, Header};
-use alloy_evm::FromRecoveredTx;
-use alloy_op_evm::{
-    block::receipt_builder::OpReceiptBuilder, OpBlockExecutionCtx, OpBlockExecutorFactory,
-};
-use reth_chainspec::EthChainSpec;
-use reth_evm::execute::{BasicBlockExecutorProvider, BlockExecutionStrategyFactory};
+use reth_evm::execute::BasicBlockExecutorProvider;
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
-use revm::context::TxEnv;
-
-impl<ChainSpec, N, R> BlockExecutionStrategyFactory for OpEvmConfig<ChainSpec, N, R>
-where
-    ChainSpec: EthChainSpec + OpHardforks,
-    N: NodePrimitives<
-        Receipt = R::Receipt,
-        SignedTx = R::Transaction,
-        BlockHeader = Header,
-        BlockBody = alloy_consensus::BlockBody<R::Transaction>,
-    >,
-    op_revm::OpTransaction<TxEnv>: FromRecoveredTx<N::SignedTx>,
-    R: OpReceiptBuilder<Receipt: DepositReceipt, Transaction: SignedTransaction>,
-    Self: Send + Sync + Unpin + Clone + 'static,
-{
-    type Primitives = N;
-    type BlockExecutorFactory = OpBlockExecutorFactory<R, Arc<ChainSpec>>;
-    type BlockAssembler = OpBlockAssembler<ChainSpec>;
-
-    fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
-        &self.executor_factory
-    }
-
-    fn block_assembler(&self) -> &Self::BlockAssembler {
-        &self.block_assembler
-    }
-
-    fn context_for_block(&self, block: &'_ SealedBlock<N::Block>) -> OpBlockExecutionCtx {
-        OpBlockExecutionCtx {
-            parent_hash: block.header().parent_hash(),
-            parent_beacon_block_root: block.header().parent_beacon_block_root(),
-            extra_data: block.header().extra_data().clone(),
-        }
-    }
-
-    fn context_for_next_block(
-        &self,
-        parent: &SealedHeader<N::BlockHeader>,
-        attributes: Self::NextBlockEnvCtx,
-    ) -> OpBlockExecutionCtx {
-        OpBlockExecutionCtx {
-            parent_hash: parent.hash(),
-            parent_beacon_block_root: attributes.parent_beacon_block_root,
-            extra_data: attributes.extra_data,
-        }
-    }
-}
 
 /// Helper type with backwards compatible methods to obtain executor providers.
 #[derive(Debug)]

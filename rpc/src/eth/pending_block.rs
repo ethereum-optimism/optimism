@@ -5,7 +5,7 @@ use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
 use reth_chainspec::EthChainSpec;
-use reth_evm::execute::BlockExecutionStrategyFactory;
+use reth_evm::ConfigureEvm;
 use reth_node_api::NodePrimitives;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
@@ -41,7 +41,7 @@ where
         > + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks>
                       + StateProviderFactory,
         Pool: TransactionPool<Transaction: PoolTransaction<Consensus = ProviderTx<N::Provider>>>,
-        Evm: BlockExecutionStrategyFactory<
+        Evm: ConfigureEvm<
             Primitives: NodePrimitives<
                 SignedTx = ProviderTx<Self::Provider>,
                 BlockHeader = ProviderHeader<Self::Provider>,
@@ -64,7 +64,7 @@ where
     fn next_env_attributes(
         &self,
         parent: &SealedHeader<ProviderHeader<Self::Provider>>,
-    ) -> Result<<Self::Evm as reth_evm::ConfigureEvmEnv>::NextBlockEnvCtx, Self::Error> {
+    ) -> Result<<Self::Evm as reth_evm::ConfigureEvm>::NextBlockEnvCtx, Self::Error> {
         Ok(OpNextBlockEnvAttributes {
             timestamp: parent.timestamp().saturating_add(12),
             suggested_fee_recipient: parent.beneficiary(),

@@ -11,20 +11,23 @@
 extern crate alloc;
 
 use alloc::sync::Arc;
-use alloy_consensus::BlockHeader;
+use alloy_consensus::{BlockHeader, Header};
 use alloy_evm::FromRecoveredTx;
-use alloy_op_evm::{OpBlockExecutorFactory, OpEvmFactory};
+use alloy_op_evm::{
+    block::receipt_builder::OpReceiptBuilder, OpBlockExecutionCtx, OpBlockExecutorFactory,
+    OpEvmFactory,
+};
 use alloy_primitives::U256;
 use core::fmt::Debug;
 use op_alloy_consensus::EIP1559ParamError;
 use op_revm::{OpSpecId, OpTransaction};
 use reth_chainspec::EthChainSpec;
-use reth_evm::{ConfigureEvm, ConfigureEvmEnv, EvmEnv};
+use reth_evm::{ConfigureEvm, EvmEnv};
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::next_block_base_fee;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::OpPrimitives;
-use reth_primitives_traits::NodePrimitives;
+use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
+use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
 use revm::{
     context::{BlockEnv, CfgEnv, TxEnv},
     context_interface::block::BlobExcessGasAndPrice,
@@ -94,21 +97,27 @@ impl<ChainSpec, N: NodePrimitives, R> OpEvmConfig<ChainSpec, N, R> {
     }
 }
 
-impl<ChainSpec, N, R> ConfigureEvmEnv for OpEvmConfig<ChainSpec, N, R>
+impl<ChainSpec, N, R> ConfigureEvm for OpEvmConfig<ChainSpec, N, R>
 where
     ChainSpec: EthChainSpec + OpHardforks,
-    N: NodePrimitives,
+    N: NodePrimitives<
+        Receipt = R::Receipt,
+        SignedTx = R::Transaction,
+        BlockHeader = Header,
+        BlockBody = alloy_consensus::BlockBody<R::Transaction>,
+        Block = alloy_consensus::Block<R::Transaction>,
+    >,
     OpTransaction<TxEnv>: FromRecoveredTx<N::SignedTx>,
-    Self: Send + Sync + Unpin + Clone,
+    R: OpReceiptBuilder<Receipt: DepositReceipt, Transaction: SignedTransaction>,
+    Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Header = N::BlockHeader;
-    type Transaction = N::SignedTx;
+    type Primitives = N;
     type Error = EIP1559ParamError;
-    type TxEnv = OpTransaction<TxEnv>;
-    type Spec = OpSpecId;
     type NextBlockEnvCtx = OpNextBlockEnvAttributes;
+    type BlockExecutorFactory = OpBlockExecutorFactory<R, Arc<ChainSpec>>;
+    type BlockAssembler = OpBlockAssembler<ChainSpec>;
 
-    fn evm_env(&self, header: &Self::Header) -> EvmEnv<Self::Spec> {
+    fn evm_env(&self, header: &Header) -> EvmEnv<OpSpecId> {
         let spec = config::revm_spec(self.chain_spec(), header);
 
         let cfg_env = CfgEnv::new().with_chain_id(self.chain_spec().chain().id()).with_spec(spec);
@@ -140,9 +149,9 @@ where
 
     fn next_evm_env(
         &self,
-        parent: &Self::Header,
+        parent: &Header,
         attributes: &Self::NextBlockEnvCtx,
-    ) -> Result<EvmEnv<Self::Spec>, Self::Error> {
+    ) -> Result<EvmEnv<OpSpecId>, Self::Error> {
         // ensure we're not missing any timestamp based hardforks
         let spec_id = revm_spec_by_timestamp_after_bedrock(self.chain_spec(), attributes.timestamp);
 
@@ -174,22 +183,35 @@ where
 
         Ok(EvmEnv { cfg_env, block_env })
     }
-}
 
-impl<ChainSpec, N, R> ConfigureEvm for OpEvmConfig<ChainSpec, N, R>
-where
-    ChainSpec: EthChainSpec + OpHardforks,
-    N: NodePrimitives,
-    OpTransaction<TxEnv>: FromRecoveredTx<N::SignedTx>,
-    Self: Send + Sync + Unpin + Clone,
-{
-    type EvmFactory = OpEvmFactory;
+    fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
+        &self.executor_factory
+    }
 
-    fn evm_factory(&self) -> &Self::EvmFactory {
-        self.executor_factory.evm_factory()
+    fn block_assembler(&self) -> &Self::BlockAssembler {
+        &self.block_assembler
+    }
+
+    fn context_for_block(&self, block: &'_ SealedBlock<N::Block>) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: block.header().parent_hash(),
+            parent_beacon_block_root: block.header().parent_beacon_block_root(),
+            extra_data: block.header().extra_data().clone(),
+        }
+    }
+
+    fn context_for_next_block(
+        &self,
+        parent: &SealedHeader<N::BlockHeader>,
+        attributes: Self::NextBlockEnvCtx,
+    ) -> OpBlockExecutionCtx {
+        OpBlockExecutionCtx {
+            parent_hash: parent.hash(),
+            parent_beacon_block_root: attributes.parent_beacon_block_root,
+            extra_data: attributes.extra_data,
+        }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

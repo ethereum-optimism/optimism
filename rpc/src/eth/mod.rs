@@ -15,7 +15,7 @@ use op_alloy_network::Optimism;
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_evm::ConfigureEvm;
 use reth_network_api::NetworkInfo;
-use reth_node_api::{BlockTy, FullNodeComponents, ReceiptTy};
+use reth_node_api::{BlockTy, FullNodeComponents, NodePrimitives, ReceiptTy};
 use reth_node_builder::rpc::EthApiBuilder;
 use reth_optimism_primitives::OpPrimitives;
 use reth_provider::{
@@ -250,8 +250,10 @@ where
     Self: RpcNodeCore<Provider: BlockReader>
         + LoadState<
             Evm: ConfigureEvm<
-                Header = ProviderHeader<Self::Provider>,
-                Transaction = ProviderTx<Self::Provider>,
+                Primitives: NodePrimitives<
+                    BlockHeader = ProviderHeader<Self::Provider>,
+                    SignedTx = ProviderTx<Self::Provider>,
+                >,
             >,
             Error: FromEvmError<Self::Evm>,
         >,

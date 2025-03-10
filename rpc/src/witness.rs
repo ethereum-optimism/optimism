@@ -5,7 +5,7 @@ use alloy_rpc_types_debug::ExecutionWitness;
 use jsonrpsee_core::{async_trait, RpcResult};
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use reth_chainspec::ChainSpecProvider;
-use reth_evm::{execute::BlockExecutionStrategyFactory, ConfigureEvm};
+use reth_evm::ConfigureEvm;
 use reth_node_api::NodePrimitives;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
@@ -68,10 +68,8 @@ where
         + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
-    EvmConfig: BlockExecutionStrategyFactory<
-            Primitives = Provider::Primitives,
-            NextBlockEnvCtx = OpNextBlockEnvAttributes,
-        > + 'static,
+    EvmConfig: ConfigureEvm<Primitives = Provider::Primitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>
+        + 'static,
 {
     async fn execute_payload(
         &self,

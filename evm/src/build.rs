@@ -1,18 +1,19 @@
 use alloc::sync::Arc;
 use alloy_consensus::{
-    constants::EMPTY_WITHDRAWALS, proofs, BlockBody, Header, TxReceipt, EMPTY_OMMER_ROOT_HASH,
+    constants::EMPTY_WITHDRAWALS, proofs, Block, BlockBody, Header, TxReceipt,
+    EMPTY_OMMER_ROOT_HASH,
 };
 use alloy_eips::merge::BEACON_NONCE;
 use alloy_evm::block::BlockExecutorFactory;
 use alloy_op_evm::OpBlockExecutionCtx;
 use alloy_primitives::logs_bloom;
-use reth_evm::execute::{BlockAssembler, BlockAssemblerInput, BlockExecutionStrategyFactory};
+use reth_evm::execute::{BlockAssembler, BlockAssemblerInput};
 use reth_execution_errors::BlockExecutionError;
 use reth_execution_types::BlockExecutionResult;
 use reth_optimism_consensus::{calculate_receipt_root_no_memo_optimism, isthmus};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{Block, BlockTy, NodePrimitives, SignedTransaction};
+use reth_primitives_traits::{Receipt, SignedTransaction};
 
 /// Block builder for Optimism.
 #[derive(Debug)]
@@ -33,24 +34,21 @@ impl<ChainSpec> Clone for OpBlockAssembler<ChainSpec> {
     }
 }
 
-impl<Evm, ChainSpec, T> BlockAssembler<Evm> for OpBlockAssembler<ChainSpec>
+impl<F, ChainSpec> BlockAssembler<F> for OpBlockAssembler<ChainSpec>
 where
     ChainSpec: OpHardforks,
-    T: SignedTransaction,
-    Evm: for<'a> BlockExecutionStrategyFactory<
-        Primitives: NodePrimitives<
-            Receipt: DepositReceipt,
-            BlockHeader = Header,
-            BlockBody = alloy_consensus::BlockBody<T>,
-            SignedTx = T,
-        >,
-        BlockExecutorFactory: BlockExecutorFactory<ExecutionCtx<'a> = OpBlockExecutionCtx>,
+    F: for<'a> BlockExecutorFactory<
+        ExecutionCtx<'a> = OpBlockExecutionCtx,
+        Transaction: SignedTransaction,
+        Receipt: Receipt + DepositReceipt,
     >,
 {
+    type Block = alloy_consensus::Block<F::Transaction>;
+
     fn assemble_block(
         &self,
-        input: BlockAssemblerInput<'_, '_, Evm>,
-    ) -> Result<BlockTy<Evm::Primitives>, BlockExecutionError> {
+        input: BlockAssemblerInput<'_, '_, F>,
+    ) -> Result<Self::Block, BlockExecutionError> {
         let BlockAssemblerInput {
             evm_env,
             execution_ctx: ctx,
@@ -113,7 +111,7 @@ where
             requests_hash: None,
         };
 
-        Ok(BlockTy::<Evm::Primitives>::new(
+        Ok(Block::new(
             header,
             BlockBody {
                 transactions,
