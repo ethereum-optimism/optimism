@@ -6,11 +6,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
 	// Ensure that the feeEstimator implements the FeeEstimator interface
-	_ FeeEstimator = (*eip1559eeEstimator)(nil)
+	_ FeeEstimator = (*EIP1559FeeEstimator)(nil)
+
+	// Ensure that the EIP1159FeeEthClient implements the EIP1159FeeEthClient interface
+	_ EIP1159FeeEthClient = (*ethclient.Client)(nil)
 )
 
 // FeeEstimator is a generic fee estimation interface (not specific to EIP-1559)
@@ -18,30 +22,30 @@ type FeeEstimator interface {
 	EstimateFees(ctx context.Context, opts *bind.TransactOpts) (*bind.TransactOpts, error)
 }
 
-// eip1559eeEstimator is a fee estimator that uses EIP-1559 fee estimation
-type eip1559eeEstimator struct {
+// EIP1559FeeEstimator is a fee estimator that uses EIP-1559 fee estimation
+type EIP1559FeeEstimator struct {
 	// Access to the Ethereum client is needed to get the fee information from the chain
-	client FeeEthClient
+	client EIP1159FeeEthClient
 
 	// The tip multiplier is used to increase the maxPriorityFeePerGas (GasTipCap) by a factor
 	tipMultiplier *big.Int
 }
 
-func NewEIP1559FeeEstimator(client FeeEthClient) *eip1559eeEstimator {
-	return &eip1559eeEstimator{
+func NewEIP1559FeeEstimator(client EIP1159FeeEthClient) *EIP1559FeeEstimator {
+	return &EIP1559FeeEstimator{
 		client:        client,
 		tipMultiplier: big.NewInt(1),
 	}
 }
 
-func (f *eip1559eeEstimator) WithTipMultiplier(multiplier *big.Int) *eip1559eeEstimator {
+func (f *EIP1559FeeEstimator) WithTipMultiplier(multiplier *big.Int) *EIP1559FeeEstimator {
 	newF := *f
 	newF.tipMultiplier = multiplier
 
 	return &newF
 }
 
-func (f *eip1559eeEstimator) EstimateFees(ctx context.Context, opts *bind.TransactOpts) (*bind.TransactOpts, error) {
+func (f *EIP1559FeeEstimator) EstimateFees(ctx context.Context, opts *bind.TransactOpts) (*bind.TransactOpts, error) {
 	newOpts := *opts
 
 	// Add a gas tip cap if needed
@@ -74,8 +78,8 @@ func (f *eip1559eeEstimator) EstimateFees(ctx context.Context, opts *bind.Transa
 	return &newOpts, nil
 }
 
-// FeeEthClient is a subset of the ethclient.Client interface required for fee estimation
-type FeeEthClient interface {
+// EIP1159FeeEthClient is a subset of the ethclient.Client interface required for fee estimation
+type EIP1159FeeEthClient interface {
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
 }

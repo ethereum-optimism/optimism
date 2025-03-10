@@ -169,7 +169,7 @@ func TestEstimateEIP1559Fees(t *testing.T) {
 }
 
 var (
-	_ FeeEthClient = (*mockFeeEthClientImpl)(nil)
+	_ EIP1159FeeEthClient = (*mockFeeEthClientImpl)(nil)
 
 	_ types.BlockType = (*mockBlockType)(nil)
 )
