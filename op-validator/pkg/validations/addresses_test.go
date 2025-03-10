@@ -111,7 +111,7 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 	slices.Reverse(sortedKeys)
 
 	for _, semver := range sortedKeys {
-		// Versions are in ascending order, to stop at all versions prior to v1.8.0 since
+		// Versions are in descending order, to stop at all versions prior to v1.8.0 since
 		// they don't have validators.
 		if string(semver) == "op-contracts/v1.6.0" {
 			break
