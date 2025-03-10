@@ -85,3 +85,4 @@ std = [
     "reth-evm/std",
     "tracing/std",
 ]
+portable = ["reth-revm/portable"]

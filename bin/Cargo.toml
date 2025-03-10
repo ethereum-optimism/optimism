@@ -27,7 +27,7 @@ tracing.workspace = true
 workspace = true
 
 [features]
-default = ["jemalloc"]
+default = ["jemalloc", "reth-optimism-evm/portable"]
 
 jemalloc = ["reth-cli-util/jemalloc", "reth-optimism-cli/jemalloc"]
 jemalloc-prof = ["reth-cli-util/jemalloc-prof"]
