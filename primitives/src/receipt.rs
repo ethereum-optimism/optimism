@@ -48,6 +48,17 @@ impl OpReceipt {
         }
     }
 
+    /// Returns a mutable reference to the inner [`Receipt`],
+    pub const fn as_receipt_mut(&mut self) -> &mut Receipt {
+        match self {
+            Self::Legacy(receipt) |
+            Self::Eip2930(receipt) |
+            Self::Eip1559(receipt) |
+            Self::Eip7702(receipt) => receipt,
+            Self::Deposit(receipt) => &mut receipt.inner,
+        }
+    }
+
     /// Returns length of RLP-encoded receipt fields with the given [`Bloom`] without an RLP header.
     pub fn rlp_encoded_fields_length(&self, bloom: &Bloom) -> usize {
         match self {
@@ -211,19 +222,6 @@ impl InMemorySize for OpReceipt {
 
 impl reth_primitives_traits::Receipt for OpReceipt {}
 
-#[cfg(feature = "serde-bincode-compat")]
-impl reth_primitives_traits::serde_bincode_compat::SerdeBincodeCompat for OpReceipt {
-    type BincodeRepr<'a> = Self;
-
-    fn as_repr(&self) -> Self::BincodeRepr<'_> {
-        self.clone()
-    }
-
-    fn from_repr(repr: Self::BincodeRepr<'_>) -> Self {
-        repr
-    }
-}
-
 /// Trait for deposit receipt.
 pub trait DepositReceipt: reth_primitives_traits::Receipt {
     /// Returns deposit receipt if it is a deposit transaction.
@@ -330,6 +328,129 @@ mod compact {
 
         assert_eq!(CompactOpReceipt::bitflag_encoded_bytes(), 2);
         validate_bitflag_backwards_compat!(CompactOpReceipt<'_>, UnusedBits::NotZero);
+    }
+}
+
+#[cfg(all(feature = "serde", feature = "serde-bincode-compat"))]
+pub(super) mod serde_bincode_compat {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde_with::{DeserializeAs, SerializeAs};
+
+    /// Bincode-compatible [`super::OpReceipt`] serde implementation.
+    ///
+    /// Intended to use with the [`serde_with::serde_as`] macro in the following way:
+    /// ```rust
+    /// use reth_optimism_primitives::{serde_bincode_compat, OpReceipt};
+    /// use serde::{de::DeserializeOwned, Deserialize, Serialize};
+    /// use serde_with::serde_as;
+    ///
+    /// #[serde_as]
+    /// #[derive(Serialize, Deserialize)]
+    /// struct Data {
+    ///     #[serde_as(as = "serde_bincode_compat::OpReceipt<'_>")]
+    ///     receipt: OpReceipt,
+    /// }
+    /// ```
+    #[derive(Debug, Serialize, Deserialize)]
+    pub enum OpReceipt<'a> {
+        /// Legacy receipt
+        Legacy(alloy_consensus::serde_bincode_compat::Receipt<'a, alloy_primitives::Log>),
+        /// EIP-2930 receipt
+        Eip2930(alloy_consensus::serde_bincode_compat::Receipt<'a, alloy_primitives::Log>),
+        /// EIP-1559 receipt
+        Eip1559(alloy_consensus::serde_bincode_compat::Receipt<'a, alloy_primitives::Log>),
+        /// EIP-7702 receipt
+        Eip7702(alloy_consensus::serde_bincode_compat::Receipt<'a, alloy_primitives::Log>),
+        /// Deposit receipt
+        Deposit(
+            op_alloy_consensus::serde_bincode_compat::OpDepositReceipt<'a, alloy_primitives::Log>,
+        ),
+    }
+
+    impl<'a> From<&'a super::OpReceipt> for OpReceipt<'a> {
+        fn from(value: &'a super::OpReceipt) -> Self {
+            match value {
+                super::OpReceipt::Legacy(receipt) => Self::Legacy(receipt.into()),
+                super::OpReceipt::Eip2930(receipt) => Self::Eip2930(receipt.into()),
+                super::OpReceipt::Eip1559(receipt) => Self::Eip1559(receipt.into()),
+                super::OpReceipt::Eip7702(receipt) => Self::Eip7702(receipt.into()),
+                super::OpReceipt::Deposit(receipt) => Self::Deposit(receipt.into()),
+            }
+        }
+    }
+
+    impl<'a> From<OpReceipt<'a>> for super::OpReceipt {
+        fn from(value: OpReceipt<'a>) -> Self {
+            match value {
+                OpReceipt::Legacy(receipt) => Self::Legacy(receipt.into()),
+                OpReceipt::Eip2930(receipt) => Self::Eip2930(receipt.into()),
+                OpReceipt::Eip1559(receipt) => Self::Eip1559(receipt.into()),
+                OpReceipt::Eip7702(receipt) => Self::Eip7702(receipt.into()),
+                OpReceipt::Deposit(receipt) => Self::Deposit(receipt.into()),
+            }
+        }
+    }
+
+    impl SerializeAs<super::OpReceipt> for OpReceipt<'_> {
+        fn serialize_as<S>(source: &super::OpReceipt, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            OpReceipt::<'_>::from(source).serialize(serializer)
+        }
+    }
+
+    impl<'de> DeserializeAs<'de, super::OpReceipt> for OpReceipt<'de> {
+        fn deserialize_as<D>(deserializer: D) -> Result<super::OpReceipt, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            OpReceipt::<'_>::deserialize(deserializer).map(Into::into)
+        }
+    }
+
+    impl reth_primitives_traits::serde_bincode_compat::SerdeBincodeCompat for super::OpReceipt {
+        type BincodeRepr<'a> = OpReceipt<'a>;
+
+        fn as_repr(&self) -> Self::BincodeRepr<'_> {
+            self.into()
+        }
+
+        fn from_repr(repr: Self::BincodeRepr<'_>) -> Self {
+            repr.into()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use crate::{receipt::serde_bincode_compat, OpReceipt};
+        use arbitrary::Arbitrary;
+        use rand::Rng;
+        use serde::{Deserialize, Serialize};
+        use serde_with::serde_as;
+
+        #[test]
+        fn test_tx_bincode_roundtrip() {
+            #[serde_as]
+            #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+            struct Data {
+                #[serde_as(as = "serde_bincode_compat::OpReceipt<'_>")]
+                reseipt: OpReceipt,
+            }
+
+            let mut bytes = [0u8; 1024];
+            rand::thread_rng().fill(bytes.as_mut_slice());
+            let mut data = Data {
+                reseipt: OpReceipt::arbitrary(&mut arbitrary::Unstructured::new(&bytes)).unwrap(),
+            };
+            let success = data.reseipt.as_receipt_mut().status.coerce_status();
+            // // ensure we don't have an invalid poststate variant
+            data.reseipt.as_receipt_mut().status = success.into();
+
+            let encoded = bincode::serialize(&data).unwrap();
+            let decoded: Data = bincode::deserialize(&encoded).unwrap();
+            assert_eq!(decoded, data);
+        }
     }
 }
 

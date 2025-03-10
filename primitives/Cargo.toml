@@ -37,6 +37,7 @@ alloy-serde = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
 modular-bitfield = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+serde_with = { workspace = true, optional = true }
 
 # misc
 derive_more = { workspace = true, features = ["deref", "from", "into", "constructor"] }
@@ -55,6 +56,7 @@ reth-codecs = { workspace = true, features = ["test-utils", "op"] }
 rstest.workspace = true
 secp256k1 = { workspace = true, features = ["rand"] }
 serde_json.workspace = true
+bincode.workspace = true
 
 [features]
 default = ["std"]
@@ -77,6 +79,7 @@ std = [
     "revm-context/std",
     "serde_json/std",
     "alloy-evm/std",
+    "serde_with?/std",
 ]
 alloy-compat = ["dep:alloy-network", "dep:alloy-serde", "dep:alloy-rpc-types-eth", "op-alloy-consensus/alloy-compat"]
 reth-codec = [
@@ -105,6 +108,8 @@ serde = [
     "revm-context/serde",
 ]
 serde-bincode-compat = [
+    "serde",
+    "serde_with",
     "alloy-consensus/serde-bincode-compat",
     "alloy-eips/serde-bincode-compat",
     "op-alloy-consensus/serde-bincode-compat",
