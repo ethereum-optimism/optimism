@@ -324,6 +324,16 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	return info, receipts, nil
 }
 
+// FetchReceipt returns a receipt associated with transaction.
+func (s *EthClient) FetchReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+	var r *types.Receipt
+	err := s.client.CallContext(ctx, &r, "eth_getTransactionReceipt", txHash)
+	if err == nil && r == nil {
+		return nil, ethereum.NotFound
+	}
+	return r, err
+}
+
 // PayloadExecutionWitness generates a block from a payload and returns execution witness data.
 func (s *EthClient) PayloadExecutionWitness(ctx context.Context, parentHash common.Hash, payloadAttributes eth.PayloadAttributes) (*eth.ExecutionWitness, error) {
 	var witness *eth.ExecutionWitness
@@ -441,4 +451,70 @@ func (s *EthClient) BlockRefByHash(ctx context.Context, hash common.Hash) (eth.B
 	ref := eth.InfoToL1BlockRef(info)
 	s.blockRefsCache.Add(ref.Hash, ref)
 	return ref, nil
+}
+
+func ToCallArg(msg ethereum.CallMsg) interface{} {
+	arg := map[string]interface{}{
+		"from": msg.From,
+		"to":   msg.To,
+	}
+	if len(msg.Data) > 0 {
+		arg["data"] = hexutil.Bytes(msg.Data)
+	}
+	if msg.Value != nil {
+		arg["value"] = (*hexutil.Big)(msg.Value)
+	}
+	if msg.Gas != 0 {
+		arg["gas"] = hexutil.Uint64(msg.Gas)
+	}
+	if msg.GasPrice != nil {
+		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
+	}
+	return arg
+}
+
+// SuggestGasPrice retrieves the currently suggested gas price to allow a timely
+// execution of a transaction.
+func (s *EthClient) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
+	var hex hexutil.Big
+	if err := s.client.CallContext(ctx, &hex, "eth_gasPrice"); err != nil {
+		return nil, err
+	}
+	return (*big.Int)(&hex), nil
+}
+
+// Call executes a message call transaction but never mined into the blockchain.
+func (s *EthClient) Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error) {
+	var hex hexutil.Bytes
+	err := s.client.CallContext(ctx, &hex, "eth_call", ToCallArg(msg), "pending")
+	if err != nil {
+		return nil, err
+	}
+	return hex, nil
+}
+
+// EstimateGas tries to estimate the gas needed to execute a specific transaction.
+func (s *EthClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	var hex hexutil.Uint64
+	err := s.client.CallContext(ctx, &hex, "eth_estimateGas", ToCallArg(msg))
+	if err != nil {
+		return 0, err
+	}
+	return uint64(hex), nil
+}
+
+// SendTransaction submits a signed transaction.
+func (s *EthClient) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+	data, err := tx.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	return s.client.CallContext(ctx, nil, "eth_sendRawTransaction", hexutil.Encode(data))
+}
+
+// PendingNonceAt returns the account nonce of the given account in the pending state.
+func (s *EthClient) PendingNonceAt(ctx context.Context, account common.Address) (uint64, error) {
+	var result hexutil.Uint64
+	err := s.client.CallContext(ctx, &result, "eth_getTransactionCount", account, "pending")
+	return uint64(result), err
 }
