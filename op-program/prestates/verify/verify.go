@@ -78,7 +78,6 @@ func main() {
 		standardVersion := expected.Prestates[release.Version]
 		for _, prestate := range standardVersion {
 			if prestate.Type == release.Type {
-				// TODO: Make sure expected doesn't have the same type listed twice
 				expectedPrestate = prestate
 				break
 			}
