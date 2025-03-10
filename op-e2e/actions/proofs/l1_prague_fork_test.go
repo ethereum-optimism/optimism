@@ -7,7 +7,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +43,10 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			},
 		)
 
-		miner, batcher, verifier, sequencer := env.Miner, env.Batcher, env.Sequencer, env.Sequencer
+		miner, batcher, verifier, sequencer, engine := env.Miner, env.Batcher, env.Sequencer, env.Sequencer, env.Engine
+
+		l1Block, err := legacybindings.NewL1Block(predeploys.L1BlockAddr, engine.EthClient())
+		require.NoError(t, err)
 
 		// utils
 		checkVerifierDerivedToL1Head := func(t actionsHelpers.StatefulTesting) {
@@ -64,14 +72,13 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			miner.ActL1EndBlock(t)
 		}
 
-		checkPragueStatusOnL1 := func(active bool) {
-			l1Head := miner.L1Chain().CurrentBlock()
+		requirePragueStatusOnL1 := func(active bool, block *types.Header) {
 			if active {
-				require.True(t, env.Sd.L1Cfg.Config.IsPrague(l1Head.Number, l1Head.Time), "Prague should be active")
-				require.NotNil(t, l1Head.RequestsHash, "Prague header requests hash should be non-nil")
+				require.True(t, env.Sd.L1Cfg.Config.IsPrague(block.Number, block.Time), "Prague should be active at block", block.Number.Uint64())
+				require.NotNil(t, block.RequestsHash, "Prague header requests hash should be non-nil")
 			} else {
-				require.False(t, env.Sd.L1Cfg.Config.IsPrague(l1Head.Number, l1Head.Time), "Prague should not be active yet")
-				require.Nil(t, l1Head.RequestsHash, "Prague header requests hash should be nil")
+				require.False(t, env.Sd.L1Cfg.Config.IsPrague(block.Number, block.Time), "Prague should not be active yet at block", block.Number.Uint64())
+				require.Nil(t, block.RequestsHash, "Prague header requests hash should be nil")
 			}
 		}
 
@@ -81,8 +88,17 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			checkVerifierDerivedToL1Head(t)
 		}
 
+		checkL1BlockBlobBaseFee := func(t actionsHelpers.StatefulTesting, l2Block eth.L2BlockRef) {
+			l1BlockID := l2Block.L1Origin
+			l1BlockHeader := miner.L1Chain().GetHeaderByHash(l1BlockID.Hash)
+			expectedBbf := eth.CalcBlobFeeDefault(l1BlockHeader)
+			bbf, err := l1Block.BlobBaseFee(&bind.CallOpts{BlockHash: l2Block.Hash})
+			require.NoError(t, err, "failed to get blob base fee")
+			require.Equal(t, expectedBbf.Uint64(), bbf.Uint64(), "l1Block blob base fee does not match expectation", "l1BlockNum", l1BlockID.Number, "l2BlockNum", l2Block.Number)
+		}
+
 		// Check initially Prague is not activated
-		checkPragueStatusOnL1(false)
+		requirePragueStatusOnL1(false, miner.L1Chain().CurrentBlock())
 
 		// Start op-nodes
 		sequencer.ActL2PipelineFull(t)
@@ -108,7 +124,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 		miner.ActL1EndBlock(t)
 
 		// Check that Prague is active on L1
-		checkPragueStatusOnL1(true)
+		requirePragueStatusOnL1(true, miner.L1Chain().CurrentBlock())
 
 		// Cache safe head before verifier sync
 		safeL2Before := verifier.SyncStatus().SafeL2
@@ -132,6 +148,13 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			require.Equal(t, verifier.SyncStatus().UnsafeL2.Number, safeL2After.Number, "safe head should equal unsafe head (DynamicFee / type 2 batcher tx derived from)")
 			require.Equal(t, uint64(3), verifier.SyncStatus().SafeL2.L1Origin.Number, "l1 origin of l2 safe should have progressed (DynamicFee / type 2 batcher tx tx derived from)")
 		}
+
+		sequencer.ActBuildToL1Head(t) // Advance L2 chain until L1 origin has Prague active
+
+		// Check that the l1 origin is now a Prague block
+		l1Origin := miner.L1Chain().GetHeaderByNumber(verifier.SyncStatus().UnsafeL2.L1Origin.Number)
+		requirePragueStatusOnL1(true, l1Origin)
+		checkL1BlockBlobBaseFee(t, verifier.SyncStatus().UnsafeL2)
 
 		env.RunFaultProofProgram(t, safeL2After.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
