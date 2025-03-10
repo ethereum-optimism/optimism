@@ -242,6 +242,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim absolutePrestate;
+    string public opChain = vm.envOr("FORK_OP_CHAIN", string("op"));
 
     function setUp() public virtual override {
         super.disableUpgradedFork();
@@ -483,6 +484,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     )
         public
     {
+        if (isForkTest() && keccak256(bytes(opChain)) != keccak256(bytes("op"))) vm.skip(true);
         if (
             _nonUpgradeController == upgrader || _nonUpgradeController == address(0)
                 || _nonUpgradeController < address(0x4200000000000000000000000000000000000000)
