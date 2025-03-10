@@ -10,7 +10,6 @@ import (
 	"slices"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // standardPrestatesUrl is the URL to the TOML file in superchain registry that defines the list of standard prestates
@@ -71,27 +70,63 @@ func main() {
 		return -1
 	}
 	slices.SortFunc(actual, sortFunc)
-	slices.SortFunc(expected, sortFunc)
 
 	differs := false
 	report := ""
-	for i := 0; i < max(len(actual), len(expected)); i++ {
-		get := func(arr []Release, idx int) string {
-			if i >= len(arr) {
-				return "<missing>"
-			} else {
-				return formatRelease(arr[i])
+	for _, release := range actual {
+		var expectedPrestate Prestate
+		standardVersion := expected.Prestates[release.Version]
+		for _, prestate := range standardVersion {
+			if prestate.Type == release.Type {
+				// TODO: Make sure expected doesn't have the same type listed twice
+				expectedPrestate = prestate
+				break
 			}
 		}
-		expectedStr := get(expected, i)
-		actualStr := get(actual, i)
+		var expectedStr string
+		if expectedPrestate == (Prestate{}) {
+			expectedStr = "<missing>"
+		} else {
+			expectedStr = formatRelease(Release{
+				Version: release.Version,
+				Type:    expectedPrestate.Type,
+				Hash:    expectedPrestate.Hash,
+			})
+		}
+		actualStr := formatRelease(release)
 		releaseDiffers := expectedStr != actualStr
 		marker := "✅"
 		if releaseDiffers {
 			marker = "❌"
+			differs = true
 		}
-		report += fmt.Sprintf("%v %d\tExpected: %v\tActual: %v\n", marker, i, expectedStr, actualStr)
-		differs = differs || releaseDiffers
+		report += fmt.Sprintf("%v Expected: %v\tActual: %v\n", marker, expectedStr, actualStr)
+	}
+	// Verify there aren't any additional entries in expected
+	totalExpected := 0
+	for version, prestates := range expected.Prestates {
+		for _, prestate := range prestates {
+			totalExpected++
+			// Try to find an actual release matching this expected one
+			contains := slices.ContainsFunc(actual, func(release Release) bool {
+				return release.Version == version && release.Type == prestate.Type
+			})
+			if contains {
+				continue
+			}
+			expectedStr := formatRelease(Release{
+				Version: version,
+				Hash:    prestate.Hash,
+				Type:    prestate.Type,
+			})
+			report += fmt.Sprintf("❌ Expected: %v\tActual: <missing>\n", expectedStr)
+			differs = true
+		}
+	}
+	// Sanity check entries are not duplicated in the standard prestates
+	if totalExpected != len(actual) {
+		report += fmt.Sprintf("❌ Found %v expected prestates but %v actual\n", totalExpected, len(actual))
+		differs = true
 	}
 	fmt.Println(report)
 	if differs {
@@ -103,7 +138,7 @@ func formatRelease(release Release) string {
 	return fmt.Sprintf("%-13v %s %-10v", release.Version, release.Hash, release.Type)
 }
 
-func loadReleases(overrideFile string) ([]Release, error) {
+func loadReleases(overrideFile string) (*Prestates, error) {
 	var data []byte
 	if overrideFile != "" {
 		d, err := os.ReadFile(overrideFile)
@@ -127,17 +162,7 @@ func loadReleases(overrideFile string) ([]Release, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse standard prestates from %v: %w", standardPrestatesUrl, err)
 	}
-	var releases []Release
-	for version, prestateList := range standardPrestates.Prestates {
-		for _, prestate := range prestateList {
-			releases = append(releases, Release{
-				Version: version,
-				Hash:    prestate.Hash.Hex(),
-				Type:    prestate.Type,
-			})
-		}
-	}
-	return releases, nil
+	return &standardPrestates, nil
 }
 
 type Prestates struct {
@@ -145,8 +170,8 @@ type Prestates struct {
 }
 
 type Prestate struct {
-	Type string      `toml:"type"`
-	Hash common.Hash `toml:"hash"`
+	Type string `toml:"type"`
+	Hash string `toml:"hash"`
 }
 
 type Release struct {
