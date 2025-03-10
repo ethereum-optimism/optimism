@@ -3,7 +3,6 @@ package validations
 import (
 	"context"
 	"fmt"
-	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 )
 
 func TestValidatorAddress(t *testing.T) {
@@ -107,7 +107,7 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 	require.NotEmpty(t, rpcURL, "RPC URL is empty")
 
 	// Use maps.keys to ensure the versions are sorted in descending order.
-	sortedKeys := slices.Sorted(maps.Keys(versions))
+	sortedKeys := maps.Keys(versions)
 	slices.Reverse(sortedKeys)
 
 	for _, semver := range sortedKeys {
