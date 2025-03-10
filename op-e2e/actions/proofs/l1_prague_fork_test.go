@@ -72,10 +72,10 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 		checkPragueStatusOnL1 := func(active bool) {
 			l1Head := miner.L1Chain().CurrentBlock()
 			if active {
-				// require.True(t, sd.L1Cfg.Config.IsPrague(l1Head.Number, l1Head.Time), "Prague should be active")
+				require.True(t, env.Sd.L1Cfg.Config.IsPrague(l1Head.Number, l1Head.Time), "Prague should be active")
 				require.NotNil(t, l1Head.RequestsHash, "Prague header requests hash should be non-nil")
 			} else {
-				// require.False(t, sd.L1Cfg.Config.IsPrague(l1Head.Number, l1Head.Time), "Prague should not be active yet")
+				require.False(t, env.Sd.L1Cfg.Config.IsPrague(l1Head.Number, l1Head.Time), "Prague should not be active yet")
 				require.Nil(t, l1Head.RequestsHash, "Prague header requests hash should be nil")
 			}
 		}
