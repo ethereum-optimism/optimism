@@ -88,3 +88,22 @@ interface IStandardValidatorV200 is IStandardValidatorBase {
         address _challenger
     ) external;
 }
+
+interface IStandardValidatorV300 is IStandardValidatorBase {
+    struct InputV300 {
+        address proxyAdmin;
+        address sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+    }
+
+    function validate(InputV300 memory _input, bool _allowFailure) external view returns (string memory);
+
+    function __constructor__(
+        IStandardValidatorBase.ImplementationsBase memory _implementations,
+        ISuperchainConfig _superchainConfig,
+        address _l1PAOMultisig,
+        address _mips,
+        address _challenger
+    ) external;
+}
