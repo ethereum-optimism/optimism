@@ -132,6 +132,12 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 		// Cache safe head before verifier sync
 		safeL2Before := verifier.SyncStatus().SafeL2
 
+		// Build an empty L2 block which has a pre-prague L1 origin, and check the blob fee is correct
+		sequencer.ActL2EmptyBlock(t)
+		l1OriginHeader := miner.L1Chain().GetHeaderByHash(verifier.SyncStatus().UnsafeL2.L1Origin.Hash)
+		requirePragueStatusOnL1(false, l1OriginHeader)
+		checkL1BlockBlobBaseFee(t, verifier.SyncStatus().UnsafeL2)
+
 		// Build L2 unsafe chain and batch it to L1 using either DynamicFee or
 		// EIP-7702 SetCode txs
 		// https://github.com/ethereum/EIPs/blob/master/EIPS/eip-7702.md
@@ -154,7 +160,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 
 		sequencer.ActBuildToL1Head(t) // Advance L2 chain until L1 origin has Prague active
 
-		// Check that the l1 origin is now a Prague block
+		// Check that the l1 origin is now a Prague block, and that the blob fee is correct
 		l1Origin := miner.L1Chain().GetHeaderByNumber(verifier.SyncStatus().UnsafeL2.L1Origin.Number)
 		requirePragueStatusOnL1(true, l1Origin)
 		checkL1BlockBlobBaseFee(t, verifier.SyncStatus().UnsafeL2)
