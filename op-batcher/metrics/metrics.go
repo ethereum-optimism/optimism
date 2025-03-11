@@ -44,6 +44,10 @@ type Metricer interface {
 	RecordChannelTimedOut(id derive.ChannelID)
 	RecordChannelQueueLength(len int)
 
+	// ClearAllStateMetrics resets any metrics that track current ChannelManager state
+	// It should be called when clearing the ChannelManager state.
+	ClearAllStateMetrics()
+
 	RecordBatchTxSubmitted()
 	RecordBatchTxSuccess()
 	RecordBatchTxFailed()
@@ -347,6 +351,13 @@ func (m *Metrics) RecordBlobUsedBytes(num int) {
 
 func (m *Metrics) RecordChannelQueueLength(len int) {
 	m.channelQueueLength.Set(float64(len))
+}
+
+// ClearAllStateMetrics clears all state metrics.
+func (m *Metrics) ClearAllStateMetrics() {
+	m.RecordChannelQueueLength(0)
+	atomic.StoreInt64(&m.pendingDABytes, 0)
+	m.pendingBlocksBytesCurrent.Set(0)
 }
 
 // estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without
