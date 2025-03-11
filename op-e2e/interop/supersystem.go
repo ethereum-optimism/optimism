@@ -93,7 +93,7 @@ type SuperSystem interface {
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
 	Contract(network string, contractName string) interface{}
-	DeployEmitterContract(network string, username string) common.Address
+	DeployEmitterContract(ctx context.Context, network string, username string) common.Address
 	ValidateMessage(
 		ctx context.Context,
 		id string,
@@ -540,6 +540,7 @@ func (s *interopE2ESystem) ValidateMessage(
 // DeployEmitterContract deploys the Emitter contract on the L2
 // it uses the sequencer node to deploy the contract
 func (s *interopE2ESystem) DeployEmitterContract(
+	ctx context.Context,
 	id string,
 	sender string,
 ) common.Address {
@@ -548,7 +549,9 @@ func (s *interopE2ESystem) DeployEmitterContract(
 	require.NoError(s.t, err)
 	auth.GasLimit = uint64(3000000)
 	auth.GasPrice = big.NewInt(20000000000)
-	address, _, _, err := emit.DeployEmit(auth, s.L2GethClient(id, "sequencer"))
+	address, tx, _, err := emit.DeployEmit(auth, s.L2GethClient(id, "sequencer"))
+	require.NoError(s.t, err)
+	_, err = bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx)
 	require.NoError(s.t, err)
 	contract, err := emit.NewEmit(address, s.L2GethClient(id, "sequencer"))
 	require.NoError(s.t, err)

@@ -144,10 +144,19 @@ func TestInterop_EmitLogs(t *testing.T) {
 		ids := s2.L2IDs()
 		chainA := ids[0]
 		chainB := ids[1]
-		EmitterA := s2.DeployEmitterContract(chainA, "Alice")
-		EmitterB := s2.DeployEmitterContract(chainB, "Alice")
 		payload1 := "SUPER JACKPOT!"
 		numEmits := 10
+
+		// Deploy emitter to chain A
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		EmitterA := s2.DeployEmitterContract(ctx, chainA, "Alice")
+
+		// Deploy emitter to chain B
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		EmitterB := s2.DeployEmitterContract(ctx, chainB, "Alice")
+
 		// emit logs on both chains in parallel
 		var emitParallel sync.WaitGroup
 		emitOn := func(chainID string) {
@@ -258,13 +267,16 @@ func TestInteropBlockBuilding(t *testing.T) {
 		ids := s2.L2IDs()
 		chainA := ids[0]
 		chainB := ids[1]
+
 		// We will initiate on chain A, and execute on chain B
-		s2.DeployEmitterContract(chainA, "Alice")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		s2.DeployEmitterContract(ctx, chainA, "Alice")
 
 		rollupClA := s2.L2RollupClient(chainA, "sequencer")
 
 		// emit log on chain A
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		emitRec := s2.EmitData(ctx, chainA, "sequencer", "Alice", "hello world")
 		cancel()
 		t.Logf("Emitted a log event in block %d", emitRec.BlockNumber.Uint64())
