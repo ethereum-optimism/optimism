@@ -118,7 +118,6 @@ test-utils = [
     "reth-provider/test-utils",
     "reth-transaction-pool/test-utils",
     "reth-trie-db/test-utils",
-    "revm/test-utils",
     "reth-optimism-node/test-utils",
     "reth-optimism-primitives/arbitrary",
     "reth-primitives-traits/test-utils",
