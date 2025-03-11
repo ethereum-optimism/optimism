@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use metrics::{counter, histogram, Counter, Histogram};
+use metrics::{Counter, Histogram, counter, histogram};
 use metrics_derive::Metrics;
 
 use crate::server::PayloadSource;

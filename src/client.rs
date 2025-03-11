@@ -6,7 +6,7 @@ use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret,
     PayloadId, PayloadStatus,
 };
-use clap::{arg, Parser};
+use clap::{Parser, arg};
 use http::{StatusCode, Uri};
 use jsonrpsee::core::{ClientError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
