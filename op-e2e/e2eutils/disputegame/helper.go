@@ -202,7 +202,7 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	prestateBlock, poststateBlock, err := game.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := game.GetGameRange(ctx)
 	h.Require.NoError(err, "Failed to load starting block number")
 	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")
@@ -240,7 +240,7 @@ func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestam
 	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	prestateTimestamp, poststateTimestamp, err := game.GetBlockRange(ctx)
+	prestateTimestamp, poststateTimestamp, err := game.GetGameRange(ctx)
 	h.Require.NoError(err, "Failed to load starting block number")
 	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")
@@ -294,7 +294,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	game, err := contracts.NewFaultDisputeGameContract(ctx, metrics.NoopContractMetrics, createdEvent.DisputeProxy, batching.NewMultiCaller(h.Client.Client(), batching.DefaultBatchSize))
 	h.Require.NoError(err)
 
-	prestateBlock, poststateBlock, err := game.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := game.GetGameRange(ctx)
 	h.Require.NoError(err, "Failed to load starting block number")
 	splitDepth, err := game.GetSplitDepth(ctx)
 	h.Require.NoError(err, "Failed to load split depth")

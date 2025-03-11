@@ -46,7 +46,7 @@ func (f *FaultDisputeGameContract0180) GetGameMetadata(ctx context.Context, bloc
 	duration := results[4].GetUint64(0)
 	return GameMetadata{
 		L1Head:                  l1Head,
-		L2BlockNum:              l2BlockNumber,
+		L2SequenceNum:           l2BlockNumber,
 		RootClaim:               rootClaim,
 		Status:                  status,
 		MaxClockDuration:        duration,
