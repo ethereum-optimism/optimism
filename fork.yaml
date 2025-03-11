@@ -1,0 +1,92 @@
+title: "layr-labs/optimism" # Define the HTML page title
+logo: "logo.png"
+footer: | # define the footer with markdown
+  EigenDA's [OP-Fork](https://github.com/layr-labs/optimism) fork overview - created with [Forkdiff](https://github.com/protolambda/forkdiff)
+base:
+  name: ethereum-optimism/optimism
+  url: https://github.com/ethereum-optimism/optimism
+  # ref: refs/tags/op-node/v1.11.1
+  hash: 443e931f242e1595896d6598b02068dc822e1232
+fork:
+  name: layr-labs/optimism
+  url: https://github.com/layr-labs/optimism
+  ref: refs/heads/eigenda-develop
+def:
+  title: "EigenDA x Optimism fork diff"
+  description: | # description in markdown
+    The original optimism codebase can be found at [`github.com/ethereum-optimism/optimism`](https://github.com/ethereum-optimism/optimism).
+    And our fork at [`github.com/Layr-Labs/optimism`](https://github.com/Layr-Labs/optimism).
+
+  sub:
+    - title: "OP Batcher"
+      description: |
+        Modifications to op-batcher.
+      sub:
+        # Adding this test section is the easy way to remove the tests from the main batcher section, so we can focus on the meaningful code changes.
+        - title: "Tests"
+          globs:
+            - "op-batcher/**/*_test.go"
+        - title: "Batcher"
+          globs:
+            - "op-batcher/**"
+
+    - title: "OP Node"
+      description: |
+        Modifications to op-node.
+      sub:
+        # Adding this test section is the easy way to remove the tests from the main batcher section, so we can focus on the meaningful code changes.
+        - title: "Tests"
+          globs:
+            - "op-node/**/*_test.go"
+        - title: "Node"
+          globs:
+            - "op-node/**"
+
+    - title: "OP AltDA Client"
+      description: |
+        Modifications to op-alt-da client.
+      sub:
+        # Adding this test section is the easy way to remove the tests from the main batcher section, so we can focus on the meaningful code changes.
+        - title: "Tests"
+          globs:
+            - "op-alt-da/**/*_test.go"
+            - "op-alt-da/**/*mock.go"
+        - title: "AltDA Client"
+          globs:
+            - "op-alt-da/**"
+
+    - title: "Testing"
+      sub:
+        - title: "OP E2E Tests"
+          globs:
+            - "op-e2e/**"
+        - title: "Kurtosis Tests"
+          globs:
+            - "kurtosis-devnet/tests/**"
+
+    - title: "CI/CD"
+      description: |
+        Replaced op's circleci with github actions relevant to testing our changes.
+      sub:
+        - title: "Github workflows"
+          globs:
+            - ".github/**"
+            - ".circleci/**"
+
+    - title: "Kurtosis Devnet"
+      description: |
+        Added kurtosis devnet yaml file to spin up an op chain that uses altda and spins up an eigenda-proxy in memstore mode to simulate interactions with an EigenDA network.
+      sub:
+        - title: "Kurtosis Devnet"
+          globs:
+            - "kurtosis-devnet/**"
+# files can be ignored globally, these will be listed in a separate grayed-out section,
+# and do not count towards the total line count.
+ignore:
+  - "**/go.mod"
+  - "**/go.sum"
+  - "**/.gitignore"
+  # Not very useful to see utils added for testing, so prefer to remove to reduce noise
+  # and focus on actually meaningful test changes/additions.
+  - "**/e2eutils/**"
+  - "op-e2e/actions/helpers/**"

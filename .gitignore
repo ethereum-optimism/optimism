@@ -17,6 +17,9 @@ dist
 artifacts
 cache
 
+# forkdiff output
+index.html
+
 !op-chain-ops/foundry/testdata/srcmaps/cache
 !op-chain-ops/foundry/testdata/srcmaps/artifacts
 

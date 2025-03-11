@@ -5,6 +5,8 @@
 [![golang](https://github.com/Layr-Labs/optimism/actions/workflows/test-golang.yml/badge.svg)](https://github.com/Layr-Labs/optimism/actions/workflows/test-golang.yml)
 [![kurtosis](https://github.com/Layr-Labs/optimism/actions/workflows/kurtosis-devnet.yml/badge.svg)](https://github.com/Layr-Labs/optimism/actions/workflows/kurtosis-devnet.yml)
 
+[ForkDiff](https://layr-labs.github.io/optimism)
+
 This is repo contains our fork of [optimism](https://github.com/ethereum-optimism/optimism) to support EigenDA.
 
 - [EigenDA powered Optimism-Fork](#eigenda-powered-optimism-fork)
@@ -61,11 +63,11 @@ OP uses circleci for CI, but we migrated to github actions for this fork. The un
 
 ### Unit Tests
 
-For each feature we add simple unit tests where fits.
+For each feature we add simple unit tests where applicable.
 
 ### op-e2e Tests
 
-We also add integration tests using op-e2e's framework. These tests are very useful as they are run purely in golang in a single process with very fast block times, but they are limited in that proxy is not spin up and the batcher available there is only a fake.
+We also add integration tests using op-e2e's framework. These tests are very useful as they are run purely in golang in a single process with very fast block times, but they are limited in that proxy is not spun up and the batcher available there is only a fake.
 
 ### Kurtosis Devnet Tests
 
@@ -91,6 +93,10 @@ Available recipes:
 
 ## Releases and Branching Strategy
 
-We maintain an `eigenda-develop` branch which is our main development branch which keeps a linear history containing new feature work, fixes, as well as upstream merges. To make downstream integrations easier, we create release-specific branches which contain cleaned up history of commits on top of a specific upstream release. For example, the second eigenda-fork release in the below picture would be named `op-batcher/v1.11.2-eigenda.2`, and will consist of a cleaned-up history of commits (one per feature/service pair) on top of the upstream [op-batcher/v1.11.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.11.2) release. We will strive to make our releases on top of op [production releases](https://github.com/ethereum-optimism/optimism?tab=readme-ov-file#production-releases), unless an urgent fix is needed.
+Our main development branch, `eigenda-develop`, contains a linear history with new feature work and fixes, as well as upstream merges. We maintain this branch to be able to track the entire history of our fork changes. It might also be useful for some teams who want to use our fork directly as their upstream, so that they can just merge/rebase our latest changes (which will incorporate the OP changes as well).
+
+For teams that want/need more flexibility in how they manage their own fork, we also create release-specific branches which contain cleaned up history of commits on top of a specific upstream release. For example, the second eigenda-fork release in the picture below would be named `op-batcher/v1.11.2-eigenda.2`, and will consist of a cleaned-up history of commits (one per feature/service pair) on top of the upstream [op-batcher/v1.11.2](https://github.com/ethereum-optimism/optimism/releases/tag/op-batcher%2Fv1.11.2) release. We will strive to make our releases on top of op [production releases](https://github.com/ethereum-optimism/optimism?tab=readme-ov-file#production-releases), unless an urgent fix is needed.
 
 ![](./assets/fork-branching-and-releases.png)
+
+Fork developers should consult the [Fork Release Runbook](./docs/handbook/fork-release-runbook.md) for more details on how to make a new release.
