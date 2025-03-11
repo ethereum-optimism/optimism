@@ -32,4 +32,5 @@ func (m *TestMetrics) PendingDABytes() float64 {
 func (m *TestMetrics) ClearAllStateMetrics() {
 	m.PendingBlocksBytesCurrent = 0
 	m.ChannelQueueLength = 0
+	m.pendingDABytes = 0
 }
