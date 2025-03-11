@@ -54,7 +54,7 @@ func (m *mockWallet) SendETH(to types.Address, amount types.Balance) types.Write
 	return args.Get(0).(types.WriteInvocation[any])
 }
 
-func (m *mockWallet) SendMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+func (m *mockWallet) InitiateMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
 	args := m.Called(to, chainID, target, message)
 	return args.Get(0).(types.WriteInvocation[any])
 }

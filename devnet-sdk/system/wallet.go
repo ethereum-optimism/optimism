@@ -101,8 +101,8 @@ func (w *wallet) Balance() types.Balance {
 	return types.NewBalance(balance)
 }
 
-func (w *wallet) SendMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
-	return &sendMessageImpl{
+func (w *wallet) InitiateMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+	return &initiateMessageImpl{
 		chain:     w.chain,
 		processor: w,
 		from:      w.address,
@@ -113,7 +113,7 @@ func (w *wallet) SendMessage(to common.Address, chainID types.ChainID, target co
 	}
 }
 
-type sendMessageImpl struct {
+type initiateMessageImpl struct {
 	chain     internalChain
 	processor TransactionProcessor
 	from      types.Address
@@ -124,7 +124,7 @@ type sendMessageImpl struct {
 	message []byte
 }
 
-func (i *sendMessageImpl) Call(ctx context.Context) (any, error) {
+func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 	builder := NewTxBuilder(ctx, i.chain)
 	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(i.to)
 	if err != nil {
@@ -152,7 +152,7 @@ func (i *sendMessageImpl) Call(ctx context.Context) (any, error) {
 	return tx, nil
 }
 
-func (i *sendMessageImpl) Send(ctx context.Context) types.InvocationResult {
+func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
 	builder := NewTxBuilder(ctx, i.chain)
 	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(i.to)
 	if err != nil {

@@ -35,7 +35,7 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, walletGetter va
 		dummyAddress := common.Address{0x13, 0x37}
 		dummyMessage := []byte{0x13, 0x33, 0x33, 0x37}
 		logger.Info("Initiate message", "address", dummyAddress, "message", dummyMessage)
-		require.NoError(t, userA.SendMessage(constants.L2ToL2CrossDomainMessenger,
+		require.NoError(t, userA.InitiateMessage(constants.L2ToL2CrossDomainMessenger,
 			chainB.ID(), dummyAddress, dummyMessage).Send(ctx).Wait())
 
 		logger.Info("Execute message", "address", dummyAddress, "message", dummyMessage)
