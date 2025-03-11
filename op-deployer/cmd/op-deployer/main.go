@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -72,6 +73,11 @@ func main() {
 			Usage:  "verifies deployed contracts on Etherscan",
 			Flags:  cliapp.ProtectFlags(deployer.VerifyFlags),
 			Action: verify.VerifyCLI,
+		},
+		{
+			Name:        "manage",
+			Usage:       "manages the chain",
+			Subcommands: manage.Commands,
 		},
 	}
 	app.Writer = os.Stdout
