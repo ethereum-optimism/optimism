@@ -25,11 +25,11 @@ func (ci ChainIndex) String() string {
 	return strconv.FormatUint(uint64(ci), 10)
 }
 
-func (ci ChainIndex) MarshalText() ([]byte, error) {
+func (ci ChainIndex) MarshalJSON() (data []byte, err error) {
 	return []byte(ci.String()), nil
 }
 
-func (ci *ChainIndex) UnmarshalText(data []byte) error {
+func (ci *ChainIndex) UnmarshalJSON(data []byte) error {
 	v, err := strconv.ParseUint(string(data), 10, 32)
 	if err != nil {
 		return err
@@ -224,9 +224,12 @@ type ExecutingDescriptor struct {
 func (ed *ExecutingDescriptor) AccessCheck(expiryWindow uint64, initMsgTimestamp uint64) error {
 	// Check upper-bound invariant, strictly
 	// (for access-lists we don't afford to check intra-timestamp dependencies)
-	if ed.Timestamp <= initMsgTimestamp {
+	if ed.Timestamp < initMsgTimestamp {
 		return fmt.Errorf("message broke timestamp invariant: exec: %d, init: %d, %w",
 			ed.Timestamp, initMsgTimestamp, ErrConflict)
+	}
+	if ed.Timestamp == initMsgTimestamp {
+		return fmt.Errorf("access-list check does not allow intra-timestamp (%d): %w", ed.Timestamp, ErrConflict)
 	}
 
 	// Check message expiry
@@ -250,7 +253,7 @@ func (ed *ExecutingDescriptor) AccessCheck(expiryWindow uint64, initMsgTimestamp
 		return fmt.Errorf("message timeout too high, overflows: %d, %w",
 			ed.Timestamp, ErrConflict)
 	}
-	if v := ed.Timestamp + timeout; v < expiryAt {
+	if v := ed.Timestamp + timeout; v > expiryAt {
 		return fmt.Errorf("cannot execute message at timeout %d, expired at %d: %w",
 			v, expiryAt, ErrConflict)
 	}
@@ -444,6 +447,26 @@ type Access struct {
 	Checksum    MessageChecksum
 }
 
+// lookupEntry encodes a lookup entry for an access-list
+func (acc Access) lookupEntry() common.Hash {
+	var out common.Hash
+	out[0] = PrefixLookup
+	binary.BigEndian.PutUint64(out[4:12], (*uint256.Int)(&acc.ChainID).Uint64())
+	binary.BigEndian.PutUint64(out[12:20], acc.BlockNumber)
+	binary.BigEndian.PutUint64(out[20:28], acc.Timestamp)
+	binary.BigEndian.PutUint32(out[28:32], acc.LogIndex)
+	return out
+}
+
+// chainIDExtensionEntry encodes a chainID-extension entry for an access-list
+func (acc Access) chainIDExtensionEntry() common.Hash {
+	var out common.Hash
+	dat := (*uint256.Int)(&acc.ChainID).Bytes32()
+	out[0] = PrefixChainIDExtension
+	copy(out[8:32], dat[0:24])
+	return out
+}
+
 type accessMarshaling struct {
 	BlockNumber hexutil.Uint64  `json:"blockNumber"`
 	Timestamp   hexutil.Uint64  `json:"timestamp"`
@@ -483,24 +506,25 @@ const (
 )
 
 var (
-	ErrExpectedEntry       = errors.New("expected entry")
-	ErrUnexpectedEntryType = errors.New("unexpected entry type")
+	errExpectedEntry       = errors.New("expected entry")
+	errMalformedEntry      = errors.New("malformed entry")
+	errUnexpectedEntryType = errors.New("unexpected entry type")
 )
 
 // ParseAccess parses some access-list entries into an Access, and returns the remaining entries.
 // This process can be repeated until no entries are left, to parse an access-list.
 func ParseAccess(entries []common.Hash) ([]common.Hash, Access, error) {
 	if len(entries) == 0 {
-		return nil, Access{}, ErrExpectedEntry
+		return nil, Access{}, errExpectedEntry
 	}
 	entry := entries[0]
 	entries = entries[1:]
 	if typeByte := entry[0]; typeByte != PrefixLookup {
 		return nil, Access{}, fmt.Errorf("expected lookup, got entry type %d: %w",
-			typeByte, ErrUnexpectedEntryType)
+			typeByte, errUnexpectedEntryType)
 	}
 	if ([3]byte)(entry[1:4]) != ([3]byte{}) {
-		return nil, Access{}, fmt.Errorf("expected zero bytes")
+		return nil, Access{}, fmt.Errorf("expected zero bytes: %w", errMalformedEntry)
 	}
 	var access Access
 	access.ChainID = eth.ChainIDFromUInt64(binary.BigEndian.Uint64(entry[4:12]))
@@ -509,7 +533,7 @@ func ParseAccess(entries []common.Hash) ([]common.Hash, Access, error) {
 	access.LogIndex = binary.BigEndian.Uint32(entry[28:32])
 
 	if len(entries) == 0 {
-		return nil, Access{}, ErrExpectedEntry
+		return nil, Access{}, errExpectedEntry
 	}
 	entry = entries[0]
 	entries = entries[1:]
@@ -523,14 +547,14 @@ func ParseAccess(entries []common.Hash) ([]common.Hash, Access, error) {
 		copy(chIDBytes32[0:24], entry[8:32])
 		access.ChainID = eth.ChainIDFromBytes32(chIDBytes32)
 		if len(entries) == 0 {
-			return nil, Access{}, ErrExpectedEntry
+			return nil, Access{}, errExpectedEntry
 		}
 		entry = entries[0]
 		entries = entries[1:]
 	}
 	if typeByte := entry[0]; typeByte != PrefixChecksum {
 		return nil, Access{}, fmt.Errorf("expected checksum, got entry type %d: %w",
-			typeByte, ErrUnexpectedEntryType)
+			typeByte, errUnexpectedEntryType)
 	}
 	access.Checksum = MessageChecksum(entry)
 	return entries, access, nil
@@ -539,22 +563,10 @@ func ParseAccess(entries []common.Hash) ([]common.Hash, Access, error) {
 func EncodeAccessList(accesses []Access) []common.Hash {
 	out := make([]common.Hash, 0, len(accesses)*2)
 	for _, acc := range accesses {
-		{
-			var lookupEntry common.Hash
-			lookupEntry[0] = PrefixLookup
-			binary.BigEndian.PutUint64(lookupEntry[4:12], (*uint256.Int)(&acc.ChainID).Uint64())
-			binary.BigEndian.PutUint64(lookupEntry[12:20], acc.BlockNumber)
-			binary.BigEndian.PutUint64(lookupEntry[20:28], acc.Timestamp)
-			binary.BigEndian.PutUint32(lookupEntry[28:32], acc.LogIndex)
-			out = append(out, lookupEntry)
-		}
+		out = append(out, acc.lookupEntry())
 
 		if !(*uint256.Int)(&acc.ChainID).IsUint64() {
-			var chainIDExtensionEntry common.Hash
-			dat := (*uint256.Int)(&acc.ChainID).Bytes32()
-			chainIDExtensionEntry[0] = PrefixChainIDExtension
-			copy(chainIDExtensionEntry[8:32], dat[0:24])
-			out = append(out, chainIDExtensionEntry)
+			out = append(out, acc.chainIDExtensionEntry())
 		}
 
 		if acc.Checksum[0] != PrefixChecksum {
