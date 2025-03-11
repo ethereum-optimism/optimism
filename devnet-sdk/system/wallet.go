@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
@@ -98,6 +99,88 @@ func (w *wallet) Balance() types.Balance {
 	}
 
 	return types.NewBalance(balance)
+}
+
+func (w *wallet) SendMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+	return &sendMessageImpl{
+		chain:     w.chain,
+		processor: w,
+		from:      w.address,
+		to:        to,
+		target:    target,
+		chainID:   chainID,
+		message:   message,
+	}
+}
+
+type sendMessageImpl struct {
+	chain     internalChain
+	processor TransactionProcessor
+	from      types.Address
+	to        types.Address
+
+	target  types.Address
+	chainID types.ChainID
+	message []byte
+}
+
+func (i *sendMessageImpl) Call(ctx context.Context) (any, error) {
+	builder := NewTxBuilder(ctx, i.chain)
+	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(i.to)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init transaction: %w", err)
+	}
+	tx2, err := messenger.SendMessage(i.chainID, i.target, i.message).Call(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+	data := tx2.Data()
+	tx, err := builder.BuildTx(
+		WithFrom(i.from),
+		WithTo(i.to), // this address should be the l2tol2crossdomainmessenger
+		WithData(data),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+
+	tx, err = i.processor.Sign(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	return tx, nil
+}
+
+func (i *sendMessageImpl) Send(ctx context.Context) types.InvocationResult {
+	builder := NewTxBuilder(ctx, i.chain)
+	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(i.to)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	tx2, err := messenger.SendMessage(i.chainID, i.target, i.message).Call(ctx)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	data := tx2.Data()
+	tx, err := builder.BuildTx(
+		WithFrom(i.from),
+		WithTo(i.to), // this address should be the l2tol2crossdomainmessenger
+		WithData(data),
+	)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	tx, err = i.processor.Sign(tx)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	err = i.processor.Send(ctx, tx)
+	return &sendResult{
+		chain: i.chain,
+		tx:    tx,
+		err:   err,
+	}
 }
 
 func (w *wallet) Nonce() uint64 {

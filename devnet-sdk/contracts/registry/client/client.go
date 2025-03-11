@@ -27,3 +27,15 @@ func (r *ClientRegistry) SuperchainWETH(address types.Address) (interfaces.Super
 		binding:         binding,
 	}, nil
 }
+
+func (r *ClientRegistry) L2ToL2CrossDomainMessenger(address types.Address) (interfaces.L2ToL2CrossDomainMessenger, error) {
+	binding, err := bindings.NewL2ToL2CrossDomainMessenger(address, r.Client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L2ToL2CrossDomainMessenger binding: %w", err)
+	}
+	return &L2ToL2CrossDomainMessengerBinding{
+		contractAddress: address,
+		client:          r.Client,
+		binding:         binding,
+	}, nil
+}

@@ -78,6 +78,10 @@ func (m *mockFailingWallet) SendETH(to types.Address, amount types.Balance) type
 	return &mockFailingTx{}
 }
 
+func (m *mockFailingWallet) SendMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+	return &mockFailingTx{}
+}
+
 func (m *mockFailingWallet) Nonce() uint64 {
 	return 0
 }

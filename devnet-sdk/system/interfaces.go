@@ -71,6 +71,7 @@ type Wallet interface {
 	PrivateKey() types.Key
 	Address() types.Address
 	SendETH(to types.Address, amount types.Balance) types.WriteInvocation[any]
+	SendMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any]
 	Balance() types.Balance
 	Nonce() uint64
 

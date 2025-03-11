@@ -324,6 +324,10 @@ func (m mockWallet) SendETH(to types.Address, amount types.Balance) types.WriteI
 	panic("not implemented")
 }
 
+func (m mockWallet) SendMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+	panic("not implemented")
+}
+
 func (m mockWallet) Nonce() uint64 {
 	return 0
 }
