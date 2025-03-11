@@ -142,6 +142,14 @@ impl<T: Decodable2718 + Send + Sync + Debug> PayloadBuilderAttributes
     }
 }
 
+impl<OpTransactionSigned> From<EthPayloadBuilderAttributes>
+    for OpPayloadBuilderAttributes<OpTransactionSigned>
+{
+    fn from(value: EthPayloadBuilderAttributes) -> Self {
+        Self { payload_attributes: value, ..Default::default() }
+    }
+}
+
 /// Contains the built payload.
 #[derive(Debug, Clone)]
 pub struct OpBuiltPayload<N: NodePrimitives = OpPrimitives> {

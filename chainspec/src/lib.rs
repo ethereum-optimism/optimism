@@ -381,6 +381,12 @@ impl From<Genesis> for OpChainSpec {
     }
 }
 
+impl From<ChainSpec> for OpChainSpec {
+    fn from(value: ChainSpec) -> Self {
+        Self { inner: value }
+    }
+}
+
 #[derive(Default, Debug)]
 struct OpGenesisInfo {
     optimism_chain_info: op_alloy_rpc_types::OpChainInfo,
