@@ -475,13 +475,10 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 	su.logger.Debug("Checking access-list",
 		"minSafety", minSafety, "length", len(inboxEntries))
 
-	// TODO: acquire a rewind-read-lock, so we can ensure the safety of all entries is consistent
+	// TODO(#14800): acquire a rewind-read-lock, so we can ensure the safety of all entries is consistent
 
 	entries := inboxEntries
-	for {
-		if len(entries) == 0 {
-			break
-		}
+	for len(entries) > 0 {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("stopped acces-list check early: %w", err)
 		}
@@ -496,9 +493,9 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 			su.logger.Debug("Access-list inclusion check failed", "err", err)
 			return types.ErrConflict
 		}
-		// TODO add msgBlock to rewind lock
+		// TODO(#14800) add msgBlock to rewind lock
 
-		// TODO: this can be deferred to only check the latest block of all access entries
+		// TODO(#14800): this can be deferred to only check the latest block of all access entries
 		if err := su.checkSafety(acc.ChainID, msgBlock, minSafety); err != nil {
 			su.logger.Debug("Access-list safety check failed", "err", err)
 			return types.ErrConflict

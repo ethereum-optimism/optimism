@@ -187,7 +187,7 @@ func TestInterop_EmitLogs(t *testing.T) {
 
 		supervisor := s2.SupervisorClient()
 
-		// helper function to turn a log into an identifier and the expected hash of the payload
+		// helper function to turn a log into an access-list object
 		logToAccess := func(chainID string, log gethTypes.Log) types.Access {
 			client := s2.L2GethClient(chainID, "sequencer")
 			// construct the expected hash of the log's payload
