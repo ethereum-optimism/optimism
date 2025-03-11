@@ -36,7 +36,7 @@ anvil = "v1.0.0"
 # Other dependencies
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.3.2-pro"
-kurtosis = "1.4.4"
+kurtosis = "1.5.0"
 
 # Fake dependencies
 # Put things here if you need to track versions of tools or projects that can't
