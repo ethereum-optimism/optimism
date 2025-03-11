@@ -40,6 +40,7 @@ opentelemetry-otlp = { version = "0.26.0", features = [
 ] }
 opentelemetry_sdk = { version = "0.26.0", features = ["rt-tokio"] }
 tracing-opentelemetry = "0.27.0"
+flate2 = "1.0.35"
 futures = "0.3.31"
 metrics-derive = "0.1"
 metrics = "0.24.0"
