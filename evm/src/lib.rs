@@ -116,6 +116,14 @@ where
     type BlockExecutorFactory = OpBlockExecutorFactory<R, Arc<ChainSpec>>;
     type BlockAssembler = OpBlockAssembler<ChainSpec>;
 
+    fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
+        &self.executor_factory
+    }
+
+    fn block_assembler(&self) -> &Self::BlockAssembler {
+        &self.block_assembler
+    }
+
     fn evm_env(&self, header: &Header) -> EvmEnv<OpSpecId> {
         let spec = config::revm_spec(self.chain_spec(), header);
 
@@ -181,14 +189,6 @@ where
         };
 
         Ok(EvmEnv { cfg_env, block_env })
-    }
-
-    fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
-        &self.executor_factory
-    }
-
-    fn block_assembler(&self) -> &Self::BlockAssembler {
-        &self.block_assembler
     }
 
     fn context_for_block(&self, block: &'_ SealedBlock<N::Block>) -> OpBlockExecutionCtx {
