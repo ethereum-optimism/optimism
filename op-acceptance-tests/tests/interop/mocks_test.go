@@ -78,7 +78,7 @@ func (m *mockFailingWallet) SendETH(to types.Address, amount types.Balance) type
 	return &mockFailingTx{}
 }
 
-func (m *mockFailingWallet) InitiateMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+func (m *mockFailingWallet) InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
 	return &mockFailingTx{}
 }
 

@@ -35,7 +35,7 @@ func (m mockWallet) SendETH(to types.Address, amount types.Balance) types.WriteI
 	panic("not implemented")
 }
 
-func (m mockWallet) InitiateMessage(to types.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+func (m mockWallet) InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
 	panic("not implemented")
 }
 

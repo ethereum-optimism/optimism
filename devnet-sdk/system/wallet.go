@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -101,12 +102,11 @@ func (w *wallet) Balance() types.Balance {
 	return types.NewBalance(balance)
 }
 
-func (w *wallet) InitiateMessage(to common.Address, chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+func (w *wallet) InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
 	return &initiateMessageImpl{
 		chain:     w.chain,
 		processor: w,
 		from:      w.address,
-		to:        to,
 		target:    target,
 		chainID:   chainID,
 		message:   message,
@@ -117,7 +117,6 @@ type initiateMessageImpl struct {
 	chain     internalChain
 	processor TransactionProcessor
 	from      types.Address
-	to        types.Address
 
 	target  types.Address
 	chainID types.ChainID
@@ -126,7 +125,7 @@ type initiateMessageImpl struct {
 
 func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 	builder := NewTxBuilder(ctx, i.chain)
-	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(i.to)
+	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init transaction: %w", err)
 	}
@@ -136,7 +135,7 @@ func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 	}
 	tx, err := builder.BuildTx(
 		WithFrom(i.from),
-		WithTo(i.to), // this address should be the l2tol2crossdomainmessenger
+		WithTo(constants.L2ToL2CrossDomainMessenger),
 		WithData(data),
 	)
 	if err != nil {
@@ -153,7 +152,7 @@ func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 
 func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
 	builder := NewTxBuilder(ctx, i.chain)
-	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(i.to)
+	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
 	if err != nil {
 		return &sendResult{chain: i.chain, tx: nil, err: err}
 	}
@@ -163,7 +162,7 @@ func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
 	}
 	tx, err := builder.BuildTx(
 		WithFrom(i.from),
-		WithTo(i.to), // this address should be the l2tol2crossdomainmessenger
+		WithTo(constants.L2ToL2CrossDomainMessenger),
 		WithData(data),
 	)
 	if err != nil {
