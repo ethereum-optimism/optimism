@@ -19,17 +19,18 @@ import (
 )
 
 // ChainIndex represents the lifetime of a chain in a dependency set.
+// Warning: JSON-encoded as string, in base-10.
 type ChainIndex uint32
 
 func (ci ChainIndex) String() string {
 	return strconv.FormatUint(uint64(ci), 10)
 }
 
-func (ci ChainIndex) MarshalJSON() (data []byte, err error) {
+func (ci ChainIndex) MarshalText() ([]byte, error) {
 	return []byte(ci.String()), nil
 }
 
-func (ci *ChainIndex) UnmarshalJSON(data []byte) error {
+func (ci *ChainIndex) UnmarshalText(data []byte) error {
 	v, err := strconv.ParseUint(string(data), 10, 32)
 	if err != nil {
 		return err

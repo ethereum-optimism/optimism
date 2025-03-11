@@ -65,18 +65,10 @@ func TestSupervisorService(t *testing.T) {
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), time.Second*5, logger, endpoint)
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		var dest types.SafetyLevel
-		err = cl.CallContext(ctx, &dest, "supervisor_checkMessage",
-			types.Identifier{
-				Origin:      common.Address{0xaa},
-				BlockNumber: 123,
-				LogIndex:    42,
-				Timestamp:   1234567,
-				ChainID:     eth.ChainID{0xbb},
-			}, common.Hash{0xcc}, types.ExecutingDescriptor{Timestamp: 1234568})
+		err = cl.CallContext(ctx, nil, "supervisor_checkAccessList",
+			[]common.Hash{}, types.CrossUnsafe, types.ExecutingDescriptor{Timestamp: 1234568})
 		cancel()
 		require.NoError(t, err)
-		require.Equal(t, types.CrossUnsafe, dest, "expecting mock to return cross-unsafe")
 		cl.Close()
 	}
 	require.NoError(t, supervisor.Stop(context.Background()), "stop service")

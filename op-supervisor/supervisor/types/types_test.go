@@ -49,20 +49,20 @@ func FuzzRoundtripIdentifierJSONMarshal(f *testing.F) {
 
 func TestChainIndex(t *testing.T) {
 	var x ChainIndex
-	require.NoError(t, json.Unmarshal([]byte(`1`), &x))
+	require.NoError(t, json.Unmarshal([]byte(`"1"`), &x))
 	require.Equal(t, ChainIndex(1), x)
 	data, err := json.Marshal(x)
 	require.NoError(t, err)
-	require.Equal(t, `1`, string(data))
+	require.Equal(t, `"1"`, string(data))
 
-	require.NoError(t, json.Unmarshal([]byte(`4294967295`), &x))
+	require.NoError(t, json.Unmarshal([]byte(`"4294967295"`), &x))
 	require.Equal(t, ChainIndex(0xff_ff_ff_ff), x)
 	data, err = json.Marshal(x)
 	require.NoError(t, err)
-	require.Equal(t, `4294967295`, string(data))
+	require.Equal(t, `"4294967295"`, string(data))
 
-	require.ErrorContains(t, json.Unmarshal([]byte(`-1`), &x), "invalid")
-	require.ErrorContains(t, json.Unmarshal([]byte(`4294967296`), &x), "out of range")
+	require.ErrorContains(t, json.Unmarshal([]byte(`"-1"`), &x), "invalid")
+	require.ErrorContains(t, json.Unmarshal([]byte(`"4294967296"`), &x), "out of range")
 }
 
 func TestHashing(t *testing.T) {
