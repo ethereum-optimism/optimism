@@ -15,13 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func messagePassingScenario(sourceChainIdx, destChainIdx uint64, walletGetter validators.WalletGetter) systest.InteropSystemTestFunc {
+func initiateMessageScenario(sourceChainIdx, destChainIdx uint64, walletGetter validators.WalletGetter) systest.InteropSystemTestFunc {
 	return func(t systest.T, sys system.InteropSystem) {
-		// Goal: Pass message from sourceChain to destChain using interop
 		ctx := t.Context()
 
 		logger := testlog.Logger(t, log.LevelInfo)
-		logger = logger.With("test", "TestMessagePassing", "devnet", sys.Identifier())
+		logger = logger.With("test", "TestInitiateMessage", "devnet", sys.Identifier())
 
 		chainA := sys.L2s()[sourceChainIdx]
 		chainB := sys.L2s()[destChainIdx]
@@ -37,21 +36,16 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, walletGetter va
 		logger.Info("Initiate message", "address", dummyAddress, "message", dummyMessage)
 		require.NoError(t, userA.InitiateMessage(constants.L2ToL2CrossDomainMessenger,
 			chainB.ID(), dummyAddress, dummyMessage).Send(ctx).Wait())
-
-		logger.Info("Execute message", "address", dummyAddress, "message", dummyMessage)
-
-		// TODO: wait until single block time
-		// TODO: Execute Message
 	}
 }
 
-func TestInteropSystemMessagePassing(t *testing.T) {
+func TestInteropSystemInitiateMessage(t *testing.T) {
 	sourceChainIdx := uint64(0)
 	destChainIdx := uint64(1)
 	walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(sourceChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
 
 	systest.InteropSystemTest(t,
-		messagePassingScenario(sourceChainIdx, destChainIdx, walletGetter),
+		initiateMessageScenario(sourceChainIdx, destChainIdx, walletGetter),
 		fundsValidator,
 	)
 }
