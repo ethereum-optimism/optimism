@@ -29,7 +29,6 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IHasSuperchainConfig } from "interfaces/L1/IHasSuperchainConfig.sol";
-import { ISystemConfigInterop } from "interfaces/L1/ISystemConfigInterop.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 contract OPContractsManagerContractsContainer {
@@ -630,9 +629,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 }
 
                 // Call `upgrade` on the OptimismPortal contract.
-                IOptimismPortal(payable(opChainAddrs.optimismPortal)).upgrade(
-                    newAnchorStateRegistryProxy, ethLockbox, _opChainConfigs[i].disputeGameUsesSuperRoots
-                );
+                IOptimismPortal(payable(opChainAddrs.optimismPortal)).upgrade(newAnchorStateRegistryProxy, ethLockbox);
             }
 
             // We also need to redeploy the dispute games because the AnchorStateRegistry is new.
@@ -724,10 +721,17 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         // Modify the params with the new vm values.
         params.anchorStateRegistry = IAnchorStateRegistry(address(_newAnchorStateRegistryProxy));
         params.vm = IBigStepper(impls.mipsImpl);
-        if (Claim.unwrap(_opChainConfig.absolutePrestate) == bytes32(0)) {
+
+        // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
+        // that already exists on the current dispute game.
+        if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
+            params.absolutePrestate = _opChainConfig.absolutePrestate;
+        }
+
+        // As a sanity check, if the prestate is zero here, revert.
+        if (params.absolutePrestate.raw() == bytes32(0)) {
             revert OPContractsManager.PrestateNotSet();
         }
-        params.absolutePrestate = _opChainConfig.absolutePrestate;
 
         IDisputeGame newGame;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
@@ -889,7 +893,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.l1ERC721BridgeProxy), implementation.l1ERC721BridgeImpl, data
         );
 
-        data = encodeOptimismPortalInitializer(_input, output, _superchainConfig);
+        data = encodeOptimismPortalInitializer(output, _superchainConfig);
         upgradeToAndCall(
             output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
         );
@@ -1044,7 +1048,6 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
 
     /// @notice Helper method for encoding the OptimismPortal initializer data.
     function encodeOptimismPortalInitializer(
-        OPContractsManager.DeployInput memory _input,
         OPContractsManager.DeployOutput memory _output,
         ISuperchainConfig _superchainConfig
     )
@@ -1055,13 +1058,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     {
         return abi.encodeCall(
             IOptimismPortal.initialize,
-            (
-                _output.systemConfigProxy,
-                _superchainConfig,
-                _output.anchorStateRegistryProxy,
-                _output.ethLockboxProxy,
-                _input.disputeGameUsesSuperRoots
-            )
+            (_output.systemConfigProxy, _superchainConfig, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
         );
     }
 
@@ -1180,52 +1177,6 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     }
 }
 
-contract OPContractsManagerDeployerInterop is OPContractsManagerDeployer {
-    constructor(OPContractsManagerContractsContainer _contractsContainer)
-        OPContractsManagerDeployer(_contractsContainer)
-    { }
-
-    // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument
-    // that we must account for.
-    function encodeSystemConfigInitializer(
-        OPContractsManager.DeployInput memory _input,
-        OPContractsManager.DeployOutput memory _output
-    )
-        internal
-        view
-        virtual
-        override
-        returns (bytes memory)
-    {
-        (IResourceMetering.ResourceConfig memory referenceResourceConfig, ISystemConfig.Addresses memory opChainAddrs) =
-            defaultSystemConfigParams(_input, _output);
-
-        // TODO For now we assume that the dependency manager is the same as system config owner.
-        // This is currently undefined since it's not part of the standard config, so we may need
-        // to update where this value is pulled from in the future. To support a different dependency
-        // manager in this contract without an invasive change of redefining the `Roles` struct,
-        // we will make the change described in https://github.com/ethereum-optimism/optimism/issues/11783.
-        address dependencyManager = address(_input.roles.systemConfigOwner);
-
-        return abi.encodeCall(
-            ISystemConfigInterop.initialize,
-            (
-                _input.roles.systemConfigOwner,
-                _input.basefeeScalar,
-                _input.blobBasefeeScalar,
-                bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                _input.gasLimit,
-                _input.roles.unsafeBlockSigner,
-                referenceResourceConfig,
-                chainIdToBatchInboxAddress(_input.l2ChainId),
-                opChainAddrs,
-                dependencyManager,
-                _input.l2ChainId
-            )
-        );
-    }
-}
-
 contract OPContractsManager is ISemver {
     // -------- Structs --------
 
@@ -1251,7 +1202,6 @@ contract OPContractsManager is ISemver {
         string saltMixer;
         uint64 gasLimit;
         // Configurable dispute game parameters.
-        bool disputeGameUsesSuperRoots;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
         uint256 disputeMaxGameDepth;
@@ -1319,7 +1269,6 @@ contract OPContractsManager is ISemver {
         ISystemConfig systemConfigProxy;
         IProxyAdmin proxyAdmin;
         Claim absolutePrestate;
-        bool disputeGameUsesSuperRoots;
     }
 
     struct AddGameInput {
@@ -1345,9 +1294,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.10.0
+    /// @custom:semver 1.11.0
     function version() public pure virtual returns (string memory) {
-        return "1.10.0";
+        return "1.11.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

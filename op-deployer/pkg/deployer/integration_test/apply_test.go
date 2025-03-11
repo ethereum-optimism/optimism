@@ -529,7 +529,6 @@ func TestAdditionalDisputeGames(t *testing.T) {
 	intent.Chains[0].AdditionalDisputeGames = []state.AdditionalDisputeGame{
 		{
 			ChainProofParams: state.ChainProofParams{
-				DisputeGameUsesSuperRoots:               false,
 				DisputeGameType:                         255,
 				DisputeAbsolutePrestate:                 standard.DisputeAbsolutePrestate,
 				DisputeMaxGameDepth:                     50,

@@ -124,7 +124,7 @@ contract Initializer_Test is CommonTest {
                 name: "OptimismPortal2Impl",
                 target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                 initCalldata: abi.encodeCall(
-                    optimismPortal2.initialize, (systemConfig, superchainConfig, anchorStateRegistry, ethLockbox, false)
+                    optimismPortal2.initialize, (systemConfig, superchainConfig, anchorStateRegistry, ethLockbox)
                 )
             })
         );
@@ -134,7 +134,7 @@ contract Initializer_Test is CommonTest {
                 name: "OptimismPortal2Proxy",
                 target: address(optimismPortal2),
                 initCalldata: abi.encodeCall(
-                    optimismPortal2.initialize, (systemConfig, superchainConfig, anchorStateRegistry, ethLockbox, false)
+                    optimismPortal2.initialize, (systemConfig, superchainConfig, anchorStateRegistry, ethLockbox)
                 )
             })
         );
@@ -358,29 +358,25 @@ contract Initializer_Test is CommonTest {
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
         string[] memory excludes = new string[](11);
-        // TODO: Neither of these contracts are labeled properly in the deployment script. Both are
-        //       currently being labeled as their non-interop versions. Remove these exclusions once
-        //       the deployment script is fixed.
-        excludes[0] = "src/L1/SystemConfigInterop.sol";
-        excludes[1] = "src/L1/OptimismPortalInterop.sol";
+
         // Contract is currently not being deployed as part of the standard deployment script.
-        excludes[2] = "src/L2/OptimismSuperchainERC20.sol";
+        excludes[1] = "src/L2/OptimismSuperchainERC20.sol";
+
         // Periphery contracts don't get deployed as part of the standard deployment script.
-        excludes[3] = "src/periphery/*";
+        excludes[2] = "src/periphery/*";
+
         // TODO: Deployment script is currently "broken" in the sense that it doesn't properly
         //       label the FaultDisputeGame, PermissionedDisputeGame, SuperFaultDisputeGame, and
-        // SuperPermissionedDisputeGame
-        //       contracts and instead simply deploys them anonymously. Means that functions like "getInitializedSlot"
-        //       don't work properly. Remove these exclusions once the deployment script is fixed.
-        excludes[4] = "src/dispute/FaultDisputeGame.sol";
-        excludes[5] = "src/dispute/SuperFaultDisputeGame.sol";
-        excludes[6] = "src/dispute/PermissionedDisputeGame.sol";
-        excludes[7] = "src/dispute/SuperPermissionedDisputeGame.sol";
-        // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
-        excludes[8] = "src/L1/OPContractsManager.sol";
-        excludes[9] = "src/L1/OPContractsManagerInterop.sol";
+        //       SuperPermissionedDisputeGame contracts and instead simply deploys them
+        //       anonymously. Means that functions like "getInitializedSlot" don't work properly.
+        //       Remove these exclusions once the deployment script is fixed.
+        excludes[3] = "src/dispute/FaultDisputeGame.sol";
+        excludes[4] = "src/dispute/SuperFaultDisputeGame.sol";
+        excludes[5] = "src/dispute/PermissionedDisputeGame.sol";
+        excludes[6] = "src/dispute/SuperPermissionedDisputeGame.sol";
+
         // L2 contract initialization is tested in Predeploys.t.sol
-        excludes[10] = "src/L2/*";
+        excludes[7] = "src/L2/*";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

@@ -7,7 +7,6 @@ import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
-import { ISystemConfigInterop } from "interfaces/L1/ISystemConfigInterop.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
@@ -120,32 +119,6 @@ library ChainAssertions {
             require(config.disputeGameFactory() == address(0), "CHECK-SCFG-410");
             require(config.optimismPortal() == address(0), "CHECK-SCFG-420");
             require(config.optimismMintableERC20Factory() == address(0), "CHECK-SCFG-430");
-        }
-    }
-
-    /// @notice Asserts that the SystemConfigInterop is setup correctly
-    function checkSystemConfigInterop(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        ISystemConfigInterop config = ISystemConfigInterop(_contracts.SystemConfig);
-        console.log(
-            "Running chain assertions on the SystemConfigInterop %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(config)
-        );
-
-        checkSystemConfig(_contracts, _cfg, _isProxy);
-        if (_isProxy) {
-            // TODO: this is not being set in the deployment, nor is a config value.
-            // Update this when it has an entry in hardhat.json
-            require(config.dependencyManager() == address(0), "CHECK-SCFGI-10");
-        } else {
-            require(config.dependencyManager() == address(0), "CHECK-SCFGI-20");
         }
     }
 

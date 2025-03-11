@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+// Libraries
+import { Types } from "src/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
 
-import { Types } from "src/libraries/Types.sol";
+// Interfaces
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 /// @title Events
 /// @dev Contains various events that are tested against. This contract needs to
@@ -109,5 +111,7 @@ contract Events {
 
     event ETHMigrated(address indexed lockbox, uint256 ethBalance);
 
-    event LockboxUpdated(address oldLockbox, address newLockbox);
+    event PortalMigrated(
+        address oldLockbox, address newLockbox, address oldAnchorStateRegistry, address newAnchorStateRegistry
+    );
 }
