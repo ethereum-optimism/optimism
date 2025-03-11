@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -92,6 +93,8 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			l1BlockID := l2Block.L1Origin
 			l1BlockHeader := miner.L1Chain().GetHeaderByHash(l1BlockID.Hash)
 			expectedBbf := eth.CalcBlobFeeDefault(l1BlockHeader)
+			upstreamExpectedBbf := eip4844.CalcBlobFee(env.Sd.L1Cfg.Config, l1BlockHeader)
+			require.Equal(t, expectedBbf.Uint64(), upstreamExpectedBbf.Uint64(), "expected blob base fee should match upstream calculation")
 			bbf, err := l1Block.BlobBaseFee(&bind.CallOpts{BlockHash: l2Block.Hash})
 			require.NoError(t, err, "failed to get blob base fee")
 			require.Equal(t, expectedBbf.Uint64(), bbf.Uint64(), "l1Block blob base fee does not match expectation, l1BlockNum %d, l2BlockNum %d", l1BlockID.Number, l2Block.Number)
