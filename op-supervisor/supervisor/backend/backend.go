@@ -423,94 +423,94 @@ func (su *SupervisorBackend) DependencySet() depset.DependencySet {
 // Query methods
 // ----------------------------
 
-func (su *SupervisorBackend) CheckMessage(ctx context.Context, identifier types.Identifier, payloadHash common.Hash, executingDescriptor types.ExecutingDescriptor) (types.SafetyLevel, error) {
-	logHash := types.PayloadHashToLogHash(payloadHash, identifier.Origin)
-	chainID := identifier.ChainID
-	blockNum := identifier.BlockNumber
-	logIdx := identifier.LogIndex
-	_, err := su.chainDBs.Contains(chainID,
-		types.ContainsQuery{
-			BlockNum:  blockNum,
-			Timestamp: identifier.Timestamp,
-			LogIdx:    logIdx,
-			LogHash:   logHash,
-		})
-	if errors.Is(err, types.ErrFuture) {
-		su.logger.Debug("Future message", "identifier", identifier, "payloadHash", payloadHash, "err", err)
-		return types.LocalUnsafe, nil
+func (su *SupervisorBackend) checkAccess(ctx context.Context,
+	acc types.Access, executingDescriptor types.ExecutingDescriptor) (eth.BlockID, error) {
+
+	// Check upper-bound invariant, strictly
+	// (for access-lists we don't afford to check intra-timestamp dependencies)
+	if executingDescriptor.Timestamp <= acc.Timestamp {
+		// err
 	}
-	if errors.Is(err, types.ErrConflict) {
-		su.logger.Debug("Conflicting message", "identifier", identifier, "payloadHash", payloadHash, "err", err)
-		return types.Invalid, nil
+
+	// Check message expiry
+	expiryWindow := su.depSet.MessageExpiryWindow()
+	expiryAt := acc.Timestamp + expiryWindow
+	if expiryAt < acc.Timestamp {
+		// overflow
 	}
+	if executingDescriptor.Timestamp > expiryAt {
+		// err
+	}
+	// If a timeout is set, check if executing late is still within the expiry window
+	if executingDescriptor.Timeout != nil {
+		timeout := *executingDescriptor.Timeout
+		if executingDescriptor.Timestamp+timeout < executingDescriptor.Timestamp {
+			// overflow err
+		}
+		if executingDescriptor.Timestamp+timeout < expiryAt {
+			// expiry err
+		}
+	}
+
+	// Check if message exists
+	bl, err := su.chainDBs.Contains(acc.ChainID, types.ContainsQuery{
+		Timestamp: acc.Timestamp,
+		BlockNum:  acc.BlockNumber,
+		LogIdx:    acc.LogIndex,
+		Checksum:  acc.Checksum,
+	})
 	if err != nil {
-		return types.Invalid, fmt.Errorf("failed to check log: %w", err)
+		return eth.BlockID{}, err
 	}
-	if identifier.Timestamp+su.depSet.MessageExpiryWindow() < executingDescriptor.Timestamp {
-		su.logger.Debug("Message expired", "identifier", identifier, "payloadHash", payloadHash, "executingTimestamp", executingDescriptor.Timestamp)
-		return types.Invalid, nil
-	}
-	if identifier.Timestamp > executingDescriptor.Timestamp {
-		su.logger.Debug("Message timestamp is in the future", "identifier", identifier, "payloadHash", payloadHash, "executingTimestamp", executingDescriptor.Timestamp)
-		return types.Invalid, nil
-	}
-	return su.chainDBs.Safest(chainID, blockNum, logIdx)
+	return bl.ID(), nil
 }
 
-func (su *SupervisorBackend) CheckMessagesV2(
-	ctx context.Context,
-	messages []types.Message,
-	minSafety types.SafetyLevel,
-	executingDescriptor types.ExecutingDescriptor) error {
-	su.logger.Debug("Checking messages", "count", len(messages), "minSafety", minSafety, "executingTimestamp", executingDescriptor.Timestamp)
-
-	for _, msg := range messages {
-		su.logger.Debug("Checking message",
-			"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String(), "executingTimestamp", executingDescriptor.Timestamp)
-		safety, err := su.CheckMessage(ctx, msg.Identifier, msg.PayloadHash, executingDescriptor)
-		if err != nil {
-			su.logger.Error("Check message failed", "err", err,
-				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String(), "executingTimestamp", executingDescriptor.Timestamp)
-			return fmt.Errorf("failed to check message: %w", err)
-		}
-		if !safety.AtLeastAsSafe(minSafety) {
-			su.logger.Error("Message is not sufficiently safe",
-				"safety", safety, "minSafety", minSafety,
-				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String(), "executingTimestamp", executingDescriptor.Timestamp)
-			return fmt.Errorf("message %v (safety level: %v) does not meet the minimum safety %v",
-				msg.Identifier,
-				safety,
-				minSafety)
-		}
+func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	switch minSafety {
+	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
+		// valid safety level
+	default:
+		return errors.New("unexpected min-safety level")
 	}
-	return nil
-}
 
-func (su *SupervisorBackend) CheckMessages(
-	ctx context.Context,
-	messages []types.Message,
-	minSafety types.SafetyLevel) error {
-	su.logger.Debug("Checking messages", "count", len(messages), "minSafety", minSafety)
+	// TODO: acquire a rewind-read-lock, so we can ensure the safety of all entries is consistent
 
-	for _, msg := range messages {
-		su.logger.Debug("Checking message",
-			"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
-		// Guarantee message expiry checks do not fail by setting the executing timestamp to the message timestamp
-		// This is intentionally done to avoid breaking checkMessagesV1 which doesn't handle message expiry checks
-		safety, err := su.CheckMessage(ctx, msg.Identifier, msg.PayloadHash, types.ExecutingDescriptor{Timestamp: msg.Identifier.Timestamp})
-		if err != nil {
-			su.logger.Error("Check message failed", "err", err,
-				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
-			return fmt.Errorf("failed to check message: %w", err)
+	entries := inboxEntries
+	for {
+		if len(entries) == 0 {
+			break
 		}
-		if !safety.AtLeastAsSafe(minSafety) {
-			su.logger.Error("Message is not sufficiently safe",
-				"safety", safety, "minSafety", minSafety,
-				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
-			return fmt.Errorf("message %v (safety level: %v) does not meet the minimum safety %v",
-				msg.Identifier,
-				safety,
-				minSafety)
+		remaining, acc, err := types.ParseAccess(entries)
+		if err != nil {
+			return fmt.Errorf("failed to read data: %w", err)
+		}
+		entries = remaining
+
+		msgBlock, err := su.checkAccess(ctx, acc, executingDescriptor)
+		if err != nil {
+
+		}
+		// TODO add msgBlock to rewind lock
+
+		// TODO: this can be deferred to only check the latest block of all access entries
+		switch minSafety {
+		case types.LocalUnsafe:
+			err = nil // msg exists, nothing more to check
+		case types.CrossUnsafe:
+			err = su.chainDBs.IsCrossUnsafe(acc.ChainID, msgBlock)
+		case types.LocalSafe:
+			err = su.chainDBs.IsLocalSafe(acc.ChainID, msgBlock)
+		case types.CrossSafe:
+			err = su.chainDBs.IsCrossSafe(acc.ChainID, msgBlock)
+		case types.Finalized:
+			err = su.chainDBs.IsFinalized(acc.ChainID, msgBlock)
+		default:
+			err = types.ErrConflict
+		}
+		if err != nil {
+			su.logger.Error("Access-list check failed", "err", err)
+			return types.ErrConflict
 		}
 	}
 	return nil

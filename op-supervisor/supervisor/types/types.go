@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,7 +43,7 @@ type ContainsQuery struct {
 	Timestamp uint64
 	BlockNum  uint64
 	LogIdx    uint32
-	LogHash   common.Hash // LogHash commits to the origin-address and the message payload-hash
+	Checksum  MessageChecksum
 }
 
 type ExecutingMessage struct {
@@ -61,6 +62,37 @@ func (s *ExecutingMessage) String() string {
 type Message struct {
 	Identifier  Identifier  `json:"identifier"`
 	PayloadHash common.Hash `json:"payloadHash"`
+}
+
+func (m *Message) Checksum() MessageChecksum {
+	args := ChecksumArgs{
+		BlockNumber: m.Identifier.BlockNumber,
+		LogIndex:    m.Identifier.LogIndex,
+		Timestamp:   m.Identifier.Timestamp,
+		ChainID:     m.Identifier.ChainID,
+		LogHash:     PayloadHashToLogHash(m.PayloadHash, m.Identifier.Origin),
+	}
+	return args.Checksum()
+}
+
+type ChecksumArgs struct {
+	BlockNumber uint64
+	LogIndex    uint32
+	Timestamp   uint64
+	ChainID     eth.ChainID
+	LogHash     common.Hash
+}
+
+func (args ChecksumArgs) Checksum() MessageChecksum {
+	idPacked := make([]byte, 12, 32) // 12 zero bytes, as padding to 32 bytes
+	idPacked = binary.BigEndian.AppendUint64(idPacked, args.BlockNumber)
+	idPacked = binary.BigEndian.AppendUint64(idPacked, args.Timestamp)
+	idPacked = binary.BigEndian.AppendUint32(idPacked, args.LogIndex)
+	idLogHash := crypto.Keccak256Hash(args.LogHash[:], idPacked)
+	chainID := args.ChainID.Bytes32()
+	out := crypto.Keccak256Hash(idLogHash[:], chainID[:])
+	out[0] = 0x03 // type/version byte
+	return MessageChecksum(out)
 }
 
 type Identifier struct {
@@ -137,30 +169,6 @@ func (lvl *SafetyLevel) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// AtLeastAsSafe returns true if the receiver is at least as safe as the other SafetyLevel.
-// Safety levels are assumed to graduate from LocalUnsafe to LocalSafe to CrossUnsafe to CrossSafe, with Finalized as the strongest.
-func (lvl *SafetyLevel) AtLeastAsSafe(min SafetyLevel) bool {
-	relativeSafety := map[SafetyLevel]int{
-		Invalid:     0,
-		LocalUnsafe: 1,
-		LocalSafe:   2,
-		CrossUnsafe: 3,
-		CrossSafe:   4,
-		Finalized:   5,
-	}
-	// if either level is not recognized, return false
-	_, ok := relativeSafety[*lvl]
-	if !ok {
-		return false
-	}
-	_, ok = relativeSafety[min]
-	if !ok {
-		return false
-	}
-	// compare the relative safety levels to determine if the receiver is at least as safe as the other
-	return relativeSafety[*lvl] >= relativeSafety[min]
-}
-
 const (
 	// Finalized is CrossSafe, with the additional constraint that every
 	// dependency is derived only from finalized L1 input data.
@@ -187,15 +195,21 @@ const (
 type ExecutingDescriptor struct {
 	// Timestamp is the timestamp of the executing message
 	Timestamp uint64
+
+	// Timeout, optional, requests verification to still hold at Timestamp+Timeout.
+	// I.e. Timestamp is used as lower-bound validity, and Timeout defines the span to the upper-bound.
+	Timeout *uint64
 }
 
 type executingDescriptorMarshaling struct {
-	Timestamp hexutil.Uint64 `json:"timestamp"`
+	Timestamp hexutil.Uint64  `json:"timestamp"`
+	Timeout   *hexutil.Uint64 `json:"timeout,omitempty"`
 }
 
 func (ed ExecutingDescriptor) MarshalJSON() ([]byte, error) {
 	var enc executingDescriptorMarshaling
 	enc.Timestamp = hexutil.Uint64(ed.Timestamp)
+	enc.Timeout = (*hexutil.Uint64)(ed.Timeout)
 	return json.Marshal(&enc)
 }
 
@@ -205,6 +219,7 @@ func (ed *ExecutingDescriptor) UnmarshalJSON(input []byte) error {
 		return err
 	}
 	ed.Timestamp = uint64(dec.Timestamp)
+	ed.Timeout = (*uint64)(dec.Timeout)
 	return nil
 }
 
@@ -347,4 +362,118 @@ type ManagedEvent struct {
 	ExhaustL1              *DerivedBlockRefPair `json:"exhaustL1,omitempty"`
 	ReplaceBlock           *BlockReplacement    `json:"replaceBlock,omitempty"`
 	DerivationOriginUpdate *eth.BlockRef        `json:"derivationOriginUpdate,omitempty"`
+}
+
+// MessageChecksum represents a message checksum, as used for access-list checks.
+type MessageChecksum common.Hash
+
+func (mc MessageChecksum) MarshalText() ([]byte, error) {
+	return common.Hash(mc).MarshalText()
+}
+
+func (mc *MessageChecksum) UnmarshalText(data []byte) error {
+	return (*common.Hash)(mc).UnmarshalText(data)
+}
+
+func (mc MessageChecksum) String() string {
+	return common.Hash(mc).String()
+}
+
+// Access represents access to a message, parsed from an access-list
+type Access struct {
+	BlockNumber uint64
+	Timestamp   uint64
+	LogIndex    uint32
+	ChainID     eth.ChainID
+	Checksum    MessageChecksum
+}
+
+type accessMarshaling struct {
+	BlockNumber hexutil.Uint64  `json:"blockNumber"`
+	Timestamp   hexutil.Uint64  `json:"timestamp"`
+	LogIndex    uint32          `json:"logIndex"`
+	ChainID     eth.ChainID     `json:"chainID"`
+	Checksum    MessageChecksum `json:"checksum"`
+}
+
+func (a Access) MarshalJSON() ([]byte, error) {
+	enc := accessMarshaling{
+		BlockNumber: hexutil.Uint64(a.BlockNumber),
+		Timestamp:   hexutil.Uint64(a.Timestamp),
+		LogIndex:    a.LogIndex,
+		ChainID:     a.ChainID,
+		Checksum:    a.Checksum,
+	}
+	return json.Marshal(&enc)
+}
+
+func (a *Access) UnmarshalJSON(input []byte) error {
+	var dec accessMarshaling
+	if err := json.Unmarshal(input, &dec); err != nil {
+		return err
+	}
+	a.BlockNumber = uint64(dec.BlockNumber)
+	a.Timestamp = uint64(dec.Timestamp)
+	a.LogIndex = dec.LogIndex
+	a.ChainID = dec.ChainID
+	a.Checksum = dec.Checksum
+	return nil
+}
+
+const (
+	PrefixLookup           = 1
+	PrefixChainIDExtension = 2
+	PrefixChecksum         = 3
+)
+
+var (
+	ErrExpectedEntry       = errors.New("expected entry")
+	ErrUnexpectedEntryType = errors.New("unexpected entry type")
+)
+
+func ParseAccess(entries []common.Hash) (remaining []common.Hash, access Access, err error) {
+	remaining = entries
+	if len(entries) == 0 {
+		return remaining, Access{}, ErrExpectedEntry
+	}
+	entry := entries[0]
+	remaining = entries[1:]
+	if typeByte := entry[0]; typeByte != PrefixLookup {
+		return nil, Access{}, fmt.Errorf("expected lookup, got entry type %d: %w",
+			typeByte, ErrUnexpectedEntryType)
+	}
+	if ([3]byte)(entry[1:4]) != ([3]byte{}) {
+		return nil, Access{}, fmt.Errorf("expected zero bytes")
+	}
+	access.ChainID = eth.ChainIDFromUInt64(binary.BigEndian.Uint64(entry[4:12]))
+	access.BlockNumber = binary.BigEndian.Uint64(entry[12:20])
+	access.Timestamp = binary.BigEndian.Uint64(entry[20:28])
+	access.LogIndex = binary.BigEndian.Uint32(entry[28:32])
+
+	if len(entries) == 0 {
+		return nil, Access{}, ErrExpectedEntry
+	}
+	entry = entries[0]
+	remaining = entries[1:]
+	if typeByte := entry[0]; typeByte == PrefixChainIDExtension {
+		if ([7]byte)(entry[1:8]) != ([7]byte{}) {
+			return nil, Access{}, fmt.Errorf("expected zero bytes")
+		}
+		// The lower 8 bytes is set to the uint64 in the first entry.
+		// The upper 24 bytes are set with this extension entry.
+		chIDBytes32 := access.ChainID.Bytes32()
+		copy(chIDBytes32[0:24], entry[8:32])
+		access.ChainID = eth.ChainIDFromBytes32(chIDBytes32)
+		if len(entries) == 0 {
+			return nil, Access{}, ErrExpectedEntry
+		}
+		entry = entries[0]
+		remaining = entries[1:]
+	}
+	if typeByte := entry[0]; typeByte != PrefixChecksum {
+		return nil, Access{}, fmt.Errorf("expected checksum, got entry type %d: %w",
+			typeByte, ErrUnexpectedEntryType)
+	}
+	access.Checksum = MessageChecksum(entry)
+	return remaining, access, err
 }

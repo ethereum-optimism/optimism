@@ -38,22 +38,25 @@ type DB struct {
 	store  entrydb.EntryStore[EntryType, Entry]
 	rwLock sync.RWMutex
 
+	chainID eth.ChainID
+
 	lastEntryContext logContext
 }
 
-func NewFromFile(logger log.Logger, m Metrics, path string, trimToLastSealed bool) (*DB, error) {
+func NewFromFile(logger log.Logger, m Metrics, chainID eth.ChainID, path string, trimToLastSealed bool) (*DB, error) {
 	store, err := entrydb.NewEntryDB[EntryType, Entry, EntryBinary](logger, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open DB: %w", err)
 	}
-	return NewFromEntryStore(logger, m, store, trimToLastSealed)
+	return NewFromEntryStore(logger, m, chainID, store, trimToLastSealed)
 }
 
-func NewFromEntryStore(logger log.Logger, m Metrics, store entrydb.EntryStore[EntryType, Entry], trimToLastSealed bool) (*DB, error) {
+func NewFromEntryStore(logger log.Logger, m Metrics, chainID eth.ChainID, store entrydb.EntryStore[EntryType, Entry], trimToLastSealed bool) (*DB, error) {
 	db := &DB{
-		log:   logger,
-		m:     m,
-		store: store,
+		log:     logger,
+		m:       m,
+		store:   store,
+		chainID: chainID,
 	}
 	if err := db.init(trimToLastSealed); err != nil {
 		return nil, fmt.Errorf("failed to init database: %w", err)
@@ -266,15 +269,6 @@ func (db *DB) LatestSealedBlock() (id eth.BlockID, ok bool) {
 	}, true
 }
 
-// Get returns the hash of the log at the specified blockNum (of the sealed block)
-// and logIdx (of the log after the block), or an error if the log is not found.
-func (db *DB) Get(blockNum uint64, logIdx uint32) (common.Hash, error) {
-	db.rwLock.RLock()
-	defer db.rwLock.RUnlock()
-	hash, _, err := db.findLogInfo(blockNum, logIdx)
-	return hash, err
-}
-
 // Contains returns no error iff the specified logHash is recorded in the specified blockNum and logIdx.
 // If the log is out of reach, then ErrFuture is returned.
 // If the log is determined to conflict with the canonical chain, then ErrConflict is returned.
@@ -283,10 +277,10 @@ func (db *DB) Get(blockNum uint64, logIdx uint32) (common.Hash, error) {
 // The block-seal of the blockNum block, that the log was included in, is returned.
 // This seal may be fully zeroed, without error, if the block isn't fully known yet.
 func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
-	blockNum, logIdx, logHash, timestamp := query.BlockNum, query.LogIdx, query.LogHash, query.Timestamp
+	blockNum, logIdx, timestamp := query.BlockNum, query.LogIdx, query.Timestamp
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
+	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx)
 
 	// Hot-path: check if we have the block
 	if db.lastEntryContext.hasCompleteBlock() && db.lastEntryContext.blockNum < blockNum {
@@ -299,15 +293,11 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		return types.BlockSeal{}, types.ErrFuture
 	}
 
-	evtHash, iter, err := db.findLogInfo(blockNum, logIdx)
+	entryLogHash, iter, err := db.findLogInfo(blockNum, logIdx)
 	if err != nil {
 		return types.BlockSeal{}, err // may be ErrConflict if the block does not have as many logs
 	}
-	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", evtHash)
-	// Found the requested block and log index, check if the hash matches
-	if evtHash != logHash {
-		return types.BlockSeal{}, fmt.Errorf("payload hash mismatch: expected %s, got %s %w", logHash, evtHash, types.ErrConflict)
-	}
+	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", entryLogHash)
 	// Now find the block seal after the log, to identify where the log was included in.
 	err = iter.TraverseConditional(func(state IteratorState) error {
 		_, n, ok := state.SealedBlock()
@@ -335,6 +325,17 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 		// check the timestamp invariant on the result
 		if t != timestamp {
 			return types.BlockSeal{}, fmt.Errorf("timestamp mismatch: expected %d, got %d %w", timestamp, t, types.ErrConflict)
+		}
+		entryChecksum := types.ChecksumArgs{
+			BlockNumber: n,
+			LogIndex:    logIdx,
+			Timestamp:   t,
+			ChainID:     db.chainID,
+			LogHash:     entryLogHash,
+		}.Checksum()
+		// Found the requested block and log index, check if the hash matches
+		if entryChecksum != query.Checksum {
+			return types.BlockSeal{}, fmt.Errorf("payload hash mismatch: expected %s, got %s %w", query.Checksum, entryChecksum, types.ErrConflict)
 		}
 		// construct a block seal with the found data now that we know it's correct
 		return types.BlockSeal{
