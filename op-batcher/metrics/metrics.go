@@ -354,6 +354,10 @@ func (m *Metrics) RecordChannelQueueLength(len int) {
 }
 
 // ClearAllStateMetrics clears all state metrics.
+//
+// This should cover any metric which is a Gauge and is incremented / decremented rather than "set".
+// Counter Metrics only ever go up, so they can't be reset and shouldn't be.
+// Gauge Metrics which are "set" will get the right value the next time they are updated and don't need to be reset.
 func (m *Metrics) ClearAllStateMetrics() {
 	m.RecordChannelQueueLength(0)
 	atomic.StoreInt64(&m.pendingDABytes, 0)
