@@ -160,7 +160,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Emitted when the ETHLockbox contract is updated.
     /// @param oldLockbox The address of the old ETHLockbox contract.
     /// @param newLockbox The address of the new ETHLockbox contract.
-    event LockboxUpdated(address oldLockbox, address newLockbox);
+    /// @param oldAnchorStateRegistry The address of the old AnchorStateRegistry contract.
+    /// @param newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
+    event PortalMigrated(
+        IETHLockbox oldLockbox,
+        IETHLockbox newLockbox,
+        IAnchorStateRegistry oldAnchorStateRegistry,
+        IAnchorStateRegistry newAnchorStateRegistry
+    );
 
     /// @notice Thrown when a withdrawal has already been finalized.
     error OptimismPortal_AlreadyFinalized();
@@ -222,6 +229,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when an output root chain id is invalid.
     error OptimismPortal_InvalidOutputRootChainId();
 
+    /// @notice Thrown when trying to migrate to the same AnchorStateRegistry.
+    error OptimismPortal_MigratingToSameRegistry();
+
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
         if (paused()) revert OptimismPortal_CallPaused();
@@ -229,9 +239,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 4.0.0
+    /// @custom:semver 4.1.0
     function version() public pure virtual returns (string memory) {
-        return "4.0.0";
+        return "4.1.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -245,13 +255,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _superchainConfig Address of the SuperchainConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Contract of the ETHLockbox.
-    /// @param _superRootsActive Whether the OptimismPortal is using Super Roots or Output Roots.
     function initialize(
         ISystemConfig _systemConfig,
         ISuperchainConfig _superchainConfig,
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox,
-        bool _superRootsActive
+        IETHLockbox _ethLockbox
     )
         external
         reinitializer(initVersion())
@@ -260,7 +268,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         superchainConfig = _superchainConfig;
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
-        superRootsActive = _superRootsActive;
 
         // Set the l2Sender slot, only if it is currently empty. This signals the first
         // initialization of the contract.
@@ -274,18 +281,15 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry.
     /// @param _anchorStateRegistry AnchorStateRegistry contract.
     /// @param _ethLockbox ETHLockbox contract.
-    /// @param _superRootsActive Whether the OptimismPortal is using Super Roots or Output Roots.
     function upgrade(
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox,
-        bool _superRootsActive
+        IETHLockbox _ethLockbox
     )
         external
         reinitializer(initVersion())
     {
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
-        superRootsActive = _superRootsActive;
 
         // Migrate the whole ETH balance to the ETHLockbox.
         _migrateLiquidity();
@@ -354,18 +358,46 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Intentionally empty.
     }
 
-    /// @notice Updates the ETHLockbox contract.
-    /// @dev    This function MUST be called atomically with `ETHLockbox.migrateLiquidity()`
-    ///         in the same transaction batch, or otherwise the OptimismPortal may not be able to
-    ///         unlock ETH from the ETHLockbox on finalized withdrawals.
+    /// @notice Allows the owner of the ProxyAdmin to migrate the OptimismPortal to use a new
+    ///         lockbox, point at a new AnchorStateRegistry, and start to use the Super Roots proof
+    ///         method. Primarily used for OptimismPortal instances to join the interop set, but
+    ///         can also be used to swap the proof method from Output Roots to Super Roots if the
+    ///         provided lockbox is the same as the current one.
+    /// @dev    It is possible to change lockboxes without migrating liquidity. This can cause one
+    ///         of the OptimismPortal instances connected to the new lockbox to not be able to
+    ///         unlock sufficient ETH to finalize withdrawals which would trigger reverts. To avoid
+    ///         this issue, guarantee that this function is called atomically alongside the
+    ///         ETHLockbox.migrateLiquidity() function within the same transaction.
     /// @param _newLockbox The address of the new ETHLockbox contract.
-    function updateLockbox(IETHLockbox _newLockbox) external {
+    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
+        // Make sure the caller is the owner of the ProxyAdmin.
         if (msg.sender != proxyAdminOwner()) revert OptimismPortal_Unauthorized();
 
-        address oldLockbox = address(ethLockbox);
+        // Chains can use this method to swap the proof method from Output Roots to Super Roots
+        // without joining the interop set. In this case, the old and new lockboxes will be the
+        // same. However, whether or not a chain is joining the interop set, all chains will need a
+        // new AnchorStateRegistry when migrating to Super Roots. We therefore check that the new
+        // AnchorStateRegistry is different than the old one to prevent this function from being
+        // accidentally misused.
+        if (anchorStateRegistry == _newAnchorStateRegistry) {
+            revert OptimismPortal_MigratingToSameRegistry();
+        }
+
+        // Update the ETHLockbox.
+        IETHLockbox oldLockbox = ethLockbox;
         ethLockbox = _newLockbox;
 
-        emit LockboxUpdated(oldLockbox, address(_newLockbox));
+        // Update the AnchorStateRegistry.
+        IAnchorStateRegistry oldAnchorStateRegistry = anchorStateRegistry;
+        anchorStateRegistry = _newAnchorStateRegistry;
+
+        // Set the proof method to Super Roots. We expect that migration will happen more than once
+        // for some chains (switching to single-chain Super Roots and then later joining the
+        // interop set) so we don't need to check that this is false.
+        superRootsActive = true;
+
+        // Emit a PortalMigrated event.
+        emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
     }
 
     /// @notice Proves a withdrawal transaction using a Super Root proof. Only callable when the

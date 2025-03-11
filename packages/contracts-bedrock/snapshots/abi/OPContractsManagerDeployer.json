@@ -187,11 +187,6 @@
             "type": "uint64"
           },
           {
-            "internalType": "bool",
-            "name": "disputeGameUsesSuperRoots",
-            "type": "bool"
-          },
-          {
             "internalType": "GameType",
             "name": "disputeGameType",
             "type": "uint32"

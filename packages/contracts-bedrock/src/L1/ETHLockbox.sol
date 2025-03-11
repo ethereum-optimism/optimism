@@ -34,6 +34,9 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Thrown when the admin owner of the lockbox is different from the admin owner of the proxy admin.
     error ETHLockbox_DifferentProxyAdminOwner();
 
+    /// @notice Thrown when any authorized portal has a different SuperchainConfig.
+    error ETHLockbox_DifferentSuperchainConfig();
+
     /// @notice Emitted when ETH is locked in the lockbox by an authorized portal.
     /// @param portal The address of the portal that locked the ETH.
     /// @param amount The amount of ETH locked.
@@ -71,9 +74,9 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     mapping(address => bool) public authorizedLockboxes;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.1
+    /// @custom:semver 1.0.0
     function version() public view virtual returns (string memory) {
-        return "0.0.1";
+        return "1.0.0";
     }
 
     /// @notice Constructs the ETHLockbox contract.
@@ -93,7 +96,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     {
         superchainConfig = ISuperchainConfig(_superchainConfig);
         for (uint256 i; i < _portals.length; i++) {
-            _authorizePortal(address(_portals[i]));
+            _authorizePortal(_portals[i]);
         }
     }
 
@@ -101,7 +104,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @param _portal The address of the portal to authorize.
     function authorizePortal(IOptimismPortal _portal) external {
         if (msg.sender != proxyAdminOwner()) revert ETHLockbox_Unauthorized();
-        _authorizePortal(address(_portal));
+        _authorizePortal(_portal);
     }
 
     /// @notice Getter for the current paused status.
@@ -165,9 +168,10 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
 
     /// @notice Authorizes a portal to lock and unlock ETH.
     /// @param _portal The address of the portal to authorize.
-    function _authorizePortal(address _portal) internal {
-        if (!_sameProxyAdminOwner(_portal)) revert ETHLockbox_DifferentProxyAdminOwner();
-        authorizedPortals[_portal] = true;
-        emit PortalAuthorized(_portal);
+    function _authorizePortal(IOptimismPortal _portal) internal {
+        if (!_sameProxyAdminOwner(address(_portal))) revert ETHLockbox_DifferentProxyAdminOwner();
+        if (_portal.superchainConfig() != superchainConfig) revert ETHLockbox_DifferentSuperchainConfig();
+        authorizedPortals[address(_portal)] = true;
+        emit PortalAuthorized(address(_portal));
     }
 }

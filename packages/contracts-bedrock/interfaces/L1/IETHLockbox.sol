@@ -12,6 +12,7 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver {
     error ETHLockbox_InsufficientBalance();
     error ETHLockbox_NoWithdrawalTransactions();
     error ETHLockbox_DifferentProxyAdminOwner();
+    error ETHLockbox_DifferentSuperchainConfig();
 
     event Initialized(uint8 version);
     event ETHLocked(address indexed portal, uint256 amount);

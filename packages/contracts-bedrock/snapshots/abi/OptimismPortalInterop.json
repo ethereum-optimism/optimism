@@ -285,11 +285,6 @@
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
         "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "_superRootsActive",
-        "type": "bool"
       }
     ],
     "name": "initialize",
@@ -313,6 +308,24 @@
   {
     "inputs": [],
     "name": "migrateLiquidity",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "_newLockbox",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_newAnchorStateRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "migrateToSuperRoots",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -759,19 +772,6 @@
   {
     "inputs": [
       {
-        "internalType": "contract IETHLockbox",
-        "name": "_newLockbox",
-        "type": "address"
-      }
-    ],
-    "name": "updateLockbox",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "contract IAnchorStateRegistry",
         "name": "_anchorStateRegistry",
         "type": "address"
@@ -780,11 +780,6 @@
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
         "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "_superRootsActive",
-        "type": "bool"
       }
     ],
     "name": "upgrade",
@@ -842,18 +837,30 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "address",
+        "internalType": "contract IETHLockbox",
         "name": "oldLockbox",
         "type": "address"
       },
       {
         "indexed": false,
-        "internalType": "address",
+        "internalType": "contract IETHLockbox",
         "name": "newLockbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "oldAnchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "newAnchorStateRegistry",
         "type": "address"
       }
     ],
-    "name": "LockboxUpdated",
+    "name": "PortalMigrated",
     "type": "event"
   },
   {
@@ -1053,6 +1060,11 @@
   {
     "inputs": [],
     "name": "OptimismPortal_InvalidSuperRootProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OptimismPortal_MigratingToSameRegistry",
     "type": "error"
   },
   {
