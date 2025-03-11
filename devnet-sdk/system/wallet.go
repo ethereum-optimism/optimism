@@ -130,11 +130,10 @@ func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init transaction: %w", err)
 	}
-	tx2, err := messenger.SendMessage(i.chainID, i.target, i.message).Call(ctx)
+	data, err := messenger.ABI().Pack("sendMessage", i.chainID, i.target, i.message)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build transaction: %w", err)
+		return nil, fmt.Errorf("failed to build calldata: %w", err)
 	}
-	data := tx2.Data()
 	tx, err := builder.BuildTx(
 		WithFrom(i.from),
 		WithTo(i.to), // this address should be the l2tol2crossdomainmessenger
@@ -158,11 +157,10 @@ func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
 	if err != nil {
 		return &sendResult{chain: i.chain, tx: nil, err: err}
 	}
-	tx2, err := messenger.SendMessage(i.chainID, i.target, i.message).Call(ctx)
+	data, err := messenger.ABI().Pack("sendMessage", i.chainID, i.target, i.message)
 	if err != nil {
 		return &sendResult{chain: i.chain, tx: nil, err: err}
 	}
-	data := tx2.Data()
 	tx, err := builder.BuildTx(
 		WithFrom(i.from),
 		WithTo(i.to), // this address should be the l2tol2crossdomainmessenger

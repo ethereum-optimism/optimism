@@ -4,8 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
 // ErrContractNotFound indicates that a contract is not available at the requested address
@@ -30,5 +29,5 @@ type SuperchainWETH interface {
 }
 
 type L2ToL2CrossDomainMessenger interface {
-	SendMessage(chainID types.ChainID, target common.Address, message []byte) types.ReadInvocation[*ethtypes.Transaction]
+	ABI() *abi.ABI
 }
