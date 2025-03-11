@@ -27,7 +27,7 @@ func TestPectraBlobSchedule(gt *testing.T) {
 	matrix.AddDefaultTestCases(
 		// aligned with an L1 timestamp
 		pectraBlobScheduleTestCfg{ptr(uint64(24)), true},
-		helpers.NewForkMatrix(helpers.Holocene),
+		helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork),
 		testPectraBlobSchedule,
 	).AddDefaultTestCases(
 		// in the middle between two L1 timestamps
@@ -36,7 +36,7 @@ func TestPectraBlobSchedule(gt *testing.T) {
 		testPectraBlobSchedule,
 	).AddDefaultTestCases(
 		pectraBlobScheduleTestCfg{nil, false},
-		helpers.NewForkMatrix(helpers.Holocene),
+		helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork),
 		testPectraBlobSchedule,
 	)
 }
