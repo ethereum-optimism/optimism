@@ -854,19 +854,14 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 	require.LessOrEqual(t, len(execMsg), 1, "cannot have multiple executing messages for a single log")
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	checksum := types.ChecksumArgs{
+	q := types.ChecksumArgs{
 		BlockNumber: blockNum,
 		LogIndex:    logIdx,
 		Timestamp:   timestamp,
 		ChainID:     db.chainID,
 		LogHash:     logHash,
-	}.Checksum()
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		Checksum:  checksum,
-	})
+	}.Query()
+	_, err := db.Contains(q)
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
@@ -881,19 +876,14 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	checksum := types.ChecksumArgs{
+	q := types.ChecksumArgs{
 		BlockNumber: blockNum,
 		LogIndex:    logIdx,
 		Timestamp:   timestamp,
 		ChainID:     db.chainID,
 		LogHash:     logHash,
-	}.Checksum()
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		Checksum:  checksum,
-	})
+	}.Query()
+	_, err := db.Contains(q)
 	require.ErrorIs(t, err, types.ErrConflict, "canonical chain must not include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
@@ -901,19 +891,14 @@ func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, time
 func requireFuture(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	checksum := types.ChecksumArgs{
+	q := types.ChecksumArgs{
 		BlockNumber: blockNum,
 		LogIndex:    logIdx,
 		Timestamp:   timestamp,
 		ChainID:     db.chainID,
 		LogHash:     logHash,
-	}.Checksum()
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		Checksum:  checksum,
-	})
+	}.Query()
+	_, err := db.Contains(q)
 	require.ErrorIs(t, err, types.ErrFuture, "canonical chain does not yet include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }

@@ -423,33 +423,12 @@ func (su *SupervisorBackend) DependencySet() depset.DependencySet {
 // Query methods
 // ----------------------------
 
-func (su *SupervisorBackend) checkAccess(ctx context.Context,
-	acc types.Access, executingDescriptor types.ExecutingDescriptor) (eth.BlockID, error) {
-
-	// Check upper-bound invariant, strictly
-	// (for access-lists we don't afford to check intra-timestamp dependencies)
-	if executingDescriptor.Timestamp <= acc.Timestamp {
-		// err
-	}
-
-	// Check message expiry
-	expiryWindow := su.depSet.MessageExpiryWindow()
-	expiryAt := acc.Timestamp + expiryWindow
-	if expiryAt < acc.Timestamp {
-		// overflow
-	}
-	if executingDescriptor.Timestamp > expiryAt {
-		// err
-	}
-	// If a timeout is set, check if executing late is still within the expiry window
-	if executingDescriptor.Timeout != nil {
-		timeout := *executingDescriptor.Timeout
-		if executingDescriptor.Timestamp+timeout < executingDescriptor.Timestamp {
-			// overflow err
-		}
-		if executingDescriptor.Timestamp+timeout < expiryAt {
-			// expiry err
-		}
+// checkAccess checks message timestamp invariants and inclusion in the chain.
+// If the initiating message exists, the block it is included in is returned.
+func (su *SupervisorBackend) checkAccess(acc types.Access, execAt types.ExecutingDescriptor) (eth.BlockID, error) {
+	// Check if message passes time checks
+	if err := execAt.AccessCheck(su.depSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
+		return eth.BlockID{}, err
 	}
 
 	// Check if message exists
@@ -465,6 +444,25 @@ func (su *SupervisorBackend) checkAccess(ctx context.Context,
 	return bl.ID(), nil
 }
 
+// checkSafety is a helper method to check if a block has the given safety level.
+// It is already assumed to exist in the canonical unsafe chain.
+func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel types.SafetyLevel) error {
+	switch safetyLevel {
+	case types.LocalUnsafe:
+		return nil // msg exists, nothing more to check
+	case types.CrossUnsafe:
+		return su.chainDBs.IsCrossUnsafe(chainID, blockID)
+	case types.LocalSafe:
+		return su.chainDBs.IsLocalSafe(chainID, blockID)
+	case types.CrossSafe:
+		return su.chainDBs.IsCrossSafe(chainID, blockID)
+	case types.Finalized:
+		return su.chainDBs.IsFinalized(chainID, blockID)
+	default:
+		return types.ErrConflict
+	}
+}
+
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
 	switch minSafety {
@@ -474,6 +472,9 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		return errors.New("unexpected min-safety level")
 	}
 
+	su.logger.Debug("Checking access-list",
+		"minSafety", minSafety, "length", len(inboxEntries))
+
 	// TODO: acquire a rewind-read-lock, so we can ensure the safety of all entries is consistent
 
 	entries := inboxEntries
@@ -481,35 +482,25 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		if len(entries) == 0 {
 			break
 		}
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("stopped acces-list check early: %w", err)
+		}
 		remaining, acc, err := types.ParseAccess(entries)
 		if err != nil {
 			return fmt.Errorf("failed to read data: %w", err)
 		}
 		entries = remaining
 
-		msgBlock, err := su.checkAccess(ctx, acc, executingDescriptor)
+		msgBlock, err := su.checkAccess(acc, executingDescriptor)
 		if err != nil {
-
+			su.logger.Debug("Access-list inclusion check failed", "err", err)
+			return types.ErrConflict
 		}
 		// TODO add msgBlock to rewind lock
 
 		// TODO: this can be deferred to only check the latest block of all access entries
-		switch minSafety {
-		case types.LocalUnsafe:
-			err = nil // msg exists, nothing more to check
-		case types.CrossUnsafe:
-			err = su.chainDBs.IsCrossUnsafe(acc.ChainID, msgBlock)
-		case types.LocalSafe:
-			err = su.chainDBs.IsLocalSafe(acc.ChainID, msgBlock)
-		case types.CrossSafe:
-			err = su.chainDBs.IsCrossSafe(acc.ChainID, msgBlock)
-		case types.Finalized:
-			err = su.chainDBs.IsFinalized(acc.ChainID, msgBlock)
-		default:
-			err = types.ErrConflict
-		}
-		if err != nil {
-			su.logger.Error("Access-list check failed", "err", err)
+		if err := su.checkSafety(acc.ChainID, msgBlock, minSafety); err != nil {
+			su.logger.Debug("Access-list safety check failed", "err", err)
 			return types.ErrConflict
 		}
 	}
