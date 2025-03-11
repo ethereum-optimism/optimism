@@ -22,6 +22,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -190,16 +191,38 @@ contract ForkLive is Deployer {
             absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
         });
 
+        IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
         // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
         // then reset its code to the original code.
+
         bytes memory upgraderCode = address(upgrader).code;
         vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // The 2.0.0 OPCM requires that the SuperchainConfig and ProtocolVersions contracts
+        // have been upgraded before it will upgrade other contracts.
+        // Those contracts can only be upgrade by the OP Mainnet ProxyAdminOwner. So for chains which have a different
+        // ProxyAdminOwner, we first need to call opcm.upgrade from the OP Mainnet PAO.
+        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
+
+        if (upgrader != mainnetPAO) {
+            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
+
+            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+            DelegateCaller(opmUpgrader).dcForward(
+                address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76),
+                abi.encodeCall(IOPContractsManager.upgrade, (opmChain))
+            );
+        }
+
         DelegateCaller(upgrader).dcForward(
             address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
         );
-        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
-        vm.etch(upgrader, upgraderCode);
 
+        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
+
+        vm.etch(upgrader, upgraderCode);
         console.log("ForkLive: Saving newly deployed contracts");
         // A new ASR and new dispute games were deployed, so we need to update them
         IDisputeGameFactory disputeGameFactory =
