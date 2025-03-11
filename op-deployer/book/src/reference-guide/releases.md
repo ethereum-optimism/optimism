@@ -2,7 +2,7 @@
 
 ## Versioning
 
-For all releases after `v0.0.11`, each minor version of OP Deployer will support the a single release of the
+For all releases after `v0.0.11`, each minor version of OP Deployer will support a single release of the
 governance-approved smart contracts. If you want to deploy an earlier version of the contracts (which may be
 dangerous!), you should use an earlier version of OP Deployer. This setup allows our smart contract developers to make
 breaking changes on `develop`, while still allowing new chains to be deployed and upgraded using production-ready smart
@@ -56,16 +56,16 @@ Now, update `standard/standard.go` with these values so that the new artifacts t
 const ContractsVXTag = "op-contracts/vX.Y.Z"
 
 var taggedReleases = map[string]TaggedRelease{
-// Other releases...
-ContractsVXTag: {
-ArtifactsHash: common.HexToHash("<the artifacts hash>"),
-ContentHash:   common.HexToHash("<the checksum>"),
-},
+  // Other releases...
+  ContractsVXTag: {
+    ArtifactsHash: common.HexToHash("<the artifacts hash>"),
+    ContentHash:   common.HexToHash("<the checksum>"),
+  },
 }
 
 // Update the L1/L2 versions accordingly
 func IsSupportedL1Version(tag string) bool {
-return tag == ContractsVXTag
+  return tag == ContractsVXTag
 }
 ```
 
