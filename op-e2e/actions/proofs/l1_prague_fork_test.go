@@ -100,6 +100,17 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			require.Equal(t, expectedBbf.Uint64(), bbf.Uint64(), "l1Block blob base fee does not match expectation, l1BlockNum %d, l2BlockNum %d", l1BlockID.Number, l2Block.Number)
 		}
 
+		requireSafeHeadProgression := func(t actionsHelpers.StatefulTesting, safeL2Before, safeL2After eth.L2BlockRef, batchedWithSetCodeTx bool) {
+			if batchedWithSetCodeTx {
+				require.Equal(t, safeL2Before, safeL2After, "safe head should not have changed (SetCode / type 4 batcher tx ignored)")
+				require.Equal(t, safeL2Before.L1Origin.Number, safeL2After.Number, "l1 origin of l2 safe should not have changed (SetCode / type 4 batcher tx ignored)")
+			} else {
+				require.Greater(t, safeL2After.Number, safeL2Before.Number, "safe head should have progressed (DynamicFee / type 2 batcher tx derived from)")
+				require.Equal(t, verifier.SyncStatus().UnsafeL2.Number, safeL2After.Number, "safe head should equal unsafe head (DynamicFee / type 2 batcher tx derived from)")
+				require.Greater(t, safeL2After.L1Origin.Number, safeL2Before.L1Origin.Number, "l1 origin of l2 safe should have progressed (DynamicFee / type 2 batcher tx tx derived from)")
+			}
+		}
+
 		// Check initially Prague is not activated
 		requirePragueStatusOnL1(false, miner.L1Chain().CurrentBlock())
 
@@ -130,7 +141,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 		requirePragueStatusOnL1(true, miner.L1Chain().CurrentBlock())
 
 		// Cache safe head before verifier sync
-		safeL2Before := verifier.SyncStatus().SafeL2
+		safeL2Initial := verifier.SyncStatus().SafeL2
 
 		// Build an empty L2 block which has a pre-prague L1 origin, and check the blob fee is correct
 		sequencer.ActL2EmptyBlock(t)
@@ -148,15 +159,8 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 
 		// Check safe head did or did not change,
 		// depending on tx type used by batcher:
-		safeL2After := verifier.SyncStatus().SafeL2
-		if testCfg.Custom.useSetCodeTx {
-			require.Equal(t, safeL2Before, safeL2After, "safe head should not have changed (SetCode / type 4 batcher tx ignored)")
-			require.Equal(t, uint64(0), verifier.SyncStatus().SafeL2.L1Origin.Number, "l1 origin of l2 safe should not have changed (SetCode / type 4 batcher tx ignored)")
-		} else {
-			require.Greater(t, safeL2After.Number, safeL2Before.Number, "safe head should have progressed (DynamicFee / type 2 batcher tx derived from)")
-			require.Equal(t, verifier.SyncStatus().UnsafeL2.Number, safeL2After.Number, "safe head should equal unsafe head (DynamicFee / type 2 batcher tx derived from)")
-			require.Equal(t, uint64(3), verifier.SyncStatus().SafeL2.L1Origin.Number, "l1 origin of l2 safe should have progressed (DynamicFee / type 2 batcher tx tx derived from)")
-		}
+		safeL2AfterFirstBatch := verifier.SyncStatus().SafeL2
+		requireSafeHeadProgression(t, safeL2Initial, safeL2AfterFirstBatch, testCfg.Custom.useSetCodeTx)
 
 		sequencer.ActBuildToL1Head(t) // Advance L2 chain until L1 origin has Prague active
 
@@ -165,7 +169,13 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 		requirePragueStatusOnL1(true, l1Origin)
 		checkL1BlockBlobBaseFee(t, verifier.SyncStatus().UnsafeL2)
 
-		env.RunFaultProofProgram(t, safeL2After.Number, testCfg.CheckResult, testCfg.InputParams...)
+		// Batch and sync again
+		buildUnsafeL2AndSubmit(testCfg.Custom.useSetCodeTx)
+		syncVerifierAndCheck(t)
+		safeL2AfterSecondBatch := verifier.SyncStatus().SafeL2
+		requireSafeHeadProgression(t, safeL2AfterFirstBatch, safeL2AfterSecondBatch, testCfg.Custom.useSetCodeTx)
+
+		env.RunFaultProofProgram(t, safeL2AfterSecondBatch.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[testCase]()
