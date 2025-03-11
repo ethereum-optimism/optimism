@@ -94,7 +94,7 @@ func TestPragueForkAfterGenesis(gt *testing.T) {
 			expectedBbf := eth.CalcBlobFeeDefault(l1BlockHeader)
 			bbf, err := l1Block.BlobBaseFee(&bind.CallOpts{BlockHash: l2Block.Hash})
 			require.NoError(t, err, "failed to get blob base fee")
-			require.Equal(t, expectedBbf.Uint64(), bbf.Uint64(), "l1Block blob base fee does not match expectation", "l1BlockNum", l1BlockID.Number, "l2BlockNum", l2Block.Number)
+			require.Equal(t, expectedBbf.Uint64(), bbf.Uint64(), "l1Block blob base fee does not match expectation, l1BlockNum %d, l2BlockNum %d", l1BlockID.Number, l2Block.Number)
 		}
 
 		// Check initially Prague is not activated
