@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,25 +108,42 @@ func TestGetChain(t *testing.T) {
 					},
 				},
 				JWT: "0x1234",
+				Addresses: descriptors.AddressMap{
+					"deployer": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+				},
 			},
-			L2: []*descriptors.Chain{
+			L2: []*descriptors.L2Chain{
 				{
-					Name: "op",
-					Nodes: []descriptors.Node{
-						{
-							Services: descriptors.ServiceMap{
-								"el": {
-									Endpoints: descriptors.EndpointMap{
-										"rpc": {
-											Host: "localhost",
-											Port: 9545,
+					Chain: descriptors.Chain{
+						Name: "op",
+						Nodes: []descriptors.Node{
+							{
+								Services: descriptors.ServiceMap{
+									"el": {
+										Endpoints: descriptors.EndpointMap{
+											"rpc": {
+												Host: "localhost",
+												Port: 9545,
+											},
 										},
 									},
 								},
 							},
 						},
+						JWT: "0x5678",
+						Addresses: descriptors.AddressMap{
+							"deployer": common.HexToAddress("0x2345678901234567890123456789012345678901"),
+						},
 					},
-					JWT: "0x5678",
+					L1Addresses: descriptors.AddressMap{
+						"deployer": common.HexToAddress("0x2345678901234567890123456789012345678901"),
+					},
+					L1Wallets: descriptors.WalletMap{
+						"deployer": descriptors.Wallet{
+							Address:    common.HexToAddress("0x2345678901234567890123456789012345678901"),
+							PrivateKey: "0x2345678901234567890123456789012345678901",
+						},
+					},
 				},
 			},
 		},
@@ -176,7 +192,7 @@ func TestChainConfig(t *testing.T) {
 				},
 			},
 			JWT: "0x1234",
-			Addresses: map[string]types.Address{
+			Addresses: descriptors.AddressMap{
 				"deployer": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 			},
 		},

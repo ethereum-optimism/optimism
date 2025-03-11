@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -121,17 +120,17 @@ func (m *mockChain) Client() (*sources.EthClient, error) {
 	return args.Get(0).(*sources.EthClient), nil
 }
 
-func (m *mockChain) Wallets(ctx context.Context) ([]Wallet, error) {
-	return nil, nil
+func (m *mockChain) Wallets() WalletMap {
+	return nil
 }
 
 func (m *mockChain) Config() (*params.ChainConfig, error) {
 	return nil, fmt.Errorf("not implemented for mock chain")
 }
 
-func (m *mockChain) Addresses() descriptors.AddressMap {
+func (m *mockChain) Addresses() AddressMap {
 	args := m.Called()
-	return args.Get(0).(descriptors.AddressMap)
+	return args.Get(0).(AddressMap)
 }
 
 type mockNode struct {

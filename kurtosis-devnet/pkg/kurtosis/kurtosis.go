@@ -151,7 +151,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	}
 
 	// Get contract addresses
-	deployerState, err := d.enclaveObserver.EnclaveObserve(ctx, d.enclave)
+	deployerData, err := d.enclaveObserver.EnclaveObserve(ctx, d.enclave)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse deployer state: %w", err)
 	}
@@ -164,7 +164,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 
 	env := &KurtosisEnvironment{
 		DevnetEnvironment: descriptors.DevnetEnvironment{
-			L2:       make([]*descriptors.Chain, 0, len(spec.Chains)),
+			L2:       make([]*descriptors.L2Chain, 0, len(spec.Chains)),
 			Features: spec.Features,
 		},
 	}
@@ -177,15 +177,17 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	finder := NewServiceFinder(inspectResult.UserServices, WithL2Networks(networks))
 	if nodes, services := finder.FindL1Services(); len(nodes) > 0 {
 		chain := &descriptors.Chain{
-			ID:       deployerState.L1ChainID,
-			Name:     "Ethereum",
-			Services: services,
-			Nodes:    nodes,
-			JWT:      jwtData.L1JWT,
+			ID:        deployerData.L1ChainID,
+			Name:      "Ethereum",
+			Services:  services,
+			Nodes:     nodes,
+			JWT:       jwtData.L1JWT,
+			Addresses: descriptors.AddressMap(deployerData.State.Addresses),
+			Wallets:   d.getWallets(deployerData.L1ValidatorWallets),
 		}
-		if deployerState.State != nil {
-			chain.Addresses = descriptors.AddressMap(deployerState.State.Addresses)
-			chain.Wallets = d.getWallets(deployerState.L1ValidatorWallets)
+		if deployerData.State != nil {
+			chain.Addresses = descriptors.AddressMap(deployerData.State.Addresses)
+			chain.Wallets = d.getWallets(deployerData.L1ValidatorWallets)
 		}
 		env.L1 = chain
 	}
@@ -194,20 +196,24 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	for _, chainSpec := range spec.Chains {
 		nodes, services := finder.FindL2Services(chainSpec.Name)
 
-		chain := &descriptors.Chain{
-			Name:     chainSpec.Name,
-			ID:       chainSpec.NetworkID,
-			Services: services,
-			Nodes:    nodes,
-			JWT:      jwtData.L2JWT,
+		chain := &descriptors.L2Chain{
+			Chain: descriptors.Chain{
+				Name:     chainSpec.Name,
+				ID:       chainSpec.NetworkID,
+				Services: services,
+				Nodes:    nodes,
+				JWT:      jwtData.L2JWT,
+			},
 		}
 
 		// Add contract addresses if available
-		if deployerState.State != nil && deployerState.State.Deployments != nil {
-			if deployment, ok := deployerState.State.Deployments[chainSpec.NetworkID]; ok {
-				chain.Addresses = descriptors.AddressMap(deployment.Addresses)
+		if deployerData.State != nil && deployerData.State.Deployments != nil {
+			if deployment, ok := deployerData.State.Deployments[chainSpec.NetworkID]; ok {
+				chain.L1Addresses = descriptors.AddressMap(deployment.L1Addresses)
+				chain.Addresses = descriptors.AddressMap(deployment.L2Addresses)
 				chain.Config = deployment.Config
-				chain.Wallets = d.getWallets(append(deployment.L2Wallets, deployment.L1Wallets...))
+				chain.Wallets = d.getWallets(deployment.L2Wallets)
+				chain.L1Wallets = d.getWallets(deployment.L1Wallets)
 			}
 		}
 

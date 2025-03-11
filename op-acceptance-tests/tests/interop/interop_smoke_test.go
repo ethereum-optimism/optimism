@@ -90,11 +90,17 @@ func TestSmokeTestFailure(t *testing.T) {
 		addr: mockAddr,
 		bal:  sdktypes.NewBalance(big.NewInt(1000000)),
 	}
-	mockChain := newMockFailingChain(
+	mockL1Chain := newMockFailingL1Chain(
 		sdktypes.ChainID(big.NewInt(1234)),
-		[]system.Wallet{mockWallet},
+		system.WalletMap{
+			"user1": mockWallet,
+		},
 	)
-	mockSys := &mockFailingSystem{chain: mockChain}
+	mockL2Chain := newMockFailingL2Chain(
+		sdktypes.ChainID(big.NewInt(1234)),
+		system.WalletMap{"user1": mockWallet},
+	)
+	mockSys := &mockFailingSystem{l1Chain: mockL1Chain, l2Chain: mockL2Chain}
 
 	// Run the smoke test logic and capture failures
 	getter := func(ctx context.Context) system.Wallet {

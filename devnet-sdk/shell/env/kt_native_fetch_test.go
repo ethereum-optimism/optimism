@@ -149,7 +149,7 @@ func TestFetchKurtosisNativeDataSuccess(t *testing.T) {
 		envSpec := &spec.EnclaveSpec{}
 		env := &kurtosis.KurtosisEnvironment{
 			DevnetEnvironment: descriptors.DevnetEnvironment{
-				L2:       make([]*descriptors.Chain, 0, 1),
+				L2:       make([]*descriptors.L2Chain, 0, 1),
 				Features: envSpec.Features,
 			},
 		}

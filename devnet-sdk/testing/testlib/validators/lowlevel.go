@@ -13,7 +13,7 @@ type LowLevelSystemGetter = func(context.Context) system.LowLevelSystem
 type lowLevelSystemWrapper struct {
 	identifier string
 	l1         system.LowLevelChain
-	l2         []system.LowLevelChain
+	l2         []system.LowLevelL2Chain
 }
 
 var _ system.LowLevelSystem = (*lowLevelSystemWrapper)(nil)
@@ -26,7 +26,7 @@ func (l *lowLevelSystemWrapper) L1() system.LowLevelChain {
 	return l.l1
 }
 
-func (l *lowLevelSystemWrapper) L2s() []system.LowLevelChain {
+func (l *lowLevelSystemWrapper) L2s() []system.LowLevelL2Chain {
 	return l.l2
 }
 
@@ -42,7 +42,7 @@ func lowLevelSystemValidator(sysMarker interface{}) systest.PreconditionValidato
 		}
 
 		for idx, l2 := range sys.L2s() {
-			if l2, ok := l2.(system.LowLevelChain); ok {
+			if l2, ok := l2.(system.LowLevelL2Chain); ok {
 				lowLevelSys.l2 = append(lowLevelSys.l2, l2)
 			} else {
 				return nil, fmt.Errorf("L2 chain %d is not a low level chain", idx)

@@ -15,7 +15,7 @@ import (
 type system struct {
 	identifier string
 	l1         Chain
-	l2s        []Chain
+	l2s        []L2Chain
 }
 
 // system implements System
@@ -38,7 +38,7 @@ func (s *system) L1() Chain {
 	return s.l1
 }
 
-func (s *system) L2s() []Chain {
+func (s *system) L2s() []L2Chain {
 	return s.l2s
 }
 
@@ -46,30 +46,24 @@ func (s *system) Identifier() string {
 	return s.identifier
 }
 
-func (s *system) addChains(chains ...*descriptors.Chain) error {
-	for _, chainDesc := range chains {
-		if chainDesc.Name == "Ethereum" {
-			l1, err := chainFromDescriptor(chainDesc)
-			if err != nil {
-				return fmt.Errorf("failed to add L1 chain: %w", err)
-			}
-			s.l1 = l1
-		} else {
-			l2, err := chainFromDescriptor(chainDesc)
-			if err != nil {
-				return fmt.Errorf("failed to add L2 chain: %w", err)
-			}
-			s.l2s = append(s.l2s, l2)
+func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (System, error) {
+	l1, err := newChainFromDescriptor(dn.L1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add L1 chain: %w", err)
+	}
+
+	l2s := make([]L2Chain, len(dn.L2))
+	for i, l2 := range dn.L2 {
+		l2s[i], err = newL2ChainFromDescriptor(l2)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add L2 chain: %w", err)
 		}
 	}
-	return nil
-}
 
-func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (System, error) {
-	sys := &system{identifier: identifier}
-
-	if err := sys.addChains(append(dn.L2, dn.L1)...); err != nil {
-		return nil, err
+	sys := &system{
+		identifier: identifier,
+		l1:         l1,
+		l2s:        l2s,
 	}
 
 	if slices.Contains(dn.Features, "interop") {
@@ -81,6 +75,7 @@ func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (Syst
 			supervisorRPC: fmt.Sprintf("http://%s:%d", supervisorRPC.Host, supervisorRPC.Port),
 		}, nil
 	}
+
 	return sys, nil
 }
 

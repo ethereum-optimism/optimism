@@ -1,7 +1,6 @@
 package system
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -41,29 +40,48 @@ func TestNewSystemFromEnv(t *testing.T) {
 					PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 				},
 			},
+			Addresses: descriptors.AddressMap{
+				"defaultl1": common.HexToAddress("0x123"),
+			},
 		},
-		L2: []*descriptors.Chain{{
-			ID: "2",
-			Nodes: []descriptors.Node{{
-				Services: map[string]descriptors.Service{
-					"el": {
-						Name: "geth",
-						Endpoints: descriptors.EndpointMap{
-							"rpc": descriptors.PortInfo{
-								Host: "localhost",
-								Port: 8546,
+		L2: []*descriptors.L2Chain{
+			{
+				Chain: descriptors.Chain{
+					ID: "2",
+					Nodes: []descriptors.Node{{
+						Services: map[string]descriptors.Service{
+							"el": {
+								Name: "geth",
+								Endpoints: descriptors.EndpointMap{
+									"rpc": descriptors.PortInfo{
+										Host: "localhost",
+										Port: 8546,
+									},
+								},
 							},
 						},
+					}},
+					Wallets: descriptors.WalletMap{
+						"default": descriptors.Wallet{
+							Address:    common.HexToAddress("0x123"),
+							PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+						},
+					},
+					Addresses: descriptors.AddressMap{
+						"defaultl2": common.HexToAddress("0x456"),
 					},
 				},
-			}},
-			Wallets: descriptors.WalletMap{
-				"default": descriptors.Wallet{
-					Address:    common.HexToAddress("0x123"),
-					PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				L1Addresses: descriptors.AddressMap{
+					"defaultl1": common.HexToAddress("0x123"),
+				},
+				L1Wallets: descriptors.WalletMap{
+					"default": descriptors.Wallet{
+						Address:    common.HexToAddress("0x123"),
+						PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+					},
 				},
 			},
-		}},
+		},
 		Features: []string{},
 	}
 
@@ -111,14 +129,27 @@ func TestSystemFromDevnet(t *testing.T) {
 					Wallets: descriptors.WalletMap{
 						"default": testWallet,
 					},
-				},
-				L2: []*descriptors.Chain{{
-					ID:    "2",
-					Nodes: []descriptors.Node{testNode},
-					Wallets: descriptors.WalletMap{
-						"default": testWallet,
+					Addresses: descriptors.AddressMap{
+						"defaultl1": common.HexToAddress("0x123"),
 					},
-				}},
+				},
+				L2: []*descriptors.L2Chain{
+					{
+						Chain: descriptors.Chain{
+							ID:    "2",
+							Nodes: []descriptors.Node{testNode},
+							Wallets: descriptors.WalletMap{
+								"default": testWallet,
+							},
+						},
+						L1Addresses: descriptors.AddressMap{
+							"defaultl1": common.HexToAddress("0x123"),
+						},
+						L1Wallets: descriptors.WalletMap{
+							"default": testWallet,
+						},
+					},
+				},
 			},
 			wantErr:   false,
 			isInterop: false,
@@ -132,14 +163,26 @@ func TestSystemFromDevnet(t *testing.T) {
 					Wallets: descriptors.WalletMap{
 						"default": testWallet,
 					},
-				},
-				L2: []*descriptors.Chain{{
-					ID:    "2",
-					Nodes: []descriptors.Node{testNode},
-					Wallets: descriptors.WalletMap{
-						"default": testWallet,
+					Addresses: descriptors.AddressMap{
+						"defaultl1": common.HexToAddress("0x123"),
 					},
-				}},
+				},
+				L2: []*descriptors.L2Chain{
+					{
+						Chain: descriptors.Chain{
+							ID:    "2",
+							Nodes: []descriptors.Node{testNode},
+							Wallets: descriptors.WalletMap{
+								"default": testWallet,
+							},
+						},
+						L1Addresses: descriptors.AddressMap{
+							"defaultl1": common.HexToAddress("0x123"),
+						},
+						L1Wallets: descriptors.WalletMap{
+							"default": testWallet,
+						},
+					}},
 				Features: []string{"interop"},
 			},
 			wantErr:   false,
@@ -209,12 +252,11 @@ func TestChainUser(t *testing.T) {
 	testWallet, err := newWallet("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", common.HexToAddress("0x123"), chain)
 	assert.Nil(t, err)
 
-	chain.users = map[string]Wallet{
+	chain.wallets = WalletMap{
 		"l2Faucet": testWallet,
 	}
 
-	ctx := context.Background()
-	wallets, err := chain.Wallets(ctx)
+	wallets := chain.Wallets()
 	require.NoError(t, err)
 
 	for _, w := range wallets {

@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestClientManager(t *testing.T) {
@@ -68,9 +67,64 @@ func TestChainFromDescriptor(t *testing.T) {
 				Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
 			},
 		},
+		Addresses: descriptors.AddressMap{
+			"user1": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
 	}
 
-	chain, err := chainFromDescriptor(descriptor)
+	chain, err := newChainFromDescriptor(descriptor)
+	assert.Nil(t, err)
+	assert.NotNil(t, chain)
+	lowLevelChain, ok := chain.(LowLevelChain)
+	assert.True(t, ok)
+	assert.Equal(t, "http://localhost:8545", lowLevelChain.RPCURL())
+
+	// Compare the underlying big.Int values
+	chainID := chain.ID()
+	expectedID := big.NewInt(1)
+	assert.Equal(t, 0, expectedID.Cmp(chainID))
+}
+
+func TestL2ChainFromDescriptor(t *testing.T) {
+	descriptor := &descriptors.L2Chain{
+		Chain: descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": descriptors.Service{
+							Endpoints: descriptors.EndpointMap{
+								"rpc": descriptors.PortInfo{
+									Host: "localhost",
+									Port: 8545,
+								},
+							},
+						},
+					},
+				},
+			},
+			Wallets: descriptors.WalletMap{
+				"user1": descriptors.Wallet{
+					PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+					Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
+				},
+			},
+			Addresses: descriptors.AddressMap{
+				"user2": common.HexToAddress("0x1234567890123456789012345678901234567891"),
+			},
+		},
+		L1Addresses: descriptors.AddressMap{
+			"user1": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		L1Wallets: descriptors.WalletMap{
+			"user1": descriptors.Wallet{
+				PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			},
+		},
+	}
+
+	chain, err := newL2ChainFromDescriptor(descriptor)
 	assert.Nil(t, err)
 	assert.NotNil(t, chain)
 	lowLevelChain, ok := chain.(LowLevelChain)
@@ -84,19 +138,17 @@ func TestChainFromDescriptor(t *testing.T) {
 }
 
 func TestChainWallet(t *testing.T) {
-	ctx := context.Background()
 	testAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	wallet, err := newWallet("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", testAddr, nil)
 	assert.Nil(t, err)
 
-	chain := newChain("1", "http://localhost:8545", map[string]Wallet{
+	l1Chain := newChain("1", "http://localhost:8545", WalletMap{
 		"user1": wallet}, nil, map[string]common.Address{})
 
 	t.Run("finds wallet meeting constraints", func(t *testing.T) {
 		constraint := &addressConstraint{addr: testAddr}
-		wallets, err := chain.Wallets(ctx)
-		require.NoError(t, err)
+		wallets := l1Chain.Wallets()
 
 		for _, w := range wallets {
 			if constraint.CheckWallet(w) {
@@ -111,8 +163,7 @@ func TestChainWallet(t *testing.T) {
 	t.Run("returns error when no wallet meets constraints", func(t *testing.T) {
 		wrongAddr := common.HexToAddress("0x0987654321098765432109876543210987654321")
 		constraint := &addressConstraint{addr: wrongAddr}
-		wallets, err := chain.Wallets(ctx)
-		require.NoError(t, err)
+		wallets := l1Chain.Wallets()
 
 		for _, w := range wallets {
 			if constraint.CheckWallet(w) {

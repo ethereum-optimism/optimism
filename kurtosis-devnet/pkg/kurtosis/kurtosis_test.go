@@ -236,13 +236,12 @@ func TestGetEnvironmentInfo(t *testing.T) {
 		"rpc": {Port: 52645},
 	}
 
-	testWallets := deployer.WalletList{
-		{
-			Name:       "test-wallet",
-			Address:    common.HexToAddress("0x123"),
-			PrivateKey: "0xabc",
-		},
+	testWallet := &deployer.Wallet{
+		Name:       "test-wallet",
+		Address:    common.HexToAddress("0x123"),
+		PrivateKey: "0xabc",
 	}
+	testWallets := deployer.WalletList{testWallet}
 
 	testJWTs := &jwt.Data{
 		L1JWT: "test-l1-jwt",
@@ -272,11 +271,20 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			name:    "successful environment info with JWT",
 			spec:    testSpec,
 			inspect: &inspect.InspectData{UserServices: testServices},
-			deploy:  &deployer.DeployerData{L1ValidatorWallets: testWallets},
-			jwt:     testJWTs,
+			deploy: &deployer.DeployerData{
+				L1ValidatorWallets: testWallets,
+				State: &deployer.DeployerState{
+					Addresses: deployer.DeploymentAddresses{
+						"0x123": common.HexToAddress("0x123"),
+					},
+				},
+				L1ChainID: "1234",
+			},
+			jwt: testJWTs,
 			want: &KurtosisEnvironment{
 				DevnetEnvironment: descriptors.DevnetEnvironment{
 					L1: &descriptors.Chain{
+						ID:       "1234",
 						Name:     "Ethereum",
 						Services: make(descriptors.ServiceMap),
 						Nodes: []descriptors.Node{
@@ -285,13 +293,24 @@ func TestGetEnvironmentInfo(t *testing.T) {
 							},
 						},
 						JWT: testJWTs.L1JWT,
+						Addresses: descriptors.AddressMap{
+							"0x123": common.HexToAddress("0x123"),
+						},
+						Wallets: descriptors.WalletMap{
+							testWallet.Name: {
+								Address:    testWallet.Address,
+								PrivateKey: testWallet.PrivateKey,
+							},
+						},
 					},
-					L2: []*descriptors.Chain{
+					L2: []*descriptors.L2Chain{
 						{
-							Name:     "op-kurtosis",
-							ID:       "1234",
-							Services: make(descriptors.ServiceMap),
-							JWT:      testJWTs.L2JWT,
+							Chain: descriptors.Chain{
+								Name:     "op-kurtosis",
+								ID:       "1234",
+								Services: make(descriptors.ServiceMap),
+								JWT:      testJWTs.L2JWT,
+							},
 						},
 					},
 				},
