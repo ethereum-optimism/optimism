@@ -291,7 +291,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         emit Upgraded(impl);
     }
 
-    function runV200UpgradeAndChecks(address _delegateCaller) public {
+    function runUpgrade13UpgradeAndChecks(address _delegateCaller) public {
         // The address below corresponds with the address of the v2.0.0-rc.1 OPCM on mainnet.
         IOPContractsManager deployedOPCM = IOPContractsManager(address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76));
         IOPCMImplementationsWithoutLockbox.Implementations memory impls =
@@ -580,7 +580,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
     function runUpgradeTestAndChecks(address _delegateCaller) public {
         // TODO(#14691): Remove this function once Upgrade 15 is deployed on Mainnet.
-        runV200UpgradeAndChecks(_delegateCaller);
+        runUpgrade13UpgradeAndChecks(_delegateCaller);
         // TODO(#14691): Remove this function once Upgrade 15 is deployed on Mainnet.
         runUpgrade14UpgradeAndChecks(_delegateCaller);
         runUpgrade15UpgradeAndChecks(_delegateCaller);
@@ -653,7 +653,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     function test_upgrade_absolutePrestateOverride_succeeds() public {
         // Run Upgrade 13 and 14 to get us to a state where we can run Upgrade 15.
         // Can remove these two calls as Upgrade 13 and 14 are executed in prod.
-        runV200UpgradeAndChecks(upgrader);
+        runUpgrade13UpgradeAndChecks(upgrader);
         runUpgrade14UpgradeAndChecks(upgrader);
 
         // Get the pdg and fdg before the upgrade
@@ -690,7 +690,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     function test_upgrade_absolutePrestateNotSet_succeeds() public {
         // Run Upgrade 13 and 14 to get us to a state where we can run Upgrade 15.
         // Can remove these two calls as Upgrade 13 and 14 are executed in prod.
-        runV200UpgradeAndChecks(upgrader);
+        runUpgrade13UpgradeAndChecks(upgrader);
         runUpgrade14UpgradeAndChecks(upgrader);
 
         // Get the pdg and fdg before the upgrade
@@ -727,7 +727,7 @@ contract OPContractsManager_Upgrade_TestFails is OPContractsManager_Upgrade_Harn
     // Upgrade to U14 first
     function setUp() public override {
         super.setUp();
-        runV200UpgradeAndChecks(upgrader);
+        runUpgrade13UpgradeAndChecks(upgrader);
     }
 
     function test_upgrade_notDelegateCalled_reverts() public {

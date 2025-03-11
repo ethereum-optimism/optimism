@@ -21,12 +21,12 @@ import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 contract ETHLockboxTest is CommonTest {
     error InvalidInitialization();
 
-    event ETHLocked(address indexed portal, uint256 amount);
-    event ETHUnlocked(address indexed portal, uint256 amount);
-    event PortalAuthorized(address indexed portal);
-    event LockboxAuthorized(address indexed lockbox);
-    event LiquidityMigrated(address indexed lockbox, uint256 amount);
-    event LiquidityReceived(address indexed lockbox, uint256 amount);
+    event ETHLocked(IOptimismPortal indexed portal, uint256 amount);
+    event ETHUnlocked(IOptimismPortal indexed portal, uint256 amount);
+    event PortalAuthorized(IOptimismPortal indexed portal);
+    event LockboxAuthorized(IETHLockbox indexed lockbox);
+    event LiquidityMigrated(IETHLockbox indexed lockbox, uint256 amount);
+    event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
     ProxyAdmin public proxyAdmin;
     address public proxyAdminOwner;
@@ -45,7 +45,7 @@ contract ETHLockboxTest is CommonTest {
     /// @notice Tests the superchain config was correctly set during initialization.
     function test_initialization_succeeds() public view {
         assertEq(address(ethLockbox.superchainConfig()), address(superchainConfig));
-        assertEq(ethLockbox.authorizedPortals(address(optimismPortal2)), true);
+        assertEq(ethLockbox.authorizedPortals(optimismPortal2), true);
     }
 
     /// @notice Tests it reverts when the contract is already initialized.
@@ -94,7 +94,7 @@ contract ETHLockboxTest is CommonTest {
         );
 
         // Authorize the lockbox if needed
-        if (!ethLockbox.authorizedLockboxes(_lockbox)) {
+        if (!ethLockbox.authorizedLockboxes(IETHLockbox(_lockbox))) {
             vm.prank(proxyAdminOwner);
             ethLockbox.authorizeLockbox(IETHLockbox(_lockbox));
         }
@@ -104,7 +104,7 @@ contract ETHLockboxTest is CommonTest {
 
         // Expect the `LiquidityReceived` event to be emitted
         vm.expectEmit(address(ethLockbox));
-        emit LiquidityReceived(_lockbox, _value);
+        emit LiquidityReceived(IETHLockbox(_lockbox), _value);
 
         // Call the `receiveLiquidity` function
         vm.prank(address(_lockbox));
@@ -116,7 +116,7 @@ contract ETHLockboxTest is CommonTest {
 
     /// @notice Tests it reverts when the caller is not an authorized portal.
     function testFuzz_lockETH_unauthorizedPortal_reverts(address _caller) public {
-        vm.assume(!ethLockbox.authorizedPortals(_caller));
+        vm.assume(!ethLockbox.authorizedPortals(IOptimismPortal2(payable(_caller))));
 
         // Expect the revert with `Unauthorized` selector
         vm.expectRevert(IETHLockbox.ETHLockbox_Unauthorized.selector);
@@ -140,7 +140,7 @@ contract ETHLockboxTest is CommonTest {
 
         // Look for the emit of the `ETHLocked` event
         vm.expectEmit(address(ethLockbox));
-        emit ETHLocked(address(optimismPortal2), _amount);
+        emit ETHLocked(optimismPortal2, _amount);
 
         // Call the `lockETH` function with the portal
         vm.prank(address(optimismPortal2));
@@ -170,7 +170,7 @@ contract ETHLockboxTest is CommonTest {
         );
 
         // Set the portal as an authorized portal if needed
-        if (!ethLockbox.authorizedPortals(address(_portal))) {
+        if (!ethLockbox.authorizedPortals(_portal)) {
             vm.prank(proxyAdminOwner);
             ethLockbox.authorizePortal(_portal);
         }
@@ -183,7 +183,7 @@ contract ETHLockboxTest is CommonTest {
 
         // Look for the emit of the `ETHLocked` event
         vm.expectEmit(address(ethLockbox));
-        emit ETHLocked(address(_portal), _amount);
+        emit ETHLocked(_portal, _amount);
 
         // Call the `lockETH` function with the portal
         vm.prank(address(_portal));
@@ -208,7 +208,7 @@ contract ETHLockboxTest is CommonTest {
 
     /// @notice Tests it reverts when the caller is not an authorized portal.
     function testFuzz_unlockETH_unauthorizedPortal_reverts(address _caller, uint256 _value) public {
-        vm.assume(!ethLockbox.authorizedPortals(_caller));
+        vm.assume(!ethLockbox.authorizedPortals(IOptimismPortal2(payable(_caller))));
 
         // Expect the revert with `Unauthorized` selector
         vm.expectRevert(IETHLockbox.ETHLockbox_Unauthorized.selector);
@@ -261,7 +261,7 @@ contract ETHLockboxTest is CommonTest {
 
         // Look for the emit of the `ETHUnlocked` event
         vm.expectEmit(address(ethLockbox));
-        emit ETHUnlocked(address(optimismPortal2), _value);
+        emit ETHUnlocked(optimismPortal2, _value);
 
         // Call the `unlockETH` function with the portal
         vm.prank(address(optimismPortal2));
@@ -288,7 +288,7 @@ contract ETHLockboxTest is CommonTest {
         );
 
         // Set the portal as an authorized portal if needed
-        if (!ethLockbox.authorizedPortals(address(_portal))) {
+        if (!ethLockbox.authorizedPortals(_portal)) {
             vm.prank(proxyAdminOwner);
             ethLockbox.authorizePortal(_portal);
         }
@@ -305,7 +305,7 @@ contract ETHLockboxTest is CommonTest {
 
         // Look for the emit of the `ETHUnlocked` event
         vm.expectEmit(address(ethLockbox));
-        emit ETHUnlocked(address(optimismPortal2), _value);
+        emit ETHUnlocked(optimismPortal2, _value);
 
         // Call the `unlockETH` function with the portal
         vm.prank(address(optimismPortal2));
@@ -376,14 +376,14 @@ contract ETHLockboxTest is CommonTest {
 
         // Expect the `PortalAuthorized` event to be emitted
         vm.expectEmit(address(ethLockbox));
-        emit PortalAuthorized(address(optimismPortal2));
+        emit PortalAuthorized(optimismPortal2);
 
         // Call the `authorizePortal` function with the portal
         vm.prank(proxyAdminOwner);
         ethLockbox.authorizePortal(optimismPortal2);
 
         // Assert the portal is authorized
-        assertTrue(ethLockbox.authorizedPortals(address(optimismPortal2)));
+        assertTrue(ethLockbox.authorizedPortals(optimismPortal2));
     }
 
     /// @notice Tests the `authorizeLockbox` function succeeds
@@ -403,14 +403,14 @@ contract ETHLockboxTest is CommonTest {
 
         // Expect the `PortalAuthorized` event to be emitted
         vm.expectEmit(address(ethLockbox));
-        emit PortalAuthorized(address(_portal));
+        emit PortalAuthorized(_portal);
 
         // Call the `authorizePortal` function with the portal
         vm.prank(proxyAdminOwner);
         ethLockbox.authorizePortal(_portal);
 
         // Assert the portal is authorized
-        assertTrue(ethLockbox.authorizedPortals(address(_portal)));
+        assertTrue(ethLockbox.authorizedPortals(_portal));
     }
 
     /// @notice Tests the `authorizeLockbox` function reverts when the caller is not the proxy admin.
@@ -452,14 +452,14 @@ contract ETHLockboxTest is CommonTest {
 
         // Expect the `LockboxAuthorized` event to be emitted
         vm.expectEmit(address(ethLockbox));
-        emit LockboxAuthorized(_lockbox);
+        emit LockboxAuthorized(IETHLockbox(_lockbox));
 
         // Authorize the lockbox
         vm.prank(proxyAdminOwner);
         ethLockbox.authorizeLockbox(IETHLockbox(_lockbox));
 
         // Assert the lockbox is authorized
-        assertTrue(ethLockbox.authorizedLockboxes(_lockbox));
+        assertTrue(ethLockbox.authorizedLockboxes(IETHLockbox(_lockbox)));
     }
 
     /// @notice Tests the `migrateLiquidity` function reverts when the caller is not the proxy admin.
@@ -503,9 +503,7 @@ contract ETHLockboxTest is CommonTest {
         vm.mockCall(
             address(_lockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
         );
-        vm.mockCall(
-            address(_lockbox), abi.encodeCall(IETHLockbox.authorizedLockboxes, (address(ethLockbox))), abi.encode(true)
-        );
+        vm.mockCall(address(_lockbox), abi.encodeCall(IETHLockbox.authorizedLockboxes, (ethLockbox)), abi.encode(true));
         vm.mockCall(address(_lockbox), abi.encodeCall(IETHLockbox.receiveLiquidity, ()), abi.encode(true));
 
         // Deal the balance to the lockbox
@@ -517,7 +515,7 @@ contract ETHLockboxTest is CommonTest {
 
         // Expect the `LiquidityMigrated` event to be emitted
         vm.expectEmit(address(ethLockbox));
-        emit LiquidityMigrated(_lockbox, ethLockboxBalanceBefore);
+        emit LiquidityMigrated(IETHLockbox(_lockbox), ethLockboxBalanceBefore);
 
         // Call the `migrateLiquidity` function with the lockbox
         vm.prank(proxyAdminOwner);

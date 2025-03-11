@@ -25,13 +25,13 @@
     "label": "authorizedPortals",
     "offset": 0,
     "slot": "1",
-    "type": "mapping(address => bool)"
+    "type": "mapping(contract IOptimismPortal2 => bool)"
   },
   {
     "bytes": "32",
     "label": "authorizedLockboxes",
     "offset": 0,
     "slot": "2",
-    "type": "mapping(address => bool)"
+    "type": "mapping(contract IETHLockbox => bool)"
   }
 ]

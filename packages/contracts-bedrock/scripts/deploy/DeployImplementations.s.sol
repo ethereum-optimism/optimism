@@ -371,7 +371,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         DeployUtils.assertInitialized({ _contractAddress: address(lockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
         require(address(lockbox.superchainConfig()) == address(0), "ELB-10");
-        require(lockbox.authorizedPortals(address(optimismPortalImpl())) == false, "ELB-20");
+        require(lockbox.authorizedPortals(optimismPortalImpl()) == false, "ELB-20");
     }
 
     function assertValidDelayedWETHImpl(DeployImplementationsInput _dii) internal view {

@@ -423,11 +423,14 @@ library ChainAssertions {
 
         if (_isProxy) {
             require(ethLockbox.superchainConfig() == superchainConfig, "CHECK-ELB-20");
-            require(ethLockbox.authorizedPortals(_contracts.OptimismPortal), "CHECK-ELB-30");
+            require(ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))), "CHECK-ELB-30");
             require(ethLockbox.proxyAdminOwner() == _cfg.finalSystemOwner(), "CHECK-ELB-40");
         } else {
             require(address(ethLockbox.superchainConfig()) == address(0), "CHECK-ELB-50");
-            require(ethLockbox.authorizedPortals(_contracts.OptimismPortal) == false, "CHECK-ELB-60");
+            require(
+                ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == false,
+                "CHECK-ELB-60"
+            );
         }
     }
 
