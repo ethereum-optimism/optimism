@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/superchain-registry/validation"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/stretchr/testify/require"
@@ -70,5 +72,26 @@ func TestStandardAddresses(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.sepoliaAddr, sepoliaAddr)
 		})
+	}
+}
+
+func TestL2ProxyAdminOwner(t *testing.T) {
+	tests := []struct {
+		chainID uint64
+		expAddr validation.Address
+	}{
+		{
+			1,
+			validation.StandardConfigRolesMainnet.L2ProxyAdminOwner,
+		},
+		{
+			11155111,
+			validation.StandardConfigRolesSepolia.L2ProxyAdminOwner,
+		},
+	}
+	for _, test := range tests {
+		addr, err := L2ProxyAdminOwner(test.chainID)
+		require.NoError(t, err)
+		require.Equal(t, common.Address(test.expAddr), addr)
 	}
 }

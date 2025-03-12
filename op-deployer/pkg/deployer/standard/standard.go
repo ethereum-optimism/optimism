@@ -171,6 +171,17 @@ func L1ProxyAdminOwner(chainID uint64) (common.Address, error) {
 	}
 }
 
+func L2ProxyAdminOwner(chainID uint64) (common.Address, error) {
+	switch chainID {
+	case 1:
+		return common.Address(validation.StandardConfigRolesMainnet.L2ProxyAdminOwner), nil
+	case 11155111:
+		return common.Address(validation.StandardConfigRolesSepolia.L2ProxyAdminOwner), nil
+	default:
+		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
+	}
+}
+
 func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
 	switch chainID {
 	case 1:
