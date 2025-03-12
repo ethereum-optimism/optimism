@@ -1,37 +1,23 @@
-# Parameter variables
+REPO_ROOT := `realpath ..`
+KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
 ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.1")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
-
-# Internal variables
-REPO_ROOT := `realpath ..`
-KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-BIN_DIR := ".bin"
-SYSTEM_ARCH := `OS=$(uname -s | tr '[:upper:]' '[:lower:]'); ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/arm64/arm64/'); echo "$OS-$ARCH"`
-ACCEPTOR_BINARY := BIN_DIR + "/op-acceptor-" + SYSTEM_ARCH
 
 # Default recipe - runs acceptance tests
 default:
     @just acceptance-test
 
-# Run acceptance tests with native binary when possible, falling back to Docker if need be
+# Run acceptance tests with mise-managed binary
 acceptance-test devnet="simple" gate="localnet":
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Ensure binary directory exists
-    mkdir -p {{BIN_DIR}} || true
-
-    # Check if binary exists and is executable
-    if [ ! -f "{{ACCEPTOR_BINARY}}" ] || [ ! -x "{{ACCEPTOR_BINARY}}" ]; then
-        echo "Binary not found, attempting to download..."
-
-        # Try to download the binary, else fall back to Docker
-        if ! just _download-binary {{ACCEPTOR_VERSION}} {{SYSTEM_ARCH}}; then
-            echo "Download failed, falling back to Docker"
-            just acceptance-test-docker {{devnet}} {{gate}}
-            exit $?
-        fi
+    # Check if mise is installed and if op-acceptor binary is available
+    if ! (command -v mise >/dev/null && BINARY_PATH=$(mise which op-acceptor 2>/dev/null)); then
+        echo "Mise-managed op-acceptor binary not found, falling back to Docker..."
+        just acceptance-test-docker {{devnet}} {{gate}}
+        exit 0
     fi
 
     # Run the appropriate devnet from the kurtosis-devnet directory if needed.
@@ -39,16 +25,17 @@ acceptance-test devnet="simple" gate="localnet":
     just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
 
     # Print which binary is being used (for debugging)
-    echo "Using native binary: {{ACCEPTOR_BINARY}}"
+    BINARY_PATH=$(mise which op-acceptor 2>/dev/null)
+    echo "Using mise-managed binary: $BINARY_PATH"
 
-    # Run the native op-acceptor binary
-    {{ACCEPTOR_BINARY}} \
+    # Run the op-acceptor binary
+    "$BINARY_PATH" \
         --testdir "{{REPO_ROOT}}" \
         --gate {{gate}} \
         --validators ./acceptance-tests.yaml \
         --log.level debug
 
-# Run acceptance tests against a devnet using Docker
+# Run acceptance tests against a devnet using Docker (fallback if needed)
 acceptance-test-docker devnet="simple" gate="localnet":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -69,57 +56,3 @@ acceptance-test-docker devnet="simple" gate="localnet":
         --gate {{gate}} \
         --validators /acceptance-tests.yaml \
         --log.level debug
-
-# Helper to download the native binary from GitHub releases (internal use)
-_download-binary version arch:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    # Remove 'v' prefix from version for filename
-    VERSION_NO_V=`echo "{{version}}" | sed 's/^v//'`
-    echo "Downloading op-acceptor {{version}} (${VERSION_NO_V}) for {{arch}}..."
-    mkdir -p {{BIN_DIR}}
-
-    # Define file paths
-    DOWNLOAD_URL="https://github.com/ethereum-optimism/infra/releases/download/op-acceptor%2F{{version}}/op-acceptor-${VERSION_NO_V}-{{arch}}.tar.gz"
-    TARBALL="{{BIN_DIR}}/op-acceptor-${VERSION_NO_V}-{{arch}}.tar.gz"
-    BINARY_PATH="{{BIN_DIR}}/op-acceptor-{{arch}}"
-
-    echo "URL: ${DOWNLOAD_URL}"
-
-    # Download the tarball
-    if curl -L -f "${DOWNLOAD_URL}" -o "${TARBALL}"; then
-        echo "Downloaded tarball, extracting..."
-
-        # Extract the binary from the tarball
-        tar -xzf "${TARBALL}" -C "{{BIN_DIR}}"
-
-        # The extracted binary might be named differently, need to find and rename it
-        EXTRACTED_BINARY=$(find {{BIN_DIR}} -type f -name "op-acceptor*" ! -name "*.tar.gz" | head -n 1)
-
-        if [ -n "${EXTRACTED_BINARY}" ]; then
-            # Move the binary to the expected path
-            mv "${EXTRACTED_BINARY}" "${BINARY_PATH}"
-            chmod +x "${BINARY_PATH}"
-            echo "Extracted binary to ${BINARY_PATH}"
-
-            # Clean up the tarball
-            rm "${TARBALL}"
-
-            exit 0
-        else
-            echo "Failed to find extracted binary"
-            exit 1
-        fi
-    else
-        echo "Failed to download binary from ${DOWNLOAD_URL}"
-        exit 1
-    fi
-
-# Manually download a specific binary version and architecture
-download-binary version="{{ACCEPTOR_VERSION}}" arch="{{SYSTEM_ARCH}}":
-    just _download-binary {{version}} {{arch}}
-
-# Clean up downloaded binaries
-clean:
-    rm -rf {{BIN_DIR}}

@@ -37,6 +37,7 @@ anvil = "v1.0.0"
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.3.2-pro"
 kurtosis = "1.4.4"
+op-acceptor = "op-acceptor/v0.1.1"
 
 # Fake dependencies
 # Put things here if you need to track versions of tools or projects that can't
@@ -54,6 +55,7 @@ just = "ubi:casey/just"
 codecov-uploader = "ubi:codecov/uploader"
 goreleaser-pro = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
 kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
+op-acceptor = "ubi:ethereum-optimism/infra[exe=op-acceptor,tag_prefix=op-acceptor/]"
 
 [settings]
 experimental = true

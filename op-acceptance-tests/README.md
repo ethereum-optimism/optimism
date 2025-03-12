@@ -17,6 +17,14 @@ Localnet -> Alphanet → Betanet → Testnet
 
 This process helps maintain high-quality standards across all networks in the OP Stack ecosystem.
 
+## Dependencies
+
+* Docker
+* Kurtosis
+* Mise (install as instructed in CONTRIBUTING.md)
+
+Dependencies are managed using the repo-wide `mise` config. So ensure you've first run `mise install` at the repo root. If you need to manually modify the version of op-acceptor you wish to run you'll need to do it within the _mise.toml_ file at the repo root.
+
 ## Usage
 
 The tests can be run using the `just` command runner:
