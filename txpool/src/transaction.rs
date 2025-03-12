@@ -247,13 +247,7 @@ where
 /// Helper trait to provide payload builder with access to conditionals and encoded bytes of
 /// transaction.
 pub trait OpPooledTx: MaybeConditionalTransaction + PoolTransaction {}
-
-impl<Cons, Pooled> OpPooledTx for OpPooledTransaction<Cons, Pooled>
-where
-    Cons: SignedTransaction + From<Pooled>,
-    Pooled: SignedTransaction + TryFrom<Cons, Error: core::error::Error>,
-{
-}
+impl<T> OpPooledTx for T where T: MaybeConditionalTransaction + PoolTransaction {}
 
 #[cfg(test)]
 mod tests {
