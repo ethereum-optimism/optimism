@@ -1235,16 +1235,6 @@ contract StandardValidatorV400_Test is StandardValidatorTest {
         );
     }
 
-    /// @notice Tests that validation fails with invalid proxy admin owner
-    function test_validate_proxyAdmin_succeeds() public override {
-        _mockValidationCalls();
-        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
-
-        // Mocking the proxy admin like this will also break ownership checks
-        // for the DGF, DelayedWETH, and other contracts.
-        assertEq("PROXYA-10,ETHLOCKBOX-v400-30,ETHLOCKBOX-v400-40", validate(true));
-    }
-
     function _mockValidationCalls() internal virtual override {
         super._mockValidationCalls();
 
@@ -1272,5 +1262,30 @@ contract StandardValidatorV400_Test is StandardValidatorTest {
         vm.mockCall(address(permissionlessDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
         vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.4"));
         vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
+    }
+
+    /// @notice Tests that validation fails with invalid proxy admin owner
+    function test_validate_proxyAdmin_succeeds() public override {
+        _mockValidationCalls();
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
+
+        // Mocking the proxy admin like this will also break ownership checks
+        // for the DGF, DelayedWETH, and other contracts.
+        assertEq("PROXYA-10,ETHLOCKBOX-v400-30,ETHLOCKBOX-v400-40", validate(true));
+    }
+
+    /// @notice Tests that the version getters return non-empty strings.
+    function test_versionGetters_succeeds() public view {
+        assertGt(bytes(validator.l1ERC721BridgeVersion()).length, 0);
+        assertGt(bytes(validator.optimismPortalVersion()).length, 0);
+        assertGt(bytes(validator.systemConfigVersion()).length, 0);
+        assertGt(bytes(validator.optimismMintableERC20FactoryVersion()).length, 0);
+        assertGt(bytes(validator.l1CrossDomainMessengerVersion()).length, 0);
+        assertGt(bytes(validator.l1StandardBridgeVersion()).length, 0);
+        assertGt(bytes(validator.disputeGameFactoryVersion()).length, 0);
+        assertGt(bytes(validator.mipsVersion()).length, 0);
+        assertGt(bytes(validator.anchorStateRegistryVersion()).length, 0);
+        assertGt(bytes(validator.delayedWETHVersion()).length, 0);
+        assertGt(bytes(validator.preimageOracleVersion()).length, 0);
     }
 }
