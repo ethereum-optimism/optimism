@@ -1,9 +1,12 @@
-use std::time::Duration;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
+use eyre::Result;
 use metrics::{counter, histogram, Counter, Histogram};
 use metrics_derive::Metrics;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_util::layers::{PrefixLayer, Stack};
 
-use crate::server::PayloadSource;
+use crate::{init_metrics_server, server::PayloadSource, Args};
 
 #[derive(Metrics)]
 #[metrics(scope = "rpc")]
@@ -124,5 +127,23 @@ impl ClientMetrics {
     pub fn record_fork_choice_updated_v3(&self, latency: Duration, code: String) {
         self.fork_choice_updated_v3.record(latency.as_secs_f64());
         counter!("rpc.fork_choice_updated_v3_response_count", "code" => code).increment(1);
+    }
+}
+
+pub(crate) fn init_metrics(args: &Args) -> Result<Option<Arc<ServerMetrics>>> {
+    if args.metrics {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+
+        Stack::new(recorder)
+            .push(PrefixLayer::new("rollup-boost"))
+            .install()?;
+
+        let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
+        let addr: SocketAddr = metrics_addr.parse()?;
+        tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task
+        Ok(Some(Arc::new(ServerMetrics::default())))
+    } else {
+        Ok(None)
     }
 }

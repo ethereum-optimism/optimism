@@ -3,7 +3,7 @@ use ::tracing::{error, info, Level};
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use debug_api::DebugClient;
-use metrics::{ClientMetrics, ServerMetrics};
+use metrics::{init_metrics, ClientMetrics};
 use std::{net::SocketAddr, sync::Arc};
 use tracing::init_tracing;
 
@@ -17,8 +17,7 @@ use hyper_util::rt::TokioIo;
 use jsonrpsee::http_client::HttpBody;
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
-use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
-use metrics_util::layers::{PrefixLayer, Stack};
+use metrics_exporter_prometheus::PrometheusHandle;
 use proxy::ProxyLayer;
 use server::{ExecutionMode, PayloadSource, RollupBoostServer};
 
@@ -171,24 +170,7 @@ async fn main() -> eyre::Result<()> {
     }
 
     init_tracing(&args)?;
-
-    let metrics = if args.metrics {
-        let recorder = PrometheusBuilder::new().build_recorder();
-        let handle = recorder.handle();
-
-        // Build metrics stack
-        Stack::new(recorder)
-            .push(PrefixLayer::new("rollup-boost"))
-            .install()?;
-
-        // Start the metrics server
-        let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
-        let addr: SocketAddr = metrics_addr.parse()?;
-        tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task
-        Some(Arc::new(ServerMetrics::default()))
-    } else {
-        None
-    };
+    let metrics = init_metrics(&args)?;
 
     let l2_client_args = args.l2_client;
 
