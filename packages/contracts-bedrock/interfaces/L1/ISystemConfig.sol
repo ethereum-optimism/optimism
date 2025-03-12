@@ -28,6 +28,7 @@ interface ISystemConfig {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     function BATCH_INBOX_SLOT() external view returns (bytes32);
+    function DISPUTE_GAME_FACTORY_SLOT() external view returns (bytes32);
     function L1_CROSS_DOMAIN_MESSENGER_SLOT() external view returns (bytes32);
     function L1_ERC_721_BRIDGE_SLOT() external view returns (bytes32);
     function L1_STANDARD_BRIDGE_SLOT() external view returns (bytes32);

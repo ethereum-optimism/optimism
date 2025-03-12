@@ -19,6 +19,19 @@
   },
   {
     "inputs": [],
+    "name": "DISPUTE_GAME_FACTORY_SLOT",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "L1_CROSS_DOMAIN_MESSENGER_SLOT",
     "outputs": [
       {

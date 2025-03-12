@@ -506,6 +506,9 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
 
         // Verify that the l2ChainId was updated.
         assertEq(systemConfig.l2ChainId(), 1234);
+
+        // Verify that the dispute game factory address was cleared.
+        assertEq(vm.load(address(systemConfig), bytes32(systemConfig.DISPUTE_GAME_FACTORY_SLOT())), bytes32(0));
     }
 
     /// @notice Tests that the upgrade() function reverts if called a second time.

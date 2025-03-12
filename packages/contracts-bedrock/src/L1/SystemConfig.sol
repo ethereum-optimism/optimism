@@ -81,6 +81,10 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
 
+    /// @notice Storage slot for the DisputeGameFactory address.
+    bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
+        bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
     ///         optimizations and improvements are made to the system at large.
@@ -136,9 +140,9 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.7.0
+    /// @custom:semver 3.0.0
     function version() public pure virtual returns (string memory) {
-        return "2.7.0";
+        return "3.0.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -203,7 +207,11 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Upgrades the SystemConfig by setting the L2 chain ID variable.
     /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
     function upgrade(uint256 _l2ChainId) external reinitializer(initVersion()) {
+        // Set the L2 chain ID.
         l2ChainId = _l2ChainId;
+
+        // Clear out the old dispute game factory address, it's derived now.
+        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, address(0));
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
