@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path"
 
@@ -55,7 +56,9 @@ func NewDeploymentTarget(s string) (DeploymentTarget, error) {
 func GetDefaultCacheDir() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return ".op-deployer/cache" // Fallback to local directory
+		fallbackDir := ".op-deployer/cache"
+		log.Printf("error getting user home directory: %v, using fallback directory: %s\n", err, fallbackDir)
+		return fallbackDir
 	}
 	return path.Join(homeDir, ".op-deployer/cache")
 }
