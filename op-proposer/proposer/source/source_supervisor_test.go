@@ -157,7 +157,6 @@ func TestSupervisorSource_ProposalAtSequenceNum(t *testing.T) {
 		Chains:    nil,
 	}
 	expected := Proposal{
-		Version:     eth.Bytes32{3},
 		Root:        common.Hash(response.SuperRoot),
 		SequenceNum: response.Timestamp,
 		CurrentL1:   response.CrossSafeDerivedFrom,

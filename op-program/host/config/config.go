@@ -336,7 +336,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if interopEnabled {
 		depsetConfigPath := ctx.Path(flags.DepsetConfig.Name)
 		if depsetConfigPath == "" {
-			// TODO(#13887): Load static config dependency from embed if no path is provided
+			// TODO(#14771): Load static config dependency from embed if no path is provided
 			return nil, fmt.Errorf("empty depset config path")
 		}
 		dependencySet, err = loadDepsetConfig(depsetConfigPath)

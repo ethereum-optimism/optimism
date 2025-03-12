@@ -122,7 +122,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
 	cfg.InitRatioCompressor(1, derive.Zlib)
-	m := NewChannelManager(log, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NewMetrics("test"), cfg, defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default
 	require.Empty(m.blocks)
@@ -150,7 +150,6 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 
 	// Process the blocks
 	// We should have a pending channel with 1 frame
-
 	require.NoError(m.processBlocks())
 	require.NoError(m.currentChannel.channelBuilder.co.Flush())
 	require.NoError(m.outputFrames())
@@ -174,6 +173,11 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	safeL1Origin := eth.BlockID{
 		Number: 123,
 	}
+
+	// Artificially pump up some metrics which need to be cleared
+	m.metr.RecordL2BlockInPendingQueue(a)
+	require.NotZero(m.metr.PendingDABytes())
+
 	// Clear the channel manager
 	m.Clear(safeL1Origin)
 
@@ -184,6 +188,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Nil(m.currentChannel)
 	require.Empty(m.channelQueue)
 	require.Empty(m.txChannels)
+	require.Zero(m.metr.PendingDABytes())
 }
 
 func ChannelManager_TxResend(t *testing.T, batchType uint) {

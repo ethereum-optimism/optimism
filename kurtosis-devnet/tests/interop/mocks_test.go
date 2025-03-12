@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/empty"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -126,6 +128,8 @@ type mockFailingChain struct {
 	wallets []system.Wallet
 }
 
+var _ system.Chain = (*mockFailingChain)(nil)
+
 func newMockFailingChain(id types.ChainID, wallets []system.Wallet) *mockFailingChain {
 	return &mockFailingChain{
 		id:      id,
@@ -134,6 +138,7 @@ func newMockFailingChain(id types.ChainID, wallets []system.Wallet) *mockFailing
 	}
 }
 
+func (m *mockFailingChain) Node() system.Node                  { return nil }
 func (m *mockFailingChain) RPCURL() string                     { return "mock://failing" }
 func (m *mockFailingChain) Client() (*ethclient.Client, error) { return ethclient.Dial(m.RPCURL()) }
 func (m *mockFailingChain) ID() types.ChainID                  { return m.id }
@@ -152,6 +157,12 @@ func (m *mockFailingChain) PendingNonceAt(ctx context.Context, address common.Ad
 }
 func (m *mockFailingChain) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return true
+}
+func (m *mockFailingChain) Config() (*params.ChainConfig, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (m *mockFailingChain) Addresses() descriptors.AddressMap {
+	return map[string]common.Address{}
 }
 
 // mockFailingSystem implements system.System

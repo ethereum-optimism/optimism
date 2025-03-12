@@ -51,3 +51,9 @@ func (c *EmitterContract) LastEmittedMessage() *GeneratedTransaction {
 	require.NotZero(c.t, c.EmittedMessages, "no messages have been emitted")
 	return c.EmittedMessages[len(c.EmittedMessages)-1]
 }
+
+func (c *EmitterContract) Address(chain *Chain) common.Address {
+	address, ok := c.addressByChain[chain.ChainID]
+	require.Truef(c.t, ok, "not deployed on chain %d", chain.ChainID)
+	return address
+}

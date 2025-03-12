@@ -220,3 +220,101 @@ func TestPutArtifact(t *testing.T) {
 		})
 	}
 }
+
+func TestMultipleExtractCalls(t *testing.T) {
+	// Create a test artifact with multiple files
+	files := map[string]string{
+		"file1.txt":     "content1",
+		"file2.txt":     "content2",
+		"dir/file3.txt": "content3",
+		"dir/file4.txt": "content4",
+	}
+
+	// Create mock context with artifact
+	mockCtx := &mockEnclaveContext{
+		artifacts: map[string][]byte{
+			"test-artifact": createTarGzArtifact(t, files),
+		},
+	}
+
+	fs := NewEnclaveFSWithContext(mockCtx)
+	artifact, err := fs.GetArtifact(context.Background(), "test-artifact")
+	require.NoError(t, err)
+
+	// First extraction - get file1.txt and file3.txt
+	firstExtractFiles := map[string]string{
+		"file1.txt":     "content1",
+		"dir/file3.txt": "content3",
+	}
+
+	firstWriters := make([]*ArtifactFileWriter, 0, len(firstExtractFiles))
+	firstBuffers := make(map[string]*bytes.Buffer, len(firstExtractFiles))
+
+	for reqPath := range firstExtractFiles {
+		buf := &bytes.Buffer{}
+		firstBuffers[reqPath] = buf
+		firstWriters = append(firstWriters, NewArtifactFileWriter(reqPath, buf))
+	}
+
+	// First extraction
+	err = artifact.ExtractFiles(firstWriters...)
+	require.NoError(t, err)
+
+	// Verify first extraction
+	for reqPath, wantContent := range firstExtractFiles {
+		require.Equal(t, wantContent, firstBuffers[reqPath].String(),
+			"first extraction: content mismatch for %s", reqPath)
+	}
+
+	// Second extraction - get file2.txt and file4.txt
+	secondExtractFiles := map[string]string{
+		"file2.txt":     "content2",
+		"dir/file4.txt": "content4",
+	}
+
+	secondWriters := make([]*ArtifactFileWriter, 0, len(secondExtractFiles))
+	secondBuffers := make(map[string]*bytes.Buffer, len(secondExtractFiles))
+
+	for reqPath := range secondExtractFiles {
+		buf := &bytes.Buffer{}
+		secondBuffers[reqPath] = buf
+		secondWriters = append(secondWriters, NewArtifactFileWriter(reqPath, buf))
+	}
+
+	// Second extraction using the same artifact
+	err = artifact.ExtractFiles(secondWriters...)
+	require.NoError(t, err)
+
+	// Verify second extraction
+	for reqPath, wantContent := range secondExtractFiles {
+		require.Equal(t, wantContent, secondBuffers[reqPath].String(),
+			"second extraction: content mismatch for %s", reqPath)
+	}
+
+	// Third extraction - extract all files again to prove we can keep extracting
+	allFiles := map[string]string{
+		"file1.txt":     "content1",
+		"file2.txt":     "content2",
+		"dir/file3.txt": "content3",
+		"dir/file4.txt": "content4",
+	}
+
+	allWriters := make([]*ArtifactFileWriter, 0, len(allFiles))
+	allBuffers := make(map[string]*bytes.Buffer, len(allFiles))
+
+	for reqPath := range allFiles {
+		buf := &bytes.Buffer{}
+		allBuffers[reqPath] = buf
+		allWriters = append(allWriters, NewArtifactFileWriter(reqPath, buf))
+	}
+
+	// Third extraction
+	err = artifact.ExtractFiles(allWriters...)
+	require.NoError(t, err)
+
+	// Verify third extraction
+	for reqPath, wantContent := range allFiles {
+		require.Equal(t, wantContent, allBuffers[reqPath].String(),
+			"third extraction: content mismatch for %s", reqPath)
+	}
+}

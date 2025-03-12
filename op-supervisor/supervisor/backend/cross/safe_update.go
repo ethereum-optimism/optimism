@@ -36,8 +36,6 @@ type CrossSafeDeps interface {
 
 func CrossSafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossSafeDeps) error {
 	logger.Debug("Cross-safe update call")
-	// TODO(#11693): establish L1 reorg-lock of scopeDerivedFrom
-	// defer unlock once we are done checking the chain
 	candidate, err := scopedCrossSafeUpdate(logger, chainID, d)
 	if err == nil {
 		// if we made progress, and no errors, then there is no need to bump the L1 scope yet.

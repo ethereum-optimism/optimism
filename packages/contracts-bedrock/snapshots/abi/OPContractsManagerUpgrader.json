@@ -143,6 +143,11 @@
           },
           {
             "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "systemConfigImpl",
             "type": "address"
           },

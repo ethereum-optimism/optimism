@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"math/big"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ import (
 func setupAndRun(t *testing.T, config SuperSystemConfig, fn func(*testing.T, SuperSystem)) {
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
-		L2ChainIDs:       []uint64{900200, 900201},
+		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
 		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}
 	worldResources := WorldResourcePaths{
@@ -120,6 +121,9 @@ func TestInterop_SupervisorFinality(t *testing.T) {
 		supervisor := s2.SupervisorClient()
 		require.Eventually(t, func() bool {
 			final, err := supervisor.FinalizedL1(context.Background())
+			if err != nil && strings.Contains(err.Error(), "not initialized") {
+				return false
+			}
 			require.NoError(t, err)
 			return final.Number > 0
 			// this test takes about 30 seconds, with a longer Eventually timeout for CI
@@ -370,6 +374,9 @@ func TestMultiNode(t *testing.T) {
 		supervisor := s2.SupervisorClient()
 		require.Eventually(t, func() bool {
 			final, err := supervisor.FinalizedL1(context.Background())
+			if err != nil && strings.Contains(err.Error(), "not initialized") {
+				return false
+			}
 			require.NoError(t, err)
 			return final.Number > 0
 			// this test takes about 30 seconds, with a longer Eventually timeout for CI

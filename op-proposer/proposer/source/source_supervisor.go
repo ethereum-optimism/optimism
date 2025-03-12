@@ -90,7 +90,6 @@ func (s *SupervisorProposalSource) ProposalAtSequenceNum(ctx context.Context, ti
 			continue
 		}
 		return Proposal{
-			Version:     eth.Bytes32{output.Version},
 			Root:        common.Hash(output.SuperRoot),
 			SequenceNum: output.Timestamp,
 			CurrentL1:   output.CrossSafeDerivedFrom,

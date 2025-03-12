@@ -201,7 +201,7 @@ func TestDeploy(t *testing.T) {
 				}),
 				WithKurtosisEnclaveObserver(&fakeEnclaveObserver{
 					state: &deployer.DeployerData{
-						Wallets: testWallets,
+						L1ValidatorWallets: testWallets,
 					},
 					err: tt.deployerErr,
 				}),
@@ -272,7 +272,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			name:    "successful environment info with JWT",
 			spec:    testSpec,
 			inspect: &inspect.InspectData{UserServices: testServices},
-			deploy:  &deployer.DeployerData{Wallets: testWallets},
+			deploy:  &deployer.DeployerData{L1ValidatorWallets: testWallets},
 			jwt:     testJWTs,
 			want: &KurtosisEnvironment{
 				DevnetEnvironment: descriptors.DevnetEnvironment{

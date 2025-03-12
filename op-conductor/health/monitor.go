@@ -131,10 +131,9 @@ func (hm *SequencerHealthMonitor) loop(ctx context.Context) {
 }
 
 // healthCheck checks the health of the sequencer by 3 criteria:
-// 1. unsafe head is progressing per block time
-// 2. unsafe head is not too far behind now (measured by unsafeInterval)
-// 3. safe head is progressing every configured batch submission interval
-// 4. peer count is above the configured minimum
+// 1. unsafe head is not too far behind now (measured by unsafeInterval)
+// 2. safe head is progressing every configured batch submission interval
+// 3. peer count is above the configured minimum
 func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
@@ -144,35 +143,9 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 
 	now := hm.timeProviderFn()
 
-	var timeDiff, blockDiff, expectedBlocks uint64
-	if hm.lastSeenUnsafeNum != 0 {
-		timeDiff = calculateTimeDiff(now, hm.lastSeenUnsafeTime)
-		blockDiff = status.UnsafeL2.Number - hm.lastSeenUnsafeNum
-		// how many blocks do we expect to see, minus 1 to account for edge case with respect to time.
-		// for example, if diff = 2.001s and block time = 2s, expecting to see 1 block could potentially cause sequencer to be considered unhealthy.
-		expectedBlocks = timeDiff / hm.rollupCfg.BlockTime
-		if expectedBlocks > 0 {
-			expectedBlocks--
-		}
-	}
 	if status.UnsafeL2.Number > hm.lastSeenUnsafeNum {
 		hm.lastSeenUnsafeNum = status.UnsafeL2.Number
 		hm.lastSeenUnsafeTime = now
-	}
-
-	if timeDiff > hm.rollupCfg.BlockTime && expectedBlocks > blockDiff {
-		hm.log.Error(
-			"unsafe head is not progressing as expected",
-			"now", now,
-			"unsafe_head_num", status.UnsafeL2.Number,
-			"last_seen_unsafe_num", hm.lastSeenUnsafeNum,
-			"last_seen_unsafe_time", hm.lastSeenUnsafeTime,
-			"unsafe_interval", hm.unsafeInterval,
-			"time_diff", timeDiff,
-			"block_diff", blockDiff,
-			"expected_blocks", expectedBlocks,
-		)
-		return ErrSequencerNotHealthy
 	}
 
 	curUnsafeTimeDiff := calculateTimeDiff(now, status.UnsafeL2.Time)

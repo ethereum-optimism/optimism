@@ -21,6 +21,7 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 interface IOPContractsManagerContractsContainer {
     function __constructor__(
@@ -38,16 +39,20 @@ interface IOPContractsManagerGameTypeAdder {
         uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
     );
 
-    function __constructor__(
-        IOPContractsManagerContractsContainer _contractsContainer
-    )
-        external;
+    function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
-    function addGameType(IOPContractsManager.AddGameInput[] memory _gameConfigs, address _superchainConfig)
+    function addGameType(
+        IOPContractsManager.AddGameInput[] memory _gameConfigs,
+        address _superchainConfig
+    )
         external
         returns (IOPContractsManager.AddGameOutput[] memory);
 
-    function updatePrestate(IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs, address _superchainConfig) external;
+    function updatePrestate(
+        IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs,
+        address _superchainConfig
+    )
+        external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
@@ -55,12 +60,13 @@ interface IOPContractsManagerGameTypeAdder {
 interface IOPContractsManagerDeployer {
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
 
-    function __constructor__(
-        IOPContractsManagerContractsContainer _contractsContainer
-    )
-        external;
+    function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
-    function deploy(IOPContractsManager.DeployInput memory _input, address _superchainConfig, address _deployer)
+    function deploy(
+        IOPContractsManager.DeployInput memory _input,
+        address _superchainConfig,
+        address _deployer
+    )
         external
         returns (IOPContractsManager.DeployOutput memory);
 
@@ -70,16 +76,12 @@ interface IOPContractsManagerDeployer {
 interface IOPContractsManagerUpgrader {
     event Upgraded(uint256 indexed l2ChainId, address indexed systemConfig, address indexed upgrader);
 
-    function __constructor__(
-        IOPContractsManagerContractsContainer _contractsContainer
-    )
-        external;
+    function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
     function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
-
 
 interface IOPContractsManager {
     // -------- Structs --------
@@ -123,6 +125,7 @@ interface IOPContractsManager {
         IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
         IL1StandardBridge l1StandardBridgeProxy;
         IL1CrossDomainMessenger l1CrossDomainMessengerProxy;
+        IETHLockbox ethLockboxProxy;
         // Fault proof contracts below.
         IOptimismPortal2 optimismPortalProxy;
         IDisputeGameFactory disputeGameFactoryProxy;
@@ -156,6 +159,7 @@ interface IOPContractsManager {
         address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
         address l1CrossDomainMessengerImpl;
@@ -302,4 +306,28 @@ interface IOPContractsManager {
     function isRC() external view returns (bool);
 
     function setRC(bool _isRC) external;
+}
+
+/// @notice Minimal interface only used for calling `implementations()` method but without retrieving the ETHLockbox
+///         on it, since the OPCM contracts already deployed on mainnet don't have it.
+/// @dev    Only used for testing.
+interface IOPCMImplementationsWithoutLockbox {
+    /// @notice The implementation contracts for the OP Stack, without the newly added ETHLockbox.
+    struct Implementations {
+        address superchainConfigImpl;
+        address protocolVersionsImpl;
+        address l1ERC721BridgeImpl;
+        address optimismPortalImpl;
+        address systemConfigImpl;
+        address optimismMintableERC20FactoryImpl;
+        address l1CrossDomainMessengerImpl;
+        address l1StandardBridgeImpl;
+        address disputeGameFactoryImpl;
+        address anchorStateRegistryImpl;
+        address delayedWETHImpl;
+        address mipsImpl;
+    }
+
+    /// @notice Returns the implementation contracts without the ETHLockbox.
+    function implementations() external view returns (Implementations memory);
 }

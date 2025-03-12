@@ -27,6 +27,7 @@ var (
 	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
 	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
 	ErrMissingCannonInfoFreq         = errors.New("missing cannon info freq")
+	ErrMissingDepsetConfig           = errors.New("missing network or depset config path")
 
 	ErrMissingRollupRpc     = errors.New("missing rollup rpc url")
 	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc url")
@@ -188,6 +189,10 @@ func (c Config) Check() error {
 	if c.TraceTypeEnabled(types.TraceTypeSuperCannon) || c.TraceTypeEnabled(types.TraceTypeSuperPermissioned) {
 		if c.SupervisorRPC == "" {
 			return ErrMissingSupervisorRpc
+		}
+
+		if len(c.Cannon.Networks) == 0 && c.Cannon.DepsetConfigPath == "" {
+			return ErrMissingDepsetConfig
 		}
 		if err := c.validateBaseCannonOptions(); err != nil {
 			return err

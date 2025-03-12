@@ -240,6 +240,6 @@ func (m *mockCrossUnsafeDeps) IsLocalUnsafe(chainID eth.ChainID, blockNum eth.Bl
 	return nil
 }
 
-func (m *mockCrossUnsafeDeps) ParentBlock(chainID eth.ChainID, blockNum eth.BlockID) (eth.BlockID, error) {
+func (m *mockCrossUnsafeDeps) FindBlockID(chainID eth.ChainID, num uint64) (eth.BlockID, error) {
 	return eth.BlockID{}, nil
 }

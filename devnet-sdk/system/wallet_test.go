@@ -135,6 +135,7 @@ func TestWallet_Address(t *testing.T) {
 func TestWallet_SendETH(t *testing.T) {
 	ctx := context.Background()
 	mockChain := newMockChain()
+	mockNode := newMockNode()
 	internalChain := &internalMockChain{mockChain}
 
 	// Use a valid 256-bit private key (32 bytes)
@@ -162,11 +163,14 @@ func TestWallet_SendETH(t *testing.T) {
 	mockChain.On("SupportsEIP", ctx, uint64(4844)).Return(false)
 
 	// Mock gas price and limit
-	mockChain.On("GasPrice", ctx).Return(big.NewInt(1000000000), nil)
-	mockChain.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil)
+	mockChain.On("Node").Return(mockNode).Once()
+	mockNode.On("GasPrice", ctx).Return(big.NewInt(1000000000), nil)
+	mockChain.On("Node").Return(mockNode).Once()
+	mockNode.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil)
 
 	// Mock nonce retrieval
-	mockChain.On("PendingNonceAt", ctx, fromAddr).Return(uint64(0), nil)
+	mockChain.On("Node").Return(mockNode).Once()
+	mockNode.On("PendingNonceAt", ctx, fromAddr).Return(uint64(0), nil)
 
 	// Mock client access
 	client, err := ethclient.Dial("http://this.domain.definitely.does.not.exist:8545")

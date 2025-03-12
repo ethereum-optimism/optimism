@@ -16,6 +16,7 @@ type Implementations struct {
 	OpcmUpgrader                     common.Address `json:"OPCMUpgrader"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
+	ETHLockboxImpl                   common.Address `json:"ETHLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"PreimageOracleSingleton"`
 	MipsSingleton                    common.Address `json:"MipsSingleton"`
 	SystemConfigImpl                 common.Address `json:"SystemConfigImpl"`
@@ -51,6 +52,7 @@ type L2OpchainDeployment struct {
 	L1CrossDomainMessengerProxy       common.Address `json:"L1CrossDomainMessengerProxy"`
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address `json:"OptimismPortalProxy"`
+	ETHLockboxProxy                    common.Address `json:"ETHLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address `json:"DisputeGameFactoryProxy"`
 	AnchorStateRegistryProxy           common.Address `json:"AnchorStateRegistryProxy"`
 	FaultDisputeGame                   common.Address `json:"FaultDisputeGame"`

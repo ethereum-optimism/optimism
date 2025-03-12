@@ -5,7 +5,7 @@ However, there are some changes to accommodate the unique nature of smart contra
 
 There are five parts to the versioning and release process:
 
-- [Semver Rules](#semver-rules): Follows the rules defined in the [style guide](contributing/STYLE_GUIDE.mdLE_GUIDE.md#versioning) for when to bump major, minor, and patch versions in individual contracts.
+- [Semver Rules](#semver-rules): Follows the rules defined in the [style guide](../contributing/style-guide.md#versioning) for when to bump major, minor, and patch versions in individual contracts.
 - [Individual Contract Versioning](#individual-contract-versioning): The versioning scheme for individual contracts and includes beta, release candidate, and feature tags.
 - [Monorepo Contracts Release Versioning](#monorepo-contracts-release-versioning): The versioning scheme for monorepo smart contract releases.
 - [Release Process](#release-process): The process for deploying contracts, creating a governance proposal, and the required associated releases.
@@ -18,7 +18,7 @@ There are five parts to the versioning and release process:
 
 ## Semver Rules
 
-Version increments follow the [style guide rules](contributing/STYLE_GUIDE.mdLE_GUIDE.md#versioning) for when to bump major, minor, and patch versions in individual contracts:
+Version increments follow the [style guide rules](../contributing/style-guide.md#versioning) for when to bump major, minor, and patch versions in individual contracts:
 
 > - `patch` releases are to be used only for changes that do NOT modify contract bytecode (such as updating comments).
 > - `minor` releases are to be used for changes that modify bytecode OR changes that expand the contract ABI provided that these changes do NOT break the existing interface.
@@ -92,29 +92,38 @@ For example, the [Fault Proofs governance proposal](https://gov.optimism.io/t/up
 
 To accommodate this, once contract changes are ready for governance approval, the release flow is:
 
-- On the `develop` branch, bump the version of all contracts to be included in this release to their respective `X.Y.Z-rc.n`. The `X.Y.Z` here refers to the contract-specific versions, so it differs per-contract. The `-rc.n` begins as `-rc.1` for all contracts.
-  - Any `-beta.n` and `+feature-name` identifiers are removed at this point.
-  - Contracts that are not included as part of this release are left untouched.
-- Branch off of `develop` and create a branch named `proposal/op-contracts/vX.Y.Z`. Here, `X.Y.Z` is the new version of the monorepo release.
-  - Using the `proposal/` prefix signals that this branch is for a governance proposal, and intentionally does not convey whether or not the proposal has passed.
-- Open a PR into the `proposal/op-contracts/vX.Y.Z` branch that removes the `-rc.1` suffixes from all contracts, and merge it into the `proposal/op-contracts/vX.Y.Z` branch.
-  - After merge, the new commit on the `proposal/op-contracts/vX.Y.Z` branch is the commit hash that will be tagged as `op-contracts/vX.Y.Z-rc.1`, used to deploy the contracts, and proposed to governance.
-  - Sometimes additional release candidates are needed before proposal—see [Additional Release Candidates](#additional-release-candidates) for more information on this flow.
-- Once the governance approval is posted, any lock on contracts on `develop` is released.
-- Once governance approves the proposal:
-    - Create the official `op-contracts/vX.Y.Z` off of this `proposal/op-contracts/vX.Y.Z` branch. It should be at the same commit as the most recent release candidate.
-    - Merge the proposal branch into `develop` and set the version of all contracts to the appropriate `X.Y.Z` after considering any changes made to `develop` since the release candidate was created.
-  - See [Merging Back to Develop After Governance Approval](#merging-back-to-develop-after-governance-approval) for more information on how to choose the resulting contract versions when merging back into `develop`.
+1. Go to https://github.com/ethereum-optimism/optimism/releases/new
+2. Enter the release title as `op-contracts/vX.Y.Z-rc.1`
+3. In the "choose a tag" dropdown, enter the same `op-contracts/vX.Y.Z-rc.1` and click the "Create new tag" option that shows up
+4. Populate the release notes.
+5. Check "set as pre-release" since it's not yet governance approved
+6. Uncheck "Set as the latest release" and "Create a discussion for this release".
+7. Click publish release.
+8. After governance vote passes, edit the relase to uncheck "set as pre-release", and remove the `-rc.1` tag.
+
+Although the tools exist to apply a [code freeze](./code-freezes.md) to specific contracts, this is
+discouraged. If a change is required to a release candidate after it has been tagged, the
+[Additional Release Candidates](#additional-release-candidates) for more information on this flow.
 
 ### Additional Release Candidates
 
-Sometimes additional release candidate versions are needed.
-The process for this is:
+Sometimes additional release candidate versions are needed, in that case, the follow process should be used.
+This process is designed to (1) ensures fixes are made on both the release and the trunk branch
+ and (2) avoids the need to stop development efforts on the trunk branch.
 
-- Make the fixes on `develop`. Increment the `-rc.n` qualifier for the changed contracts only.
-- Open a PR into the `proposal/op-contracts/vX.Y.Z` branch that incorporates the changes from `develop`.
-- Open another PR to remove the new `-rc.2` version identifiers from the changed contracts. Tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
-- This flow (1) ensures develop stays up to date during the release process, (2) mitigates the risk of forgetting to merge the release back into the develop branch, and (3) mitigates the risk of the merge into develop removing the required `-rc.n` version that is needed until the release is approved.
+
+1. Make the fixes on `develop`. *For whatever the normal semver level increment should be, bump that value by 5.*
+2. Create a new release branch, named `proposal/op-contracts/X.Y.Z-rc.n+1` off of the rc tag.
+3. Cherry pick the fixes from `develop` into that branch. *Bump the semvers as normal, ensuring that the resulting version is less than the one on `develop`.
+4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
+   Create a new release for this tag per the instructions above.
+
+Note: The reason for the larger semver increment on `develop` is to prevent a collision, wherein a
+contract could have the same semver, but different source/bytecode on the two branches.
+
+For example: if the current version of a contract is `1.1.1` and a minor bump is required (most common for a bug fix),
+   then the fixed version should become `1.8.0` on `develop`. Then on the release branch is should become
+   `1.2.0`.
 
 ### Merging Back to Develop After Governance Approval
 

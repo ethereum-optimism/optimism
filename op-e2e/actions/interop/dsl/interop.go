@@ -103,15 +103,32 @@ func (actors *InteropActors) PrepareChainState(t helpers.Testing) {
 // At a 2 second block time, this should be small enough to cover all events buffered in the supervisor event queue.
 const messageExpiryTime = 120 // 2 minutes
 
-// SetupInterop creates an InteropSetup to instantiate actors on, with 2 L2 chains.
-func SetupInterop(t helpers.Testing) *InteropSetup {
-	logger := testlog.Logger(t, log.LevelDebug)
+type setupOption func(*interopgen.InteropDevRecipe)
 
+func SetBlockTimeForChainA(blockTime uint64) setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		recipe.L2s[0].BlockTime = blockTime
+	}
+}
+
+func SetBlockTimeForChainB(blockTime uint64) setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		recipe.L2s[1].BlockTime = blockTime
+	}
+}
+
+// SetupInterop creates an InteropSetup to instantiate actors on, with 2 L2 chains.
+func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
-		L2ChainIDs:       []uint64{900200, 900201},
+		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
 		GenesisTimestamp: uint64(time.Now().Unix() + 3),
 	}
+	for _, opt := range opts {
+		opt(&recipe)
+	}
+
+	logger := testlog.Logger(t, log.LevelDebug)
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
 	worldCfg, err := recipe.Build(hdWallet)

@@ -180,7 +180,7 @@ func (b *TxBuilder) chooseTxType(hasAccessList bool, hasBlobs bool) uint8 {
 
 // getNonce gets the next nonce for the given address
 func (b *TxBuilder) getNonce(from common.Address) (uint64, error) {
-	nonce, err := b.chain.PendingNonceAt(b.ctx, from)
+	nonce, err := b.chain.Node().PendingNonceAt(b.ctx, from)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get nonce: %w", err)
 	}
@@ -189,7 +189,7 @@ func (b *TxBuilder) getNonce(from common.Address) (uint64, error) {
 
 // getGasPrice gets the suggested gas price from the network
 func (b *TxBuilder) getGasPrice() (*big.Int, error) {
-	gasPrice, err := b.chain.GasPrice(b.ctx)
+	gasPrice, err := b.chain.Node().GasPrice(b.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
@@ -202,7 +202,7 @@ func (b *TxBuilder) calculateGasLimit(opts *TxOpts) (uint64, error) {
 		return opts.gasLimit, nil
 	}
 
-	estimated, err := b.chain.GasLimit(b.ctx, opts)
+	estimated, err := b.chain.Node().GasLimit(b.ctx, opts)
 	if err != nil {
 		return 0, fmt.Errorf("failed to estimate gas: %w", err)
 	}

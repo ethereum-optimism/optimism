@@ -62,8 +62,8 @@ type InteropDSL struct {
 	createdUsers uint64
 }
 
-func NewInteropDSL(t helpers.Testing) *InteropDSL {
-	setup := SetupInterop(t)
+func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
+	setup := SetupInterop(t, opts...)
 	actors := setup.CreateActors()
 	actors.PrepareChainState(t)
 
@@ -284,4 +284,17 @@ func (d *InteropDSL) AdvanceL1(optionalArgs ...func(*AdvanceL1Opts)) {
 		require.Equalf(d.t, newBlock, status.HeadL1, "Chain %v did not detect new L1 head", chain.ChainID)
 		require.Equalf(d.t, newBlock, status.CurrentL1, "Chain %v did not process new L1 head", chain.ChainID)
 	}
+}
+
+// DeployEmitterContracts deploys an emitter contract on both chains
+func (d *InteropDSL) DeployEmitterContracts() *EmitterContract {
+	emitter := NewEmitterContract(d.t)
+	alice := d.CreateUser()
+	d.AddL2Block(d.Actors.ChainA, WithL2BlockTransactions(
+		emitter.Deploy(alice),
+	))
+	d.AddL2Block(d.Actors.ChainB, WithL2BlockTransactions(
+		emitter.Deploy(alice),
+	))
+	return emitter
 }

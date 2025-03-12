@@ -2,13 +2,14 @@ package deployer
 
 import (
 	"bytes"
-	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	"gopkg.in/yaml.v3"
 )
@@ -34,25 +35,20 @@ func getMnemonics(r io.Reader) (string, error) {
 	return config[0].Mnemonic, nil
 }
 
-func (d *Deployer) getKnownWallets(ctx context.Context, fs *ktfs.EnclaveFS) ([]*Wallet, error) {
-	a, err := fs.GetArtifact(ctx, d.genesisArtifactName)
-	if err != nil {
-		return nil, err
-	}
-
+func (d *Deployer) getL1ValidatorWallets(deployerArtifact *ktfs.Artifact) ([]*Wallet, error) {
 	mnemonicsBuffer := bytes.NewBuffer(nil)
-	if err := a.ExtractFiles(
-		ktfs.NewArtifactFileWriter(d.mnemonicsName, mnemonicsBuffer),
+	if err := deployerArtifact.ExtractFiles(
+		ktfs.NewArtifactFileWriter(d.l1ValidatorMnemonicName, mnemonicsBuffer),
 	); err != nil {
 		return nil, err
 	}
 
-	mnemonics, err := getMnemonics(mnemonicsBuffer)
+	mnemonic, err := getMnemonics(mnemonicsBuffer)
 	if err != nil {
 		return nil, err
 	}
 
-	m, _ := devkeys.NewMnemonicDevKeys(mnemonics)
+	m, _ := devkeys.NewMnemonicDevKeys(mnemonic)
 	knownWallets := make([]*Wallet, 0)
 
 	var keys []devkeys.Key
@@ -72,4 +68,21 @@ func (d *Deployer) getKnownWallets(ctx context.Context, fs *ktfs.EnclaveFS) ([]*
 	}
 
 	return knownWallets, nil
+}
+
+func (d *Deployer) getL1ChainID(genesisArtifact *ktfs.Artifact) (string, error) {
+	genesisBuffer := bytes.NewBuffer(nil)
+	if err := genesisArtifact.ExtractFiles(
+		ktfs.NewArtifactFileWriter(d.l1GenesisName, genesisBuffer),
+	); err != nil {
+		return "", err
+	}
+
+	// Parse the genesis file JSON into a core.Genesis struct
+	var genesis core.Genesis
+	if err := json.NewDecoder(genesisBuffer).Decode(&genesis); err != nil {
+		return "", fmt.Errorf("failed to parse genesis file %s in artifact %s: %w", d.l1GenesisName, d.genesisArtifactName, err)
+	}
+
+	return genesis.Config.ChainID.String(), nil
 }

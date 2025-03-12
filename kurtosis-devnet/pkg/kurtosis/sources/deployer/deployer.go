@@ -8,10 +8,16 @@ import (
 	"io"
 	"math/big"
 	"strings"
+	"text/template"
 
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -19,7 +25,9 @@ const (
 	defaultWalletsName          = "wallets.json"
 	defaultStateName            = "state.json"
 	defaultGenesisArtifactName  = "el_cl_genesis_data"
-	defaultMnemonicsName        = "mnemonics.yaml"
+	defaultMnemonicName         = "mnemonics.yaml"
+	defaultGenesisNameTemplate  = "genesis-{{.ChainID}}.json"
+	defaultL1GenesisName        = "genesis.json"
 )
 
 // DeploymentAddresses maps contract names to their addresses
@@ -30,7 +38,9 @@ type DeploymentStateAddresses map[string]DeploymentAddresses
 
 type DeploymentState struct {
 	Addresses DeploymentAddresses `json:"addresses"`
-	Wallets   WalletList          `json:"wallets"`
+	L1Wallets WalletList          `json:"l1_wallets"`
+	L2Wallets WalletList          `json:"l2_wallets"`
+	Config    *params.ChainConfig `json:"chain_config"`
 }
 
 type DeployerState struct {
@@ -56,17 +66,20 @@ type Wallet struct {
 type WalletList []*Wallet
 
 type DeployerData struct {
-	Wallets WalletList     `json:"wallets"`
-	State   *DeployerState `json:"state"`
+	L1ValidatorWallets WalletList     `json:"wallets"`
+	State              *DeployerState `json:"state"`
+	L1ChainID          string         `json:"l1_chain_id"`
 }
 
 type Deployer struct {
-	enclave              string
-	deployerArtifactName string
-	walletsName          string
-	stateName            string
-	genesisArtifactName  string
-	mnemonicsName        string
+	enclave                 string
+	deployerArtifactName    string
+	walletsName             string
+	stateName               string
+	genesisArtifactName     string
+	l1ValidatorMnemonicName string
+	l2GenesisNameTemplate   string
+	l1GenesisName           string
 }
 
 type DeployerOption func(*Deployer)
@@ -97,18 +110,26 @@ func WithGenesisArtifactName(name string) DeployerOption {
 
 func WithMnemonicsName(name string) DeployerOption {
 	return func(d *Deployer) {
-		d.mnemonicsName = name
+		d.l1ValidatorMnemonicName = name
+	}
+}
+
+func WithGenesisNameTemplate(name string) DeployerOption {
+	return func(d *Deployer) {
+		d.l2GenesisNameTemplate = name
 	}
 }
 
 func NewDeployer(enclave string, opts ...DeployerOption) *Deployer {
 	d := &Deployer{
-		enclave:              enclave,
-		deployerArtifactName: defaultDeployerArtifactName,
-		walletsName:          defaultWalletsName,
-		stateName:            defaultStateName,
-		genesisArtifactName:  defaultGenesisArtifactName,
-		mnemonicsName:        defaultMnemonicsName,
+		enclave:                 enclave,
+		deployerArtifactName:    defaultDeployerArtifactName,
+		walletsName:             defaultWalletsName,
+		stateName:               defaultStateName,
+		genesisArtifactName:     defaultGenesisArtifactName,
+		l1ValidatorMnemonicName: defaultMnemonicName,
+		l2GenesisNameTemplate:   defaultGenesisNameTemplate,
+		l1GenesisName:           defaultL1GenesisName,
 	}
 
 	for _, opt := range opts {
@@ -257,14 +278,14 @@ func (d *Deployer) ExtractData(ctx context.Context) (*DeployerData, error) {
 		return nil, err
 	}
 
-	a, err := fs.GetArtifact(ctx, d.deployerArtifactName)
+	deployerArtifact, err := fs.GetArtifact(ctx, d.deployerArtifactName)
 	if err != nil {
 		return nil, err
 	}
 
 	stateBuffer := bytes.NewBuffer(nil)
 	walletsBuffer := bytes.NewBuffer(nil)
-	if err := a.ExtractFiles(
+	if err := deployerArtifact.ExtractFiles(
 		ktfs.NewArtifactFileWriter(d.stateName, stateBuffer),
 		ktfs.NewArtifactFileWriter(d.walletsName, walletsBuffer),
 	); err != nil {
@@ -276,25 +297,112 @@ func (d *Deployer) ExtractData(ctx context.Context) (*DeployerData, error) {
 		return nil, err
 	}
 
-	wallets, err := parseWalletsFile(walletsBuffer)
+	l1WalletsForL2Admin, err := parseWalletsFile(walletsBuffer)
 	if err != nil {
 		return nil, err
 	}
 
-	for id, wallets := range wallets {
-		if deployment, exists := state.Deployments[id]; exists {
-			deployment.Wallets = wallets
-			state.Deployments[id] = deployment
-		}
+	// Generate test wallets from the standard "test test test..." mnemonic
+	// These are the same wallets funded in L2Genesis.s.sol's devAccounts array
+	devWallets, err := d.getDevWallets()
+	if err != nil {
+		return nil, err
 	}
 
-	knownWallets, err := d.getKnownWallets(ctx, fs)
+	for id, deployment := range state.Deployments {
+		if l1Wallets, exists := l1WalletsForL2Admin[id]; exists {
+			deployment.L1Wallets = l1Wallets
+		}
+		deployment.L2Wallets = devWallets
+
+		genesisBuffer := bytes.NewBuffer(nil)
+		genesisName, err := d.renderGenesisNameTemplate(id)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := deployerArtifact.ExtractFiles(
+			ktfs.NewArtifactFileWriter(genesisName, genesisBuffer),
+		); err != nil {
+			return nil, err
+		}
+
+		// Parse the genesis file JSON into a core.Genesis struct
+		var genesis core.Genesis
+		if err := json.NewDecoder(genesisBuffer).Decode(&genesis); err != nil {
+			return nil, fmt.Errorf("failed to parse genesis file %s in artifact %s for chain ID %s: %w", genesisName, d.deployerArtifactName, id, err)
+		}
+
+		// Store the genesis data in the deployment state
+		deployment.Config = genesis.Config
+		state.Deployments[id] = deployment
+	}
+
+	l1GenesisArtifact, err := fs.GetArtifact(ctx, d.genesisArtifactName)
+	if err != nil {
+		return nil, err
+	}
+
+	l1ValidatorWallets, err := d.getL1ValidatorWallets(l1GenesisArtifact)
+	if err != nil {
+		return nil, err
+	}
+
+	l1ChainID, err := d.getL1ChainID(l1GenesisArtifact)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DeployerData{
-		State:   state,
-		Wallets: knownWallets,
+		L1ChainID:          l1ChainID,
+		State:              state,
+		L1ValidatorWallets: l1ValidatorWallets,
 	}, nil
+}
+
+func (d *Deployer) renderGenesisNameTemplate(chainID string) (string, error) {
+	tmpl, err := template.New("genesis").Parse(d.l2GenesisNameTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile genesis name template %s: %w", d.l2GenesisNameTemplate, err)
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.Execute(&buf, map[string]string{"ChainID": chainID})
+	if err != nil {
+		return "", fmt.Errorf("failed to execute name template %s: %w", d.l2GenesisNameTemplate, err)
+	}
+
+	return buf.String(), nil
+}
+
+// getDevWallets generates the set of test wallets used in L2Genesis.s.sol
+// These wallets are derived from the standard test mnemonic
+func (d *Deployer) getDevWallets() ([]*Wallet, error) {
+	m, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create mnemonic dev keys: %w", err)
+	}
+
+	// Generate 30 wallets to match L2Genesis.s.sol's devAccounts array
+	testWallets := make([]*Wallet, 0, 30)
+	for i := 0; i < 30; i++ {
+		key := devkeys.UserKey(uint64(i))
+		addr, err := m.Address(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get address for test wallet %d: %w", i, err)
+		}
+
+		sec, err := m.Secret(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get secret key for test wallet %d: %w", i, err)
+		}
+
+		testWallets = append(testWallets, &Wallet{
+			Name:       fmt.Sprintf("dev-account-%d", i),
+			Address:    addr,
+			PrivateKey: hexutil.Bytes(crypto.FromECDSA(sec)).String(),
+		})
+	}
+
+	return testWallets, nil
 }

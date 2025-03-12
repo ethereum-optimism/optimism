@@ -27,6 +27,10 @@ forge-build-dev *ARGS:
 build-source:
   forge build --skip "/**/test/**" --skip "/**/scripts/**"
 
+# Builds source contracts and scripts, skipping tests.
+build-no-tests:
+  forge build --skip "/**/test/**"
+
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail
   just forge-build {{ARGS}}
@@ -65,7 +69,7 @@ test-dev *ARGS: build-go-ffi
 # Default block number for the forked upgrade path.
 
 export sepoliaBlockNumber := "7701807"
-export mainnetBlockNumber := "21971446"
+export mainnetBlockNumber := "21983965"
 
 export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
     mainnetBlockNumber
@@ -303,6 +307,7 @@ check:
   semver-diff-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \
+  reinitializer-check-no-build \
   interfaces-check-no-build \
   lint-forge-tests-check-no-build
 

@@ -72,6 +72,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		OpcmUpgraderAddress:                     dio.OpcmUpgrader,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
+		ETHLockboxImplAddress:                   dio.ETHLockboxImpl,
 		PreimageOracleSingletonAddress:          dio.PreimageOracleSingleton,
 		MipsSingletonAddress:                    dio.MipsSingleton,
 		SystemConfigImplAddress:                 dio.SystemConfigImpl,

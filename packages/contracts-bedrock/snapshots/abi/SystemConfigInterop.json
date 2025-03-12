@@ -305,6 +305,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "initVersion",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -414,6 +427,11 @@
         "internalType": "struct SystemConfig.Addresses",
         "name": "_addresses",
         "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -536,6 +554,11 @@
         "internalType": "address",
         "name": "_dependencyManager",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -584,6 +607,19 @@
   },
   {
     "inputs": [],
+    "name": "l2ChainId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "maximumGasLimit",
     "outputs": [
       {
@@ -603,6 +639,32 @@
         "internalType": "uint64",
         "name": "",
         "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "operatorFeeConstant",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "operatorFeeScalar",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
@@ -821,6 +883,24 @@
   {
     "inputs": [
       {
+        "internalType": "uint32",
+        "name": "_operatorFeeScalar",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "_operatorFeeConstant",
+        "type": "uint64"
+      }
+    ],
+    "name": "setOperatorFeeScalars",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_unsafeBlockSigner",
         "type": "address"
@@ -868,6 +948,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "upgrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -939,5 +1032,10 @@
     ],
     "name": "OwnershipTransferred",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ReinitializableBase_ZeroInitVersion",
+    "type": "error"
   }
 ]

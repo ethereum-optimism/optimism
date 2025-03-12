@@ -68,14 +68,27 @@ func TestFees(t *testing.T) {
 	})
 	t.Run("fjord", func(t *testing.T) {
 		op_e2e.InitParallel(t)
-		cfg := e2esys.DefaultSystemConfig(t)
+		cfg := e2esys.FjordSystemConfig(t, new(hexutil.Uint64))
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
-		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisFjordTimeOffset = new(hexutil.Uint64)
+		testFees(t, cfg)
+	})
+
+	t.Run("isthmus without operator fee", func(t *testing.T) {
+		op_e2e.InitParallel(t)
+		cfg := e2esys.IsthmusSystemConfig(t, new(hexutil.Uint64))
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+
+		testFees(t, cfg)
+	})
+
+	t.Run("isthmus with operator fee", func(t *testing.T) {
+		op_e2e.InitParallel(t)
+		cfg := e2esys.IsthmusSystemConfig(t, new(hexutil.Uint64))
+		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
+		cfg.DeployConfig.GasPriceOracleOperatorFeeScalar = 1439103868
+		cfg.DeployConfig.GasPriceOracleOperatorFeeConstant = 12564178266093314607
+
 		testFees(t, cfg)
 	})
 }
@@ -87,6 +100,13 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	l2Seq := sys.NodeClient("sequencer")
 	l2Verif := sys.NodeClient("verifier")
 	l1 := sys.NodeClient("l1")
+
+	balanceAt := func(a common.Address, blockNumber *big.Int) *big.Int {
+		t.Helper()
+		bal, err := l2Seq.BalanceAt(context.Background(), a, blockNumber)
+		require.NoError(t, err)
+		return bal
+	}
 
 	// Wait for first block after genesis. The genesis block has zero L1Block values and will throw off the GPO checks
 	_, err = geth.WaitForBlock(big.NewInt(1), l2Verif)
@@ -101,6 +121,7 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	}
 
 	l1CostFn := types.NewL1CostFunc(config, sga)
+	operatorFeeFn := types.NewOperatorCostFunc(config, sga)
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice
@@ -134,26 +155,24 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 
 	require.Equal(t, decimals.Uint64(), uint64(6), "wrong gpo decimals")
 
-	// BaseFee Recipient
-	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.BaseFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
-	require.Nil(t, err)
+	baseFeeRecipientStartBalance := balanceAt(predeploys.BaseFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	l1FeeRecipientStartBalance := balanceAt(predeploys.L1FeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	sequencerFeeVaultStartBalance := balanceAt(predeploys.SequencerFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	operatorFeeVaultStartBalance := balanceAt(predeploys.OperatorFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 
-	// L1Fee Recipient
-	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.L1FeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
-	require.Nil(t, err)
-
-	sequencerFeeVaultStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.SequencerFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
-	require.Nil(t, err)
+	require.Equal(t, baseFeeRecipientStartBalance.Sign(), 0, "base fee vault should be empty")
+	require.Equal(t, l1FeeRecipientStartBalance.Sign(), 0, "l1 fee vault should be empty")
+	require.Equal(t, sequencerFeeVaultStartBalance.Sign(), 0, "sequencer fee vault should be empty")
+	require.Equal(t, operatorFeeVaultStartBalance.Sign(), 0, "operator fee vault should be empty")
 
 	genesisBlock, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
 	require.NoError(t, err)
 
-	coinbaseStartBalance, err := l2Seq.BalanceAt(context.Background(), genesisBlock.Coinbase(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
-	require.NoError(t, err)
+	coinbaseStartBalance := balanceAt(genesisBlock.Coinbase(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
 
 	// Simple transfer from signer to random account
-	startBalance, err := l2Seq.BalanceAt(context.Background(), fromAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
-	require.Nil(t, err)
+	startBalance := balanceAt(fromAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+
 	require.Greater(t, startBalance.Uint64(), big.NewInt(params.Ether).Uint64())
 
 	transferAmount := big.NewInt(params.Ether)
@@ -172,38 +191,33 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	header, err := l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.Nil(t, err)
 
-	coinbaseEndBalance, err := l2Seq.BalanceAt(context.Background(), header.Coinbase, header.Number)
-	require.Nil(t, err)
-
-	endBalance, err := l2Seq.BalanceAt(context.Background(), fromAddr, header.Number)
-	require.Nil(t, err)
-
-	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.BaseFeeVaultAddr, header.Number)
-	require.Nil(t, err)
+	coinbaseEndBalance := balanceAt(header.Coinbase, header.Number)
+	endBalance := balanceAt(fromAddr, header.Number)
+	baseFeeRecipientEndBalance := balanceAt(predeploys.BaseFeeVaultAddr, header.Number)
 
 	l1Header, err := l1.HeaderByNumber(context.Background(), nil)
 	require.Nil(t, err)
 
-	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.L1FeeVaultAddr, header.Number)
-	require.Nil(t, err)
-
-	sequencerFeeVaultEndBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.SequencerFeeVaultAddr, header.Number)
-	require.Nil(t, err)
+	l1FeeRecipientEndBalance := balanceAt(predeploys.L1FeeVaultAddr, header.Number)
+	sequencerFeeVaultEndBalance := balanceAt(predeploys.SequencerFeeVaultAddr, header.Number)
+	operatorFeeVaultEndBalance := balanceAt(predeploys.OperatorFeeVaultAddr, header.Number)
 
 	// Diff fee recipient + coinbase balances
 	baseFeeRecipientDiff := new(big.Int).Sub(baseFeeRecipientEndBalance, baseFeeRecipientStartBalance)
 	l1FeeRecipientDiff := new(big.Int).Sub(l1FeeRecipientEndBalance, l1FeeRecipientStartBalance)
 	sequencerFeeVaultDiff := new(big.Int).Sub(sequencerFeeVaultEndBalance, sequencerFeeVaultStartBalance)
+	operatorFeeVaultDiff := new(big.Int).Sub(operatorFeeVaultEndBalance, operatorFeeVaultStartBalance)
 	coinbaseDiff := new(big.Int).Sub(coinbaseEndBalance, coinbaseStartBalance)
 
 	// Tally L2 Fee
-	l2Fee := gasTip.Mul(gasTip, new(big.Int).SetUint64(receipt.GasUsed))
+	gasUsed := new(big.Int).SetUint64(receipt.GasUsed)
+	l2Fee := gasTip.Mul(gasTip, gasUsed)
 	require.Equal(t, sequencerFeeVaultDiff, coinbaseDiff, "coinbase is always sequencer fee vault")
 	require.Equal(t, l2Fee, coinbaseDiff, "l2 fee mismatch")
 	require.Equal(t, l2Fee, sequencerFeeVaultDiff)
 
 	// Tally BaseFee
-	baseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(receipt.GasUsed))
+	baseFee := new(big.Int).Mul(header.BaseFee, gasUsed)
 	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee mismatch")
 
 	// Tally L1 Fee
@@ -215,6 +229,9 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	l1Fee := l1CostFn(tx.RollupCostData(), header.Time)
 	require.Equalf(t, l1Fee, l1FeeRecipientDiff, "L1 fee mismatch: start balance %v, end balance %v", l1FeeRecipientStartBalance, l1FeeRecipientEndBalance)
 
+	operatorFee := operatorFeeFn(receipt.GasUsed, header.Time)
+	require.True(t, operatorFeeVaultDiff.Cmp(operatorFee.ToBig()) == 0, "operator fee mismatch: start balance %v, end balance %v", operatorFeeVaultStartBalance, operatorFeeVaultEndBalance)
+
 	gpoEcotone, err := gpoContract.IsEcotone(nil)
 	require.NoError(t, err)
 	require.Equal(t, sys.RollupConfig.IsEcotone(header.Time), gpoEcotone, "GPO and chain must have same ecotone view")
@@ -222,6 +239,10 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 	gpoFjord, err := gpoContract.IsFjord(nil)
 	require.NoError(t, err)
 	require.Equal(t, sys.RollupConfig.IsFjord(header.Time), gpoFjord, "GPO and chain must have same fjord view")
+
+	gpoIsthmus, err := gpoContract.IsIsthmus(nil)
+	require.NoError(t, err)
+	require.Equal(t, sys.RollupConfig.IsIsthmus(header.Time), gpoIsthmus, "GPO and chain must have same isthmus view")
 
 	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
 	require.Nil(t, err)
@@ -256,9 +277,36 @@ func testFees(t *testing.T, cfg e2esys.SystemConfig) {
 			new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times base fee")
 	}
 
+	expectedOperatorFee := new(big.Int).Add(
+		new(big.Int).Div(
+			new(big.Int).Mul(
+				gasUsed,
+				new(big.Int).SetUint64(uint64(cfg.DeployConfig.GasPriceOracleOperatorFeeScalar)),
+			),
+			new(big.Int).SetUint64(uint64(1e6)),
+		),
+		new(big.Int).SetUint64(cfg.DeployConfig.GasPriceOracleOperatorFeeConstant),
+	)
+
+	if sys.RollupConfig.IsIsthmus(header.Time) {
+		require.True(t, expectedOperatorFee.Cmp(operatorFee.ToBig()) == 0,
+			"operator fee is correct",
+		)
+
+		if cfg.DeployConfig.GasPriceOracleOperatorFeeScalar == 0 && cfg.DeployConfig.GasPriceOracleOperatorFeeConstant == 0 {
+			// if both operator fee params are 0, they aren't added to receipts.
+			require.Nil(t, receipt.OperatorFeeScalar, "operator fee constant in receipt is nil")
+			require.Nil(t, receipt.OperatorFeeConstant, "operator fee constant in receipt is nil")
+		} else {
+			require.Equal(t, cfg.DeployConfig.GasPriceOracleOperatorFeeScalar, uint32(*receipt.OperatorFeeScalar), "operator fee constant in receipt is correct")
+			require.Equal(t, cfg.DeployConfig.GasPriceOracleOperatorFeeConstant, *receipt.OperatorFeeConstant, "operator fee constant in receipt is correct")
+		}
+	}
+
 	// Calculate total fee
 	baseFeeRecipientDiff.Add(baseFeeRecipientDiff, coinbaseDiff)
 	totalFee := new(big.Int).Add(baseFeeRecipientDiff, l1FeeRecipientDiff)
+	totalFee = new(big.Int).Add(totalFee, operatorFeeVaultDiff)
 	balanceDiff := new(big.Int).Sub(startBalance, endBalance)
 	balanceDiff.Sub(balanceDiff, transferAmount)
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")

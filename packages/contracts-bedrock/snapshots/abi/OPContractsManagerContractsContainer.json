@@ -77,6 +77,11 @@
           },
           {
             "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "systemConfigImpl",
             "type": "address"
           },
@@ -208,6 +213,11 @@
           {
             "internalType": "address",
             "name": "optimismPortalImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLockboxImpl",
             "type": "address"
           },
           {

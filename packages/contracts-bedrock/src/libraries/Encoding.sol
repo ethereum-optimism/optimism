@@ -9,6 +9,12 @@ import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 /// @title Encoding
 /// @notice Encoding handles Optimism's various different encoding schemes.
 library Encoding {
+    /// @notice Thrown when a provided Super Root proof has an invalid version.
+    error Encoding_InvalidSuperRootVersion();
+
+    /// @notice Thrown when a provided Super Root proof has no Output Roots.
+    error Encoding_EmptySuperRoot();
+
     /// @notice RLP encodes the L2 transaction that would be generated when a given deposit is sent
     ///         to the L2 system. Useful for searching for a deposit in the L2 system. The
     ///         transaction is prefixed with 0x7e to identify its EIP-2718 type.
@@ -177,6 +183,52 @@ library Encoding {
         );
     }
 
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesIsthmus
+    /// @param _baseFeeScalar       L1 base fee Scalar
+    /// @param _blobBaseFeeScalar   L1 blob base fee Scalar
+    /// @param _sequenceNumber      Number of L2 blocks since epoch start.
+    /// @param _timestamp           L1 timestamp.
+    /// @param _number              L1 blocknumber.
+    /// @param _baseFee             L1 base fee.
+    /// @param _blobBaseFee         L1 blob base fee.
+    /// @param _hash                L1 blockhash.
+    /// @param _batcherHash         Versioned hash to authenticate batcher by.
+    /// @param _operatorFeeScalar   Operator fee scalar.
+    /// @param _operatorFeeConstant Operator fee constant.
+    function encodeSetL1BlockValuesIsthmus(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash,
+        uint32 _operatorFeeScalar,
+        uint64 _operatorFeeConstant
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesIsthmus()"));
+        return abi.encodePacked(
+            functionSignature,
+            _baseFeeScalar,
+            _blobBaseFeeScalar,
+            _sequenceNumber,
+            _timestamp,
+            _number,
+            _baseFee,
+            _blobBaseFee,
+            _hash,
+            _batcherHash,
+            _operatorFeeScalar,
+            _operatorFeeConstant
+        );
+    }
+
     /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesInterop
     /// @param _baseFeeScalar       L1 base fee Scalar
     /// @param _blobBaseFeeScalar   L1 blob base fee Scalar
@@ -215,5 +267,31 @@ library Encoding {
             _hash,
             _batcherHash
         );
+    }
+
+    /// @notice Encodes a super root proof into the preimage of a Super Root.
+    /// @param _superRootProof Super root proof to encode.
+    /// @return Encoded super root proof.
+    function encodeSuperRootProof(Types.SuperRootProof memory _superRootProof) internal pure returns (bytes memory) {
+        // Version must match the expected version.
+        if (_superRootProof.version != 0x01) {
+            revert Encoding_InvalidSuperRootVersion();
+        }
+
+        // Output roots must not be empty.
+        if (_superRootProof.outputRoots.length == 0) {
+            revert Encoding_EmptySuperRoot();
+        }
+
+        // Start with version byte and timestamp.
+        bytes memory encoded = bytes.concat(bytes1(0x01), bytes8(_superRootProof.timestamp));
+
+        // Add each output root (chainId + root)
+        for (uint256 i = 0; i < _superRootProof.outputRoots.length; i++) {
+            Types.OutputRootWithChainId memory outputRoot = _superRootProof.outputRoots[i];
+            encoded = bytes.concat(encoded, bytes32(outputRoot.chainId), outputRoot.root);
+        }
+
+        return encoded;
     }
 }

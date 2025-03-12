@@ -58,6 +58,12 @@ func (a *ApplyConfig) Check() error {
 		return fmt.Errorf("logger must be specified")
 	}
 
+	if a.DeploymentTarget == DeploymentTargetGenesis {
+		if a.L1RPCUrl != "" {
+			return fmt.Errorf("l1-rpc-url should not be specified when deployment-target is genesis")
+		}
+	}
+
 	if a.DeploymentTarget == DeploymentTargetLive {
 		if a.L1RPCUrl == "" {
 			return fmt.Errorf("l1 RPC URL must be specified for live deployment")

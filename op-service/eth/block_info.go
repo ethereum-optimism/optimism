@@ -21,6 +21,7 @@ type BlockInfo interface {
 	// BlobBaseFee returns the result of computing the blob fee from excessDataGas, or nil if the
 	// block isn't a Dencun (4844 capable) block
 	BlobBaseFee() *big.Int
+	ExcessBlobGas() *uint64
 	ReceiptHash() common.Hash
 	GasUsed() uint64
 	GasLimit() uint64
@@ -128,6 +129,10 @@ func (h *headerBlockInfo) BlobBaseFee() *big.Int {
 		return nil
 	}
 	return CalcBlobFeeDefault(h.header)
+}
+
+func (h *headerBlockInfo) ExcessBlobGas() *uint64 {
+	return h.header.ExcessBlobGas
 }
 
 func (h *headerBlockInfo) ReceiptHash() common.Hash {

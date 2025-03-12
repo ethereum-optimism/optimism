@@ -122,6 +122,15 @@ commands:
     description: "Install the dependencies for the smart contracts"
     steps:
       - run:
+          name: Install SVM compilers
+          command: |
+            # Have to wipe out the SVM directory to avoid issues with the SVM version
+            rm -rf ~/.svm/*
+            svm install 0.8.15
+            svm install 0.8.19
+            svm install 0.8.25
+            svm install 0.8.28
+      - run:
           name: Install dependencies
           command: |
             # Manually craft the submodule update command in order to take advantage
@@ -947,7 +956,7 @@ jobs:
           command: sudo apt-get install -y ripgrep
       - run:
           name: Check TODO issues
-          command: ./ops/scripts/todo-checker.sh --verbose <<#parameters.check_closed>> --check-closed <</parameters.check_closed>>
+          command: ./ops/scripts/todo-checker.sh --verbose --strict <<#parameters.check_closed>> --check-closed <</parameters.check_closed>>
       - notify-failures-on-develop
 
   fuzz-golang:
@@ -1210,7 +1219,12 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - setup_remote_docker
-      - run: make -C op-program verify-reproducibility
+      - run:
+          name: Verify reproducibility
+          command: make -C op-program verify-reproducibility
+      - store_artifacts:
+          path: ./op-program/temp/logs
+          when: always
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 

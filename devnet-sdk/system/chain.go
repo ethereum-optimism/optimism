@@ -10,10 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -58,26 +57,37 @@ func (m *clientManager) Client(rpcURL string) (*ethclient.Client, error) {
 }
 
 type chain struct {
-	id     string
-	rpcUrl string
+	id          string
+	rpcUrl      string
+	users       map[string]Wallet
+	clients     *clientManager
+	registry    interfaces.ContractsRegistry
+	mu          sync.Mutex
+	node        Node
+	chainConfig *params.ChainConfig
+	addresses   descriptors.AddressMap
+}
 
-	users    map[string]Wallet
-	clients  *clientManager
-	registry interfaces.ContractsRegistry
-	mu       sync.Mutex
+func (c *chain) Node() Node {
+	return c.node
 }
 
 func (c *chain) Client() (*ethclient.Client, error) {
 	return c.clients.Client(c.rpcUrl)
 }
 
-func newChain(chainID string, rpcUrl string, users map[string]Wallet) *chain {
-	return &chain{
-		id:      chainID,
-		rpcUrl:  rpcUrl,
-		users:   users,
-		clients: newClientManager(),
+func newChain(chainID string, rpcUrl string, users map[string]Wallet, chainConfig *params.ChainConfig, addresses descriptors.AddressMap) *chain {
+	clients := newClientManager()
+	chain := &chain{
+		id:          chainID,
+		rpcUrl:      rpcUrl,
+		users:       users,
+		clients:     clients,
+		node:        newNode(rpcUrl, clients),
+		chainConfig: chainConfig,
+		addresses:   addresses,
 	}
+	return chain
 }
 
 func (c *chain) ContractsRegistry() interfaces.ContractsRegistry {
@@ -126,42 +136,6 @@ func (c *chain) ID() types.ChainID {
 	return types.ChainID(id)
 }
 
-func (c *chain) GasPrice(ctx context.Context) (*big.Int, error) {
-	client, err := c.Client()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get client: %w", err)
-	}
-	return client.SuggestGasPrice(ctx)
-}
-
-func (c *chain) GasLimit(ctx context.Context, tx TransactionData) (uint64, error) {
-	client, err := c.Client()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get client: %w", err)
-	}
-
-	msg := ethereum.CallMsg{
-		From:  tx.From(),
-		To:    tx.To(),
-		Value: tx.Value(),
-		Data:  tx.Data(),
-	}
-	estimated, err := client.EstimateGas(ctx, msg)
-	if err != nil {
-		return 0, fmt.Errorf("failed to estimate gas: %w", err)
-	}
-
-	return estimated, nil
-}
-
-func (c *chain) PendingNonceAt(ctx context.Context, address common.Address) (uint64, error) {
-	client, err := c.Client()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get client: %w", err)
-	}
-	return client.PendingNonceAt(ctx, address)
-}
-
 func checkHeader(ctx context.Context, client *ethclient.Client, check func(*coreTypes.Header) bool) bool {
 	head, err := client.HeaderByNumber(ctx, nil)
 	if err != nil {
@@ -189,15 +163,29 @@ func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return false
 }
 
+func (c *chain) Config() (*params.ChainConfig, error) {
+	if c.chainConfig == nil {
+		return nil, fmt.Errorf("chain config not configured on L1 chains yet")
+	}
+	return c.chainConfig, nil
+}
+
+func (c *chain) Addresses() descriptors.AddressMap {
+	return c.addresses
+}
+
 func chainFromDescriptor(d *descriptors.Chain) (Chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
 	firstNodeRPC := d.Nodes[0].Services["el"].Endpoints["rpc"]
 	rpcURL := fmt.Sprintf("http://%s:%d", firstNodeRPC.Host, firstNodeRPC.Port)
 
-	c := newChain(d.ID, rpcURL, nil) // Create chain first
+	c := newChain(d.ID, rpcURL, nil, d.Config, d.Addresses) // Create chain first
 
 	users := make(map[string]Wallet)
 	for key, w := range d.Wallets {
+		// TODO: The assumption that the wallet will necessarily be used on chain `d` may
+		// be problematic if the L2 admin wallets are to be used to sign L1 transactions.
+		// TBD on whether they belong somewhere other than `d.Wallets`.
 		k, err := newWallet(w.PrivateKey, w.Address, c)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create wallet: %w", err)

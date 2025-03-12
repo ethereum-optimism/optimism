@@ -89,9 +89,9 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 		if errors.As(err, &rpcErr) {
 			switch code := eth.ErrorCode(rpcErr.ErrorCode()); code {
 			case eth.InvalidForkchoiceState:
-				return eth.PayloadID{}, BlockInsertPrestateErr, fmt.Errorf("pre-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", rpcErr)
+				return eth.PayloadID{}, BlockInsertPrestateErr, fmt.Errorf("pre-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", err)
 			case eth.InvalidPayloadAttributes:
-				return eth.PayloadID{}, BlockInsertPayloadErr, fmt.Errorf("payload attributes are not valid, cannot build block: %w", rpcErr)
+				return eth.PayloadID{}, BlockInsertPayloadErr, fmt.Errorf("payload attributes are not valid, cannot build block: %w", err)
 			default:
 				if code.IsEngineError() {
 					return eth.PayloadID{}, BlockInsertPrestateErr, fmt.Errorf("unexpected engine error code in forkchoice-updated response: %w", err)

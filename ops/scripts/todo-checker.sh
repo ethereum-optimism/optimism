@@ -44,6 +44,7 @@ for arg in "$@"; do
   case $arg in
     --strict)
     FAIL_INVALID_FMT=true
+    VERBOSE=true
     shift
     ;;
     --verbose)
@@ -58,7 +59,7 @@ for arg in "$@"; do
 done
 
 # Use ripgrep to search for the pattern in all files within the repo
-todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' 'TODO\(([^)]+)\): [^,;]*')
+todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!packages/contracts-bedrock/lib' 'TODO\(([^)]+)\): [^,;]*')
 
 # Check each TODO comment in the repo
 IFS=$'\n' # Set Internal Field Separator to newline for iteration
@@ -88,14 +89,15 @@ for todo in $todos; do
     else
         if $FAIL_INVALID_FMT || $VERBOSE; then
             echo -e "${YELLOW}[Warning]${NC} Invalid TODO format: $todo"
-            if $FAIL_INVALID_FMT; then
-                exit 1
-            fi
         fi
         ((MISMATCH_COUNT++))
         continue
     fi
 
+    # Don't fetch issue status if we aren't checking for closed issues.
+    if  ! $CHECK_CLOSED; then
+      continue
+    fi
     # Use GitHub API to fetch issue details
     GH_URL_PATH="$REPO_FULL/issues/$ISSUE_NUM"
     # Grab the status code and response as a two item array [response, status]
@@ -164,7 +166,10 @@ if [[ $NOT_FOUND_COUNT -gt 0 ]]; then
     echo -e "${YELLOW}[Warning]${NC} ${CYAN}$NOT_FOUND_COUNT${NC} TODOs referred to issues that were not found."
 fi
 if [[ $MISMATCH_COUNT -gt 0 ]]; then
-    echo -e "${YELLOW}[Warning]${NC} ${CYAN}$MISMATCH_COUNT${NC} TODOs did not match the expected pattern. Run with ${RED}\`--verbose\`${NC} to show details."
+    echo -e "${RED}[Error]${NC} ${CYAN}$MISMATCH_COUNT${NC} TODOs did not match the expected pattern. Run with ${RED}\`--verbose\`${NC} to show details."
+    if $FAIL_INVALID_FMT; then
+        exit 1
+    fi
 fi
 if [[ $OPEN_COUNT -gt 0 ]]; then
     echo -e "${GREEN}[Info]${NC} ${CYAN}$OPEN_COUNT${NC} TODOs refer to issues that are still open."
