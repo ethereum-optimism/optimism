@@ -383,7 +383,7 @@ mod tests {
     use super::*;
     use alloy_primitives::{hex, Bytes, B256, U128, U64};
     use alloy_rpc_types_engine::JwtSecret;
-    use alloy_rpc_types_eth::erc4337::ConditionalOptions;
+    use alloy_rpc_types_eth::erc4337::TransactionConditional;
     use http_body_util::BodyExt;
     use hyper::service::service_fn;
     use hyper_util::rt::TokioIo;
@@ -437,6 +437,7 @@ mod tests {
             let temp_listener = TcpListener::bind("0.0.0.0:0").await?;
             let server_addr = temp_listener.local_addr()?;
             drop(temp_listener);
+
             let server = Server::builder()
                 .set_http_middleware(middleware.clone())
                 .build(server_addr)
@@ -797,7 +798,7 @@ mod tests {
 
         let expected_tx: Bytes = hex!("1234").into();
         let expected_method = "eth_sendRawTransactionConditional";
-        let transact_conditionals = ConditionalOptions::default();
+        let transact_conditionals = TransactionConditional::default();
         test_harness
             .proxy_client
             .request::<serde_json::Value, _>(

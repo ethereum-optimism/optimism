@@ -1,9 +1,11 @@
+#![allow(clippy::complexity)]
+use ::tracing::{error, info, Level};
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use debug_api::DebugClient;
 use metrics::{ClientMetrics, ServerMetrics};
-use server::ExecutionMode;
 use std::{net::SocketAddr, sync::Arc};
+use tracing::init_tracing;
 
 use alloy_rpc_types_engine::JwtSecret;
 use dotenv::dotenv;
@@ -17,16 +19,11 @@ use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_util::layers::{PrefixLayer, Stack};
-use opentelemetry::global;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Config, Resource};
 use proxy::ProxyLayer;
-use server::{PayloadSource, RollupBoostServer};
+use server::{ExecutionMode, PayloadSource, RollupBoostServer};
 
 use tokio::net::TcpListener;
 use tokio::signal::unix::{signal as unix_signal, SignalKind};
-use tracing::{error, info, Level};
-use tracing_subscriber::EnvFilter;
 
 mod auth_layer;
 mod client;
@@ -36,6 +33,7 @@ mod integration;
 mod metrics;
 mod proxy;
 mod server;
+mod tracing;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
@@ -87,7 +85,7 @@ struct Args {
 
     /// Log format
     #[arg(long, env, default_value = "text")]
-    log_format: String,
+    log_format: LogFormat,
 
     /// Host to run the debug server on
     #[arg(long, env, default_value = "127.0.0.1")]
@@ -100,6 +98,24 @@ struct Args {
     /// Execution mode to start rollup boost with
     #[arg(long, env, default_value = "enabled")]
     execution_mode: ExecutionMode,
+}
+
+#[derive(Clone, Debug)]
+enum LogFormat {
+    Json,
+    Text,
+}
+
+impl std::str::FromStr for LogFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "json" => Ok(LogFormat::Json),
+            "text" => Ok(LogFormat::Text),
+            _ => Err("Invalid log format".into()),
+        }
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -154,23 +170,7 @@ async fn main() -> eyre::Result<()> {
         };
     }
 
-    // Initialize logging
-    let log_format = args.log_format.to_lowercase();
-    let log_level = args.log_level.to_string();
-    if log_format == "json" {
-        // JSON log format
-        tracing_subscriber::fmt()
-            .json() // Use JSON format
-            .with_env_filter(EnvFilter::new(log_level)) // Set log level
-            .with_ansi(false) // Disable colored logging
-            .init();
-    } else {
-        // Default (text) log format
-        tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::new(log_level)) // Set log level
-            .with_ansi(false) // Disable colored logging
-            .init();
-    }
+    init_tracing(&args)?;
 
     let metrics = if args.metrics {
         let recorder = PrometheusBuilder::new().build_recorder();
@@ -189,11 +189,6 @@ async fn main() -> eyre::Result<()> {
     } else {
         None
     };
-
-    // Telemetry setup
-    if args.tracing {
-        init_tracing(&args.otlp_endpoint);
-    }
 
     let l2_client_args = args.l2_client;
 
@@ -298,29 +293,6 @@ async fn main() -> eyre::Result<()> {
     }
 
     Ok(())
-}
-
-fn init_tracing(endpoint: &str) {
-    global::set_text_map_propagator(TraceContextPropagator::new());
-    let provider = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .tonic()
-                .with_endpoint(endpoint),
-        )
-        .with_trace_config(Config::default().with_resource(Resource::new(vec![
-            opentelemetry::KeyValue::new("service.name", "rollup-boost"),
-        ])))
-        .install_batch(opentelemetry_sdk::runtime::Tokio);
-    match provider {
-        Ok(provider) => {
-            let _ = global::set_tracer_provider(provider);
-        }
-        Err(e) => {
-            error!(message = "failed to initiate tracing provider", "error" = %e);
-        }
-    }
 }
 
 async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre::Result<()> {
