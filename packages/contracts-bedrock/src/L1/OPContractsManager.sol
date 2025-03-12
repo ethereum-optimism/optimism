@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { console2 as console } from "forge-std/console2.sol";
-
 // Libraries
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -543,8 +541,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // Grab the L2 chain ID from the PermissionedDisputeGame.
             uint256 l2ChainId = getL2ChainId(IFaultDisputeGame(address(permissionedDisputeGame)));
-
-            console.log(opChainAddrs.optimismPortal);
 
             // Grab the current respectedGameType from the OptimismPortal contract before the upgrade.
             GameType respectedGameType = IOptimismPortal(payable(opChainAddrs.optimismPortal)).respectedGameType();
