@@ -45,9 +45,8 @@ pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
             .with_endpoint(&args.otlp_endpoint)
             .build()
             .context("Failed to create OTLP exporter")?;
-        let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+        let mut provider_builder = opentelemetry_sdk::trace::SdkTracerProvider::builder()
             .with_batch_exporter(otlp_exporter)
-            .with_span_processor(MetricsSpanProcessor)
             .with_resource(
                 Resource::builder_empty()
                     .with_attributes([
@@ -55,21 +54,24 @@ pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
                         KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
                     ])
                     .build(),
-            )
-            .build();
+            );
+        if args.metrics {
+            provider_builder = provider_builder.with_span_processor(MetricsSpanProcessor);
+        }
+        let provider = provider_builder.build();
 
         let tracer = provider.tracer(env!("CARGO_PKG_NAME"));
         let registry = registry.with(OpenTelemetryLayer::new(tracer));
 
         match args.log_format {
             LogFormat::Json => {
-                tracing::subscriber::set_global_default(registry.with(
-                    tracing_subscriber::fmt::layer().json().with_ansi(false), // Disable colored logging
-                ))?;
+                tracing::subscriber::set_global_default(
+                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false).json()),
+                )?;
             }
             LogFormat::Text => {
                 tracing::subscriber::set_global_default(
-                    registry.with(tracing_subscriber::fmt::layer()),
+                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false)),
                 )?;
             }
         }
@@ -77,12 +79,12 @@ pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
         match args.log_format {
             LogFormat::Json => {
                 tracing::subscriber::set_global_default(
-                    registry.with(tracing_subscriber::fmt::layer().json()),
+                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false).json()),
                 )?;
             }
             LogFormat::Text => {
                 tracing::subscriber::set_global_default(
-                    registry.with(tracing_subscriber::fmt::layer()),
+                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false)),
                 )?;
             }
         }
