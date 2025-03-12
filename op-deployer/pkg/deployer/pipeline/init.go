@@ -38,25 +38,34 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		return fmt.Errorf("unsupported L2 version: %s", intent.L2ContractsLocator.Tag)
 	}
 
-	if isL1Tag && hasPredeployedOPCM {
-		superCfg, err := standard.SuperchainFor(intent.L1ChainID)
+	isStandardIntent := intent.ConfigType == state.IntentTypeStandard ||
+		intent.ConfigType == state.IntentTypeStandardOverrides
+	if isL1Tag && hasPredeployedOPCM && isStandardIntent {
+		stdRoles, err := state.GetStandardSuperchainRoles(intent.L1ChainID)
 		if err != nil {
-			return fmt.Errorf("error getting superchain config: %w", err)
+			return fmt.Errorf("error getting superchain roles: %w", err)
 		}
 
-		proxyAdmin, err := standard.SuperchainProxyAdminAddrFor(intent.L1ChainID)
-		if err != nil {
-			return fmt.Errorf("error getting superchain proxy admin address: %w", err)
-		}
+		if *intent.SuperchainRoles == *stdRoles {
+			superCfg, err := standard.SuperchainFor(intent.L1ChainID)
+			if err != nil {
+				return fmt.Errorf("error getting superchain config: %w", err)
+			}
 
-		st.SuperchainDeployment = &state.SuperchainDeployment{
-			ProxyAdminAddress:            proxyAdmin,
-			ProtocolVersionsProxyAddress: superCfg.ProtocolVersionsAddr,
-			SuperchainConfigProxyAddress: superCfg.SuperchainConfigAddr,
-		}
+			proxyAdmin, err := standard.SuperchainProxyAdminAddrFor(intent.L1ChainID)
+			if err != nil {
+				return fmt.Errorf("error getting superchain proxy admin address: %w", err)
+			}
 
-		st.ImplementationsDeployment = &state.ImplementationsDeployment{
-			OpcmAddress: opcmAddress,
+			st.SuperchainDeployment = &state.SuperchainDeployment{
+				ProxyAdminAddress:            proxyAdmin,
+				ProtocolVersionsProxyAddress: superCfg.ProtocolVersionsAddr,
+				SuperchainConfigProxyAddress: superCfg.SuperchainConfigAddr,
+			}
+
+			st.ImplementationsDeployment = &state.ImplementationsDeployment{
+				OpcmAddress: opcmAddress,
+			}
 		}
 	}
 
