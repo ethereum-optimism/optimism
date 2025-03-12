@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -967,7 +966,7 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
@@ -989,8 +988,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHa
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
-				Hash:   l1StartBlock.Hash(),
-				Number: l1StartBlock.Number.Uint64(),
+				Hash:   l1StartBlock.Hash,
+				Number: l1StartBlock.Number,
 			},
 			L2: eth.BlockID{
 				Hash:   l2GenesisBlockHash,

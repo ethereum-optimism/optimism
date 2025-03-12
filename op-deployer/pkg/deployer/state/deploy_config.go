@@ -124,7 +124,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 			BlockNumber: &num,
 		}
 	} else {
-		startHash := chainState.StartBlock.Hash()
+		startHash := chainState.StartBlock.Hash
 		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
 			BlockHash: &startHash,
 		}

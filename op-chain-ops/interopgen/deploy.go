@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -301,7 +302,7 @@ func CompleteL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 		},
 	}
 	// l1Block is used to determine genesis time.
-	l2Genesis, err := genesis.NewL2Genesis(deployCfg, l1Block.Header())
+	l2Genesis, err := genesis.NewL2Genesis(deployCfg, eth.BlockRefFromHeader(l1Block.Header()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build L2 genesis config: %w", err)
 	}
@@ -326,7 +327,7 @@ func CompleteL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 	l2Genesis.Alloc = allocs.Accounts
 	l2GenesisBlock := l2Genesis.ToBlock()
 
-	rollupCfg, err := deployCfg.RollupConfig(l1Block.Header(), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
+	rollupCfg, err := deployCfg.RollupConfig(eth.BlockRefFromHeader(l1Block.Header()), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
 	if err != nil {
 		return nil, fmt.Errorf("failed to build L2 rollup config: %w", err)
 	}
