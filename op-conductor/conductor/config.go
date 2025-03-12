@@ -75,6 +75,9 @@ type Config struct {
 	// RPCEnableProxy is true if the sequencer RPC proxy should be enabled.
 	RPCEnableProxy bool
 
+	// RollupBoostDebugURL is the URL for the rollup boost debug API.
+	RollupBoostDebugURL string
+
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -154,12 +157,13 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			SafeInterval:   ctx.Uint64(flags.HealthCheckSafeInterval.Name),
 			MinPeerCount:   ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
 		},
-		RollupCfg:      *rollupCfg,
-		RPCEnableProxy: ctx.Bool(flags.RPCEnableProxy.Name),
-		LogConfig:      oplog.ReadCLIConfig(ctx),
-		MetricsConfig:  opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:    oppprof.ReadCLIConfig(ctx),
-		RPC:            oprpc.ReadCLIConfig(ctx),
+		RollupBoostDebugURL: ctx.String(flags.RollupBoostDebugURLFlag.Name),
+		RollupCfg:           *rollupCfg,
+		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
+		LogConfig:           oplog.ReadCLIConfig(ctx),
+		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:         oppprof.ReadCLIConfig(ctx),
+		RPC:                 oprpc.ReadCLIConfig(ctx),
 	}, nil
 }
 

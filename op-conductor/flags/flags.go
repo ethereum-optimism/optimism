@@ -130,6 +130,12 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RPC_ENABLE_PROXY"),
 		Value:   true,
 	}
+	RollupBoostDebugURLFlag = &cli.StringFlag{
+		Name:     "rollup-boost.debug-url",
+		Usage:    "URL for the rollup boost debug API",
+		EnvVar:   opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_DEBUG_URL"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -156,6 +162,7 @@ var optionalFlags = []cli.Flag{
 	RaftTrailingLogs,
 	RaftHeartbeatTimeout,
 	RaftLeaderLeaseTimeout,
+	RollupBoostDebugURLFlag,
 }
 
 func init() {

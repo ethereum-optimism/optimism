@@ -55,6 +55,7 @@ func NewOpConductor(
 	ctrl client.SequencerControl,
 	cons consensus.Consensus,
 	hmon health.HealthMonitor,
+	rollupBoost client.RollupBoostDebug,
 ) (*OpConductor, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, errors.Wrap(err, "invalid config")
@@ -115,6 +116,9 @@ func (c *OpConductor) init(ctx context.Context) error {
 	}
 	if err := c.initRPCServer(ctx); err != nil {
 		return errors.Wrap(err, "failed to initialize rpc server")
+	}
+	if err := c.initRollupBoostDebug(ctx); err != nil {
+		return errors.Wrap(err, "failed to initialize rollup boost debug")
 	}
 	return nil
 }
@@ -278,6 +282,30 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 	return nil
 }
 
+func (c *OpConductor) initRollupBoost(ctx context.Context) error {
+	if c.cfg.RollupBoostDebugURL == "" {
+		c.log.Info("Rollup boost debug URL not provided, skipping rollup boost initialization")
+		return nil
+	}
+
+	rbClient, err := client.NewRollupBoostClient(c.cfg.RollupBoostDebugURL, c.log)
+	if err != nil {
+		return errors.Wrap(err, "failed to create rollup boost client")
+	}
+	c.rollupBoost = rbClient
+
+	// Initialize rollup boost to disabled state
+	if err := c.rollupBoost.SetExecutionMode(ctx, client.ExecutionModeDisabled); err != nil {
+		c.log.Warn("Failed to set initial rollup boost execution mode", "err", err)
+		// Don't return error here as rollup boost is not critical for operation
+	} else {
+		c.log.Info("Set initial rollup boost execution mode to disabled")
+	}
+
+	c.log.Info("Initialized rollup boost client", "url", c.cfg.RollupBoostDebugURL)
+	return nil
+}
+
 // OpConductor represents a full conductor instance and its resources, it does:
 //  1. performs health checks on sequencer
 //  2. participate in consensus protocol for leader election
@@ -323,6 +351,8 @@ type OpConductor struct {
 	metricsServer *httputil.HTTPServer
 
 	retryBackoff func() time.Duration
+
+	rollupBoost client.RollupBoostDebug
 }
 
 type state struct {
@@ -491,6 +521,25 @@ func (oc *OpConductor) HTTPEndpoint() string {
 
 func (oc *OpConductor) OverrideLeader(override bool) {
 	oc.leaderOverride.Store(override)
+
+	// TODO: double check if this is correct
+	// Update rollup boost execution mode based on new override state
+	if c.rollupBoost != nil {
+		mode := client.ExecutionModeDisabled
+		if override {
+			mode = client.ExecutionModeEnabled
+		}
+
+		// Use a background context since this is an async operation
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := c.rollupBoost.SetExecutionMode(ctx, mode); err != nil {
+			c.log.Error("Failed to update rollup boost execution mode after override", "err", err, "mode", mode)
+		} else {
+			c.log.Info("Updated rollup boost execution mode after override", "mode", mode)
+		}
+	}
 }
 
 func (oc *OpConductor) LeaderOverridden() bool {
@@ -608,6 +657,24 @@ func (oc *OpConductor) queueAction() {
 // handleLeaderUpdate handles leadership update from consensus.
 func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 	oc.log.Info("Leadership status changed", "server", oc.cons.ServerID(), "leader", leader)
+
+	// Update rollup boost execution mode based on leadership status
+	if c.rollupBoost != nil {
+		mode := client.ExecutionModeDisabled
+		if leader {
+			mode = client.ExecutionModeEnabled
+		}
+
+		// Use a background context since this is an async operation
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := c.rollupBoost.SetExecutionMode(ctx, mode); err != nil {
+			c.log.Error("Failed to update rollup boost execution mode", "err", err, "mode", mode)
+		} else {
+			c.log.Info("Updated rollup boost execution mode", "mode", mode)
+		}
+	}
 
 	oc.leader.Store(leader)
 	oc.queueAction()
