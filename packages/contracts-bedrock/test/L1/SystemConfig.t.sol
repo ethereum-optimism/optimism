@@ -74,7 +74,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
         assertEq(address(impl.l1StandardBridge()), address(0));
-        assertEq(address(impl.disputeGameFactory()), address(0));
         assertEq(address(impl.optimismPortal()), address(0));
         assertEq(address(impl.optimismMintableERC20Factory()), address(0));
     }

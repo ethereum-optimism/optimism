@@ -530,7 +530,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         for (uint256 i = 0; i < _opChainConfigs.length; i++) {
             assertValidOpChainConfig(_opChainConfigs[i]);
-            ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
 
             // Use the SystemConfig to grab the DisputeGameFactory address.
             IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfigs[i].systemConfigProxy.disputeGameFactory());
@@ -542,13 +541,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // Grab the L2 chain ID from the PermissionedDisputeGame.
             uint256 l2ChainId = getL2ChainId(IFaultDisputeGame(address(permissionedDisputeGame)));
 
-            // Grab the current respectedGameType from the OptimismPortal contract before the upgrade.
-            GameType respectedGameType = IOptimismPortal(payable(opChainAddrs.optimismPortal)).respectedGameType();
-
-            // Grab the current SuperchainConfig from the OptimismPortal contract before the upgrade.
-            ISuperchainConfig superchainConfig =
-                IOptimismPortal(payable(opChainAddrs.optimismPortal)).superchainConfig();
-
             // Start by upgrading the SystemConfig contract to have the l2ChainId.
             upgradeToAndCall(
                 _opChainConfigs[i].proxyAdmin,
@@ -556,6 +548,17 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 impls.systemConfigImpl,
                 abi.encodeCall(ISystemConfig.upgrade, (l2ChainId))
             );
+
+            // Grab chain addresses here. We need to do this after the SystemConfig upgrade or the
+            // addresses will be incorrect.
+            ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
+
+            // Grab the current respectedGameType from the OptimismPortal contract before the upgrade.
+            GameType respectedGameType = IOptimismPortal(payable(opChainAddrs.optimismPortal)).respectedGameType();
+
+            // Grab the current SuperchainConfig from the OptimismPortal contract before the upgrade.
+            ISuperchainConfig superchainConfig =
+                IOptimismPortal(payable(opChainAddrs.optimismPortal)).superchainConfig();
 
             // Separate context to avoid stack too deep.
             IAnchorStateRegistry newAnchorStateRegistryProxy;
