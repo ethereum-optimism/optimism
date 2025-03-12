@@ -121,7 +121,7 @@ func (c *Intent) validateStandardValues() error {
 		return err
 	}
 
-	standardSuperchainRoles, err := getStandardSuperchainRoles(c.L1ChainID)
+	standardSuperchainRoles, err := GetStandardSuperchainRoles(c.L1ChainID)
 	if err != nil {
 		return fmt.Errorf("error getting standard superchain roles: %w", err)
 	}
@@ -157,7 +157,7 @@ func (c *Intent) validateStandardValues() error {
 	return nil
 }
 
-func getStandardSuperchainRoles(l1ChainId uint64) (*SuperchainRoles, error) {
+func GetStandardSuperchainRoles(l1ChainId uint64) (*SuperchainRoles, error) {
 	proxyAdminOwner, err := standard.L1ProxyAdminOwner(l1ChainId)
 	if err != nil {
 		return nil, fmt.Errorf("error getting L1ProxyAdminOwner: %w", err)
@@ -286,14 +286,24 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
 	}
 
-	superchainRoles, err := getStandardSuperchainRoles(l1ChainId)
+	superchainRoles, err := GetStandardSuperchainRoles(l1ChainId)
 	if err != nil {
 		return Intent{}, fmt.Errorf("error getting standard superchain roles: %w", err)
 	}
 	intent.SuperchainRoles = superchainRoles
 
-	challenger, _ := standard.ChallengerAddressFor(l1ChainId)
-	l1ProxyAdminOwner, _ := standard.L1ProxyAdminOwner(l1ChainId)
+	challenger, err := standard.ChallengerAddressFor(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting challenger address: %w", err)
+	}
+	l1ProxyAdminOwner, err := standard.L1ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting L1ProxyAdminOwner: %w", err)
+	}
+	l2ProxyAdminOwner, err := standard.L2ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting L2ProxyAdminOwner: %w", err)
+	}
 
 	for _, l2ChainID := range l2ChainIds {
 		intent.Chains = append(intent.Chains, &ChainIntent{
@@ -304,6 +314,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 			Roles: ChainRoles{
 				Challenger:        challenger,
 				L1ProxyAdminOwner: l1ProxyAdminOwner,
+				L2ProxyAdminOwner: l2ProxyAdminOwner,
 			},
 		})
 	}
