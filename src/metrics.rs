@@ -8,15 +8,6 @@ use crate::server::PayloadSource;
 #[derive(Metrics)]
 #[metrics(scope = "rpc")]
 pub struct ServerMetrics {
-    #[metric(describe = "Total latency for server `engine_newPayloadV3` call")]
-    pub new_payload_v3_total: Histogram,
-
-    #[metric(describe = "Total latency for server `engine_getPayloadV3` call")]
-    pub get_payload_v3_total: Histogram,
-
-    #[metric(describe = "Total latency for server `engine_forkChoiceUpdatedV3` call")]
-    pub fork_choice_updated_v3_total: Histogram,
-
     // Builder proxy metrics
     #[metric(describe = "Latency for builder client forwarded rpc calls (excluding the engine api)", labels = ["method"])]
     #[allow(dead_code)]

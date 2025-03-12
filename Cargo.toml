@@ -12,7 +12,7 @@ alloy-rpc-types-eth = "0.12.5"
 alloy-primitives = { version = "0.8.10", features = ["rand"] }
 alloy-eips = { version = "0.12.5", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
-tracing = "0.1.4"
+tracing = { version = "0.1.4", features = ["log-always"] }
 tracing-subscriber = { version = "0.3.11", features = ["env-filter", "json"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2.0.12"
