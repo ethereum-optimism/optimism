@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
@@ -136,6 +137,7 @@ func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 	tx, err := builder.BuildTx(
 		WithFrom(i.from),
 		WithTo(constants.L2ToL2CrossDomainMessenger),
+		WithValue(big.NewInt(0)),
 		WithData(data),
 	)
 	if err != nil {
@@ -163,6 +165,7 @@ func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
 	tx, err := builder.BuildTx(
 		WithFrom(i.from),
 		WithTo(constants.L2ToL2CrossDomainMessenger),
+		WithValue(big.NewInt(0)),
 		WithData(data),
 	)
 	if err != nil {
