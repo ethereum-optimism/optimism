@@ -54,7 +54,7 @@ func TestValidatorAddress(t *testing.T) {
 		{
 			name:        "Invalid Version",
 			chainID:     11155111,
-			version:     "v3.0.0",
+			version:     "v99.0.0",
 			want:        common.Address{},
 			expectError: true,
 		},

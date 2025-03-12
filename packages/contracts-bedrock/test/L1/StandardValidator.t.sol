@@ -1216,7 +1216,7 @@ contract StandardValidatorV300_Test is StandardValidatorTest {
     }
 
     /// @notice Tests validation of operator fee settings in SystemConfig
-    function test_validate_systemConfig_operatorFees_succeeds() public {
+    function test_validate_systemConfigOperatorFees_succeeds() public {
         // Test invalid operator fee scalar
         _mockValidationCalls();
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
