@@ -153,27 +153,13 @@ func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 }
 
 func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
-	builder := NewTxBuilder(ctx, i.chain)
-	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	result, err := i.Call(ctx)
 	if err != nil {
 		return &sendResult{chain: i.chain, tx: nil, err: err}
 	}
-	data, err := messenger.ABI().Pack("sendMessage", i.chainID, i.target, i.message)
-	if err != nil {
-		return &sendResult{chain: i.chain, tx: nil, err: err}
-	}
-	tx, err := builder.BuildTx(
-		WithFrom(i.from),
-		WithTo(constants.L2ToL2CrossDomainMessenger),
-		WithValue(big.NewInt(0)),
-		WithData(data),
-	)
-	if err != nil {
-		return &sendResult{chain: i.chain, tx: nil, err: err}
-	}
-	tx, err = i.processor.Sign(tx)
-	if err != nil {
-		return &sendResult{chain: i.chain, tx: nil, err: err}
+	tx, ok := result.(Transaction)
+	if !ok {
+		return &sendResult{chain: i.chain, tx: nil, err: fmt.Errorf("unexpected return type")}
 	}
 	err = i.processor.Send(ctx, tx)
 	return &sendResult{
