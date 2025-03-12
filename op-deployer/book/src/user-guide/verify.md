@@ -24,26 +24,30 @@ Defines the RPC URL of the L1 chain to deploy to (currently only supports mainne
 
 The full filepath to the input .json file. This file should be a key/value store where the key is a contract name and the value is the contract address. The output of the `bootstrap superchain|implementations` commands is a good example of this format, and those output files can be fed directly into `verify`. Unless the `--contract-name` flag is passed, all contracts in the input file will be verified.
 
+Example:
+```json
 {
-  "Opcm": "0x3a1f523a4bc09cd344a2745a108bb0398288094f",
-  "OpcmContractsContainer": "0x660aeaac7508258f622cfdc489c16c864b4d8629",
-  "OpcmGameTypeAdder": "0xc9060f6283b78e1feebfd1993cb6350b5626f115",
-  "OpcmDeployer": "0x88e39ea5cfe6c4d450305eec5fd90dd1fba87f45",
-  "OpcmUpgrader": "0xbf098a12edcf99f8e6db258b7ac567a1fd020f4b",
-  "DelayedWETHImpl": "0x5e40b9231b86984b5150507046e354dbfbed3d9e",
-  "OptimismPortalImpl": "0xb443da3e07052204a02d630a8933dac05a0d6fb4",
-  "PreimageOracleSingleton": "0x1fb8cdfc6831fc866ed9c51af8817da5c287add3",
-  "MipsSingleton": "0xf027f4a985560fb13324e943edf55ad6f1d15dc1",
-  "SystemConfigImpl": "0x340f923e5c7cbb2171146f64169ec9d5a9ffe647",
-  "L1CrossDomainMessengerImpl": "0x5d5a095665886119693f0b41d8dfee78da033e8b",
-  "L1ERC721BridgeImpl": "0x7ae1d3bd877a4c5ca257404ce26be93a02c98013",
-  "L1StandardBridgeImpl": "0x0b09ba359a106c9ea3b181cbc5f394570c7d2a7a",
-  "OptimismMintableERC20FactoryImpl": "0x5493f4677a186f64805fe7317d6993ba4863988f",
-  "DisputeGameFactoryImpl": "0x4bba758f006ef09402ef31724203f316ab74e4a0",
-  "AnchorStateRegistryImpl": "0x7b465370bb7a333f99edd19599eb7fb1c2d3f8d2",
-  "SuperchainConfigImpl": "0x4da82a327773965b8d4d85fa3db8249b387458e7",
-  "ProtocolVersionsImpl": "0x37e15e4d6dffa9e5e320ee1ec036922e563cb76c"
+  "opcmAddress": "0x437d303c20ea12e0edba02478127b12cbad54626",
+  "opcmContractsContainerAddress": "0xf89d7ce62fc3a18354b37b045017d585f7e332ab",
+  "opcmGameTypeAdderAddress": "0x9aa4b6c0575e978dbe6d6bc31b7e4403ea8bd81d",
+  "opcmDeployerAddress": "0x535388c15294dc77a287430926aba5ba5fe6016a",
+  "opcmUpgraderAddress": "0x68a7a93750eb56dd043f5baa41022306e6cd50fa",
+  "delayedWETHImplAddress": "0x33ddc90167c923651e5aef8b14bc197f3e8e7b56",
+  "optimismPortalImplAddress": "0x54b75cb6f44e36768912e070cd9cb995fc887e6c",
+  "ethLockboxImplAddress": "0x05484deeb3067a5332960ca77a5f5603df878ced",
+  "preimageOracleSingletonAddress": "0xfbcd4b365f97cb020208b5875ceaf6de76ec068b",
+  "mipsSingletonAddress": "0xcc50288ad0d79278397785607ed675292dce37b1",
+  "systemConfigImplAddress": "0xfb24aa6d99824b2c526768e97b23694aa3fe31d6",
+  "l1CrossDomainMessengerImplAddress": "0x957c0bf84fe541efe46b020a6797fb1fb2eaa6ac",
+  "l1ERC721BridgeImplAddress": "0x62786d16978436f5d85404735a28b9eb237e63d0",
+  "l1StandardBridgeImplAddress": "0x6c9b377c00ec7e6755aec402cd1cfff34fa75728",
+  "optimismMintableERC20FactoryImplAddress": "0x3842175f3af499c27593c772c0765f862b909b93",
+  "disputeGameFactoryImplAddress": "0x70ed1725abb48e96be9f610811e33ed8a0fa97f9",
+  "anchorStateRegistryImplAddress": "0xce2206af314e5ed99b48239559bdf8a47b7524d4",
+  "superchainConfigImplAddress": "0x77008cdc99fb1cf559ac33ca3a67a4a2f04cc5ef",
+  "protocolVersionsImplAddress": "0x32e07ddb36833cae3ca1ec5f73ca348a7e9467f4"
 }
+```
 
 ### `--contract-name` (optional)
 
