@@ -12,7 +12,6 @@ import { Storage } from "src/libraries/Storage.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -81,10 +80,6 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
-
-    /// @notice Storage slot for the DisputeGameFactory address.
-    bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
-        bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
 
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
@@ -255,8 +250,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Getter for the DisputeGameFactory address.
     function disputeGameFactory() public view returns (address addr_) {
         IOptimismPortal2 portal = IOptimismPortal2(payable(Storage.getAddress(OPTIMISM_PORTAL_SLOT)));
-        IAnchorStateRegistry asr = IAnchorStateRegistry(portal.anchorStateRegistry());
-        addr_ = address(asr.disputeGameFactory());
+        addr_ = address(portal.disputeGameFactory());
     }
 
     /// @notice Getter for the OptimismPortal address.

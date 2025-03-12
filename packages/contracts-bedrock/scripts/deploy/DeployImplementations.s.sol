@@ -421,9 +421,8 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(systemConfig.l1CrossDomainMessenger() == address(0), "SYSCON-170");
         require(systemConfig.l1ERC721Bridge() == address(0), "SYSCON-180");
         require(systemConfig.l1StandardBridge() == address(0), "SYSCON-190");
-        require(systemConfig.disputeGameFactory() == address(0), "SYSCON-200");
-        require(systemConfig.optimismPortal() == address(0), "SYSCON-210");
-        require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-220");
+        require(systemConfig.optimismPortal() == address(0), "SYSCON-200");
+        require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-210");
     }
 
     function assertValidL1CrossDomainMessengerImpl(DeployImplementationsInput) internal view {

@@ -91,7 +91,6 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger, "CHECK-SCFG-160");
             require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge, "CHECK-SCFG-170");
             require(config.l1StandardBridge() == _contracts.L1StandardBridge, "CHECK-SCFG-180");
-            require(config.disputeGameFactory() == _contracts.DisputeGameFactory, "CHECK-SCFG-190");
             require(config.optimismPortal() == _contracts.OptimismPortal, "CHECK-SCFG-200");
             require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory, "CHECK-SCFG-210");
         } else {
@@ -116,7 +115,6 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == address(0), "CHECK-SCFG-380");
             require(config.l1ERC721Bridge() == address(0), "CHECK-SCFG-390");
             require(config.l1StandardBridge() == address(0), "CHECK-SCFG-400");
-            require(config.disputeGameFactory() == address(0), "CHECK-SCFG-410");
             require(config.optimismPortal() == address(0), "CHECK-SCFG-420");
             require(config.optimismMintableERC20Factory() == address(0), "CHECK-SCFG-430");
         }

@@ -562,11 +562,10 @@ contract DeployOPChain is Script {
         require(systemConfig.l1CrossDomainMessenger() == address(_doo.l1CrossDomainMessengerProxy()), "SYSCON-160");
         require(systemConfig.l1ERC721Bridge() == address(_doo.l1ERC721BridgeProxy()), "SYSCON-170");
         require(systemConfig.l1StandardBridge() == address(_doo.l1StandardBridgeProxy()), "SYSCON-180");
-        require(systemConfig.disputeGameFactory() == address(_doo.disputeGameFactoryProxy()), "SYSCON-190");
-        require(systemConfig.optimismPortal() == address(_doo.optimismPortalProxy()), "SYSCON-200");
+        require(systemConfig.optimismPortal() == address(_doo.optimismPortalProxy()), "SYSCON-190");
         require(
             systemConfig.optimismMintableERC20Factory() == address(_doo.optimismMintableERC20FactoryProxy()),
-            "SYSCON-210"
+            "SYSCON-200"
         );
     }
 
