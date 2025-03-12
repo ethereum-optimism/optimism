@@ -463,11 +463,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
 contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     function test_upgradeOPChainOnly_succeeds() public {
+        if (isForkTest() && keccak256(bytes(opChain)) != keccak256(bytes("op"))) vm.skip(true);
         // Run the upgrade test and checks
         runUpgradeTestAndChecks(upgrader);
     }
 
     function test_isRcFalseAfterCalledByUpgrader_works() public {
+        if (isForkTest() && keccak256(bytes(opChain)) != keccak256(bytes("op"))) vm.skip(true);
         assertTrue(opcm.isRC());
         bytes memory releaseBytes = bytes(opcm.l1ContractsRelease());
         assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
@@ -513,6 +515,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_duplicateL2ChainId_succeeds() public {
+        if (isForkTest() && keccak256(bytes(opChain)) != keccak256(bytes("op"))) vm.skip(true);
+
         // Deploy a new OPChain with the same L2 chain ID as the current OPChain
         Deploy deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
         IOPContractsManager.DeployInput memory deployInput = deploy.getDeployInput();
@@ -528,6 +532,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 contract OPContractsManager_Upgrade_TestFails is OPContractsManager_Upgrade_Harness {
     // Upgrade to U14 first
     function setUp() public override {
+        if (isForkTest() && keccak256(bytes(opChain)) != keccak256(bytes("op"))) vm.skip(true);
         super.setUp();
         runV200UpgradeAndChecks(upgrader);
     }
@@ -561,6 +566,8 @@ contract OPContractsManager_Upgrade_TestFails is OPContractsManager_Upgrade_Harn
 contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests the setRC function can be set by the upgrade controller.
     function test_setRC_succeeds(bool _isRC) public {
+        if (isForkTest() && keccak256(bytes(opChain)) != keccak256(bytes("op"))) vm.skip(true);
+
         vm.prank(upgrader);
 
         opcm.setRC(_isRC);
