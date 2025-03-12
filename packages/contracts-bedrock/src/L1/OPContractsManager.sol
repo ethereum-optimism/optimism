@@ -532,14 +532,12 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             assertValidOpChainConfig(_opChainConfigs[i]);
             ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
 
+            // Use the SystemConfig to grab the DisputeGameFactory address.
+            IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfigs[i].systemConfigProxy.disputeGameFactory());
+
             // All chains have the PermissionedDisputeGame, grab that.
-            IPermissionedDisputeGame permissionedDisputeGame = IPermissionedDisputeGame(
-                address(
-                    getGameImplementation(
-                        IDisputeGameFactory(opChainAddrs.disputeGameFactory), GameTypes.PERMISSIONED_CANNON
-                    )
-                )
-            );
+            IPermissionedDisputeGame permissionedDisputeGame =
+                IPermissionedDisputeGame(address(getGameImplementation(dgf, GameTypes.PERMISSIONED_CANNON)));
 
             // Grab the L2 chain ID from the PermissionedDisputeGame.
             uint256 l2ChainId = getL2ChainId(IFaultDisputeGame(address(permissionedDisputeGame)));
@@ -591,7 +589,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                             IAnchorStateRegistry.initialize,
                             (
                                 superchainConfig,
-                                IDisputeGameFactory(opChainAddrs.disputeGameFactory),
+                                dgf,
                                 OutputRoot({ root: root, l2BlockNumber: l2BlockNumber }),
                                 respectedGameType
                             )
@@ -641,19 +639,15 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     _disputeGame: IDisputeGame(address(permissionedDisputeGame)),
                     _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
                     _gameType: GameTypes.PERMISSIONED_CANNON,
-                    _opChainConfig: _opChainConfigs[i],
-                    _opChainAddrs: opChainAddrs
+                    _opChainConfig: _opChainConfigs[i]
                 });
             }
 
             // Separate context to avoid stack too deep.
             {
                 // Now retrieve the permissionless game.
-                IFaultDisputeGame permissionlessDisputeGame = IFaultDisputeGame(
-                    address(
-                        getGameImplementation(IDisputeGameFactory(opChainAddrs.disputeGameFactory), GameTypes.CANNON)
-                    )
-                );
+                IFaultDisputeGame permissionlessDisputeGame =
+                    IFaultDisputeGame(address(getGameImplementation(dgf, GameTypes.CANNON)));
 
                 // If it exists, replace its implementation.
                 if (address(permissionlessDisputeGame) != address(0)) {
@@ -663,8 +657,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
                         _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
                         _gameType: GameTypes.CANNON,
-                        _opChainConfig: _opChainConfigs[i],
-                        _opChainAddrs: opChainAddrs
+                        _opChainConfig: _opChainConfigs[i]
                     });
                 }
             }
@@ -700,14 +693,12 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
     /// @param _gameType The type of game to deploy
     /// @param _opChainConfig The OP chain configuration
-    /// @param _opChainAddrs The OP chain addresses
     function deployAndSetNewGameImpl(
         uint256 _l2ChainId,
         IDisputeGame _disputeGame,
         IAnchorStateRegistry _newAnchorStateRegistryProxy,
         GameType _gameType,
-        OPContractsManager.OpChainConfig memory _opChainConfig,
-        ISystemConfig.Addresses memory _opChainAddrs
+        OPContractsManager.OpChainConfig memory _opChainConfig
     )
         internal
     {
@@ -755,7 +746,12 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 )
             );
         }
-        setDGFImplementation(IDisputeGameFactory(_opChainAddrs.disputeGameFactory), _gameType, IDisputeGame(newGame));
+
+        // Grab the DisputeGameFactory from the SystemConfig.
+        IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
+
+        // Set the new implementation.
+        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
     }
 }
 
@@ -988,7 +984,6 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
             l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
-            disputeGameFactory: address(_output.disputeGameFactoryProxy),
             optimismPortal: address(_output.optimismPortalProxy),
             optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy)
         });
@@ -996,7 +991,6 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
         assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
         assertValidContractAddress(opChainAddrs_.l1StandardBridge);
-        assertValidContractAddress(opChainAddrs_.disputeGameFactory);
         assertValidContractAddress(opChainAddrs_.optimismPortal);
         assertValidContractAddress(opChainAddrs_.optimismMintableERC20Factory);
     }
@@ -1294,9 +1288,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.11.1
+    /// @custom:semver 1.12.0
     function version() public pure virtual returns (string memory) {
-        return "1.11.1";
+        return "1.12.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

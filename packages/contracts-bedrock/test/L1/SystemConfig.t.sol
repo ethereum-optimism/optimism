@@ -111,8 +111,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(addrs.l1ERC721Bridge, address(l1ERC721Bridge));
         assertEq(address(systemConfig.l1StandardBridge()), address(l1StandardBridge));
         assertEq(addrs.l1StandardBridge, address(l1StandardBridge));
-        assertEq(address(systemConfig.disputeGameFactory()), address(disputeGameFactory));
-        assertEq(addrs.disputeGameFactory, address(disputeGameFactory));
         assertEq(address(systemConfig.optimismPortal()), address(optimismPortal2));
         assertEq(addrs.optimismPortal, address(optimismPortal2));
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
@@ -146,7 +144,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
@@ -176,7 +173,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
@@ -207,7 +203,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
@@ -322,7 +317,6 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),

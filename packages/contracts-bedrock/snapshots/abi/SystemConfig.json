@@ -261,11 +261,6 @@
           },
           {
             "internalType": "address",
-            "name": "disputeGameFactory",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "optimismPortal",
             "type": "address"
           },
@@ -385,11 +380,6 @@
           {
             "internalType": "address",
             "name": "l1StandardBridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "disputeGameFactory",
             "type": "address"
           },
           {
