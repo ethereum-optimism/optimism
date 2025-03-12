@@ -154,11 +154,7 @@ where
         let _ = install_prometheus_recorder();
 
         match self.command {
-            Commands::Node(mut command) => {
-                // TODO: remove when we're ready to roll out State Root Task on OP-Reth
-                if !command.engine.state_root_task_enabled {
-                    command.engine.legacy_state_root_task_enabled = true;
-                }
+            Commands::Node(command) => {
                 runner.run_command_until_exit(|ctx| command.execute(ctx, launcher))
             }
             Commands::Init(command) => {
