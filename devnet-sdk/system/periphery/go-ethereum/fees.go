@@ -27,18 +27,29 @@ type EIP1559FeeEstimator struct {
 	// Access to the Ethereum client is needed to get the fee information from the chain
 	client EIP1159FeeEthClient
 
+	// The tip multiplier is used to increase the maxFeePerGas (GasFeeCap) by a factor
+	baseMultiplier float64
+
 	// The tip multiplier is used to increase the maxPriorityFeePerGas (GasTipCap) by a factor
-	tipMultiplier *big.Int
+	tipMultiplier float64
 }
 
 func NewEIP1559FeeEstimator(client EIP1159FeeEthClient) *EIP1559FeeEstimator {
 	return &EIP1559FeeEstimator{
-		client:        client,
-		tipMultiplier: big.NewInt(1),
+		client:         client,
+		baseMultiplier: 1.0,
+		tipMultiplier:  1.0,
 	}
 }
 
-func (f *EIP1559FeeEstimator) WithTipMultiplier(multiplier *big.Int) *EIP1559FeeEstimator {
+func (f *EIP1559FeeEstimator) WithBaseMultiplier(multiplier float64) *EIP1559FeeEstimator {
+	newF := *f
+	newF.baseMultiplier = multiplier
+
+	return &newF
+}
+
+func (f *EIP1559FeeEstimator) WithTipMultiplier(multiplier float64) *EIP1559FeeEstimator {
 	newF := *f
 	newF.tipMultiplier = multiplier
 
@@ -57,21 +68,23 @@ func (f *EIP1559FeeEstimator) EstimateFees(ctx context.Context, opts *bind.Trans
 		}
 
 		// GasTipCap represents the maxPriorityFeePerGas
-		newOpts.GasTipCap = big.NewInt(0).Mul(tipCap, f.tipMultiplier)
+		newOpts.GasTipCap = multiplyBigInt(tipCap, f.tipMultiplier)
 	}
 
 	// Add a gas fee cap if needed
 	if newOpts.GasFeeCap == nil {
 		block, err := f.client.BlockByNumber(ctx, nil)
-
 		if err != nil {
 			return nil, err
 		}
 
 		baseFee := block.BaseFee()
 		if baseFee != nil {
+			// The adjusted base fee takes the multiplier into account
+			adjustedBaseFee := multiplyBigInt(baseFee, f.baseMultiplier)
+
 			// The total fee (maxFeePerGas) is the sum of the base fee and the tip
-			newOpts.GasFeeCap = big.NewInt(0).Add(block.BaseFee(), newOpts.GasTipCap)
+			newOpts.GasFeeCap = big.NewInt(0).Add(adjustedBaseFee, newOpts.GasTipCap)
 		}
 	}
 
@@ -82,4 +95,18 @@ func (f *EIP1559FeeEstimator) EstimateFees(ctx context.Context, opts *bind.Trans
 type EIP1159FeeEthClient interface {
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+}
+
+// multiplyBigInt is a little helper for a messy big.Int x float64 multiplication
+//
+// It uses the AwayFromZero rounding mode to ensure that the result is always rounded up
+func multiplyBigInt(b *big.Int, m float64) *big.Int {
+	bFloat := big.NewFloat(0).SetInt(b)
+	mFloat := big.NewFloat(m)
+	ceiled, accuracy := big.NewFloat(0).Mul(bFloat, mFloat).Int(nil)
+	if accuracy == big.Below {
+		ceiled = ceiled.Add(ceiled, big.NewInt(1))
+	}
+
+	return ceiled
 }

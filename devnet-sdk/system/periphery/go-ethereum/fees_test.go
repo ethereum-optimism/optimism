@@ -73,7 +73,7 @@ func TestEstimateEIP1559Fees(t *testing.T) {
 		t.Run("with custom tip multiplier", func(t *testing.T) {
 			t.Run("should set the GasTipCap to the client's suggested tip cap multplied by the tip multiplier", func(t *testing.T) {
 				tipCapValue := big.NewInt(5)
-				tipMultiplier := big.NewInt(10)
+				tipMultiplier := 10.0
 				// The expected tip is a product of the tip cap and the tip multiplier
 				expectedTip := big.NewInt(50)
 
@@ -164,6 +164,38 @@ func TestEstimateEIP1559Fees(t *testing.T) {
 
 			// We make sure that we get a copy of the object to prevent mutating the original
 			assert.NotSame(t, defaultOpts, newOpts)
+		})
+
+		t.Run("with custom base multiplier", func(t *testing.T) {
+			t.Run("should set the GasFeeCap to the block base fee multplied by the base multiplier", func(t *testing.T) {
+				baseMultiplier := 1.2
+				baseFeeValue := big.NewInt(9)
+				blockValue := types.NewBlock(&types.Header{
+					BaseFee: baseFeeValue,
+					Time:    0,
+				}, nil, nil, nil, &mockBlockType{})
+
+				// We expect the total gas cap to be the base fee (9) multiplied by 1.2 (= 10.8, rounded up to 11) plus the tip cap (1)
+				expectedGas := big.NewInt(0).Add(big.NewInt(11), defaultOpts.GasTipCap)
+
+				// We create a fee estimator with a custom tip multiplier
+				feeEstimator := NewEIP1559FeeEstimator(&mockFeeEthClientImpl{
+					blockValue: blockValue,
+				}).WithBaseMultiplier(baseMultiplier)
+
+				newOpts, err := feeEstimator.EstimateFees(context.Background(), defaultOpts)
+				require.NoError(t, err)
+
+				// We create a new opts with the expected tip cap added
+				expectedOpts := *defaultOpts
+				expectedOpts.GasFeeCap = expectedGas
+
+				// We check that the tip has been added
+				require.Equal(t, &expectedOpts, newOpts)
+
+				// We make sure that we get a copy of the object to prevent mutating the original
+				assert.NotSame(t, defaultOpts, newOpts)
+			})
 		})
 	})
 }
