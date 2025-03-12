@@ -99,7 +99,7 @@ type EIP1159FeeEthClient interface {
 
 // multiplyBigInt is a little helper for a messy big.Int x float64 multiplication
 //
-// It uses the AwayFromZero rounding mode to ensure that the result is always rounded up
+// It rounds the result away from zero since that's the lower risk behavior for fee estimation
 func multiplyBigInt(b *big.Int, m float64) *big.Int {
 	bFloat := big.NewFloat(0).SetInt(b)
 	mFloat := big.NewFloat(m)
