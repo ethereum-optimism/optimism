@@ -364,7 +364,7 @@ func TestProofParamOverrides(t *testing.T) {
 		{
 			"disputeGameFinalityDelaySeconds",
 			uint64Caster,
-			st.ImplementationsDeployment.OptimismPortalImplAddress,
+			st.ImplementationsDeployment.AnchorStateRegistryImplAddress,
 		},
 		{
 			"faultGameAbsolutePrestate",
@@ -747,10 +747,11 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter, 
 func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, intent *state.Intent, govEnabled bool) {
 	// Validate that the implementation addresses are always set, even in subsequent deployments
 	// that pull from an existing OPCM deployment.
-	implAddrs := []struct {
+	type addrTuple struct {
 		name string
 		addr common.Address
-	}{
+	}
+	implAddrs := []addrTuple{
 		{"DelayedWETHImplAddress", st.ImplementationsDeployment.DelayedWETHImplAddress},
 		{"OptimismPortalImplAddress", st.ImplementationsDeployment.OptimismPortalImplAddress},
 		{"SystemConfigImplAddress", st.ImplementationsDeployment.SystemConfigImplAddress},
@@ -762,6 +763,11 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		{"MipsSingletonAddress", st.ImplementationsDeployment.MipsSingletonAddress},
 		{"PreimageOracleSingletonAddress", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
 	}
+
+	if !intent.L1ContractsLocator.IsTag() {
+		implAddrs = append(implAddrs, addrTuple{"ETHLockboxImplAddress", st.ImplementationsDeployment.ETHLockboxImplAddress})
+	}
+
 	for _, addr := range implAddrs {
 		require.NotEmpty(t, addr.addr, "%s should be set", addr.name)
 		code := cg(t, addr.addr)

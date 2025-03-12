@@ -49,6 +49,7 @@ changed_contracts=$(jq -r '
 # All files in semver-lock.json should be in this list.
 ALLOWED_FILES=(
   "src/L1/DataAvailabilityChallenge.sol:DataAvailabilityChallenge"
+  "src/L1/ETHLockbox.sol:ETHLockbox"
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger"
   "src/L1/L1ERC721Bridge.sol:L1ERC721Bridge"
   "src/L1/L1StandardBridge.sol:L1StandardBridge"

@@ -82,14 +82,23 @@ func (ts *TestMatrix[cfg]) AddDefaultTestCases(
 	forkMatrix ForkMatrix,
 	runTest RunTest[cfg],
 ) *TestMatrix[cfg] {
+	return ts.AddDefaultTestCasesWithName("", testCfg, forkMatrix, runTest)
+}
+
+func (ts *TestMatrix[cfg]) AddDefaultTestCasesWithName(
+	name string,
+	testCfg cfg,
+	forkMatrix ForkMatrix,
+	runTest RunTest[cfg],
+) *TestMatrix[cfg] {
 	return ts.AddTestCase(
-		"HonestClaim",
+		"HonestClaim-"+name,
 		testCfg,
 		forkMatrix,
 		runTest,
 		ExpectNoError(),
 	).AddTestCase(
-		"JunkClaim",
+		"JunkClaim-"+name,
 		testCfg,
 		forkMatrix,
 		runTest,

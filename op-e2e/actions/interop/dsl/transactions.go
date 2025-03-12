@@ -40,6 +40,13 @@ func (m *GeneratedTransaction) Include() {
 	m.rcpt = rcpt
 }
 
+func (m *GeneratedTransaction) IncludeOK() {
+	rcpt, err := m.chain.SequencerEngine.EngineApi.IncludeTx(m.tx, m.from)
+	require.NoError(m.t, err)
+	m.rcpt = rcpt
+	require.Equal(m.t, types.ReceiptStatusSuccessful, rcpt.Status)
+}
+
 func (m *GeneratedTransaction) Identifier() inbox.Identifier {
 	require.NotZero(m.t, len(m.rcpt.Logs), "Transaction did not include any logs to reference")
 
@@ -72,4 +79,16 @@ func (m *GeneratedTransaction) CheckNotIncluded() {
 	rcpt, err := m.chain.SequencerEngine.EthClient().TransactionReceipt(m.t.Ctx(), m.tx.Hash())
 	require.ErrorIs(m.t, err, ethereum.NotFound)
 	require.Nil(m.t, rcpt)
+}
+
+func (m *GeneratedTransaction) PendingIdentifier(chain *Chain, logIndex int) inbox.Identifier {
+	head := chain.Sequencer.L2Unsafe()
+	blockTime := chain.RollupCfg.TimestampForBlock(head.Number)
+	return inbox.Identifier{
+		Origin:      *m.tx.To(),
+		BlockNumber: big.NewInt(int64(head.Number + 1)),
+		LogIndex:    big.NewInt(int64(logIndex)),
+		Timestamp:   big.NewInt(int64(blockTime)),
+		ChainId:     chain.RollupCfg.L2ChainID,
+	}
 }

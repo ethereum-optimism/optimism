@@ -47,6 +47,7 @@ type ValidatorInput struct {
 	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImpl"`
 	L1ERC721BridgeImpl               common.Address `json:"l1ERC721BridgeImpl"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImpl"`
+	ETHLockboxImpl                   common.Address `json:"ethLockboxImpl" evm:"ethLockboxImpl"`
 	SystemConfigImpl                 common.Address `json:"systemConfigImpl"`
 	OptimismMintableERC20FactoryImpl common.Address `json:"optimismMintableERC20FactoryImpl"`
 	L1CrossDomainMessengerImpl       common.Address `json:"l1CrossDomainMessengerImpl"`

@@ -37,6 +37,7 @@ type DeployImplementationsOutput struct {
 	OpcmUpgrader                     common.Address `json:"opcmUpgraderAddress"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImplAddress"`
+	ETHLockboxImpl                   common.Address `json:"ethLockboxImplAddress" evm:"ethLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"preimageOracleSingletonAddress"`
 	MipsSingleton                    common.Address `json:"mipsSingletonAddress"`
 	SystemConfigImpl                 common.Address `json:"systemConfigImplAddress"`

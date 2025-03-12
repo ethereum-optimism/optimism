@@ -1,5 +1,7 @@
 set shell := ["/bin/bash", "-c"]
 
+KURTOSIS_PACKAGE := "./optimism-package-trampoline/"
+
 test:
     go test --tags=testonly ./...
 
@@ -67,8 +69,6 @@ op-program-image TAG='op-program:devnet': (_docker_build_stack TAG "op-program-t
 op-proposer-image TAG='op-proposer:devnet': (_docker_build_stack TAG "op-proposer-target")
 op-supervisor-image TAG='op-supervisor:devnet': (_docker_build_stack TAG "op-supervisor-target")
 op-wheel-image TAG='op-wheel:devnet': (_docker_build_stack TAG "op-wheel-target")
-
-KURTOSIS_PACKAGE := "github.com/ethpandaops/optimism-package"
 
 # Devnet template recipe
 devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE:

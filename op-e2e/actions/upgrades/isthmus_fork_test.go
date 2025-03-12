@@ -23,15 +23,16 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	isthmusL1BlockCodeHash          = common.HexToHash("0xe59074b8d4c08924ce463087b05485b835650652528383a32ef009fb2b6d4050")
-	isthmusGasPriceOracleCodeHash   = common.HexToHash("0x9279e9e0535a7b63939d670e7faec536256b63d4ff353eb521a3342c51ce26e5")
-	isthmusOperatorFeeVaultCodeHash = common.HexToHash("0x9ee0fa5ab86f13f58fcb8f798f3a74401a8493d99d1c5b3bad19a8dff4b3194f")
+	isthmusL1BlockCodeHash          = common.HexToHash("0x8e3fe7a416d3e5f3b7be74ddd4e7e58e516fa3f80b67c6d930e3cd7297da4a4b")
+	isthmusGasPriceOracleCodeHash   = common.HexToHash("0x4d195a9d7caf9fb6d4beaf80de252c626c853afd5868c4f4f8d19c9d301c2679")
+	isthmusOperatorFeeVaultCodeHash = common.HexToHash("0x57dc55c9c09ca456fa728f253fe7b895d3e6aae0706104935fe87c7721001971")
 )
 
 func TestIsthmusActivationAtGenesis(gt *testing.T) {
@@ -321,6 +322,16 @@ func verifyIsthmusHeaderWithdrawalsRoot(gt *testing.T, rpcCl client.RPC, header 
 	}
 }
 
+func checkContractVersion(gt *testing.T, client *ethclient.Client, addr common.Address, expectedVersion string) {
+	isemver, err := bindings.NewISemver(addr, client)
+	require.NoError(gt, err)
+
+	version, err := isemver.Version(nil)
+	require.NoError(gt, err)
+
+	require.Equal(gt, expectedVersion, version)
+}
+
 func TestIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
@@ -428,6 +439,11 @@ func TestIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedHash, common.BytesToHash(rootValue), msg)
 	}
+
+	// Check contract versions
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedL1BlockAddress), "1.6.0")
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedGasPriceOracleAddress), "1.4.0")
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedOperatorFeeVaultAddress), "1.0.0")
 
 	// Legacy check:
 	// > The first block is an exception in upgrade-networks,

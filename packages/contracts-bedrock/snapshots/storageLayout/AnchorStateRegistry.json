@@ -29,16 +29,9 @@
   },
   {
     "bytes": "20",
-    "label": "portal",
-    "offset": 0,
-    "slot": "2",
-    "type": "contract IOptimismPortal2"
-  },
-  {
-    "bytes": "20",
     "label": "anchorGame",
     "offset": 0,
-    "slot": "3",
+    "slot": "2",
     "type": "contract IFaultDisputeGame"
   },
   {
@@ -47,5 +40,28 @@
     "offset": 0,
     "slot": "4",
     "type": "struct Proposal"
+    "slot": "3",
+    "type": "struct OutputRoot"
+  },
+  {
+    "bytes": "32",
+    "label": "disputeGameBlacklist",
+    "offset": 0,
+    "slot": "5",
+    "type": "mapping(contract IDisputeGame => bool)"
+  },
+  {
+    "bytes": "4",
+    "label": "respectedGameType",
+    "offset": 0,
+    "slot": "6",
+    "type": "GameType"
+  },
+  {
+    "bytes": "8",
+    "label": "retirementTimestamp",
+    "offset": 4,
+    "slot": "6",
+    "type": "uint64"
   }
 ]
