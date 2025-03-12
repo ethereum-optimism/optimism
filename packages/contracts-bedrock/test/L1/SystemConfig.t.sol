@@ -497,6 +497,13 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
         // Set the initialized slot to 0.
         vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
 
+        // Verify the initial dispute game factory slot is non-zero.
+        // We set a value here since it seems this defaults to zero.
+        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+        vm.store(address(systemConfig), disputeGameFactorySlot, bytes32(uint256(1)));
+        assertNotEq(systemConfig.disputeGameFactory(), address(0));
+        assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
+
         // Trigger upgrade().
         systemConfig.upgrade(1234);
 
@@ -508,7 +515,7 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
         assertEq(systemConfig.l2ChainId(), 1234);
 
         // Verify that the dispute game factory address was cleared.
-        assertEq(vm.load(address(systemConfig), bytes32(systemConfig.DISPUTE_GAME_FACTORY_SLOT())), bytes32(0));
+        assertEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
     }
 
     /// @notice Tests that the upgrade() function reverts if called a second time.

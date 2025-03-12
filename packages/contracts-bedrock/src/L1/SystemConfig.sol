@@ -81,10 +81,6 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
 
-    /// @notice Storage slot for the DisputeGameFactory address.
-    bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
-        bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
     ///         optimizations and improvements are made to the system at large.
@@ -211,7 +207,8 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         l2ChainId = _l2ChainId;
 
         // Clear out the old dispute game factory address, it's derived now.
-        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, address(0));
+        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+        Storage.setAddress(disputeGameFactorySlot, address(0));
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
