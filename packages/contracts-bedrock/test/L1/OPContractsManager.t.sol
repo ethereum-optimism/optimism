@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { console } from "forge-std/console.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
@@ -294,9 +295,24 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
     function runUpgrade13UpgradeAndChecks(address _delegateCaller) public {
         // The address below corresponds with the address of the v2.0.0-rc.1 OPCM on mainnet.
-        IOPContractsManager deployedOPCM = IOPContractsManager(address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76));
+        address OPCM_ADDRESS = 0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76;
+
+        IOPContractsManager deployedOPCM = IOPContractsManager(OPCM_ADDRESS);
         IOPCMImplementationsWithoutLockbox.Implementations memory impls =
             IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
+
+        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
+
+        // If the delegate caller is not the mainnet PAO, we need to call upgrade as the mainnet PAO first.
+        if (_delegateCaller != mainnetPAO) {
+            IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
+            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
+
+            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+            DelegateCaller(opmUpgrader).dcForward(OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (opmChain)));
+        }
 
         // Cache the old L1xDM address so we can look for it in the AddressManager's event
         address oldL1CrossDomainMessenger = addressManager.getAddress("OVM_L1CrossDomainMessenger");
@@ -345,6 +361,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             vm.expectEmit(false, true, true, true, address(disputeGameFactory));
             emit ImplementationSet(address(0), GameTypes.CANNON);
         }
+
         vm.expectEmit(address(_delegateCaller));
         emit Upgraded(l2ChainId, opChainConfigs[0].systemConfigProxy, address(_delegateCaller));
 
@@ -401,9 +418,24 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     }
 
     function runUpgrade14UpgradeAndChecks(address _delegateCaller) public {
-        IOPContractsManager deployedOPCM = IOPContractsManager(address(0x3A1f523a4bc09cd344A2745a108Bb0398288094F));
+        address OPCM_ADDRESS = 0x3A1f523a4bc09cd344A2745a108Bb0398288094F;
+
+        IOPContractsManager deployedOPCM = IOPContractsManager(OPCM_ADDRESS);
         IOPCMImplementationsWithoutLockbox.Implementations memory impls =
             IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
+
+        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
+
+        // If the delegate caller is not the mainnet PAO, we need to call upgrade as the mainnet PAO first.
+        if (_delegateCaller != mainnetPAO) {
+            IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
+            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
+
+            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+            DelegateCaller(opmUpgrader).dcForward(OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (opmChain)));
+        }
 
         // sanity check
         IPermissionedDisputeGame oldPDG =
