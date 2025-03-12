@@ -5,7 +5,12 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 
 // Target contract
-import { StandardValidatorBase, StandardValidatorV180, StandardValidatorV200 } from "src/L1/StandardValidator.sol";
+import {
+    StandardValidatorBase,
+    StandardValidatorV180,
+    StandardValidatorV200,
+    StandardValidatorV400
+} from "src/L1/StandardValidator.sol";
 
 // Libraries
 import { GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
@@ -33,6 +38,8 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 abstract contract StandardValidatorTest is Test {
     // Common state variables used across all validator versions
@@ -62,6 +69,7 @@ abstract contract StandardValidatorTest is Test {
     address permissionedDelayedWETH;
     address permissionlessDelayedWETH;
     address preimageOracle;
+    address ethLockbox;
 
     // Abstract property that must be implemented by derived classes
     function getValidator() internal view virtual returns (StandardValidatorBase);
@@ -101,6 +109,7 @@ abstract contract StandardValidatorTest is Test {
         permissionedDelayedWETH = makeAddr("delayedWETH");
         permissionlessDelayedWETH = makeAddr("permissionlessDelayedWETH");
         preimageOracle = makeAddr("preimageOracle");
+        ethLockbox = makeAddr("ethLockbox");
 
         // Mock proxyAdmin owner
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(l1PAOMultisig));
@@ -125,7 +134,7 @@ abstract contract StandardValidatorTest is Test {
     }
 
     /// @notice Tests that validation fails with invalid proxy admin owner
-    function test_validate_proxyAdmin_succeeds() public {
+    function test_validate_proxyAdmin_succeeds() public virtual {
         _mockValidationCalls();
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
 
@@ -635,6 +644,7 @@ abstract contract StandardValidatorTest is Test {
             abi.encodeCall(ISystemConfig.optimismMintableERC20Factory, ()),
             abi.encode(optimismMintableERC20Factory)
         );
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l2ChainId, ()), abi.encode(l2ChainID));
 
         // Mock proxy implementations
         vm.mockCall(
@@ -814,6 +824,26 @@ abstract contract StandardValidatorTest is Test {
             abi.encodeCall(IOptimismPortal2.l2Sender, ()),
             abi.encode(address(0x000000000000000000000000000000000000dEaD))
         );
+        vm.mockCall(address(optimismPortal), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(ethLockbox));
+        vm.mockCall(
+            address(optimismPortal),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(permissionedASR)
+        );
+        vm.mockCall(
+            address(optimismPortal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(l1PAOMultisig)
+        );
+
+        // Mock ETHLockbox
+        vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
+        vm.mockCall(
+            address(ethLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(l1PAOMultisig)
+        );
+        vm.mockCall(
+            address(ethLockbox),
+            abi.encodeCall(IETHLockbox.authorizedPortals, (IOptimismPortal2(payable(optimismPortal)))),
+            abi.encode(true)
+        );
 
         // Mock SuperchainConfig
         vm.mockCall(
@@ -903,6 +933,16 @@ abstract contract StandardValidatorTest is Test {
         );
         vm.mockCall(
             address(_asr), abi.encodeCall(IAnchorStateRegistry.superchainConfig, ()), abi.encode(_superchainConfig)
+        );
+        vm.mockCall(
+            address(_asr),
+            abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()),
+            abi.encode(block.timestamp + 1 weeks)
+        );
+        vm.mockCall(
+            address(_asr),
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(Hash.wrap(0xdead000000000000000000000000000000000000000000000000000000000000), 1234)
         );
     }
 
@@ -1150,5 +1190,87 @@ contract StandardValidatorV200_Test is StandardValidatorTest {
         vm.mockCall(address(permissionedDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
         vm.mockCall(address(permissionlessDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
         vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.4"));
+    }
+}
+
+contract StandardValidatorV400_Test is StandardValidatorTest {
+    StandardValidatorV400 validator;
+
+    function getValidator() internal view override returns (StandardValidatorBase) {
+        return validator;
+    }
+
+    function validate(bool _allowFailure) internal view override returns (string memory) {
+        StandardValidatorV400.InputV400 memory input = StandardValidatorV400.InputV400({
+            proxyAdmin: proxyAdmin,
+            sysCfg: systemConfig,
+            absolutePrestate: absolutePrestate,
+            l2ChainID: l2ChainID
+        });
+        return validator.validate(input, _allowFailure);
+    }
+
+    function setUp() public override {
+        super.setUp();
+
+        // Deploy validator with all required constructor args
+        validator = new StandardValidatorV400(
+            StandardValidatorBase.ImplementationsBase({
+                systemConfigImpl: makeAddr("systemConfigImpl"),
+                optimismPortalImpl: makeAddr("optimismPortalImpl"),
+                l1CrossDomainMessengerImpl: makeAddr("l1CrossDomainMessengerImpl"),
+                l1StandardBridgeImpl: makeAddr("l1StandardBridgeImpl"),
+                l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
+                optimismMintableERC20FactoryImpl: makeAddr("optimismMintableERC20FactoryImpl"),
+                disputeGameFactoryImpl: makeAddr("disputeGameFactoryImpl"),
+                mipsImpl: makeAddr("mipsImpl"),
+                anchorStateRegistryImpl: makeAddr("anchorStateRegistryImpl"),
+                delayedWETHImpl: makeAddr("delayedWETHImpl")
+            }),
+            superchainConfig,
+            l1PAOMultisig,
+            mips,
+            challenger,
+            makeAddr("ethLockboxImpl")
+        );
+    }
+
+    /// @notice Tests that validation fails with invalid proxy admin owner
+    function test_validate_proxyAdmin_succeeds() public override {
+        _mockValidationCalls();
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
+
+        // Mocking the proxy admin like this will also break ownership checks
+        // for the DGF, DelayedWETH, and other contracts.
+        assertEq("PROXYA-10,ETHLOCKBOX-v400-30,ETHLOCKBOX-v400-40", validate(true));
+    }
+
+    function _mockValidationCalls() internal virtual override {
+        super._mockValidationCalls();
+
+        // Mock ETHLockbox implementation
+        vm.mockCall(
+            address(proxyAdmin),
+            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(ethLockbox))),
+            abi.encode(validator.ethLockboxImpl())
+        );
+
+        // Override version numbers for V400
+        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.4.0"));
+        vm.mockCall(address(optimismPortal), abi.encodeCall(ISemver.version, ()), abi.encode("4.1.0"));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISemver.version, ()), abi.encode("2.6.0"));
+        vm.mockCall(address(optimismMintableERC20Factory), abi.encodeCall(ISemver.version, ()), abi.encode("1.10.1"));
+        vm.mockCall(address(l1CrossDomainMessenger), abi.encodeCall(ISemver.version, ()), abi.encode("2.6.0"));
+        vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.3.0"));
+        vm.mockCall(address(disputeGameFactory), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.1"));
+        vm.mockCall(address(permissionedASR), abi.encodeCall(ISemver.version, ()), abi.encode("3.0.0"));
+        vm.mockCall(address(permissionedDelayedWETH), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
+        vm.mockCall(address(permissionlessASR), abi.encodeCall(ISemver.version, ()), abi.encode("3.0.0"));
+        vm.mockCall(address(permissionlessDelayedWETH), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
+        vm.mockCall(address(mips), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
+        vm.mockCall(address(permissionedDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
+        vm.mockCall(address(permissionlessDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
+        vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.4"));
+        vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
     }
 }

@@ -13,7 +13,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import {
     IStandardValidatorBase,
     IStandardValidatorV180,
-    IStandardValidatorV200
+    IStandardValidatorV200,
+    IStandardValidatorV400
 } from "interfaces/L1/IStandardValidator.sol";
 
 /// @title DeployStandardValidatorInput
@@ -40,6 +41,7 @@ contract DeployStandardValidatorInput is BaseDeployIO {
     address internal _anchorStateRegistryImpl;
     address internal _delayedWETHImpl;
     address internal _mipsImpl;
+    address internal _ethLockboxImpl;
 
     function set(bytes4 _sel, address _value) public {
         if (_sel == this.superchainConfig.selector) {
@@ -90,6 +92,9 @@ contract DeployStandardValidatorInput is BaseDeployIO {
         } else if (_sel == this.mipsImpl.selector) {
             require(_value != address(0), "DeployStandardValidator: mipsImpl cannot be empty");
             _mipsImpl = _value;
+        } else if (_sel == this.ethLockboxImpl.selector) {
+            require(_value != address(0), "DeployStandardValidator: ethLockboxImpl cannot be empty");
+            _ethLockboxImpl = _value;
         } else {
             revert("DeployStandardValidator: unknown selector");
         }
@@ -192,6 +197,11 @@ contract DeployStandardValidatorInput is BaseDeployIO {
         require(_mipsImpl != address(0), "DeployStandardValidator: mipsImpl not set");
         return _mipsImpl;
     }
+
+    function ethLockboxImpl() public view returns (address) {
+        require(_ethLockboxImpl != address(0), "DeployStandardValidator: ethLockboxImpl not set");
+        return _ethLockboxImpl;
+    }
 }
 
 /// @title DeployStandardValidatorOutput
@@ -245,6 +255,8 @@ contract DeployStandardValidator is Script {
             validator = deployValidatorV180(_si);
         } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v2.0.0"))) {
             validator = deployValidatorV200(_si);
+        } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v4.0.0"))) {
+            validator = deployValidatorV400(_si);
         } else {
             revert("DeployStandardValidator: invalid release version");
         }
@@ -284,6 +296,29 @@ contract DeployStandardValidator is Script {
         return validator;
     }
 
+    function deployValidatorV400(DeployStandardValidatorInput _si) internal returns (address) {
+        address validator = DeployUtils.createDeterministic({
+            _name: "StandardValidator.sol:StandardValidatorV400",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IStandardValidatorV400.__constructor__,
+                    (
+                        getImplementations(_si),
+                        _si.superchainConfig(),
+                        _si.l1PAOMultisig(),
+                        _si.mips(),
+                        _si.challenger(),
+                        _si.ethLockboxImpl()
+                    )
+                )
+            ),
+            _salt: DeployUtils.DEFAULT_SALT
+        });
+
+        vm.label(validator, "StandardValidatorV400");
+        return validator;
+    }
+
     function assertValidDeploy(DeployStandardValidatorInput _si, DeployStandardValidatorOutput _so) public view {
         DeployUtils.assertValidContractAddress(_so.validator());
         assertValidValidator(_si, _so);
@@ -296,6 +331,8 @@ contract DeployStandardValidator is Script {
             assertValidValidatorV180(_si, validator);
         } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v2.0.0"))) {
             assertValidValidatorV200(_si, validator);
+        } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v4.0.0"))) {
+            assertValidValidatorV400(_si, validator);
         }
     }
 
@@ -313,5 +350,14 @@ contract DeployStandardValidator is Script {
         require(v200.l1PAOMultisig() == _si.l1PAOMultisig(), "SV200-20");
         require(v200.mips() == _si.mips(), "SV200-30");
         require(v200.challenger() == _si.challenger(), "SV200-40");
+    }
+
+    function assertValidValidatorV400(DeployStandardValidatorInput _si, address _validator) internal view {
+        IStandardValidatorV400 v400 = IStandardValidatorV400(_validator);
+        require(address(v400.superchainConfig()) == address(_si.superchainConfig()), "SV400-10");
+        require(v400.l1PAOMultisig() == _si.l1PAOMultisig(), "SV400-20");
+        require(v400.mips() == _si.mips(), "SV400-30");
+        require(v400.challenger() == _si.challenger(), "SV400-40");
+        require(v400.ethLockboxImpl() == _si.ethLockboxImpl(), "SV400-50");
     }
 }

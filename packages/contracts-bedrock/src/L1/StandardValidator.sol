@@ -23,6 +23,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 contract StandardValidatorBase {
     ISuperchainConfig public superchainConfig;
@@ -170,6 +171,7 @@ contract StandardValidatorBase {
     )
         internal
         view
+        virtual
         returns (string memory)
     {
         ISemver _semver = ISemver(address(_sysCfg));
@@ -295,6 +297,7 @@ contract StandardValidatorBase {
     )
         internal
         view
+        virtual
         returns (string memory)
     {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
@@ -650,6 +653,191 @@ contract StandardValidatorV200 is StandardValidatorBase {
 
     function anchorStateRegistryVersion() public pure override returns (string memory) {
         return "2.2.2";
+    }
+
+    function delayedWETHVersion() public pure override returns (string memory) {
+        return "1.3.0";
+    }
+
+    function mipsVersion() public pure override returns (string memory) {
+        return "1.3.0";
+    }
+
+    function permissionedDisputeGameVersion() public pure override returns (string memory) {
+        return "1.4.1";
+    }
+
+    function preimageOracleVersion() public pure override returns (string memory) {
+        return "1.1.4";
+    }
+}
+
+contract StandardValidatorV400 is StandardValidatorBase {
+    struct InputV400 {
+        IProxyAdmin proxyAdmin;
+        ISystemConfig sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+    }
+
+    address public ethLockboxImpl;
+
+    constructor(
+        ImplementationsBase memory _implementations,
+        ISuperchainConfig _superchainConfig,
+        address _l1PAOMultisig,
+        address _mips,
+        address _challenger,
+        address _ethLockboxImpl
+    )
+        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
+    {
+        ethLockboxImpl = _ethLockboxImpl;
+    }
+
+    function validate(InputV400 memory _input, bool _allowFailure) public view returns (string memory) {
+        string memory _errors = "";
+
+        _errors = super.validate(_errors, _input.sysCfg, _input.proxyAdmin, _input.absolutePrestate, _input.l2ChainID);
+        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
+
+        if (bytes(_errors).length > 0 && !_allowFailure) {
+            revert(string.concat("StandardValidatorV400: ", _errors));
+        }
+
+        return _errors;
+    }
+
+    function assertValidAnchorStateRegistry(
+        string memory _errors,
+        IDisputeGameFactory _dgf,
+        IAnchorStateRegistry _asr,
+        IProxyAdmin _admin,
+        GameType _gameType,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        override
+        returns (string memory)
+    {
+        (Hash anchorRoot, uint256 anchorL2BlockNumber) = _asr.getAnchorRoot();
+        _errors = super.assertValidAnchorStateRegistry(_errors, _dgf, _asr, _admin, _gameType, _errorPrefix);
+        _errors = internalRequire(
+            _admin.getProxyImplementation(address(_asr)) == anchorStateRegistryImpl,
+            string.concat(_errorPrefix, "-ANCHORP-v400-20"),
+            _errors
+        );
+        _errors =
+            internalRequire(_asr.retirementTimestamp() > 0, string.concat(_errorPrefix, "-ANCHORP-v400-30"), _errors);
+        _errors =
+            internalRequire(anchorRoot.raw() != bytes32(0), string.concat(_errorPrefix, "-ANCHORP-v400-40"), _errors);
+        _errors = internalRequire(anchorL2BlockNumber != 0, string.concat(_errorPrefix, "-ANCHORP-v400-50"), _errors);
+        return _errors;
+    }
+
+    function assertValidSystemConfig(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        override
+        returns (string memory)
+    {
+        // Would be more correct to check the actual chain ID, but there's no easy way to get it
+        // from the input because not every function actually gets the input. It would be cleaner
+        // if every validation function got the exact same input as an argument instead of
+        // selectively passing in specific inputs because it makes overrides almost impossible to
+        // manage.
+        _errors = super.assertValidSystemConfig(_errors, _sysCfg, _admin);
+        _errors = internalRequire(_sysCfg.l2ChainId() != 0, "SYSCON-v400-10", _errors);
+        return _errors;
+    }
+
+    function assertValidETHLockbox(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
+        IETHLockbox _lockbox = _portal.ethLockbox();
+        _errors = internalRequire(stringEq(_lockbox.version(), ethLockboxVersion()), "ETHLOCKBOX-v400-10", _errors);
+        _errors = internalRequire(
+            _admin.getProxyImplementation(address(_lockbox)) == ethLockboxImpl, "ETHLOCKBOX-v400-20", _errors
+        );
+        _errors = internalRequire(_lockbox.proxyAdminOwner() == _admin.owner(), "ETHLOCKBOX-v400-30", _errors);
+        _errors = internalRequire(_portal.proxyAdminOwner() == _admin.owner(), "ETHLOCKBOX-v400-40", _errors);
+        _errors = internalRequire(_lockbox.authorizedPortals(_portal), "ETHLOCKBOX-v400-50", _errors);
+        return _errors;
+    }
+
+    function assertValidOptimismPortal(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        override
+        returns (string memory)
+    {
+        _errors = super.assertValidOptimismPortal(_errors, _sysCfg, _admin);
+        IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
+        IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
+        IPermissionedDisputeGame _game =
+            IPermissionedDisputeGame(address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
+        if (address(_game) != address(0)) {
+            _errors = internalRequire(
+                address(_portal.anchorStateRegistry()) == address(_game.anchorStateRegistry()),
+                "PORTAL-v400-10",
+                _errors
+            );
+        } else {
+            // We already error PDDG-10, no need for another error.
+        }
+        return _errors;
+    }
+
+    function l1ERC721BridgeVersion() public pure override returns (string memory) {
+        return "2.4.0";
+    }
+
+    function optimismPortalVersion() public pure override returns (string memory) {
+        return "4.1.0";
+    }
+
+    function ethLockboxVersion() public pure returns (string memory) {
+        return "1.0.0";
+    }
+
+    function systemConfigVersion() public pure override returns (string memory) {
+        return "2.6.0";
+    }
+
+    function optimismMintableERC20FactoryVersion() public pure override returns (string memory) {
+        return "1.10.1";
+    }
+
+    function l1CrossDomainMessengerVersion() public pure override returns (string memory) {
+        return "2.6.0";
+    }
+
+    function l1StandardBridgeVersion() public pure override returns (string memory) {
+        return "2.3.0";
+    }
+
+    function disputeGameFactoryVersion() public pure override returns (string memory) {
+        return "1.0.1";
+    }
+
+    function anchorStateRegistryVersion() public pure override returns (string memory) {
+        return "3.0.0";
     }
 
     function delayedWETHVersion() public pure override returns (string memory) {

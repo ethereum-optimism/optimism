@@ -88,3 +88,26 @@ interface IStandardValidatorV200 is IStandardValidatorBase {
         address _challenger
     ) external;
 }
+
+interface IStandardValidatorV400 is IStandardValidatorBase {
+    struct InputV400 {
+        address proxyAdmin;
+        address sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+    }
+
+    function validate(InputV400 memory _input, bool _allowFailure) external view returns (string memory);
+
+    function ethLockboxImpl() external view returns (address);
+    function ethLockboxVersion() external pure returns (string memory);
+
+    function __constructor__(
+        IStandardValidatorBase.ImplementationsBase memory _implementations,
+        ISuperchainConfig _superchainConfig,
+        address _l1PAOMultisig,
+        address _mips,
+        address _challenger,
+        address _ethLockboxImpl
+    ) external;
+}
