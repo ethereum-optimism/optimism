@@ -1,5 +1,4 @@
 use crate::auth_layer::{AuthClientLayer, AuthClientService};
-use crate::metrics::ClientMetrics;
 use crate::server::{EngineApiClient, PayloadSource};
 use alloy_primitives::B256;
 use alloy_rpc_types_engine::{
@@ -7,18 +6,19 @@ use alloy_rpc_types_engine::{
     PayloadId, PayloadStatus,
 };
 use clap::{arg, Parser};
-use http::{StatusCode, Uri};
+use http::{ Uri};
 use jsonrpsee::core::{ClientError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::types::ErrorCode;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
+use opentelemetry::trace::SpanKind;
 use paste::paste;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use thiserror::Error;
-use tracing::error;
+use tracing::{error, instrument};
 
 #[derive(Error, Debug)]
 pub enum ExecutionClientError {
@@ -40,8 +40,6 @@ pub struct ExecutionClient {
     pub auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
     /// Uri of the RPC server for authenticated Engine API calls
     pub auth_rpc: Uri,
-    /// Metrics for the client
-    pub metrics: Option<Arc<ClientMetrics>>,
     /// The source of the payload
     pub payload_source: PayloadSource,
 }
@@ -52,7 +50,6 @@ impl ExecutionClient {
         auth_rpc: Uri,
         auth_rpc_jwt_secret: JwtSecret,
         timeout: u64,
-        metrics: Option<Arc<ClientMetrics>>,
         payload_source: PayloadSource,
     ) -> Result<Self, ExecutionClientError> {
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
@@ -64,19 +61,23 @@ impl ExecutionClient {
         Ok(Self {
             auth_client: Arc::new(auth_client),
             auth_rpc,
-            metrics,
             payload_source,
         })
     }
 
+    #[instrument(skip_all, 
+        err,
+        fields(
+            otel.kind = ?SpanKind::Client,
+            target = self.payload_source.to_string(),
+        )
+    )]
     pub async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
-        let start = Instant::now();
-        let response = self
-            .auth_client
+        self.auth_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
             .await
             .map_err(|e| match e {
@@ -90,21 +91,20 @@ impl ExecutionClient {
                     );
                     ErrorCode::InternalError.into()
                 }
-            });
-        if let Some(metrics) = &self.metrics {
-            metrics
-                .record_fork_choice_updated_v3(start.elapsed(), self.get_response_code(&response));
-        }
-        response
+            })
     }
 
+    #[instrument(skip_all, 
+        fields(
+            otel.kind = ?SpanKind::Client,
+            target = self.payload_source.to_string(),
+        )
+    )]
     pub async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
     ) -> RpcResult<(OpExecutionPayloadEnvelopeV3, PayloadSource)> {
-        let start = Instant::now();
-        let response = self
-            .auth_client
+        self.auth_client
             .get_payload_v3(payload_id)
             .await
             .map(|payload| (payload, self.payload_source.clone()))
@@ -118,13 +118,16 @@ impl ExecutionClient {
                     );
                     ErrorCode::InternalError.into()
                 }
-            });
-        if let Some(metrics) = &self.metrics {
-            metrics.record_get_payload_v3(start.elapsed(), self.get_response_code(&response));
-        }
-        response
+            })
     }
 
+    #[instrument(skip_all, 
+        err
+        fields(
+            otel.kind = ?SpanKind::Client,
+            target = self.payload_source.to_string(),
+        )
+    )]
     pub async fn new_payload_v3(
         &self,
         payload: ExecutionPayloadV3,
@@ -133,9 +136,7 @@ impl ExecutionClient {
     ) -> RpcResult<PayloadStatus> {
         let execution_payload = ExecutionPayload::from(payload.clone());
         let block_hash = execution_payload.block_hash();
-        let start = Instant::now();
-        let response = self
-            .auth_client
+        self.auth_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
             .await
             .map_err(|e| match e {
@@ -149,18 +150,7 @@ impl ExecutionClient {
                     );
                     ErrorCode::InternalError.into()
                 }
-            });
-        if let Some(metrics) = &self.metrics {
-            metrics.record_new_payload_v3(start.elapsed(), self.get_response_code(&response));
-        }
-        response
-    }
-
-    fn get_response_code<T>(&self, response: &RpcResult<T>) -> String {
-        match response {
-            Ok(_) => StatusCode::OK.to_string(),
-            Err(e) => e.code().to_string(),
-        }
+            })
     }
 }
 

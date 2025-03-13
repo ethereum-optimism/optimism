@@ -92,18 +92,11 @@ pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
         let provider = provider_builder.build();
         let tracer = provider.tracer(env!("CARGO_PKG_NAME"));
 
-        // Set global tracer provider for use with opentelemetry api
-        global::set_tracer_provider(provider);
-
         let trace_filter = Targets::new()
             .with_default(LevelFilter::OFF)
             .with_target(&filter_name, LevelFilter::TRACE);
 
-        let registry = registry.with(
-            OpenTelemetryLayer::new(tracer)
-                .with_level(true)
-                .with_filter(trace_filter),
-        );
+        let registry = registry.with(OpenTelemetryLayer::new(tracer).with_filter(trace_filter));
 
         match args.log_format {
             LogFormat::Json => {

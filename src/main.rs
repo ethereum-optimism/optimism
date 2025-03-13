@@ -3,8 +3,8 @@ use ::tracing::{error, info, Level};
 use clap::{arg, Parser, Subcommand};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use debug_api::DebugClient;
-use metrics::{init_metrics, ClientMetrics};
-use std::{net::SocketAddr, sync::Arc};
+use metrics::init_metrics;
+use std::net::SocketAddr;
 use tracing::init_tracing;
 
 use alloy_rpc_types_engine::JwtSecret;
@@ -182,16 +182,10 @@ async fn main() -> eyre::Result<()> {
         bail!("Missing L2 Client JWT secret");
     };
 
-    let l2_metrics = if args.metrics {
-        Some(Arc::new(ClientMetrics::new(&PayloadSource::L2)))
-    } else {
-        None
-    };
     let l2_client = ExecutionClient::new(
         l2_client_args.l2_url.clone(),
         l2_auth_jwt,
         l2_client_args.l2_timeout,
-        l2_metrics,
         PayloadSource::L2,
     )?;
 
@@ -204,17 +198,10 @@ async fn main() -> eyre::Result<()> {
         bail!("Missing Builder JWT secret");
     };
 
-    let builder_metrics = if args.metrics {
-        Some(Arc::new(ClientMetrics::new(&PayloadSource::Builder)))
-    } else {
-        None
-    };
-
     let builder_client = ExecutionClient::new(
         builder_args.builder_url.clone(),
         builder_auth_jwt,
         builder_args.builder_timeout,
-        builder_metrics,
         PayloadSource::Builder,
     )?;
 
@@ -336,6 +323,7 @@ mod tests {
     use reth_rpc_layer::{AuthLayer, JwtAuthValidator};
     use std::result::Result;
     use std::str::FromStr;
+    use std::sync::Arc;
 
     use super::*;
 
@@ -358,7 +346,7 @@ mod tests {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
 
         let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
-        let client = ExecutionClient::new(auth_rpc, secret, 1000, None, PayloadSource::L2).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
@@ -368,7 +356,7 @@ mod tests {
     async fn invalid_jwt() {
         let secret = JwtSecret::random();
         let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
-        let client = ExecutionClient::new(auth_rpc, secret, 1000, None, PayloadSource::L2).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
         let response = send_request(client.auth_client).await;
         assert!(response.is_err());
         assert!(matches!(
