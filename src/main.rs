@@ -354,11 +354,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_client() {
-        valid_jwt().await;
-        invalid_jwt().await;
-    }
-
     async fn valid_jwt() {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
 
@@ -369,6 +364,7 @@ mod tests {
         assert_eq!(response.unwrap(), "You are the dark lord");
     }
 
+    #[tokio::test]
     async fn invalid_jwt() {
         let secret = JwtSecret::random();
         let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();

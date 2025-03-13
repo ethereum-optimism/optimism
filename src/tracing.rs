@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use eyre::Context as _;
 use metrics::histogram;
 use opentelemetry::trace::TracerProvider as _;
@@ -11,10 +9,11 @@ use tracing::level_filters::LevelFilter;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::{EnvFilter, Layer};
+use tracing_subscriber::Layer;
 
 use crate::{Args, LogFormat};
 
+/// Custom span processor that records span durations as histograms
 #[derive(Debug)]
 struct MetricsSpanProcessor;
 
@@ -27,15 +26,20 @@ impl SpanProcessor for MetricsSpanProcessor {
             .duration_since(span.start_time)
             .unwrap_or_default();
 
-        let labels = span
-            .attributes
-            .iter()
-            .map(|kv| (kv.key.to_string(), kv.value.to_string()))
-            .chain(std::iter::once((
-                "span_kind".to_string(),
-                format!("{:?}", span.span_kind),
-            )))
-            .collect::<Vec<_>>();
+        // Add custom labels
+        let mut labels = vec![("span_kind", format!("{:?}", span.span_kind))];
+
+        if span.name.starts_with("fork_choice_update") {
+            let with_attributes = span
+                .attributes
+                .iter()
+                .find(|e| e.key.as_str() == "has_attributes")
+                .map(|e| e.value.as_str());
+
+            if let Some(with_attributes) = with_attributes {
+                labels.push(("has_attributes", with_attributes.to_string()));
+            }
+        }
 
         histogram!(format!("{}_duration", span.name), &labels).record(duration);
     }
