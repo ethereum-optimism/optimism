@@ -724,8 +724,6 @@ impl SimpleBlockGenerator {
                         timestamp: self.timestamp + 1000, // 1 second later
                         prev_randao: B256::ZERO,
                         suggested_fee_recipient: Default::default(),
-                        target_blobs_per_block: None,
-                        max_blobs_per_block: None,
                     },
                     transactions: None,
                     no_tx_pool: Some(empty_blocks),

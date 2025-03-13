@@ -139,6 +139,7 @@ pub(crate) fn init_metrics(args: &Args) -> Result<Option<Arc<ServerMetrics>>> {
             .push(PrefixLayer::new("rollup-boost"))
             .install()?;
 
+        // Start the metrics server
         let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
         let addr: SocketAddr = metrics_addr.parse()?;
         tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task

@@ -67,4 +67,5 @@ reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "v1.3.
 ctor = "0.4.1"
 
 [features]
+default = ["integration"]
 integration = []

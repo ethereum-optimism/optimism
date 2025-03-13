@@ -5,8 +5,11 @@ use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::trace::SpanProcessor;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, Resource};
+use tracing::level_filters::LevelFilter;
 use tracing_opentelemetry::OpenTelemetryLayer;
-use tracing_subscriber::{layer::SubscriberExt, EnvFilter};
+use tracing_subscriber::filter::Targets;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Layer;
 
 use crate::{Args, LogFormat};
 
@@ -21,7 +24,18 @@ impl SpanProcessor for MetricsSpanProcessor {
             .end_time
             .duration_since(span.start_time)
             .unwrap_or_default();
-        histogram!(format!("{}_duration", span.name)).record(duration);
+
+        let labels = span
+            .attributes
+            .iter()
+            .map(|kv| (kv.key.to_string(), kv.value.to_string()))
+            .chain(std::iter::once((
+                "span_kind".to_string(),
+                format!("{:?}", span.span_kind),
+            )))
+            .collect::<Vec<_>>();
+
+        histogram!(format!("{}_duration", span.name), &labels).record(duration);
     }
 
     fn force_flush(&self) -> opentelemetry_sdk::error::OTelSdkResult {
@@ -34,12 +48,16 @@ impl SpanProcessor for MetricsSpanProcessor {
 }
 
 pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
-    let log_level = args.log_level.to_string();
-    let registry = tracing_subscriber::registry().with(EnvFilter::new(log_level));
+    let log_filter = Targets::new()
+        .with_default(LevelFilter::INFO)
+        .with_target("rollup-boost", args.log_level);
+
+    let registry = tracing_subscriber::registry();
 
     // Weird control flow here is required because of type system
     if args.tracing {
         global::set_text_map_propagator(TraceContextPropagator::new());
+        // Define a custom sampler that checks if the span's name starts with your crate's name.
         let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_tonic()
             .with_endpoint(&args.otlp_endpoint)
@@ -59,19 +77,35 @@ pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
             provider_builder = provider_builder.with_span_processor(MetricsSpanProcessor);
         }
         let provider = provider_builder.build();
-
         let tracer = provider.tracer(env!("CARGO_PKG_NAME"));
-        let registry = registry.with(OpenTelemetryLayer::new(tracer));
+
+        // Set global tracer provider for use with opentelemetry api
+        global::set_tracer_provider(provider);
+
+        let trace_filter = Targets::new()
+            .with_default(LevelFilter::OFF)
+            .with_target(env!("CARGO_PKG_NAME"), LevelFilter::TRACE);
+
+        let registry = registry.with(OpenTelemetryLayer::new(tracer).with_filter(trace_filter));
 
         match args.log_format {
             LogFormat::Json => {
                 tracing::subscriber::set_global_default(
-                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false).json()),
+                    registry.with(
+                        tracing_subscriber::fmt::layer()
+                            .json()
+                            .with_ansi(false)
+                            .with_filter(log_filter.clone()),
+                    ),
                 )?;
             }
             LogFormat::Text => {
                 tracing::subscriber::set_global_default(
-                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false)),
+                    registry.with(
+                        tracing_subscriber::fmt::layer()
+                            .with_ansi(false)
+                            .with_filter(log_filter.clone()),
+                    ),
                 )?;
             }
         }
@@ -79,12 +113,21 @@ pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
         match args.log_format {
             LogFormat::Json => {
                 tracing::subscriber::set_global_default(
-                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false).json()),
+                    registry.with(
+                        tracing_subscriber::fmt::layer()
+                            .json()
+                            .with_ansi(false)
+                            .with_filter(log_filter.clone()),
+                    ),
                 )?;
             }
             LogFormat::Text => {
                 tracing::subscriber::set_global_default(
-                    registry.with(tracing_subscriber::fmt::layer().with_ansi(false)),
+                    registry.with(
+                        tracing_subscriber::fmt::layer()
+                            .with_ansi(false)
+                            .with_filter(log_filter.clone()),
+                    ),
                 )?;
             }
         }

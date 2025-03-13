@@ -17,7 +17,7 @@ use jsonrpsee::RpcModule;
 use lru::LruCache;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
-use opentelemetry::trace::{Span, TraceContextExt, Tracer};
+use opentelemetry::trace::{Span, SpanKind, TraceContextExt, Tracer};
 use opentelemetry::{Context, KeyValue};
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,7 @@ pub struct PayloadTraceContext {
 impl PayloadTraceContext {
     fn new() -> Self {
         PayloadTraceContext {
-            tracer: Arc::new(global::tracer("rollup-boost")),
+            tracer: Arc::new(global::tracer(env!("CARGO_PKG_NAME"))),
             block_hash_to_payload_ids: Arc::new(Mutex::new(LruCache::new(
                 NonZero::new(CACHE_SIZE).unwrap(),
             ))),
@@ -229,6 +229,7 @@ pub trait EngineApi {
 impl EngineApiServer for RollupBoostServer {
     #[instrument(skip_all, 
         fields(
+            otel.kind = ?SpanKind::Server,
             has_attributes = payload_attributes.is_some(),
             head_block_hash = %fork_choice_state.head_block_hash
         )
@@ -238,12 +239,6 @@ impl EngineApiServer for RollupBoostServer {
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
-        info!(
-            message = "received fork_choice_updated_v3",
-            "head_block_hash" = %fork_choice_state.head_block_hash,
-            "has_attributes" = payload_attributes.is_some(),
-        );
-
         // First get the local payload ID from L2 client
         let l2_response = self
             .l2_client
@@ -382,6 +377,11 @@ impl EngineApiServer for RollupBoostServer {
         Ok(l2_response)
     }
 
+    #[instrument(skip_all, 
+        fields(
+            otel.kind = ?SpanKind::Server,
+        )
+    )]
     async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
@@ -506,6 +506,11 @@ impl EngineApiServer for RollupBoostServer {
         })
     }
 
+    #[instrument(skip_all, 
+        fields(
+            otel.kind = ?SpanKind::Server,
+        )
+    )]
     async fn new_payload_v3(
         &self,
         payload: ExecutionPayloadV3,
