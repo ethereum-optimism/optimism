@@ -47,7 +47,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 
 		initReceipt, ok := initResult.Info().(system.Receipt)
 		require.True(t, ok)
-		logger.Info("Execute message", "txHash", initReceipt.TxHash().Hex())
+		logger.Info("Initiate message", "txHash", initReceipt.TxHash().Hex())
 		logs := initReceipt.Logs()
 		// We are directly calling sendMessage, so we expect single log for SentMessage event
 		require.Equal(t, 1, len(logs), "expected single log")
@@ -55,9 +55,11 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 
 		// Build sentMessage for message execution
 		blockNumber := initReceipt.BlockNumber()
-		block, err := chainA.Node().BlockByNumber(ctx, blockNumber)
+		blockA, err := chainA.Node().BlockByNumber(ctx, blockNumber)
 		require.NoError(t, err)
-		blockTime := big.NewInt(int64(block.Time()))
+		blockTimeA := big.NewInt(int64(blockA.Time()))
+		logger.Info("Initiate message was included at", "timestamp", blockTimeA.String())
+
 		sentMessage := []byte{}
 		for _, topic := range log.Topics {
 			sentMessage = append(sentMessage, topic.Bytes()...)
@@ -70,7 +72,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 			Origin:      constants.L2ToL2CrossDomainMessenger,
 			BlockNumber: blockNumber,
 			LogIndex:    logIndex,
-			Timestamp:   blockTime,
+			Timestamp:   blockTimeA,
 			ChainId:     chainA.ID(),
 		}
 
@@ -84,6 +86,11 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 
 		execTxHash := execReceipt.TxHash()
 		logger.Info("Execute message", "txHash", execTxHash.Hex())
+
+		blockB, err := chainB.Node().BlockByNumber(ctx, blockNumber)
+		require.NoError(t, err)
+		blockTimeB := big.NewInt(int64(blockB.Time()))
+		logger.Info("Execute message was included at", "timestamp", blockTimeB.String())
 
 		// Validation that message has passed and got executed successfully
 		gethClient, err := chainB.GethClient()
