@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
@@ -15,13 +13,14 @@ import (
 )
 
 type InteropDevRecipe struct {
-	L1ChainID         uint64
-	L2ChainIDs        []uint64
-	GenesisTimestamp  uint64
-	MessageExpiryTime uint64
+	L1ChainID        uint64
+	L2s              []InteropDevL2Recipe
+	GenesisTimestamp uint64
 }
 
-func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) {
+func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) {
+	r := recipe.hydrated()
+
 	// L1 genesis
 	l1Cfg := &L1Config{
 		ChainID: new(big.Int).SetUint64(r.L1ChainID),
@@ -33,7 +32,6 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 		Prefund: make(map[common.Address]*big.Int),
 	}
 
-	// TODO(#11887): consider making the number of prefunded keys configurable.
 	l1Users := devkeys.ChainUserKeys(l1Cfg.ChainID)
 	for i := uint64(0); i < 20; i++ {
 		userAddr, err := addrs.Address(l1Users(i))
@@ -79,8 +77,7 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
 				MipsVersion:                     big.NewInt(1),
 			},
-			UseInterop:           true,
-			StandardVersionsToml: standard.VersionsMainnetData,
+			UseInterop: true,
 		},
 		SuperchainL1DeployConfig: genesis.SuperchainL1DeployConfig{
 			RequiredProtocolVersion:    params.OPStackSupport,
@@ -93,17 +90,39 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 		Superchain: superchainCfg,
 		L2s:        make(map[string]*L2Config),
 	}
-	for _, l2ChainID := range r.L2ChainIDs {
-		l2Cfg, err := InteropL2DevConfig(r.L1ChainID, l2ChainID, addrs, r.MessageExpiryTime)
+	for _, l2 := range r.L2s {
+		l2Cfg, err := l2.build(r.L1ChainID, addrs)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate L2 config for chain %d: %w", l2ChainID, err)
+			return nil, fmt.Errorf("failed to generate L2 config for chain %d: %w", l2.ChainID, err)
 		}
 		if err := prefundL2Accounts(l1Cfg, l2Cfg, addrs); err != nil {
-			return nil, fmt.Errorf("failed to prefund addresses on L1 for L2 chain %d: %w", l2ChainID, err)
+			return nil, fmt.Errorf("failed to prefund addresses on L1 for L2 chain %d: %w", l2.ChainID, err)
 		}
-		world.L2s[fmt.Sprintf("%d", l2ChainID)] = l2Cfg
+		world.L2s[fmt.Sprintf("%d", l2.ChainID)] = l2Cfg
 	}
 	return world, nil
+}
+
+func (r *InteropDevRecipe) hydrated() InteropDevRecipe {
+	out := InteropDevRecipe{
+		L1ChainID:        r.L1ChainID,
+		L2s:              make([]InteropDevL2Recipe, len(r.L2s)),
+		GenesisTimestamp: r.GenesisTimestamp,
+	}
+	for i, l := range r.L2s {
+		out.L2s[i] = l
+		if l.BlockTime == 0 {
+			out.L2s[i].BlockTime = defaultBlockTime
+		}
+	}
+	return out
+}
+
+const defaultBlockTime = 2
+
+type InteropDevL2Recipe struct {
+	ChainID   uint64
+	BlockTime uint64
 }
 
 func prefundL2Accounts(l1Cfg *L1Config, l2Cfg *L2Config, addrs devkeys.Addresses) error {
@@ -130,10 +149,10 @@ func prefundL2Accounts(l1Cfg *L1Config, l2Cfg *L2Config, addrs devkeys.Addresses
 	return nil
 }
 
-func InteropL2DevConfig(l1ChainID, l2ChainID uint64, addrs devkeys.Addresses, messageExpiryTime uint64) (*L2Config, error) {
+func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*L2Config, error) {
 	// Padded chain ID, hex encoded, prefixed with 0xff like inboxes, then 0x02 to signify devnet.
-	batchInboxAddress := common.HexToAddress(fmt.Sprintf("0xff02%016x", l2ChainID))
-	chainOps := devkeys.ChainOperatorKeys(new(big.Int).SetUint64(l2ChainID))
+	batchInboxAddress := common.HexToAddress(fmt.Sprintf("0xff02%016x", r.ChainID))
+	chainOps := devkeys.ChainOperatorKeys(new(big.Int).SetUint64(r.ChainID))
 
 	deployer, err := addrs.Address(chainOps(devkeys.DeployerRole))
 	if err != nil {
@@ -243,8 +262,8 @@ func InteropL2DevConfig(l1ChainID, l2ChainID uint64, addrs devkeys.Addresses, me
 			},
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
 				L1ChainID:                 l1ChainID,
-				L2ChainID:                 l2ChainID,
-				L2BlockTime:               2,
+				L2ChainID:                 r.ChainID,
+				L2BlockTime:               r.BlockTime,
 				FinalizationPeriodSeconds: 2, // instant output finalization
 				MaxSequencerDrift:         300,
 				SequencerWindowSize:       200,
@@ -267,8 +286,7 @@ func InteropL2DevConfig(l1ChainID, l2ChainID uint64, addrs devkeys.Addresses, me
 		DisputeMaxClockDuration: 302400, // 3.5 days (input in seconds)
 	}
 
-	// TODO(#11887): consider making the number of prefunded keys configurable.
-	l2Users := devkeys.ChainUserKeys(new(big.Int).SetUint64(l2ChainID))
+	l2Users := devkeys.ChainUserKeys(new(big.Int).SetUint64(r.ChainID))
 	for i := uint64(0); i < 20; i++ {
 		userAddr, err := addrs.Address(l2Users(i))
 		if err != nil {

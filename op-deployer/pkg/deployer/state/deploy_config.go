@@ -67,8 +67,10 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				GovernanceTokenOwner:  common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad"),
 			},
 			GasPriceOracleDeployConfig: genesis.GasPriceOracleDeployConfig{
-				GasPriceOracleBaseFeeScalar:     1368,
-				GasPriceOracleBlobBaseFeeScalar: 810949,
+				GasPriceOracleBaseFeeScalar:       1368,
+				GasPriceOracleBlobBaseFeeScalar:   810949,
+				GasPriceOracleOperatorFeeScalar:   chainIntent.OperatorFeeScalar,
+				GasPriceOracleOperatorFeeConstant: chainIntent.OperatorFeeConstant,
 			},
 			EIP1559DeployConfig: genesis.EIP1559DeployConfig{
 				EIP1559Denominator:       chainIntent.Eip1559Denominator,
@@ -122,7 +124,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 			BlockNumber: &num,
 		}
 	} else {
-		startHash := chainState.StartBlock.Hash()
+		startHash := chainState.StartBlock.Hash
 		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
 			BlockHash: &startHash,
 		}

@@ -62,6 +62,7 @@ func testValidator(t *testing.T, forkRPCURL string, loc *artifacts.Locator, rele
 		ProtocolVersionsImpl:             common.Address{'2'},
 		L1ERC721BridgeImpl:               common.Address{'3'},
 		OptimismPortalImpl:               common.Address{'4'},
+		ETHLockboxImpl:                   common.Address{'5'},
 		SystemConfigImpl:                 common.Address{'5'},
 		OptimismMintableERC20FactoryImpl: common.Address{'6'},
 		L1CrossDomainMessengerImpl:       common.Address{'7'},

@@ -68,7 +68,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
 		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 3}}
 		ufcd.isCrossUnsafe = types.ErrFuture
-		ufcd.parentBlockFn = func() (parent eth.BlockID, err error) {
+		ufcd.findBlockIDFn = func() (parent eth.BlockID, err error) {
 			return eth.BlockID{}, errors.New("some error")
 		}
 		// when there is one hazard, and IsCrossUnsafe returns an ErrFuture,
@@ -81,7 +81,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
 		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 3}}
 		ufcd.isCrossUnsafe = types.ErrFuture
-		ufcd.parentBlockFn = func() (parent eth.BlockID, err error) {
+		ufcd.findBlockIDFn = func() (parent eth.BlockID, err error) {
 			// when getting the parent block, prep isCrossSafe to be err
 			ufcd.isCrossUnsafe = errors.New("not cross unsafe!")
 			return eth.BlockID{}, nil
@@ -105,7 +105,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 
 type mockUnsafeFrontierCheckDeps struct {
 	deps          mockDependencySet
-	parentBlockFn func() (parent eth.BlockID, err error)
+	findBlockIDFn func() (parent eth.BlockID, err error)
 	isCrossUnsafe error
 	isLocalUnsafe error
 }
@@ -114,9 +114,9 @@ func (m *mockUnsafeFrontierCheckDeps) DependencySet() depset.DependencySet {
 	return m.deps
 }
 
-func (m *mockUnsafeFrontierCheckDeps) ParentBlock(chainID eth.ChainID, block eth.BlockID) (parent eth.BlockID, err error) {
-	if m.parentBlockFn != nil {
-		return m.parentBlockFn()
+func (m *mockUnsafeFrontierCheckDeps) FindBlockID(chainID eth.ChainID, num uint64) (parent eth.BlockID, err error) {
+	if m.findBlockIDFn != nil {
+		return m.findBlockIDFn()
 	}
 	return eth.BlockID{}, nil
 }

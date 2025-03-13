@@ -22,7 +22,9 @@ REPO="optimism"
 NOT_FOUND_COUNT=0
 MISMATCH_COUNT=0
 OPEN_COUNT=0
+CLOSED_COUNT=0
 declare -a OPEN_ISSUES
+declare -a CLOSED_ISSUES
 
 # Colors
 RED='\033[0;31m'
@@ -42,6 +44,7 @@ for arg in "$@"; do
   case $arg in
     --strict)
     FAIL_INVALID_FMT=true
+    VERBOSE=true
     shift
     ;;
     --verbose)
@@ -56,7 +59,7 @@ for arg in "$@"; do
 done
 
 # Use ripgrep to search for the pattern in all files within the repo
-todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' 'TODO\(([^)]+)\): [^,;]*')
+todos=$(rg -o --with-filename -i -n -g '!ops/scripts/todo-checker.sh' -g '!packages/contracts-bedrock/lib' 'TODO\(([^)]+)\): [^,;]*')
 
 # Check each TODO comment in the repo
 IFS=$'\n' # Set Internal Field Separator to newline for iteration
@@ -85,74 +88,106 @@ for todo in $todos; do
         ISSUE_NUM="${BASH_REMATCH[2]}"
     else
         if $FAIL_INVALID_FMT || $VERBOSE; then
-            echo -e "${YELLOW}[Warning]:${NC} Invalid TODO format: $todo"
-            if $FAIL_INVALID_FMT; then
-                exit 1
-            fi
+            echo -e "${YELLOW}[Warning]${NC} Invalid TODO format: $todo"
         fi
         ((MISMATCH_COUNT++))
         continue
     fi
 
+    # Don't fetch issue status if we aren't checking for closed issues.
+    if  ! $CHECK_CLOSED; then
+      continue
+    fi
     # Use GitHub API to fetch issue details
     GH_URL_PATH="$REPO_FULL/issues/$ISSUE_NUM"
-    RESPONSE=$(curl -sL -H "$AUTH" --request GET "https://api.github.com/repos/$GH_URL_PATH")
+    # Grab the status code and response as a two item array [response, status]
+    RESPONSE="[$(curl -sL -w ", %{http_code}" -H "$AUTH" --request GET "https://api.github.com/repos/$GH_URL_PATH")]"
+    # Split the two values out
+    STATUS=$(echo "$RESPONSE" | jq -r '.[1]')
+    RESPONSE=$(echo "$RESPONSE" | jq -r '.[0]')
 
     # Check if issue was found
-    if echo "$RESPONSE" | rg -q "Not Found"; then
+    if [[ "$STATUS" == "404" ]]; then
         if [[ $VERBOSE ]]; then
-            echo -e "${YELLOW}[Warning]:${NC} Issue not found: ${RED}$REPO_FULL/$ISSUE_NUM${NC}"
+            echo -e "${YELLOW}[Warning]${NC} Issue not found: ${RED}$REPO_FULL/$ISSUE_NUM${NC}"
         fi
         ((NOT_FOUND_COUNT++))
         continue
     fi
+    if [[ "$STATUS" != "200" ]]; then
+      echo -e "${RED}[Error]${NC} Failed to retrieve issue ${YELLOW}$ISSUE_REFERENCE${NC}"
+      echo "Status: ${STATUS}"
+      echo "${RESPONSE}"
+      exit 1
+    fi
 
     # Check issue state
     STATE=$(echo "$RESPONSE" | jq -r .state)
-
     if [[ "$STATE" == "closed" ]] && $CHECK_CLOSED; then
-        echo -e "${RED}[Error]:${NC} Issue #$ISSUE_NUM is closed. Please remove the TODO in ${GREEN}$FILE:$LINE_NUM${NC} referencing ${YELLOW}$ISSUE_REFERENCE${NC} (${CYAN}https://github.com/$GH_URL_PATH${NC})"
-        exit 1
+        TITLE=$(echo "$RESPONSE" | jq -r .title)
+        echo -e "${RED}[Error]${NC} Issue #$ISSUE_NUM is closed. Please remove the TODO in ${GREEN}$FILE:$LINE_NUM${NC} referencing ${YELLOW}$ISSUE_REFERENCE${NC} (${CYAN}https://github.com/$GH_URL_PATH${NC})"
+        ((CLOSED_COUNT++))
+        CLOSED_ISSUES+=("$REPO_FULL #$ISSUE_NUM|$TITLE|$FILE:$LINE_NUM")
     fi
 
     if [[ "$STATE" == "open" ]]; then
         ((OPEN_COUNT++))
         TITLE=$(echo "$RESPONSE" | jq -r .title)
-        OPEN_ISSUES+=("$REPO_FULL/issues/$ISSUE_NUM|$TITLE|$FILE:$LINE_NUM")
+        OPEN_ISSUES+=("$REPO_FULL #$ISSUE_NUM|$TITLE|$FILE:$LINE_NUM")
     fi
 done
 
+function printIssueTitle() {
+    printf "\n${PURPLE}%-40s${NC} ${GREY}|${NC} ${GREEN}%-65s${NC} ${GREY}|${NC} ${YELLOW}%-40s${NC}\n" "Repository & Issue" "Title" "Location"
+    echo -e "$GREY$(printf '%0.s-' {1..41})+$(printf '%0.s-' {1..67})+$(printf '%0.s-' {1..51})$NC"
+}
+
+function printIssue() {
+    issue=${1}
+    REPO_ISSUE="${issue%%|*}"  # up to the first |
+    REMAINING="${issue#*|}"                       # after the first |
+    TITLE="${REMAINING%%|*}"                      # up to the second |
+    LOC="${REMAINING#*|}"                         # after the second |
+
+    # Truncate if necessary
+    if [ ${#REPO_ISSUE} -gt 37 ]; then
+        REPO_ISSUE=$(printf "%.37s..." "$REPO_ISSUE")
+    fi
+    if [ ${#TITLE} -gt 62 ]; then
+        TITLE=$(printf "%.62s..." "$TITLE")
+    fi
+    # Don't truncate LOC - we always want to be able to find the to do so need the full info here even if it wraps.
+
+    printf "${CYAN}%-40s${NC} ${GREY}|${NC} %-65s ${GREY}|${NC} ${YELLOW}%-50s${NC}\n" "$REPO_ISSUE" "$TITLE" "$LOC"
+}
+
 # Print summary
 if [[ $NOT_FOUND_COUNT -gt 0 ]]; then
-    echo -e "${YELLOW}[Warning]:${NC} ${CYAN}$NOT_FOUND_COUNT${NC} TODOs referred to issues that were not found."
+    echo -e "${YELLOW}[Warning]${NC} ${CYAN}$NOT_FOUND_COUNT${NC} TODOs referred to issues that were not found."
 fi
 if [[ $MISMATCH_COUNT -gt 0 ]]; then
-    echo -e "${YELLOW}[Warning]:${NC} ${CYAN}$MISMATCH_COUNT${NC} TODOs did not match the expected pattern. Run with ${RED}\`--verbose\`${NC} to show details."
+    echo -e "${RED}[Error]${NC} ${CYAN}$MISMATCH_COUNT${NC} TODOs did not match the expected pattern. Run with ${RED}\`--verbose\`${NC} to show details."
+    if $FAIL_INVALID_FMT; then
+        exit 1
+    fi
 fi
 if [[ $OPEN_COUNT -gt 0 ]]; then
-    echo -e "${GREEN}[Info]:${NC} ${CYAN}$OPEN_COUNT${NC} TODOs refer to issues that are still open."
-    echo -e "${GREEN}[Info]:${NC} Open issue details:"
-    printf "\n${PURPLE}%-50s${NC} ${GREY}|${NC} ${GREEN}%-55s${NC} ${GREY}|${NC} ${YELLOW}%-30s${NC}\n" "Repository & Issue" "Title" "Location"
-    echo -e "$GREY$(printf '%0.s-' {1..51})+$(printf '%0.s-' {1..57})+$(printf '%0.s-' {1..31})$NC"
+    echo -e "${GREEN}[Info]${NC} ${CYAN}$OPEN_COUNT${NC} TODOs refer to issues that are still open."
+    echo -e "${GREEN}[Info]${NC} Open issue details:"
+    printIssueTitle
     for issue in "${OPEN_ISSUES[@]}"; do
-        REPO_ISSUE="https://github.com/${issue%%|*}"  # up to the first |
-        REMAINING="${issue#*|}"                       # after the first |
-        TITLE="${REMAINING%%|*}"                      # up to the second |
-        LOC="${REMAINING#*|}"                         # after the second |
-
-        # Truncate if necessary
-        if [ ${#REPO_ISSUE} -gt 47 ]; then
-            REPO_ISSUE=$(printf "%.47s..." "$REPO_ISSUE")
-        fi
-        if [ ${#TITLE} -gt 47 ]; then
-            TITLE=$(printf "%.52s..." "$TITLE")
-        fi
-        if [ ${#LOC} -gt 27 ]; then
-            LOC=$(printf "%.24s..." "$LOC")
-        fi
-
-        printf "${CYAN}%-50s${NC} ${GREY}|${NC} %-55s ${GREY}|${NC} ${YELLOW}%-30s${NC}\n" "$REPO_ISSUE" "$TITLE" "$LOC"
+        printIssue "${issue}"
     done
+    echo
 fi
 
-echo -e "${GREEN}[Info]:${NC} Done checking issues."
+if [[ $CLOSED_COUNT -gt 0 ]]; then
+    echo -e "${RED}[Error]${NC} ${CYAN}$CLOSED_COUNT${NC} TODOs refer to issues that are closed."
+    echo -e "${RED}[Error]${NC} Closed issue details:"
+    printIssueTitle
+    for issue in "${CLOSED_ISSUES[@]}"; do
+        printIssue "${issue}"
+    done
+    exit 1
+fi
+echo -e "${GREEN}[Info]${NC} Done checking issues."

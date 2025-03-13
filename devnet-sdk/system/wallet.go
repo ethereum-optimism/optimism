@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -22,7 +24,8 @@ var (
 // internalChain provides access to internal chain functionality
 type internalChain interface {
 	Chain
-	Client() (*ethclient.Client, error)
+	Client() (*sources.EthClient, error)
+	GethClient() (*ethclient.Client, error)
 }
 
 type wallet struct {
@@ -229,7 +232,7 @@ func (r *sendResult) Error() error {
 }
 
 func (r *sendResult) Wait() error {
-	client, err := r.chain.Client()
+	client, err := r.chain.GethClient()
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}
@@ -242,7 +245,7 @@ func (r *sendResult) Wait() error {
 	}
 
 	if tx, ok := r.tx.(RawTransaction); ok {
-		receipt, err := bind.WaitMined(context.Background(), client, tx.Raw())
+		receipt, err := wait.ForReceiptOK(context.Background(), client, tx.Raw().Hash())
 		if err != nil {
 			return fmt.Errorf("failed waiting for transaction confirmation: %w", err)
 		}

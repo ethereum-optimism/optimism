@@ -9,7 +9,7 @@ library EOA {
     function isSenderEOA() internal view returns (bool isEOA_) {
         if (msg.sender == tx.origin) {
             isEOA_ = true;
-        } else {
+        } else if (address(msg.sender).code.length == 23) {
             // If the sender is not the origin, check for 7702 delegated EOAs.
             assembly {
                 let ptr := mload(0x40)
@@ -17,6 +17,9 @@ library EOA {
                 extcodecopy(caller(), ptr, 0, 0x20)
                 isEOA_ := eq(shr(232, mload(ptr)), 0xEF0100)
             }
+        } else {
+            // If more or less than 23 bytes of code, not a 7702 delegated EOA.
+            isEOA_ = false;
         }
     }
 }

@@ -50,7 +50,7 @@ func TestDetectVersion_fromFile(t *testing.T) {
 
 // Check that the latest supported versions write new states in a way that is detected correctly
 func TestDetectVersion_singleThreadedBinary(t *testing.T) {
-	targetVersion := VersionSingleThreaded2
+	targetVersion := GetCurrentSingleThreaded()
 	if !arch.IsMips32 {
 		t.Skip("Single-threaded states are not supported for 64-bit VMs")
 	}
@@ -64,9 +64,9 @@ func TestDetectVersion_singleThreadedBinary(t *testing.T) {
 }
 
 func TestDetectVersion_multiThreadedBinary(t *testing.T) {
-	targetVersion := VersionMultiThreaded_v2
+	targetVersion := GetCurrentMultiThreaded()
 	if !arch.IsMips32 {
-		targetVersion = VersionMultiThreaded64_v3
+		targetVersion = GetCurrentMultiThreaded64()
 	}
 
 	state, err := NewFromState(multithreaded.CreateEmptyState())

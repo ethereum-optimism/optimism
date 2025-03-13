@@ -57,7 +57,6 @@ Here's a complete example showing these principles in action:
 
 ```go
 import (
-    "log/slog"
     "math/big"
     
     "github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
@@ -65,6 +64,8 @@ import (
     "github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
     "github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
     "github.com/ethereum-optimism/optimism/devnet-sdk/types"
+    "github.com/ethereum-optimism/optimism/op-service/testlog"
+    "github.com/ethereum/go-ethereum/log"
     "github.com/stretchr/testify/require"
 )
 
@@ -72,7 +73,9 @@ import (
 func wrapETHScenario(chainIdx uint64, walletGetter validators.WalletGetter) systest.SystemTestFunc {
     return func(t systest.T, sys system.System) {
         ctx := t.Context()
-        logger := slog.With("test", "WrapETH", "devnet", sys.Identifier())
+
+        logger := testlog.Logger(t, log.LevelInfo)
+        logger := logger.With("test", "WrapETH", "devnet", sys.Identifier())
 
         // Get the L2 chain we want to test with
         chain := sys.L2(chainIdx)

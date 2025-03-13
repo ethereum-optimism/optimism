@@ -73,7 +73,13 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 			override(dp.DeployConfig)
 		}
 	})
-	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
+
+	genesisAlloc := testCfg.Allocs
+	if genesisAlloc == nil {
+		genesisAlloc = helpers.DefaultAlloc
+	}
+
+	sd := e2eutils.Setup(t, dp, genesisAlloc)
 
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 
@@ -224,4 +230,14 @@ func NewOpProgramCfg(
 	dfault.InteropEnabled = fi.InteropEnabled
 	dfault.DependencySet = fi.DependencySet
 	return dfault
+}
+
+// BatchAndMine batches the current unsafe chain to L1 and mines the L1 block containing the
+// batcher transaction.
+func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
+	t.Helper()
+	env.Batcher.ActSubmitAll(t)
+	env.Miner.ActL1StartBlock(12)(t)
+	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+	env.Miner.ActL1EndBlock(t)
 }

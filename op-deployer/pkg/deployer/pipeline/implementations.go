@@ -67,8 +67,12 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 
 	st.ImplementationsDeployment = &state.ImplementationsDeployment{
 		OpcmAddress:                             dio.Opcm,
+		OpcmGameTypeAdderAddress:                dio.OpcmGameTypeAdder,
+		OpcmDeployerAddress:                     dio.OpcmDeployer,
+		OpcmUpgraderAddress:                     dio.OpcmUpgrader,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
+		ETHLockboxImplAddress:                   dio.ETHLockboxImpl,
 		PreimageOracleSingletonAddress:          dio.PreimageOracleSingleton,
 		MipsSingletonAddress:                    dio.MipsSingleton,
 		SystemConfigImplAddress:                 dio.SystemConfigImpl,

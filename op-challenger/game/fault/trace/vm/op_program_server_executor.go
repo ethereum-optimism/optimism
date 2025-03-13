@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -26,10 +27,20 @@ func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inpu
 		"--l2", strings.Join(cfg.L2s, ","),
 		"--datadir", dataDir,
 		"--l1.head", inputs.L1Head.Hex(),
-		"--l2.head", inputs.L2Head.Hex(),
-		"--l2.outputroot", inputs.L2OutputRoot.Hex(),
 		"--l2.claim", inputs.L2Claim.Hex(),
 		"--l2.blocknumber", inputs.L2BlockNumber.Text(10),
+	}
+	if inputs.L2Head != (common.Hash{}) {
+		args = append(args, "--l2.head", inputs.L2Head.Hex())
+	}
+	if inputs.L2OutputRoot != (common.Hash{}) {
+		args = append(args, "--l2.outputroot", inputs.L2OutputRoot.Hex())
+	}
+	if len(inputs.AgreedPreState) > 0 {
+		args = append(args, "--l2.agreed-prestate", common.Bytes2Hex(inputs.AgreedPreState))
+	}
+	if cfg.DepsetConfigPath != "" {
+		args = append(args, "--depset.config", cfg.DepsetConfigPath)
 	}
 	if len(cfg.Networks) != 0 {
 		args = append(args, "--network", strings.Join(cfg.Networks, ","))

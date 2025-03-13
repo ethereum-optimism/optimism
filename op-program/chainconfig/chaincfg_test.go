@@ -43,3 +43,9 @@ func TestGetCustomDependencySetConfig(t *testing.T) {
 	_, err = dependencySetByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.Error(t, err)
 }
+
+func TestListCustomChainIDs(t *testing.T) {
+	actual, err := customChainIDs(test.TestCustomChainConfigFS)
+	require.NoError(t, err)
+	require.Equal(t, []eth.ChainID{eth.ChainIDFromUInt64(901)}, actual)
+}

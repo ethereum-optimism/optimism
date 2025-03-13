@@ -26,11 +26,12 @@ type CompilerInput struct {
 }
 
 type CompilerSettings struct {
-	Optimizer       OptimizerSettings              `json:"optimizer"`
-	Metadata        CompilerInputMetadata          `json:"metadata"`
-	OutputSelection map[string]map[string][]string `json:"outputSelection"`
-	EvmVersion      string                         `json:"evmVersion,omitempty"`
-	Libraries       map[string]map[string]string   `json:"libraries,omitempty"`
+	Optimizer         OptimizerSettings              `json:"optimizer"`
+	Metadata          CompilerInputMetadata          `json:"metadata"`
+	CompilationTarget map[string]string              `json:"compilationTarget"`
+	OutputSelection   map[string]map[string][]string `json:"outputSelection"`
+	EvmVersion        string                         `json:"evmVersion,omitempty"`
+	Libraries         map[string]map[string]string   `json:"libraries,omitempty"`
 }
 
 type OptimizerSettings struct {
@@ -265,6 +266,7 @@ type Expression struct {
 	ArgumentTypes          []AstTypeDescriptions `json:"argumentTypes,omitempty"`
 	Value                  interface{}           `json:"value,omitempty"`
 	MemberName             string                `json:"memberName,omitempty"`
+	Kind                   string                `json:"kind,omitempty"`
 	Expression             *Expression           `json:"expression,omitempty"`
 }
 

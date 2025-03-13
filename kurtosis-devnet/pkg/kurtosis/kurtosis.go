@@ -173,6 +173,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	finder := NewServiceFinder(inspectResult.UserServices)
 	if nodes, services := finder.FindL1Services(); len(nodes) > 0 {
 		chain := &descriptors.Chain{
+			ID:       deployerState.L1ChainID,
 			Name:     "Ethereum",
 			Services: services,
 			Nodes:    nodes,
@@ -180,7 +181,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 		}
 		if deployerState.State != nil {
 			chain.Addresses = descriptors.AddressMap(deployerState.State.Addresses)
-			chain.Wallets = d.getWallets(deployerState.Wallets)
+			chain.Wallets = d.getWallets(deployerState.L1ValidatorWallets)
 		}
 		env.L1 = chain
 	}
@@ -199,11 +200,10 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 
 		// Add contract addresses if available
 		if deployerState.State != nil && deployerState.State.Deployments != nil {
-			if addresses, ok := deployerState.State.Deployments[chainSpec.NetworkID]; ok {
-				chain.Addresses = descriptors.AddressMap(addresses.Addresses)
-			}
-			if wallets, ok := deployerState.State.Deployments[chainSpec.NetworkID]; ok {
-				chain.Wallets = d.getWallets(wallets.Wallets)
+			if deployment, ok := deployerState.State.Deployments[chainSpec.NetworkID]; ok {
+				chain.Addresses = descriptors.AddressMap(deployment.Addresses)
+				chain.Config = deployment.Config
+				chain.Wallets = d.getWallets(append(deployment.L2Wallets, deployment.L1Wallets...))
 			}
 		}
 

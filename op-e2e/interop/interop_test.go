@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"math/big"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -34,12 +35,12 @@ import (
 func setupAndRun(t *testing.T, config SuperSystemConfig, fn func(*testing.T, SuperSystem)) {
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
-		L2ChainIDs:       []uint64{900200, 900201},
+		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
 		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}
-	worldResources := worldResourcePaths{
-		foundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
-		sourceMap:        "../../packages/contracts-bedrock",
+	worldResources := WorldResourcePaths{
+		FoundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
+		SourceMap:        "../../packages/contracts-bedrock",
 	}
 
 	// create a super system from the recipe
@@ -120,6 +121,9 @@ func TestInterop_SupervisorFinality(t *testing.T) {
 		supervisor := s2.SupervisorClient()
 		require.Eventually(t, func() bool {
 			final, err := supervisor.FinalizedL1(context.Background())
+			if err != nil && strings.Contains(err.Error(), "not initialized") {
+				return false
+			}
 			require.NoError(t, err)
 			return final.Number > 0
 			// this test takes about 30 seconds, with a longer Eventually timeout for CI
@@ -140,8 +144,17 @@ func TestInterop_EmitLogs(t *testing.T) {
 		ids := s2.L2IDs()
 		chainA := ids[0]
 		chainB := ids[1]
-		EmitterA := s2.DeployEmitterContract(chainA, "Alice")
-		EmitterB := s2.DeployEmitterContract(chainB, "Alice")
+
+		// Deploy emitter to chain A
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		EmitterA := s2.DeployEmitterContract(ctx, chainA, "Alice")
+
+		// Deploy emitter to chain B
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		EmitterB := s2.DeployEmitterContract(ctx, chainB, "Alice")
+
 		payload1 := "SUPER JACKPOT!"
 		numEmits := 10
 		// emit logs on both chains in parallel
@@ -254,25 +267,13 @@ func TestInteropBlockBuilding(t *testing.T) {
 		ids := s2.L2IDs()
 		chainA := ids[0]
 		chainB := ids[1]
-		// We will initiate on chain A, and execute on chain B
-		s2.DeployEmitterContract(chainA, "Alice")
-
-		// Add chain A as dependency to chain B,
-		// such that we can execute a message on B that was initiated on A.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		depRec := s2.AddDependency(ctx, chainB, s2.ChainID(chainA))
-		cancel()
-		t.Logf("Dependency set in L1 block %d", depRec.BlockNumber)
 
 		rollupClA := s2.L2RollupClient(chainA, "sequencer")
 
-		// Now wait for the dependency to be visible in the L2 (receipt needs to be picked up)
-		require.Eventually(t, func() bool {
-			status, err := rollupClA.SyncStatus(context.Background())
-			require.NoError(t, err)
-			return status.CrossUnsafeL2.L1Origin.Number >= depRec.BlockNumber.Uint64()
-		}, time.Second*30, time.Second, "wait for L1 origin to match dependency L1 block")
-		t.Log("Dependency information has been processed in L2 block")
+		// We will initiate on chain A, and execute on chain B
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		s2.DeployEmitterContract(ctx, chainA, "Alice")
 
 		// emit log on chain A
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
@@ -370,6 +371,9 @@ func TestMultiNode(t *testing.T) {
 		supervisor := s2.SupervisorClient()
 		require.Eventually(t, func() bool {
 			final, err := supervisor.FinalizedL1(context.Background())
+			if err != nil && strings.Contains(err.Error(), "not initialized") {
+				return false
+			}
 			require.NoError(t, err)
 			return final.Number > 0
 			// this test takes about 30 seconds, with a longer Eventually timeout for CI

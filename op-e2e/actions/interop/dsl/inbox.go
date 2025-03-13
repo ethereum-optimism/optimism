@@ -1,6 +1,8 @@
 package dsl
 
 import (
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -33,6 +35,28 @@ func WithIdentifier(ident inbox.Identifier) func(opts *ExecuteOpts) {
 
 func WithPayload(payload []byte) func(opts *ExecuteOpts) {
 	return func(opts *ExecuteOpts) {
+		opts.Payload = &payload
+	}
+}
+
+func WithPendingMessage(emitter *EmitterContract, chain *Chain, logIndex int, msg string) func(opts *ExecuteOpts) {
+	return func(opts *ExecuteOpts) {
+		head := chain.Sequencer.L2Unsafe()
+		blockTime := chain.RollupCfg.TimestampForBlock(head.Number)
+		id := inbox.Identifier{
+			Origin:      emitter.Address(chain),
+			BlockNumber: big.NewInt(int64(head.Number)),
+			LogIndex:    big.NewInt(int64(logIndex)),
+			Timestamp:   big.NewInt(int64(blockTime)),
+			ChainId:     chain.RollupCfg.L2ChainID,
+		}
+		opts.Identifier = &id
+
+		topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
+		var payload []byte
+		payload = append(payload, topic.Bytes()...)
+		msgHash := crypto.Keccak256Hash([]byte(msg))
+		payload = append(payload, msgHash.Bytes()...)
 		opts.Payload = &payload
 	}
 }

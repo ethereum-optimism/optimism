@@ -41,6 +41,22 @@ All of the following must be true for a PR to be authorized:
 - The commit hash must match the head of the PR.
 - The PR must be on a fork.
 
+## Re-Running Failed PRs
+
+If a PR fails due to a flake, you can re-run it from CircleCI's UI. However, you **must** re-run the commit that 
+Bailif pushed. For example, you may see the following in the CircleCI UI:
+
+- A pipeline from `pull/12345` (i.e., the one the user pushed to their fork)
+- A pipeline from `external-fork/abcdef123456` (i.e., the one Bailiff pushed)
+
+Re-run the pipeline on the `external-fork` branch. If you re-run the wrong branch:
+
+1. The job will always fail, since OSS builds cannot be run on self-hosted runners.
+2. The failing job's test results will override Bailiff's. 
+
+You will have to push a new commit and re-authorize the PR to resolve the issue. You can see which branch Bailiff 
+pushed by looking at the Bailiff status check.
+
 ## Troubleshooting
 
 If you're having trouble with Bailiff, see below.
@@ -53,5 +69,7 @@ If you're having trouble with Bailiff, see below.
    Discord.
 
 [bailiff]: https://github.com/ethereum-optimism/bailiff
+
 [bailiff-logs]: https://optimistic.grafana.net/goto/vCCT3AKNg?orgId=1
+
 [plat-gen]: https://discord.com/channels/1244729134312198194/1260624141497798706

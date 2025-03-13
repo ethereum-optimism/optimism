@@ -81,4 +81,27 @@ contract EOA_isEOA_Test is Test {
         vm.prank(sender);
         assertEq(harness.isSenderEOA(), false);
     }
+
+    /// @notice Tests that a contract with 23 bytes of code is not detected as an EOA.
+    /// @param _privateKey The private key of the sender.
+    function testFuzz_isEOA_isContract23BytesNot7702_succeeds(uint256 _privateKey) external {
+        // Make sure that the private key is in the range of a valid secp256k1 private key.
+        _privateKey = boundPrivateKey(_privateKey);
+
+        // Generate a random 23 byte code.
+        bytes memory code = vm.randomBytes(23);
+
+        // If the code happens to be EOF code, change it!
+        if (code[0] == 0xEF) {
+            code[0] = 0xFE; // Anything but EF!
+        }
+
+        // Make sure that the sender is a contract.
+        address sender = vm.addr(_privateKey);
+        vm.etch(sender, code);
+
+        // Should not be considered an EOA.
+        vm.prank(sender);
+        assertEq(harness.isSenderEOA(), false);
+    }
 }

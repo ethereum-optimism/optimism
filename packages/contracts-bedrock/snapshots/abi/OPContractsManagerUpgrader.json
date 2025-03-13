@@ -1,0 +1,321 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract OPContractsManagerContractsContainer",
+        "name": "_contractsContainer",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_who",
+        "type": "address"
+      }
+    ],
+    "name": "assertValidContractAddress",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "blueprints",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "addressManager",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "proxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "proxyAdmin",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1ChugSplashProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "resolvedDelegateProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame2",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionlessDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionlessDisputeGame2",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct OPContractsManager.Blueprints",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "chainIdToBatchInboxAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "contractsContainer",
+    "outputs": [
+      {
+        "internalType": "contract OPContractsManagerContractsContainer",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "implementations",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "superchainConfigImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "protocolVersionsImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1ERC721BridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismPortalImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "systemConfigImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "optimismMintableERC20FactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1CrossDomainMessengerImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "l1StandardBridgeImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "disputeGameFactoryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "delayedWETHImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "mipsImpl",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct OPContractsManager.Implementations",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract ISystemConfig",
+            "name": "systemConfigProxy",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IProxyAdmin",
+            "name": "proxyAdmin",
+            "type": "address"
+          },
+          {
+            "internalType": "Claim",
+            "name": "absolutePrestate",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct OPContractsManager.OpChainConfig[]",
+        "name": "_opChainConfigs",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "upgrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "l2ChainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "contract ISystemConfig",
+        "name": "systemConfig",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "upgrader",
+        "type": "address"
+      }
+    ],
+    "name": "Upgraded",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "who",
+        "type": "address"
+      }
+    ],
+    "name": "AddressHasNoCode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BytesArrayTooLong",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DeploymentFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmptyInitcode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IdentityPrecompileCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotABlueprint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PrestateNotSet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReservedBitsSet",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
+      }
+    ],
+    "name": "UnexpectedPreambleData",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "UnsupportedERCVersion",
+    "type": "error"
+  }
+]

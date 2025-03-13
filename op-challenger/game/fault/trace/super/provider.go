@@ -86,7 +86,11 @@ func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Pos
 		if root.CrossSafeDerivedFrom.Number > s.l1Head.Number {
 			return InvalidTransition, nil
 		}
-		return responseToSuper(root).Marshal(), nil
+		super, err := root.ToSuper()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create super root at timestamp %v: %w", timestamp, err)
+		}
+		return super.Marshal(), nil
 	}
 	// Fetch the super root at the next timestamp since we are part way through the transition to it
 	prevRoot, err := s.rootProvider.SuperRootAtTimestamp(ctx, hexutil.Uint64(timestamp))
@@ -118,9 +122,12 @@ func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Pos
 			return nil, fmt.Errorf("failed to retrieve safe derived blocks at L1 head %v: %w", s.l1Head, err)
 		}
 	}
-	superV1 := responseToSuper(prevRoot)
+	prevSuper, err := prevRoot.ToSuper()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create super root at timestamp %v: %w", timestamp, err)
+	}
 	expectedState := interopTypes.TransitionState{
-		SuperRoot:       superV1.Marshal(),
+		SuperRoot:       prevSuper.Marshal(),
 		PendingProgress: make([]interopTypes.OptimisticBlock, 0, step),
 		Step:            step,
 	}

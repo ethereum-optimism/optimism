@@ -21,6 +21,7 @@ import { Types } from "src/libraries/Types.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
+import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
@@ -182,6 +183,9 @@ contract L2Genesis is Deployer {
         if (writeForkGenesisAllocs(_fork, Fork.HOLOCENE, _mode)) {
             return;
         }
+
+        activateIsthmus();
+
         if (writeForkGenesisAllocs(_fork, Fork.ISTHMUS, _mode)) {
             return;
         }
@@ -268,7 +272,8 @@ contract L2Genesis is Deployer {
         setProxyAdmin(); // 18
         setBaseFeeVault(); // 19
         setL1FeeVault(); // 1A
-        // 1B,1C,1D,1E,1F: not used.
+        setOperatorFeeVault(); // 1B
+        // 1C,1D,1E,1F: not used.
         setSchemaRegistry(); // 20
         setEAS(); // 21
         setGovernanceToken(); // 42: OP (not behind a proxy)
@@ -485,6 +490,24 @@ contract L2Genesis is Deployer {
     }
 
     /// @notice This predeploy is following the safety invariant #2.
+    function setOperatorFeeVault() public {
+        IOperatorFeeVault vault = IOperatorFeeVault(
+            DeployUtils.create1({
+                _name: "OperatorFeeVault",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOperatorFeeVault.__constructor__, ()))
+            })
+        );
+
+        address impl = Predeploys.predeployToCodeNamespace(Predeploys.OPERATOR_FEE_VAULT);
+        console.log("Setting %s implementation at: %s", "OperatorFeeVault", impl);
+        vm.etch(impl, address(vault).code);
+
+        /// Reset so its not included state dump
+        vm.etch(address(vault), "");
+        vm.resetNonce(address(vault));
+    }
+
+    /// @notice This predeploy is following the safety invariant #2.
     function setGovernanceToken() public {
         if (!cfg.enableGovernance()) {
             console.log("Governance not enabled, skipping setting governanace token");
@@ -539,13 +562,13 @@ contract L2Genesis is Deployer {
         vm.resetNonce(address(eas));
     }
 
-    /// @notice This predeploy is following the safety invariant #2.
+    /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setCrossL2Inbox() internal {
         _setImplementationCode(Predeploys.CROSS_L2_INBOX);
     }
 
-    /// @notice This predeploy is following the safety invariant #2.
+    /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
     function setL2ToL2CrossDomainMessenger() internal {
         _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
@@ -607,6 +630,12 @@ contract L2Genesis is Deployer {
         console.log("Activating fjord in GasPriceOracle contract");
         vm.prank(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
         IGasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setFjord();
+    }
+
+    function activateIsthmus() public {
+        console.log("Activating isthmus in GasPriceOracle contract");
+        vm.prank(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+        IGasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setIsthmus();
     }
 
     /// @notice Sets the bytecode in state

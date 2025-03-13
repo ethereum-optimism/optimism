@@ -7,7 +7,6 @@ import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from 
 import {
     DeployImplementationsInput,
     DeployImplementations,
-    DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/deploy/DeployOPChain.s.sol";
@@ -520,11 +519,5 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth);
         doi.set(doi.disputeClockExtension.selector, disputeClockExtension);
         doi.set(doi.disputeMaxClockDuration.selector, disputeMaxClockDuration);
-    }
-}
-
-contract DeployOPChain_Test_Interop is DeployOPChain_Test {
-    function createDeployImplementationsContract() internal override returns (DeployImplementations) {
-        return new DeployImplementationsInterop();
     }
 }

@@ -58,6 +58,7 @@ type Config struct {
 	L2Custom          bool
 	RollupConfigPaths []string
 	L2GenesisPaths    []string
+	DepsetConfigPath  string
 }
 
 func (c *Config) Check() error {

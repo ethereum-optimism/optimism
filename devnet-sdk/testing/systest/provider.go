@@ -13,6 +13,3 @@ type defaultProvider struct{}
 func (p *defaultProvider) NewSystemFromURL(url string) (system.System, error) {
 	return system.NewSystemFromURL(url)
 }
-
-// currentPackage is the current package implementation
-var currentPackage systemProvider = &defaultProvider{}

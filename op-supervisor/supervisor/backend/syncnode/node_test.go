@@ -60,8 +60,6 @@ func TestEventResponse(t *testing.T) {
 		return nil
 	}
 
-	// TODO(#13595): rework node-reset, and include testing for it here
-
 	node.Start()
 
 	// send events and continue to do so until at least one of each type has been received

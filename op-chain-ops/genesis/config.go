@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -233,6 +232,10 @@ type GasPriceOracleDeployConfig struct {
 	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar" evm:"basefeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
 	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar" evm:"blobbasefeeScalar"`
+	// GasPriceOracleOperatorFeeScalar represents the value of the operator fee scalar used for fee calculations.
+	GasPriceOracleOperatorFeeScalar uint32 `json:"gasPriceOracleOperatorFeeScalar" evm:"operatorfeeScalar"`
+	// GasPriceOracleOperatorFeeConstant represents the value of the operator fee constant used for fee calculations.
+	GasPriceOracleOperatorFeeConstant uint64 `json:"gasPriceOracleOperatorFeeConstant" evm:"operatorfeeConstant"`
 }
 
 var _ ConfigChecker = (*GasPriceOracleDeployConfig)(nil)
@@ -256,6 +259,14 @@ func (d *GasPriceOracleDeployConfig) FeeScalar() [32]byte {
 	return eth.EncodeScalar(eth.EcotoneScalars{
 		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
 		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
+	})
+}
+
+// OperatorFeeParams returns the raw serialized operator fee params.
+func (d *GasPriceOracleDeployConfig) OperatorFeeParams() [32]byte {
+	return eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{
+		Scalar:   d.GasPriceOracleOperatorFeeScalar,
+		Constant: d.GasPriceOracleOperatorFeeConstant,
 	})
 }
 
@@ -351,6 +362,12 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Interop.
 	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
+
+	// Optional Forks
+
+	// L2GenesisPectraBlobScheduleTimeOffset is the number of seconds after genesis block that the PectraBlobSchedule fix activates.
+	// Set it to 0 to activate at genesis. Nil to disable the PectraBlobSchedule fix.
+	L2GenesisPectraBlobScheduleTimeOffset *hexutil.Uint64 `json:"l2GenesisPectraBlobScheduleTimeOffset,omitempty"`
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
@@ -479,6 +496,10 @@ func (d *UpgradeScheduleDeployConfig) GraniteTime(genesisTime uint64) *uint64 {
 
 func (d *UpgradeScheduleDeployConfig) HoloceneTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisHoloceneTimeOffset, genesisTime)
+}
+
+func (d *UpgradeScheduleDeployConfig) PectraBlobScheduleTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisPectraBlobScheduleTimeOffset, genesisTime)
 }
 
 func (d *UpgradeScheduleDeployConfig) IsthmusTime(genesisTime uint64) *uint64 {
@@ -969,7 +990,7 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
@@ -998,8 +1019,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHa
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
-				Hash:   l1StartBlock.Hash(),
-				Number: l1StartBlock.Number.Uint64(),
+				Hash:   l1StartBlock.Hash,
+				Number: l1StartBlock.Number,
 			},
 			L2: eth.BlockID{
 				Hash:   l2GenesisBlockHash,
@@ -1024,6 +1045,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHa
 		FjordTime:               d.FjordTime(l1StartTime),
 		GraniteTime:             d.GraniteTime(l1StartTime),
 		HoloceneTime:            d.HoloceneTime(l1StartTime),
+		PectraBlobScheduleTime:  d.PectraBlobScheduleTime(l1StartTime),
 		IsthmusTime:             d.IsthmusTime(l1StartTime),
 		InteropTime:             d.InteropTime(l1StartTime),
 		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
@@ -1036,10 +1058,11 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHa
 // Overhead value is considered a noop.
 func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
 	return eth.SystemConfig{
-		BatcherAddr: d.BatchSenderAddress,
-		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-		Scalar:      d.FeeScalar(),
-		GasLimit:    uint64(d.L2GenesisBlockGasLimit),
+		BatcherAddr:       d.BatchSenderAddress,
+		Overhead:          eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+		Scalar:            d.FeeScalar(),
+		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
+		OperatorFeeParams: d.OperatorFeeParams(),
 	}
 }
 
@@ -1087,6 +1110,8 @@ type L1Deployments struct {
 	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
 	OptimismPortal                    common.Address `json:"OptimismPortal"`
 	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
+	ETHLockbox                        common.Address `json:"ETHLockbox"`
+	ETHLockboxProxy                   common.Address `json:"ETHLockboxProxy"`
 	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
 	SystemConfig                      common.Address `json:"SystemConfig"`
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
@@ -1132,6 +1157,7 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 				name == "DataAvailabilityChallengeProxy") {
 			continue
 		}
+
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
 			return fmt.Errorf("%s is not set", name)
 		}

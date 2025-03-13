@@ -5,9 +5,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
@@ -71,8 +70,12 @@ type SuperchainDeployment struct {
 
 type ImplementationsDeployment struct {
 	OpcmAddress                             common.Address `json:"opcmAddress"`
+	OpcmGameTypeAdderAddress                common.Address `json:"opcmGameTypeAdderAddress"`
+	OpcmDeployerAddress                     common.Address `json:"opcmDeployerAddress"`
+	OpcmUpgraderAddress                     common.Address `json:"opcmUpgraderAddress"`
 	DelayedWETHImplAddress                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImplAddress               common.Address `json:"optimismPortalImplAddress"`
+	ETHLockboxImplAddress                   common.Address `json:"ethLockboxImplAddress"`
 	PreimageOracleSingletonAddress          common.Address `json:"preimageOracleSingletonAddress"`
 	MipsSingletonAddress                    common.Address `json:"mipsSingletonAddress"`
 	SystemConfigImplAddress                 common.Address `json:"systemConfigImplAddress"`
@@ -103,6 +106,7 @@ type ChainState struct {
 	L1StandardBridgeProxyAddress              common.Address               `json:"l1StandardBridgeProxyAddress"`
 	L1CrossDomainMessengerProxyAddress        common.Address               `json:"l1CrossDomainMessengerProxyAddress"`
 	OptimismPortalProxyAddress                common.Address               `json:"optimismPortalProxyAddress"`
+	ETHLockboxProxyAddress                    common.Address               `json:"ethLockboxProxyAddress"`
 	DisputeGameFactoryProxyAddress            common.Address               `json:"disputeGameFactoryProxyAddress"`
 	AnchorStateRegistryProxyAddress           common.Address               `json:"anchorStateRegistryProxyAddress"`
 	FaultDisputeGameAddress                   common.Address               `json:"faultDisputeGameAddress"`
@@ -115,5 +119,5 @@ type ChainState struct {
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
-	StartBlock *types.Header `json:"startBlock"`
+	StartBlock *eth.BlockRef `json:"startBlock"`
 }

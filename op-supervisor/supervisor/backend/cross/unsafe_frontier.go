@@ -10,7 +10,7 @@ import (
 )
 
 type UnsafeFrontierCheckDeps interface {
-	ParentBlock(chainID eth.ChainID, parentOf eth.BlockID) (parent eth.BlockID, err error)
+	FindBlockID(chainID eth.ChainID, blockNum uint64) (eth.BlockID, error)
 
 	IsCrossUnsafe(chainID eth.ChainID, block eth.BlockID) error
 	IsLocalUnsafe(chainID eth.ChainID, block eth.BlockID) error
@@ -46,7 +46,7 @@ func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards *HazardSet) e
 				// If it doesn't have a parent block, then there is no prior block required to be cross-safe
 				if hazardBlock.Number > 0 {
 					// Check that parent of hazardBlockID is cross-safe within view
-					parent, err := d.ParentBlock(hazardChainID, hazardBlock.ID())
+					parent, err := d.FindBlockID(hazardChainID, hazardBlock.Number-1)
 					if err != nil {
 						return fmt.Errorf("failed to retrieve parent-block of hazard block %s (chain %s): %w", hazardBlock, hazardChainID, err)
 					}
