@@ -200,6 +200,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		require.Contains(t, out, fmt.Sprintf("Fjord: @ %d ~ ", f))
 		require.Contains(t, out, fmt.Sprintf("Holocene: @ %d ~ ", h))
 		require.Contains(t, out, fmt.Sprintf("Isthmus: @ %d ~ ", i))
+		require.Contains(t, out, fmt.Sprintf("Jovian: @ %d ~ ", j))
 		require.Contains(t, out, fmt.Sprintf("Interop: @ %d ~ ", it))
 	})
 	t.Run("holocene & isthmus date", func(t *testing.T) {
