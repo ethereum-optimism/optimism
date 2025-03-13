@@ -23,7 +23,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Semantic version.
     /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    string public constant version = "3.0.1";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
