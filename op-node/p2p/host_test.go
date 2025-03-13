@@ -413,3 +413,72 @@ func TestP2PMocknet(t *testing.T) {
 	require.Equal(t, hostA.Network().Connectedness(hostC.ID()), network.Connected)
 	require.Equal(t, hostB.Network().Connectedness(hostC.ID()), network.Connected)
 }
+
+// TestStaticPeerRetryBackoff проверяет, что механизм экспоненциального отката
+// правильно применяется при подключении к статическим пирам
+func TestStaticPeerRetryBackoff(t *testing.T) {
+	// Создаем хост с одним статическим пиром
+	h := &extraHost{
+		log:               testlog.Logger(t, log.LvlDebug),
+		staticPeers:       []*peer.AddrInfo{},
+		staticPeerIDs:     make(map[peer.ID]struct{}),
+		staticPeerRetries: make(map[peer.ID]*peerRetryState),
+		quitC:             make(chan struct{}),
+	}
+
+	// Создаем тестовый ID пира
+	peerID, err := peer.Decode("QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N")
+	require.NoError(t, err)
+
+	// Добавляем статический пир
+	addr := &peer.AddrInfo{
+		ID:    peerID,
+		Addrs: []ma.Multiaddr{},
+	}
+	h.staticPeers = append(h.staticPeers, addr)
+	h.staticPeerIDs[peerID] = struct{}{}
+
+	// Инициализируем состояние отката
+	h.retryMu.Lock()
+	h.staticPeerRetries[peerID] = &peerRetryState{
+		backoff: initialStaticPeerBackoff,
+	}
+	h.retryMu.Unlock()
+
+	// Проверяем, что состояние отката инициализировано правильно
+	h.retryMu.Lock()
+	state := h.staticPeerRetries[peerID]
+	h.retryMu.Unlock()
+	require.Equal(t, initialStaticPeerBackoff, state.backoff)
+	require.True(t, state.nextRetry.IsZero())
+
+	// Симулируем неудачную попытку подключения
+	h.retryMu.Lock()
+	h.staticPeerRetries[peerID].increaseBackoff()
+	firstBackoff := h.staticPeerRetries[peerID].backoff
+	firstRetry := h.staticPeerRetries[peerID].nextRetry
+	h.retryMu.Unlock()
+
+	require.Equal(t, time.Duration(float64(initialStaticPeerBackoff)*1.5), firstBackoff)
+	require.False(t, firstRetry.IsZero())
+
+	// Симулируем еще одну неудачную попытку
+	h.retryMu.Lock()
+	h.staticPeerRetries[peerID].increaseBackoff()
+	secondBackoff := h.staticPeerRetries[peerID].backoff
+	secondRetry := h.staticPeerRetries[peerID].nextRetry
+	h.retryMu.Unlock()
+
+	require.Greater(t, secondBackoff, firstBackoff)
+	require.True(t, secondRetry.After(firstRetry))
+
+	// Симулируем успешное подключение
+	h.retryMu.Lock()
+	h.staticPeerRetries[peerID].resetBackoff()
+	resetBackoff := h.staticPeerRetries[peerID].backoff
+	resetRetry := h.staticPeerRetries[peerID].nextRetry
+	h.retryMu.Unlock()
+
+	require.Equal(t, initialStaticPeerBackoff, resetBackoff)
+	require.True(t, resetRetry.IsZero())
+}
