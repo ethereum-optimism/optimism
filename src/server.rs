@@ -229,24 +229,26 @@ impl EngineApiServer for RollupBoostServer {
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
             .await?;
 
-        let payload_id = l2_response.payload_id;
+        let span = tracing::Span::current();
+        if let Some(payload_id) = l2_response.payload_id {
+            span.record("payload_id", payload_id.to_string());
+        }
 
         // TODO: Use _is_block_building_call to log the correct message during the async call to builder
-        let (should_send_to_builder, _is_block_building_call) =
+        let should_send_to_builder =
             if let Some(attr) = payload_attributes.as_ref() {
                 // payload attributes are present. It is a FCU call to start block building
                 // Do not send to builder if no_tx_pool is set, meaning that the CL node wants
                 // a deterministic block without txs. We let the fallback EL node compute those.
-                let use_tx_pool = !attr.no_tx_pool.unwrap_or_default();
-                (use_tx_pool, true)
+                !attr.no_tx_pool.unwrap_or_default()
             } else {
                 // no payload attributes. It is a FCU call to lock the head block
                 // previously synced with the new_payload_v3 call. Only send to builder if boost_sync is enabled
-                (self.boost_sync, false)
+                self.boost_sync
             };
 
         let execution_mode = self.execution_mode.lock().await;
-        let trace_id = tracing::Span::current().id();
+        let trace_id = span.id();
         if let (Some(payload_id), Some(trace)) = (l2_response.payload_id, trace_id) {
             self.payload_trace_context
                 .store(payload_id, fork_choice_state.head_block_hash, trace)
@@ -258,7 +260,6 @@ impl EngineApiServer for RollupBoostServer {
         } else if should_send_to_builder {
             self.send_to_builder(
                 payload_attributes,
-                l2_response.clone(),
                 fork_choice_state.clone(),
             )
             .await;
@@ -425,14 +426,11 @@ impl RollupBoostServer {
     async fn send_to_builder(
         &self,
         payload_attributes: Option<OpPayloadAttributes>,
-        l2_response: ForkchoiceUpdated,
         fork_choice_state: ForkchoiceState,
     ) {
         // async call to builder to trigger payload building and sync
         let builder_client = self.builder_client.clone();
         let attr = payload_attributes.clone();
-        let payload_trace_context = self.payload_trace_context.clone();
-        let local_payload_id = l2_response.payload_id;
         tokio::spawn(async move {
             match builder_client
                 .fork_choice_updated_v3(fork_choice_state, attr)

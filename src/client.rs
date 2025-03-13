@@ -6,7 +6,7 @@ use alloy_rpc_types_engine::{
     PayloadId, PayloadStatus,
 };
 use clap::{arg, Parser};
-use http::{ Uri};
+use http::Uri;
 use jsonrpsee::core::{ClientError, RpcResult};
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -66,7 +66,6 @@ impl ExecutionClient {
     }
 
     #[instrument(skip_all, 
-        err,
         fields(
             otel.kind = ?SpanKind::Client,
             target = self.payload_source.to_string(),

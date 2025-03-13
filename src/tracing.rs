@@ -1,6 +1,6 @@
 use eyre::Context as _;
 use metrics::histogram;
-use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::trace::{Status, TracerProvider as _};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::trace::SpanProcessor;
@@ -26,8 +26,17 @@ impl SpanProcessor for MetricsSpanProcessor {
             .duration_since(span.start_time)
             .unwrap_or_default();
 
+        let status = match span.status {
+            Status::Ok => "ok",
+            Status::Error { .. } => "error",
+            Status::Unset => "unset",
+        };
+
         // Add custom labels
-        let mut labels = vec![("span_kind", format!("{:?}", span.span_kind))];
+        let mut labels = vec![
+            ("span_kind", format!("{:?}", span.span_kind)),
+            ("status", status.into()),
+        ];
 
         if span.name.starts_with("fork_choice_update") {
             let with_attributes = span
