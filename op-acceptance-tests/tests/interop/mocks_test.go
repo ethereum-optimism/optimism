@@ -90,6 +90,7 @@ func (m *mockFailingWallet) InitiateMessage(chainID types.ChainID, target common
 func (m *mockFailingWallet) ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any] {
 	return &mockFailingTx{}
 }
+
 func (m *mockFailingWallet) Nonce() uint64 {
 	return 0
 }
