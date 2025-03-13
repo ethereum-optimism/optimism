@@ -198,7 +198,7 @@ func testWithdrawlsRootIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlo
 			tx, err = l2withdrawer.Receive(l2opts)
 			require.NoError(t, err)
 
-			// include the transaction
+			// force-include the transaction, also in upgrade blocks
 			engine.ActL2IncludeTxIgnoreForcedEmpty(dp.Addresses.Alice)(t)
 		}
 		sequencer.ActL2EndBlock(t)
