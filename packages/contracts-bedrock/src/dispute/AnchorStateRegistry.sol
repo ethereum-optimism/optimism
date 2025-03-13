@@ -89,8 +89,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     function initialize(
         ISuperchainConfig _superchainConfig,
         IDisputeGameFactory _disputeGameFactory,
-        IOptimismPortal2 _portal,
-        Proposal memory _startingAnchorRoot
+        Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
     )
         external

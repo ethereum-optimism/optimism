@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
-import { Claim, Duration, GameType, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 // Interfaces
@@ -593,7 +593,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                             (
                                 superchainConfig,
                                 IDisputeGameFactory(opChainAddrs.disputeGameFactory),
-                                OutputRoot({ root: root, l2BlockNumber: l2BlockNumber }),
+                                Proposal({ root: root, l2SequenceNumber: l2BlockNumber }),
                                 respectedGameType
                             )
                         )

@@ -305,8 +305,7 @@ contract Initializer_Test is CommonTest {
                     (
                         ISuperchainConfig(address(0)),
                         IDisputeGameFactory(address(0)),
-                        IOptimismPortal2(payable(0)),
-                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
                         GameType.wrap(uint32(deploy.cfg().respectedGameType()))
                     )
                 )
@@ -322,8 +321,7 @@ contract Initializer_Test is CommonTest {
                     (
                         ISuperchainConfig(address(0)),
                         IDisputeGameFactory(address(0)),
-                        IOptimismPortal2(payable(0)),
-                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 })
+                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
                         GameType.wrap(uint32(deploy.cfg().respectedGameType()))
                     )
                 )

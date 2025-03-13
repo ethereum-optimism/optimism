@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { SuperFaultDisputeGame_Init } from "test/dispute/SuperFaultDisputeGame.t.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { RandomClaimActor } from "test/invariants/FaultDisputeGame.t.sol";
 
 // Libraries
@@ -18,9 +19,9 @@ contract SuperFaultDisputeGame_Solvency_Invariant is SuperFaultDisputeGame_Init 
 
     function setUp() public override {
         super.setUp();
-        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: ABSOLUTE_PRESTATE, l2BlockNumber: 0x10 });
+        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: ABSOLUTE_PRESTATE, l2SequenceNumber: 0x10 });
 
-        actor = new RandomClaimActor(gameProxy, vm);
+        actor = new RandomClaimActor(IFaultDisputeGame(address(gameProxy)), vm);
 
         targetContract(address(actor));
         vm.startPrank(address(actor));

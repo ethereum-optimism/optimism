@@ -58,11 +58,10 @@ contract AnchorStateRegistry_Initialize_TestFail is AnchorStateRegistry_Init {
         anchorStateRegistry.initialize(
             superchainConfig,
             disputeGameFactory,
-            optimismPortal2,
             Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
                 l2SequenceNumber: 0
-            })
+            }),
             GameType.wrap(0)
         );
     }

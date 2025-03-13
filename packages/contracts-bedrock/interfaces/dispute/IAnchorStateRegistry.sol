@@ -28,7 +28,7 @@ interface IAnchorStateRegistry {
     function initialize(
         ISuperchainConfig _superchainConfig,
         IDisputeGameFactory _disputeGameFactory,
-        Proposal memory _startingAnchorRoot
+        Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
     )
         external;

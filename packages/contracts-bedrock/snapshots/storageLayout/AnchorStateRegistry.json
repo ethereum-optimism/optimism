@@ -38,10 +38,8 @@
     "bytes": "64",
     "label": "startingAnchorRoot",
     "offset": 0,
-    "slot": "4",
-    "type": "struct Proposal"
     "slot": "3",
-    "type": "struct OutputRoot"
+    "type": "struct Proposal"
   },
   {
     "bytes": "32",

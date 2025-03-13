@@ -804,8 +804,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("resolvedSubgames(uint256)") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("rootClaim()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("splitDepth()") });
-        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingBlockNumber()") });
-        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingOutputRoot()") });
+        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingBlockNumber`()") });
+        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingProposal()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingRootHash()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("status()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("step(uint256,bool,bytes,bytes)") });
@@ -868,7 +868,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("rootClaim()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("splitDepth()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingBlockNumber()") });
-        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingOutputRoot()") });
+        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingProposal()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingRootHash()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("status()") });
         _addSpec({
