@@ -13,27 +13,34 @@ acceptance-test devnet="simple" gate="localnet":
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Check if mise is installed and if op-acceptor binary is available
-    if ! (command -v mise >/dev/null && BINARY_PATH=$(mise which op-acceptor 2>/dev/null)); then
-        echo "Mise-managed op-acceptor binary not found, falling back to Docker..."
+    # Check if mise is installed
+    if command -v mise >/dev/null; then
+        # Try to install op-acceptor using mise
+        if ! mise install op-acceptor; then
+            echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
+            just acceptance-test-docker {{devnet}} {{gate}}
+            exit 0
+        fi
+
+        # Run the appropriate devnet from the kurtosis-devnet directory if needed.
+        # Note: For now, due to a known bug, we ignore failures here
+        #       because if the devnet is already running then this command will fail.
+        just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+
+        # Print which binary is being used (for debugging)
+        BINARY_PATH=$(mise which op-acceptor)
+        echo "Using mise-managed binary: $BINARY_PATH"
+
+        # Run the op-acceptor binary
+        "$BINARY_PATH" \
+            --testdir "{{REPO_ROOT}}" \
+            --gate {{gate}} \
+            --validators ./acceptance-tests.yaml \
+            --log.level info
+    else
+        echo "Mise not installed, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
-        exit 0
     fi
-
-    # Run the appropriate devnet from the kurtosis-devnet directory if needed.
-    # We ignore failures here because if the devnet is already running then this command will fail.
-    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
-
-    # Print which binary is being used (for debugging)
-    BINARY_PATH=$(mise which op-acceptor 2>/dev/null)
-    echo "Using mise-managed binary: $BINARY_PATH"
-
-    # Run the op-acceptor binary
-    "$BINARY_PATH" \
-        --testdir "{{REPO_ROOT}}" \
-        --gate {{gate}} \
-        --validators ./acceptance-tests.yaml \
-        --log.level debug
 
 # Run acceptance tests against a devnet using Docker (fallback if needed)
 acceptance-test-docker devnet="simple" gate="localnet":
