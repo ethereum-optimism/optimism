@@ -123,6 +123,11 @@ func (ea *L2EngineAPI) ForcedEmpty() bool {
 	return ea.l2ForceEmpty
 }
 
+// SetForceEmpty changes the way the remainder of the block is being built
+func (ea *L2EngineAPI) SetForceEmpty(v bool) {
+	ea.l2ForceEmpty = v
+}
+
 func (ea *L2EngineAPI) PendingIndices(from common.Address) uint64 {
 	return ea.pendingIndices[from]
 }

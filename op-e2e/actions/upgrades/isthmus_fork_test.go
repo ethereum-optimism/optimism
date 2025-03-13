@@ -150,6 +150,7 @@ func TestWithdrawalsRootBeforeAtAndAfterIsthmus(t *testing.T) {
 		{"BeforeIsthmusWithoutWithdrawalTx", false, 0, 1},
 		{"BeforeIsthmusWithWithdrawalTx", true, 1, 1},
 		{"AtIsthmusWithoutWithdrawalTx", false, 0, 2},
+		{"AtIsthmusWithWithdrawalTx", true, 2, 2},
 		{"AfterIsthmusWithoutWithdrawalTx", false, 0, 3},
 		{"AfterIsthmusWithWithdrawalTx", true, 3, 3},
 	}
@@ -198,7 +199,7 @@ func testWithdrawlsRootIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlo
 			require.NoError(t, err)
 
 			// include the transaction
-			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+			engine.ActL2IncludeTxIgnoreForcedEmpty(dp.Addresses.Alice)(t)
 		}
 		sequencer.ActL2EndBlock(t)
 
