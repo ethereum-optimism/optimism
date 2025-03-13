@@ -41,7 +41,6 @@ interface ISuperFaultDisputeGame is IDisputeGame {
 
     error AlreadyInitialized();
     error AnchorRootNotFound();
-    error BlockNumberMatches();
     error BondTransferFailed();
     error CannotDefendRootClaim();
     error ClaimAboveSplit();
@@ -49,30 +48,23 @@ interface ISuperFaultDisputeGame is IDisputeGame {
     error ClaimAlreadyResolved();
     error ClockNotExpired();
     error ClockTimeExceeded();
-    error ContentLengthMismatch();
     error DuplicateStep();
-    error EmptyItem();
     error GameDepthExceeded();
     error GameNotInProgress();
     error IncorrectBondAmount();
     error InvalidChallengePeriod();
     error InvalidClockExtension();
-    error InvalidDataRemainder();
     error InvalidDisputedClaimIndex();
-    error InvalidHeader();
-    error InvalidHeaderRLP();
     error InvalidLocalIdent();
-    error InvalidOutputRootProof();
     error InvalidParent();
     error InvalidPrestate();
     error InvalidSplitDepth();
-    error L2BlockNumberChallenged();
     error MaxDepthTooLarge();
     error NoCreditToClaim();
+    error NoChainIdNeeded();
     error OutOfOrderResolution();
-    error UnexpectedList();
+    error SuperFaultDisputeGameInvalidRootClaim();
     error UnexpectedRootClaim(Claim rootClaim);
-    error UnexpectedString();
     error ValidStep();
     error InvalidBondDistributionMode();
     error GameNotFinalized();
@@ -87,7 +79,6 @@ interface ISuperFaultDisputeGame is IDisputeGame {
     function anchorStateRegistry() external view returns (IAnchorStateRegistry registry_);
     function attack(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable;
     function bondDistributionMode() external view returns (BondDistributionMode);
-    function challengeRootL2Block(Types.OutputRootProof memory _outputRootProof, bytes memory _headerRLP) external;
     function claimCredit(address _recipient) external;
     function claimData(uint256)
         external
@@ -124,7 +115,7 @@ interface ISuperFaultDisputeGame is IDisputeGame {
     function resolveClaim(uint256 _claimIndex, uint256 _numToResolve) external;
     function resolvedSubgames(uint256) external view returns (bool);
     function splitDepth() external view returns (uint256 splitDepth_);
-    function startingSequenceNumber() external view returns (uint256 startingBlockNumber_);
+    function startingSequenceNumber() external view returns (uint256 startingSequenceNumber_);
     function startingProposal() external view returns (Hash root, uint256 l2SequenceNumber); // nosemgrep
     function startingRootHash() external view returns (Hash startingRootHash_);
     function step(uint256 _claimIndex, bool _isAttack, bytes memory _stateData, bytes memory _proof) external;
