@@ -96,7 +96,7 @@ func feesTestScenario(
 
 		// Get the L2 client
 		l2Chain := llsys.L2s()[chainIdx]
-		l2Client, err := l2Chain.Client()
+		l2Client, err := l2Chain.GethClient()
 		require.NoError(t, err)
 
 		// TODO: Wait for first block after genesis

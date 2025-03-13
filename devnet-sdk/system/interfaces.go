@@ -7,6 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -52,14 +54,15 @@ type Node interface {
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
-	BlockByNumber(ctx context.Context, number *big.Int) (*coreTypes.Block, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error)
 }
 
 // LowLevelChain is a Chain that gives direct access to the low level RPC client.
 type LowLevelChain interface {
 	Chain
 	RPCURL() string
-	Client() (*ethclient.Client, error)
+	Client() (*sources.EthClient, error)
+	GethClient() (*ethclient.Client, error)
 }
 
 // Wallet represents a chain wallet.

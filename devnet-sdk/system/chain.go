@@ -5,14 +5,19 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	coreTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -22,17 +27,19 @@ var (
 
 // clientManager handles ethclient connections
 type clientManager struct {
-	mu      sync.RWMutex
-	clients map[string]*ethclient.Client
+	mu          sync.RWMutex
+	clients     map[string]*sources.EthClient
+	gethClients map[string]*ethclient.Client
 }
 
 func newClientManager() *clientManager {
 	return &clientManager{
-		clients: make(map[string]*ethclient.Client),
+		clients:     make(map[string]*sources.EthClient),
+		gethClients: make(map[string]*ethclient.Client),
 	}
 }
 
-func (m *clientManager) Client(rpcURL string) (*ethclient.Client, error) {
+func (m *clientManager) Client(rpcURL string) (*sources.EthClient, error) {
 	m.mu.RLock()
 	if client, ok := m.clients[rpcURL]; ok {
 		m.mu.RUnlock()
@@ -48,11 +55,51 @@ func (m *clientManager) Client(rpcURL string) (*ethclient.Client, error) {
 		return client, nil
 	}
 
+	ethClCfg := sources.EthClientConfig{
+		MaxRequestsPerBatch:   10,
+		MaxConcurrentRequests: 10,
+		ReceiptsCacheSize:     10,
+		TransactionsCacheSize: 10,
+		HeadersCacheSize:      10,
+		PayloadsCacheSize:     10,
+		TrustRPC:              false,
+		MustBePostMerge:       true,
+		RPCProviderKind:       sources.RPCKindStandard,
+		MethodResetDuration:   time.Minute,
+	}
+	rpcClient, err := rpc.DialContext(context.Background(), rpcURL)
+	if err != nil {
+		return nil, err
+	}
+	ethCl, err := sources.NewEthClient(client.NewBaseRPCClient(rpcClient), log.Root(), nil, &ethClCfg)
+	if err != nil {
+		return nil, err
+	}
+	m.clients[rpcURL] = ethCl
+	return ethCl, nil
+}
+
+func (m *clientManager) GethClient(rpcURL string) (*ethclient.Client, error) {
+	m.mu.RLock()
+	if client, ok := m.gethClients[rpcURL]; ok {
+		m.mu.RUnlock()
+		return client, nil
+	}
+	m.mu.RUnlock()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Double-check after acquiring write lock
+	if client, ok := m.gethClients[rpcURL]; ok {
+		return client, nil
+	}
+
 	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to ethereum client: %w", err)
+		return nil, err
 	}
-	m.clients[rpcURL] = client
+	m.gethClients[rpcURL] = client
 	return client, nil
 }
 
@@ -72,8 +119,12 @@ func (c *chain) Node() Node {
 	return c.node
 }
 
-func (c *chain) Client() (*ethclient.Client, error) {
+func (c *chain) Client() (*sources.EthClient, error) {
 	return c.clients.Client(c.rpcUrl)
+}
+
+func (c *chain) GethClient() (*ethclient.Client, error) {
+	return c.clients.GethClient(c.rpcUrl)
 }
 
 func newChain(chainID string, rpcUrl string, users map[string]Wallet, chainConfig *params.ChainConfig, addresses descriptors.AddressMap) *chain {
@@ -97,8 +148,7 @@ func (c *chain) ContractsRegistry() interfaces.ContractsRegistry {
 	if c.registry != nil {
 		return c.registry
 	}
-
-	client, err := c.Client()
+	client, err := c.clients.GethClient(c.rpcUrl)
 	if err != nil {
 		return contracts.NewEmptyRegistry()
 	}
@@ -136,12 +186,12 @@ func (c *chain) ID() types.ChainID {
 	return types.ChainID(id)
 }
 
-func checkHeader(ctx context.Context, client *ethclient.Client, check func(*coreTypes.Header) bool) bool {
-	head, err := client.HeaderByNumber(ctx, nil)
+func checkHeader(ctx context.Context, client *sources.EthClient, check func(eth.BlockInfo) bool) bool {
+	info, err := client.InfoByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return false
 	}
-	return check(head)
+	return check(info)
 }
 
 func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
@@ -152,12 +202,12 @@ func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
 
 	switch eip {
 	case 1559:
-		return checkHeader(ctx, client, func(h *coreTypes.Header) bool {
-			return h.BaseFee != nil
+		return checkHeader(ctx, client, func(h eth.BlockInfo) bool {
+			return h.BaseFee() != nil
 		})
 	case 4844:
-		return checkHeader(ctx, client, func(h *coreTypes.Header) bool {
-			return h.ExcessBlobGas != nil
+		return checkHeader(ctx, client, func(h eth.BlockInfo) bool {
+			return h.ExcessBlobGas() != nil
 		})
 	}
 	return false
