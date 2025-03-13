@@ -80,7 +80,7 @@ func TestEstimateEIP1559Fees(t *testing.T) {
 				// We create a fee estimator with a custom tip multiplier
 				feeEstimator := NewEIP1559FeeEstimator(&mockFeeEthClientImpl{
 					tipCapValue: tipCapValue,
-				}).WithTipMultiplier(tipMultiplier)
+				}, WithEIP1559TipMultiplier(tipMultiplier))
 
 				newOpts, err := feeEstimator.EstimateFees(context.Background(), defaultOpts)
 				require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestEstimateEIP1559Fees(t *testing.T) {
 				// We create a fee estimator with a custom tip multiplier
 				feeEstimator := NewEIP1559FeeEstimator(&mockFeeEthClientImpl{
 					blockValue: blockValue,
-				}).WithBaseMultiplier(baseMultiplier)
+				}, WithEIP1559BaseMultiplier(baseMultiplier))
 
 				newOpts, err := feeEstimator.EstimateFees(context.Background(), defaultOpts)
 				require.NoError(t, err)

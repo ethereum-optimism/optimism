@@ -27,6 +27,10 @@ type EIP1559FeeEstimator struct {
 	// Access to the Ethereum client is needed to get the fee information from the chain
 	client EIP1159FeeEthClient
 
+	options eip1559FeeEstimatorOptions
+}
+
+type eip1559FeeEstimatorOptions struct {
 	// The base multiplier is used to increase the maxFeePerGas (GasFeeCap) by a factor
 	baseMultiplier float64
 
@@ -34,26 +38,44 @@ type EIP1559FeeEstimator struct {
 	tipMultiplier float64
 }
 
-func NewEIP1559FeeEstimator(client EIP1159FeeEthClient) *EIP1559FeeEstimator {
-	return &EIP1559FeeEstimator{
-		client:         client,
+type EIP1559FeeEstimatorOption interface {
+	apply(*eip1559FeeEstimatorOptions)
+}
+
+type eip1559FeeEstimatorOptionBaseMultiplier float64
+
+func (o eip1559FeeEstimatorOptionBaseMultiplier) apply(opts *eip1559FeeEstimatorOptions) {
+	opts.baseMultiplier = float64(o)
+}
+
+func WithEIP1559BaseMultiplier(multiplier float64) EIP1559FeeEstimatorOption {
+	return eip1559FeeEstimatorOptionBaseMultiplier(multiplier)
+}
+
+type eip1559FeeEstimatorOptionTipMultiplier float64
+
+func (o eip1559FeeEstimatorOptionTipMultiplier) apply(opts *eip1559FeeEstimatorOptions) {
+	opts.tipMultiplier = float64(o)
+}
+
+func WithEIP1559TipMultiplier(multiplier float64) EIP1559FeeEstimatorOption {
+	return eip1559FeeEstimatorOptionTipMultiplier(multiplier)
+}
+
+func NewEIP1559FeeEstimator(client EIP1159FeeEthClient, opts ...EIP1559FeeEstimatorOption) *EIP1559FeeEstimator {
+	options := eip1559FeeEstimatorOptions{
 		baseMultiplier: 1.0,
 		tipMultiplier:  1.0,
 	}
-}
 
-func (f *EIP1559FeeEstimator) WithBaseMultiplier(multiplier float64) *EIP1559FeeEstimator {
-	newF := *f
-	newF.baseMultiplier = multiplier
+	for _, o := range opts {
+		o.apply(&options)
+	}
 
-	return &newF
-}
-
-func (f *EIP1559FeeEstimator) WithTipMultiplier(multiplier float64) *EIP1559FeeEstimator {
-	newF := *f
-	newF.tipMultiplier = multiplier
-
-	return &newF
+	return &EIP1559FeeEstimator{
+		client:  client,
+		options: options,
+	}
 }
 
 func (f *EIP1559FeeEstimator) EstimateFees(ctx context.Context, opts *bind.TransactOpts) (*bind.TransactOpts, error) {
@@ -68,7 +90,7 @@ func (f *EIP1559FeeEstimator) EstimateFees(ctx context.Context, opts *bind.Trans
 		}
 
 		// GasTipCap represents the maxPriorityFeePerGas
-		newOpts.GasTipCap = multiplyBigInt(tipCap, f.tipMultiplier)
+		newOpts.GasTipCap = multiplyBigInt(tipCap, f.options.tipMultiplier)
 	}
 
 	// Add a gas fee cap if needed
@@ -81,7 +103,7 @@ func (f *EIP1559FeeEstimator) EstimateFees(ctx context.Context, opts *bind.Trans
 		baseFee := block.BaseFee()
 		if baseFee != nil {
 			// The adjusted base fee takes the multiplier into account
-			adjustedBaseFee := multiplyBigInt(baseFee, f.baseMultiplier)
+			adjustedBaseFee := multiplyBigInt(baseFee, f.options.baseMultiplier)
 
 			// The total fee (maxFeePerGas) is the sum of the base fee and the tip
 			newOpts.GasFeeCap = big.NewInt(0).Add(adjustedBaseFee, newOpts.GasTipCap)
