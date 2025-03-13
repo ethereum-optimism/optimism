@@ -153,7 +153,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
         }
 
         // Otherwise, return the anchor root.
-        return (Hash.wrap(anchorGame.rootClaim().raw()), anchorGame.l2BlockNumber());
+        return (Hash.wrap(anchorGame.rootClaim().raw()), anchorGame.l2SequenceNumber());
     }
 
     /// @notice Determines whether a game is registered in the DisputeGameFactory.
@@ -305,7 +305,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
 
         // Must be newer than the current anchor game.
         (, uint256 anchorL2BlockNumber) = getAnchorRoot();
-        if (game.l2BlockNumber() <= anchorL2BlockNumber) {
+        if (game.l2SequenceNumber() <= anchorL2BlockNumber) {
             revert AnchorStateRegistry_InvalidAnchorGame();
         }
 

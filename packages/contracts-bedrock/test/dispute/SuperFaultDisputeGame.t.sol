@@ -157,9 +157,9 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         ROOT_CLAIM = Claim.wrap(Hash.unwrap(root));
 
         if (isForkTest()) {
-            // Set the init bond of anchor game type 0 to be 0.
+            // Set the init bond of anchor game type 4 to be 0.
             vm.store(
-                address(disputeGameFactory), keccak256(abi.encode(GameType.wrap(0), uint256(102))), bytes32(uint256(0))
+                address(disputeGameFactory), keccak256(abi.encode(GameType.wrap(4), uint256(102))), bytes32(uint256(0))
             );
         }
         super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: absolutePrestate, l2SequenceNumber: validl2SequenceNumber });
@@ -569,8 +569,8 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         (Hash root, uint256 l2SequenceNumber) = gameProxy.startingProposal();
         (Hash anchorRoot, uint256 anchorRootBlockNumber) = anchorStateRegistry.anchors(GAME_TYPE);
 
-        assertEq(gameProxy.startingBlockNumber(), l2SequenceNumber);
-        assertEq(gameProxy.startingBlockNumber(), anchorRootBlockNumber);
+        assertEq(gameProxy.startingSequenceNumber(), l2SequenceNumber);
+        assertEq(gameProxy.startingSequenceNumber(), anchorRootBlockNumber);
         assertEq(Hash.unwrap(gameProxy.startingRootHash()), Hash.unwrap(root));
         assertEq(Hash.unwrap(gameProxy.startingRootHash()), Hash.unwrap(anchorRoot));
     }
