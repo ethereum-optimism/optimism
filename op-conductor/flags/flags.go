@@ -133,7 +133,7 @@ var (
 	RollupBoostDebugURLFlag = &cli.StringFlag{
 		Name:     "rollup-boost.debug-url",
 		Usage:    "URL for the rollup boost debug API",
-		EnvVar:   opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_DEBUG_URL"),
+		EnvVars:  opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_DEBUG_URL"),
 		Required: false,
 	}
 )
