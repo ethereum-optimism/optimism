@@ -25,12 +25,12 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		llsys := lowLevelSystemGetter(ctx)
 
 		logger := testlog.Logger(t, log.LevelInfo)
-		logger = logger.With("test", "TestInitiateMessage", "devnet", sys.Identifier())
+		logger = logger.With("test", "TestMessagePassing", "devnet", sys.Identifier())
 
 		chainA := sys.L2s()[sourceChainIdx]
 		chainB := llsys.L2s()[destChainIdx]
 
-		logger = logger.With("sourceChain", chainA.ID(), "destChain", chainB.ID())
+		logger.Info("chain info", "sourceChain", chainA.ID(), "destChain", chainB.ID())
 
 		// userA is funded at chainA and want to initialize message at chain A
 		userA := sourceWalletGetter(ctx)
