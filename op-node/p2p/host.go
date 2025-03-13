@@ -37,7 +37,36 @@ import (
 
 const (
 	staticPeerTag = "static"
+	// Maximum backoff time for reconnecting to static peers
+	maxStaticPeerBackoff = 5 * time.Minute
+	// Initial backoff time for reconnecting to static peers
+	initialStaticPeerBackoff = 5 * time.Second
 )
+
+// peerRetryState tracks the retry state for a static peer
+// It implements an exponential backoff mechanism to avoid
+// excessive reconnection attempts to unavailable peers
+type peerRetryState struct {
+	nextRetry time.Time
+	backoff   time.Duration
+}
+
+// resetBackoff resets the backoff for a peer
+// This is called when a successful connection is established
+func (p *peerRetryState) resetBackoff() {
+	p.backoff = initialStaticPeerBackoff
+	p.nextRetry = time.Time{}
+}
+
+// increaseBackoff increases the backoff for a peer using exponential backoff
+// This is called when a connection attempt fails
+func (p *peerRetryState) increaseBackoff() {
+	p.backoff = time.Duration(float64(p.backoff) * 1.5)
+	if p.backoff > maxStaticPeerBackoff {
+		p.backoff = maxStaticPeerBackoff
+	}
+	p.nextRetry = time.Now().Add(p.backoff)
+}
 
 type HostNewStream interface {
 	NewStream(ctx context.Context, p peer.ID, pids ...protocol.ID) (network.Stream, error)
@@ -59,6 +88,10 @@ type extraHost struct {
 
 	staticPeers   []*peer.AddrInfo
 	staticPeerIDs map[peer.ID]struct{}
+
+	// Track retry state for static peers
+	staticPeerRetries map[peer.ID]*peerRetryState
+	retryMu           sync.Mutex
 
 	pinging *PingService
 
@@ -93,17 +126,33 @@ func (e *extraHost) Close() error {
 }
 
 func (e *extraHost) initStaticPeers() {
+	e.staticPeerRetries = make(map[peer.ID]*peerRetryState)
+
 	for _, addr := range e.staticPeers {
 		e.Peerstore().AddAddrs(addr.ID, addr.Addrs, time.Hour*24*7)
 		// We protect the peer, so the connection manager doesn't decide to prune it.
 		// We tag it with "static" so other protects/unprotects with different tags don't affect this protection.
 		e.connMgr.Protect(addr.ID, staticPeerTag)
+
+		// Initialize retry state for each static peer
+		e.retryMu.Lock()
+		e.staticPeerRetries[addr.ID] = &peerRetryState{
+			backoff: initialStaticPeerBackoff,
+		}
+		e.retryMu.Unlock()
+
 		// Try to dial the node in the background
 		go func(addr *peer.AddrInfo) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			defer cancel()
 			if err := e.dialStaticPeer(ctx, addr); err != nil {
 				e.log.Warn("error dialing static peer", "peer", addr.ID, "err", err)
+				// Initialize backoff on first connection failure
+				e.retryMu.Lock()
+				if state, exists := e.staticPeerRetries[addr.ID]; exists {
+					state.increaseBackoff()
+				}
+				e.retryMu.Unlock()
 			}
 		}(addr)
 	}
@@ -114,6 +163,14 @@ func (e *extraHost) dialStaticPeer(ctx context.Context, addr *peer.AddrInfo) err
 	if _, err := e.Network().DialPeer(ctx, addr.ID); err != nil {
 		return err
 	}
+
+	// Reset backoff on successful connection
+	e.retryMu.Lock()
+	if state, exists := e.staticPeerRetries[addr.ID]; exists {
+		state.resetBackoff()
+	}
+	e.retryMu.Unlock()
+
 	return nil
 }
 
@@ -133,16 +190,47 @@ func (e *extraHost) monitorStaticPeers() {
 				e.log.Trace("static peer connectedness", "peer", addr.ID, "connectedness", connectedness)
 
 				if connectedness == network.Connected {
+					// Reset backoff on successful connection
+					e.retryMu.Lock()
+					if state, exists := e.staticPeerRetries[addr.ID]; exists {
+						state.resetBackoff()
+					}
+					e.retryMu.Unlock()
+					continue
+				}
+
+				// Check if we should attempt to reconnect based on backoff
+				e.retryMu.Lock()
+				state, exists := e.staticPeerRetries[addr.ID]
+				shouldRetry := !exists || time.Now().After(state.nextRetry)
+				e.retryMu.Unlock()
+
+				if !shouldRetry {
+					e.log.Debug("skipping reconnect to static peer due to backoff",
+						"peer", addr.ID,
+						"next_retry", state.nextRetry,
+						"backoff", state.backoff)
 					continue
 				}
 
 				wg.Add(1)
 				go func(addr *peer.AddrInfo) {
+					defer wg.Done()
 					e.log.Warn("static peer disconnected, reconnecting", "peer", addr.ID)
 					if err := e.dialStaticPeer(ctx, addr); err != nil {
 						e.log.Warn("error reconnecting to static peer", "peer", addr.ID, "err", err)
+
+						// Increase backoff on failed connection attempt
+						e.retryMu.Lock()
+						if state, exists := e.staticPeerRetries[addr.ID]; exists {
+							state.increaseBackoff()
+							e.log.Debug("increased backoff for static peer",
+								"peer", addr.ID,
+								"next_retry", state.nextRetry,
+								"backoff", state.backoff)
+						}
+						e.retryMu.Unlock()
 					}
-					wg.Done()
 				}(addr)
 			}
 
