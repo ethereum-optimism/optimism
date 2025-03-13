@@ -400,7 +400,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // the correct anchor state and has the mipsImpl.
         IPermissionedDisputeGame pdg =
             IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
-        assertEq(ISemver(address(pdg)).version(), "1.4.1");
+        assertEq(ISemver(address(pdg)).version(), "1.4.2");
         assertEq(address(pdg.anchorStateRegistry()), address(newAnchorStateRegistryProxy));
         assertEq(address(pdg.vm()), impls.mipsImpl);
 
@@ -410,7 +410,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             // Check that the PermissionlessDisputeGame is upgraded to the expected version, references
             // the correct anchor state and has the mipsImpl.
             assertEq(impls.delayedWETHImpl, EIP1967Helper.getImplementation(address(newFDG.weth())));
-            assertEq(ISemver(address(newFDG)).version(), "1.4.1");
+            assertEq(ISemver(address(newFDG)).version(), "1.4.2");
             assertEq(address(newFDG.anchorStateRegistry()), address(newAnchorStateRegistryProxy));
             assertEq(address(newFDG.vm()), impls.mipsImpl);
         }
@@ -479,7 +479,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // the correct anchor state and has the mipsImpl.
         IPermissionedDisputeGame pdg =
             IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
-        assertEq(ISemver(address(pdg)).version(), "1.4.1");
+        assertEq(ISemver(address(pdg)).version(), "1.4.2");
         assertEq(address(pdg.vm()), impls.mipsImpl);
 
         // Check that the SystemConfig is upgraded to the expected version
@@ -491,7 +491,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             IFaultDisputeGame newFDG = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
             // Check that the PermissionlessDisputeGame is upgraded to the expected version, references
             // the correct anchor state and has the mipsImpl.
-            assertEq(ISemver(address(newFDG)).version(), "1.4.1");
+            assertEq(ISemver(address(newFDG)).version(), "1.4.2");
             assertEq(address(newFDG.vm()), impls.mipsImpl);
         }
     }
@@ -573,13 +573,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Check that the PermissionedDisputeGame is upgraded to the expected version, references
         // the correct anchor state and has the mipsImpl. Although Upgrade 15 doesn't actually
         // change any of this, we might as well check it again.
-        assertEq(ISemver(address(pdg)).version(), "1.4.1");
+        assertEq(ISemver(address(pdg)).version(), "1.4.2");
         assertEq(address(pdg.vm()), impls.mipsImpl);
         assertEq(pdg.l2ChainId(), oldPDG.l2ChainId());
 
         // If the old FaultDisputeGame exists, we expect it to be upgraded. Check same as above.
         if (address(oldFDG) != address(0)) {
-            assertEq(ISemver(address(fdg)).version(), "1.4.1");
+            assertEq(ISemver(address(fdg)).version(), "1.4.2");
             assertEq(address(fdg.vm()), impls.mipsImpl);
             assertEq(fdg.l2ChainId(), oldFDG.l2ChainId());
         }
