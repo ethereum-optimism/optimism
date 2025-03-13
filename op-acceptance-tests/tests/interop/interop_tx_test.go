@@ -49,6 +49,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		require.True(t, ok)
 		logger.Info("Execute message", "txHash", initReceipt.TxHash().Hex())
 		logs := initReceipt.Logs()
+		// We are directly calling sendMessage, so we expect single log for SentMessage event
 		require.Equal(t, 1, len(logs), "expected single log")
 		log := logs[0]
 
