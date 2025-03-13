@@ -1,6 +1,7 @@
 package interop
 
 import (
+	"encoding/hex"
 	"math/big"
 	"testing"
 
@@ -10,21 +11,24 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGetter, destWalletGetter validators.WalletGetter) systest.InteropSystemTestFunc {
+func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter, sourceChainIdx, destChainIdx uint64, sourceWalletGetter, destWalletGetter validators.WalletGetter) systest.InteropSystemTestFunc {
 	return func(t systest.T, sys system.InteropSystem) {
 		ctx := t.Context()
+		llsys := lowLevelSystemGetter(ctx)
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		logger = logger.With("test", "TestInitiateMessage", "devnet", sys.Identifier())
 
 		chainA := sys.L2s()[sourceChainIdx]
-		chainB := sys.L2s()[destChainIdx]
+		chainB := llsys.L2s()[destChainIdx]
 
 		logger = logger.With("sourceChain", chainA.ID(), "destChain", chainB.ID())
 
@@ -34,10 +38,11 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGet
 		userB := destWalletGetter(ctx)
 
 		// Initiate message
-		dummyAddress := common.Address{0x13, 0x37}
-		dummyMessage := []byte{0x13, 0x33, 0x33, 0x37}
-		logger.Info("Initiate message", "address", dummyAddress, "message", dummyMessage)
-		initResult := userA.InitiateMessage(chainB.ID(), dummyAddress, dummyMessage).Send(ctx)
+		sha256PrecompileAddr := common.BytesToAddress([]byte{0x2})
+		dummyMessage := []byte("l33t message")
+
+		logger.Info("Initiate message", "address", sha256PrecompileAddr, "message", dummyMessage)
+		initResult := userA.InitiateMessage(chainB.ID(), sha256PrecompileAddr, dummyMessage).Send(ctx)
 		require.NoError(t, initResult.Wait())
 
 		initReceipt, ok := initResult.Info().(system.Receipt)
@@ -56,7 +61,6 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGet
 			sentMessage = append(sentMessage, topic.Bytes()...)
 		}
 		sentMessage = append(sentMessage, log.Data...)
-		logger.Info("Execute message", "sentMessage", sentMessage)
 
 		logIndex := big.NewInt(int64(log.Index))
 		identifier := bindings.Identifier{
@@ -66,27 +70,49 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGet
 			Timestamp:   blockTime,
 			ChainId:     chainA.ID(),
 		}
-		logger.Info("Execute message", "identifier", identifier)
 
-		logger.Info("Execute message", "address", dummyAddress, "message", dummyMessage)
+		logger.Info("Execute message", "address", sha256PrecompileAddr, "message", dummyMessage)
 		execResult := userB.ExecuteMessage(identifier, sentMessage).Send(ctx)
 		require.NoError(t, execResult.Wait())
 
 		execReceipt, ok := execResult.Info().(system.Receipt)
 		require.True(t, ok)
 
-		logger.Info("Execute message", "txHash", execReceipt.TxHash().Hex())
+		execTxHash := execReceipt.TxHash()
+		logger.Info("Execute message", "txHash", execTxHash.Hex())
+
+		gethClient, err := chainB.GethClient()
+		require.NoError(t, err)
+
+		trace, err := wait.DebugTraceTx(ctx, gethClient, execTxHash)
+		require.NoError(t, err)
+
+		precompile := vm.PrecompiledContractsHomestead[sha256PrecompileAddr]
+		expected, err := precompile.Run(dummyMessage)
+		require.NoError(t, err)
+		logger.Info("sha256 computed offchain", "value", hex.EncodeToString(expected))
+
+		// length of sha256 image is 32
+		output := trace.CallTrace.Output
+		require.GreaterOrEqual(t, len(output), 32)
+		actual := []byte(output[len(output)-32:])
+		logger.Info("sha256 computed onchain", "value", hex.EncodeToString(actual))
+
+		require.Equal(t, expected, actual)
 	}
 }
 
-func TestInteropSystemInitiateMessage(t *testing.T) {
+func TestInteropSystemMessagePassing(t *testing.T) {
 	sourceChainIdx := uint64(0)
 	destChainIdx := uint64(1)
 	sourceWalletGetter, sourcefundsValidator := validators.AcquireL2WalletWithFunds(sourceChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
 	destWalletGetter, destfundsValiator := validators.AcquireL2WalletWithFunds(destChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
+	lowLevelSystemGetter, lowLevelSystemValidator := validators.AcquireLowLevelSystem()
+
 	systest.InteropSystemTest(t,
-		messagePassingScenario(sourceChainIdx, destChainIdx, sourceWalletGetter, destWalletGetter),
+		messagePassingScenario(lowLevelSystemGetter, sourceChainIdx, destChainIdx, sourceWalletGetter, destWalletGetter),
 		sourcefundsValidator,
 		destfundsValiator,
+		lowLevelSystemValidator,
 	)
 }
