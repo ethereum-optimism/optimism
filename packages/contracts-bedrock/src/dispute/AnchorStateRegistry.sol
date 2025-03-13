@@ -22,7 +22,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
+    /// @custom:semver 3.0.1
     string public constant version = "3.0.1";
 
     /// @notice The dispute game finality delay in seconds.

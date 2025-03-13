@@ -163,7 +163,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0-beta.1
+    /// @custom:semver 0.1.0-beta.2
     function version() public pure virtual returns (string memory) {
         return "0.1.0-beta.2";
     }
