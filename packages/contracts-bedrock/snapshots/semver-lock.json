@@ -152,8 +152,8 @@
     "sourceCodeHash": "0x03c160168986ffc8d26a90c37366e7ad6da03f49d83449e1f8b3de0f4b590f6f"
   },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
-    "initCodeHash": "0x0cfcba1ebf655fd99e308a0527db91a1605fccee165bde77e3b840e0fda0b3e6",
-    "sourceCodeHash": "0xcb72c67f369a3ae6046f26e35640252b01561b4fab1187a7838bd16bbac7521d"
+    "initCodeHash": "0x38a6746412f59e12d279c23ac6c620b2c306c117532d2299d511808851488bbd",
+    "sourceCodeHash": "0x2e64207064472cfdae29fb4f7499ae49fd76ef6cb4c51babd15679432d6a14f6"
   },
   "src/dispute/DelayedWETH.sol:DelayedWETH": {
     "initCodeHash": "0xdd0b5e523f3b53563fe0b6e6165fb73605b14910ffa32a7cbed855cdebab47c6",
@@ -164,20 +164,20 @@
     "sourceCodeHash": "0x08efbce44394f555a4e656816897029e2e80e455e4200a1b887fc18993294660"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
-    "initCodeHash": "0xc7c06b9681c8d0b5f034c1d2bb1158ca52adcfeb1fc1b3aea361742e573aeb17",
-    "sourceCodeHash": "0x61f9674171a51ed15165e62ec99a819d7c521212d0fa1190788b0e4aced12bd3"
+    "initCodeHash": "0xcf599cfd92543953cb3ccf3127aa095cb2752e872cdd3953d17821b7716e72c0",
+    "sourceCodeHash": "0x41058e11ea000b6f0aaf925d0f05c2ed7b6ab38c83594dd44f6fb5d6b9f671a6"
   },
   "src/dispute/PermissionedDisputeGame.sol:PermissionedDisputeGame": {
     "initCodeHash": "0x2e9e18216d70edcc53f4dc51bdafadb9e897db81440c057204ca2679129f5d87",
     "sourceCodeHash": "0xac3bc5836f4029bfe24b7e7bca720f8f193f98f88572da4fedb812b68c3d855f"
   },
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame": {
-    "initCodeHash": "0xd5edc53096481d114b47403c60a0b5dae543fb7cc64619929749dba7df70296e",
-    "sourceCodeHash": "0x793743413020e6ba86103f0be31cdf2c28b7c686049d0484229c9250a1f14bcb"
+    "initCodeHash": "0x25a4e28d12b7a6885a8f50ef182775005339efa0010897affe0f44325fbbfcac",
+    "sourceCodeHash": "0xe0094f825c433e6d34b2ef1fa6f2aefc5603ac7f83ce1348444ba9af706f9a3f"
   },
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
-    "initCodeHash": "0xe34580985c505483846a2533a91faabb7ca81cb277458f0f7b8bf1b7a3bd23de",
-    "sourceCodeHash": "0xadadb0e8c823a028a389e50d3ea783d1a483b7b167e7cca3a9df59c1743d91f3"
+    "initCodeHash": "0xaf43915296e333361835fbd8a74342e4e84a467f860cb5fd25bd773b672e2bbc",
+    "sourceCodeHash": "0xdbae9a8ea6aca8b4f8a5f9559e3a1d254153dd89ef3984a84f8ff6aeaa8020b3"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x53099379ed48b87f027d55712dbdd1da7d7099925426eb0531da9c0012e02c29",
