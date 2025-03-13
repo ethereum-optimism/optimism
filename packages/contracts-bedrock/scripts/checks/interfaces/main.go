@@ -54,6 +54,10 @@ type Artifact struct {
 	ABI json.RawMessage `json:"abi"`
 }
 
+var (
+	internalTypePattern = regexp.MustCompile(`(contract|struct|enum)\s+([^I]\w+|I[a-z]\w*)`)
+)
+
 func main() {
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
@@ -237,11 +241,10 @@ func normalizeInternalType(internalType string) string {
 	}
 
 	// Replace patterns like "contract Something" with "contract ISomething"
-	internalType = regexp.MustCompile(`(contract|struct|enum)\s+([^I]\w+|I[a-z]\w*)`).
-		ReplaceAllStringFunc(internalType, func(s string) string {
-			parts := strings.SplitN(s, " ", 2)
-			return parts[0] + " " + addIPrefix(parts[1])
-		})
+	internalType = internalTypePattern.ReplaceAllStringFunc(internalType, func(s string) string {
+		parts := strings.SplitN(s, " ", 2)
+		return parts[0] + " " + addIPrefix(parts[1])
+	})
 
 	return internalType
 }

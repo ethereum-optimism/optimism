@@ -16,6 +16,10 @@ const (
 	abiDir           = "snapshots/abi"
 )
 
+var (
+	versionPattern = regexp.MustCompile(`(.*?)\.([0-9]+\.[0-9]+\.[0-9]+)?`)
+)
+
 type SnapshotResult struct {
 	ContractName  string
 	Abi           interface{}
@@ -121,9 +125,8 @@ func processFile(file string) (*SnapshotResult, []error) {
 // ContractName.0.9.8.json -> ContractName.sol
 // ContractName.json -> ContractName.sol
 func parseArtifactName(artifactVersionFile string) (string, error) {
-	re := regexp.MustCompile(`(.*?)\.([0-9]+\.[0-9]+\.[0-9]+)?`)
 	baseName := filepath.Base(artifactVersionFile)
-	match := re.FindStringSubmatch(baseName)
+	match := versionPattern.FindStringSubmatch(baseName)
 	if len(match) < 2 {
 		return "", fmt.Errorf("invalid artifact file name: %q", artifactVersionFile)
 	}

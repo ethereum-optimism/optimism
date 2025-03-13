@@ -11,6 +11,12 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
 
+var (
+	uintPattern  = regexp.MustCompile(`uint(\d+)`)
+	bytesPattern = regexp.MustCompile(`bytes(\d+)`)
+	arrayPattern = regexp.MustCompile(`^t_array\((\w+)\)(\d+)`)
+)
+
 func parseVariableLength(variableType string, types map[string]solc.StorageLayoutType) (int, error) {
 	if t, exists := types[variableType]; exists {
 		return int(t.NumberOfBytes), nil
@@ -19,8 +25,7 @@ func parseVariableLength(variableType string, types map[string]solc.StorageLayou
 	if strings.HasPrefix(variableType, "t_mapping") {
 		return 32, nil
 	} else if strings.HasPrefix(variableType, "t_uint") {
-		re := regexp.MustCompile(`uint(\d+)`)
-		matches := re.FindStringSubmatch(variableType)
+		matches := uintPattern.FindStringSubmatch(variableType)
 		if len(matches) > 1 {
 			bitSize, _ := strconv.Atoi(matches[1])
 			return bitSize / 8, nil
@@ -28,8 +33,7 @@ func parseVariableLength(variableType string, types map[string]solc.StorageLayou
 	} else if strings.HasPrefix(variableType, "t_bytes_") {
 		return 32, nil
 	} else if strings.HasPrefix(variableType, "t_bytes") {
-		re := regexp.MustCompile(`bytes(\d+)`)
-		matches := re.FindStringSubmatch(variableType)
+		matches := bytesPattern.FindStringSubmatch(variableType)
 		if len(matches) > 1 {
 			return strconv.Atoi(matches[1])
 		}
@@ -38,8 +42,7 @@ func parseVariableLength(variableType string, types map[string]solc.StorageLayou
 	} else if strings.HasPrefix(variableType, "t_bool") {
 		return 1, nil
 	} else if strings.HasPrefix(variableType, "t_array") {
-		re := regexp.MustCompile(`^t_array\((\w+)\)(\d+)`)
-		matches := re.FindStringSubmatch(variableType)
+		matches := arrayPattern.FindStringSubmatch(variableType)
 		if len(matches) > 2 {
 			innerType := matches[1]
 			size, _ := strconv.Atoi(matches[2])
