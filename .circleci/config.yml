@@ -1802,6 +1802,7 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
+            - circleci-repo-readonly-authenticated-github-token
 
   develop-publish-contract-artifacts:
     when:
@@ -1821,14 +1822,18 @@ workflows:
         - not:
             equal: [scheduled_pipeline, << pipeline.trigger_source >>]
     jobs:
-      - cannon-prestate
+      - cannon-prestate:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - cannon-stf-verify:
           context:
             - slack
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
           context:
             - slack
+            - circleci-repo-readonly-authenticated-github-token
       - go-tests:
           name: op-e2e-cannon-tests
           notify: true
@@ -1871,6 +1876,7 @@ workflows:
           context:
             - slack
             - runtimeverification
+            - circleci-repo-readonly-authenticated-github-token
 
   scheduled-cannon-full-tests:
     when:
