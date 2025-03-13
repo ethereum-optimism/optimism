@@ -37,10 +37,10 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		// userB is funded at chainB and want to execute message to chainB
 		userB := destWalletGetter(ctx)
 
-		// Initiate message
 		sha256PrecompileAddr := common.BytesToAddress([]byte{0x2})
 		dummyMessage := []byte("l33t message")
 
+		// Initiate message
 		logger.Info("Initiate message", "address", sha256PrecompileAddr, "message", dummyMessage)
 		initResult := userA.InitiateMessage(chainB.ID(), sha256PrecompileAddr, dummyMessage).Send(ctx)
 		require.NoError(t, initResult.Wait())
@@ -52,6 +52,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		require.Equal(t, 1, len(logs), "expected single log")
 		log := logs[0]
 
+		// Build sentMessage for message execution
 		blockNumber := initReceipt.BlockNumber()
 		block, err := chainA.Node().BlockByNumber(ctx, blockNumber)
 		require.NoError(t, err)
@@ -62,6 +63,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		}
 		sentMessage = append(sentMessage, log.Data...)
 
+		// Build identifier for message execution
 		logIndex := big.NewInt(int64(log.Index))
 		identifier := bindings.Identifier{
 			Origin:      constants.L2ToL2CrossDomainMessenger,
@@ -71,6 +73,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 			ChainId:     chainA.ID(),
 		}
 
+		// Execute message
 		logger.Info("Execute message", "address", sha256PrecompileAddr, "message", dummyMessage)
 		execResult := userB.ExecuteMessage(identifier, sentMessage).Send(ctx)
 		require.NoError(t, execResult.Wait())
@@ -81,6 +84,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		execTxHash := execReceipt.TxHash()
 		logger.Info("Execute message", "txHash", execTxHash.Hex())
 
+		// Validation that message has passed and got executed successfully
 		gethClient, err := chainB.GethClient()
 		require.NoError(t, err)
 
