@@ -1848,6 +1848,7 @@ workflows:
             op-e2e/faultproofs
           context:
             - slack
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
             - cannon-prestate
