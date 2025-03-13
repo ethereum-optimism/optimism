@@ -357,6 +357,18 @@ pre-pr *ARGS:
     cp -r "$TEMP_BUILD_DIR/cache" ./
   fi
 
+twrap:
+    #!/usr/bin/env sh
+    if [ -z "$WRAP_DISABLED" ]; then
+        tput rmam
+        export WRAP_DISABLED=1
+        echo "Terminal line wrapping disabled"
+    else
+        tput smam
+        unset WRAP_DISABLED
+        echo "Terminal line wrapping enabled"
+    fi
+
 # Fixes linting errors.
 lint-fix:
   forge fmt

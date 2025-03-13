@@ -1,4 +1,4 @@
-package fees
+package isthmus
 
 import (
 	"context"
@@ -20,7 +20,6 @@ import (
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,52 +32,10 @@ func TestFees(t *testing.T) {
 	lowLevelSystemGetter, lowLevelSystemValidator := validators.AcquireLowLevelSystem()
 	walletGetter, walletValidator := validators.AcquireL2WalletWithFunds(chainIdx, types.NewBalance(big.NewInt(params.Ether)))
 
-	// Run pre-regolith test
-	forkGetter, forkValidator := validators.AcquireL2WithoutFork(chainIdx, rollup.Regolith)
-	systest.SystemTest(t,
-		feesTestScenario(lowLevelSystemGetter, walletGetter, chainIdx, forkGetter),
-		lowLevelSystemValidator,
-		walletValidator,
-		forkValidator,
-	)
-
-	// Run regolith test
-	forkGetter, forkValidator = validators.AcquireL2WithFork(chainIdx, rollup.Regolith)
-	_, notForkValidator := validators.AcquireL2WithoutFork(chainIdx, rollup.Ecotone)
-	systest.SystemTest(t,
-		feesTestScenario(lowLevelSystemGetter, walletGetter, chainIdx, forkGetter),
-		lowLevelSystemValidator,
-		walletValidator,
-		forkValidator,
-		notForkValidator,
-	)
-
-	// Run ecotone test
-	forkGetter, forkValidator = validators.AcquireL2WithFork(chainIdx, rollup.Ecotone)
-	_, notForkValidator = validators.AcquireL2WithoutFork(chainIdx, rollup.Fjord)
-	systest.SystemTest(t,
-		feesTestScenario(lowLevelSystemGetter, walletGetter, chainIdx, forkGetter),
-		lowLevelSystemValidator,
-		walletValidator,
-		forkValidator,
-		notForkValidator,
-	)
-
-	// Run fjord test
-	forkGetter, forkValidator = validators.AcquireL2WithFork(chainIdx, rollup.Fjord)
-	_, notForkValidator = validators.AcquireL2WithoutFork(chainIdx, rollup.Isthmus)
-	systest.SystemTest(t,
-		feesTestScenario(lowLevelSystemGetter, walletGetter, chainIdx, forkGetter),
-		lowLevelSystemValidator,
-		walletValidator,
-		forkValidator,
-		notForkValidator,
-	)
-
 	// Run isthmus test
-	forkGetter, forkValidator = validators.AcquireL2WithFork(chainIdx, rollup.Isthmus)
+	_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Isthmus)
 	systest.SystemTest(t,
-		feesTestScenario(lowLevelSystemGetter, walletGetter, chainIdx, forkGetter),
+		feesTestScenario(lowLevelSystemGetter, walletGetter, chainIdx),
 		lowLevelSystemValidator,
 		walletValidator,
 		forkValidator,
@@ -129,7 +86,6 @@ func feesTestScenario(
 	lowLevelSystemGetter validators.LowLevelSystemGetter,
 	walletGetter validators.WalletGetter,
 	chainIdx uint64,
-	configGetter validators.ChainConfigGetter,
 ) systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
 		ctx := t.Context()
@@ -137,16 +93,10 @@ func feesTestScenario(
 		// Get the low-level system and wallet
 		llsys := lowLevelSystemGetter(ctx)
 		wallet := walletGetter(ctx)
-		config := configGetter(ctx)
 
 		// Get the L2 client
 		l2Chain := llsys.L2s()[chainIdx]
-		l2Client, err := l2Chain.Client()
-		require.NoError(t, err)
-
-		// Get the L1 client
-		l1Chain := llsys.L1()
-		l1Client, err := l1Chain.Client()
+		l2Client, err := l2Chain.GethClient()
 		require.NoError(t, err)
 
 		// TODO: Wait for first block after genesis
@@ -179,28 +129,32 @@ func feesTestScenario(
 		gpoContract, err := bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, l2Client)
 		require.NoError(t, err)
 
+		block, err := l2Client.BlockByNumber(t.Context(), nil)
+		require.NoError(t, err)
+		startBlockNumber := block.Number()
+
 		// Get wallet balance before test
-		startBalance, err := l2Client.BalanceAt(ctx, fromAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+		startBalance, err := l2Client.BalanceAt(ctx, fromAddr, startBlockNumber)
 		require.NoError(t, err)
 		require.Greater(t, startBalance.Uint64(), big.NewInt(0).Uint64())
 
 		// Get initial balances of fee recipients
-		baseFeeRecipientStartBalance, err := l2Client.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+		baseFeeRecipientStartBalance, err := l2Client.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, startBlockNumber)
 		require.NoError(t, err)
 
-		l1FeeRecipientStartBalance, err := l2Client.BalanceAt(ctx, predeploys.L1FeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+		l1FeeRecipientStartBalance, err := l2Client.BalanceAt(ctx, predeploys.L1FeeVaultAddr, startBlockNumber)
 		require.NoError(t, err)
 
-		sequencerFeeVaultStartBalance, err := l2Client.BalanceAt(ctx, predeploys.SequencerFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+		sequencerFeeVaultStartBalance, err := l2Client.BalanceAt(ctx, predeploys.SequencerFeeVaultAddr, startBlockNumber)
 		require.NoError(t, err)
 
-		operatorFeeVaultStartBalance, err := l2Client.BalanceAt(ctx, predeploys.OperatorFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+		operatorFeeVaultStartBalance, err := l2Client.BalanceAt(ctx, predeploys.OperatorFeeVaultAddr, startBlockNumber)
 		require.NoError(t, err)
 
-		genesisBlock, err := l2Client.BlockByNumber(ctx, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+		genesisBlock, err := l2Client.BlockByNumber(ctx, startBlockNumber)
 		require.NoError(t, err)
 
-		coinbaseStartBalance, err := l2Client.BalanceAt(ctx, genesisBlock.Coinbase(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
+		coinbaseStartBalance, err := l2Client.BalanceAt(ctx, genesisBlock.Coinbase(), startBlockNumber)
 		require.NoError(t, err)
 
 		// Send a simple transfer from wallet to a test address
@@ -266,6 +220,7 @@ func feesTestScenario(
 		// Get block header where transaction was included
 		header, err = l2Client.HeaderByNumber(ctx, receipt.BlockNumber)
 		require.NoError(t, err)
+		require.Equal(t, header.Coinbase, predeploys.SequencerFeeVaultAddr, "coinbase address should always be the same as the sequencer fee vault address")
 
 		// Get final balances after transaction
 		coinbaseEndBalance, err := l2Client.BalanceAt(ctx, header.Coinbase, header.Number)
@@ -278,9 +233,6 @@ func feesTestScenario(
 		require.NoError(t, err)
 
 		operatorFeeVaultEndBalance, err := l2Client.BalanceAt(ctx, predeploys.OperatorFeeVaultAddr, header.Number)
-		require.NoError(t, err)
-
-		l1Header, err := l1Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
 
 		l1FeeRecipientEndBalance, err := l2Client.BalanceAt(ctx, predeploys.L1FeeVaultAddr, header.Number)
@@ -307,7 +259,7 @@ func feesTestScenario(
 		require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee mismatch")
 
 		// Verify L1 fee
-		txBytes, err := signedTx.MarshalBinary()
+		txBytes, err := tx.MarshalBinary()
 		require.NoError(t, err)
 
 		// Calculate L1 fee based on transaction data and blocktime
@@ -325,47 +277,14 @@ func feesTestScenario(
 			expectedOperatorFeeVaultEndBalance,
 		)
 
-		// Verify GPO matches expected state
-		gpoEcotone, err := gpoContract.IsEcotone(nil)
+		gpoIsthmus, err := gpoContract.IsIsthmus(&bind.CallOpts{BlockNumber: header.Number})
 		require.NoError(t, err)
-
-		block, err := l2Chain.Node().BlockByNumber(t.Context(), nil)
-		require.NoError(t, err)
-		time := block.Header().Time
-
-		ecotoneEnabled, err := validators.IsForkActivated(config, rollup.Ecotone, time)
-		require.NoError(t, err)
-		require.Equal(t, ecotoneEnabled, gpoEcotone, "GPO and chain must have same ecotone view")
-
-		gpoFjord, err := gpoContract.IsFjord(nil)
-		require.NoError(t, err)
-		fjordEnabled, err := validators.IsForkActivated(config, rollup.Fjord, time)
-		require.NoError(t, err)
-		require.Equal(t, fjordEnabled, gpoFjord, "GPO and chain must have same fjord view")
-
-		gpoIsthmus, err := gpoContract.IsIsthmus(nil)
-		require.NoError(t, err)
-		isthmusEnabled, err := validators.IsForkActivated(config, rollup.Isthmus, time)
-		require.NoError(t, err)
-		require.Equal(t, isthmusEnabled, gpoIsthmus, "GPO and chain must have same isthmus view")
+		require.True(t, gpoIsthmus, "GPO and chain must have same isthmus view")
 
 		// Verify gas price oracle L1 fee calculation
-		gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, txBytes)
+		adjustedGPOFee, err := gpoContract.GetL1Fee(&bind.CallOpts{BlockNumber: header.Number}, txBytes)
 		require.NoError(t, err)
 
-		regolithEnabled, err := validators.IsForkActivated(config, rollup.Regolith, time)
-		require.NoError(t, err)
-
-		adjustedGPOFee := gpoL1Fee
-		if fjordEnabled {
-			// The fjord calculations are handled differently and may be bounded by the minimum value
-			// This is a simplification as the full test adapts more precisely
-		} else if regolithEnabled && !ecotoneEnabled {
-			// For post-regolith (but pre-ecotone), adjust the GPO fee to account for signature overhead
-			artificialGPOOverhead := big.NewInt(68 * 16) // 68 bytes to cover signature and RLP data
-			l1BaseFee := l1Header.BaseFee
-			adjustedGPOFee = new(big.Int).Sub(gpoL1Fee, new(big.Int).Mul(artificialGPOOverhead, l1BaseFee))
-		}
 		require.Equal(t, l1Fee, adjustedGPOFee, "GPO reports L1 fee mismatch")
 
 		// Verify receipt L1 fee

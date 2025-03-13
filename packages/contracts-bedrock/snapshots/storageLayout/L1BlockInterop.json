@@ -89,12 +89,5 @@
     "offset": 8,
     "slot": "8",
     "type": "uint32"
-  },
-  {
-    "bytes": "64",
-    "label": "dependencySet",
-    "offset": 0,
-    "slot": "9",
-    "type": "struct EnumerableSet.UintSet"
   }
 ]

@@ -12,13 +12,16 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
 func Uint64Ptr(x uint64) *uint64 {
@@ -238,7 +241,8 @@ type mockChain struct {
 }
 
 func (m *mockChain) RPCURL() string                                  { return "http://localhost:8545" }
-func (m *mockChain) Client() (*ethclient.Client, error)              { return ethclient.Dial(m.RPCURL()) }
+func (m *mockChain) Client() (*sources.EthClient, error)             { return nil, nil }
+func (m *mockChain) GethClient() (*ethclient.Client, error)          { return nil, nil }
 func (m *mockChain) ID() types.ChainID                               { return types.ChainID(big.NewInt(1)) }
 func (m *mockChain) ContractsRegistry() interfaces.ContractsRegistry { return nil }
 func (m *mockChain) Wallets(ctx context.Context) ([]system.Wallet, error) {
@@ -292,21 +296,10 @@ func (m *mockNode) PendingNonceAt(ctx context.Context, addr common.Address) (uin
 	return 0, fmt.Errorf("not implemented")
 }
 
-func (m *mockNode) BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error) {
-	isIsthmusActivated, err := IsForkActivated(m.chainConfig, rollup.Isthmus, 100)
-	if err != nil {
-		return nil, err
-	}
-	var blockConfig *ethtypes.BlockConfig
-	if isIsthmusActivated {
-		blockConfig = ethtypes.DefaultBlockConfig
-	} else {
-		blockConfig = ethtypes.IsthmusBlockConfig
-	}
-
-	return ethtypes.NewBlock(&ethtypes.Header{
-		Time: 100,
-	}, &ethtypes.Body{Withdrawals: []*ethtypes.Withdrawal{}}, nil, nil, blockConfig), nil
+func (m *mockNode) BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error) {
+	header := ethtypes.Header{Time: 100}
+	info := eth.HeaderBlockInfo(&header)
+	return info, nil
 }
 
 type mockWallet struct {

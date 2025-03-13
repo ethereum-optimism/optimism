@@ -298,3 +298,37 @@ func (d *InteropDSL) DeployEmitterContracts() *EmitterContract {
 	))
 	return emitter
 }
+
+type AdvanceSafeHeadsOpts struct {
+	SingleBatch bool
+}
+
+func WithSingleBatch() func(*AdvanceSafeHeadsOpts) {
+	return func(o *AdvanceSafeHeadsOpts) {
+		o.SingleBatch = true
+	}
+}
+
+// AdvanceSafeHeads advances the safe heads for all chains by adding a new L2 block and submitting batch data for each chain.
+// By default, submits batch data for each chain in separate L1 blocks.
+func (d *InteropDSL) AdvanceSafeHeads(optionalArgs ...func(*AdvanceSafeHeadsOpts)) {
+	opts := AdvanceSafeHeadsOpts{
+		SingleBatch: false,
+	}
+	for _, arg := range optionalArgs {
+		arg(&opts)
+	}
+
+	d.AddL2Block(d.Actors.ChainA)
+	d.AddL2Block(d.Actors.ChainB)
+	if opts.SingleBatch {
+		d.SubmitBatchData()
+	} else {
+		d.SubmitBatchData(func(opts *SubmitBatchDataOpts) {
+			opts.SetChains(d.Actors.ChainA)
+		})
+		d.SubmitBatchData(func(opts *SubmitBatchDataOpts) {
+			opts.SetChains(d.Actors.ChainB)
+		})
+	}
+}

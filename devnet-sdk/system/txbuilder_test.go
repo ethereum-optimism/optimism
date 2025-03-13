@@ -9,11 +9,12 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -104,9 +105,9 @@ func (m *mockChain) RPCURL() string {
 	return args.String(0)
 }
 
-func (m *mockChain) Client() (*ethclient.Client, error) {
+func (m *mockChain) Client() (*sources.EthClient, error) {
 	args := m.Called()
-	return args.Get(0).(*ethclient.Client), nil
+	return args.Get(0).(*sources.EthClient), nil
 }
 
 func (m *mockChain) Wallets(ctx context.Context) ([]Wallet, error) {
@@ -145,9 +146,9 @@ func (m *mockNode) PendingNonceAt(ctx context.Context, addr common.Address) (uin
 	return args.Get(0).(uint64), args.Error(1)
 }
 
-func (m *mockNode) BlockByNumber(ctx context.Context, number *big.Int) (*ethtypes.Block, error) {
+func (m *mockNode) BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error) {
 	args := m.Called(ctx, number)
-	return args.Get(0).(*ethtypes.Block), args.Error(1)
+	return args.Get(0).(eth.BlockInfo), args.Error(1)
 }
 
 func TestNewTxBuilder(t *testing.T) {

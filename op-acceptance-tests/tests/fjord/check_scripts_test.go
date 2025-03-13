@@ -50,7 +50,7 @@ func checkFjordScriptScenario(lowLevelSystemGetter validators.LowLevelSystemGett
 		chainConfig := chainConfigGetter(t.Context())
 
 		l2 := sys.L2s()[chainIndex]
-		l2LowLevelClient, err := llsys.L2s()[chainIndex].Client()
+		l2LowLevelClient, err := llsys.L2s()[chainIndex].GethClient()
 		require.NoError(t, err)
 
 		// Get the wallet's private key and address
@@ -67,7 +67,7 @@ func checkFjordScriptScenario(lowLevelSystemGetter validators.LowLevelSystemGett
 
 		block, err := l2.Node().BlockByNumber(t.Context(), nil)
 		require.NoError(t, err)
-		time := block.Header().Time
+		time := block.Time()
 
 		isFjordActivated, err := validators.IsForkActivated(chainConfig, rollup.Fjord, time)
 		require.NoError(t, err)

@@ -74,7 +74,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
         assertEq(address(impl.l1StandardBridge()), address(0));
-        assertEq(address(impl.disputeGameFactory()), address(0));
         assertEq(address(impl.optimismPortal()), address(0));
         assertEq(address(impl.optimismMintableERC20Factory()), address(0));
     }
@@ -111,8 +110,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(addrs.l1ERC721Bridge, address(l1ERC721Bridge));
         assertEq(address(systemConfig.l1StandardBridge()), address(l1StandardBridge));
         assertEq(addrs.l1StandardBridge, address(l1StandardBridge));
-        assertEq(address(systemConfig.disputeGameFactory()), address(disputeGameFactory));
-        assertEq(addrs.disputeGameFactory, address(disputeGameFactory));
         assertEq(address(systemConfig.optimismPortal()), address(optimismPortal2));
         assertEq(addrs.optimismPortal, address(optimismPortal2));
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
@@ -146,7 +143,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
@@ -176,7 +172,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
@@ -207,7 +202,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
@@ -322,7 +316,6 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
@@ -504,6 +497,13 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
         // Set the initialized slot to 0.
         vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
 
+        // Verify the initial dispute game factory slot is non-zero.
+        // We set a value here since it seems this defaults to zero.
+        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+        vm.store(address(systemConfig), disputeGameFactorySlot, bytes32(uint256(1)));
+        assertNotEq(systemConfig.disputeGameFactory(), address(0));
+        assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
+
         // Trigger upgrade().
         systemConfig.upgrade(1234);
 
@@ -513,6 +513,9 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
 
         // Verify that the l2ChainId was updated.
         assertEq(systemConfig.l2ChainId(), 1234);
+
+        // Verify that the dispute game factory address was cleared.
+        assertEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
     }
 
     /// @notice Tests that the upgrade() function reverts if called a second time.

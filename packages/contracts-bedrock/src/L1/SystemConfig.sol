@@ -11,6 +11,7 @@ import { Storage } from "src/libraries/Storage.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -40,7 +41,6 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
         address l1StandardBridge;
-        address disputeGameFactory;
         address optimismPortal;
         address optimismMintableERC20Factory;
     }
@@ -80,10 +80,6 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Storage slot for block at which the op-node can start searching for logs from.
     bytes32 public constant START_BLOCK_SLOT = bytes32(uint256(keccak256("systemconfig.startBlock")) - 1);
-
-    /// @notice Storage slot for the DisputeGameFactory address.
-    bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
-        bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
 
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
@@ -140,9 +136,9 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.6.0
+    /// @custom:semver 3.0.0
     function version() public pure virtual returns (string memory) {
-        return "2.6.0";
+        return "3.0.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -194,7 +190,6 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
         Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
         Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
-        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
@@ -208,7 +203,12 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Upgrades the SystemConfig by setting the L2 chain ID variable.
     /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
     function upgrade(uint256 _l2ChainId) external reinitializer(initVersion()) {
+        // Set the L2 chain ID.
         l2ChainId = _l2ChainId;
+
+        // Clear out the old dispute game factory address, it's derived now.
+        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+        Storage.setAddress(disputeGameFactorySlot, address(0));
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -254,7 +254,8 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Getter for the DisputeGameFactory address.
     function disputeGameFactory() public view returns (address addr_) {
-        addr_ = Storage.getAddress(DISPUTE_GAME_FACTORY_SLOT);
+        IOptimismPortal2 portal = IOptimismPortal2(payable(Storage.getAddress(OPTIMISM_PORTAL_SLOT)));
+        addr_ = address(portal.disputeGameFactory());
     }
 
     /// @notice Getter for the OptimismPortal address.
@@ -273,7 +274,6 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
             l1CrossDomainMessenger: l1CrossDomainMessenger(),
             l1ERC721Bridge: l1ERC721Bridge(),
             l1StandardBridge: l1StandardBridge(),
-            disputeGameFactory: disputeGameFactory(),
             optimismPortal: optimismPortal(),
             optimismMintableERC20Factory: optimismMintableERC20Factory()
         });

@@ -401,24 +401,6 @@ func TestProofParamOverrides(t *testing.T) {
 	}
 }
 
-func TestInteropDeployment(t *testing.T) {
-	op_e2e.InitParallel(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
-	intent.UseInterop = true
-
-	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
-
-	chainState := st.Chains[0]
-	depManagerSlot := common.HexToHash("0x1708e077affb93e89be2665fb0fb72581be66f84dc00d25fed755ae911905b1c")
-	checkImmutable(t, st.L1StateDump.Data.Accounts, st.ImplementationsDeployment.SystemConfigImplAddress, depManagerSlot)
-	proxyAdminOwnerHash := common.BytesToHash(intent.Chains[0].Roles.SystemConfigOwner.Bytes())
-	checkStorageSlot(t, st.L1StateDump.Data.Accounts, chainState.SystemConfigProxyAddress, depManagerSlot, proxyAdminOwnerHash)
-}
-
 func TestAltDADeployment(t *testing.T) {
 	op_e2e.InitParallel(t)
 

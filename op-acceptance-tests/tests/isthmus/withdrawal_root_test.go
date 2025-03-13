@@ -49,7 +49,7 @@ func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletG
 
 		llsys := llsysGetter(ctx)
 		chain := llsys.L2s()[chainIdx]
-		gethCl, err := chain.Client()
+		gethCl, err := chain.GethClient()
 		require.NoError(t, err)
 
 		logger := testlog.Logger(t, log.LevelInfo)

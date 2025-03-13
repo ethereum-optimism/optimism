@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
@@ -82,7 +83,8 @@ type mockChain struct{}
 
 func (m *mockChain) Node() system.Node                               { return nil }
 func (m *mockChain) RPCURL() string                                  { return "http://localhost:8545" }
-func (m *mockChain) Client() (*ethclient.Client, error)              { return ethclient.Dial(m.RPCURL()) }
+func (m *mockChain) Client() (*sources.EthClient, error)             { return nil, nil }
+func (m *mockChain) GethClient() (*ethclient.Client, error)          { return nil, nil }
 func (m *mockChain) ID() types.ChainID                               { return types.ChainID(big.NewInt(1)) }
 func (m *mockChain) ContractsRegistry() interfaces.ContractsRegistry { return nil }
 func (m *mockChain) Wallets(ctx context.Context) ([]system.Wallet, error) {

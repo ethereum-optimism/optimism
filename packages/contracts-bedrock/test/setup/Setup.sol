@@ -140,6 +140,12 @@ contract Setup {
         return vm.envOr("FORK_TEST", false);
     }
 
+    /// @notice Indicates whether a test is running against a forked network that is OP.
+    function isOpFork() public view returns (bool) {
+        string memory opChain = vm.envOr("FORK_OP_CHAIN", string("op"));
+        return keccak256(bytes(opChain)) == keccak256(bytes("op"));
+    }
+
     /// @dev Deploys either the Deploy.s.sol or Fork.s.sol contract, by fetching the bytecode dynamically using
     ///      `vm.getDeployedCode()` and etching it into the state.
     ///      This enables us to avoid including the bytecode of those contracts in the bytecode of this contract.
@@ -192,6 +198,14 @@ contract Setup {
         if (isForkTest()) {
             vm.skip(true);
             console.log(string.concat("Skipping fork test: ", message));
+        }
+    }
+
+    /// @dev Skips tests when running against a forked production network that is not OP.
+    function skipIfNotOpFork(string memory message) public {
+        if (isForkTest() && !isOpFork()) {
+            vm.skip(true);
+            console.log(string.concat("Skipping non-OP fork test: ", message));
         }
     }
 

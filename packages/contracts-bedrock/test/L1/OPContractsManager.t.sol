@@ -245,6 +245,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim absolutePrestate;
+    string public opChain = vm.envOr("FORK_OP_CHAIN", string("op"));
 
     function setUp() public virtual override {
         super.disableUpgradedFork();
@@ -293,9 +294,24 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
     function runUpgrade13UpgradeAndChecks(address _delegateCaller) public {
         // The address below corresponds with the address of the v2.0.0-rc.1 OPCM on mainnet.
-        IOPContractsManager deployedOPCM = IOPContractsManager(address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76));
+        address OPCM_ADDRESS = 0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76;
+
+        IOPContractsManager deployedOPCM = IOPContractsManager(OPCM_ADDRESS);
         IOPCMImplementationsWithoutLockbox.Implementations memory impls =
             IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
+
+        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
+
+        // If the delegate caller is not the mainnet PAO, we need to call upgrade as the mainnet PAO first.
+        if (_delegateCaller != mainnetPAO) {
+            IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
+            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
+
+            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+            DelegateCaller(opmUpgrader).dcForward(OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (opmChain)));
+        }
 
         // Cache the old L1xDM address so we can look for it in the AddressManager's event
         address oldL1CrossDomainMessenger = addressManager.getAddress("OVM_L1CrossDomainMessenger");
@@ -344,6 +360,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
             vm.expectEmit(false, true, true, true, address(disputeGameFactory));
             emit ImplementationSet(address(0), GameTypes.CANNON);
         }
+
         vm.expectEmit(address(_delegateCaller));
         emit Upgraded(l2ChainId, opChainConfigs[0].systemConfigProxy, address(_delegateCaller));
 
@@ -400,9 +417,24 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     }
 
     function runUpgrade14UpgradeAndChecks(address _delegateCaller) public {
-        IOPContractsManager deployedOPCM = IOPContractsManager(address(0x3A1f523a4bc09cd344A2745a108Bb0398288094F));
+        address OPCM_ADDRESS = 0x3A1f523a4bc09cd344A2745a108Bb0398288094F;
+
+        IOPContractsManager deployedOPCM = IOPContractsManager(OPCM_ADDRESS);
         IOPCMImplementationsWithoutLockbox.Implementations memory impls =
             IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
+
+        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
+
+        // If the delegate caller is not the mainnet PAO, we need to call upgrade as the mainnet PAO first.
+        if (_delegateCaller != mainnetPAO) {
+            IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
+            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
+
+            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+            DelegateCaller(opmUpgrader).dcForward(OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (opmChain)));
+        }
 
         // sanity check
         IPermissionedDisputeGame oldPDG =
@@ -554,7 +586,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         // Make sure that the SystemConfig is upgraded to the right version. It must also have the
         // right l2ChainId and must be properly initialized.
-        assertEq(ISemver(address(systemConfig)).version(), "2.6.0");
+        assertEq(ISemver(address(systemConfig)).version(), "3.0.0");
         assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
         assertEq(systemConfig.l2ChainId(), l2ChainId);
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _isProxy: true, _slot: 0, _offset: 0 });
@@ -589,11 +621,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
 contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     function test_upgradeOPChainOnly_succeeds() public {
+        skipIfNotOpFork("test_upgradeOPChainOnly_succeeds");
         // Run the upgrade test and checks
         runUpgradeTestAndChecks(upgrader);
     }
 
     function test_isRcFalseAfterCalledByUpgrader_works() public {
+        skipIfNotOpFork("test_isRcFalseAfterCalledByUpgrader_works");
         assertTrue(opcm.isRC());
         bytes memory releaseBytes = bytes(opcm.l1ContractsRelease());
         assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
@@ -610,6 +644,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     )
         public
     {
+        skipIfNotOpFork("testFuzz_upgrade_nonUpgradeControllerDelegatecallerShouldNotSetIsRCToFalse_works");
         if (
             _nonUpgradeController == upgrader || _nonUpgradeController == address(0)
                 || _nonUpgradeController < address(0x4200000000000000000000000000000000000000)
@@ -638,6 +673,8 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     }
 
     function test_upgrade_duplicateL2ChainId_succeeds() public {
+        skipIfNotOpFork("test_upgrade_duplicateL2ChainId_succeeds");
+
         // Deploy a new OPChain with the same L2 chain ID as the current OPChain
         Deploy deploy = Deploy(address(uint160(uint256(keccak256(abi.encode("optimism.deploy"))))));
         IOPContractsManager.DeployInput memory deployInput = deploy.getDeployInput();
@@ -726,6 +763,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 contract OPContractsManager_Upgrade_TestFails is OPContractsManager_Upgrade_Harness {
     // Upgrade to U14 first
     function setUp() public override {
+        skipIfNotOpFork("test_upgrade_notDelegateCalled_reverts");
         super.setUp();
         runUpgrade13UpgradeAndChecks(upgrader);
     }
@@ -775,6 +813,8 @@ contract OPContractsManager_Upgrade_TestFails is OPContractsManager_Upgrade_Harn
 contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
     /// @notice Tests the setRC function can be set by the upgrade controller.
     function test_setRC_succeeds(bool _isRC) public {
+        skipIfNotOpFork("test_setRC_succeeds");
+
         vm.prank(upgrader);
 
         opcm.setRC(_isRC);
