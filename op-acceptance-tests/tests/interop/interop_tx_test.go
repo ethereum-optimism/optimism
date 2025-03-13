@@ -106,7 +106,9 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 	}
 }
 
-func TestInteropSystemMessagePassing(t *testing.T) {
+// TestMessagePassing checks the basic functionality of message passing two interoperable chains.
+// Scenario: Source chain initiates message to make destination chain execute sha256 precompile.
+func TestMessagePassing(t *testing.T) {
 	sourceChainIdx := uint64(0)
 	destChainIdx := uint64(1)
 	sourceWalletGetter, sourcefundsValidator := validators.AcquireL2WalletWithFunds(sourceChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
