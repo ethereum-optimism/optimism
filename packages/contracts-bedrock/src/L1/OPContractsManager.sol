@@ -1174,6 +1174,19 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     }
 }
 
+contract OPContractsManagerInteropMigrator {
+    function migrateInterop() public virtual {
+        revert("not implemented");
+    }
+}
+
+contract OPContractsManagerInteropMigratorDev is OPContractsManagerInteropMigrator {
+    function migrateInterop() public {
+        // Put the actual implementation here
+        revert("not implemented");
+    }
+}
+
 contract OPContractsManager is ISemver {
     // -------- Structs --------
 
@@ -1302,6 +1315,8 @@ contract OPContractsManager is ISemver {
 
     OPContractsManagerUpgrader public immutable opcmUpgrader;
 
+    OPContractsManagerInteropMigrator public immutable opcmInteropMigrator;
+
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     ISuperchainConfig public immutable superchainConfig;
 
@@ -1380,6 +1395,7 @@ contract OPContractsManager is ISemver {
         OPContractsManagerGameTypeAdder _opcmGameTypeAdder,
         OPContractsManagerDeployer _opcmDeployer,
         OPContractsManagerUpgrader _opcmUpgrader,
+        OPContractsManagerInteropMigrator _opcmInteropMigrator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -1391,6 +1407,7 @@ contract OPContractsManager is ISemver {
         _opcmDeployer.assertValidContractAddress(address(_opcmGameTypeAdder));
         _opcmDeployer.assertValidContractAddress(address(_opcmDeployer));
         _opcmDeployer.assertValidContractAddress(address(_opcmUpgrader));
+        _opcmDeployer.assertValidContractAddress(address(_opcmInteropMigrator));
         opcmGameTypeAdder = _opcmGameTypeAdder;
         opcmDeployer = _opcmDeployer;
         opcmUpgrader = _opcmUpgrader;
@@ -1443,6 +1460,14 @@ contract OPContractsManager is ISemver {
         );
 
         _performDelegateCall(address(opcmGameTypeAdder), data);
+    }
+
+    /// @notice Migrates the Optimism contracts to the latest version. This is a stub for now.
+    function migrateInterop() external virtual {
+        if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
+
+        bytes memory data = abi.encodeWithSelector(OPContractsManagerInteropMigrator.migrateInterop.selector);
+        _performDelegateCall(address(opcmInteropMigrator), data);
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard

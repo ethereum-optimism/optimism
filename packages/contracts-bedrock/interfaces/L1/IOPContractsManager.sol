@@ -83,6 +83,14 @@ interface IOPContractsManagerUpgrader {
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
 
+interface IOPContractsManagerInteropUpgrader {
+    function __constructor__(
+
+    ) external;
+
+    function upgrade() external;
+}
+
 interface IOPContractsManager {
     // -------- Structs --------
 

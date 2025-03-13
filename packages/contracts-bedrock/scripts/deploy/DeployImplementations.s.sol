@@ -22,7 +22,8 @@ import {
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
-    IOPContractsManagerContractsContainer
+    IOPContractsManagerContractsContainer,
+    IOPContractsManagerInteropUpgrader
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -156,6 +157,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
     IOPContractsManagerGameTypeAdder internal _opcmGameTypeAdder;
     IOPContractsManagerDeployer internal _opcmDeployer;
     IOPContractsManagerUpgrader internal _opcmUpgrader;
+    IOPContractsManagerInteropMigrator internal _opcmInteropMigrator;
     IDelayedWETH internal _delayedWETHImpl;
     IOptimismPortal internal _optimismPortalImpl;
     IETHLockbox internal _ethLockboxImpl;
@@ -180,6 +182,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         else if (_sel == this.opcmGameTypeAdder.selector) _opcmGameTypeAdder = IOPContractsManagerGameTypeAdder(_addr);
         else if (_sel == this.opcmDeployer.selector) _opcmDeployer = IOPContractsManagerDeployer(_addr);
         else if (_sel == this.opcmUpgrader.selector) _opcmUpgrader = IOPContractsManagerUpgrader(_addr);
+        else if (_sel == this.opcmInteropMigrator.selector) _opcmInteropMigrator = IOPContractsManagerInteropMigrator(_addr);
         else if (_sel == this.superchainConfigImpl.selector) _superchainConfigImpl = ISuperchainConfig(_addr);
         else if (_sel == this.protocolVersionsImpl.selector) _protocolVersionsImpl = IProtocolVersions(_addr);
         else if (_sel == this.optimismPortalImpl.selector) _optimismPortalImpl = IOptimismPortal(payable(_addr));
@@ -250,6 +253,12 @@ contract DeployImplementationsOutput is BaseDeployIO {
     function opcmUpgrader() public view returns (IOPContractsManagerUpgrader) {
         DeployUtils.assertValidContractAddress(address(_opcmUpgrader));
         return _opcmUpgrader;
+    }
+
+
+    function opcmInteropMigrator() public view returns (IOPContractsManagerInteropMigrator) {
+        DeployUtils.assertValidContractAddress(address(_opcmInteropMigrator));
+        return _opcmInteropMigrator;
     }
 
     function superchainConfigImpl() public view returns (ISuperchainConfig) {
@@ -550,6 +559,7 @@ contract DeployImplementations is Script {
         deployOPCMGameTypeAdder(_dio);
         deployOPCMDeployer(_dio);
         deployOPCMUpgrader(_dio);
+        deployOPCMInteropMigrator(_dio);
 
         opcm_ = IOPContractsManager(
             DeployUtils.createDeterministic({
@@ -922,6 +932,19 @@ contract DeployImplementations is Script {
         vm.label(address(impl), "OPContractsManagerUpgraderImpl");
         _dio.set(_dio.opcmUpgrader.selector, address(impl));
     }
+
+    function deployOPCMInteropMigrator(DeployImplementationsOutput _dio) public virtual {
+        IOPContractsManagerInteropMigrator impl = IOPContractsManagerInteropMigrator(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManager.sol:OPContractsManagerInteropMigrator",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, ())),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OPContractsManagerInteropMigratorImpl");
+        _dio.set(_dio.opcmInteropMigrator.selector, address(impl));
+    }
+
     // -------- Utilities --------
 
     function etchIOContracts() public returns (DeployImplementationsInput dii_, DeployImplementationsOutput dio_) {
