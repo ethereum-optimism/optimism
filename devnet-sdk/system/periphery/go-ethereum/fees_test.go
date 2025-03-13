@@ -13,6 +13,49 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMultiplyBigInt(t *testing.T) {
+	type TestCase struct {
+		value      *big.Int
+		multiplier float64
+		expected   *big.Int
+	}
+
+	testCases := []TestCase{
+		{
+			value:      big.NewInt(10),
+			multiplier: 1.0,
+			expected:   big.NewInt(10),
+		},
+		{
+			value:      big.NewInt(7),
+			multiplier: 0.0,
+			expected:   big.NewInt(0),
+		},
+		{
+			value:      big.NewInt(10),
+			multiplier: 1.01,
+			expected:   big.NewInt(11),
+		},
+		{
+			value:      big.NewInt(10),
+			multiplier: 1.11,
+			expected:   big.NewInt(12),
+		},
+		{
+			value:      big.NewInt(5),
+			multiplier: 1.2,
+			expected:   big.NewInt(6),
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("should return %d for %d multplied by %f", testCase.expected.Int64(), testCase.value.Int64(), testCase.multiplier), func(t *testing.T) {
+			result := multiplyBigInt(testCase.value, testCase.multiplier)
+			require.Equal(t, testCase.expected, result)
+		})
+	}
+}
+
 func TestEstimateEIP1559Fees(t *testing.T) {
 	t.Run("if GasFeeCap and GasTipCap are not nil", func(t *testing.T) {
 		opts := &bind.TransactOpts{
