@@ -152,7 +152,6 @@ func (su *SupervisorService) initRPCServer(cfg *config.Config) error {
 		cfg.RPC.ListenPort,
 		cfg.Version,
 		oprpc.WithLogger(su.log),
-		// oprpc.WithHTTPRecorder(su.metrics), // TODO(protocol-quest#286) hook up metrics to RPC server
 	)
 	RegisterRPCs(su.log, cfg, server, su.backend)
 	su.rpcServer = server
@@ -164,17 +163,21 @@ type RpcServer interface {
 }
 
 func RegisterRPCs(logger log.Logger, cfg *config.Config, server RpcServer, backend Backend) {
+	m := metrics.NoopMetrics
+	if cfg.MetricsConfig.Enabled {
+		m = metrics.NewMetrics("default")
+	}
 	if cfg.RPC.EnableAdmin {
 		logger.Info("Admin RPC enabled")
 		server.AddAPI(rpc.API{
 			Namespace:     "admin",
-			Service:       &frontend.AdminFrontend{Supervisor: backend},
+			Service:       &frontend.AdminFrontend{Supervisor: backend, Metrics: m},
 			Authenticated: true, // TODO(protocol-quest#286): enforce auth on this or not?
 		})
 	}
 	server.AddAPI(rpc.API{
 		Namespace:     "supervisor",
-		Service:       &frontend.QueryFrontend{Supervisor: backend},
+		Service:       &frontend.QueryFrontend{Supervisor: backend, Metrics: m},
 		Authenticated: false,
 	})
 }
