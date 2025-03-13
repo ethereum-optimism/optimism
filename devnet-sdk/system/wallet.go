@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -114,6 +115,16 @@ func (w *wallet) InitiateMessage(chainID types.ChainID, target common.Address, m
 	}
 }
 
+func (w *wallet) ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any] {
+	return &executeMessageImpl{
+		chain:       w.chain,
+		processor:   w,
+		from:        w.address,
+		identifier:  identifier,
+		sentMessage: sentMessage,
+	}
+}
+
 type initiateMessageImpl struct {
 	chain     internalChain
 	processor TransactionProcessor
@@ -153,6 +164,58 @@ func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 }
 
 func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
+	result, err := i.Call(ctx)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	tx, ok := result.(Transaction)
+	if !ok {
+		return &sendResult{chain: i.chain, tx: nil, err: fmt.Errorf("unexpected return type")}
+	}
+	err = i.processor.Send(ctx, tx)
+	return &sendResult{
+		chain: i.chain,
+		tx:    tx,
+		err:   err,
+	}
+}
+
+type executeMessageImpl struct {
+	chain     internalChain
+	processor TransactionProcessor
+	from      types.Address
+
+	identifier  bindings.Identifier
+	sentMessage []byte
+}
+
+func (i *executeMessageImpl) Call(ctx context.Context) (any, error) {
+	builder := NewTxBuilder(ctx, i.chain)
+	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init transaction: %w", err)
+	}
+	data, err := messenger.ABI().Pack("relayMessage", i.identifier, i.sentMessage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build calldata: %w", err)
+	}
+	tx, err := builder.BuildTx(
+		WithFrom(i.from),
+		WithTo(constants.L2ToL2CrossDomainMessenger),
+		WithValue(big.NewInt(0)),
+		WithData(data),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+	tx, err = i.processor.Sign(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+	return tx, nil
+}
+
+func (i *executeMessageImpl) Send(ctx context.Context) types.InvocationResult {
 	result, err := i.Call(ctx)
 	if err != nil {
 		return &sendResult{chain: i.chain, tx: nil, err: err}
@@ -291,9 +354,10 @@ func (i *sendImpl) Send(ctx context.Context) types.InvocationResult {
 }
 
 type sendResult struct {
-	chain internalChain
-	tx    Transaction
-	err   error
+	chain   internalChain
+	tx      Transaction
+	receipt Receipt
+	err     error
 }
 
 func (r *sendResult) Error() error {
@@ -318,11 +382,15 @@ func (r *sendResult) Wait() error {
 		if err != nil {
 			return fmt.Errorf("failed waiting for transaction confirmation: %w", err)
 		}
-
+		r.receipt = &EthReceipt{blockNumber: receipt.BlockNumber, logs: receipt.Logs, txHash: receipt.TxHash}
 		if receipt.Status == 0 {
 			return fmt.Errorf("transaction failed")
 		}
 	}
 
 	return nil
+}
+
+func (r *sendResult) Info() any {
+	return r.receipt
 }

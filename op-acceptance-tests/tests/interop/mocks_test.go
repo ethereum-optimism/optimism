@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/empty"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
@@ -51,6 +52,10 @@ func (m *mockFailingTx) Wait() error {
 	return fmt.Errorf("transaction failure")
 }
 
+func (m *mockFailingTx) Info() any {
+	return nil
+}
+
 // mockFailingWallet implements types.Wallet that fails on SendETH
 type mockFailingWallet struct {
 	addr types.Address
@@ -82,6 +87,9 @@ func (m *mockFailingWallet) InitiateMessage(chainID types.ChainID, target common
 	return &mockFailingTx{}
 }
 
+func (m *mockFailingWallet) ExecuteMessage(identifer bindings.Identifier, sentMessage []byte) types.WriteInvocation[any] {
+	return &mockFailingTx{}
+}
 func (m *mockFailingWallet) Nonce() uint64 {
 	return 0
 }

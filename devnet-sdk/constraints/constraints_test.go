@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -36,6 +37,10 @@ func (m mockWallet) SendETH(to types.Address, amount types.Balance) types.WriteI
 }
 
 func (m mockWallet) InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+	panic("not implemented")
+}
+
+func (m mockWallet) ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any] {
 	panic("not implemented")
 }
 

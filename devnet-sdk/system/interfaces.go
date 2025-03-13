@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
@@ -74,6 +75,7 @@ type Wallet interface {
 	Address() types.Address
 	SendETH(to types.Address, amount types.Balance) types.WriteInvocation[any]
 	InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any]
+	ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any]
 	Balance() types.Balance
 	Nonce() uint64
 
@@ -101,6 +103,12 @@ type Transaction interface {
 	Type() uint8
 	Hash() common.Hash
 	TransactionData
+}
+
+type Receipt interface {
+	BlockNumber() *big.Int
+	Logs() []*coreTypes.Log
+	TxHash() common.Hash
 }
 
 // RawTransaction is an optional interface that can be implemented by a Transaction
