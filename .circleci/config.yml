@@ -1566,6 +1566,7 @@ workflows:
             packages/contracts-bedrock/scripts/checks
             packages/contracts-bedrock/scripts/verify
             op-dripper
+            devnet-sdk
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
