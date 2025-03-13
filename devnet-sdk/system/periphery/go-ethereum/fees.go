@@ -27,7 +27,7 @@ type EIP1559FeeEstimator struct {
 	// Access to the Ethereum client is needed to get the fee information from the chain
 	client EIP1159FeeEthClient
 
-	// The tip multiplier is used to increase the maxFeePerGas (GasFeeCap) by a factor
+	// The base multiplier is used to increase the maxFeePerGas (GasFeeCap) by a factor
 	baseMultiplier float64
 
 	// The tip multiplier is used to increase the maxPriorityFeePerGas (GasTipCap) by a factor
