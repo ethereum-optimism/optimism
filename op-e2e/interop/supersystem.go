@@ -334,7 +334,7 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 	}
 	cl, err := client.NewRPC(context.Background(), s.logger, s.supervisor.RPC())
 	require.NoError(s.t, err, "failed to dial supervisor RPC")
-	superClient := sources.NewSupervisorClient(cl)
+	superClient := sources.NewSupervisorClient(cl, nil)
 	s.superClient = superClient
 	return superClient
 }

@@ -106,7 +106,7 @@ func (i *interopSystem) Supervisor(ctx context.Context) (Supervisor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial supervisor RPC: %w", err)
 	}
-	supervisor := sources.NewSupervisorClient(cl)
+	supervisor := sources.NewSupervisorClient(cl, nil)
 	i.supervisor = supervisor
 	return supervisor, nil
 }

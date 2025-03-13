@@ -101,7 +101,7 @@ func (r *Runner) Start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup client: %w", err)
 		}
-		supervisorClient = sources.NewSupervisorClient(client.NewBaseRPCClient(rpcCl))
+		supervisorClient = sources.NewSupervisorClient(client.NewBaseRPCClient(rpcCl), nil)
 	}
 
 	l1Client, err := dial.DialRPCClientWithTimeout(ctx, 1*time.Minute, r.log, r.cfg.L1EthRpc)

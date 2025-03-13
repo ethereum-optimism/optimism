@@ -152,7 +152,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 			if err != nil {
 				return fmt.Errorf("failed to dial supervisor RPC client (%v): %w", url, err)
 			}
-			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc))
+			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc), nil)
 			clients = append(clients, cl)
 		}
 		ps.ProposalSource = source.NewSupervisorProposalSource(ps.Log, clients...)
