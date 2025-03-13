@@ -8,10 +8,10 @@ use http::response::Parts;
 use http::{StatusCode, Uri};
 use http_body_util::BodyExt;
 use hyper_rustls::HttpsConnector;
-use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
+use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::rt::TokioExecutor;
-use jsonrpsee::core::{http_helpers, BoxError};
+use jsonrpsee::core::{BoxError, http_helpers};
 use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
 use std::io::Read;
 use std::sync::Arc;
@@ -381,7 +381,7 @@ fn parse_response_code(body_bytes: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{hex, Bytes, B256, U128, U64};
+    use alloy_primitives::{B256, Bytes, U64, U128, hex};
     use alloy_rpc_types_engine::JwtSecret;
     use alloy_rpc_types_eth::erc4337::ConditionalOptions;
     use http_body_util::BodyExt;
@@ -389,12 +389,12 @@ mod tests {
     use hyper_util::rt::TokioIo;
     use jsonrpsee::server::Server;
     use jsonrpsee::{
-        core::{client::ClientT, ClientError},
+        RpcModule,
+        core::{ClientError, client::ClientT},
         http_client::HttpClient,
         rpc_params,
         server::{ServerBuilder, ServerHandle},
         types::{ErrorCode, ErrorObject},
-        RpcModule,
     };
     use serde_json::json;
     use std::{
@@ -707,9 +707,10 @@ mod tests {
             .register_method("engine_method", |_, _, _| "engine response")
             .unwrap();
         module
-            .register_method("eth_sendRawTransaction", |_, _, _| {
-                "raw transaction response"
-            })
+            .register_method(
+                "eth_sendRawTransaction",
+                |_, _, _| "raw transaction response",
+            )
             .unwrap();
         module
             .register_method("non_existent_method", |_, _, _| "no proxy response")

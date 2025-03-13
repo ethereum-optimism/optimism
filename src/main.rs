@@ -1,4 +1,4 @@
-use clap::{arg, Parser, Subcommand};
+use clap::{Parser, Subcommand, arg};
 use client::{BuilderArgs, ExecutionClient, L2ClientArgs};
 use debug_api::DebugClient;
 use metrics::{ClientMetrics, ServerMetrics};
@@ -10,22 +10,22 @@ use dotenv::dotenv;
 use eyre::bail;
 use http::StatusCode;
 use hyper::service::service_fn;
-use hyper::{server::conn::http1, Request, Response};
+use hyper::{Request, Response, server::conn::http1};
 use hyper_util::rt::TokioIo;
+use jsonrpsee::RpcModule;
 use jsonrpsee::http_client::HttpBody;
 use jsonrpsee::server::Server;
-use jsonrpsee::RpcModule;
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use metrics_util::layers::{PrefixLayer, Stack};
 use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::Config, Resource};
+use opentelemetry_sdk::{Resource, propagation::TraceContextPropagator, trace::Config};
 use proxy::ProxyLayer;
 use server::{PayloadSource, RollupBoostServer};
 
 use tokio::net::TcpListener;
-use tokio::signal::unix::{signal as unix_signal, SignalKind};
-use tracing::{error, info, Level};
+use tokio::signal::unix::{SignalKind, signal as unix_signal};
+use tracing::{Level, error, info};
 use tracing_subscriber::EnvFilter;
 
 mod auth_layer;
@@ -369,10 +369,10 @@ mod tests {
     use crate::auth_layer::AuthClientService;
     use crate::server::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
+    use jsonrpsee::RpcModule;
+    use jsonrpsee::http_client::HttpClient;
     use jsonrpsee::http_client::transport::Error as TransportError;
     use jsonrpsee::http_client::transport::HttpBackend;
-    use jsonrpsee::http_client::HttpClient;
-    use jsonrpsee::RpcModule;
     use jsonrpsee::{
         core::ClientError,
         rpc_params,

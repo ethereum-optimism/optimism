@@ -9,11 +9,11 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId,
     PayloadStatus, PayloadStatusEnum,
 };
-use jsonrpsee::http_client::{transport::HttpBackend, HttpClient};
+use jsonrpsee::http_client::{HttpClient, transport::HttpBackend};
 use jsonrpsee::proc_macros::rpc;
 use lazy_static::lazy_static;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
-use proxy::{start_proxy_server, DynHandlerFn};
+use proxy::{DynHandlerFn, start_proxy_server};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -28,7 +28,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use thiserror::Error;
-use time::{format_description, OffsetDateTime};
+use time::{OffsetDateTime, format_description};
 
 /// Default JWT token for testing purposes
 pub const DEFAULT_JWT_TOKEN: &str =
@@ -551,7 +551,7 @@ pub struct RollupBoostTestHarness {
 /// Test node P2P configuration (private_key, enode_address)
 pub const TEST_NODE_P2P_ADDR: (&str, &str) = (
     "a11ac89899cd86e36b6fb881ec1255b8a92a688790b7d950f8b7d8dd626671fb",
-    "3479db4d9217fb5d7a8ed4d61ac36e120b05d36c2eefb795dc42ff2e971f251a2315f5649ea1833271e020b9adc98d5db9973c7ed92d6b2f1f2223088c3d852f"
+    "3479db4d9217fb5d7a8ed4d61ac36e120b05d36c2eefb795dc42ff2e971f251a2315f5649ea1833271e020b9adc98d5db9973c7ed92d6b2f1f2223088c3d852f",
 );
 
 const PROXY_START_PORT: u16 = 4444;
