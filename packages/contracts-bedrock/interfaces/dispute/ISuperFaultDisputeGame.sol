@@ -5,7 +5,6 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { Types } from "src/libraries/Types.sol";
 import { GameType, Claim, Position, Clock, Hash, Duration, BondDistributionMode } from "src/dispute/lib/Types.sol";
 
 interface ISuperFaultDisputeGame is IDisputeGame {
