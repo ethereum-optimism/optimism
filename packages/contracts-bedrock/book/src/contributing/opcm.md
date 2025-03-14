@@ -115,12 +115,12 @@ methods should have the `reinitializer(reinitVersion())` modifier.
 
 The OPCM must then use `ProxyAdmin.upgradeAndCall()` to call the `upgrade()` method. Additionally, if the
 input value is not read from the chain, then it will need to be passed in as input. This will
-require a new filed to be added to the `OpChainConfig` struct.
+require a new field to be added to the `OpChainConfig` struct.
 
 ### New derivation path events are being added
 
 If a contract emits events which have an impact on the derivation path of a chain (this most often
-occurs when a new `UpdateType` are added to the `SystemConfig.ConfigUpdate()` event), the best
+occurs when a new `UpdateType` is added to the `SystemConfig.ConfigUpdate()` event), the best
 practice is to:
 
 1. Not emit the new event in the `initialize()` method (and not add an `upgrade()` method)
