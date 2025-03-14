@@ -1570,6 +1570,7 @@ workflows:
             packages/contracts-bedrock/scripts/verify
             op-dripper
             devnet-sdk
+            kurtosis-devnet
             op-acceptance-tests
           requires:
             - contracts-bedrock-build
