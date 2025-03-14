@@ -573,13 +573,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Check that the PermissionedDisputeGame is upgraded to the expected version, references
         // the correct anchor state and has the mipsImpl. Although Upgrade 15 doesn't actually
         // change any of this, we might as well check it again.
-        assertEq(ISemver(address(pdg)).version(), "1.4.1");
+        assertEq(ISemver(address(pdg)).version(), "1.5.0");
         assertEq(address(pdg.vm()), impls.mipsImpl);
         assertEq(pdg.l2ChainId(), oldPDG.l2ChainId());
 
         // If the old FaultDisputeGame exists, we expect it to be upgraded. Check same as above.
         if (address(oldFDG) != address(0)) {
-            assertEq(ISemver(address(fdg)).version(), "1.4.1");
+            assertEq(ISemver(address(fdg)).version(), "1.5.0");
             assertEq(address(fdg.vm()), impls.mipsImpl);
             assertEq(fdg.l2ChainId(), oldFDG.l2ChainId());
         }
@@ -604,7 +604,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         });
 
         // Make sure the new AnchorStateRegistry has the right version and is initialized.
-        assertEq(ISemver(address(newAsrProxy)).version(), "3.0.0");
+        assertEq(ISemver(address(newAsrProxy)).version(), "3.1.0");
         vm.prank(address(proxyAdmin));
         assertEq(IProxy(payable(newAsrProxy)).admin(), address(proxyAdmin));
         DeployUtils.assertInitialized({ _contractAddress: address(newAsrProxy), _isProxy: true, _slot: 0, _offset: 0 });
