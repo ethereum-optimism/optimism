@@ -48,6 +48,7 @@ type Intent struct {
 	L2ContractsLocator    *artifacts.Locator `json:"l2ContractsLocator" toml:"l2ContractsLocator"`
 	Chains                []*ChainIntent     `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any     `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
+	Transactor            *common.Address    `json:"transactor,omitempty" toml:"transactor,omitempty"`
 }
 
 type SuperchainRoles struct {
