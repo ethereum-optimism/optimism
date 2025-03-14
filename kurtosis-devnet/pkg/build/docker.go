@@ -3,8 +3,11 @@ package build
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"text/template"
@@ -50,7 +53,36 @@ type dockerProvider interface {
 type defaultDockerProvider struct{}
 
 func (p *defaultDockerProvider) newClient() (dockerClient, error) {
-	return client.NewClientWithOpts(client.FromEnv)
+	opts := []client.Opt{client.FromEnv}
+
+	// Check if default docker socket exists
+	hostURL, err := client.ParseHostURL(client.DefaultDockerHost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse default docker host: %w", err)
+	}
+
+	// For unix sockets, check if the socket file exists
+	if hostURL.Scheme == "unix" {
+		if _, err := os.Stat(hostURL.Path); os.IsNotExist(err) {
+			// Default socket doesn't exist, try alternate location. Docker Desktop uses ~/.docker/run/docker.sock
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			homeSocketPath := fmt.Sprintf("%s/.docker/run/docker.sock", homeDir)
+			if _, err := os.Stat(homeSocketPath); os.IsNotExist(err) {
+				return nil, errors.New("failed to find docker socket")
+			}
+			socketURL := &url.URL{
+				Scheme: "unix",
+				Path:   homeSocketPath,
+			}
+			// prepend the host, so that it can still be overridden by the environment.
+			opts = append([]client.Opt{client.WithHost(socketURL.String())}, opts...)
+		}
+	}
+
+	return client.NewClientWithOpts(opts...)
 }
 
 // DockerBuilder handles building docker images using just commands
