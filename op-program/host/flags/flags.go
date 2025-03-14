@@ -89,7 +89,7 @@ var (
 	L2BlockNumber = &cli.Uint64Flag{
 		Name:    "l2.blocknumber",
 		Aliases: []string{"l2.sequencenumber"},
-		Usage:   "Number of the L2 block number or timestamp that the claim is from",
+		Usage:   "L2 block number or timestamp that the claim is from",
 		EnvVars: append(prefixEnvVars("L2_BLOCK_NUM"), prefixEnvVars("L2_SEQUENCE_NUMBER")...),
 	}
 	L2GenesisPath = &cli.StringSliceFlag{
