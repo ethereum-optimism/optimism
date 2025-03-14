@@ -232,16 +232,17 @@ impl EngineApiServer for RollupBoostServer {
         }
 
         // TODO: Use _is_block_building_call to log the correct message during the async call to builder
-        let should_send_to_builder =
+        let (should_send_to_builder, _is_block_building_call) =
             if let Some(attr) = payload_attributes.as_ref() {
                 // payload attributes are present. It is a FCU call to start block building
                 // Do not send to builder if no_tx_pool is set, meaning that the CL node wants
                 // a deterministic block without txs. We let the fallback EL node compute those.
-                !attr.no_tx_pool.unwrap_or_default()
+                let use_tx_pool = !attr.no_tx_pool.unwrap_or_default();
+                (use_tx_pool, true)
             } else {
                 // no payload attributes. It is a FCU call to lock the head block
                 // previously synced with the new_payload_v3 call. Only send to builder if boost_sync is enabled
-                self.boost_sync
+                (self.boost_sync, false)
             };
 
         let execution_mode = self.execution_mode();
@@ -299,31 +300,31 @@ impl EngineApiServer for RollupBoostServer {
             }
 
             let builder = self.builder_client.clone();
-            let (payload, source) = builder.get_payload_v3(payload_id).await.map_err(|e| {
-                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder.auth_rpc, "error" = %e, "local_payload" = %payload_id);
-                e
+            let (payload, source) = builder.get_payload_v3(payload_id).await.map_err(|error| {
+                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder.auth_rpc, %error, %payload_id);
+                error
                 })?;
 
             let block_hash = ExecutionPayload::from(payload.clone().execution_payload).block_hash();
-            info!(message = "received payload from builder", "payload_id" = %payload_id,  "block_hash" = %block_hash);
+            info!(message = "received payload from builder", %payload_id, %block_hash);
 
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
-            let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
-                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_rpc, "error" = %e, "payload_id" = %payload_id);
-                e
+            let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|error| {
+                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_rpc, %error, %payload_id);
+                error
             })?;
 
             if payload_status.is_invalid() {
-                error!(message = "builder payload was not valid", "url" = ?builder.auth_rpc, "payload_status" = %payload_status.status, "payload_id" = %payload_id);
+                error!(message = "builder payload was not valid", "url" = ?builder.auth_rpc, "payload_status" = %payload_status.status, %payload_id);
                 Err(ClientError::Call(ErrorObject::owned(
                     INVALID_REQUEST_CODE,
                     "Builder payload was not valid",
                     None::<String>,
                 )))
             } else {
-                info!(message = "received payload status from local execution engine validating builder payload", "payload_id" = %payload_id);
+                info!(message = "received payload status from local execution engine validating builder payload", %payload_id);
                 Ok((payload, source))
             }
         });
