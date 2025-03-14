@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPragueForkAfterGenesis(gt *testing.T) {
+func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 	type testCase struct {
 		name         string
 		useSetCodeTx bool
