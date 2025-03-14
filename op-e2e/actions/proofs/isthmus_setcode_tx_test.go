@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-func TestSetCodeTx(gt *testing.T) {
+func Test_ProgramAction_SetCodeTx(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
@@ -142,7 +142,7 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 }
 
 // TestInvalidSetCodeTxBatch tests that batches that include SetCodeTxs are dropped before Isthmus
-func TestInvalidSetCodeTxBatch(gt *testing.T) {
+func Test_ProgramAction_InvalidSetCodeTxBatch(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	matrix.AddDefaultTestCases(
 		nil,
