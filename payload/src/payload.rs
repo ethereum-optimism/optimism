@@ -14,7 +14,9 @@ use alloy_rpc_types_engine::{
 use op_alloy_consensus::{encode_holocene_extra_data, EIP1559ParamError};
 /// Re-export for use in downstream arguments.
 pub use op_alloy_rpc_types_engine::OpPayloadAttributes;
-use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4};
+use op_alloy_rpc_types_engine::{
+    OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
+};
 use reth_chain_state::ExecutedBlockWithTrieUpdates;
 use reth_optimism_primitives::OpPrimitives;
 use reth_payload_builder::EthPayloadBuilderAttributes;
@@ -287,10 +289,16 @@ where
 
         let parent_beacon_block_root = block.parent_beacon_block_root.unwrap_or_default();
 
+        let l2_withdrawals_root = block.withdrawals_root.unwrap_or_default();
+        let payload_v3 = ExecutionPayloadV3::from_block_unchecked(
+            block.hash(),
+            &Arc::unwrap_or_clone(block).into_block(),
+        );
+
         Self {
-            execution_payload: ExecutionPayloadV3::from_block_unchecked(
-                block.hash(),
-                &Arc::unwrap_or_clone(block).into_block(),
+            execution_payload: OpExecutionPayloadV4::from_v3_with_withdrawals_root(
+                payload_v3,
+                l2_withdrawals_root,
             ),
             block_value: fees,
             // From the engine API spec:
