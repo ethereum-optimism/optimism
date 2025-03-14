@@ -217,9 +217,9 @@ type ExecutingDescriptor struct {
 	// Timestamp is the timestamp of the executing message
 	Timestamp uint64
 
-	// Timeout, optional, requests verification to still hold at Timestamp+Timeout.
+	// Timeout, requests verification to still hold at Timestamp+Timeout (incl.). Defaults to 0.
 	// I.e. Timestamp is used as lower-bound validity, and Timeout defines the span to the upper-bound.
-	Timeout *uint64
+	Timeout uint64
 }
 
 func (ed *ExecutingDescriptor) AccessCheck(expiryWindow uint64, initMsgTimestamp uint64) error {
@@ -243,18 +243,17 @@ func (ed *ExecutingDescriptor) AccessCheck(expiryWindow uint64, initMsgTimestamp
 		return fmt.Errorf("cannot message execute at %d, message expired at %d: %w",
 			ed.Timestamp, expiryAt, ErrConflict)
 	}
-	if ed.Timeout == nil {
+	if ed.Timeout == 0 {
 		// If no timeout, then just checking the exact execution time was sufficient
 		return nil
 	}
 
 	// If a timeout is set, check if executing late is still within the expiry window
-	timeout := *ed.Timeout
-	if ed.Timestamp+timeout < ed.Timestamp {
+	if ed.Timestamp+ed.Timeout < ed.Timestamp {
 		return fmt.Errorf("message timeout too high, overflows: %d, %w",
 			ed.Timestamp, ErrConflict)
 	}
-	if v := ed.Timestamp + timeout; v > expiryAt {
+	if v := ed.Timestamp + ed.Timeout; v > expiryAt {
 		return fmt.Errorf("cannot execute message at timeout %d, expired at %d: %w",
 			v, expiryAt, ErrConflict)
 	}
@@ -262,14 +261,14 @@ func (ed *ExecutingDescriptor) AccessCheck(expiryWindow uint64, initMsgTimestamp
 }
 
 type executingDescriptorMarshaling struct {
-	Timestamp hexutil.Uint64  `json:"timestamp"`
-	Timeout   *hexutil.Uint64 `json:"timeout,omitempty"`
+	Timestamp hexutil.Uint64 `json:"timestamp"`
+	Timeout   hexutil.Uint64 `json:"timeout,omitempty"`
 }
 
 func (ed ExecutingDescriptor) MarshalJSON() ([]byte, error) {
 	var enc executingDescriptorMarshaling
 	enc.Timestamp = hexutil.Uint64(ed.Timestamp)
-	enc.Timeout = (*hexutil.Uint64)(ed.Timeout)
+	enc.Timeout = hexutil.Uint64(ed.Timeout)
 	return json.Marshal(&enc)
 }
 
@@ -279,7 +278,7 @@ func (ed *ExecutingDescriptor) UnmarshalJSON(input []byte) error {
 		return err
 	}
 	ed.Timestamp = uint64(dec.Timestamp)
-	ed.Timeout = (*uint64)(dec.Timeout)
+	ed.Timeout = uint64(dec.Timeout)
 	return nil
 }
 

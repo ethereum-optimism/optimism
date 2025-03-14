@@ -221,7 +221,7 @@ func TestExecutingDescriptorAccessCheck(t *testing.T) {
 			name: "success",
 			ed: ExecutingDescriptor{
 				Timestamp: 3,
-				Timeout:   nil,
+				Timeout:   0,
 			},
 			expiryWindow:     10,
 			initMsgTimestamp: 2,
@@ -230,7 +230,7 @@ func TestExecutingDescriptorAccessCheck(t *testing.T) {
 			name: "future exec",
 			ed: ExecutingDescriptor{
 				Timestamp: 3,
-				Timeout:   nil,
+				Timeout:   0,
 			},
 			expiryWindow:     10,
 			initMsgTimestamp: 4,
@@ -240,7 +240,7 @@ func TestExecutingDescriptorAccessCheck(t *testing.T) {
 			name: "access-list checks are extra strict, don't allow intra-timestamp",
 			ed: ExecutingDescriptor{
 				Timestamp: 3,
-				Timeout:   nil,
+				Timeout:   0,
 			},
 			expiryWindow:     10,
 			initMsgTimestamp: 3,
@@ -250,7 +250,7 @@ func TestExecutingDescriptorAccessCheck(t *testing.T) {
 			name: "attempt init-msg timestamp overflow",
 			ed: ExecutingDescriptor{
 				Timestamp: (^uint64(0)) - 2,
-				Timeout:   nil,
+				Timeout:   0,
 			},
 			expiryWindow:     10,
 			initMsgTimestamp: (^uint64(0)) - 3,
@@ -260,7 +260,7 @@ func TestExecutingDescriptorAccessCheck(t *testing.T) {
 			name: "expired",
 			ed: ExecutingDescriptor{
 				Timestamp: 100,
-				Timeout:   nil,
+				Timeout:   0,
 			},
 			expiryWindow:     10,
 			initMsgTimestamp: 89,
@@ -270,10 +270,7 @@ func TestExecutingDescriptorAccessCheck(t *testing.T) {
 			name: "timeout overflow",
 			ed: ExecutingDescriptor{
 				Timestamp: 100,
-				Timeout: func() *uint64 {
-					x := (^uint64(0)) - 3
-					return &x
-				}(),
+				Timeout:   (^uint64(0)) - 3,
 			},
 			expiryWindow:     10,
 			initMsgTimestamp: 99,
@@ -283,10 +280,7 @@ func TestExecutingDescriptorAccessCheck(t *testing.T) {
 			name: "timeout, valid at exec timestamp, but not shortly after",
 			ed: ExecutingDescriptor{
 				Timestamp: 100,
-				Timeout: func() *uint64 {
-					x := uint64(10) // timeout asks for 100+10=110
-					return &x
-				}(),
+				Timeout:   10, //timeout asks for 100+10=110
 			},
 			expiryWindow:     10, // valid till 95+10 = 105
 			initMsgTimestamp: 95,
