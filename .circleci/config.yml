@@ -1105,6 +1105,55 @@ jobs:
             - notify-failures-on-develop:
                 mentions: "<<parameters.mentions>>"
 
+  op-acceptance-tests:
+    parameters:
+      devnet:
+        description: The name of the devnet to run the acceptance tests against. The devnet must have a recipe defined in kurtosis-devnet/Justfile with the name <devnet>-devnet.
+        type: string
+        default: ""
+      gate:
+        description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
+        type: string
+        default: ""
+      notify:
+        description: Whether to notify on failure
+        type: boolean
+        default: false
+      mentions:
+        description: Slack user or group to mention when notifying of failures
+        type: string
+        default: ""
+      resource_class:
+        description: Machine resource class
+        type: string
+        default: xlarge
+      no_output_timeout:
+        description: Timeout for when CircleCI kills the job if there's no output
+        type: string
+        default: 30m
+    machine: true
+    resource_class: <<parameters.resource_class>>
+    steps:
+      - utils/checkout-with-mise
+      - attach_workspace:
+          at: "."
+      - run:
+          name: Run acceptance tests
+          no_output_timeout: <<parameters.no_output_timeout>>
+          command: |
+            cd op-acceptance-tests && just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+      - store_test_results:
+          path: ./op-acceptance-tests/results
+          when: always
+      - store_artifacts:
+          path: ./op-acceptance-tests/logs
+          when: always
+      - when:
+          condition: "<<parameters.notify>>"
+          steps:
+            - notify-failures-on-develop:
+                mentions: "<<parameters.mentions>>"
+
   sanitize-op-program:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
@@ -1600,13 +1649,17 @@ workflows:
             packages/contracts-bedrock/scripts/verify
             op-dripper
             devnet-sdk
-            kurtosis-devnet
             op-acceptance-tests
+            kurtosis-devnet
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
           context: circleci-repo-readonly-authenticated-github-token
       - analyze-op-program-client:
+          context: circleci-repo-readonly-authenticated-github-token
+      - op-acceptance-tests:
+          devnet: simple
+          gate: localnet
           context: circleci-repo-readonly-authenticated-github-token
       - op-program-compat:
           context: circleci-repo-readonly-authenticated-github-token
