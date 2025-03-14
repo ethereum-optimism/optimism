@@ -2,6 +2,7 @@ package proofs_test
 
 import (
 	"bytes"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -12,14 +13,27 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-var (
-	aa = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
-	bb = common.HexToAddress("0x000000000000000000000000000000000000bbbb")
-)
+func TestSetCodeTx(gt *testing.T) {
+	matrix := helpers.NewMatrix[any]()
+	defer matrix.Run(gt)
+
+	matrix.AddDefaultTestCases(
+		nil,
+		helpers.LatestForkOnly,
+		runSetCodeTxTypeTest,
+	)
+}
 
 func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+	var (
+		aa = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
+		bb = common.HexToAddress("0x000000000000000000000000000000000000bbbb")
+	)
+
 	t := actionsHelpers.NewDefaultTesting(gt)
 
 	// hardcoded because it's not available until after we need it
@@ -127,13 +141,51 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.RunFaultProofProgram(t, latestBlock.NumberU64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func TestSetCodeTx(gt *testing.T) {
+// TestInvalidSetCodeTxBatch tests that batches that include SetCodeTxs are dropped before Isthmus
+func TestInvalidSetCodeTxBatch(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
-
 	matrix.AddDefaultTestCases(
 		nil,
-		helpers.LatestForkOnly,
-		runSetCodeTxTypeTest,
+		helpers.NewForkMatrix(helpers.Holocene),
+		testInvalidSetCodeTxBatch,
 	)
+	matrix.Run(gt)
+}
+
+func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
+	sequencer := env.Sequencer
+	miner := env.Miner
+	batcher := env.Batcher
+
+	sequencer.ActL2EmptyBlock(t)
+	u1 := sequencer.L2Unsafe()
+	sequencer.ActL2EmptyBlock(t) // we'll inject the setcode tx in this block's batch
+
+	rng := rand.New(rand.NewSource(0))
+	setcodetx := testutils.RandomSetCodeTx(rng, types.NewPragueSigner(env.Sd.RollupCfg.L2ChainID))
+	batcher.ActL2BatchBuffer(t)
+	batcher.ActL2BatchBuffer(t, func(block *types.Block) *types.Block {
+		// inject user tx into upgrade batch
+		return block.WithBody(types.Body{Transactions: append(block.Transactions(), setcodetx)})
+	})
+	batcher.ActL2ChannelClose(t)
+	batcher.ActL2BatchSubmit(t)
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+	miner.ActL1EndBlock(t)
+
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+
+	l2safe := sequencer.L2Safe()
+	s2block := env.Engine.L2Chain().GetBlockByHash(l2safe.Hash)
+	require.Len(t, s2block.Transactions(), 1, "safe head should only contain l1 info deposit")
+	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")
+
+	recs := env.Logs.FindLogs(testlog.NewMessageFilter("sequencers may not embed any SetCode transactions before Isthmus"))
+	require.Len(t, recs, 1)
+
+	env.RunFaultProofProgram(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }

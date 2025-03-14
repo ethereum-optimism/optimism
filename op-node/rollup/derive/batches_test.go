@@ -573,7 +573,27 @@ func TestValidBatch(t *testing.T) {
 					},
 				},
 			},
-			Expected: BatchDrop,
+			Expected:    BatchDrop,
+			ExpectedLog: "sequencers may not embed any deposits into batch data, but found tx that has one",
+		},
+		{
+			Name:       "setCode tx included pre-Isthmus",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{
+					ParentHash: l2A1.ParentHash,
+					EpochNum:   rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:  l2A1.L1Origin.Hash,
+					Timestamp:  l2A1.Time,
+					Transactions: []hexutil.Bytes{
+						[]byte{types.SetCodeTxType, 0}, // piece of data alike to a SetCodeTx
+					},
+				},
+			},
+			Expected:    BatchDrop,
+			ExpectedLog: "sequencers may not embed any SetCode transactions before Isthmus",
 		},
 		{
 			Name:       "valid batch same epoch",
@@ -630,6 +650,7 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchDrop,
 		},
 	}
+
 	spanBatchTestCases := []ValidBatchTestCase{
 		{
 			Name:       "missing L1 info",
