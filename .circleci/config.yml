@@ -1294,20 +1294,6 @@ jobs:
     steps:
       - run: echo Done
 
-  fpp-verify:
-    circleci_ip_ranges: true
-    docker:
-      - image: cimg/go:1.21
-    steps:
-      - utils/checkout-with-mise
-      - run:
-          name: verify-sepolia
-          command: |
-            make verify-sepolia
-          working_directory: op-program
-      - notify-failures-on-develop:
-          mentions: "@proofs-team"
-
   op-program-compat:
     machine: true
     resource_class: ethereum-optimism/latitude-1
@@ -1796,16 +1782,6 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
 
-  scheduled-fpp:
-    when:
-      equal: [build_hourly, <<pipeline.schedule.name>>]
-    jobs:
-      - fpp-verify:
-          context:
-            - slack
-            - oplabs-fpp-nodes
-            - circleci-repo-readonly-authenticated-github-token
-
   develop-publish-contract-artifacts:
     when:
       or:
@@ -1966,4 +1942,3 @@ workflows:
     jobs:
       - stale-check:
           context: circleci-repo-optimism
-
