@@ -390,6 +390,10 @@ func (ea *L2EngineAPI) NewPayloadV4(ctx context.Context, params *eth.ExecutionPa
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("newPayloadV4 called pre-isthmus"))
 	}
 
+	if params.WithdrawalsRoot == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
+	}
+
 	requests := convertRequests(executionRequests)
 	return ea.newPayload(ctx, params, versionedHashes, beaconRoot, requests)
 }
