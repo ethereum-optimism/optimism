@@ -7,13 +7,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func blockRefFromRpc(ctx context.Context, l1Client *rpc.Client, numberArg string) (*state.L1BlockRefJSON, error) {
-	var l1BRJ state.L1BlockRefJSON
+func blockRefFromRpc(ctx context.Context, l1Client *rpc.Client, numberArg string) (*eth.BlockRef, error) {
+	var l1BRJ eth.BlockRef
 	if err := l1Client.CallContext(ctx, &l1BRJ, "eth_getBlockByNumber", numberArg, false); err != nil {
 		return nil, fmt.Errorf("failed to get L1 block header for block: %w", err)
 	}
@@ -68,7 +69,7 @@ func SetStartBlockGenesisStrategy(env *Env, st *state.State, chainID common.Hash
 	if err != nil {
 		return fmt.Errorf("failed to build L1 developer genesis: %w", err)
 	}
-	thisChainState.StartBlock = state.BlockRefJsonFromHeader(devGenesis.ToBlock().Header())
+	thisChainState.StartBlock = eth.BlockRefFromHeader(devGenesis.ToBlock().Header())
 
 	return nil
 }
