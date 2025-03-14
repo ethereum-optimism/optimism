@@ -101,7 +101,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
     function getRequiredBond(Position _position) external view returns (uint256 requiredBond_);
     function hasUnlockedCredit(address) external view returns (bool);
     function initialize() external payable;
-    function l2BlockNumber() external pure returns (uint256 l2BlockNumber_);
+    function l2SequenceNumber() external pure returns (uint256 l2SequenceNumber_);
     function l2BlockNumberChallenged() external view returns (bool);
     function l2BlockNumberChallenger() external view returns (address);
     function l2ChainId() external view returns (uint256 l2ChainId_);
