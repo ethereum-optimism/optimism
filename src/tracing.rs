@@ -26,6 +26,7 @@ impl SpanProcessor for MetricsSpanProcessor {
             .duration_since(span.start_time)
             .unwrap_or_default();
 
+        // Remove status description to avoid cardinality explosion
         let status = match span.status {
             Status::Ok => "ok",
             Status::Error { .. } => "error",
@@ -79,7 +80,6 @@ pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
     // Weird control flow here is required because of type system
     if args.tracing {
         global::set_text_map_propagator(TraceContextPropagator::new());
-        // Define a custom sampler that checks if the span's name starts with your crate's name.
         let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_tonic()
             .with_endpoint(&args.otlp_endpoint)
