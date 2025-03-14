@@ -1,4 +1,4 @@
-use crate::client::{ClientError, ClientResult, ExecutionClient};
+use crate::client::ExecutionClient;
 use crate::debug_api::DebugServer;
 use alloy_primitives::B256;
 use moka::sync::Cache;
@@ -25,19 +25,26 @@ const CACHE_SIZE: u64 = 100;
 
 pub struct PayloadTraceContext {
     block_hash_to_payload_ids: Cache<B256, Vec<PayloadId>>,
-    payload_id_to_trace_id: Cache<PayloadId, tracing::Id>,
+    payload_id: Cache<PayloadId, (bool, Option<tracing::Id>)>,
 }
 
 impl PayloadTraceContext {
     fn new() -> Self {
         PayloadTraceContext {
             block_hash_to_payload_ids: Cache::new(CACHE_SIZE),
-            payload_id_to_trace_id: Cache::new(CACHE_SIZE),
+            payload_id: Cache::new(CACHE_SIZE),
         }
     }
 
-    fn store(&self, payload_id: PayloadId, parent_hash: B256, parent_span: tracing::Id) {
-        self.payload_id_to_trace_id.insert(payload_id, parent_span);
+    fn store(
+        &self,
+        payload_id: PayloadId,
+        parent_hash: B256,
+        has_attributes: bool,
+        trace_id: Option<tracing::Id>,
+    ) {
+        self.payload_id
+            .insert(payload_id, (has_attributes, trace_id));
         self.block_hash_to_payload_ids
             .entry(parent_hash)
             .and_upsert_with(|o| match o {
@@ -52,25 +59,32 @@ impl PayloadTraceContext {
             });
     }
 
-    fn retrieve_by_parent_hash(&self, parent_hash: &B256) -> Option<Vec<tracing::Id>> {
+    fn trace_ids_from_parent_hash(&self, parent_hash: &B256) -> Option<Vec<tracing::Id>> {
         self.block_hash_to_payload_ids
             .get(parent_hash)
             .map(|payload_ids| {
                 payload_ids
                     .iter()
-                    .filter_map(|payload_id| self.payload_id_to_trace_id.get(payload_id))
+                    .filter_map(|payload_id| self.payload_id.get(payload_id).and_then(|x| x.1))
                     .collect()
             })
     }
 
-    fn retrieve_by_payload_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
-        self.payload_id_to_trace_id.get(payload_id)
+    fn trace_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
+        self.payload_id.get(payload_id).and_then(|x| x.1)
+    }
+
+    fn has_attributes(&self, payload_id: &PayloadId) -> bool {
+        self.payload_id
+            .get(payload_id)
+            .map(|x| x.0)
+            .unwrap_or_default()
     }
 
     fn remove_by_parent_hash(&self, block_hash: &B256) {
         if let Some(payload_ids) = self.block_hash_to_payload_ids.remove(block_hash) {
             for payload_id in payload_ids.iter() {
-                self.payload_id_to_trace_id.remove(payload_id);
+                self.payload_id.remove(payload_id);
             }
         }
     }
@@ -217,6 +231,7 @@ impl EngineApiServer for RollupBoostServer {
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
+        info!("received fork_choice_updated_v3");
         // First get the local payload ID from L2 client
         let l2_response = self
             .l2_client
@@ -244,9 +259,13 @@ impl EngineApiServer for RollupBoostServer {
 
         let execution_mode = self.execution_mode();
         let trace_id = span.id();
-        if let (Some(payload_id), Some(trace)) = (l2_response.payload_id, trace_id) {
-            self.payload_trace_context
-                .store(payload_id, fork_choice_state.head_block_hash, trace);
+        if let Some(payload_id) = l2_response.payload_id {
+            self.payload_trace_context.store(
+                payload_id,
+                fork_choice_state.head_block_hash,
+                payload_attributes.is_some(),
+                trace_id,
+            );
         }
 
         if execution_mode.is_disabled() {
@@ -277,8 +296,9 @@ impl EngineApiServer for RollupBoostServer {
         &self,
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
-        let l2_client_future = self.l2_client.get_payload_v3(payload_id);
+        info!("received get_payload_v3");
 
+        let l2_client_future = self.l2_client.get_payload_v3(payload_id);
         let builder_client_future = Box::pin(async move {
             let execution_mode = self.execution_mode();
             if !execution_mode.is_get_payload_enabled() {
@@ -292,11 +312,13 @@ impl EngineApiServer for RollupBoostServer {
                 ));
             }
 
-            if let Some(cause) = self
-                .payload_trace_context
-                .retrieve_by_payload_id(&payload_id)
-            {
+            if let Some(cause) = self.payload_trace_context.trace_id(&payload_id) {
                 tracing::Span::current().follows_from(cause);
+            }
+
+            if !self.payload_trace_context.has_attributes(&payload_id) {
+                // block builder won't build a block without attributes
+                return Ok(None);
             }
 
             let builder = self.builder_client.clone();
@@ -305,7 +327,7 @@ impl EngineApiServer for RollupBoostServer {
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
-            let payload_status = self
+            let _ = self
                 .l2_client
                 .new_payload_v3(
                     payload.execution_payload.clone(),
@@ -314,18 +336,14 @@ impl EngineApiServer for RollupBoostServer {
                 )
                 .await?;
 
-            if payload_status.is_invalid() {
-                return Err(ClientError::InvalidPayload(payload_status.status.to_string()).into());
-            }
-
-            Ok(payload)
+            Ok(Some(payload))
         });
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
         let (payload, context) = match (builder_payload, l2_payload) {
-            (Ok(builder), _) => Ok((builder, "builder")),
-            (Err(_), Ok(l2)) => Ok((l2, "l2")),
-            (Err(_), Err(e)) => Err(e),
+            (Ok(Some(builder)), _) => Ok((builder, "builder")),
+            (_, Ok(l2)) => Ok((l2, "l2")),
+            (_, Err(e)) => Err(e),
         }?;
 
         let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
@@ -358,6 +376,7 @@ impl EngineApiServer for RollupBoostServer {
         versioned_hashes: Vec<B256>,
         parent_beacon_block_root: B256,
     ) -> RpcResult<PayloadStatus> {
+        info!("received new_payload_v3");
         let execution_payload = ExecutionPayload::from(payload.clone());
         let block_hash = execution_payload.block_hash();
         let parent_hash = execution_payload.parent_hash();
@@ -367,7 +386,7 @@ impl EngineApiServer for RollupBoostServer {
         if self.boost_sync && !execution_mode.is_disabled() {
             if let Some(causes) = self
                 .payload_trace_context
-                .retrieve_by_parent_hash(&parent_hash)
+                .trace_ids_from_parent_hash(&parent_hash)
             {
                 causes.iter().for_each(|cause| {
                     tracing::Span::current().follows_from(cause);
@@ -397,44 +416,9 @@ impl EngineApiServer for RollupBoostServer {
     }
 }
 
-impl RollupBoostServer {
-    #[instrument(
-        skip_all,
-        err,
-        fields(
-            otel.kind = ?SpanKind::Client,
-            payload_id,
-        )
-    )]
-    async fn send_to_builder(
-        &self,
-        payload_attributes: Option<OpPayloadAttributes>,
-        fork_choice_state: ForkchoiceState,
-    ) -> ClientResult<()> {
-        // async call to builder to trigger payload building and sync
-        let builder_client = self.builder_client.clone();
-        let attr = payload_attributes.clone();
-        let response = builder_client
-            .fork_choice_updated_v3(fork_choice_state, attr)
-            .await?;
-
-        if let Some(payload_id) = response.payload_id {
-            tracing::Span::current().record("payload_id", payload_id.to_string());
-        }
-
-        if response.is_invalid() {
-            return Err(ClientError::InvalidPayload(
-                response.payload_status.status.to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::complexity)]
 mod tests {
-
     use super::*;
     use alloy_primitives::hex;
     use alloy_primitives::{FixedBytes, U256};

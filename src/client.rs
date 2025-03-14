@@ -7,7 +7,6 @@ use alloy_rpc_types_engine::{
 };
 use clap::{Parser, arg};
 use http::Uri;
-// use jsonrpsee::core::ClientError;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::types::ErrorObjectOwned;
@@ -15,7 +14,6 @@ use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttribute
 use opentelemetry::trace::SpanKind;
 use paste::paste;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::{error, info, instrument};
@@ -28,6 +26,10 @@ pub(crate) enum ClientError {
     Jsonrpsee(#[from] jsonrpsee::core::client::Error),
     #[error("Invalid payload: {0}")]
     InvalidPayload(String),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Jwt(#[from] JwtError),
 }
 
 impl From<ClientError> for ErrorObjectOwned {
@@ -42,16 +44,6 @@ impl From<ClientError> for ErrorObjectOwned {
     }
 }
 
-#[derive(Error, Debug)]
-pub enum ExecutionClientError {
-    #[error(transparent)]
-    HttpClient(#[from] jsonrpsee::core::client::Error),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Jwt(#[from] JwtError),
-}
-
 /// Client interface for interacting with execution layer node's Engine API.
 ///
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
@@ -59,7 +51,7 @@ pub enum ExecutionClientError {
 #[derive(Clone)]
 pub(crate) struct ExecutionClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
-    auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
+    auth_client: HttpClient<AuthClientService<HttpBackend>>,
     /// Uri of the RPC server for authenticated Engine API calls
     auth_rpc: Uri,
     /// The source of the payload
@@ -73,7 +65,7 @@ impl ExecutionClient {
         auth_rpc_jwt_secret: JwtSecret,
         timeout: u64,
         payload_source: PayloadSource,
-    ) -> Result<Self, ExecutionClientError> {
+    ) -> Result<Self, ClientError> {
         let auth_layer = AuthClientLayer::new(auth_rpc_jwt_secret);
         let auth_client = HttpClientBuilder::new()
             .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))
@@ -81,7 +73,7 @@ impl ExecutionClient {
             .build(auth_rpc.to_string())?;
 
         Ok(Self {
-            auth_client: Arc::new(auth_client),
+            auth_client,
             auth_rpc,
             payload_source,
         })
@@ -160,10 +152,17 @@ impl ExecutionClient {
         let execution_payload = ExecutionPayload::from(payload.clone());
         let block_hash = execution_payload.block_hash();
         tracing::Span::current().record("block_hash", block_hash.to_string());
-        Ok(self
+
+        let res = self
             .auth_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
-            .await?)
+            .await?;
+
+        if res.is_invalid() {
+            return Err(ClientError::InvalidPayload(res.status.to_string()));
+        }
+
+        Ok(res)
     }
 }
 
@@ -220,7 +219,6 @@ mod tests {
     use std::net::SocketAddr;
     use std::result::Result;
     use std::str::FromStr;
-    use std::sync::Arc;
 
     use super::*;
 
@@ -264,7 +262,7 @@ mod tests {
     }
 
     async fn send_request(
-        client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
+        client: HttpClient<AuthClientService<HttpBackend>>,
     ) -> Result<String, ClientError> {
         let server = spawn_server().await;
 
