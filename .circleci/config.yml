@@ -1793,6 +1793,7 @@ workflows:
           name: todo-issue-checks
           context:
             - slack
+            - circleci-repo-readonly-authenticated-github-token
 
   scheduled-fpp:
     when:
