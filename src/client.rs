@@ -35,11 +35,11 @@ pub(crate) enum ClientError {
 impl From<ClientError> for ErrorObjectOwned {
     fn from(err: ClientError) -> Self {
         match err {
-            ClientError::Jsonrpsee(err) => match err {
-                jsonrpsee::core::ClientError::Call(error_object) => error_object,
-                e => ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None),
-            },
-            e => ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None),
+            ClientError::Jsonrpsee(jsonrpsee::core::ClientError::Call(error_object)) => {
+                error_object
+            }
+            // Status code 13 == internal error
+            e => ErrorObjectOwned::owned(13, e.to_string(), Option::<()>::None),
         }
     }
 }
