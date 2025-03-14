@@ -360,7 +360,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("OPTIMISM_PORTAL_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("BATCH_INBOX_SLOT()") });
-        _addSpec({ _name: "SystemConfig", _sel: _getSel("DISPUTE_GAME_FACTORY_SLOT()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("disputeGameFactory()") });
         _addSpec({
             _name: "SystemConfig",
@@ -520,6 +519,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("initialize()") });
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("l1Head()") });
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("l2BlockNumber()") });
+        _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("l2SequenceNumber()") });
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("l2BlockNumberChallenged()") });
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("l2BlockNumberChallenger()") });
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("l2ChainId()") });
@@ -584,6 +584,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("initialize()") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("l1Head()") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("l2BlockNumber()") });
+        _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("l2SequenceNumber()") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("l2BlockNumberChallenged()") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("l2BlockNumberChallenger()") });
         _addSpec({ _name: "FaultDisputeGame", _sel: _getSel("l2ChainId()") });
@@ -635,7 +636,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("hasUnlockedCredit(address)") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("initialize()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("l1Head()") });
-        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("l2BlockNumber()") });
+        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("l2SequenceNumber()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("maxClockDuration()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("maxGameDepth()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("move(bytes32,uint256,bytes32,bool)") });
@@ -649,8 +650,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("resolvedSubgames(uint256)") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("rootClaim()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("splitDepth()") });
-        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingBlockNumber()") });
-        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingOutputRoot()") });
+        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingSequenceNumber()") });
+        _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingProposal()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("startingRootHash()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("status()") });
         _addSpec({ _name: "SuperFaultDisputeGame", _sel: _getSel("step(uint256,bool,bytes,bytes)") });
@@ -694,7 +695,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("hasUnlockedCredit(address)") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("initialize()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("l1Head()") });
-        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("l2BlockNumber()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("maxClockDuration()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("maxGameDepth()") });
         _addSpec({
@@ -712,8 +712,9 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("resolvedSubgames(uint256)") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("rootClaim()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("splitDepth()") });
-        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingBlockNumber()") });
-        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingOutputRoot()") });
+        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("l2SequenceNumber()") });
+        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingSequenceNumber()") });
+        _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingProposal()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("startingRootHash()") });
         _addSpec({ _name: "SuperPermissionedDisputeGame", _sel: _getSel("status()") });
         _addSpec({

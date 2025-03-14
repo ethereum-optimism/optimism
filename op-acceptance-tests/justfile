@@ -1,13 +1,42 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-acceptor:v0.1.1")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.1")
+DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
+ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
-# Default recipe - runs the acceptance tests with default parameters
+# Default recipe - runs acceptance tests
 default:
     @just acceptance-test
 
-# Run acceptance tests against a devnet
+# Run acceptance tests with mise-managed binary
 acceptance-test devnet="simple" gate="localnet":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Check if mise is installed and if op-acceptor binary is available
+    if ! (command -v mise >/dev/null && BINARY_PATH=$(mise which op-acceptor 2>/dev/null)); then
+        echo "Mise-managed op-acceptor binary not found, falling back to Docker..."
+        just acceptance-test-docker {{devnet}} {{gate}}
+        exit 0
+    fi
+
+    # Run the appropriate devnet from the kurtosis-devnet directory if needed.
+    # We ignore failures here because if the devnet is already running then this command will fail.
+    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+
+    # Print which binary is being used (for debugging)
+    BINARY_PATH=$(mise which op-acceptor 2>/dev/null)
+    echo "Using mise-managed binary: $BINARY_PATH"
+
+    # Run the op-acceptor binary
+    "$BINARY_PATH" \
+        --testdir "{{REPO_ROOT}}" \
+        --gate {{gate}} \
+        --validators ./acceptance-tests.yaml \
+        --log.level debug
+
+# Run acceptance tests against a devnet using Docker (fallback if needed)
+acceptance-test-docker devnet="simple" gate="localnet":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -26,4 +55,4 @@ acceptance-test devnet="simple" gate="localnet":
         --testdir "/go/src/github.com/ethereum-optimism/optimism" \
         --gate {{gate}} \
         --validators /acceptance-tests.yaml \
-        --log.level info
+        --log.level debug

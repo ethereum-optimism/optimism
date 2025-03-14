@@ -23,12 +23,14 @@ import (
 
 func TestNewPayloadV4(t *testing.T) {
 	cases := []struct {
-		isthmusTime   uint64
-		blockTime     uint64
-		expectedError string
+		isthmusTime       uint64
+		blockTime         uint64
+		expectedError     string
+		nilWithdrawalRoot bool
 	}{
-		{6, 5, engine.UnsupportedFork.Error()}, // before isthmus
-		{6, 8, ""},                             // after isthmus
+		{6, 5, engine.UnsupportedFork.Error(), false}, // before isthmus
+		{6, 8, "", false},                  // after isthmus
+		{6, 8, "Invalid parameters", true}, // after isthmus, nil withdrawal root
 	}
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 
@@ -75,6 +77,10 @@ func TestNewPayloadV4(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.NotNil(t, envelope)
+
+		if c.nilWithdrawalRoot {
+			envelope.ExecutionPayload.WithdrawalsRoot = nil
+		}
 
 		newPayloadResult, err := engineAPI.NewPayloadV4(context.Background(), envelope.ExecutionPayload, []common.Hash{}, envelope.ParentBeaconBlockRoot, []hexutil.Bytes{})
 		if c.expectedError != "" {

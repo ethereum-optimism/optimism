@@ -39,13 +39,12 @@ func WithPayload(payload []byte) func(opts *ExecuteOpts) {
 	}
 }
 
-func WithPendingMessage(emitter *EmitterContract, chain *Chain, logIndex int, msg string) func(opts *ExecuteOpts) {
+func WithPendingMessage(emitter *EmitterContract, chain *Chain, number uint64, logIndex int, msg string) func(opts *ExecuteOpts) {
 	return func(opts *ExecuteOpts) {
-		head := chain.Sequencer.L2Unsafe()
-		blockTime := chain.RollupCfg.TimestampForBlock(head.Number)
+		blockTime := chain.RollupCfg.TimestampForBlock(number)
 		id := inbox.Identifier{
 			Origin:      emitter.Address(chain),
-			BlockNumber: big.NewInt(int64(head.Number)),
+			BlockNumber: big.NewInt(int64(number)),
 			LogIndex:    big.NewInt(int64(logIndex)),
 			Timestamp:   big.NewInt(int64(blockTime)),
 			ChainId:     chain.RollupCfg.L2ChainID,
@@ -82,7 +81,7 @@ func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, arg
 		} else {
 			payload = initTx.MessagePayload()
 		}
-		txOpts, from := user.TransactOpts(chain)
+		txOpts, from := user.TransactOpts(chain.ChainID.ToBig())
 		contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, chain.SequencerEngine.EthClient())
 		require.NoError(i.t, err)
 		tx, err := contract.ValidateMessage(txOpts, ident, crypto.Keccak256Hash(payload))

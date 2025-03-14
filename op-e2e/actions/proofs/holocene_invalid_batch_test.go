@@ -70,10 +70,12 @@ func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 			name: "invalid-payload", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
 			useSpanBatch: false,
 			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 1, // Invalid signature in block 2 causes an invalid _payload_ in the engine queue. Entire span batch is invalidated.
-					logs: sequencerOnce("could not process payload attributes"),
+				preHolocene: expectations{
+					safeHead: 1, // Invalid signature in block 2 causes an invalid _payload_ in the engine queue. Entire span batch is invalidated.
+					logs:     sequencerOnce("could not process payload attributes"),
 				},
-				holocene: expectations{safeHead: 2, // We expect the safe head to move to 2 due to creation of a deposit-only block.
+				holocene: expectations{
+					safeHead: 2, // We expect the safe head to move to 2 due to creation of a deposit-only block.
 					logs: append(
 						sequencerOnce("Holocene active, requesting deposits-only attributes"),
 						sequencerOnce("could not process payload attributes")...,
@@ -85,12 +87,14 @@ func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 			name: "invalid-payload-span", blocks: []uint{1, 2, 3}, blockModifiers: []actionsHelpers.BlockModifier{nil, invalidPayload, nil},
 			useSpanBatch: true,
 			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 0, // Invalid signature in block 2 causes an invalid _payload_ in the engine queue. Entire span batch is invalidated.
-					logs: sequencerOnce("could not process payload attributes"),
+				preHolocene: expectations{
+					safeHead: 0, // Invalid signature in block 2 causes an invalid _payload_ in the engine queue. Entire span batch is invalidated.
+					logs:     sequencerOnce("could not process payload attributes"),
 				},
 
-				holocene: expectations{safeHead: 2, // We expect the safe head to move to 2 due to creation of an deposit-only block.
-					logs: sequencerOnce("could not process payload attributes"),
+				holocene: expectations{
+					safeHead: 2, // We expect the safe head to move to 2 due to creation of an deposit-only block.
+					logs:     sequencerOnce("could not process payload attributes"),
 				},
 			},
 		},
@@ -109,11 +113,13 @@ func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 			useSpanBatch:            true,
 			breachMaxSequencerDrift: true,
 			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 0, // Entire span batch invalidated.
-					logs: sequencerOnce("batch exceeded sequencer time drift without adopting next origin, and next L1 origin would have been valid"),
+				preHolocene: expectations{
+					safeHead: 0, // Entire span batch invalidated.
+					logs:     sequencerOnce("batch exceeded sequencer time drift, sequencer must adopt new L1 origin to include transactions again"),
 				},
-				holocene: expectations{safeHead: 1800, // We expect partial validity until we hit sequencer drift.
-					logs: sequencerOnce("batch exceeded sequencer time drift without adopting next origin, and next L1 origin would have been valid"),
+				holocene: expectations{
+					safeHead: 1800, // We expect partial validity until we hit sequencer drift.
+					logs:     sequencerOnce("batch exceeded sequencer time drift, sequencer must adopt new L1 origin to include transactions again"),
 				},
 			},
 		},
@@ -123,11 +129,13 @@ func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 			useSpanBatch:        true,
 			overAdvanceL1Origin: 3, // this will over-advance the L1 origin of block 3
 			holoceneExpectations: holoceneExpectations{
-				preHolocene: expectations{safeHead: 0, // Entire span batch invalidated.
-					logs: sequencerOnce("block timestamp is less than L1 origin timestamp"),
+				preHolocene: expectations{
+					safeHead: 0, // Entire span batch invalidated.
+					logs:     sequencerOnce("block timestamp is less than L1 origin timestamp"),
 				},
-				holocene: expectations{safeHead: 2, // We expect partial validity, safe head should move to block 2, dropping invalid block 3 and remaining channel.
-					logs: sequencerOnce("batch timestamp is less than L1 origin timestamp"),
+				holocene: expectations{
+					safeHead: 2, // We expect partial validity, safe head should move to block 2, dropping invalid block 3 and remaining channel.
+					logs:     sequencerOnce("batch timestamp is less than L1 origin timestamp"),
 				},
 			},
 		},

@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
@@ -28,7 +29,7 @@ type Block interface {
 
 type SignedBlock interface {
 	Block
-	VerifySignature() error
+	opsigner.SignedObject
 }
 
 // BuildJob provides access to the building work of a single protocol block.

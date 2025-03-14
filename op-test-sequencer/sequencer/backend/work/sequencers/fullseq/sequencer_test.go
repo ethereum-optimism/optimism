@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/metrics"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
@@ -40,7 +41,7 @@ func (m *mockSignedBlock) String() string {
 	return "mock signed block"
 }
 
-func (m *mockSignedBlock) VerifySignature() error {
+func (m *mockSignedBlock) VerifySignature(auth opsigner.Authenticator) error {
 	return nil
 }
 

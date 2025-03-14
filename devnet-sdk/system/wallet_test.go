@@ -6,9 +6,13 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -103,7 +107,15 @@ type internalMockChain struct {
 	*mockChain
 }
 
-func (m *internalMockChain) Client() (*ethclient.Client, error) {
+func (m *internalMockChain) Client() (*sources.EthClient, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*sources.EthClient), args.Error(1)
+}
+
+func (m *internalMockChain) GethClient() (*ethclient.Client, error) {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -173,9 +185,12 @@ func TestWallet_SendETH(t *testing.T) {
 	mockNode.On("PendingNonceAt", ctx, fromAddr).Return(uint64(0), nil)
 
 	// Mock client access
-	client, err := ethclient.Dial("http://this.domain.definitely.does.not.exist:8545")
+	rpcClient, err := rpc.DialContext(context.Background(), "http://this.domain.definitely.does.not.exist:8545")
 	assert.NoError(t, err)
-	mockChain.On("Client").Return(client, nil)
+	ethClCfg := sources.EthClientConfig{MaxConcurrentRequests: 1, MaxRequestsPerBatch: 1, RPCProviderKind: sources.RPCKindStandard}
+	ethCl, err := sources.NewEthClient(client.NewBaseRPCClient(rpcClient), log.Root(), nil, &ethClCfg)
+	assert.NoError(t, err)
+	mockChain.On("Client").Return(ethCl, nil)
 
 	// Create the send invocation
 	invocation := w.SendETH(toAddr, amount)

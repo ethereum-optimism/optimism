@@ -67,7 +67,7 @@ var (
 	}
 	L2Head = &cli.StringFlag{
 		Name:    "l2.head",
-		Usage:   "Hash of the L2 block at l2.outputroot",
+		Usage:   "Hash of the L2 block at l2.outputroot. Used for non-interop games.",
 		EnvVars: prefixEnvVars("L2_HEAD"),
 	}
 	L2OutputRoot = &cli.StringFlag{
@@ -83,13 +83,14 @@ var (
 	}
 	L2Claim = &cli.StringFlag{
 		Name:    "l2.claim",
-		Usage:   "Claimed L2 output root to validate",
+		Usage:   "Claimed proposal root to validate",
 		EnvVars: prefixEnvVars("L2_CLAIM"),
 	}
 	L2BlockNumber = &cli.Uint64Flag{
 		Name:    "l2.blocknumber",
-		Usage:   "Number of the L2 block that the claim is from",
-		EnvVars: prefixEnvVars("L2_BLOCK_NUM"),
+		Aliases: []string{"l2.sequencenumber"},
+		Usage:   "L2 block number or timestamp that the claim is from",
+		EnvVars: append(prefixEnvVars("L2_BLOCK_NUM"), prefixEnvVars("L2_SEQUENCE_NUMBER")...),
 	}
 	L2GenesisPath = &cli.StringSliceFlag{
 		Name:    "l2.genesis",

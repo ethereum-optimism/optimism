@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { Test } from "forge-std/Test.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { GameType, OutputRoot, Hash } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal, Hash } from "src/dispute/lib/Types.sol";
 import { SetDisputeGameImpl, SetDisputeGameImplInput } from "scripts/deploy/SetDisputeGameImpl.s.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { Proxy } from "src/universal/Proxy.sol";
@@ -100,7 +100,7 @@ contract SetDisputeGameImpl_Test is Test {
                 (
                     ISuperchainConfig(address(supConfigProxy)),
                     factory,
-                    OutputRoot({ root: Hash.wrap(0), l2BlockNumber: 0 }),
+                    Proposal({ root: Hash.wrap(0), l2SequenceNumber: 0 }),
                     GameType.wrap(100)
                 )
             )

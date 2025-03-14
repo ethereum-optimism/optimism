@@ -62,11 +62,11 @@ func erc20BridgeTestScenario(lowLevelSystemGetter validators.LowLevelSystemGette
 		logger.Info("Started ERC20 bridge test")
 
 		// Connect to L1 and L2
-		l1Client, err := l1Chain.Client()
+		l1Client, err := l1Chain.GethClient()
 		require.NoError(t, err)
 		t.Cleanup(func() { l1Client.Close() })
 
-		l2Client, err := l2Chain.Client()
+		l2Client, err := l2Chain.GethClient()
 		require.NoError(t, err)
 		t.Cleanup(func() { l2Client.Close() })
 

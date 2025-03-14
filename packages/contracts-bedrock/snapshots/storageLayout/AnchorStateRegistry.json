@@ -39,7 +39,7 @@
     "label": "startingAnchorRoot",
     "offset": 0,
     "slot": "3",
-    "type": "struct OutputRoot"
+    "type": "struct Proposal"
   },
   {
     "bytes": "32",

@@ -20,7 +20,7 @@ type pectraBlobScheduleTestCfg struct {
 	expectCancunBBF bool
 }
 
-func TestPectraBlobSchedule(gt *testing.T) {
+func Test_ProgramAction_PectraBlobSchedule(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 

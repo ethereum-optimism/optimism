@@ -64,7 +64,7 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
 	l2Client := g.System.NodeClient(l2Node)
 
-	realPrestateBlock, realPostStateBlock, err := g.Game.GetBlockRange(ctx)
+	realPrestateBlock, realPostStateBlock, err := g.Game.GetGameRange(ctx)
 	g.Require.NoError(err, "Failed to load block range")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.System.RollupClient(l2Node)

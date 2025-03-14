@@ -166,7 +166,7 @@ func (s *L1Miner) ActL1IncludeTxByHash(txHash common.Hash) Action {
 	}
 }
 
-func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
+func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	from, err := s.l1Signer.Sender(tx)
 	require.NoError(t, err)
 	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from, "to", tx.To())
@@ -175,7 +175,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 	}
 	if tx.Gas() > uint64(*s.L1GasPool) {
 		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.L1GasPool))
-		return
+		return nil
 	}
 	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.L1Transactions))
 	blockCtx := core.NewEVMBlockContext(s.l1BuildingHeader, s.l1Chain, nil, s.l1Cfg.Config, s.l1BuildingState)
@@ -196,6 +196,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 		}
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
+	return receipt
 }
 
 func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {
