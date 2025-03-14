@@ -1873,6 +1873,7 @@ workflows:
           notify: true
           context:
             - slack
+            - circleci-repo-readonly-authenticated-github-token
           matrix:
             parameters:
               mips_word_size: [32, 64]
@@ -1931,7 +1932,9 @@ workflows:
         - equal: [true, << pipeline.parameters.reproducibility_dispatch >>]
     jobs:
       - preimage-reproducibility:
-          context: slack
+          context:
+            - slack
+            - circleci-repo-readonly-authenticated-github-token
 
   scheduled-stale-check:
     when:
