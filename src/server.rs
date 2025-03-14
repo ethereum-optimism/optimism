@@ -11,7 +11,7 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use jsonrpsee::RpcModule;
-use jsonrpsee::core::{async_trait, RegisterMethodError, RpcResult};
+use jsonrpsee::core::{RegisterMethodError, RpcResult, async_trait};
 use jsonrpsee::types::ErrorObject;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
@@ -37,8 +37,7 @@ impl PayloadTraceContext {
     }
 
     fn store(&self, payload_id: PayloadId, parent_hash: B256, parent_span: tracing::Id) {
-        self.payload_id_to_trace_id
-            .insert(payload_id, parent_span);
+        self.payload_id_to_trace_id.insert(payload_id, parent_span);
         self.block_hash_to_payload_ids
             .entry(parent_hash)
             .and_upsert_with(|o| match o {
@@ -183,7 +182,7 @@ pub trait EngineApi {
         &self,
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
-    ) -> RpcResult<ForkchoiceUpdated> ;
+    ) -> RpcResult<ForkchoiceUpdated>;
 
     #[method(name = "getPayloadV3")]
     async fn get_payload_v3(
@@ -202,7 +201,8 @@ pub trait EngineApi {
 
 #[async_trait]
 impl EngineApiServer for RollupBoostServer {
-    #[instrument(skip_all, 
+    #[instrument(
+        skip_all,
         err,
         fields(
             otel.kind = ?SpanKind::Server,
@@ -253,10 +253,11 @@ impl EngineApiServer for RollupBoostServer {
             debug!(message = "execution mode is disabled, skipping FCU call to builder", "head_block_hash" = %fork_choice_state.head_block_hash);
         } else if should_send_to_builder {
             let builder_client = self.builder_client.clone();
-            tokio::spawn( async move {
-                    let _ = builder_client.fork_choice_updated_v3(fork_choice_state.clone(), payload_attributes.clone()).await;
-                }
-            );
+            tokio::spawn(async move {
+                let _ = builder_client
+                    .fork_choice_updated_v3(fork_choice_state.clone(), payload_attributes.clone())
+                    .await;
+            });
         } else {
             info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash);
         }
@@ -264,7 +265,8 @@ impl EngineApiServer for RollupBoostServer {
         Ok(l2_response)
     }
 
-    #[instrument(skip_all, 
+    #[instrument(
+        skip_all,
         err,
         fields(
             otel.kind = ?SpanKind::Server,
@@ -303,19 +305,26 @@ impl EngineApiServer for RollupBoostServer {
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
-            let payload_status = self.l2_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await?;
+            let payload_status = self
+                .l2_client
+                .new_payload_v3(
+                    payload.execution_payload.clone(),
+                    vec![],
+                    payload.parent_beacon_block_root,
+                )
+                .await?;
 
             if payload_status.is_invalid() {
-                return Err(ClientError::InvalidPayload(payload_status.status.to_string()).into())
+                return Err(ClientError::InvalidPayload(payload_status.status.to_string()).into());
             }
-            
+
             Ok(payload)
         });
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
         let (payload, context) = match (builder_payload, l2_payload) {
             (Ok(builder), _) => Ok((builder, "builder")),
-            (Err(_), Ok(l2)) => Ok((l2,  "l2")),
+            (Err(_), Ok(l2)) => Ok((l2, "l2")),
             (Err(_), Err(e)) => Err(e),
         }?;
 
@@ -336,7 +345,8 @@ impl EngineApiServer for RollupBoostServer {
         Ok(payload)
     }
 
-    #[instrument(skip_all, 
+    #[instrument(
+        skip_all,
         err,
         fields(
             otel.kind = ?SpanKind::Server,
@@ -371,17 +381,25 @@ impl EngineApiServer for RollupBoostServer {
             let builder_payload = payload.clone();
             let builder_versioned_hashes = versioned_hashes.clone();
             tokio::spawn(async move {
-                let _ = builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await;
+                let _ = builder
+                    .new_payload_v3(
+                        builder_payload,
+                        builder_versioned_hashes,
+                        parent_beacon_block_root,
+                    )
+                    .await;
             });
         }
-        Ok(self.l2_client
+        Ok(self
+            .l2_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
             .await?)
     }
 }
 
 impl RollupBoostServer {
-    #[instrument(skip_all, 
+    #[instrument(
+        skip_all,
         err,
         fields(
             otel.kind = ?SpanKind::Client,
@@ -396,7 +414,7 @@ impl RollupBoostServer {
         // async call to builder to trigger payload building and sync
         let builder_client = self.builder_client.clone();
         let attr = payload_attributes.clone();
-        let response =  builder_client
+        let response = builder_client
             .fork_choice_updated_v3(fork_choice_state, attr)
             .await?;
 
@@ -405,7 +423,9 @@ impl RollupBoostServer {
         }
 
         if response.is_invalid() {
-            return Err(ClientError::InvalidPayload(response.payload_status.status.to_string()))
+            return Err(ClientError::InvalidPayload(
+                response.payload_status.status.to_string(),
+            ));
         }
         Ok(())
     }

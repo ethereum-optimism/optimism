@@ -5,7 +5,7 @@ use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret,
     PayloadId, PayloadStatus,
 };
-use clap::{arg, Parser};
+use clap::{Parser, arg};
 use http::Uri;
 // use jsonrpsee::core::ClientError;
 use jsonrpsee::http_client::transport::HttpBackend;
@@ -27,22 +27,17 @@ pub(crate) enum ClientError {
     #[error(transparent)]
     Jsonrpsee(#[from] jsonrpsee::core::client::Error),
     #[error("Invalid payload: {0}")]
-    InvalidPayload(String)
+    InvalidPayload(String),
 }
 
 impl From<ClientError> for ErrorObjectOwned {
     fn from(err: ClientError) -> Self {
         match err {
-            ClientError::Jsonrpsee(err) => {
-                match err {
-                    jsonrpsee::core::ClientError::Call(error_object) => error_object,
-                    e => ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None) 
-,
-                }
+            ClientError::Jsonrpsee(err) => match err {
+                jsonrpsee::core::ClientError::Call(error_object) => error_object,
+                e => ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None),
             },
-            e => {
-                ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None) 
-            }
+            e => ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None),
         }
     }
 }
@@ -92,8 +87,9 @@ impl ExecutionClient {
         })
     }
 
-    #[instrument(skip_all, 
-        err
+    #[instrument(
+        skip_all,
+        err,
         fields(
             otel.kind = ?SpanKind::Client,
             target = self.payload_source.to_string(),
@@ -108,22 +104,26 @@ impl ExecutionClient {
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> ClientResult<ForkchoiceUpdated> {
         info!("Sending fork_choice_updated_v3 to {}", self.payload_source);
-        let res = self.auth_client
+        let res = self
+            .auth_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
             .await?;
 
         if let Some(payload_id) = res.payload_id {
             tracing::Span::current().record("payload_id", payload_id.to_string());
         }
-        
+
         if res.is_invalid() {
-            return Err(ClientError::InvalidPayload(res.payload_status.status.to_string()))
+            return Err(ClientError::InvalidPayload(
+                res.payload_status.status.to_string(),
+            ));
         }
 
         Ok(res)
     }
 
-    #[instrument(skip(self), 
+    #[instrument(
+        skip(self),
         err,
         fields(
             otel.kind = ?SpanKind::Client,
@@ -137,13 +137,12 @@ impl ExecutionClient {
         payload_id: PayloadId,
     ) -> ClientResult<OpExecutionPayloadEnvelopeV3> {
         info!("Sending get_payload_v3 to {}", self.payload_source);
-        Ok(self.auth_client
-            .get_payload_v3(payload_id)
-            .await?)
+        Ok(self.auth_client.get_payload_v3(payload_id).await?)
     }
 
-    #[instrument(skip_all, 
-        err
+    #[instrument(
+        skip_all,
+        err,
         fields(
             otel.kind = ?SpanKind::Client,
             target = self.payload_source.to_string(),
@@ -161,7 +160,8 @@ impl ExecutionClient {
         let execution_payload = ExecutionPayload::from(payload.clone());
         let block_hash = execution_payload.block_hash();
         tracing::Span::current().record("block_hash", block_hash.to_string());
-        Ok(self.auth_client
+        Ok(self
+            .auth_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
             .await?)
     }
