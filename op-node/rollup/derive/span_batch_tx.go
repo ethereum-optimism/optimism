@@ -188,6 +188,10 @@ func (tx *spanBatchTx) convertToFullTx(nonce, gas uint64, to *common.Address, ch
 			S:          S,
 		}
 	case types.SetCodeTxType:
+		if to == nil {
+			return nil, fmt.Errorf("to address is required for SetCodeTx")
+		}
+
 		setCodeTxInner := tx.inner.(*spanBatchSetCodeTxData)
 		inner = &types.SetCodeTx{
 			ChainID:    uint256.MustFromBig(chainID),

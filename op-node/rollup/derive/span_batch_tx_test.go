@@ -144,3 +144,11 @@ func TestSpanBatchTxDecodeInvalid(t *testing.T) {
 	err = sbtx.UnmarshalBinary(invalidLegacyTxDecoded)
 	require.ErrorContains(t, err, "failed to decode spanBatchLegacyTxData")
 }
+
+func TestSpanBatchTxSetCodeInvalidTo(t *testing.T) {
+	// invalid to for setcode tx
+	var sbtx spanBatchTx
+	sbtx.inner = &spanBatchSetCodeTxData{}
+	_, err := sbtx.convertToFullTx(0, 0, nil, nil, nil, nil, nil)
+	require.ErrorContains(t, err, "to address is required for SetCodeTx")
+}
