@@ -10,9 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
 
-var importPattern = regexp.MustCompile(`import\s*{([^}]+)}`)
-var asPattern = regexp.MustCompile(`(\S+)\s+as\s+(\S+)`)
-
 func main() {
 	if _, err := common.ProcessFilesGlob(
 		[]string{"src/**/*.sol", "scripts/**/*.sol", "test/**/*.sol", "interfaces/**/*.sol"},
@@ -51,13 +48,13 @@ func processFile(filePath string) (*common.Void, []error) {
 
 func findImports(content string) []string {
 	var imports []string
-	matches := importPattern.FindAllStringSubmatch(content, -1)
+	matches := regexp.MustCompile(`import\s*{([^}]+)}`).FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
 			importList := strings.Split(match[1], ",")
 			for _, imp := range importList {
 				imp = strings.TrimSpace(imp)
-				if asMatch := asPattern.FindStringSubmatch(imp); len(asMatch) > 2 {
+				if asMatch := regexp.MustCompile(`(\S+)\s+as\s+(\S+)`).FindStringSubmatch(imp); len(asMatch) > 2 {
 					// Use the renamed identifier (after 'as')
 					imports = append(imports, strings.TrimSpace(asMatch[2]))
 				} else {
