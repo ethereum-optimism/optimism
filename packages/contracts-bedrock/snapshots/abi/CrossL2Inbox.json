@@ -1,90 +1,5 @@
 [
   {
-    "inputs": [],
-    "name": "blockNumber",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "chainId",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "interopStart",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "interopStart_",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "logIndex",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "origin",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "setInteropStart",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "timestamp",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "components": [
@@ -190,7 +105,12 @@
   },
   {
     "inputs": [],
-    "name": "InteropStartAlreadySet",
+    "name": "BlockNumberTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LogIndexTooHigh",
     "type": "error"
   },
   {
@@ -200,17 +120,12 @@
   },
   {
     "inputs": [],
-    "name": "NotDepositor",
+    "name": "NotInAccessList",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "NotEntered",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReentrantCall",
+    "name": "TimestampTooHigh",
     "type": "error"
   }
 ]

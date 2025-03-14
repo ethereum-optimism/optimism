@@ -68,7 +68,7 @@ func WithIgnoreDuplicates() MoveOpt {
 }
 
 func (g *SplitGameHelper) L2BlockNum(ctx context.Context) uint64 {
-	_, blockNum, err := g.Game.GetBlockRange(ctx)
+	_, blockNum, err := g.Game.GetGameRange(ctx)
 	g.Require.NoError(err, "failed to load l2 block number")
 	return blockNum
 }

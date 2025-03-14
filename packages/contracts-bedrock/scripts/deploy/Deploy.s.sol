@@ -20,7 +20,6 @@ import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from 
 import {
     DeployImplementationsInput,
     DeployImplementations,
-    DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/deploy/DeployImplementations.s.sol";
 
@@ -29,7 +28,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { StorageSlot, ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
-import { GameType, Claim, GameTypes, OutputRoot, Hash } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -297,9 +296,6 @@ contract Deploy is Deployer {
         // I think this was a bug
         dii.set(dii.upgradeController.selector, superchainProxyAdmin.owner());
 
-        if (_isInterop) {
-            di = DeployImplementations(new DeployImplementationsInterop());
-        }
         di.run(dii, dio);
 
         // Save the implementation addresses which are needed outside of this function or script.
@@ -349,11 +345,7 @@ contract Deploy is Deployer {
             _mips: IMIPS(address(dio.mipsSingleton())),
             _superchainProxyAdmin: superchainProxyAdmin
         });
-        if (_isInterop) {
-            ChainAssertions.checkSystemConfigInterop({ _contracts: impls, _cfg: cfg, _isProxy: false });
-        } else {
-            ChainAssertions.checkSystemConfig({ _contracts: impls, _cfg: cfg, _isProxy: false });
-        }
+        ChainAssertions.checkSystemConfig({ _contracts: impls, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
@@ -524,7 +516,6 @@ contract Deploy is Deployer {
                         l1CrossDomainMessenger: artifacts.mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: artifacts.mustGetAddress("L1ERC721BridgeProxy"),
                         l1StandardBridge: artifacts.mustGetAddress("L1StandardBridgeProxy"),
-                        disputeGameFactory: artifacts.mustGetAddress("DisputeGameFactoryProxy"),
                         optimismPortal: artifacts.mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy")
                     }),
@@ -965,11 +956,10 @@ contract Deploy is Deployer {
             blobBasefeeScalar: cfg.blobbasefeeScalar(),
             l2ChainId: cfg.l2ChainID(),
             startingAnchorRoot: abi.encode(
-                OutputRoot({ root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2BlockNumber: cfg.faultGameGenesisBlock() })
+                Proposal({ root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2SequenceNumber: cfg.faultGameGenesisBlock() })
             ),
             saltMixer: saltMixer,
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
-            disputeGameUsesSuperRoots: false,
             disputeGameType: GameTypes.PERMISSIONED_CANNON,
             disputeAbsolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
             disputeMaxGameDepth: cfg.faultGameMaxDepth(),

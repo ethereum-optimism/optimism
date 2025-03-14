@@ -1,11 +1,15 @@
 package system
 
 import (
+	"context"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type system struct {
@@ -69,13 +73,23 @@ func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (Syst
 	}
 
 	if slices.Contains(dn.Features, "interop") {
-		return &interopSystem{system: sys}, nil
+		// TODO(14849): this will break as soon as we have a dependency set that
+		// doesn't include all L2s.
+		supervisorRPC := dn.L2[0].Services["supervisor"].Endpoints["rpc"]
+		return &interopSystem{
+			system:        sys,
+			supervisorRPC: fmt.Sprintf("http://%s:%d", supervisorRPC.Host, supervisorRPC.Port),
+		}, nil
 	}
 	return sys, nil
 }
 
 type interopSystem struct {
 	*system
+
+	supervisorRPC string
+	supervisor    Supervisor
+	mu            sync.Mutex
 }
 
 // interopSystem implements InteropSystem
@@ -83,4 +97,21 @@ var _ InteropSystem = (*interopSystem)(nil)
 
 func (i *interopSystem) InteropSet() InteropSet {
 	return i.system // TODO: the interop set might not contain all L2s
+}
+
+func (i *interopSystem) Supervisor(ctx context.Context) (Supervisor, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	if i.supervisor != nil {
+		return i.supervisor, nil
+	}
+
+	cl, err := client.NewRPC(ctx, nil, i.supervisorRPC)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial supervisor RPC: %w", err)
+	}
+	supervisor := sources.NewSupervisorClient(cl)
+	i.supervisor = supervisor
+	return supervisor, nil
 }

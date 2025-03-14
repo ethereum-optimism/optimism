@@ -37,6 +37,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_InvalidSuperRootProof();
     error OptimismPortal_InvalidOutputRootChainId();
     error OptimismPortal_WrongProofMethod();
+    error OptimismPortal_MigratingToSameRegistry();
     error Encoding_EmptySuperRoot();
     error Encoding_InvalidSuperRootVersion();
     error OutOfGas();
@@ -49,7 +50,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
     event ETHMigrated(address indexed lockbox, uint256 ethBalance);
-    event LockboxUpdated(address oldLockbox, address newLockbox);
+    event PortalMigrated(IETHLockbox oldLockbox, IETHLockbox newLockbox, IAnchorStateRegistry oldAnchorStateRegistry, IAnchorStateRegistry newAnchorStateRegistry);
 
     receive() external payable;
 
@@ -68,7 +69,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function donateETH() external payable;
-    function updateLockbox(IETHLockbox _newLockbox) external;
+    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external;
     function finalizeWithdrawalTransactionExternalProof(
         Types.WithdrawalTransaction memory _tx,
@@ -81,8 +82,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         ISystemConfig _systemConfig,
         ISuperchainConfig _superchainConfig,
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox,
-        bool _superRootsActive
+        IETHLockbox _ethLockbox
     )
         external;
     function initVersion() external view returns (uint8);
@@ -123,8 +123,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function systemConfig() external view returns (ISystemConfig);
     function upgrade(
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox,
-        bool _superRootsActive
+        IETHLockbox _ethLockbox
     )
         external;
     function version() external pure returns (string memory);

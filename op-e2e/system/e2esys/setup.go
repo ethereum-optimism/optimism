@@ -71,6 +71,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -610,7 +611,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
 	l2Allocs := config.L2Allocs(cfg.AllocType, allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +835,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			c.P2P = p
 
 			if c.Driver.SequencerEnabled && c.P2PSigner == nil {
-				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
+				c.P2PSigner = &p2p.PreparedSigner{Signer: opsigner.NewLocalSigner(cfg.Secrets.SequencerP2P)}
 			}
 		}
 

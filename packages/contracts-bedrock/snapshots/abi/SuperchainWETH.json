@@ -521,6 +521,11 @@
   },
   {
     "inputs": [],
+    "name": "Permit2AllowanceIsFixedAtInfinity",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "Unauthorized",
     "type": "error"
   },

@@ -9,19 +9,12 @@ import { EventLogger } from "../../src/integration/EventLogger.sol";
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-import { CrossL2Inbox, Identifier as ImplIdentifier } from "src/L2/CrossL2Inbox.sol";
-
-// @title MockL1BlockInfo
-// @notice mock L1 block info to fake a deposit-context.
-contract MockL1BlockInfo {
-    // @notice mock deposit-context that is never active
-    // @return always false
-    function isDeposit() external pure returns (bool isDeposit_) {
-        return false;
-    }
-}
+import { Identifier as ImplIdentifier } from "src/L2/CrossL2Inbox.sol";
+import { CrossL2InboxWithSlotWarming as CrossL2Inbox } from "test/L2/CrossL2Inbox.t.sol";
 
 contract EventLogger_Initializer is Test {
+    event ExecutingMessage(bytes32 indexed msgHash, ImplIdentifier id);
+
     EventLogger eventLogger;
 
     function setUp() public {
@@ -31,10 +24,6 @@ contract EventLogger_Initializer is Test {
 
         vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2Inbox()).code);
         vm.label(Predeploys.CROSS_L2_INBOX, "CrossL2Inbox");
-
-        // CrossL2Inbox needs this to do the deposit-context check
-        vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, address(new MockL1BlockInfo()).code);
-        vm.label(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
     }
 }
 
@@ -101,9 +90,9 @@ contract EventLoggerTest is EventLogger_Initializer {
     /// @notice It should succeed with any Identifier
     function test_validateMessage_succeeds(
         address _origin,
-        uint256 _blockNumber,
-        uint256 _logIndex,
-        uint256 _timestamp,
+        uint64 _blockNumber,
+        uint32 _logIndex,
+        uint64 _timestamp,
         uint256 _chainId,
         bytes32 _msgHash
     )
@@ -123,9 +112,16 @@ contract EventLoggerTest is EventLogger_Initializer {
             timestamp: _timestamp,
             chainId: _chainId
         });
+
         address emitter = Predeploys.CROSS_L2_INBOX;
+
+        // Warm the slot for the function to succeed
+        bytes32 checksum = CrossL2Inbox(emitter).calculateChecksum(idImpl, _msgHash);
+        CrossL2Inbox(emitter).warmSlot(checksum);
+
         vm.expectEmit(false, false, false, true, emitter);
-        emit CrossL2Inbox.ExecutingMessage(_msgHash, idImpl);
+        emit ExecutingMessage(_msgHash, idImpl);
+
         eventLogger.validateMessage(idIface, _msgHash);
     }
 }

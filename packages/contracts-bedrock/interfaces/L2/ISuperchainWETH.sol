@@ -9,6 +9,7 @@ interface ISuperchainWETH is IWETH98, IERC7802, ISemver {
     error Unauthorized();
     error InvalidCrossDomainSender();
     error ZeroAddress();
+    error Permit2AllowanceIsFixedAtInfinity();
 
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 

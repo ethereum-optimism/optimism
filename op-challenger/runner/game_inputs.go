@@ -70,11 +70,11 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim output: %w", err)
 	}
 	localInputs := utils.LocalGameInputs{
-		L1Head:        l1Head.Hash,
-		L2Head:        parentOutput.BlockRef.Hash,
-		L2OutputRoot:  common.Hash(parentOutput.OutputRoot),
-		L2Claim:       common.Hash(claimOutput.OutputRoot),
-		L2BlockNumber: new(big.Int).SetUint64(blockNumber),
+		L1Head:           l1Head.Hash,
+		L2Head:           parentOutput.BlockRef.Hash,
+		L2OutputRoot:     common.Hash(parentOutput.OutputRoot),
+		L2Claim:          common.Hash(claimOutput.OutputRoot),
+		L2SequenceNumber: new(big.Int).SetUint64(blockNumber),
 	}
 	return localInputs, nil
 }
@@ -137,11 +137,11 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client *source
 		}
 	}
 	localInputs := utils.LocalGameInputs{
-		L1Head:         l1Head.Hash,
-		AgreedPreState: agreedPrestate,
-		L2OutputRoot:   crypto.Keccak256Hash(agreedPrestate),
-		L2Claim:        claim,
-		L2BlockNumber:  new(big.Int).SetUint64(claimTimestamp + 10), // Anything beyond the claim
+		L1Head:           l1Head.Hash,
+		AgreedPreState:   agreedPrestate,
+		L2OutputRoot:     crypto.Keccak256Hash(agreedPrestate),
+		L2Claim:          claim,
+		L2SequenceNumber: new(big.Int).SetUint64(claimTimestamp + 10), // Anything beyond the claim
 	}
 	return localInputs, nil
 }

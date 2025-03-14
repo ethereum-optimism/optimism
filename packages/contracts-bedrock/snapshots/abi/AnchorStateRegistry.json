@@ -144,11 +144,11 @@
           },
           {
             "internalType": "uint256",
-            "name": "l2BlockNumber",
+            "name": "l2SequenceNumber",
             "type": "uint256"
           }
         ],
-        "internalType": "struct OutputRoot",
+        "internalType": "struct Proposal",
         "name": "_startingAnchorRoot",
         "type": "tuple"
       },

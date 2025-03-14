@@ -36,7 +36,7 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 		"--l2-head", inputs.L2Head.Hex(),
 		"--l2-output-root", inputs.L2OutputRoot.Hex(),
 		"--l2-claim", inputs.L2Claim.Hex(),
-		"--l2-block-number", inputs.L2BlockNumber.Text(10),
+		"--l2-block-number", inputs.L2SequenceNumber.Text(10),
 	}
 
 	if s.nativeMode {

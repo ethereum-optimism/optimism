@@ -83,7 +83,10 @@ func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 	s.tip = common.Hash{}
 	s.currentChannel = nil
 	s.channelQueue = nil
-	s.metr.RecordChannelQueueLength(0)
+
+	// This is particularly important because pendingDABytes metric controls throttling:
+	s.metr.ClearAllStateMetrics()
+
 	s.txChannels = make(map[string]*channel)
 }
 

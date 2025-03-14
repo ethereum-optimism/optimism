@@ -101,7 +101,7 @@ contract OptimismPortal2_Test is CommonTest {
 
         // Call the upgrade function.
         vm.prank(Predeploys.PROXY_ADMIN);
-        optimismPortal2.upgrade(IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox), true);
+        optimismPortal2.upgrade(IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox));
 
         // Assert the portal is properly upgraded.
         assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
@@ -469,27 +469,52 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(accountAccesses[2].storageAccesses.length, 0);
     }
 
-    /// @dev Tests that `updateLockbox` reverts if the caller is not the proxy admin owner.
-    function testFuzz_updateLockbox_notProxyAdminOwner_reverts(address _caller) external {
+    /// @dev Tests that `migrateToSuperRoots` reverts if the caller is not the proxy admin owner.
+    function testFuzz_migrateToSuperRoots_notProxyAdminOwner_reverts(address _caller) external {
         vm.assume(_caller != optimismPortal2.proxyAdminOwner());
         vm.expectRevert(IOptimismPortal.OptimismPortal_Unauthorized.selector);
 
         vm.prank(_caller);
-        optimismPortal2.updateLockbox(IETHLockbox(address(1)));
+        optimismPortal2.migrateToSuperRoots(IETHLockbox(address(1)), IAnchorStateRegistry(address(1)));
     }
 
-    /// @dev Tests that `updateLockbox` updates the ETHLockbox contract.
-    function testFuzz_updateLockbox_succeeds(address _newLockbox) external {
+    /// @dev Tests that `migrateToSuperRoots` reverts if the new registry is the same as the
+    ///      current one.
+    /// @param _newLockbox The new ETHLockbox to migrate to.
+    function testFuzz_migrateToSuperRoots_usingSameRegistry_reverts(address _newLockbox) external {
+        vm.assume(_newLockbox != address(optimismPortal2.ethLockbox()));
+
+        // Use the same registry as the current one.
+        IAnchorStateRegistry newAnchorStateRegistry = optimismPortal2.anchorStateRegistry();
+
+        // Trigger the call from the right address.
+        address caller = optimismPortal2.proxyAdminOwner();
+
+        // Expect the migration to revert.
+        vm.expectRevert(IOptimismPortal.OptimismPortal_MigratingToSameRegistry.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSuperRoots(IETHLockbox(_newLockbox), newAnchorStateRegistry);
+    }
+
+    /// @dev Tests that `migrateToSuperRoots` updates the ETHLockbox contract, updates the
+    ///      AnchorStateRegistry, and sets the superRootsActive flag to true.
+    /// @param _newLockbox The new ETHLockbox to migrate to.
+    /// @param _newAnchorStateRegistry The new AnchorStateRegistry to migrate to.
+    function testFuzz_migrateToSuperRoots_succeeds(address _newLockbox, address _newAnchorStateRegistry) external {
         address oldLockbox = address(optimismPortal2.ethLockbox());
+        address oldAnchorStateRegistry = address(optimismPortal2.anchorStateRegistry());
         vm.assume(_newLockbox != oldLockbox);
+        vm.assume(_newAnchorStateRegistry != oldAnchorStateRegistry);
 
         vm.expectEmit(address(optimismPortal2));
-        emit LockboxUpdated(oldLockbox, _newLockbox);
+        emit PortalMigrated(oldLockbox, _newLockbox, oldAnchorStateRegistry, _newAnchorStateRegistry);
 
         vm.prank(optimismPortal2.proxyAdminOwner());
-        optimismPortal2.updateLockbox(IETHLockbox(_newLockbox));
+        optimismPortal2.migrateToSuperRoots(IETHLockbox(_newLockbox), IAnchorStateRegistry(_newAnchorStateRegistry));
 
         assertEq(address(optimismPortal2.ethLockbox()), _newLockbox);
+        assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
+        assertTrue(optimismPortal2.superRootsActive());
     }
 }
 
@@ -2137,14 +2162,11 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
 
         // Trigger upgrade().
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), true);
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(optimismPortal2), bytes32(slot.slot));
         assertEq(initializedSlotAfter, bytes32(uint256(2)));
-
-        // Verify that superRootsActive was set to true.
-        assertEq(optimismPortal2.superRootsActive(), true);
 
         // Verify that the AnchorStateRegistry was set.
         assertEq(address(optimismPortal2.anchorStateRegistry()), address(0xdeadbeef));
@@ -2159,11 +2181,11 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
 
         // Trigger first upgrade.
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), true);
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
 
         // Try to trigger second upgrade.
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), true);
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
     }
 
     /// @notice Tests that the upgrade() function reverts if called after initialization.
@@ -2180,7 +2202,7 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
 
         // Try to trigger upgrade().
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), true);
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
     }
 }
 

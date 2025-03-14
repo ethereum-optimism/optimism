@@ -37,12 +37,13 @@ enum BondDistributionMode {
     REFUND
 }
 
-/// @notice Represents an L2 output root and the L2 block number at which it was generated.
+/// @notice Represents an L2 root and the L2 sequence number at which it was generated.
 /// @custom:field root The output root.
-/// @custom:field l2BlockNumber The L2 block number at which the output root was generated.
-struct OutputRoot {
+/// @custom:field l2SequenceNumber The L2 Sequence Number ( e.g. block number / timestamp) at which the root was
+/// generated.
+struct Proposal {
     Hash root;
-    uint256 l2BlockNumber;
+    uint256 l2SequenceNumber;
 }
 
 /// @title GameTypes

@@ -12,20 +12,21 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver {
     error ETHLockbox_InsufficientBalance();
     error ETHLockbox_NoWithdrawalTransactions();
     error ETHLockbox_DifferentProxyAdminOwner();
+    error ETHLockbox_DifferentSuperchainConfig();
 
     event Initialized(uint8 version);
-    event ETHLocked(address indexed portal, uint256 amount);
-    event ETHUnlocked(address indexed portal, uint256 amount);
-    event PortalAuthorized(address indexed portal);
-    event LockboxAuthorized(address indexed lockbox);
-    event LiquidityMigrated(address indexed lockbox, uint256 amount);
-    event LiquidityReceived(address indexed lockbox, uint256 amount);
+    event ETHLocked(IOptimismPortal2 indexed portal, uint256 amount);
+    event ETHUnlocked(IOptimismPortal2 indexed portal, uint256 amount);
+    event PortalAuthorized(IOptimismPortal2 indexed portal);
+    event LockboxAuthorized(IETHLockbox indexed lockbox);
+    event LiquidityMigrated(IETHLockbox indexed lockbox, uint256 amount);
+    event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
     function initialize(ISuperchainConfig _superchainConfig, IOptimismPortal2[] calldata _portals) external;
     function superchainConfig() external view returns (ISuperchainConfig);
     function paused() external view returns (bool);
-    function authorizedPortals(address) external view returns (bool);
-    function authorizedLockboxes(address) external view returns (bool);
+    function authorizedPortals(IOptimismPortal2) external view returns (bool);
+    function authorizedLockboxes(IETHLockbox) external view returns (bool);
     function receiveLiquidity() external payable;
     function lockETH() external payable;
     function unlockETH(uint256 _value) external;

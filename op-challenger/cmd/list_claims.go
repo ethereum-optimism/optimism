@@ -82,7 +82,7 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, ve
 		return fmt.Errorf("failed to retrieve split depth: %w", err)
 	}
 	status := metadata.Status
-	l2StartBlockNum, l2BlockNum, err := game.GetBlockRange(ctx)
+	l2StartBlockNum, l2BlockNum, err := game.GetGameRange(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve status: %w", err)
 	}

@@ -13,7 +13,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import {
     IStandardValidatorBase,
     IStandardValidatorV180,
-    IStandardValidatorV200
+    IStandardValidatorV200,
+    IStandardValidatorV300
 } from "interfaces/L1/IStandardValidator.sol";
 
 /// @title DeployStandardValidatorInput
@@ -245,6 +246,8 @@ contract DeployStandardValidator is Script {
             validator = deployValidatorV180(_si);
         } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v2.0.0"))) {
             validator = deployValidatorV200(_si);
+        } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v3.0.0"))) {
+            validator = deployValidatorV300(_si);
         } else {
             revert("DeployStandardValidator: invalid release version");
         }
@@ -281,6 +284,22 @@ contract DeployStandardValidator is Script {
         });
 
         vm.label(validator, "StandardValidatorV200");
+        return validator;
+    }
+
+    function deployValidatorV300(DeployStandardValidatorInput _si) internal returns (address) {
+        address validator = DeployUtils.createDeterministic({
+            _name: "StandardValidator.sol:StandardValidatorV300",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IStandardValidatorV300.__constructor__,
+                    (getImplementations(_si), _si.superchainConfig(), _si.l1PAOMultisig(), _si.mips(), _si.challenger())
+                )
+            ),
+            _salt: DeployUtils.DEFAULT_SALT
+        });
+
+        vm.label(validator, "StandardValidatorV300");
         return validator;
     }
 

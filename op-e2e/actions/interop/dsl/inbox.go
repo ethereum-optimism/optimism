@@ -1,6 +1,8 @@
 package dsl
 
 import (
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -37,6 +39,27 @@ func WithPayload(payload []byte) func(opts *ExecuteOpts) {
 	}
 }
 
+func WithPendingMessage(emitter *EmitterContract, chain *Chain, number uint64, logIndex int, msg string) func(opts *ExecuteOpts) {
+	return func(opts *ExecuteOpts) {
+		blockTime := chain.RollupCfg.TimestampForBlock(number)
+		id := inbox.Identifier{
+			Origin:      emitter.Address(chain),
+			BlockNumber: big.NewInt(int64(number)),
+			LogIndex:    big.NewInt(int64(logIndex)),
+			Timestamp:   big.NewInt(int64(blockTime)),
+			ChainId:     chain.RollupCfg.L2ChainID,
+		}
+		opts.Identifier = &id
+
+		topic := crypto.Keccak256Hash([]byte("DataEmitted(bytes)"))
+		var payload []byte
+		payload = append(payload, topic.Bytes()...)
+		msgHash := crypto.Keccak256Hash([]byte(msg))
+		payload = append(payload, msgHash.Bytes()...)
+		opts.Payload = &payload
+	}
+}
+
 func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, args ...func(opts *ExecuteOpts)) TransactionCreator {
 	opts := ExecuteOpts{}
 	for _, arg := range args {
@@ -58,7 +81,7 @@ func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, arg
 		} else {
 			payload = initTx.MessagePayload()
 		}
-		txOpts, from := user.TransactOpts(chain)
+		txOpts, from := user.TransactOpts(chain.ChainID.ToBig())
 		contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, chain.SequencerEngine.EthClient())
 		require.NoError(i.t, err)
 		tx, err := contract.ValidateMessage(txOpts, ident, crypto.Keccak256Hash(payload))

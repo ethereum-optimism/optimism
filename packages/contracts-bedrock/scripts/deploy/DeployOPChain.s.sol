@@ -52,7 +52,6 @@ contract DeployOPChainInput is BaseDeployIO {
     uint64 internal _gasLimit;
 
     // Configurable dispute game inputs
-    bool internal _disputeGameUsesSuperRoots;
     GameType internal _disputeGameType;
     Claim internal _disputeAbsolutePrestate;
     uint256 internal _disputeMaxGameDepth;
@@ -100,9 +99,6 @@ contract DeployOPChainInput is BaseDeployIO {
             _operatorFeeScalar = SafeCast.toUint32(_value);
         } else if (_sel == this.operatorFeeConstant.selector) {
             _operatorFeeConstant = SafeCast.toUint64(_value);
-        } else if (_sel == this.disputeGameUsesSuperRoots.selector) {
-            require(_value == 0 || _value == 1, "DeployOPChainInput: invalid disputeGameUsesSuperRoots");
-            _disputeGameUsesSuperRoots = _value == 1;
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -197,10 +193,6 @@ contract DeployOPChainInput is BaseDeployIO {
 
     function gasLimit() public view returns (uint64) {
         return _gasLimit;
-    }
-
-    function disputeGameUsesSuperRoots() public view returns (bool) {
-        return _disputeGameUsesSuperRoots;
     }
 
     function disputeGameType() public view returns (GameType) {
@@ -388,7 +380,6 @@ contract DeployOPChain is Script {
             startingAnchorRoot: _doi.startingAnchorRoot(),
             saltMixer: _doi.saltMixer(),
             gasLimit: _doi.gasLimit(),
-            disputeGameUsesSuperRoots: _doi.disputeGameUsesSuperRoots(),
             disputeGameType: _doi.disputeGameType(),
             disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
@@ -571,11 +562,10 @@ contract DeployOPChain is Script {
         require(systemConfig.l1CrossDomainMessenger() == address(_doo.l1CrossDomainMessengerProxy()), "SYSCON-160");
         require(systemConfig.l1ERC721Bridge() == address(_doo.l1ERC721BridgeProxy()), "SYSCON-170");
         require(systemConfig.l1StandardBridge() == address(_doo.l1StandardBridgeProxy()), "SYSCON-180");
-        require(systemConfig.disputeGameFactory() == address(_doo.disputeGameFactoryProxy()), "SYSCON-190");
-        require(systemConfig.optimismPortal() == address(_doo.optimismPortalProxy()), "SYSCON-200");
+        require(systemConfig.optimismPortal() == address(_doo.optimismPortalProxy()), "SYSCON-190");
         require(
             systemConfig.optimismMintableERC20Factory() == address(_doo.optimismMintableERC20FactoryProxy()),
-            "SYSCON-210"
+            "SYSCON-200"
         );
     }
 
@@ -655,7 +645,7 @@ contract DeployOPChain is Script {
         IETHLockbox lockbox = _doo.ethLockboxProxy();
 
         require(address(lockbox.superchainConfig()) == address(_doi.opcm().superchainConfig()), "ETHLOCKBOX-10");
-        require(lockbox.authorizedPortals(address(_doo.optimismPortalProxy())), "ETHLOCKBOX-20");
+        require(lockbox.authorizedPortals(_doo.optimismPortalProxy()), "ETHLOCKBOX-20");
         require(lockbox.proxyAdminOwner() == _doi.opChainProxyAdminOwner(), "ETHLOCKBOX-30");
     }
 
