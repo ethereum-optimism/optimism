@@ -475,7 +475,7 @@ impl EngineApi {
         let middleware = tower::ServiceBuilder::default().layer(secret_layer);
         let client = jsonrpsee::http_client::HttpClientBuilder::default()
             .set_http_middleware(middleware)
-            .build(&url)
+            .build(url)
             .expect("Failed to create http client");
 
         Ok(Self {

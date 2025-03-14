@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 
 pub(crate) type ClientResult<T> = Result<T, ClientError>;
 
@@ -62,13 +62,13 @@ pub enum ExecutionClientError {
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
 ///
 #[derive(Clone)]
-pub struct ExecutionClient {
+pub(crate) struct ExecutionClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
-    pub auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
+    auth_client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
     /// Uri of the RPC server for authenticated Engine API calls
-    pub auth_rpc: Uri,
+    auth_rpc: Uri,
     /// The source of the payload
-    pub payload_source: PayloadSource,
+    payload_source: PayloadSource,
 }
 
 impl ExecutionClient {
@@ -107,6 +107,7 @@ impl ExecutionClient {
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> ClientResult<ForkchoiceUpdated> {
+        info!("Sending fork_choice_updated_v3 to {}", self.payload_source);
         let res = self.auth_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
             .await?;
@@ -135,6 +136,7 @@ impl ExecutionClient {
         &self,
         payload_id: PayloadId,
     ) -> ClientResult<OpExecutionPayloadEnvelopeV3> {
+        info!("Sending get_payload_v3 to {}", self.payload_source);
         Ok(self.auth_client
             .get_payload_v3(payload_id)
             .await?)
@@ -155,6 +157,7 @@ impl ExecutionClient {
         versioned_hashes: Vec<B256>,
         parent_beacon_block_root: B256,
     ) -> ClientResult<PayloadStatus> {
+        info!("Sending new_payload_v3 to {}", self.payload_source);
         let execution_payload = ExecutionPayload::from(payload.clone());
         let block_hash = execution_payload.block_hash();
         tracing::Span::current().record("block_hash", block_hash.to_string());
@@ -193,3 +196,109 @@ macro_rules! define_rpc_args {
 }
 
 define_rpc_args!((BuilderArgs, builder), (L2ClientArgs, l2));
+
+#[cfg(test)]
+mod tests {
+    use assert_cmd::Command;
+    use http::Uri;
+    use jsonrpsee::core::client::ClientT;
+
+    use crate::auth_layer::AuthClientService;
+    use crate::server::PayloadSource;
+    use alloy_rpc_types_engine::JwtSecret;
+    use jsonrpsee::RpcModule;
+    use jsonrpsee::http_client::HttpClient;
+    use jsonrpsee::http_client::transport::Error as TransportError;
+    use jsonrpsee::http_client::transport::HttpBackend;
+    use jsonrpsee::{
+        core::ClientError,
+        rpc_params,
+        server::{ServerBuilder, ServerHandle},
+    };
+    use predicates::prelude::*;
+    use reth_rpc_layer::{AuthLayer, JwtAuthValidator};
+    use std::net::SocketAddr;
+    use std::result::Result;
+    use std::str::FromStr;
+    use std::sync::Arc;
+
+    use super::*;
+
+    const AUTH_PORT: u32 = 8550;
+    const AUTH_ADDR: &str = "0.0.0.0";
+    const SECRET: &str = "f79ae8046bc11c9927afe911db7143c51a806c4a537cc08e0d37140b0192f430";
+
+    #[test]
+    fn test_invalid_args() {
+        let mut cmd = Command::cargo_bin("rollup-boost").unwrap();
+        cmd.arg("--invalid-arg");
+
+        cmd.assert().failure().stderr(predicate::str::contains(
+            "error: unexpected argument '--invalid-arg' found",
+        ));
+    }
+
+    #[tokio::test]
+    async fn valid_jwt() {
+        let secret = JwtSecret::from_hex(SECRET).unwrap();
+
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
+        let response = send_request(client.auth_client).await;
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), "You are the dark lord");
+    }
+
+    #[tokio::test]
+    async fn invalid_jwt() {
+        let secret = JwtSecret::random();
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let client = ExecutionClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
+        let response = send_request(client.auth_client).await;
+        assert!(response.is_err());
+        assert!(matches!(
+            response.unwrap_err(),
+            ClientError::Transport(e)
+                if matches!(e.downcast_ref::<TransportError>(), Some(TransportError::Rejected { status_code: 401 }))
+        ));
+    }
+
+    async fn send_request(
+        client: Arc<HttpClient<AuthClientService<HttpBackend>>>,
+    ) -> Result<String, ClientError> {
+        let server = spawn_server().await;
+
+        let response = client
+            .request::<String, _>("greet_melkor", rpc_params![])
+            .await;
+
+        server.stop().unwrap();
+        server.stopped().await;
+
+        response
+    }
+
+    /// Spawn a new RPC server equipped with a `JwtLayer` auth middleware.
+    async fn spawn_server() -> ServerHandle {
+        let secret = JwtSecret::from_hex(SECRET).unwrap();
+        let addr = format!("{AUTH_ADDR}:{AUTH_PORT}");
+        let validator = JwtAuthValidator::new(secret);
+        let layer = AuthLayer::new(validator);
+        let middleware = tower::ServiceBuilder::default().layer(layer);
+
+        // Create a layered server
+        let server = ServerBuilder::default()
+            .set_http_middleware(middleware)
+            .build(addr.parse::<SocketAddr>().unwrap())
+            .await
+            .unwrap();
+
+        // Create a mock rpc module
+        let mut module = RpcModule::new(());
+        module
+            .register_method("greet_melkor", |_, _, _| "You are the dark lord")
+            .unwrap();
+
+        server.start(module)
+    }
+}

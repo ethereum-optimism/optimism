@@ -17,7 +17,7 @@ use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use serde::{Deserialize, Serialize};
 
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, info, instrument};
 
 use jsonrpsee::proc_macros::rpc;
 
@@ -371,17 +371,7 @@ impl EngineApiServer for RollupBoostServer {
             let builder_payload = payload.clone();
             let builder_versioned_hashes = versioned_hashes.clone();
             tokio::spawn(async move {
-                let _ = builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
-                .map(|response: PayloadStatus| {
-                    if response.is_invalid() {
-                        error!(message = "builder rejected new_payload_v3", "url" = ?builder.auth_rpc, "block_hash" = %block_hash);
-                    } else {
-                        info!(message = "called new_payload_v3 to builder", "url" = ?builder.auth_rpc, "payload_status" = %response.status, "block_hash" = %block_hash);
-                    }
-                }).map_err(|e| {
-                    error!(message = "error calling new_payload_v3 to builder", "url" = ?builder.auth_rpc, "error" = %e, "block_hash" = %block_hash);
-                    e
-                });
+                let _ = builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await;
             });
         }
         Ok(self.l2_client

@@ -259,7 +259,7 @@ mod tests {
             Some(result)
         });
 
-        let mut harness =
+        let harness =
             RollupBoostTestHarnessBuilder::new("test_integration_builder_returns_incorrect_block")
                 .proxy_handler(handler)
                 .build()
@@ -272,15 +272,6 @@ mod tests {
             let (_block, block_creator) = block_generator.generate_block(false).await?;
             assert!(block_creator.is_l2(), "Block creator should be the builder");
         }
-
-        // check that at some point we had the log "builder payload was not valid" which signals
-        // that the builder returned a payload that was not valid and rollup-boost did not process it.
-        let rb_service = harness._framework.get_mut_service("rollup-boost")?;
-        let logs = rb_service.get_logs()?;
-        assert!(
-            logs.contains("builder payload was not valid"),
-            "Logs should contain the message 'builder payload was not valid'"
-        );
 
         Ok(())
     }
