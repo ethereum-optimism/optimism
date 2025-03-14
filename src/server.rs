@@ -1,6 +1,5 @@
-use crate::client::ExecutionClient;
+use crate::client::{ClientError, ClientResult, ExecutionClient};
 use crate::debug_api::DebugServer;
-use crate::metrics::ServerMetrics;
 use alloy_primitives::B256;
 use moka::sync::Cache;
 use opentelemetry::trace::SpanKind;
@@ -12,7 +11,7 @@ use alloy_rpc_types_engine::{
     PayloadStatus,
 };
 use jsonrpsee::RpcModule;
-use jsonrpsee::core::{ClientError, RegisterMethodError, RpcResult, async_trait};
+use jsonrpsee::core::{async_trait, RegisterMethodError, RpcResult};
 use jsonrpsee::types::ErrorObject;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
@@ -102,10 +101,9 @@ impl ExecutionMode {
 
 #[derive(Clone)]
 pub struct RollupBoostServer {
-    pub l2_client: ExecutionClient,
-    pub builder_client: ExecutionClient,
+    pub l2_client: Arc<ExecutionClient>,
+    pub builder_client: Arc<ExecutionClient>,
     pub boost_sync: bool,
-    pub metrics: Option<Arc<ServerMetrics>>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
 }
@@ -115,14 +113,12 @@ impl RollupBoostServer {
         l2_client: ExecutionClient,
         builder_client: ExecutionClient,
         boost_sync: bool,
-        metrics: Option<Arc<ServerMetrics>>,
         initial_execution_mode: ExecutionMode,
     ) -> Self {
         Self {
-            l2_client,
-            builder_client,
+            l2_client: Arc::new(l2_client),
+            builder_client: Arc::new(builder_client),
             boost_sync,
-            metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
             execution_mode: Arc::new(Mutex::new(initial_execution_mode)),
         }
@@ -187,7 +183,7 @@ pub trait EngineApi {
         &self,
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
-    ) -> RpcResult<ForkchoiceUpdated>;
+    ) -> RpcResult<ForkchoiceUpdated> ;
 
     #[method(name = "getPayloadV3")]
     async fn get_payload_v3(
@@ -207,6 +203,7 @@ pub trait EngineApi {
 #[async_trait]
 impl EngineApiServer for RollupBoostServer {
     #[instrument(skip_all, 
+        err,
         fields(
             otel.kind = ?SpanKind::Server,
             has_attributes = payload_attributes.is_some(),
@@ -255,11 +252,11 @@ impl EngineApiServer for RollupBoostServer {
         if execution_mode.is_disabled() {
             debug!(message = "execution mode is disabled, skipping FCU call to builder", "head_block_hash" = %fork_choice_state.head_block_hash);
         } else if should_send_to_builder {
-            self.send_to_builder(
-                payload_attributes,
-                fork_choice_state.clone(),
-            )
-            .await;
+            let builder_client = self.builder_client.clone();
+            tokio::spawn( async move {
+                    let _ = builder_client.fork_choice_updated_v3(fork_choice_state.clone(), payload_attributes.clone()).await;
+                }
+            );
         } else {
             info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash);
         }
@@ -268,15 +265,16 @@ impl EngineApiServer for RollupBoostServer {
     }
 
     #[instrument(skip_all, 
+        err,
         fields(
             otel.kind = ?SpanKind::Server,
+            %payload_id
         )
     )]
     async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
-        info!(message = "received get_payload_v3", "payload_id" = %payload_id);
         let l2_client_future = self.l2_client.get_payload_v3(payload_id);
 
         let builder_client_future = Box::pin(async move {
@@ -285,11 +283,11 @@ impl EngineApiServer for RollupBoostServer {
                 info!(message = "dry run mode is enabled, skipping get payload builder call");
 
                 // We are in dry run mode, so we do not want to call the builder.
-                return Err(ClientError::Call(ErrorObject::owned(
+                return Err(ErrorObject::owned(
                     INVALID_REQUEST_CODE,
                     "Dry run mode is enabled",
                     None::<String>,
-                )));
+                ));
             }
 
             if let Some(cause) = self
@@ -300,33 +298,18 @@ impl EngineApiServer for RollupBoostServer {
             }
 
             let builder = self.builder_client.clone();
-            let (payload, source) = builder.get_payload_v3(payload_id).await.map_err(|error| {
-                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder.auth_rpc, %error, %payload_id);
-                error
-                })?;
-
-            let block_hash = ExecutionPayload::from(payload.clone().execution_payload).block_hash();
-            info!(message = "received payload from builder", %payload_id, %block_hash);
+            let payload = builder.get_payload_v3(payload_id).await?;
 
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
-            let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|error| {
-                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_rpc, %error, %payload_id);
-                error
-            })?;
+            let payload_status = self.l2_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await?;
 
             if payload_status.is_invalid() {
-                error!(message = "builder payload was not valid", "url" = ?builder.auth_rpc, "payload_status" = %payload_status.status, %payload_id);
-                Err(ClientError::Call(ErrorObject::owned(
-                    INVALID_REQUEST_CODE,
-                    "Builder payload was not valid",
-                    None::<String>,
-                )))
-            } else {
-                info!(message = "received payload status from local execution engine validating builder payload", %payload_id);
-                Ok((payload, source))
+                return Err(ClientError::InvalidPayload(payload_status.status.to_string()).into())
             }
+            
+            Ok(payload)
         });
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
@@ -334,31 +317,26 @@ impl EngineApiServer for RollupBoostServer {
             (Ok(builder), _) => Ok(builder),
             (Err(_), Ok(l2)) => Ok(l2),
             (Err(_), Err(e)) => Err(e),
-        };
-        payload.map(|(payload, context)| {
-            let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
-            let block_hash = inner_payload.block_hash();
-            let block_number = inner_payload.block_number();
+        }?;
 
-            if let Some(metrics) = &self.metrics {
-                metrics.increment_blocks_created(&context);
-            }
+        let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
+        let block_hash = inner_payload.block_hash();
+        let block_number = inner_payload.block_number();
 
-            // Note: This log message is used by integration tests to track payload context.
-            // While not ideal to rely on log parsing, it provides a reliable way to verify behavior.
-            // Happy to consider an alternative approach later on.
-            info!(
-                message = "returning block",
-                "hash" = %block_hash,
-                "number" = %block_number,
-                "context" = %context,
-                "payload_id" = %payload_id
-            );
-            payload
-        })
+        // Note: This log message is used by integration tests to track payload context.
+        // While not ideal to rely on log parsing, it provides a reliable way to verify behavior.
+        // Happy to consider an alternative approach later on.
+        info!(
+            message = "returning block",
+            "hash" = %block_hash,
+            "number" = %block_number,
+            "payload_id" = %payload_id
+        );
+        Ok(payload)
     }
 
     #[instrument(skip_all, 
+        err,
         fields(
             otel.kind = ?SpanKind::Server,
         )
@@ -380,9 +358,9 @@ impl EngineApiServer for RollupBoostServer {
                 .payload_trace_context
                 .retrieve_by_parent_hash(&parent_hash)
             {
-                for cause in causes {
+                causes.iter().for_each(|cause| {
                     tracing::Span::current().follows_from(cause);
-                }
+                });
             }
 
             self.payload_trace_context
@@ -405,64 +383,40 @@ impl EngineApiServer for RollupBoostServer {
                 });
             });
         }
-        self.l2_client
+        Ok(self.l2_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
-            .await
+            .await?)
     }
 }
 
 impl RollupBoostServer {
     #[instrument(skip_all, 
+        err,
         fields(
             otel.kind = ?SpanKind::Client,
+            payload_id,
         )
     )]
     async fn send_to_builder(
         &self,
         payload_attributes: Option<OpPayloadAttributes>,
         fork_choice_state: ForkchoiceState,
-    ) {
+    ) -> ClientResult<()> {
         // async call to builder to trigger payload building and sync
         let builder_client = self.builder_client.clone();
         let attr = payload_attributes.clone();
-        tokio::spawn(async move {
-            match builder_client
-                .fork_choice_updated_v3(fork_choice_state, attr)
-                .await
-            {
-                Ok(response) => {
-                    let external_payload_id = response.payload_id;
-                    if response.is_invalid() {
-                        let payload_id_str = external_payload_id
-                            .map(|id| id.to_string())
-                            .unwrap_or_default();
-                        error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_rpc, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
-                    } else if let Some(external_id) = external_payload_id {
-                        info!(
-                            message = "called fork_choice_updated_v3 to builder with payload attributes",
-                            "url" = ?builder_client.auth_rpc,
-                            "payload_status" = %response.payload_status.status,
-                            "payload_id" = %external_id
-                        );
-                    } else {
-                        info!(
-                            message = "called fork_choice_updated_v3 to builder without payload attributes",
-                            "url" = ?builder_client.auth_rpc,
-                            "payload_status" = %response.payload_status.status
-                        );
-                    }
-                }
+        let response =  builder_client
+            .fork_choice_updated_v3(fork_choice_state, attr)
+            .await?;
 
-                Err(e) => {
-                    error!(
-                        message = "error calling fork_choice_updated_v3 to builder",
-                        "url" = ?builder_client.auth_rpc,
-                        "error" = %e,
-                        "head_block_hash" = %fork_choice_state.head_block_hash
-                    );
-                }
-            }
-        });
+        if let Some(payload_id) = response.payload_id {
+            tracing::Span::current().record("payload_id", payload_id.to_string());
+        }
+
+        if response.is_invalid() {
+            return Err(ClientError::InvalidPayload(response.payload_status.status.to_string()))
+        }
+        Ok(())
     }
 }
 
@@ -584,7 +538,6 @@ mod tests {
                 l2_client,
                 builder_client,
                 boost_sync,
-                None,
                 ExecutionMode::Enabled,
             );
 

@@ -7,10 +7,10 @@ use alloy_rpc_types_engine::{
 };
 use clap::{arg, Parser};
 use http::Uri;
-use jsonrpsee::core::{ClientError, RpcResult};
+// use jsonrpsee::core::ClientError;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use jsonrpsee::types::ErrorCode;
+use jsonrpsee::types::ErrorObjectOwned;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
 use opentelemetry::trace::SpanKind;
 use paste::paste;
@@ -19,6 +19,33 @@ use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::{error, instrument};
+
+pub(crate) type ClientResult<T> = Result<T, ClientError>;
+
+#[derive(Error, Debug)]
+pub(crate) enum ClientError {
+    #[error(transparent)]
+    Jsonrpsee(#[from] jsonrpsee::core::client::Error),
+    #[error("Invalid payload: {0}")]
+    InvalidPayload(String)
+}
+
+impl From<ClientError> for ErrorObjectOwned {
+    fn from(err: ClientError) -> Self {
+        match err {
+            ClientError::Jsonrpsee(err) => {
+                match err {
+                    jsonrpsee::core::ClientError::Call(error_object) => error_object,
+                    e => ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None) 
+,
+                }
+            },
+            e => {
+                ErrorObjectOwned::owned(0, e.to_string(), Option::<()>::None) 
+            }
+        }
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum ExecutionClientError {
@@ -66,58 +93,51 @@ impl ExecutionClient {
     }
 
     #[instrument(skip_all, 
+        err
         fields(
             otel.kind = ?SpanKind::Client,
             target = self.payload_source.to_string(),
+            head_block_hash = %fork_choice_state.head_block_hash,
+            url = %self.auth_rpc,
+            payload_id
         )
     )]
     pub async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
-    ) -> RpcResult<ForkchoiceUpdated> {
-        self.auth_client
+    ) -> ClientResult<ForkchoiceUpdated> {
+        let res = self.auth_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err,
-                other_error => {
-                    error!(
-                        message = "error calling fork_choice_updated_v3 for l2 client",
-                        "url" = ?self.auth_rpc,
-                        "error" = %other_error,
-                        "head_block_hash" = %fork_choice_state.head_block_hash,
-                    );
-                    ErrorCode::InternalError.into()
-                }
-            })
+            .await?;
+
+        if let Some(payload_id) = res.payload_id {
+            tracing::Span::current().record("payload_id", payload_id.to_string());
+        }
+        
+        if res.is_invalid() {
+            return Err(ClientError::InvalidPayload(res.payload_status.status.to_string()))
+        }
+
+        Ok(res)
     }
 
-    #[instrument(skip_all, 
+    #[instrument(skip(self), 
+        err,
         fields(
             otel.kind = ?SpanKind::Client,
             target = self.payload_source.to_string(),
+            url = %self.auth_rpc,
+            %payload_id,
         )
     )]
     pub async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
-    ) -> RpcResult<(OpExecutionPayloadEnvelopeV3, PayloadSource)> {
-        self.auth_client
+    ) -> ClientResult<OpExecutionPayloadEnvelopeV3> {
+        Ok(self.auth_client
             .get_payload_v3(payload_id)
-            .await
-            .map(|payload| (payload, self.payload_source.clone()))
-            .map_err(|e| match e {
-                ClientError::Call(err) => err,
-                other_error => {
-                    error!(
-                        message = "error calling get_payload_v3",
-                        "error" = %other_error,
-                        "payload_id" = %payload_id
-                    );
-                    ErrorCode::InternalError.into()
-                }
-            })
+            .await?)
     }
 
     #[instrument(skip_all, 
@@ -125,6 +145,8 @@ impl ExecutionClient {
         fields(
             otel.kind = ?SpanKind::Client,
             target = self.payload_source.to_string(),
+            url = %self.auth_rpc,
+            block_hash,
         )
     )]
     pub async fn new_payload_v3(
@@ -132,24 +154,13 @@ impl ExecutionClient {
         payload: ExecutionPayloadV3,
         versioned_hashes: Vec<B256>,
         parent_beacon_block_root: B256,
-    ) -> RpcResult<PayloadStatus> {
+    ) -> ClientResult<PayloadStatus> {
         let execution_payload = ExecutionPayload::from(payload.clone());
         let block_hash = execution_payload.block_hash();
-        self.auth_client
+        tracing::Span::current().record("block_hash", block_hash.to_string());
+        Ok(self.auth_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
-            .await
-            .map_err(|e| match e {
-                ClientError::Call(err) => err,
-                other_error => {
-                    error!(
-                        message = "error calling new_payload_v3",
-                        "url" = ?self.auth_rpc,
-                        "error" = %other_error,
-                        "block_hash" = %block_hash
-                    );
-                    ErrorCode::InternalError.into()
-                }
-            })
+            .await?)
     }
 }
 

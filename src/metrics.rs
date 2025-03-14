@@ -1,12 +1,12 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use eyre::Result;
-use metrics::{counter, histogram, Counter, Histogram};
+use metrics::{Counter, Histogram, counter, histogram};
 use metrics_derive::Metrics;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{PrefixLayer, Stack};
 
-use crate::{init_metrics_server, server::PayloadSource, Args};
+use crate::{Args, init_metrics_server};
 
 #[derive(Metrics)]
 #[metrics(scope = "rpc")]
@@ -31,10 +31,6 @@ pub struct ServerMetrics {
 }
 
 impl ServerMetrics {
-    pub fn increment_blocks_created(&self, source: &PayloadSource) {
-        counter!("rpc.blocks_created", "source" => source.to_string()).increment(1);
-    }
-
     pub fn record_builder_forwarded_call(&self, latency: Duration, method: String) {
         histogram!("rpc.builder_forwarded_call", "method" => method).record(latency.as_secs_f64());
     }
