@@ -318,6 +318,7 @@ impl EngineApiServer for RollupBoostServer {
 
             if !self.payload_trace_context.has_attributes(&payload_id) {
                 // block builder won't build a block without attributes
+                info!(message = "no attributes found, skipping get_payload_v3 call to builder");
                 return Ok(None);
             }
 
@@ -655,9 +656,9 @@ mod tests {
             let get_payload_requests_builder_mu = get_payload_requests_builder.lock();
             let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
             let new_payload_requests_mu = new_payload_requests.lock();
-            assert_eq!(get_payload_requests_builder_mu.len(), 1);
+            assert_eq!(get_payload_requests_builder_mu.len(), 0);
             assert_eq!(get_payload_requests_mu.len(), 1);
-            assert_eq!(new_payload_requests_mu.len(), 2);
+            assert_eq!(new_payload_requests_mu.len(), 1);
             let req: &PayloadId = get_payload_requests_mu.first().unwrap();
             assert_eq!(*req, PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1]));
         }
@@ -827,8 +828,7 @@ mod tests {
 
         {
             let builder_gp_reqs = builder_mock.get_payload_requests.lock();
-            assert_eq!(builder_gp_reqs.len(), 1);
-            assert_eq!(builder_gp_reqs[0], same_id);
+            assert_eq!(builder_gp_reqs.len(), 0);
         }
 
         {
