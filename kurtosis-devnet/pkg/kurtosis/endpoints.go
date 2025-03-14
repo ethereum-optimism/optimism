@@ -69,13 +69,6 @@ func (f *ServiceFinder) FindL2Services(network string) ([]descriptors.Node, desc
 			tag, idx := f.serviceTag(strings.TrimPrefix(name, f.l2ServicePrefix))
 			return tag, idx, true
 		}
-
-		// Some services don't have a network suffix, as they span multiple chains
-		// TODO(14849): ideally we'd need to handle *partial* chain coverage.
-		if strings.HasPrefix(serviceName, f.l2ServicePrefix) {
-			tag, idx := f.serviceTag(strings.TrimPrefix(serviceName, f.l2ServicePrefix))
-			return tag, idx, true
-		}
 		return "", 0, false
 	})
 }
