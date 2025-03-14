@@ -313,9 +313,9 @@ impl EngineApiServer for RollupBoostServer {
         });
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
-        let payload = match (builder_payload, l2_payload) {
-            (Ok(builder), _) => Ok(builder),
-            (Err(_), Ok(l2)) => Ok(l2),
+        let (payload, context) = match (builder_payload, l2_payload) {
+            (Ok(builder), _) => Ok((builder, "builder")),
+            (Err(_), Ok(l2)) => Ok((l2,  "l2")),
             (Err(_), Err(e)) => Err(e),
         }?;
 
@@ -330,7 +330,8 @@ impl EngineApiServer for RollupBoostServer {
             message = "returning block",
             "hash" = %block_hash,
             "number" = %block_number,
-            "payload_id" = %payload_id
+            %context,
+            %payload_id,
         );
         Ok(payload)
     }
