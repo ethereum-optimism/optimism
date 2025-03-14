@@ -9,19 +9,19 @@
             "type": "address"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint256",
             "name": "blockNumber",
-            "type": "uint64"
+            "type": "uint256"
           },
           {
-            "internalType": "uint32",
+            "internalType": "uint256",
             "name": "logIndex",
-            "type": "uint32"
+            "type": "uint256"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint256",
             "name": "timestamp",
-            "type": "uint64"
+            "type": "uint256"
           },
           {
             "internalType": "uint256",
@@ -74,19 +74,19 @@
             "type": "address"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint256",
             "name": "blockNumber",
-            "type": "uint64"
+            "type": "uint256"
           },
           {
-            "internalType": "uint32",
+            "internalType": "uint256",
             "name": "logIndex",
-            "type": "uint32"
+            "type": "uint256"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint256",
             "name": "timestamp",
-            "type": "uint64"
+            "type": "uint256"
           },
           {
             "internalType": "uint256",
@@ -105,12 +105,27 @@
   },
   {
     "inputs": [],
+    "name": "BlockNumberTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LogIndexTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoExecutingDeposits",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "NotInAccessList",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimestampTooHigh",
     "type": "error"
   }
 ]

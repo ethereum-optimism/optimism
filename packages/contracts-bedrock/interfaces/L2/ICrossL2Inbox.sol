@@ -5,15 +5,18 @@ pragma solidity ^0.8.0;
 
 struct Identifier {
     address origin;
-    uint64 blockNumber;
-    uint32 logIndex;
-    uint64 timestamp;
+    uint256 blockNumber;
+    uint256 logIndex;
+    uint256 timestamp;
     uint256 chainId;
 }
 
 interface ICrossL2Inbox {
     error NoExecutingDeposits();
     error NotInAccessList();
+    error BlockNumberTooHigh();
+    error TimestampTooHigh();
+    error LogIndexTooHigh();
 
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 

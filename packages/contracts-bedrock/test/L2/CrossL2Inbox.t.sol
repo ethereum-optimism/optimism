@@ -24,13 +24,24 @@ contract CrossL2InboxTest is Test {
     }
 
     /// Test that `validateMessage` reverts when the slot is not warm.
-    function testFuzz_validateMessage_accessList_reverts(Identifier calldata _id, bytes32 _messageHash) external {
+    function testFuzz_validateMessage_accessList_reverts(Identifier memory _id, bytes32 _messageHash) external {
+        // Bound values types to ensure they are not too large
+        _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
+        _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
+        _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
+
+        // Expect revert
         vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
 
     /// Test that `validateMessage` succeeds when the slot for the message checksum is warm.
-    function testFuzz_validateMessage_succeeds(Identifier calldata _id, bytes32 _messageHash) external {
+    function testFuzz_validateMessage_succeeds(Identifier memory _id, bytes32 _messageHash) external {
+        // Bound values types to ensure they are not too large
+        _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
+        _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
+        _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
+
         // Warm the slot
         bytes32 slot = crossL2Inbox.calculateChecksum(_id, _messageHash);
         crossL2Inbox.warmSlot(slot);
@@ -41,6 +52,50 @@ contract CrossL2InboxTest is Test {
 
         // Validate the message
         crossL2Inbox.validateMessage(_id, _messageHash);
+    }
+
+    /// Test that calculate checcksum reverts when the block number is greater than 2^64.
+    function testFuzz_calculateChecksum_withTooLargeBlockNumber_reverts(
+        Identifier memory _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        // Set to the 2**64 + 1
+        _id.blockNumber = 18446744073709551615 + 1;
+        vm.expectRevert(ICrossL2Inbox.BlockNumberTooHigh.selector);
+        crossL2Inbox.calculateChecksum(_id, _messageHash);
+    }
+
+    /// Test that calculate checcksum reverts when the log index is greater than 2^32.
+    function testFuzz_calculateChecksum_withTooLargeLogIndex_reverts(
+        Identifier memory _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
+
+        // Set to the 2**32 + 1
+        _id.logIndex = 4294967295 + 1;
+        vm.expectRevert(ICrossL2Inbox.LogIndexTooHigh.selector);
+        crossL2Inbox.calculateChecksum(_id, _messageHash);
+    }
+
+    /// Test that calculate checcksum reverts when the timestamp is greater than 2^64.
+    function testFuzz_calculateChecksum_withTooLargeTimestamp_reverts(
+        Identifier memory _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
+        _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
+
+        // Set to the 2**64 + 1
+        _id.timestamp = 18446744073709551615 + 1;
+        vm.expectRevert(ICrossL2Inbox.TimestampTooHigh.selector);
+        crossL2Inbox.calculateChecksum(_id, _messageHash);
     }
 
     /// Test that `calculateChecksum` succeeds matching the expected calculated checksum.
@@ -72,10 +127,14 @@ contract CrossL2InboxTest is Test {
     }
 
     /// Test that `_isWarm` returns the correct value when the slot is warm.
-    function testFuzz_isWarm_whenSlotIsWarm_succeeds(Identifier calldata _id, bytes32 _messageHash) external view {
-        bytes32 slot = crossL2Inbox.calculateChecksum(_id, _messageHash);
+    function testFuzz_isWarm_whenSlotIsWarm_succeeds(Identifier memory _id, bytes32 _messageHash) external view {
+        // Bound values types to ensure they are not too large
+        _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
+        _id.logIndex = bound(_id.logIndex, 0, type(uint32).max);
+        _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
 
         // Warm the slot
+        bytes32 slot = crossL2Inbox.calculateChecksum(_id, _messageHash);
         crossL2Inbox.warmSlot(slot);
 
         // Assert that the slot is warm

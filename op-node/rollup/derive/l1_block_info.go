@@ -383,16 +383,6 @@ func isEcotoneButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) boo
 	return rollupCfg.IsEcotone(l2Timestamp) && !rollupCfg.IsEcotoneActivationBlock(l2Timestamp)
 }
 
-// isInteropButNotFirstBlock returns whether the specified block is subject to the Interop upgrade,
-// but is not the activation block itself.
-func isInteropButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) bool {
-	// Since we use the pre-interop L1 tx one last time during the upgrade block,
-	// we must disallow the deposit-txs from using the CrossL2Inbox during this block.
-	// If the CrossL2Inbox does not exist yet, then it is safe,
-	// but we have to ensure that the spec and code puts any Interop upgrade-txs after the user deposits.
-	return rollupCfg.IsInterop(l2Timestamp) && !rollupCfg.IsInteropActivationBlock(l2Timestamp)
-}
-
 // isIsthmusButNotFirstBlock returns whether the specified block is subject to the Isthmus upgrade,
 // but is not the activation block itself.
 func isIsthmusButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) bool {

@@ -9,9 +9,9 @@ pragma solidity ^0.8.0;
 /// @custom:field chainId The origin chain ID of the message.
 struct Identifier {
     address origin;
-    uint64 blockNumber;
-    uint32 logIndex;
-    uint64 timestamp;
+    uint256 blockNumber;
+    uint256 logIndex;
+    uint256 timestamp;
     uint256 chainId;
 }
 
@@ -22,6 +22,18 @@ interface ICrossL2Inbox {
     /// @notice Thrown when trying to validate a cross chain message with an identifier checksum that is
     ///         invalid or was not provided in the transaction's access list to set the slot as warm.
     error NotInAccessList();
+
+    /// @notice Thrown when trying to validate a cross chain message with a block number that is
+    ///         greater than 2^64.
+    error BlockNumberTooHigh();
+
+    /// @notice Thrown when trying to validate a cross chain message with a timestamp that is
+    ///         greater than 2^64.
+    error TimestampTooHigh();
+
+    /// @notice Thrown when trying to validate a cross chain message with a log index that is
+    ///         greater than 2^32.
+    error LogIndexTooHigh();
 
     /// @notice Emitted when a message is being executed.
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
