@@ -1132,6 +1132,138 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
+func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+
+	system := dsl.NewInteropDSL(t)
+	actors := system.Actors
+	emitter := system.DeployEmitterContracts()
+
+	// Advance L1 a couple times to avoid deposit gas metering issues near genesis
+	system.AdvanceL1()
+	system.AdvanceL1()
+
+	l1User := system.CreateUser()
+	depositMessage := dsl.NewMessage(system, actors.ChainA, emitter, "hello")
+	system.AdvanceL1(
+		dsl.WithActIncludeTx(
+			depositMessage.ActEmitDeposit(l1User)))
+
+	// As such, the next block timestamp across both chains will contain a user-deposit message and an executing message
+	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainA, 2)
+	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainB, 2)
+
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	// The pending block on chain A will contain the user deposit
+	depositMessage.ExecutePendingOn(actors.ChainB, actors.ChainA.Sequencer.L2Unsafe().Number+1)
+	actors.ChainA.Sequencer.ActL2EndBlock(t)
+	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	system.SubmitBatchData(dsl.WithSkipCrossSafeUpdate())
+
+	endTimestamp := actors.ChainB.Sequencer.L2Unsafe().Time
+	startTimestamp := endTimestamp - 1
+	preConsolidation := system.Outputs.TransitionState(startTimestamp, consolidateStep,
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
+	).Marshal()
+
+	system.ProcessCrossSafe()
+	depositMessage.CheckExecuted()
+	assertUserDepositEmitted(t, system.Actors.ChainA, nil, emitter)
+	crossSafeEnd := system.Outputs.SuperRoot(endTimestamp)
+
+	tests := []*transitionTest{
+		{
+			name:               "Consolidate",
+			agreedClaim:        preConsolidation,
+			disputedClaim:      crossSafeEnd.Marshal(),
+			disputedTraceIndex: consolidateStep,
+			expectValid:        true,
+		},
+		{
+			name:               "Consolidate-InvalidNoChange",
+			agreedClaim:        preConsolidation,
+			disputedClaim:      preConsolidation,
+			disputedTraceIndex: consolidateStep,
+			expectValid:        false,
+		},
+	}
+	runFppAndChallengerTests(gt, system, tests)
+}
+
+func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+
+	system := dsl.NewInteropDSL(t)
+	actors := system.Actors
+	emitter := system.DeployEmitterContracts()
+
+	// Advance L1 a couple times to avoid deposit gas metering issues near genesis
+	system.AdvanceL1()
+	system.AdvanceL1()
+
+	l1User := system.CreateUser()
+	depositMessage := dsl.NewMessage(system, actors.ChainA, emitter, "hello")
+	system.AdvanceL1(
+		dsl.WithActIncludeTx(
+			depositMessage.ActEmitDeposit(l1User)))
+
+	// As such, the next block timestamp across both chains will contain a user-deposit message and an executing message
+	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainA, 2)
+	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainB, 2)
+
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	// The pending block on chain A will contain the user deposit
+	depositMessage.ExecutePendingOn(actors.ChainB,
+		actors.ChainA.Sequencer.L2Unsafe().Number+1,
+		dsl.WithPayload([]byte("this message was never emitted")),
+	)
+	actors.ChainA.Sequencer.ActL2EndBlock(t)
+	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	system.SubmitBatchData(dsl.WithSkipCrossSafeUpdate())
+
+	endTimestamp := actors.ChainB.Sequencer.L2Unsafe().Time
+	startTimestamp := endTimestamp - 1
+	optimisticEnd := system.Outputs.SuperRoot(endTimestamp)
+
+	preConsolidation := system.Outputs.TransitionState(startTimestamp, consolidateStep,
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
+	).Marshal()
+
+	system.ProcessCrossSafe()
+	depositMessage.CheckNotExecuted()
+	assertUserDepositEmitted(t, system.Actors.ChainA, nil, emitter)
+	crossSafeEnd := system.Outputs.SuperRoot(endTimestamp)
+
+	tests := []*transitionTest{
+		{
+			name:               "Consolidate",
+			agreedClaim:        preConsolidation,
+			disputedClaim:      crossSafeEnd.Marshal(),
+			disputedTraceIndex: consolidateStep,
+			expectValid:        true,
+		},
+		{
+			name:               "Consolidate-InvalidNoChange",
+			agreedClaim:        preConsolidation,
+			disputedClaim:      preConsolidation,
+			disputedTraceIndex: consolidateStep,
+			expectValid:        false,
+		},
+	}
+	tests = append(tests, &transitionTest{
+		name:               "Consolidate-ExpectInvalidPendingBlock",
+		agreedClaim:        preConsolidation,
+		disputedClaim:      optimisticEnd.Marshal(),
+		disputedTraceIndex: consolidateStep,
+		expectValid:        false,
+	})
+	runFppAndChallengerTests(gt, system, tests)
+}
+
 func runFppAndChallengerTests(gt *testing.T, system *dsl.InteropDSL, tests []*transitionTest) {
 	for _, test := range tests {
 		test := test
@@ -1248,6 +1380,15 @@ func assertTime(t helpers.Testing, chain *dsl.Chain, unsafe, crossUnsafe, localS
 	require.Equal(t, start+safe, status.SafeL2.Time, "Safe")
 }
 
+func assertUserDepositEmitted(t helpers.Testing, chain *dsl.Chain, number *big.Int, emitter *dsl.EmitterContract) {
+	block, err := chain.SequencerEngine.EthClient().BlockByNumber(t.Ctx(), number)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(block.Transactions()), 3) // l1-attrs + user-deposit + l1-attrs (end deposit contxt) + [txs]
+	userDepositTx := block.Transactions()[1]
+	require.NotNil(t, userDepositTx.To())
+	require.Equal(t, emitter.Address(chain), *userDepositTx.To())
+}
+
 type transitionTest struct {
 	name               string
 	agreedClaim        []byte
@@ -1337,7 +1478,8 @@ func (c *cyclicDependencyInvalidCase) Setup(t helpers.StatefulTesting, system *d
 	alice := system.CreateUser()
 
 	// Create an exec message for chain B without including it
-	pendingExecBOpts := dsl.WithPendingMessage(emitter, actors.ChainB, 0, "message from B")
+	pendingBlockNumber := actors.ChainB.Sequencer.L2Unsafe().Number + 1
+	pendingExecBOpts := dsl.WithPendingMessage(emitter, actors.ChainB, pendingBlockNumber, 0, "message from B")
 
 	// Exec(A) -> Exec(B) -> Exec(A)
 	actExecA := system.InboxContract.Execute(alice, nil, pendingExecBOpts)

@@ -175,6 +175,12 @@ type SubmitBatchDataOpts struct {
 	SkipCrossSafeUpdate bool
 }
 
+func WithSkipCrossSafeUpdate() func(*SubmitBatchDataOpts) {
+	return func(o *SubmitBatchDataOpts) {
+		o.SkipCrossSafeUpdate = true
+	}
+}
+
 // SubmitBatchData submits batch data to L1 and processes the new L1 blocks, advancing the safe heads.
 // By default, submits all batch data for all chains.
 func (d *InteropDSL) SubmitBatchData(optionalArgs ...func(*SubmitBatchDataOpts)) {
@@ -248,6 +254,12 @@ type AdvanceL1Opts struct {
 	ChainOpts
 	L1BlockTimeSeconds uint64
 	TxInclusion        []helpers.Action
+}
+
+func WithActIncludeTx(includeTxAction helpers.Action) func(*AdvanceL1Opts) {
+	return func(o *AdvanceL1Opts) {
+		o.TxInclusion = append(o.TxInclusion, includeTxAction)
+	}
 }
 
 // AdvanceL1 adds a new L1 block with the specified transactions and ensures it is processed by the specified chains
@@ -330,5 +342,19 @@ func (d *InteropDSL) AdvanceSafeHeads(optionalArgs ...func(*AdvanceSafeHeadsOpts
 		d.SubmitBatchData(func(opts *SubmitBatchDataOpts) {
 			opts.SetChains(d.Actors.ChainB)
 		})
+	}
+}
+
+// AdvanceL2ToLastBlockOfOrigin advances the chain to the last block of the epoch at the specified L1 origin.
+func (d *InteropDSL) AdvanceL2ToLastBlockOfOrigin(chain *Chain, l1OriginHeight uint64) {
+	const l1BlockTime = uint64(12)
+	require.Equal(d.t, l1BlockTime%chain.RollupCfg.BlockTime, uint64(0), "L2 block time must be a multiple of L1 block time")
+	endOfEpoch := (l1BlockTime/chain.RollupCfg.BlockTime)*(l1OriginHeight+1) - 1
+	require.LessOrEqual(d.t, chain.Sequencer.L2Unsafe().Number, endOfEpoch, "end of epoch is in the future")
+	for {
+		if n := chain.Sequencer.L2Unsafe().Number; n == endOfEpoch {
+			break
+		}
+		d.AddL2Block(chain)
 	}
 }
