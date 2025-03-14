@@ -177,7 +177,7 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, runConfig RunConfig, roll
 		return
 	}
 
-	inputsLogger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim)
+	inputsLogger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2SequenceNumber, "claim", localInputs.L2Claim)
 	// Sanitize the directory name.
 	safeName := regexp.MustCompile("[^a-zA-Z0-9_-]").ReplaceAllString(runConfig.Name, "")
 	dir, err := r.prepDatadir(safeName)

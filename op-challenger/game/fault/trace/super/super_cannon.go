@@ -30,23 +30,23 @@ func NewSuperCannonTraceAccessor(
 	dir string,
 	l1Head eth.BlockID,
 	splitDepth types.Depth,
-	prestateBlock uint64,
-	poststateBlock uint64,
+	prestateTimestamp uint64,
+	poststateTimestamp uint64,
 ) (*trace.Accessor, error) {
 	rollupCfgs, err := NewRollupConfigs(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rollup configs: %w", err)
 	}
-	outputProvider := NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateBlock, poststateBlock)
+	outputProvider := NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 	cannonCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, claimInfo ClaimInfo) (types.TraceProvider, error) {
 		logger := logger.New("agreedPrestate", claimInfo.AgreedPrestate, "claim", claimInfo.Claim, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
 		localInputs := utils.LocalGameInputs{
-			L1Head:         l1Head.Hash,
-			L2OutputRoot:   crypto.Keccak256Hash(claimInfo.AgreedPrestate),
-			AgreedPreState: claimInfo.AgreedPrestate,
-			L2Claim:        claimInfo.Claim,
-			L2BlockNumber:  new(big.Int).SetUint64(poststateBlock),
+			L1Head:           l1Head.Hash,
+			L2OutputRoot:     crypto.Keccak256Hash(claimInfo.AgreedPrestate),
+			AgreedPreState:   claimInfo.AgreedPrestate,
+			L2Claim:          claimInfo.Claim,
+			L2SequenceNumber: new(big.Int).SetUint64(poststateTimestamp),
 		}
 		provider := cannon.NewTraceProvider(logger, m.ToTypedVmMetrics(cfg.VmType.String()), cfg, serverExecutor, prestateProvider, cannonPrestate, localInputs, subdir, depth)
 		return provider, nil
