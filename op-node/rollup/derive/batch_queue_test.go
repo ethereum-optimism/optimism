@@ -56,7 +56,7 @@ func mockHash(time uint64, layer uint8) common.Hash {
 
 func b(chainId *big.Int, timestamp uint64, epoch eth.L1BlockRef) *SingularBatch {
 	rng := rand.New(rand.NewSource(int64(timestamp)))
-	signer := types.NewIsthmusSigner(chainId)
+	signer := types.NewLondonSigner(chainId)
 	tx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
 	txData, _ := tx.MarshalBinary()
 	return &SingularBatch{

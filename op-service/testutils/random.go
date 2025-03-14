@@ -141,8 +141,16 @@ func RandomTo(rng *rand.Rand) *common.Address {
 	return &to
 }
 
+func isIsthmusSigner(signer types.Signer) bool {
+	isthusSigner := types.NewIsthmusSigner(signer.ChainID())
+	return signer.Equal(isthusSigner)
+}
+
 func RandomTx(rng *rand.Rand, baseFee *big.Int, signer types.Signer) *types.Transaction {
-	txTypeList := []int{types.LegacyTxType, types.AccessListTxType, types.DynamicFeeTxType, types.SetCodeTxType}
+	txTypeList := []int{types.LegacyTxType, types.AccessListTxType, types.DynamicFeeTxType}
+	if isIsthmusSigner(signer) {
+		txTypeList = append(txTypeList, types.SetCodeTxType)
+	}
 	txType := txTypeList[rng.Intn(len(txTypeList))]
 	var tx *types.Transaction
 	switch txType {
