@@ -87,7 +87,8 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		execTxHash := execReceipt.TxHash()
 		logger.Info("Execute message", "txHash", execTxHash.Hex())
 
-		blockB, err := chainB.Node().BlockByNumber(ctx, blockNumber)
+		blockNumberB := execReceipt.BlockNumber()
+		blockB, err := chainB.Node().BlockByNumber(ctx, blockNumberB)
 		require.NoError(t, err)
 		blockTimeB := big.NewInt(int64(blockB.Time()))
 		logger.Info("Execute message was included at", "timestamp", blockTimeB.String())
