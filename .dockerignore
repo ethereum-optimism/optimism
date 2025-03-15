@@ -1,5 +1,26 @@
-# Ignore build artifacts
-target
-
-# Ignore version control directories
+# Version control
 .git
+.github
+.gitignore
+
+# Build artifacts
+**/target
+integration_logs
+
+# Development files
+.vscode
+.env
+**/*.log
+
+
+# Cargo artifacts
+**/.cargo
+**/Cargo.lock
+
+# Documentation
+**/*.md
+docs/
+
+# Scripts that aren't needed for runtime
+scripts/
+**/integration
