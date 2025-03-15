@@ -87,7 +87,6 @@ func TestInteropFaultProofs_TraceExtensionActivation(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 	system := dsl.NewInteropDSL(t)
 	actors := system.Actors
@@ -367,7 +366,6 @@ func TestInteropFaultProofs(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	cases := []intraBlockTestCase{
 		new(cascadeInvalidBlockCase),
 		new(swapCascadeInvalidBlockCase),
@@ -447,7 +445,6 @@ func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 	system := dsl.NewInteropDSL(t)
 
@@ -517,7 +514,6 @@ func TestInteropFaultProofs_MessageExpiry(gt *testing.T) {
 }
 
 func TestInteropFaultProofsInvalidBlock(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 
 	system := dsl.NewInteropDSL(t)
@@ -1137,7 +1133,6 @@ func TestInteropFaultProofs_VariedBlockTimes_FasterChainB(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 
 	system := dsl.NewInteropDSL(t)
@@ -1198,7 +1193,6 @@ func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 
 	system := dsl.NewInteropDSL(t)
@@ -1389,7 +1383,7 @@ func assertTime(t helpers.Testing, chain *dsl.Chain, unsafe, crossUnsafe, localS
 func assertUserDepositEmitted(t helpers.Testing, chain *dsl.Chain, number *big.Int, emitter *dsl.EmitterContract) {
 	block, err := chain.SequencerEngine.EthClient().BlockByNumber(t.Ctx(), number)
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(block.Transactions()), 3) // l1-attrs + user-deposit + l1-attrs (end deposit contxt) + [txs]
+	require.GreaterOrEqual(t, len(block.Transactions()), 2) // l1-attrs + user-deposit + [txs]
 	userDepositTx := block.Transactions()[1]
 	require.NotNil(t, userDepositTx.To())
 	require.Equal(t, emitter.Address(chain), *userDepositTx.To())

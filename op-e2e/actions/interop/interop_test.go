@@ -1,7 +1,6 @@
 package interop
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,12 +11,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestFullInterop(gt *testing.T) {
@@ -240,7 +238,6 @@ func TestFinality(gt *testing.T) {
 }
 
 func TestInteropLocalSafeInvalidation(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 
 	is := dsl.SetupInterop(t)
@@ -252,21 +249,18 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 	// build L2 block on chain B with invalid executing message pointing to A.
 	fakeMessage := []byte("this message was never emitted")
 	aliceB := setupUser(t, is, actors.ChainB, 0)
-	auth := newL2TxOpts(t, aliceB.secret, actors.ChainB)
-	id := inbox.Identifier{
+	id := stypes.Identifier{
 		Origin:      common.Address{0x42},
-		BlockNumber: new(big.Int).SetUint64(genesisB.UnsafeL2.Number),
-		LogIndex:    common.Big0,
-		Timestamp:   new(big.Int).SetUint64(genesisB.UnsafeL2.Time),
-		ChainId:     actors.ChainA.RollupCfg.L2ChainID,
+		BlockNumber: genesisB.UnsafeL2.Number,
+		LogIndex:    0,
+		Timestamp:   genesisB.UnsafeL2.Time,
+		ChainID:     eth.ChainIDFromBig(actors.ChainA.RollupCfg.L2ChainID),
 	}
-	contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, actors.ChainB.SequencerEngine.EthClient())
-	require.NoError(t, err)
-	tx, err := contract.ValidateMessage(auth, id, crypto.Keccak256Hash(fakeMessage))
-	require.NoError(t, err)
+	msgHash := crypto.Keccak256Hash(fakeMessage)
+	tx := newExecuteMessageTxFromIDAndHash(t, aliceB, actors.ChainB, id, msgHash)
 
 	actors.ChainB.Sequencer.ActL2StartBlock(t)
-	_, err = actors.ChainB.SequencerEngine.EngineApi.IncludeTx(tx, aliceB.address)
+	_, err := actors.ChainB.SequencerEngine.EngineApi.IncludeTx(tx, aliceB.address)
 	require.NoError(t, err)
 	actors.ChainB.Sequencer.ActL2EndBlock(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
@@ -359,7 +353,6 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 }
 
 func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 
 	is := dsl.SetupInterop(t)
@@ -443,7 +436,6 @@ func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
 }
 
 func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	t := helpers.NewDefaultTesting(gt)
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
@@ -452,12 +444,12 @@ func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
 
 	// Execute a fake log on chain A
 	chainBHead := actors.ChainB.Sequencer.SyncStatus().UnsafeL2
-	nonExistentID := inbox.Identifier{
+	nonExistentID := stypes.Identifier{
 		Origin:      aliceA.address,
-		BlockNumber: big.NewInt(int64(chainBHead.Number)),
-		LogIndex:    common.Big0,
-		Timestamp:   big.NewInt(int64(chainBHead.Time)),
-		ChainId:     actors.ChainB.RollupCfg.L2ChainID,
+		BlockNumber: chainBHead.Number,
+		LogIndex:    0,
+		Timestamp:   chainBHead.Time,
+		ChainID:     eth.ChainIDFromBig(actors.ChainB.RollupCfg.L2ChainID),
 	}
 	nonExistentHash := crypto.Keccak256Hash([]byte("fake message"))
 	tx := newExecuteMessageTxFromIDAndHash(t, aliceA, actors.ChainA, nonExistentID, nonExistentHash)

@@ -3,11 +3,16 @@ package dsl
 import (
 	"math/big"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/require"
+	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type InboxContract struct {
@@ -84,7 +89,21 @@ func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, arg
 		txOpts, from := user.TransactOpts(chain.ChainID.ToBig())
 		contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, chain.SequencerEngine.EthClient())
 		require.NoError(i.t, err)
-		tx, err := contract.ValidateMessage(txOpts, ident, crypto.Keccak256Hash(payload))
+		id := stypes.Identifier{
+			Origin:      ident.Origin,
+			BlockNumber: ident.BlockNumber.Uint64(),
+			LogIndex:    uint32(ident.LogIndex.Uint64()),
+			Timestamp:   ident.Timestamp.Uint64(),
+			ChainID:     eth.ChainIDFromBig(ident.ChainId),
+		}
+		msgHash := crypto.Keccak256Hash(payload)
+		access := id.ChecksumArgs(msgHash).Access()
+		inboxAccessList := stypes.EncodeAccessList([]stypes.Access{access})
+		txOpts.AccessList = types.AccessList{types.AccessTuple{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: inboxAccessList,
+		}}
+		tx, err := contract.ValidateMessage(txOpts, ident, msgHash)
 		require.NoError(i.t, err)
 		genTx := NewGeneratedTransaction(i.t, chain, tx, from)
 		i.Transactions = append(i.Transactions, genTx)

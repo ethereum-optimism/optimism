@@ -139,7 +139,6 @@ func TestInterop_SupervisorFinality(t *testing.T) {
 // Chains A and B exist, but no messages are sent between them.
 // A contract is deployed on each chain, and logs are emitted repeatedly.
 func TestInterop_EmitLogs(t *testing.T) {
-	t.Skip("temporarily broken by access-list change")
 	t.Parallel()
 	test := func(t *testing.T, s2 SuperSystem) {
 		ids := s2.L2IDs()
@@ -253,14 +252,9 @@ func TestInterop_EmitLogs(t *testing.T) {
 }
 
 func TestInteropBlockBuilding(t *testing.T) {
-	t.Skip("access-list change breaks tx-pool / block-build checks")
 	t.Parallel()
 	logger := testlog.Logger(t, log.LevelInfo)
 	oplog.SetGlobalLogHandler(logger.Handler())
-
-	// TODO(14697): re-enable once op-geth block-building uses access-lists.
-	// When re-enabling, the txs that execute other messages will need access-lists.
-	t.Skip("blocked by issue #14697")
 
 	test := func(t *testing.T, s2 SuperSystem) {
 		ids := s2.L2IDs()
@@ -313,6 +307,14 @@ func TestInteropBlockBuilding(t *testing.T) {
 		invalidLogHash := types.PayloadHashToLogHash(invalidPayloadHash, identifier.Origin)
 		t.Logf("invalid payload hash: %s", invalidPayloadHash)
 		t.Logf("invalid log hash: %s", invalidLogHash)
+
+		// hack: geth ingress validates using head timestamp, but should be checking with head+blocktime timestamp,
+		// Until we fix that, we need an additional block to be built, otherwise we get hit by the aggressive ingress filter.
+		require.Eventually(t, func() bool {
+			status, err := rollupClA.SyncStatus(context.Background())
+			require.NoError(t, err)
+			return status.CrossUnsafeL2.Time > identifier.Timestamp
+		}, time.Second*60, time.Second, "wait for emitted data to become cross-unsafe")
 
 		// submit executing txs on B
 

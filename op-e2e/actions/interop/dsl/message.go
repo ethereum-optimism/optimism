@@ -3,6 +3,8 @@ package dsl
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,10 +56,22 @@ func (m *Message) ActEmitDeposit(l1User *DSLUser) helpers.Action {
 	}
 }
 
+func sanityCheckAccessList(t helpers.Testing, li types.AccessList) {
+	for _, e := range li {
+		if e.Address == predeploys.CrossL2InboxAddr {
+			if len(e.StorageKeys) > 0 {
+				return
+			}
+		}
+	}
+	t.Fatal("expected executing-message entries in access-list")
+}
+
 func (m *Message) ExecuteOn(target *Chain, execOpts ...func(*ExecuteOpts)) *Message {
 	require.NotNil(m.t, m.initTx, "message must be emitted before it can be executed")
 	execAction := m.inbox.Execute(m.user, m.initTx, execOpts...)
 	m.execTx = execAction(target)
+	sanityCheckAccessList(m.t, m.execTx.tx.AccessList())
 	m.execTx.IncludeOK()
 	return m
 }
@@ -69,6 +83,7 @@ func (m *Message) ExecutePendingOn(target *Chain, pendingMessageBlockNumber uint
 	opts = append(opts, execOpts...)
 	execAction := m.inbox.Execute(m.user, nil, opts...)
 	m.execTx = execAction(target)
+	sanityCheckAccessList(m.t, m.execTx.tx.AccessList())
 	m.execTx.IncludeOK()
 	return m
 }

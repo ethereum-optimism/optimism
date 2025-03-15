@@ -158,6 +158,16 @@ func (id *Identifier) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+func (id Identifier) ChecksumArgs(msgHash common.Hash) ChecksumArgs {
+	return ChecksumArgs{
+		BlockNumber: id.BlockNumber,
+		Timestamp:   id.Timestamp,
+		LogIndex:    id.LogIndex,
+		ChainID:     id.ChainID,
+		LogHash:     PayloadHashToLogHash(msgHash, id.Origin),
+	}
+}
+
 type SafetyLevel string
 
 func (lvl SafetyLevel) String() string {

@@ -5,21 +5,23 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -31,7 +33,6 @@ type userWithKeys struct {
 }
 
 func TestEmitterContract(gt *testing.T) {
-	gt.Skip("temporarily broken by access-list change")
 	var (
 		is     *dsl.InteropSetup
 		actors *dsl.InteropActors
@@ -72,7 +73,14 @@ func TestEmitterContract(gt *testing.T) {
 		id := idForTx(t, emitTx, actors.ChainA)
 		contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, actors.ChainB.SequencerEngine.EthClient())
 		require.NoError(t, err)
-		tx, err := contract.ValidateMessage(auth, id, crypto.Keccak256Hash(fakeMessage))
+		msgHash := crypto.Keccak256Hash(fakeMessage)
+		access := id.ChecksumArgs(msgHash).Access()
+		inboxAccessList := stypes.EncodeAccessList([]stypes.Access{access})
+		auth.AccessList = types.AccessList{types.AccessTuple{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: inboxAccessList,
+		}}
+		tx, err := contract.ValidateMessage(auth, identifierForBindings(id), msgHash)
 		require.NoError(t, err)
 
 		// Process the invalid message attempt and verify that only the local unsafe head progresses
@@ -128,27 +136,43 @@ func newExecuteMessageTx(t helpers.Testing, destChain *dsl.Chain, executor *user
 }
 
 // newExecuteMessageTxFromIDAndHash creates a new executing message tx for the given id and hash.
-func newExecuteMessageTxFromIDAndHash(t helpers.Testing, executor *userWithKeys, destChain *dsl.Chain, id inbox.Identifier, hash common.Hash) *types.Transaction {
+func newExecuteMessageTxFromIDAndHash(t helpers.Testing, executor *userWithKeys, destChain *dsl.Chain, id stypes.Identifier, msgHash common.Hash) *types.Transaction {
 	inboxContract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, destChain.SequencerEngine.EthClient())
 	require.NoError(t, err)
 	auth := newL2TxOpts(t, executor.secret, destChain)
-	tx, err := inboxContract.ValidateMessage(auth, id, hash)
+	access := id.ChecksumArgs(msgHash).Access()
+	inboxAccessList := stypes.EncodeAccessList([]stypes.Access{access})
+	auth.AccessList = types.AccessList{types.AccessTuple{
+		Address:     predeploys.CrossL2InboxAddr,
+		StorageKeys: inboxAccessList,
+	}}
+	tx, err := inboxContract.ValidateMessage(auth, identifierForBindings(id), msgHash)
 	require.NoError(t, err)
 	return tx
 }
 
-func idForTx(t helpers.Testing, tx *types.Transaction, srcChain *dsl.Chain) inbox.Identifier {
+func idForTx(t helpers.Testing, tx *types.Transaction, srcChain *dsl.Chain) stypes.Identifier {
 	receipt, err := srcChain.SequencerEngine.EthClient().TransactionReceipt(t.Ctx(), tx.Hash())
 	require.NoError(t, err)
 	block, err := srcChain.SequencerEngine.EthClient().BlockByNumber(t.Ctx(), receipt.BlockNumber)
 	require.NoError(t, err)
 
-	return inbox.Identifier{
+	return stypes.Identifier{
 		Origin:      *tx.To(),
-		BlockNumber: receipt.BlockNumber,
-		LogIndex:    common.Big0,
-		Timestamp:   big.NewInt(int64(block.Time())),
-		ChainId:     srcChain.RollupCfg.L2ChainID,
+		BlockNumber: receipt.BlockNumber.Uint64(),
+		LogIndex:    0,
+		Timestamp:   block.Time(),
+		ChainID:     eth.ChainIDFromBig(srcChain.RollupCfg.L2ChainID),
+	}
+}
+
+func identifierForBindings(id stypes.Identifier) inbox.Identifier {
+	return inbox.Identifier{
+		Origin:      id.Origin,
+		BlockNumber: new(big.Int).SetUint64(id.BlockNumber),
+		LogIndex:    new(big.Int).SetUint64(uint64(id.LogIndex)),
+		Timestamp:   new(big.Int).SetUint64(id.Timestamp),
+		ChainId:     id.ChainID.ToBig(),
 	}
 }
 
