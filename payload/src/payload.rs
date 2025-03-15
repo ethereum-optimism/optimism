@@ -2,6 +2,7 @@
 
 use std::{fmt::Debug, sync::Arc};
 
+use alloy_consensus::Block;
 use alloy_eips::{
     eip1559::BaseFeeParams, eip2718::Decodable2718, eip4895::Withdrawals, eip7685::Requests,
 };
@@ -12,8 +13,6 @@ use alloy_rpc_types_engine::{
     ExecutionPayloadV3, PayloadId,
 };
 use op_alloy_consensus::{encode_holocene_extra_data, EIP1559ParamError};
-/// Re-export for use in downstream arguments.
-pub use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
 };
@@ -21,8 +20,10 @@ use reth_chain_state::ExecutedBlockWithTrieUpdates;
 use reth_optimism_primitives::OpPrimitives;
 use reth_payload_builder::EthPayloadBuilderAttributes;
 use reth_payload_primitives::{BuiltPayload, PayloadBuilderAttributes};
-use reth_primitives::{transaction::WithEncoded, Block, NodePrimitives, SealedBlock};
-use reth_primitives_traits::SignedTransaction;
+use reth_primitives_traits::{NodePrimitives, SealedBlock, SignedTransaction, WithEncoded};
+
+/// Re-export for use in downstream arguments.
+pub use op_alloy_rpc_types_engine::OpPayloadAttributes;
 
 /// Optimism Payload Builder Attributes
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 # reth
 reth-chainspec.workspace = true
-reth-primitives.workspace = true
 reth-primitives-traits.workspace = true
 reth-revm = { workspace = true, features = ["witness"] }
 reth-transaction-pool.workspace = true

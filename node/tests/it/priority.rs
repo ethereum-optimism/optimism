@@ -1,6 +1,6 @@
 //! Node builder test that customizes priority of transactions in the block.
 
-use alloy_consensus::{SignableTransaction, TxEip1559};
+use alloy_consensus::{transaction::Recovered, SignableTransaction, TxEip1559};
 use alloy_genesis::Genesis;
 use alloy_network::TxSignerSync;
 use alloy_primitives::{Address, ChainId, TxKind};
@@ -33,7 +33,6 @@ use reth_payload_util::{
     BestPayloadTransactions, PayloadTransactions, PayloadTransactionsChain,
     PayloadTransactionsFixed,
 };
-use reth_primitives::Recovered;
 use reth_provider::providers::BlockchainProvider;
 use reth_tasks::TaskManager;
 use reth_transaction_pool::PoolTransaction;

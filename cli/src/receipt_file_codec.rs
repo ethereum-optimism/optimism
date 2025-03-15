@@ -1,13 +1,13 @@
 //! Codec for reading raw receipts from a file.
 
+use alloy_consensus::Receipt;
 use alloy_primitives::{
     bytes::{Buf, BytesMut},
-    Address, Bloom, Bytes, B256,
+    Address, Bloom, Bytes, Log, B256,
 };
 use alloy_rlp::{Decodable, RlpDecodable};
 use op_alloy_consensus::{OpDepositReceipt, OpTxType};
 use reth_optimism_primitives::OpReceipt;
-use reth_primitives::{Log, Receipt};
 use tokio_util::codec::Decoder;
 
 use reth_downloaders::{file_client::FileClientError, receipt_file_client::ReceiptWithBlockNumber};

@@ -29,7 +29,7 @@ use reth_optimism_txpool::OpPooledTx;
 use reth_payload_builder_primitives::PayloadBuilderError;
 use reth_payload_primitives::PayloadBuilderAttributes;
 use reth_payload_util::{BestPayloadTransactions, NoopPayloadTransactions, PayloadTransactions};
-use reth_primitives::{transaction::SignedTransaction, NodePrimitives, SealedHeader, TxTy};
+use reth_primitives_traits::{NodePrimitives, SealedHeader, SignedTransaction, TxTy};
 use reth_provider::{ProviderError, StateProvider, StateProviderFactory};
 use reth_revm::{
     cancelled::CancelOnDrop, database::StateProviderDatabase, db::State,

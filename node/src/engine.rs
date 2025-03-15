@@ -23,7 +23,7 @@ use reth_optimism_payload_builder::{
     OpBuiltPayload, OpExecutionPayloadValidator, OpPayloadBuilderAttributes,
 };
 use reth_optimism_primitives::{OpBlock, OpPrimitives, ADDRESS_L2_TO_L1_MESSAGE_PASSER};
-use reth_primitives::{RecoveredBlock, SealedBlock};
+use reth_primitives_traits::{RecoveredBlock, SealedBlock};
 use reth_provider::StateProviderFactory;
 use reth_trie_common::{HashedPostState, KeyHasher};
 use std::sync::Arc;

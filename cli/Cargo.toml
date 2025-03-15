@@ -14,6 +14,7 @@ workspace = true
 reth-static-file-types = { workspace = true, features = ["clap"] }
 reth-cli-commands.workspace = true
 reth-consensus.workspace = true
+reth-primitives-traits.workspace = true
 reth-db = { workspace = true, features = ["mdbx", "op"] }
 reth-db-api.workspace = true
 reth-db-common.workspace = true
@@ -25,7 +26,6 @@ reth-static-file.workspace = true
 reth-execution-types.workspace = true
 reth-node-core.workspace = true
 reth-optimism-node.workspace = true
-reth-primitives.workspace = true
 reth-fs-util.workspace = true
 
 # so jemalloc metrics can be included
@@ -76,7 +76,6 @@ asm-keccak = [
     "alloy-primitives/asm-keccak",
     "reth-node-core/asm-keccak",
     "reth-optimism-node/asm-keccak",
-    "reth-primitives/asm-keccak",
 ]
 
 # Jemalloc feature for vergen to generate correct env vars
@@ -98,4 +97,5 @@ serde = [
     "reth-execution-types/serde",
     "reth-provider/serde",
     "reth-optimism-primitives/serde",
+    "reth-primitives-traits/serde",
 ]

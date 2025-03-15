@@ -838,8 +838,8 @@ pub struct OpNetworkPrimitives;
 
 impl NetworkPrimitives for OpNetworkPrimitives {
     type BlockHeader = alloy_consensus::Header;
-    type BlockBody = reth_primitives::BlockBody<OpTransactionSigned>;
-    type Block = reth_primitives::Block<OpTransactionSigned>;
+    type BlockBody = alloy_consensus::BlockBody<OpTransactionSigned>;
+    type Block = alloy_consensus::Block<OpTransactionSigned>;
     type BroadcastedTransaction = OpTransactionSigned;
     type PooledTransaction = OpPooledTransaction;
     type Receipt = OpReceipt;
