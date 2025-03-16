@@ -1790,7 +1790,9 @@ workflows:
         - equal:
             [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
     jobs:
-      - publish-contract-artifacts
+      - publish-contract-artifacts:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   develop-fault-proofs:
     when:
