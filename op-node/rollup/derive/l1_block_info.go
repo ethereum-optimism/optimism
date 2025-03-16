@@ -393,10 +393,18 @@ func isIsthmusButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) boo
 func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
 	var info L1BlockInfo
 	// Important, this should be ordered from most recent to oldest
-	if isIsthmusButNotFirstBlock(rollupCfg, l2BlockTime) {
+	if rollupCfg.IsIsthmus(l2BlockTime) {
+		if rollupCfg.IsIsthmusActivationBlock(l2BlockTime) {
+			// For the activation block, we still use the Ecotone format
+			return &info, info.unmarshalBinaryEcotone(data)
+		}
 		return &info, info.unmarshalBinaryIsthmus(data)
 	}
-	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+	if rollupCfg.IsEcotone(l2BlockTime) {
+		if rollupCfg.IsEcotoneActivationBlock(l2BlockTime) {
+			// For the activation block, we still use the Bedrock format
+			return &info, info.unmarshalBinaryBedrock(data)
+		}
 		return &info, info.unmarshalBinaryEcotone(data)
 	}
 	return &info, info.unmarshalBinaryBedrock(data)
