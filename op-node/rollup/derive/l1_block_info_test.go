@@ -232,3 +232,81 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data))
 	})
 }
+
+func TestL1BlockInfoFromBytes(t *testing.T) {
+	// Create a rollup config with Ecotone and Isthmus activation times
+	ecotoneTime := uint64(1000)
+	isthmusTime := uint64(2000)
+	cfg := &rollup.Config{
+		EcotoneTime: &ecotoneTime,
+		IsthmusTime: &isthmusTime,
+	}
+
+	// Create a mock L1 block info
+	l1Info := L1BlockInfo{
+		Number:              123,
+		Time:                456,
+		BaseFee:             big.NewInt(789),
+		BlockHash:           common.HexToHash("0x1234"),
+		SequenceNumber:      1,
+		BatcherAddr:         common.HexToAddress("0x5678"),
+		L1FeeOverhead:       eth.Bytes32{},
+		L1FeeScalar:         eth.Bytes32{},
+		BlobBaseFee:         big.NewInt(101112),
+		BaseFeeScalar:       13,
+		BlobBaseFeeScalar:   14,
+		OperatorFeeScalar:   15,
+		OperatorFeeConstant: 16,
+	}
+
+	// Test Bedrock format (before Ecotone)
+	bedrockBytes, err := l1Info.marshalBinaryBedrock()
+	require.NoError(t, err)
+
+	// Before Ecotone
+	beforeEcotone := ecotoneTime - 1
+	parsedBedrockInfo, err := L1BlockInfoFromBytes(cfg, beforeEcotone, bedrockBytes)
+	require.NoError(t, err)
+	assert.Equal(t, l1Info.Number, parsedBedrockInfo.Number)
+	assert.Equal(t, l1Info.Time, parsedBedrockInfo.Time)
+	assert.Equal(t, l1Info.BaseFee.String(), parsedBedrockInfo.BaseFee.String())
+	assert.Equal(t, l1Info.BlockHash, parsedBedrockInfo.BlockHash)
+	assert.Equal(t, l1Info.SequenceNumber, parsedBedrockInfo.SequenceNumber)
+	assert.Equal(t, l1Info.BatcherAddr, parsedBedrockInfo.BatcherAddr)
+
+	// Test Ecotone format
+	ecotoneBytes, err := l1Info.marshalBinaryEcotone()
+	require.NoError(t, err)
+
+	// At Ecotone activation block
+	atEcotone := ecotoneTime
+	parsedEcotoneActivationInfo, err := L1BlockInfoFromBytes(cfg, atEcotone, bedrockBytes)
+	require.NoError(t, err)
+	assert.Equal(t, l1Info.Number, parsedEcotoneActivationInfo.Number)
+
+	// After Ecotone, before Isthmus
+	afterEcotone := ecotoneTime + 1
+	parsedEcotoneInfo, err := L1BlockInfoFromBytes(cfg, afterEcotone, ecotoneBytes)
+	require.NoError(t, err)
+	assert.Equal(t, l1Info.Number, parsedEcotoneInfo.Number)
+	assert.Equal(t, l1Info.BaseFeeScalar, parsedEcotoneInfo.BaseFeeScalar)
+	assert.Equal(t, l1Info.BlobBaseFeeScalar, parsedEcotoneInfo.BlobBaseFeeScalar)
+
+	// Test Isthmus format
+	isthmusBytes, err := l1Info.marshalBinaryIsthmus()
+	require.NoError(t, err)
+
+	// At Isthmus activation block
+	atIsthmus := isthmusTime
+	parsedIsthmusActivationInfo, err := L1BlockInfoFromBytes(cfg, atIsthmus, ecotoneBytes)
+	require.NoError(t, err)
+	assert.Equal(t, l1Info.Number, parsedIsthmusActivationInfo.Number)
+
+	// After Isthmus
+	afterIsthmus := isthmusTime + 1
+	parsedIsthmusInfo, err := L1BlockInfoFromBytes(cfg, afterIsthmus, isthmusBytes)
+	require.NoError(t, err)
+	assert.Equal(t, l1Info.Number, parsedIsthmusInfo.Number)
+	assert.Equal(t, l1Info.OperatorFeeScalar, parsedIsthmusInfo.OperatorFeeScalar)
+	assert.Equal(t, l1Info.OperatorFeeConstant, parsedIsthmusInfo.OperatorFeeConstant)
+}
