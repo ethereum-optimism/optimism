@@ -91,7 +91,7 @@ func TestIsthmusActivationAtGenesis(gt *testing.T) {
 // There are 2 stages pre-Isthmus that we need to test:
 // 1. Pre-Canyon: withdrawals root should be nil
 // 2. Post-Canyon: withdrawals root should be EmptyWithdrawalsHash
-func TestWithdrawlsRootPreCanyonAndIsthmus(gt *testing.T) {
+func TestWithdrawalsRootPreCanyonAndIsthmus(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	canyonOffset := hexutil.Uint64(2)
@@ -157,12 +157,12 @@ func TestWithdrawalsRootBeforeAtAndAfterIsthmus(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testWithdrawlsRootIsthmus(t, test.withdrawalTx, test.withdrawalTxBlock, test.totalBlocks)
+			testWithdrawalsRootIsthmus(t, test.withdrawalTx, test.withdrawalTxBlock, test.totalBlocks)
 		})
 	}
 }
 
-func testWithdrawlsRootIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlock, totalBlocks int) {
+func testWithdrawalsRootIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlock, totalBlocks int) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	const isthmusOffset = 2
@@ -219,7 +219,7 @@ func testWithdrawlsRootIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlo
 	}
 }
 
-func TestWithdrawlsRootPostIsthmus(gt *testing.T) {
+func TestWithdrawalsRootPostIsthmus(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	const isthmusOffset = 2
