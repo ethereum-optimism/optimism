@@ -6,12 +6,21 @@ ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-ac
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test
+    @just acceptance-test simple holocene
+
+isthmus:
+    @just acceptance-test isthmus isthmus
+
+holocene:
+    @just acceptance-test simple holocene
+
 
 # Run acceptance tests with mise-managed binary
-acceptance-test devnet="simple" gate="localnet":
+acceptance-test devnet="simple" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
+
+    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
 
     # Check if mise is installed
     if command -v mise >/dev/null; then
@@ -43,9 +52,11 @@ acceptance-test devnet="simple" gate="localnet":
     fi
 
 # Run acceptance tests against a devnet using Docker (fallback if needed)
-acceptance-test-docker devnet="simple" gate="localnet":
+acceptance-test-docker devnet="simple" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
+
+    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
 
     # First run the appropriate devnet from the kurtosis-devnet directory if needed.
     # We ignore failures here because if the devnet is already running then this command will fail.
@@ -63,3 +74,7 @@ acceptance-test-docker devnet="simple" gate="localnet":
         --gate {{gate}} \
         --validators /acceptance-tests.yaml \
         --log.level debug
+
+
+clean:
+    kurtosis clean --all
