@@ -31,13 +31,13 @@ Example for backporting fix(es) from `develop` and created a new release `op-dep
 ```
 git checkout -b backports/op-deployer/v0.2.0 op-deployer/v0.2.0
 git push origin backports/op-deployer/v0.2.0
-git checkout -b op-deployer/v0.2.1 backports/op-deployer/v0.2.0
+git checkout -b fixes/deployer-v0.2.0 backports/op-deployer/v0.2.0
 git cherry-pick <commit-hash>
-git push origin op-deployer/v0.2.1
+git push origin fixes/deployer-v0.2.0
 
-// open pr from op-deployer/v0.2.1 targeting backports/op-deployer/v0.2.0
-// merge the pr
-// create a new op-deployer/v0.2.1 tag on backports/op-deployer/v0.2.0 branch
+1. open pr from fixes/deployer-v0.2.0 targeting backports/op-deployer/v0.2.0
+2. merge the pr
+3. push a new tag for op-deployer/v0.2.1 on backports/op-deployer/v0.2.0 branch (goreleaser will create the release)
 ```
 
 ## Adding Support for New Contract Versions
