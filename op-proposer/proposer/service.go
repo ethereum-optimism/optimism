@@ -362,3 +362,10 @@ var _ cliapp.Lifecycle = (*ProposerService)(nil)
 func (ps *ProposerService) Driver() rpc.ProposerDriver {
 	return ps.driver
 }
+
+func (ps *ProposerService) HTTPEndpoint() string {
+	if ps.rpcServer == nil {
+		return ""
+	}
+	return "http://" + ps.rpcServer.Endpoint()
+}

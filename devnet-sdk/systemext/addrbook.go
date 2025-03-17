@@ -11,6 +11,7 @@ const (
 	SuperchainConfigAddressName = "superchainConfigProxy"
 
 	SystemConfigAddressName = "systemConfigProxy"
+	DisputeGameFactoryName  = "disputeGameFactoryProxy"
 )
 
 type l1AddressBook struct {
@@ -43,20 +44,28 @@ func (a *l1AddressBook) SuperchainConfigAddr() common.Address {
 var _ system2.SuperchainDeployment = (*l1AddressBook)(nil)
 
 type l2AddressBook struct {
-	systemConfig common.Address
+	systemConfig       common.Address
+	disputeGameFactory common.Address
 }
 
 func newL2AddressBook(setup *system2.Setup, l1Addresses descriptors.AddressMap) *l2AddressBook {
 	systemConfig, ok := l1Addresses[SystemConfigAddressName]
 	setup.Require.True(ok)
+	disputeGameFactory, ok := l1Addresses[DisputeGameFactoryName]
+	setup.Require.True(ok)
 
 	return &l2AddressBook{
-		systemConfig: systemConfig,
+		systemConfig:       systemConfig,
+		disputeGameFactory: disputeGameFactory,
 	}
 }
 
 func (a *l2AddressBook) SystemConfigProxyAddr() common.Address {
 	return a.systemConfig
+}
+
+func (a *l2AddressBook) DisputeGameFactoryProxyAddr() common.Address {
+	return a.disputeGameFactory
 }
 
 var _ system2.L2Deployment = (*l2AddressBook)(nil)

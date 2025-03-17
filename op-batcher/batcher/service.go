@@ -507,3 +507,10 @@ func (bs *BatcherService) ThrottlingTestDriver() *TestBatchSubmitter {
 	tbs.BatchSubmitter.channelMgr.metr = new(metrics.ThrottlingMetrics)
 	return tbs
 }
+
+func (bs *BatcherService) HTTPEndpoint() string {
+	if bs.rpcServer == nil {
+		return ""
+	}
+	return "http://" + bs.rpcServer.Endpoint()
+}

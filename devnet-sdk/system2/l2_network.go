@@ -38,6 +38,7 @@ func SortL2NetworkIDs(ids []L2NetworkID) []L2NetworkID {
 
 type L2Deployment interface {
 	SystemConfigProxyAddr() common.Address
+	DisputeGameFactoryProxyAddr() common.Address
 	// Other addresses will be added here later
 }
 
