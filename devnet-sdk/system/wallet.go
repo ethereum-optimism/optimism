@@ -12,7 +12,9 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -212,11 +214,28 @@ func (i *executeMessageImpl) Call(ctx context.Context) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to build calldata: %w", err)
 	}
+	// Wrapper to use Access implementation
+	msg := supervisorTypes.Message{
+		Identifier: supervisorTypes.Identifier{
+			Origin:      i.identifier.Origin,
+			BlockNumber: i.identifier.BlockNumber.Uint64(),
+			LogIndex:    uint32(i.identifier.LogIndex.Uint64()),
+			Timestamp:   i.identifier.Timestamp.Uint64(),
+			ChainID:     eth.ChainIDFromBig(i.identifier.ChainId),
+		},
+		PayloadHash: crypto.Keccak256Hash(i.sentMessage),
+	}
+	access := msg.Access()
+	accessList := coreTypes.AccessList{{
+		Address:     constants.CrossL2Inbox,
+		StorageKeys: supervisorTypes.EncodeAccessList([]supervisorTypes.Access{access}),
+	}}
 	tx, err := builder.BuildTx(
 		WithFrom(i.from),
 		WithTo(constants.L2ToL2CrossDomainMessenger),
 		WithValue(big.NewInt(0)),
 		WithData(data),
+		WithAccessList(accessList),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transaction: %w", err)

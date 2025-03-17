@@ -40,10 +40,11 @@ func (n *node) GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	}
 
 	msg := ethereum.CallMsg{
-		From:  tx.From(),
-		To:    tx.To(),
-		Value: tx.Value(),
-		Data:  tx.Data(),
+		From:       tx.From(),
+		To:         tx.To(),
+		Value:      tx.Value(),
+		Data:       tx.Data(),
+		AccessList: tx.AccessList(),
 	}
 	estimated, err := client.EstimateGas(ctx, msg)
 	if err != nil {

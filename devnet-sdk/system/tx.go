@@ -41,6 +41,10 @@ func (opts *TxOpts) Data() []byte {
 	return opts.data
 }
 
+func (opts *TxOpts) AccessList() types.AccessList {
+	return opts.accessList
+}
+
 // Validate checks that all required fields are set and consistent
 func (opts *TxOpts) Validate() error {
 	// Check mandatory fields
@@ -189,6 +193,10 @@ func (t *EthTx) Value() *big.Int {
 
 func (t *EthTx) Data() []byte {
 	return t.tx.Data()
+}
+
+func (t *EthTx) AccessList() types.AccessList {
+	return t.tx.AccessList()
 }
 
 func (t *EthTx) Type() uint8 {

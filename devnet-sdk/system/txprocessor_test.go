@@ -207,9 +207,10 @@ type mockTransaction struct {
 	from common.Address
 }
 
-func (m *mockTransaction) Hash() common.Hash    { return common.Hash{} }
-func (m *mockTransaction) From() common.Address { return m.from }
-func (m *mockTransaction) To() *common.Address  { return nil }
-func (m *mockTransaction) Value() *big.Int      { return nil }
-func (m *mockTransaction) Data() []byte         { return nil }
-func (m *mockTransaction) Type() uint8          { return 0 }
+func (m *mockTransaction) Hash() common.Hash            { return common.Hash{} }
+func (m *mockTransaction) From() common.Address         { return m.from }
+func (m *mockTransaction) To() *common.Address          { return nil }
+func (m *mockTransaction) Value() *big.Int              { return nil }
+func (m *mockTransaction) Data() []byte                 { return nil }
+func (m *mockTransaction) AccessList() types.AccessList { return nil }
+func (m *mockTransaction) Type() uint8                  { return 0 }

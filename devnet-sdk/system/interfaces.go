@@ -101,6 +101,7 @@ type TransactionData interface {
 	To() *common.Address
 	Value() *big.Int
 	Data() []byte
+	AccessList() coreTypes.AccessList
 }
 
 // Transaction is the instantiated transaction object.

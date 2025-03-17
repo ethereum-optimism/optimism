@@ -66,15 +66,22 @@ type Message struct {
 	PayloadHash common.Hash `json:"payloadHash"`
 }
 
-func (m *Message) Checksum() MessageChecksum {
-	args := ChecksumArgs{
+func (m *Message) ToCheckSumArgs() ChecksumArgs {
+	return ChecksumArgs{
 		BlockNumber: m.Identifier.BlockNumber,
 		LogIndex:    m.Identifier.LogIndex,
 		Timestamp:   m.Identifier.Timestamp,
 		ChainID:     m.Identifier.ChainID,
 		LogHash:     PayloadHashToLogHash(m.PayloadHash, m.Identifier.Origin),
 	}
-	return args.Checksum()
+}
+
+func (m *Message) Checksum() MessageChecksum {
+	return m.ToCheckSumArgs().Checksum()
+}
+
+func (m *Message) Access() Access {
+	return m.ToCheckSumArgs().Access()
 }
 
 type ChecksumArgs struct {
