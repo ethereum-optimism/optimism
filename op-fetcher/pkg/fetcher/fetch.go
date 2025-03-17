@@ -1,22 +1,25 @@
-package service
+package fetcher
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/script"
+	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/script"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
+
+//go:embed forge-artifacts
+var forgeArtifacts embed.FS
 
 func FetchChainInfoCLI() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
@@ -33,11 +36,25 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 		}
 		lgr.Info("successfully fetched chain info")
 
-		json, err := json.MarshalIndent(output, "", "  ")
+		fileOutput := script.ChainConfig{
+			Addresses: output.Addresses,
+			Roles:     output.Roles,
+			FaultProofStatus: script.FaultProofStatus{
+				Permissioned:   output.FaultProofPermissioned,
+				Permissionless: output.FaultProofPermissionless,
+			},
+		}
+
+		json, err := json.MarshalIndent(fileOutput, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal output: %w", err)
 		}
-		err = os.WriteFile("chain-info.json", json, 0644)
+
+		if err := os.MkdirAll("./.fetcher", 0755); err != nil {
+			return fmt.Errorf("failed to create output directory: %w", err)
+		}
+
+		err = os.WriteFile("./.fetcher/chain-info.json", json, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to write output to file: %w", err)
 		}
@@ -57,14 +74,9 @@ func FetchChainInfo(ctx context.Context, lgr log.Logger, cfg *Config) (script.Fe
 	bcaster := broadcaster.NoopBroadcaster()
 	deployerAddress := common.Address{0x01}
 
-	l1ContractsLocator := "file:///Users/samuel/repos/op-labs/optimism/packages/contracts-bedrock/forge-artifacts"
-	locator, err := artifacts.NewLocatorFromURL(l1ContractsLocator)
-	if err != nil {
-		return script.FetchChainInfoOutput{}, fmt.Errorf("failed to parse l1 contracts release locator: %w", err)
-	}
-	artifactsFS, err := artifacts.Download(ctx, locator, nil, deployer.GetDefaultCacheDir())
-	if err != nil {
-		return script.FetchChainInfoOutput{}, fmt.Errorf("failed to download artifacts: %w", err)
+	artifactsFS := &foundry.EmbedFS{
+		FS:      forgeArtifacts,
+		RootDir: "forge-artifacts",
 	}
 
 	l1Host, err := env.DefaultForkedScriptHost(

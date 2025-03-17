@@ -279,10 +279,10 @@ contract FetchChainInfo is Script {
         _processMessengerAndPortal(_fi, _fo);
         _processDisputeGameFactory(_fo);
 
-        (bool _permissioned, bool _permissionless, GameType _gameType) = _checkProofTypes(_fo);
-        _fo.set(_fo.faultProofPermissioned.selector, _permissioned);
-        _fo.set(_fo.faultProofPermissionless.selector, _permissionless);
-        _fo.set(_fo.respectedGameType.selector, _gameType);
+        //(bool _permissioned, bool _permissionless, GameType _gameType) = _checkProofTypes(_fo);
+        //_fo.set(_fo.faultProofPermissioned.selector, _permissioned);
+        //_fo.set(_fo.faultProofPermissionless.selector, _permissionless);
+        //_fo.set(_fo.respectedGameType.selector, _gameType);
     }
 
     function _processSystemConfig(FetchChainInfoInput _fi, FetchChainInfoOutput _fo) internal {

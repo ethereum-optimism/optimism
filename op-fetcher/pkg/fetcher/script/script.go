@@ -52,6 +52,17 @@ type FetchChainInfoOutput struct {
 	FaultProofPermissionless bool
 }
 
+type ChainConfig struct {
+	Addresses        Addresses        `toml:"addresses" json:"addresses"`
+	Roles            Roles            `toml:"roles" json:"roles"`
+	FaultProofStatus FaultProofStatus `toml:"fault_proof_status" json:"fault_proof_status"`
+}
+
+type FaultProofStatus struct {
+	Permissioned   bool
+	Permissionless bool
+}
+
 func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {
 	return nil
 }
