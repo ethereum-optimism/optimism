@@ -13,26 +13,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// Test_ProgramAction_SystemConfigEarlyUpgrade tests that setting the operator
+// Test_ProgramAction_SystemConfigEarlyIsthmusUpgrade tests that setting the operator
 // fee parameters pre-Isthmus is ignored and doesn't cause problems during derivation.
-func Test_ProgramAction_SystemConfigEarlyUpgrade(gt *testing.T) {
+func Test_ProgramAction_SystemConfigEarlyIsthmusUpgrade(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	matrix.AddDefaultTestCases(
 		nil,
 		helpers.NewForkMatrix(helpers.Holocene),
-		testSystemConfigEarlyUpgrade,
+		testSystemConfigEarlyIsthmusUpgrade,
 	)
 	matrix.Run(gt)
 }
 
-func testSystemConfigEarlyUpgrade(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-	const (
-		testOperatorFeeScalar   = uint32(20000)
-		testOperatorFeeConstant = uint64(500)
-		isthmusOffset           = 24
-	)
+func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+	const isthmusOffset = 24
+
+	testOperatorFeeScalar := uint32(20000)
+	testOperatorFeeConstant := uint64(500)
 
 	t := actionsHelpers.NewDefaultTesting(gt)
 	testSetup := func(dp *genesis.DeployConfig) {
@@ -60,6 +60,15 @@ func testSystemConfigEarlyUpgrade(gt *testing.T, testCfg *helpers.TestCfg[any]) 
 		constant, err := sysCfg.OperatorFeeConstant(opts)
 		require.NoError(t, err)
 		return scalar, constant
+	}
+
+	requireL1InfoParams := func(block eth.L2BlockRef, scalar uint32, constant uint64) {
+		t.Helper()
+		l1infoTx := env.Engine.L2Chain().GetBlockByHash(block.Hash).Transactions()[0]
+		l1info, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, block.Time, l1infoTx.Data())
+		require.NoError(t, err)
+		require.Equal(t, scalar, l1info.OperatorFeeScalar)
+		require.Equal(t, constant, l1info.OperatorFeeConstant)
 	}
 
 	scalar0, constant0 := opFeeScalarAndConstant()
@@ -92,6 +101,9 @@ func testSystemConfigEarlyUpgrade(gt *testing.T, testCfg *helpers.TestCfg[any]) 
 	require.Equal(t, u1, syncStatus.UnsafeL2.L1Origin)
 	require.False(t, env.Sd.RollupCfg.IsIsthmus(syncStatus.SafeL2.Time))
 
+	requireL1InfoParams(syncStatus.SafeL2, 0, 0)
+	env.RunFaultProofProgram(t, syncStatus.SafeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
+
 	sequencer.ActBuildL2ToIsthmus(t)
 	sequencer.ActL2EmptyBlock(t) // one more to have Isthmus L1 info deposit
 	u2 := miner.UnsafeID()
@@ -104,12 +116,12 @@ func testSystemConfigEarlyUpgrade(gt *testing.T, testCfg *helpers.TestCfg[any]) 
 	require.True(t, env.Sd.RollupCfg.IsIsthmus(syncStatus.SafeL2.Time))
 
 	// Assert that operator fee params are zero since they were set before Isthmus activated.
-	l1infoTx := env.Engine.L2Chain().GetBlockByHash(syncStatus.SafeL2.Hash).Transactions()[0]
-	l1info, err := derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, syncStatus.SafeL2.Time, l1infoTx.Data())
-	require.NoError(t, err)
-	require.Zero(t, l1info.OperatorFeeConstant)
-	require.Zero(t, l1info.OperatorFeeScalar)
+	requireL1InfoParams(syncStatus.SafeL2, 0, 0)
+	env.RunFaultProofProgram(t, syncStatus.SafeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 
+	// modify both to ensure we test with different parameters
+	testOperatorFeeScalar *= 2
+	testOperatorFeeConstant *= 2
 	// Now set them again with Isthmus active and see that they are set correctly.
 	_, err = sysCfg.SetOperatorFeeScalars(sysCfgOwner, testOperatorFeeScalar, testOperatorFeeConstant)
 	require.NoError(t, err)
@@ -126,11 +138,6 @@ func testSystemConfigEarlyUpgrade(gt *testing.T, testCfg *helpers.TestCfg[any]) 
 	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2)
 	require.Equal(t, u3, syncStatus.UnsafeL2.L1Origin)
 
-	l1infoTx = env.Engine.L2Chain().GetBlockByHash(syncStatus.SafeL2.Hash).Transactions()[0]
-	l1info, err = derive.L1BlockInfoFromBytes(env.Sd.RollupCfg, syncStatus.SafeL2.Time, l1infoTx.Data())
-	require.NoError(t, err)
-	require.Equal(t, testOperatorFeeConstant, l1info.OperatorFeeConstant)
-	require.Equal(t, testOperatorFeeScalar, l1info.OperatorFeeScalar)
-
+	requireL1InfoParams(syncStatus.SafeL2, testOperatorFeeScalar, testOperatorFeeConstant)
 	env.RunFaultProofProgram(t, syncStatus.SafeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
