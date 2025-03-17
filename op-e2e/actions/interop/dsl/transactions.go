@@ -4,9 +4,11 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindingspreview"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -47,6 +49,24 @@ func (m *GeneratedTransaction) IncludeOK() {
 	require.Equal(m.t, types.ReceiptStatusSuccessful, rcpt.Status)
 }
 
+// IncludeDepositOK includes the GeneratedTransaction via a user deposit transaction.
+func (m *GeneratedTransaction) IncludeDepositOK(l1User *DSLUser, depositTxOpts *bind.TransactOpts, l1Miner *helpers.L1Miner) {
+	optimismPortal2, err := bindingspreview.NewOptimismPortal2(m.chain.RollupCfg.DepositContractAddress, l1Miner.EthClient())
+	require.NoError(m.t, err)
+
+	l1Opts, _ := l1User.TransactOpts(l1Miner.L1Chain().Config().ChainID)
+	l1Opts.Value = depositTxOpts.Value
+
+	to := m.tx.To()
+	min, err := optimismPortal2.MinimumGasLimit(&bind.CallOpts{}, uint64(len(m.tx.Data())))
+	require.NoError(m.t, err)
+	gas := max(m.tx.Gas(), min)
+	tx, err := optimismPortal2.DepositTransaction(l1Opts, *to, m.tx.Value(), gas, to == nil, m.tx.Data())
+	require.NoError(m.t, err, "failed to create deposit tx")
+	rcpt := l1Miner.IncludeTx(m.t, tx)
+	require.Equal(m.t, types.ReceiptStatusSuccessful, rcpt.Status, "deposit tx failed")
+}
+
 func (m *GeneratedTransaction) Identifier() inbox.Identifier {
 	require.NotZero(m.t, len(m.rcpt.Logs), "Transaction did not include any logs to reference")
 
@@ -71,8 +91,8 @@ func (m *GeneratedTransaction) MessagePayload() []byte {
 
 func (m *GeneratedTransaction) CheckIncluded() {
 	rcpt, err := m.chain.SequencerEngine.EthClient().TransactionReceipt(m.t.Ctx(), m.tx.Hash())
-	require.NoError(m.t, err)
-	require.NotNil(m.t, rcpt)
+	require.NoError(m.t, err, "Transaction should have been included")
+	require.NotNil(m.t, rcpt, "No receipt found")
 }
 
 func (m *GeneratedTransaction) CheckNotIncluded() {

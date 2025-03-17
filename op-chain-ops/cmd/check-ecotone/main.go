@@ -786,7 +786,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		Data:       []byte("hello"),
 		AccessList: nil,
 	}
-	tx, err := types.SignNewTx(env.key, types.NewLondonSigner(txData.ChainID), txData)
+	tx, err := types.SignNewTx(env.key, types.NewIsthmusSigner(txData.ChainID), txData)
 	if err != nil {
 		return fmt.Errorf("failed to sign test tx: %w", err)
 	}

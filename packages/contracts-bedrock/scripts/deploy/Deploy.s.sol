@@ -28,7 +28,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { StorageSlot, ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
-import { GameType, Claim, GameTypes, OutputRoot, Hash } from "src/dispute/lib/Types.sol";
+import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -956,7 +956,7 @@ contract Deploy is Deployer {
             blobBasefeeScalar: cfg.blobbasefeeScalar(),
             l2ChainId: cfg.l2ChainID(),
             startingAnchorRoot: abi.encode(
-                OutputRoot({ root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2BlockNumber: cfg.faultGameGenesisBlock() })
+                Proposal({ root: Hash.wrap(cfg.faultGameGenesisOutputRoot()), l2SequenceNumber: cfg.faultGameGenesisBlock() })
             ),
             saltMixer: saltMixer,
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),

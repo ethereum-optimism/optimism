@@ -235,6 +235,10 @@ func (s *BasicUser[B]) LastTxReceipt(t Testing) *types.Receipt {
 	return receipt
 }
 
+func (s *BasicUser[B]) Secret() *ecdsa.PrivateKey {
+	return s.account
+}
+
 func (s *BasicUser[B]) MakeTransaction(t Testing) *types.Transaction {
 	gas, err := s.env.EthCl.EstimateGas(t.Ctx(), ethereum.CallMsg{
 		From:      s.address,

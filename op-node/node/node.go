@@ -628,12 +628,11 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
-		payload := envelope.ExecutionPayload
 		if n.p2pSigner == nil {
-			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", payload.ID())
+			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", envelope.ID())
 		}
-		n.log.Info("Publishing signed execution payload on p2p", "id", payload.ID())
-		return p2pNode.GossipOut().PublishL2Payload(ctx, envelope, n.p2pSigner)
+		n.log.Info("Publishing signed execution payload on p2p", "id", envelope.ID())
+		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, envelope, n.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
 	return nil

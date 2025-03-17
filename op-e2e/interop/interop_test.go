@@ -196,8 +196,8 @@ func TestInterop_EmitLogs(t *testing.T) {
 
 		supervisor := s2.SupervisorClient()
 
-		// helper function to turn a log into an identifier and the expected hash of the payload
-		logToIdentifier := func(chainID string, log gethTypes.Log) (types.Identifier, common.Hash) {
+		// helper function to turn a log into an access-list object
+		logToAccess := func(chainID string, log gethTypes.Log) types.Access {
 			client := s2.L2GethClient(chainID, "sequencer")
 			// construct the expected hash of the log's payload
 			// (topics concatenated with data)
@@ -206,7 +206,7 @@ func TestInterop_EmitLogs(t *testing.T) {
 				msgPayload = append(msgPayload, topic.Bytes()...)
 			}
 			msgPayload = append(msgPayload, log.Data...)
-			expectedHash := common.BytesToHash(crypto.Keccak256(msgPayload))
+			msgHash := crypto.Keccak256Hash(msgPayload)
 
 			// get block for the log (for timestamp)
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -214,43 +214,36 @@ func TestInterop_EmitLogs(t *testing.T) {
 			block, err := client.BlockByHash(ctx, log.BlockHash)
 			require.NoError(t, err)
 
-			// make an identifier out of the sample log
-			identifier := types.Identifier{
-				Origin:      log.Address,
+			args := types.ChecksumArgs{
 				BlockNumber: log.BlockNumber,
-				LogIndex:    uint32(log.Index),
 				Timestamp:   block.Time(),
+				LogIndex:    uint32(log.Index),
 				ChainID:     eth.ChainIDFromBig(s2.ChainID(chainID)),
+				LogHash:     types.PayloadHashToLogHash(msgHash, log.Address),
 			}
-			return identifier, expectedHash
+			return args.Access()
 		}
 
-		// all logs should be cross-safe
-		for _, log := range logsA {
-			identifier, expectedHash := logToIdentifier(chainA, log)
-			safety, err := supervisor.CheckMessage(context.Background(), identifier, expectedHash, types.ExecutingDescriptor{Timestamp: identifier.Timestamp})
-			require.NoError(t, err)
-			// the supervisor could progress the safety level more quickly than we expect,
-			// which is why we check for a minimum safety level
-			require.True(t, safety.AtLeastAsSafe(types.CrossSafe), "log: %v should be at least Cross-Safe, but is %s", log, safety.String())
+		var accessEntries []types.Access
+		for _, evLog := range logsA {
+			accessEntries = append(accessEntries, logToAccess(chainA, evLog))
 		}
-		for _, log := range logsB {
-			identifier, expectedHash := logToIdentifier(chainB, log)
-			safety, err := supervisor.CheckMessage(context.Background(), identifier, expectedHash, types.ExecutingDescriptor{Timestamp: identifier.Timestamp})
-			require.NoError(t, err)
-			// the supervisor could progress the safety level more quickly than we expect,
-			// which is why we check for a minimum safety level
-			require.True(t, safety.AtLeastAsSafe(types.CrossSafe), "log: %v should be at least Cross-Safe, but is %s", log, safety.String())
+		for _, evLog := range logsB {
+			accessEntries = append(accessEntries, logToAccess(chainB, evLog))
 		}
+		accessList := types.EncodeAccessList(accessEntries)
+
+		timestamp := uint64(time.Now().Unix())
+		ed := types.ExecutingDescriptor{Timestamp: timestamp}
+		ctx = context.Background()
+		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)
+		require.NoError(t, err, "logsA must all be cross-safe")
 
 		// a log should be invalid if the timestamp is incorrect
-		identifier, expectedHash := logToIdentifier(chainA, logsA[0])
-		// make the timestamp incorrect
-		identifier.Timestamp = 333
-		safety, err := supervisor.CheckMessage(context.Background(), identifier, expectedHash, types.ExecutingDescriptor{Timestamp: 333})
-		require.NoError(t, err)
-		require.Equal(t, types.Invalid, safety)
-
+		accessEntries[0].Timestamp = 333
+		accessList = types.EncodeAccessList(accessEntries)
+		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)
+		require.ErrorContains(t, err, "conflict")
 	}
 	config := SuperSystemConfig{
 		mempoolFiltering: false,
@@ -314,6 +307,14 @@ func TestInteropBlockBuilding(t *testing.T) {
 		invalidLogHash := types.PayloadHashToLogHash(invalidPayloadHash, identifier.Origin)
 		t.Logf("invalid payload hash: %s", invalidPayloadHash)
 		t.Logf("invalid log hash: %s", invalidLogHash)
+
+		// hack: geth ingress validates using head timestamp, but should be checking with head+blocktime timestamp,
+		// Until we fix that, we need an additional block to be built, otherwise we get hit by the aggressive ingress filter.
+		require.Eventually(t, func() bool {
+			status, err := rollupClA.SyncStatus(context.Background())
+			require.NoError(t, err)
+			return status.CrossUnsafeL2.Time > identifier.Timestamp
+		}, time.Second*60, time.Second, "wait for emitted data to become cross-unsafe")
 
 		// submit executing txs on B
 

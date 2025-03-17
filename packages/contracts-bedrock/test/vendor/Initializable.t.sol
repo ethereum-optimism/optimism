@@ -10,7 +10,7 @@ import { Process } from "scripts/libraries/Process.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameType, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
@@ -303,7 +303,7 @@ contract Initializer_Test is CommonTest {
                     (
                         ISuperchainConfig(address(0)),
                         IDisputeGameFactory(address(0)),
-                        OutputRoot({ root: Hash.wrap(bytes32(0)), l2BlockNumber: 0 }),
+                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
                         GameType.wrap(uint32(deploy.cfg().respectedGameType()))
                     )
                 )
@@ -319,7 +319,7 @@ contract Initializer_Test is CommonTest {
                     (
                         ISuperchainConfig(address(0)),
                         IDisputeGameFactory(address(0)),
-                        OutputRoot({ root: Hash.wrap(bytes32(0)), l2BlockNumber: 0 }),
+                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
                         GameType.wrap(uint32(deploy.cfg().respectedGameType()))
                     )
                 )

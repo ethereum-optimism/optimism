@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/systemconfig"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -421,17 +420,11 @@ func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 // prepareContracts prepares contract-bindings for the L2s
 func (s *interopE2ESystem) prepareContracts() {
 	// Add bindings to common contracts for each L2
-	l1GethClient := s.L1GethClient()
-	for id, l2Dep := range s.worldDeployment.L2s {
+	for id := range s.worldDeployment.L2s {
 		{
 			contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, s.L2GethClient(id, "sequencer"))
 			require.NoError(s.t, err)
 			s.l2s[id].contracts["inbox"] = contract
-		}
-		{
-			contract, err := systemconfig.NewSystemconfig(l2Dep.SystemConfigProxy, l1GethClient)
-			require.NoError(s.t, err)
-			s.l2s[id].contracts["systemconfig"] = contract
 		}
 	}
 }
@@ -512,13 +505,14 @@ func (s *interopE2ESystem) ValidateMessage(
 ) (*types.Receipt, error) {
 	secret := s.UserKey(id, sender)
 	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 
 	require.NoError(s.t, err)
 
 	auth.GasLimit = uint64(3000_000)
-	auth.GasPrice = big.NewInt(20_000_000_000)
+	auth.GasFeeCap = big.NewInt(21_000_000_000)
+	auth.GasTipCap = big.NewInt(1_000_000_000)
 
-	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 	identifier := inbox.Identifier{
 		Origin:      msgIdentifier.Origin,
 		BlockNumber: new(big.Int).SetUint64(msgIdentifier.BlockNumber),
@@ -526,6 +520,14 @@ func (s *interopE2ESystem) ValidateMessage(
 		Timestamp:   new(big.Int).SetUint64(msgIdentifier.Timestamp),
 		ChainId:     msgIdentifier.ChainID.ToBig(),
 	}
+	access := msgIdentifier.ChecksumArgs(msgHash).Access()
+	auth.AccessList = []types.AccessTuple{
+		{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: supervisortypes.EncodeAccessList([]supervisortypes.Access{access}),
+		},
+	}
+
 	tx, err := contract.InboxTransactor.ValidateMessage(auth, identifier, msgHash)
 	if expectedError != nil {
 		require.ErrorContains(s.t, err, expectedError.Error())

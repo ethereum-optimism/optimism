@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Operator_Fee_Constistency(gt *testing.T) {
+func Test_ProgramAction_OperatorFeeConstistency(gt *testing.T) {
 
 	const testOperatorFeeScalar = uint32(20000)
 	const testOperatorFeeConstant = uint64(500)

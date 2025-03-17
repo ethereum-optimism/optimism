@@ -105,7 +105,27 @@
   },
   {
     "inputs": [],
+    "name": "BlockNumberTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LogIndexTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoExecutingDeposits",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInAccessList",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimestampTooHigh",
     "type": "error"
   }
 ]

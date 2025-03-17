@@ -92,11 +92,11 @@ func testPrecompiles(t *testing.T, allocType e2e_config.AllocType) {
 			l1Head := l1HeadBlock.Hash()
 
 			inputs := utils.LocalGameInputs{
-				L1Head:        l1Head,
-				L2Head:        l2Head,
-				L2Claim:       common.Hash(l2Claim),
-				L2OutputRoot:  common.Hash(l2OutputRoot),
-				L2BlockNumber: l2ClaimBlockNumber,
+				L1Head:           l1Head,
+				L2Head:           l2Head,
+				L2Claim:          common.Hash(l2Claim),
+				L2OutputRoot:     common.Hash(l2OutputRoot),
+				L2SequenceNumber: l2ClaimBlockNumber,
 			}
 			runCannon(t, ctx, sys, inputs)
 		})
@@ -209,11 +209,11 @@ func testGranitePrecompiles(t *testing.T, allocType e2e_config.AllocType) {
 	l1Head := l1HeadBlock.Hash()
 
 	inputs := utils.LocalGameInputs{
-		L1Head:        l1Head,
-		L2Head:        l2Head,
-		L2Claim:       common.Hash(l2Claim),
-		L2OutputRoot:  common.Hash(l2OutputRoot),
-		L2BlockNumber: l2ClaimBlockNumber,
+		L1Head:           l1Head,
+		L2Head:           l2Head,
+		L2Claim:          common.Hash(l2Claim),
+		L2OutputRoot:     common.Hash(l2OutputRoot),
+		L2SequenceNumber: l2ClaimBlockNumber,
 	}
 	runCannon(t, ctx, sys, inputs)
 }

@@ -38,7 +38,8 @@ func createHash(i int) common.Hash {
 
 func TestErrorOpeningDatabase(t *testing.T) {
 	dir := t.TempDir()
-	_, err := NewFromFile(testlog.Logger(t, log.LvlInfo), &stubMetrics{}, filepath.Join(dir, "missing-dir", "file.db"), false)
+	chainID := eth.ChainIDFromUInt64(123)
+	_, err := NewFromFile(testlog.Logger(t, log.LvlInfo), &stubMetrics{}, chainID, filepath.Join(dir, "missing-dir", "file.db"), false)
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
@@ -47,7 +48,8 @@ func runDBTest(t *testing.T, setup func(t *testing.T, db *DB, m *stubMetrics), a
 		logger := testlog.Logger(t, log.LvlTrace)
 		path := filepath.Join(dir, "test.db")
 		m := &stubMetrics{}
-		db, err := NewFromFile(logger, m, path, false)
+		chainID := eth.ChainIDFromUInt64(123)
+		db, err := NewFromFile(logger, m, chainID, path, false)
 		require.NoError(t, err, "Failed to create database")
 		t.Cleanup(func() {
 			err := db.Close()
@@ -852,12 +854,14 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 	require.LessOrEqual(t, len(execMsg), 1, "cannot have multiple executing messages for a single log")
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		LogHash:   logHash,
-	})
+	q := types.ChecksumArgs{
+		BlockNumber: blockNum,
+		LogIndex:    logIdx,
+		Timestamp:   timestamp,
+		ChainID:     db.chainID,
+		LogHash:     logHash,
+	}.Query()
+	_, err := db.Contains(q)
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
@@ -872,12 +876,14 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		LogHash:   logHash,
-	})
+	q := types.ChecksumArgs{
+		BlockNumber: blockNum,
+		LogIndex:    logIdx,
+		Timestamp:   timestamp,
+		ChainID:     db.chainID,
+		LogHash:     logHash,
+	}.Query()
+	_, err := db.Contains(q)
 	require.ErrorIs(t, err, types.ErrConflict, "canonical chain must not include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
@@ -885,12 +891,14 @@ func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, time
 func requireFuture(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		LogHash:   logHash,
-	})
+	q := types.ChecksumArgs{
+		BlockNumber: blockNum,
+		LogIndex:    logIdx,
+		Timestamp:   timestamp,
+		ChainID:     db.chainID,
+		LogHash:     logHash,
+	}.Query()
+	_, err := db.Contains(q)
 	require.ErrorIs(t, err, types.ErrFuture, "canonical chain does not yet include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
@@ -912,10 +920,11 @@ func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint3
 }
 
 func TestRecoverOnCreate(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(123)
 	createDb := func(t *testing.T, store *entrydb.MemEntryStore[EntryType, Entry]) (*DB, *stubMetrics, error) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		m := &stubMetrics{}
-		db, err := NewFromEntryStore(logger, m, store, true)
+		db, err := NewFromEntryStore(logger, m, chainID, store, true)
 		return db, m, err
 	}
 

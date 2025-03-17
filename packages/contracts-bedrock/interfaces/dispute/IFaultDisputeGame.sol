@@ -128,7 +128,7 @@ interface IFaultDisputeGame is IDisputeGame {
     function resolvedSubgames(uint256) external view returns (bool);
     function splitDepth() external view returns (uint256 splitDepth_);
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_);
-    function startingOutputRoot() external view returns (Hash root, uint256 l2BlockNumber); // nosemgrep
+    function startingOutputRoot() external view returns (Hash root, uint256 l2SequenceNumber); // nosemgrep
     function startingRootHash() external view returns (Hash startingRootHash_);
     function step(uint256 _claimIndex, bool _isAttack, bytes memory _stateData, bytes memory _proof) external;
     function subgames(uint256, uint256) external view returns (uint256);

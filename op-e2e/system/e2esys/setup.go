@@ -71,6 +71,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -834,7 +835,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			c.P2P = p
 
 			if c.Driver.SequencerEnabled && c.P2PSigner == nil {
-				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
+				c.P2PSigner = &p2p.PreparedSigner{Signer: opsigner.NewLocalSigner(cfg.Secrets.SequencerP2P)}
 			}
 		}
 

@@ -24,7 +24,7 @@ func NewEmitterContract(t helpers.Testing) *EmitterContract {
 
 func (c *EmitterContract) Deploy(user *DSLUser) TransactionCreator {
 	return func(chain *Chain) *GeneratedTransaction {
-		opts, from := user.TransactOpts(chain)
+		opts, from := user.TransactOpts(chain.ChainID.ToBig())
 		emitContract, tx, _, err := emit.DeployEmit(opts, chain.SequencerEngine.EthClient())
 		require.NoError(c.t, err)
 		c.addressByChain[chain.ChainID] = emitContract
@@ -34,7 +34,7 @@ func (c *EmitterContract) Deploy(user *DSLUser) TransactionCreator {
 
 func (c *EmitterContract) EmitMessage(user *DSLUser, message string) TransactionCreator {
 	return func(chain *Chain) *GeneratedTransaction {
-		opts, from := user.TransactOpts(chain)
+		opts, from := user.TransactOpts(chain.ChainID.ToBig())
 		address, ok := c.addressByChain[chain.ChainID]
 		require.Truef(c.t, ok, "not deployed on chain %d", chain.ChainID)
 		bindings, err := emit.NewEmitTransactor(address, chain.SequencerEngine.EthClient())

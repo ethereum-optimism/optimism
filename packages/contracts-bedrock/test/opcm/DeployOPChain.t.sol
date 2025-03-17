@@ -26,7 +26,7 @@ import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersi
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
-import { Claim, Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
@@ -327,7 +327,7 @@ contract DeployOPChain_TestBase is Test {
     uint32 basefeeScalar = 100;
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
-    OutputRoot startingAnchorRoot = OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRoot")), l2BlockNumber: 400 });
+    Proposal startingAnchorRoot = Proposal({ root: Hash.wrap(keccak256("defaultOutputRoot")), l2SequenceNumber: 400 });
     IOPContractsManager opcm = IOPContractsManager(address(0));
     string saltMixer = "defaultSaltMixer";
     uint64 gasLimit = 60_000_000;

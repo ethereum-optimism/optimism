@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
-import { Claim, Duration, GameType, GameTypes, OutputRoot, Hash } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 // Interfaces
@@ -593,7 +593,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                             (
                                 superchainConfig,
                                 dgf,
-                                OutputRoot({ root: root, l2BlockNumber: l2BlockNumber }),
+                                Proposal({ root: root, l2SequenceNumber: l2BlockNumber }),
                                 respectedGameType
                             )
                         )
@@ -1154,7 +1154,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         virtual
         returns (bytes memory)
     {
-        OutputRoot memory startingAnchorRoot = abi.decode(_input.startingAnchorRoot, (OutputRoot));
+        Proposal memory startingAnchorRoot = abi.decode(_input.startingAnchorRoot, (Proposal));
         return abi.encodeCall(
             IAnchorStateRegistry.initialize,
             (_superchainConfig, _output.disputeGameFactoryProxy, startingAnchorRoot, GameTypes.PERMISSIONED_CANNON)
@@ -1193,7 +1193,7 @@ contract OPContractsManager is ISemver {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
-        // The correct type is OutputRoot memory but OP Deployer does not yet support structs.
+        // The correct type is Proposal memory but OP Deployer does not yet support structs.
         bytes startingAnchorRoot;
         // The salt mixer is used as part of making the resulting salt unique.
         string saltMixer;
@@ -1291,9 +1291,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.12.0
+    /// @custom:semver 1.12.1
     function version() public pure virtual returns (string memory) {
-        return "1.12.0";
+        return "1.12.1";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

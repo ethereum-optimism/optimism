@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -275,13 +276,33 @@ func getRandomSignedTransaction(ctx context.Context, ethClient *ethclient.Client
 			Value:     amount,
 			Data:      data,
 		}
+
+	case types.SetCodeTxType:
+		gasLimit, err := core.FloorDataGas(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get intrinsicGas: %w", err)
+		}
+		gasTipCap, err := ethClient.SuggestGasTipCap(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get gas tip cap: %w", err)
+		}
+		txData = &types.SetCodeTx{
+			ChainID:   uint256.MustFromBig(chainId),
+			Nonce:     nonce,
+			GasTipCap: uint256.MustFromBig(gasTipCap),
+			GasFeeCap: uint256.MustFromBig(gasPrice),
+			Gas:       gasLimit,
+			To:        randomAddress,
+			Value:     uint256.MustFromBig(amount),
+			Data:      data,
+		}
 	default:
 		return nil, fmt.Errorf("unsupported tx type: %d", txType)
 	}
 
 	tx := types.NewTx(txData)
 
-	signer := types.NewLondonSigner(chainId)
+	signer := types.NewIsthmusSigner(chainId)
 	if !protected {
 		if txType == types.LegacyTxType {
 			signer = types.HomesteadSigner{}
@@ -359,7 +380,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 		txType := types.LegacyTxType
 		protected := true
 		// Generate all tx types alternately
-		switch i % 4 {
+		switch i % 5 {
 		case 0:
 			protected = false // legacy unprotected TX (Homestead)
 		case 1:
@@ -368,6 +389,8 @@ func checkConsolidation(cliCtx *cli.Context) error {
 			txType = types.AccessListTxType
 		case 3:
 			txType = types.DynamicFeeTxType
+		case 4:
+			txType = types.SetCodeTxType
 		}
 		tx, err := getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, txType, protected)
 		if err != nil {

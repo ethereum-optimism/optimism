@@ -170,7 +170,11 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	}
 
 	// Find L1 endpoint
-	finder := NewServiceFinder(inspectResult.UserServices)
+	networks := make([]string, len(spec.Chains))
+	for idx, chainSpec := range spec.Chains {
+		networks[idx] = chainSpec.Name
+	}
+	finder := NewServiceFinder(inspectResult.UserServices, WithL2Networks(networks))
 	if nodes, services := finder.FindL1Services(); len(nodes) > 0 {
 		chain := &descriptors.Chain{
 			ID:       deployerState.L1ChainID,

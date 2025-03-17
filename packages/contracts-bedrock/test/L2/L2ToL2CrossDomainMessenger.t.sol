@@ -187,9 +187,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _target,
         bytes calldata _message,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -245,9 +245,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         bytes32 _msgHash,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -292,9 +292,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -352,9 +352,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time,
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time,
         address _target,
         bytes memory _mockedReturnData
     )
@@ -430,9 +430,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _sender2, // sender passed to `relayMessage` by the reentrant call.
         uint256 _nonce,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -486,9 +486,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         bytes calldata _message,
         uint256 _value,
         address _origin,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -518,9 +518,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _target,
         bytes calldata _message,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -557,9 +557,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _target,
         bytes calldata _message,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {

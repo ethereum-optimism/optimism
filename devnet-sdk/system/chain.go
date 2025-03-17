@@ -14,15 +14,28 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum/go-ethereum/common"
+	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+// this is to differentiate between op-geth and go-ethereum
+type opBlock interface {
+	WithdrawalsRoot() *common.Hash
+}
+
 var (
 	// This will make sure that we implement the Chain interface
 	_ Chain = (*chain)(nil)
+
+	// Make sure we're using op-geth in place of go-ethereum.
+	// If you're wondering why this fails at compile time,
+	// it's most likely because you're not using a "replace"
+	// directive in your go.mod file.
+	_ opBlock = (*coreTypes.Block)(nil)
 )
 
 // clientManager handles ethclient connections
