@@ -33,7 +33,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract IETHLockbox",
         "name": "",
         "type": "address"
       }
@@ -52,7 +52,7 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "contract IOptimismPortal2",
         "name": "",
         "type": "address"
       }
@@ -183,7 +183,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "contract IOptimismPortal2",
         "name": "portal",
         "type": "address"
       },
@@ -202,7 +202,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "contract IOptimismPortal2",
         "name": "portal",
         "type": "address"
       },
@@ -234,7 +234,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "contract IETHLockbox",
         "name": "lockbox",
         "type": "address"
       },
@@ -253,7 +253,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "contract IETHLockbox",
         "name": "lockbox",
         "type": "address"
       },
@@ -272,7 +272,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "contract IETHLockbox",
         "name": "lockbox",
         "type": "address"
       }
@@ -285,7 +285,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "contract IOptimismPortal2",
         "name": "portal",
         "type": "address"
       }
@@ -296,6 +296,11 @@
   {
     "inputs": [],
     "name": "ETHLockbox_DifferentProxyAdminOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ETHLockbox_DifferentSuperchainConfig",
     "type": "error"
   },
   {

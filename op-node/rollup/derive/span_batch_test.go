@@ -478,13 +478,14 @@ func TestSpanBatchReadTxData(t *testing.T) {
 		{"legacy tx", 32, testutils.RandomLegacyTx, true},
 		{"access list tx", 32, testutils.RandomAccessListTx, true},
 		{"dynamic fee tx", 32, testutils.RandomDynamicFeeTx, true},
+		{"setcode tx", 32, testutils.RandomSetCodeTx, true},
 	}
 
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x109550 + i)))
 			chainID := new(big.Int).SetUint64(rng.Uint64())
-			signer := types.NewLondonSigner(chainID)
+			signer := types.NewIsthmusSigner(chainID)
 			if !testCase.protected {
 				signer = types.HomesteadSigner{}
 			}

@@ -147,13 +147,14 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 			if err := h.checkChainCanInitiate(depSet, srcChainID, candidate, msg); err != nil {
 				return err
 			}
-			includedIn, err := deps.Contains(srcChainID,
-				types.ContainsQuery{
-					Timestamp: msg.Timestamp,
-					BlockNum:  msg.BlockNum,
-					LogIdx:    msg.LogIdx,
-					LogHash:   msg.Hash,
-				})
+			q := types.ChecksumArgs{
+				BlockNumber: msg.BlockNum,
+				LogIndex:    msg.LogIdx,
+				Timestamp:   msg.Timestamp,
+				ChainID:     srcChainID,
+				LogHash:     msg.Hash,
+			}.Query()
+			includedIn, err := deps.Contains(srcChainID, q)
 			if err != nil {
 				return fmt.Errorf("executing msg %s failed inclusion check: %w", msg, err)
 			}

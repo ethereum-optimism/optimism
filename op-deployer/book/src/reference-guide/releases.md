@@ -2,28 +2,34 @@
 
 ## Versioning
 
-For all releases after `v0.0.11`, each minor version of OP Deployer will support the current governance-approved
-release of the smart contracts as well as the tip of the `develop` branch at the time the tag was created. If you
-want to deploy an earlier version of the contracts (which may be dangerous!), you should use an earlier version of
-OP Deployer. This setup allows our smart contract developers to make breaking changes on `develop`, while still
-allowing new chains to be deployed and upgraded using production-ready smart contracts.
+For all releases after `v0.0.11`, each minor version of OP Deployer will support a single release of the
+governance-approved smart contracts. If you want to deploy an earlier version of the contracts (which may be
+dangerous!), you should use an earlier version of OP Deployer. This setup allows our smart contract developers to make
+breaking changes on `develop`, while still allowing new chains to be deployed and upgraded using production-ready smart
+contracts.
 
-For example (note that these are just examples, check out the [releases][releases] page for the exact versions to use):
-
-- `v0.1.x` : Supports deploying `develop` and `op-contracts/v2.0.0`.
-- `v0.2.x`: Supports deploying `develop` and `op-contracts/v3.0.0`.
-
-If you deploy from an HTTPS or file [locator](./artifacts-locators.md), the deployment behavior will match that of
-the supported tag. For example, if you use `v0.1.x` then the deployment will work as if you were deploying
-`op-contracts/v2.0.0`. Typically, errors like `unknown selector: <some hex>` imply that you're using the wrong
-version of OP Deployer for your contract artifacts. If this happens, we recommend trying different versions until
-you get one that works. Note that this workflow is **not recommended** for production chains.
+If you deploy from an HTTPS or file [locator](./artifacts-locators.md), the deployment behavior will match the
+contract's tag. For example, if version `v0.2.0` supports `v2.0.0` then the deployment will work as if you were
+deploying `op-contracts/v2.0.0`. Typically, errors like `unknown selector: <some hex>` imply that you're using the wrong
+version of OP Deployer for your contract artifacts. If this happens, we recommend trying different versions until you
+get one that works. Note that this workflow is **not recommended** for production chains.
 
 [releases]: https://github.com/ethereum-optimism/optimism/releases
 
+## Version Backports
+
+From time to time, we may backport bugfixes from develop onto earlier versions of OP Deployer. The process for this is
+as follows:
+
+1. If one doesn't exist already, make a new branch for the version lineage you're patching (e.g. `v0.2.x`). This branch
+   should be based on the latest release of that lineage. The branch should be named as follows: 
+   `backports/op-deployer/<lineage, i.e. v0.2.0>`.
+2. Open a PR with the backport against that branch. Be sure to reference the original commit in the backport.
+3. Make and push a new tag on that lineage.
+
 ## Adding Support for New Contract Versions
 
-Adding support for a new contract version is a multi-step process. Here's a high-level overview. For the sake of 
+Adding support for a new contract version is a multi-step process. Here's a high-level overview. For the sake of
 simplicity we will assume you are adding support for a new `rc` release.
 
 ### Step 1: Add Support on `develop`
@@ -48,7 +54,7 @@ cd ../../op-deployer
 just calculate-artifacts-hash <checksum>
 ```
 
-This will calculate the checksum of your artifacts as well as the hash of the artifacts tarball. OP Deployer uses 
+This will calculate the checksum of your artifacts as well as the hash of the artifacts tarball. OP Deployer uses
 these values to download and verify tagged contract locators.
 
 Now, update `standard/standard.go` with these values so that the new artifacts tarball can be downloaded:
@@ -59,9 +65,9 @@ Now, update `standard/standard.go` with these values so that the new artifacts t
 const ContractsVXTag = "op-contracts/vX.Y.Z"
 
 var taggedReleases = map[string]TaggedRelease{
-	// Other releases...
-	ContractsVXTag: {
-		ArtifactsHash: common.HexToHash("<the artifacts hash>"),
+    // Other releases...
+    ContractsVXTag: {
+		ArtifactsHash: common.HexToHash("<the artifacts hash>"), 
 		ContentHash:   common.HexToHash("<the checksum>"),
 	},
 }
@@ -80,7 +86,7 @@ Add the new RC to the [standard versions][std-vers] in the Superchain Registry.
 
 ### Step 4: Update the `validation` Package
 
-The SR is pulled into OP Deployer via the `validation` package. Update it by running the following command from the 
+The SR is pulled into OP Deployer via the `validation` package. Update it by running the following command from the
 root of the monorepo:
 
 ```shell

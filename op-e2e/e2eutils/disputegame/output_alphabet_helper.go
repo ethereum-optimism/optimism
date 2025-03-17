@@ -35,7 +35,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
-	prestateBlock, poststateBlock, err := g.Game.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := g.Game.GetGameRange(ctx)
 	g.Require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
 	l1Head := g.GetL1Head(ctx)

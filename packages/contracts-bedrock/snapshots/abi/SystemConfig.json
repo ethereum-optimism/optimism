@@ -19,19 +19,6 @@
   },
   {
     "inputs": [],
-    "name": "DISPUTE_GAME_FACTORY_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "L1_CROSS_DOMAIN_MESSENGER_SLOT",
     "outputs": [
       {
@@ -261,11 +248,6 @@
           },
           {
             "internalType": "address",
-            "name": "disputeGameFactory",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "optimismPortal",
             "type": "address"
           },
@@ -385,11 +367,6 @@
           {
             "internalType": "address",
             "name": "l1StandardBridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "disputeGameFactory",
             "type": "address"
           },
           {

@@ -200,7 +200,6 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/src/L1/OPContractsManager.sol
-        - packages/contracts-bedrock/src/L1/OPContractsManagerInterop.sol
         - packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
 
   - id: sol-style-enforce-require-msg
@@ -241,10 +240,6 @@ rules:
             _disableInitializers();
             ...
           }
-    paths:
-      exclude:
-        - packages/contracts-bedrock/src/L1/SystemConfigInterop.sol
-        - packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
 
   - id: sol-safety-proper-initializer
     languages: [solidity]
@@ -273,9 +268,6 @@ rules:
           function initialize(...) public reinitializer(...) {
             ...
           }
-    paths:
-      exclude:
-        - packages/contracts-bedrock/src/L1/SystemConfigInterop.sol
 
   - id: sol-safety-proper-upgrade-function
     languages: [solidity]

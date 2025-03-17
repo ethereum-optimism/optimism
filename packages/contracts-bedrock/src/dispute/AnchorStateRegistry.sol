@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 // Libraries
-import { GameType, OutputRoot, Claim, GameStatus, Hash } from "src/dispute/lib/Types.sol";
+import { GameType, Proposal, Claim, GameStatus, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -22,8 +22,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 3.1.0
+    string public constant version = "3.1.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -38,7 +38,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     IFaultDisputeGame public anchorGame;
 
     /// @notice The starting anchor root.
-    OutputRoot internal startingAnchorRoot;
+    Proposal internal startingAnchorRoot;
 
     /// @notice Mapping of blacklisted dispute games.
     mapping(IDisputeGame => bool) public disputeGameBlacklist;
@@ -89,7 +89,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     function initialize(
         ISuperchainConfig _superchainConfig,
         IDisputeGameFactory _disputeGameFactory,
-        OutputRoot memory _startingAnchorRoot,
+        Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
     )
         external
@@ -149,11 +149,11 @@ contract AnchorStateRegistry is Initializable, ISemver {
     function getAnchorRoot() public view returns (Hash, uint256) {
         // Return the starting anchor root if there is no anchor game.
         if (address(anchorGame) == address(0)) {
-            return (startingAnchorRoot.root, startingAnchorRoot.l2BlockNumber);
+            return (startingAnchorRoot.root, startingAnchorRoot.l2SequenceNumber);
         }
 
         // Otherwise, return the anchor root.
-        return (Hash.wrap(anchorGame.rootClaim().raw()), anchorGame.l2BlockNumber());
+        return (Hash.wrap(anchorGame.rootClaim().raw()), anchorGame.l2SequenceNumber());
     }
 
     /// @notice Determines whether a game is registered in the DisputeGameFactory.
@@ -305,7 +305,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
 
         // Must be newer than the current anchor game.
         (, uint256 anchorL2BlockNumber) = getAnchorRoot();
-        if (game.l2BlockNumber() <= anchorL2BlockNumber) {
+        if (game.l2SequenceNumber() <= anchorL2BlockNumber) {
             revert AnchorStateRegistry_InvalidAnchorGame();
         }
 

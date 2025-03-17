@@ -5,9 +5,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
@@ -120,5 +119,5 @@ type ChainState struct {
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
-	StartBlock *types.Header `json:"startBlock"`
+	StartBlock *eth.BlockRef `json:"startBlock"`
 }

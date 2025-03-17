@@ -34,46 +34,49 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Thrown when the admin owner of the lockbox is different from the admin owner of the proxy admin.
     error ETHLockbox_DifferentProxyAdminOwner();
 
+    /// @notice Thrown when any authorized portal has a different SuperchainConfig.
+    error ETHLockbox_DifferentSuperchainConfig();
+
     /// @notice Emitted when ETH is locked in the lockbox by an authorized portal.
     /// @param portal The address of the portal that locked the ETH.
     /// @param amount The amount of ETH locked.
-    event ETHLocked(address indexed portal, uint256 amount);
+    event ETHLocked(IOptimismPortal indexed portal, uint256 amount);
 
     /// @notice Emitted when ETH is unlocked from the lockbox by an authorized portal.
     /// @param portal The address of the portal that unlocked the ETH.
     /// @param amount The amount of ETH unlocked.
-    event ETHUnlocked(address indexed portal, uint256 amount);
+    event ETHUnlocked(IOptimismPortal indexed portal, uint256 amount);
 
     /// @notice Emitted when a portal is authorized to lock and unlock ETH.
     /// @param portal The address of the portal that was authorized.
-    event PortalAuthorized(address indexed portal);
+    event PortalAuthorized(IOptimismPortal indexed portal);
 
     /// @notice Emitted when an ETH lockbox is authorized to migrate its liquidity to the current ETH lockbox.
     /// @param lockbox The address of the ETH lockbox that was authorized.
-    event LockboxAuthorized(address indexed lockbox);
+    event LockboxAuthorized(IETHLockbox indexed lockbox);
 
     /// @notice Emitted when ETH liquidity is migrated from the current ETH lockbox to another.
     /// @param lockbox The address of the ETH lockbox that was migrated.
-    event LiquidityMigrated(address indexed lockbox, uint256 amount);
+    event LiquidityMigrated(IETHLockbox indexed lockbox, uint256 amount);
 
     /// @notice Emitted when ETH liquidity is received during an authorized lockbox migration.
     /// @param lockbox The address of the ETH lockbox that received the liquidity.
     /// @param amount The amount of ETH received.
-    event LiquidityReceived(address indexed lockbox, uint256 amount);
+    event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
     /// @notice The address of the SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
 
     /// @notice Mapping of authorized portals.
-    mapping(address => bool) public authorizedPortals;
+    mapping(IOptimismPortal => bool) public authorizedPortals;
 
     /// @notice Mapping of authorized lockboxes.
-    mapping(address => bool) public authorizedLockboxes;
+    mapping(IETHLockbox => bool) public authorizedLockboxes;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.1
+    /// @custom:semver 1.0.0
     function version() public view virtual returns (string memory) {
-        return "0.0.1";
+        return "1.0.0";
     }
 
     /// @notice Constructs the ETHLockbox contract.
@@ -93,15 +96,8 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     {
         superchainConfig = ISuperchainConfig(_superchainConfig);
         for (uint256 i; i < _portals.length; i++) {
-            _authorizePortal(address(_portals[i]));
+            _authorizePortal(_portals[i]);
         }
-    }
-
-    /// @notice Authorizes a portal to lock and unlock ETH.
-    /// @param _portal The address of the portal to authorize.
-    function authorizePortal(IOptimismPortal _portal) external {
-        if (msg.sender != proxyAdminOwner()) revert ETHLockbox_Unauthorized();
-        _authorizePortal(address(_portal));
     }
 
     /// @notice Getter for the current paused status.
@@ -109,17 +105,35 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
         return superchainConfig.paused();
     }
 
+    /// @notice Authorizes a portal to lock and unlock ETH.
+    /// @param _portal The address of the portal to authorize.
+    function authorizePortal(IOptimismPortal _portal) external {
+        // Check that the sender is the proxy admin owner.
+        if (msg.sender != proxyAdminOwner()) revert ETHLockbox_Unauthorized();
+
+        // Authorize the portal.
+        _authorizePortal(_portal);
+    }
+
     /// @notice Receives the ETH liquidity migrated from an authorized lockbox.
     function receiveLiquidity() external payable {
-        if (!authorizedLockboxes[msg.sender]) revert ETHLockbox_Unauthorized();
-        emit LiquidityReceived(msg.sender, msg.value);
+        // Check that the sender is authorized to trigger this function.
+        IETHLockbox sender = IETHLockbox(payable(msg.sender));
+        if (!authorizedLockboxes[sender]) revert ETHLockbox_Unauthorized();
+
+        // Emit the event.
+        emit LiquidityReceived(sender, msg.value);
     }
 
     /// @notice Locks ETH in the lockbox.
     ///         Called by an authorized portal on a deposit to lock the ETH value.
     function lockETH() external payable {
-        if (!authorizedPortals[msg.sender]) revert ETHLockbox_Unauthorized();
-        emit ETHLocked(msg.sender, msg.value);
+        // Check that the sender is authorized to trigger this function.
+        IOptimismPortal sender = IOptimismPortal(payable(msg.sender));
+        if (!authorizedPortals[sender]) revert ETHLockbox_Unauthorized();
+
+        // Emit the event.
+        emit ETHLocked(sender, msg.value);
     }
 
     /// @notice Unlocks ETH from the lockbox.
@@ -127,27 +141,44 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     ///         Cannot be called if the lockbox is paused.
     /// @param _value The amount of ETH to unlock.
     function unlockETH(uint256 _value) external {
+        // Unlocks are blocked when paused, locks are not.
         if (paused()) revert ETHLockbox_Paused();
-        if (!authorizedPortals[msg.sender]) revert ETHLockbox_Unauthorized();
+
+        // Check that the sender is authorized to trigger this function.
+        IOptimismPortal sender = IOptimismPortal(payable(msg.sender));
+        if (!authorizedPortals[sender]) revert ETHLockbox_Unauthorized();
+
+        // Check that we have enough balance to process the unlock.
         if (_value > address(this).balance) revert ETHLockbox_InsufficientBalance();
-        /// NOTE: Check l2Sender is not set to avoid this function to be called as a target on a withdrawal transaction
-        if (IOptimismPortal(payable(msg.sender)).l2Sender() != Constants.DEFAULT_L2_SENDER) {
+
+        // Check that the sender is not executing a withdrawal transaction.
+        if (sender.l2Sender() != Constants.DEFAULT_L2_SENDER) {
             revert ETHLockbox_NoWithdrawalTransactions();
         }
 
-        // Using `donateETH` to avoid triggering a deposit
-        IOptimismPortal(payable(msg.sender)).donateETH{ value: _value }();
-        emit ETHUnlocked(msg.sender, _value);
+        // Using donateETH to avoid triggering a deposit.
+        sender.donateETH{ value: _value }();
+
+        // Emit the event.
+        emit ETHUnlocked(sender, _value);
     }
 
-    /// @notice Authorizes an ETH lockbox to migrate its liquidity to the current ETH lockbox.
+    /// @notice Authorizes an ETH lockbox to migrate its liquidity to the current ETH lockbox. We
+    ///         allow this function to be called more than once for the same lockbox. A lockbox
+    ///         cannot be removed from the authorized list once added.
     /// @param _lockbox The address of the ETH lockbox to authorize.
     function authorizeLockbox(IETHLockbox _lockbox) external {
+        // Check that the sender is the proxy admin owner.
         if (msg.sender != proxyAdminOwner()) revert ETHLockbox_Unauthorized();
+
+        // Check that the lockbox has the same proxy admin owner.
         if (!_sameProxyAdminOwner(address(_lockbox))) revert ETHLockbox_DifferentProxyAdminOwner();
 
-        authorizedLockboxes[address(_lockbox)] = true;
-        emit LockboxAuthorized(address(_lockbox));
+        // Authorize the lockbox.
+        authorizedLockboxes[_lockbox] = true;
+
+        // Emit the event.
+        emit LockboxAuthorized(_lockbox);
     }
 
     /// @notice Migrates liquidity from the current ETH lockbox to another.
@@ -156,18 +187,32 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     ///         from the ETHLockbox on finalized withdrawals.
     /// @param _lockbox The address of the ETH lockbox to migrate liquidity to.
     function migrateLiquidity(IETHLockbox _lockbox) external {
+        // Check that the sender is the proxy admin owner.
         if (msg.sender != proxyAdminOwner()) revert ETHLockbox_Unauthorized();
+
+        // Check that the lockbox has the same proxy admin owner.
         if (!_sameProxyAdminOwner(address(_lockbox))) revert ETHLockbox_DifferentProxyAdminOwner();
 
+        // Receive the liquidity.
         IETHLockbox(_lockbox).receiveLiquidity{ value: address(this).balance }();
-        emit LiquidityMigrated(address(_lockbox), address(this).balance);
+
+        // Emit the event.
+        emit LiquidityMigrated(_lockbox, address(this).balance);
     }
 
     /// @notice Authorizes a portal to lock and unlock ETH.
     /// @param _portal The address of the portal to authorize.
-    function _authorizePortal(address _portal) internal {
-        if (!_sameProxyAdminOwner(_portal)) revert ETHLockbox_DifferentProxyAdminOwner();
+    function _authorizePortal(IOptimismPortal _portal) internal {
+        // Check that the portal has the same proxy admin owner.
+        if (!_sameProxyAdminOwner(address(_portal))) revert ETHLockbox_DifferentProxyAdminOwner();
+
+        // Check that the portal has the same superchain config.
+        if (_portal.superchainConfig() != superchainConfig) revert ETHLockbox_DifferentSuperchainConfig();
+
+        // Authorize the portal.
         authorizedPortals[_portal] = true;
+
+        // Emit the event.
         emit PortalAuthorized(_portal);
     }
 }

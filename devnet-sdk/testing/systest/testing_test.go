@@ -12,7 +12,11 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -82,7 +86,8 @@ type mockChain struct{}
 
 func (m *mockChain) Node() system.Node                               { return nil }
 func (m *mockChain) RPCURL() string                                  { return "http://localhost:8545" }
-func (m *mockChain) Client() (*ethclient.Client, error)              { return ethclient.Dial(m.RPCURL()) }
+func (m *mockChain) Client() (*sources.EthClient, error)             { return nil, nil }
+func (m *mockChain) GethClient() (*ethclient.Client, error)          { return nil, nil }
 func (m *mockChain) ID() types.ChainID                               { return types.ChainID(big.NewInt(1)) }
 func (m *mockChain) ContractsRegistry() interfaces.ContractsRegistry { return nil }
 func (m *mockChain) Wallets(ctx context.Context) ([]system.Wallet, error) {
@@ -120,12 +125,60 @@ type mockInteropSet struct{}
 
 func (m *mockInteropSet) L2s() []system.Chain { return []system.Chain{&mockChain{}} }
 
+// mockSupervisor implements the system.Supervisor interface for testing
+type mockSupervisor struct{}
+
+func (m *mockSupervisor) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *mockSupervisor) CrossSafe(ctx context.Context, chainID eth.ChainID) (supervisorTypes.DerivedIDPair, error) {
+	return supervisorTypes.DerivedIDPair{}, nil
+}
+
+func (m *mockSupervisor) Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *mockSupervisor) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
+	return eth.BlockRef{}, nil
+}
+
+func (m *mockSupervisor) CrossDerivedFrom(ctx context.Context, chainID eth.ChainID, blockID eth.BlockID) (eth.BlockRef, error) {
+	return eth.BlockRef{}, nil
+}
+
+func (m *mockSupervisor) UpdateLocalUnsafe(ctx context.Context, chainID eth.ChainID, blockRef eth.BlockRef) error {
+	return nil
+}
+
+func (m *mockSupervisor) UpdateLocalSafe(ctx context.Context, chainID eth.ChainID, l1BlockRef eth.L1BlockRef, blockRef eth.BlockRef) error {
+	return nil
+}
+
+func (m *mockSupervisor) SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error) {
+	return eth.SuperRootResponse{}, nil
+}
+
+func (m *mockSupervisor) AllSafeDerivedAt(ctx context.Context, blockID eth.BlockID) (map[eth.ChainID]eth.BlockID, error) {
+	return nil, nil
+}
+
+func (m *mockSupervisor) SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error) {
+	return eth.SupervisorSyncStatus{}, nil
+}
+
 // mockInteropSystem implements a minimal system.InteropSystem for testing
 type mockInteropSystem struct {
 	mockSystem
 }
 
 func (m *mockInteropSystem) InteropSet() system.InteropSet { return &mockInteropSet{} }
+
+// Supervisor implements the system.InteropSystem interface
+func (m *mockInteropSystem) Supervisor(ctx context.Context) (system.Supervisor, error) {
+	return &mockSupervisor{}, nil
+}
 
 // newMockSystem creates a new mock system for testing
 func newMockSystem() system.System {

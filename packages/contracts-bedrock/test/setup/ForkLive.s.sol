@@ -14,6 +14,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 // Libraries
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { LibString } from "solady/src/utils/LibString.sol";
 
 // Interfaces
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -21,12 +22,12 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IOPContractsManagerLegacyUpgrade } from "interfaces/L1/IOPContractsManagerLegacyUpgrade.sol";
 
 /// @title ForkLive
 /// @notice This script is called by Setup.sol as a preparation step for the foundry test suite, and is run as an
@@ -40,6 +41,7 @@ import { IOPContractsManagerLegacyUpgrade } from "interfaces/L1/IOPContractsMana
 
 contract ForkLive is Deployer {
     using stdToml for string;
+    using LibString for string;
 
     bool public useOpsRepo;
 
@@ -100,16 +102,24 @@ contract ForkLive is Deployer {
     ///      using either the `saveProxyAndImpl` or `artifacts.save()` functions.
     function _readSuperchainRegistry() internal {
         string memory superchainBasePath = "./lib/superchain-registry/superchain/configs/";
+        string memory validationBasePath = "./lib/superchain-registry/validation/standard/";
 
         string memory superchainToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/superchain.toml"));
         string memory opToml = vm.readFile(string.concat(superchainBasePath, baseChain(), "/", opChain(), ".toml"));
+
+        string memory standardVersionsToml =
+            vm.readFile(string.concat(validationBasePath, "standard-versions-", baseChain(), ".toml"));
+
+        standardVersionsToml = standardVersionsToml.replace('"op-contracts/v2.0.0-rc.1"', "RELEASE");
 
         // Slightly hacky, we encode the uint chainId as an address to save it in Artifacts
         artifacts.save("L2ChainId", address(uint160(vm.parseTomlUint(opToml, ".chain_id"))));
         // Superchain shared contracts
         saveProxyAndImpl("SuperchainConfig", superchainToml, ".superchain_config_addr");
         saveProxyAndImpl("ProtocolVersions", superchainToml, ".protocol_versions_addr");
-        artifacts.save("OPContractsManager", vm.parseTomlAddress(superchainToml, ".op_contracts_manager_proxy_addr"));
+        artifacts.save(
+            "OPContractsManager", vm.parseTomlAddress(standardVersionsToml, "$.RELEASE.op_contracts_manager.address")
+        );
 
         // Core contracts
         artifacts.save("ProxyAdmin", vm.parseTomlAddress(opToml, ".addresses.ProxyAdmin"));
@@ -190,36 +200,43 @@ contract ForkLive is Deployer {
         opChains[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: systemConfig,
             proxyAdmin: proxyAdmin,
-            absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate"))),
-            disputeGameUsesSuperRoots: false
+            absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
         });
 
+        IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
         // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
         // then reset its code to the original code.
+
         bytes memory upgraderCode = address(upgrader).code;
         vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
-        // Some upgrades require the legacy format.
-        IOPContractsManagerLegacyUpgrade.OpChainConfig[] memory legacyConfigs =
-            new IOPContractsManagerLegacyUpgrade.OpChainConfig[](opChains.length);
-        for (uint256 i = 0; i < opChains.length; i++) {
-            legacyConfigs[i] = IOPContractsManagerLegacyUpgrade.OpChainConfig({
-                systemConfigProxy: opChains[i].systemConfigProxy,
-                proxyAdmin: opChains[i].proxyAdmin,
-                absolutePrestate: opChains[i].absolutePrestate
-            });
+        // The 2.0.0 OPCM requires that the SuperchainConfig and ProtocolVersions contracts
+        // have been upgraded before it will upgrade other contracts.
+        // Those contracts can only be upgrade by the OP Mainnet ProxyAdminOwner. So for chains which have a different
+        // ProxyAdminOwner, we first need to call opcm.upgrade from the OP Mainnet PAO.
+        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
+
+        if (upgrader != mainnetPAO) {
+            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
+
+            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+            DelegateCaller(opmUpgrader).dcForward(
+                address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76),
+                abi.encodeCall(IOPContractsManager.upgrade, (opmChain))
+            );
         }
 
         // Start by doing Upgrade 13.
+
         DelegateCaller(upgrader).dcForward(
-            address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76),
-            abi.encodeCall(IOPContractsManagerLegacyUpgrade.upgrade, (legacyConfigs))
+            address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
         );
 
         // Then do Upgrade 14.
         DelegateCaller(upgrader).dcForward(
-            address(0x3A1f523a4bc09cd344A2745a108Bb0398288094F),
-            abi.encodeCall(IOPContractsManagerLegacyUpgrade.upgrade, (legacyConfigs))
+            address(0x3A1f523a4bc09cd344A2745a108Bb0398288094F), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
         );
 
         // Then do the final upgrade.

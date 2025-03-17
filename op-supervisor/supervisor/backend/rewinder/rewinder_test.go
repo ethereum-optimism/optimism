@@ -1455,7 +1455,7 @@ func setupTestChains(t *testing.T, chainIDs ...eth.ChainID) *testSetup {
 		require.NoError(t, err)
 
 		// Create and open the log DB
-		logDB, err := logs.NewFromFile(logger, &stubMetrics{}, filepath.Join(chainDir, "log.db"), true)
+		logDB, err := logs.NewFromFile(logger, &stubMetrics{}, chainID, filepath.Join(chainDir, "log.db"), true)
 		require.NoError(t, err)
 		chainsDB.AddLogDB(chainID, logDB)
 

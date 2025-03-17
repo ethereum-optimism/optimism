@@ -69,6 +69,25 @@ type EthClientConfig struct {
 	MethodResetDuration time.Duration
 }
 
+// DefaultEthClientConfig creates a new eth client config,
+// with caching of data using the given cache-size (in number of blocks).
+func DefaultEthClientConfig(cacheSize int) *EthClientConfig {
+	return &EthClientConfig{
+		// receipts and transactions are cached per block
+		ReceiptsCacheSize:     cacheSize,
+		TransactionsCacheSize: cacheSize,
+		HeadersCacheSize:      cacheSize,
+		PayloadsCacheSize:     cacheSize,
+		MaxRequestsPerBatch:   20,
+		MaxConcurrentRequests: 10,
+		BlockRefsCacheSize:    cacheSize,
+		TrustRPC:              false,
+		MustBePostMerge:       true,
+		RPCProviderKind:       RPCKindStandard,
+		MethodResetDuration:   time.Minute,
+	}
+}
+
 func (c *EthClientConfig) Check() error {
 	if c.ReceiptsCacheSize < 0 {
 		return fmt.Errorf("invalid receipts cache size: %d", c.ReceiptsCacheSize)
@@ -517,4 +536,16 @@ func (s *EthClient) PendingNonceAt(ctx context.Context, account common.Address) 
 	var result hexutil.Uint64
 	err := s.client.CallContext(ctx, &result, "eth_getTransactionCount", account, "pending")
 	return uint64(result), err
+}
+
+// BalanceAt returns the wei balance of the given account.
+func (s *EthClient) BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
+	var result hexutil.Big
+	var err error
+	if blockNumber != nil {
+		err = s.client.CallContext(ctx, &result, "eth_getBalance", account, blockNumber)
+	} else {
+		err = s.client.CallContext(ctx, &result, "eth_getBalance", account, "latest")
+	}
+	return (*big.Int)(&result), err
 }

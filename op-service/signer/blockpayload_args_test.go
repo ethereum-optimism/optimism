@@ -50,3 +50,56 @@ func TestBlockPayloadArgs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, h, h2, "signing hash still the same in V2 API")
 }
+
+func TestSigningHash_DifferentDomain(t *testing.T) {
+	chainID := big.NewInt(100)
+
+	payloadBytes := []byte("arbitraryData")
+	msg, err := NewBlockPayloadArgs(SigningDomainBlocksV1, chainID, payloadBytes, nil).Message()
+	require.NoError(t, err, "creating first signing hash")
+
+	msg2, err := NewBlockPayloadArgs([32]byte{3}, chainID, payloadBytes, nil).Message()
+	require.NoError(t, err, "creating second signing hash")
+
+	hash := msg.ToSigningHash()
+	hash2 := msg2.ToSigningHash()
+	require.NotEqual(t, hash, hash2, "signing hash should be different when domain is different")
+}
+
+func TestSigningHash_DifferentChainID(t *testing.T) {
+	chainID1 := big.NewInt(100)
+	chainID2 := big.NewInt(101)
+
+	payloadBytes := []byte("arbitraryData")
+	msg, err := NewBlockPayloadArgs(SigningDomainBlocksV1, chainID1, payloadBytes, nil).Message()
+	require.NoError(t, err, "creating first signing hash")
+
+	msg2, err := NewBlockPayloadArgs(SigningDomainBlocksV1, chainID2, payloadBytes, nil).Message()
+	require.NoError(t, err, "creating second signing hash")
+
+	hash := msg.ToSigningHash()
+	hash2 := msg2.ToSigningHash()
+	require.NotEqual(t, hash, hash2, "signing hash should be different when chain ID is different")
+}
+
+func TestSigningHash_DifferentPayload(t *testing.T) {
+	chainID := big.NewInt(100)
+
+	msg, err := NewBlockPayloadArgs(SigningDomainBlocksV1, chainID, []byte("payload1"), nil).Message()
+	require.NoError(t, err, "creating first signing hash")
+
+	msg2, err := NewBlockPayloadArgs(SigningDomainBlocksV1, chainID, []byte("payload2"), nil).Message()
+	require.NoError(t, err, "creating second signing hash")
+
+	hash := msg.ToSigningHash()
+	hash2 := msg2.ToSigningHash()
+	require.NotEqual(t, hash, hash2, "signing hash should be different when payload is different")
+}
+
+func TestSigningHash_LimitChainID(t *testing.T) {
+	// ChainID with bitlen 257
+	chainID := big.NewInt(1)
+	chainID = chainID.SetBit(chainID, 256, 1)
+	_, err := NewBlockPayloadArgs(SigningDomainBlocksV1, chainID, []byte("arbitraryData"), nil).Message()
+	require.ErrorContains(t, err, "chain_id is too large")
+}

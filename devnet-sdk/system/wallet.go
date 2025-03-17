@@ -4,10 +4,16 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
@@ -22,7 +28,8 @@ var (
 // internalChain provides access to internal chain functionality
 type internalChain interface {
 	Chain
-	Client() (*ethclient.Client, error)
+	Client() (*sources.EthClient, error)
+	GethClient() (*ethclient.Client, error)
 }
 
 type wallet struct {
@@ -97,6 +104,134 @@ func (w *wallet) Balance() types.Balance {
 	return types.NewBalance(balance)
 }
 
+func (w *wallet) InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+	return &initiateMessageImpl{
+		chain:     w.chain,
+		processor: w,
+		from:      w.address,
+		target:    target,
+		chainID:   chainID,
+		message:   message,
+	}
+}
+
+func (w *wallet) ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any] {
+	return &executeMessageImpl{
+		chain:       w.chain,
+		processor:   w,
+		from:        w.address,
+		identifier:  identifier,
+		sentMessage: sentMessage,
+	}
+}
+
+type initiateMessageImpl struct {
+	chain     internalChain
+	processor TransactionProcessor
+	from      types.Address
+
+	target  types.Address
+	chainID types.ChainID
+	message []byte
+}
+
+func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
+	builder := NewTxBuilder(ctx, i.chain)
+	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init transaction: %w", err)
+	}
+	data, err := messenger.ABI().Pack("sendMessage", i.chainID, i.target, i.message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build calldata: %w", err)
+	}
+	tx, err := builder.BuildTx(
+		WithFrom(i.from),
+		WithTo(constants.L2ToL2CrossDomainMessenger),
+		WithValue(big.NewInt(0)),
+		WithData(data),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+
+	tx, err = i.processor.Sign(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	return tx, nil
+}
+
+func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
+	result, err := i.Call(ctx)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	tx, ok := result.(Transaction)
+	if !ok {
+		return &sendResult{chain: i.chain, tx: nil, err: fmt.Errorf("unexpected return type")}
+	}
+	err = i.processor.Send(ctx, tx)
+	return &sendResult{
+		chain: i.chain,
+		tx:    tx,
+		err:   err,
+	}
+}
+
+type executeMessageImpl struct {
+	chain     internalChain
+	processor TransactionProcessor
+	from      types.Address
+
+	identifier  bindings.Identifier
+	sentMessage []byte
+}
+
+func (i *executeMessageImpl) Call(ctx context.Context) (any, error) {
+	builder := NewTxBuilder(ctx, i.chain)
+	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init transaction: %w", err)
+	}
+	data, err := messenger.ABI().Pack("relayMessage", i.identifier, i.sentMessage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build calldata: %w", err)
+	}
+	tx, err := builder.BuildTx(
+		WithFrom(i.from),
+		WithTo(constants.L2ToL2CrossDomainMessenger),
+		WithValue(big.NewInt(0)),
+		WithData(data),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+	tx, err = i.processor.Sign(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+	return tx, nil
+}
+
+func (i *executeMessageImpl) Send(ctx context.Context) types.InvocationResult {
+	result, err := i.Call(ctx)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	tx, ok := result.(Transaction)
+	if !ok {
+		return &sendResult{chain: i.chain, tx: nil, err: fmt.Errorf("unexpected return type")}
+	}
+	err = i.processor.Send(ctx, tx)
+	return &sendResult{
+		chain: i.chain,
+		tx:    tx,
+		err:   err,
+	}
+}
+
 func (w *wallet) Nonce() uint64 {
 	client, err := w.chain.Client()
 	if err != nil {
@@ -125,6 +260,8 @@ func (w *wallet) Sign(tx Transaction) (Transaction, error) {
 
 	var signer coreTypes.Signer
 	switch tx.Type() {
+	case coreTypes.SetCodeTxType:
+		signer = coreTypes.NewIsthmusSigner(w.chain.ID())
 	case coreTypes.DynamicFeeTxType:
 		signer = coreTypes.NewLondonSigner(w.chain.ID())
 	case coreTypes.AccessListTxType:
@@ -219,9 +356,10 @@ func (i *sendImpl) Send(ctx context.Context) types.InvocationResult {
 }
 
 type sendResult struct {
-	chain internalChain
-	tx    Transaction
-	err   error
+	chain   internalChain
+	tx      Transaction
+	receipt Receipt
+	err     error
 }
 
 func (r *sendResult) Error() error {
@@ -229,7 +367,7 @@ func (r *sendResult) Error() error {
 }
 
 func (r *sendResult) Wait() error {
-	client, err := r.chain.Client()
+	client, err := r.chain.GethClient()
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}
@@ -242,15 +380,19 @@ func (r *sendResult) Wait() error {
 	}
 
 	if tx, ok := r.tx.(RawTransaction); ok {
-		receipt, err := bind.WaitMined(context.Background(), client, tx.Raw())
+		receipt, err := wait.ForReceiptOK(context.Background(), client, tx.Raw().Hash())
 		if err != nil {
 			return fmt.Errorf("failed waiting for transaction confirmation: %w", err)
 		}
-
+		r.receipt = &EthReceipt{blockNumber: receipt.BlockNumber, logs: receipt.Logs, txHash: receipt.TxHash}
 		if receipt.Status == 0 {
 			return fmt.Errorf("transaction failed")
 		}
 	}
 
 	return nil
+}
+
+func (r *sendResult) Info() any {
+	return r.receipt
 }

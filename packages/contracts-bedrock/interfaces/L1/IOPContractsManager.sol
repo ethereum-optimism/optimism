@@ -108,7 +108,6 @@ interface IOPContractsManager {
         string saltMixer;
         uint64 gasLimit;
         // Configurable dispute game parameters.
-        bool disputeGameUsesSuperRoots;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
         uint256 disputeMaxGameDepth;
@@ -176,7 +175,6 @@ interface IOPContractsManager {
         ISystemConfig systemConfigProxy;
         IProxyAdmin proxyAdmin;
         Claim absolutePrestate;
-        bool disputeGameUsesSuperRoots;
     }
 
     struct AddGameInput {

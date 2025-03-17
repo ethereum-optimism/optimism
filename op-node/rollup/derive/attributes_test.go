@@ -226,13 +226,11 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, seqNumber, l1Info, 0)
 		require.NoError(t, err)
-		depositsComplete, err := DepositsCompleteBytes(seqNumber, l1Info)
 		require.NoError(t, err)
 
 		var l2Txs []eth.Data
 		l2Txs = append(l2Txs, l1InfoTx)
 		l2Txs = append(l2Txs, userDepositTxs...)
-		l2Txs = append(l2Txs, depositsComplete)
 
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
@@ -242,8 +240,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
 		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
-		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs + DepositsComplete")
-		require.Equal(t, eth.Data(depositsComplete).String(), attrs.Transactions[len(l2Txs)-1].String())
+		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs")
 		require.Equal(t, l2Txs, attrs.Transactions)
 		require.True(t, attrs.NoTxPool)
 	})
@@ -267,12 +264,10 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, seqNumber, l1Info, 0)
 		require.NoError(t, err)
-		depositsComplete, err := DepositsCompleteBytes(seqNumber, l1Info)
 		require.NoError(t, err)
 
 		var l2Txs []eth.Data
 		l2Txs = append(l2Txs, l1InfoTx)
-		l2Txs = append(l2Txs, depositsComplete)
 
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, l1Info, nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
@@ -282,8 +277,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
 		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
-		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs + DepositsComplete")
-		require.Equal(t, eth.Data(depositsComplete).String(), attrs.Transactions[len(l2Txs)-1].String())
+		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs")
 		require.Equal(t, l2Txs, attrs.Transactions)
 		require.True(t, attrs.NoTxPool)
 	})

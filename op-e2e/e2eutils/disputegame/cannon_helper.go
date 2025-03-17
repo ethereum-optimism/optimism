@@ -337,7 +337,7 @@ func (g *CannonHelper) createCannonTraceProvider(ctx context.Context, l2Node str
 
 	l2Client := g.system.NodeClient(l2Node)
 
-	prestateBlock, poststateBlock, err := g.splitGame.Game.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := g.splitGame.Game.GetGameRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	rollupClient := g.system.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)

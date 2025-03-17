@@ -39,11 +39,11 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 			Server:   "./bin/mockserver",
 		}
 		inputs := utils.LocalGameInputs{
-			L1Head:        common.Hash{0x11},
-			L2Head:        common.Hash{0x22},
-			L2OutputRoot:  common.Hash{0x33},
-			L2Claim:       common.Hash{0x44},
-			L2BlockNumber: big.NewInt(3333),
+			L1Head:           common.Hash{0x11},
+			L2Head:           common.Hash{0x22},
+			L2OutputRoot:     common.Hash{0x33},
+			L2Claim:          common.Hash{0x44},
+			L2SequenceNumber: big.NewInt(3333),
 		}
 		configModifier(&cfg, &inputs)
 		executor := NewOpProgramServerExecutor(testlog.Logger(t, lvl))
@@ -59,7 +59,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		require.Equal(t, dir, pairs["--datadir"])
 		require.Equal(t, inputs.L1Head.Hex(), pairs["--l1.head"])
 		require.Equal(t, inputs.L2Claim.Hex(), pairs["--l2.claim"])
-		require.Equal(t, inputs.L2BlockNumber.String(), pairs["--l2.blocknumber"])
+		require.Equal(t, inputs.L2SequenceNumber.String(), pairs["--l2.blocknumber"])
 		return pairs
 	}
 

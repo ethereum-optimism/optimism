@@ -47,15 +47,8 @@ func (m *MockBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.By
 	return nil
 }
 
-func (m *MockBackend) CheckMessage(ctx context.Context, identifier types.Identifier, payloadHash common.Hash, executingDescriptor types.ExecutingDescriptor) (types.SafetyLevel, error) {
-	return types.CrossUnsafe, nil
-}
-
-func (m *MockBackend) CheckMessages(ctx context.Context, messages []types.Message, minSafety types.SafetyLevel) error {
-	return nil
-}
-
-func (m *MockBackend) CheckMessagesV2(ctx context.Context, messages []types.Message, minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+func (m *MockBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
 	return nil
 }
 

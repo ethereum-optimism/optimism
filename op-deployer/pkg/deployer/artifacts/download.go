@@ -112,7 +112,7 @@ func (d *HTTPDownloader) Download(ctx context.Context, url string, progress Down
 	defer res.Body.Close()
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to ensure cache directory: %w", err)
+		return "", fmt.Errorf("failed to ensure cache directory '%s': %w", targetDir, err)
 	}
 	tmpFile, err := os.CreateTemp(targetDir, "op-deployer-artifacts-*")
 	if err != nil {

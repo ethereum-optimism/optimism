@@ -14,7 +14,6 @@ import "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
@@ -315,10 +314,12 @@ contract DeputyGuardianModule_NoPortalCollisions_Test is DeputyGuardianModule_Te
     /// @dev tests that no function selectors in the L1 contracts collide with the OptimismPortal2 functions called by
     ///      the DeputyGuardianModule.
     function test_noPortalCollisions_succeeds() external {
-        string[] memory excludes = new string[](5);
-        excludes[0] = "src/dispute/lib/*";
-        excludes[1] = "src/dispute/AnchorStateRegistry.sol";
-        excludes[2] = "interfaces/dispute/IAnchorStateRegistry.sol";
+        string[] memory excludes = new string[](3);
+        uint256 excludeCounter;
+        excludes[excludeCounter++] = "src/dispute/lib/*";
+        excludes[excludeCounter++] = "src/dispute/AnchorStateRegistry.sol";
+        excludes[excludeCounter++] = "interfaces/dispute/IAnchorStateRegistry.sol";
+
         Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,universal}", excludes);
         for (uint256 i; i < abis.length; i++) {
             for (uint256 j; j < abis[i].entries.length; j++) {

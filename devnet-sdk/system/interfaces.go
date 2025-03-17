@@ -4,10 +4,15 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
@@ -52,14 +57,15 @@ type Node interface {
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
-	BlockByNumber(ctx context.Context, number *big.Int) (*coreTypes.Block, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error)
 }
 
 // LowLevelChain is a Chain that gives direct access to the low level RPC client.
 type LowLevelChain interface {
 	Chain
 	RPCURL() string
-	Client() (*ethclient.Client, error)
+	Client() (*sources.EthClient, error)
+	GethClient() (*ethclient.Client, error)
 }
 
 // Wallet represents a chain wallet.
@@ -68,6 +74,8 @@ type Wallet interface {
 	PrivateKey() types.Key
 	Address() types.Address
 	SendETH(to types.Address, amount types.Balance) types.WriteInvocation[any]
+	InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any]
+	ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any]
 	Balance() types.Balance
 	Nonce() uint64
 
@@ -97,6 +105,12 @@ type Transaction interface {
 	TransactionData
 }
 
+type Receipt interface {
+	BlockNumber() *big.Int
+	Logs() []*coreTypes.Log
+	TxHash() common.Hash
+}
+
 // RawTransaction is an optional interface that can be implemented by a Transaction
 // to provide access to the raw transaction data.
 // It is currently necessary to perform processing operations (signing, sending)
@@ -111,9 +125,24 @@ type RawTransaction interface {
 type InteropSystem interface {
 	System
 	InteropSet() InteropSet
+	Supervisor(context.Context) (Supervisor, error)
 }
 
 // InteropSet provides access to L2 chains in an interop environment
 type InteropSet interface {
 	L2s() []Chain
+}
+
+// Supervisor provides access to the query interface of the supervisor
+type Supervisor interface {
+	LocalUnsafe(context.Context, eth.ChainID) (eth.BlockID, error)
+	CrossSafe(context.Context, eth.ChainID) (supervisorTypes.DerivedIDPair, error)
+	Finalized(context.Context, eth.ChainID) (eth.BlockID, error)
+	FinalizedL1(context.Context) (eth.BlockRef, error)
+	CrossDerivedFrom(context.Context, eth.ChainID, eth.BlockID) (eth.BlockRef, error)
+	UpdateLocalUnsafe(context.Context, eth.ChainID, eth.BlockRef) error
+	UpdateLocalSafe(context.Context, eth.ChainID, eth.L1BlockRef, eth.BlockRef) error
+	SuperRootAtTimestamp(context.Context, hexutil.Uint64) (eth.SuperRootResponse, error)
+	AllSafeDerivedAt(context.Context, eth.BlockID) (derived map[eth.ChainID]eth.BlockID, err error)
+	SyncStatus(context.Context) (eth.SupervisorSyncStatus, error)
 }

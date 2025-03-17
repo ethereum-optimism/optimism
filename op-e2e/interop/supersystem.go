@@ -34,8 +34,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/systemconfig"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -94,8 +92,7 @@ type SuperSystem interface {
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
 	Contract(network string, contractName string) interface{}
-	DeployEmitterContract(network string, username string) common.Address
-	AddDependency(ctx context.Context, network string, dep *big.Int) *types.Receipt
+	DeployEmitterContract(ctx context.Context, network string, username string) common.Address
 	ValidateMessage(
 		ctx context.Context,
 		id string,
@@ -423,17 +420,11 @@ func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 // prepareContracts prepares contract-bindings for the L2s
 func (s *interopE2ESystem) prepareContracts() {
 	// Add bindings to common contracts for each L2
-	l1GethClient := s.L1GethClient()
-	for id, l2Dep := range s.worldDeployment.L2s {
+	for id := range s.worldDeployment.L2s {
 		{
 			contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, s.L2GethClient(id, "sequencer"))
 			require.NoError(s.t, err)
 			s.l2s[id].contracts["inbox"] = contract
-		}
-		{
-			contract, err := systemconfig.NewSystemconfig(l2Dep.SystemConfigProxy, l1GethClient)
-			require.NoError(s.t, err)
-			s.l2s[id].contracts["systemconfig"] = contract
 		}
 	}
 }
@@ -514,13 +505,14 @@ func (s *interopE2ESystem) ValidateMessage(
 ) (*types.Receipt, error) {
 	secret := s.UserKey(id, sender)
 	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 
 	require.NoError(s.t, err)
 
 	auth.GasLimit = uint64(3000_000)
-	auth.GasPrice = big.NewInt(20_000_000_000)
+	auth.GasFeeCap = big.NewInt(21_000_000_000)
+	auth.GasTipCap = big.NewInt(1_000_000_000)
 
-	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 	identifier := inbox.Identifier{
 		Origin:      msgIdentifier.Origin,
 		BlockNumber: new(big.Int).SetUint64(msgIdentifier.BlockNumber),
@@ -528,6 +520,14 @@ func (s *interopE2ESystem) ValidateMessage(
 		Timestamp:   new(big.Int).SetUint64(msgIdentifier.Timestamp),
 		ChainId:     msgIdentifier.ChainID.ToBig(),
 	}
+	access := msgIdentifier.ChecksumArgs(msgHash).Access()
+	auth.AccessList = []types.AccessTuple{
+		{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: supervisortypes.EncodeAccessList([]supervisortypes.Access{access}),
+		},
+	}
+
 	tx, err := contract.InboxTransactor.ValidateMessage(auth, identifier, msgHash)
 	if expectedError != nil {
 		require.ErrorContains(s.t, err, expectedError.Error())
@@ -539,37 +539,10 @@ func (s *interopE2ESystem) ValidateMessage(
 	return bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx) // use the sequencer client to wait for the tx
 }
 
-func (s *interopE2ESystem) AddDependency(ctx context.Context, id string, dep *big.Int) *types.Receipt {
-	// There is a note in OPContractsManagerInterop that the proxy-admin is used for now,
-	// even though it should be a separate dependency-set-manager address.
-	secret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
-		ChainID: s.l2s[id].chainID,
-		Role:    devkeys.SystemConfigOwner,
-	})
-	require.NoError(s.t, err)
-
-	auth, err := bind.NewKeyedTransactorWithChainID(secret, s.worldOutput.L1.Genesis.Config.ChainID)
-	require.NoError(s.t, err)
-
-	balance, err := s.l1GethClient.BalanceAt(ctx, crypto.PubkeyToAddress(secret.PublicKey), nil)
-	require.NoError(s.t, err)
-	require.False(s.t, balance.Sign() == 0, "system config owner needs a balance")
-
-	auth.GasLimit = uint64(3000000)
-	auth.GasPrice = big.NewInt(20000000000)
-
-	contract := s.Contract(id, "systemconfig").(*systemconfig.Systemconfig)
-	tx, err := contract.SystemconfigTransactor.AddDependency(auth, dep)
-	require.NoError(s.t, err)
-
-	receipt, err := wait.ForReceiptOK(ctx, s.L1GethClient(), tx.Hash())
-	require.NoError(s.t, err)
-	return receipt
-}
-
 // DeployEmitterContract deploys the Emitter contract on the L2
 // it uses the sequencer node to deploy the contract
 func (s *interopE2ESystem) DeployEmitterContract(
+	ctx context.Context,
 	id string,
 	sender string,
 ) common.Address {
@@ -578,7 +551,9 @@ func (s *interopE2ESystem) DeployEmitterContract(
 	require.NoError(s.t, err)
 	auth.GasLimit = uint64(3000000)
 	auth.GasPrice = big.NewInt(20000000000)
-	address, _, _, err := emit.DeployEmit(auth, s.L2GethClient(id, "sequencer"))
+	address, tx, _, err := emit.DeployEmit(auth, s.L2GethClient(id, "sequencer"))
+	require.NoError(s.t, err)
+	_, err = bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx)
 	require.NoError(s.t, err)
 	contract, err := emit.NewEmit(address, s.L2GethClient(id, "sequencer"))
 	require.NoError(s.t, err)

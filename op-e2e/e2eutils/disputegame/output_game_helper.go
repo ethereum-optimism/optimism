@@ -54,7 +54,7 @@ func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethc
 }
 
 func (g *OutputGameHelper) StartingBlockNum(ctx context.Context) uint64 {
-	blockNum, _, err := g.Game.GetBlockRange(ctx)
+	blockNum, _, err := g.Game.GetGameRange(ctx)
 	g.Require.NoError(err, "failed to load starting block number")
 	return blockNum
 }

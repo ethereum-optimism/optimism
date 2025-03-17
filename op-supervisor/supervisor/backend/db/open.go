@@ -15,7 +15,7 @@ func OpenLogDB(logger log.Logger, chainID eth.ChainID, dataDir string, m logs.Me
 	if err != nil {
 		return nil, fmt.Errorf("failed to create datadir for chain %s: %w", chainID, err)
 	}
-	logDB, err := logs.NewFromFile(logger, m, path, true)
+	logDB, err := logs.NewFromFile(logger, m, chainID, path, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logdb for chain %s at %v: %w", chainID, path, err)
 	}

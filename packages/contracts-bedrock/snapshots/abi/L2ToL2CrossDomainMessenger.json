@@ -255,11 +255,6 @@
   },
   {
     "inputs": [],
-    "name": "InvalidChainId",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "MessageAlreadyRelayed",
     "type": "error"
   },
@@ -275,11 +270,6 @@
   },
   {
     "inputs": [],
-    "name": "MessageTargetCrossL2Inbox",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "MessageTargetL2ToL2CrossDomainMessenger",
     "type": "error"
   },
@@ -291,11 +281,6 @@
   {
     "inputs": [],
     "name": "ReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "TargetCallFailed",
     "type": "error"
   }
 ]

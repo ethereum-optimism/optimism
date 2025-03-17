@@ -40,7 +40,7 @@ func RandomL2BlockWithChainId(rng *rand.Rand, txCount int, chainId *big.Int) *ty
 }
 
 func RandomL2BlockWithChainIdAndTime(rng *rand.Rand, txCount int, chainId *big.Int, t time.Time) *types.Block {
-	signer := types.NewLondonSigner(chainId)
+	signer := types.NewIsthmusSigner(chainId)
 	block, _ := RandomL2Block(rng, 0, t)
 	txs := []*types.Transaction{block.Transactions()[0]} // L1 info deposit TX
 	for i := 0; i < txCount; i++ {
