@@ -215,13 +215,23 @@ func (p *Lazy[V]) invalidate() {
 	p.depInvalidate(reasonGen.Add(1))
 }
 
+type Fn[V any] func(ctx context.Context) (V, error)
+
 // Fn sets what makes this Lazy lazily compute the value.
 // Changing this also invalidates any downstream dependencies.
-func (p *Lazy[V]) Fn(fn func(ctx context.Context) (V, error)) {
+func (p *Lazy[V]) Fn(fn Fn[V]) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.invalidate()
 	p.fn = fn
+}
+
+func (p *Lazy[V]) Wrap(wrapped func(Fn[V]) Fn[V]) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.invalidate()
+	inner := p.fn
+	p.fn = wrapped(inner)
 }
 
 // Value retrieves the evaluated value, assuming it is set (evaluated, and not an error).

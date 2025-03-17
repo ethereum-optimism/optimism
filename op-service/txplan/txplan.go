@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
@@ -20,11 +21,13 @@ import (
 
 type PlannedTx struct {
 	// Block that we schedule against
-	AgainstBlock plan.Lazy[*types.Header]
-	Unsigned     plan.Lazy[types.TxData]
-	Signed       plan.Lazy[*types.Transaction]
-	Included     plan.Lazy[*types.Receipt]
-	Success      plan.Lazy[struct{}]
+	AgainstBlock  plan.Lazy[*types.Header]
+	Unsigned      plan.Lazy[types.TxData]
+	Signed        plan.Lazy[*types.Transaction]
+	Submitted     plan.Lazy[struct{}]
+	Included      plan.Lazy[*types.Receipt]
+	IncludedBlock plan.Lazy[eth.BlockRef]
+	Success       plan.Lazy[struct{}]
 
 	Signer plan.Lazy[types.Signer]
 	Priv   plan.Lazy[*ecdsa.PrivateKey]
@@ -54,6 +57,14 @@ func (ptx *PlannedTx) String() string {
 
 type Option func(tx *PlannedTx)
 
+func Combine(opts ...Option) Option {
+	return func(tx *PlannedTx) {
+		for _, opt := range opts {
+			opt(tx)
+		}
+	}
+}
+
 func NewPlannedTx(opts ...Option) *PlannedTx {
 	tx := &PlannedTx{}
 	tx.Defaults()
@@ -78,6 +89,12 @@ func WithAccessList(al types.AccessList) Option {
 func WithPrivateKey(priv *ecdsa.PrivateKey) Option {
 	return func(tx *PlannedTx) {
 		tx.Priv.Set(priv)
+	}
+}
+
+func WithEth(value *big.Int) Option {
+	return func(tx *PlannedTx) {
+		tx.Value.Set(value)
 	}
 }
 
@@ -123,6 +140,19 @@ func WithEstimator(cl Estimator, invalidateOnNewBlock bool) Option {
 	}
 }
 
+type TransactionSubmitter interface {
+	SendTransaction(ctx context.Context, tx *types.Transaction) error
+}
+
+func WithTransactionSubmitter(cl TransactionSubmitter) Option {
+	return func(tx *PlannedTx) {
+		tx.Submitted.DependOn(&tx.Signed)
+		tx.Submitted.Fn(func(ctx context.Context) (struct{}, error) {
+			return struct{}{}, cl.SendTransaction(ctx, tx.Signed.Value())
+		})
+	}
+}
+
 type ReceiptGetter interface {
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 }
@@ -131,9 +161,34 @@ type ReceiptGetter interface {
 // and simply looks up the tx without blocking on inclusion.
 func WithAssumedInclusion(cl ReceiptGetter) Option {
 	return func(tx *PlannedTx) {
-		tx.Included.DependOn(&tx.Signed)
+		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
 		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
 			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
+		})
+	}
+}
+
+func WithRetryInclusion(maxAttempts int, strat retry.Strategy) Option {
+	return func(tx *PlannedTx) {
+		tx.Included.Wrap(func(fn plan.Fn[*types.Receipt]) plan.Fn[*types.Receipt] {
+			return func(ctx context.Context) (*types.Receipt, error) {
+				return retry.Do(ctx, maxAttempts, strat, func() (*types.Receipt, error) {
+					return fn(ctx)
+				})
+			}
+		})
+	}
+}
+
+type BlockGetter interface {
+	BlockRefByHash(ctx context.Context, hash common.Hash) (eth.BlockRef, error)
+}
+
+func WithBlockInclusionInfo(cl BlockGetter) Option {
+	return func(tx *PlannedTx) {
+		tx.IncludedBlock.DependOn(&tx.Included)
+		tx.IncludedBlock.Fn(func(ctx context.Context) (eth.BlockRef, error) {
+			return cl.BlockRefByHash(ctx, tx.Included.Value().BlockHash)
 		})
 	}
 }

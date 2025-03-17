@@ -2,6 +2,10 @@ package txplan
 
 import (
 	"context"
+	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"math/big"
 	"testing"
 	"time"
 
@@ -33,9 +37,8 @@ func (v *InitTrigger) Data() ([]byte, error) {
 }
 
 type ExecTrigger struct {
-	Executor    common.Address // address of the EventLogger contract
-	Identifier  suptypes.Identifier
-	PayloadHash common.Hash
+	Executor common.Address // address of the EventLogger contract
+	Msg      suptypes.Message
 }
 
 func (v *ExecTrigger) To() (*common.Address, error) {
@@ -43,13 +46,14 @@ func (v *ExecTrigger) To() (*common.Address, error) {
 }
 
 func (v *ExecTrigger) Data() ([]byte, error) {
-	// TODO format call
+	// TODO format call to CrossL2Inbox
 	return nil, nil
 }
 
 type Call interface {
 	To() (*common.Address, error)
 	Data() ([]byte, error)
+	// AccessList
 }
 
 type MultiTrigger struct {
@@ -62,18 +66,30 @@ func (v *MultiTrigger) Data() ([]byte, error) {
 }
 
 type Result interface {
-	FromReceipt(rec *types.Receipt) error
-}
-
-type InteropOutputEntry struct {
-	LogIndex uint32
-	Origin   common.Address
-	Topics   []common.Hash
-	Data     []byte
+	FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error
 }
 
 type InteropOutput struct {
-	Entries []InteropOutputEntry
+	Entries []suptypes.Message
+}
+
+func (i *InteropOutput) FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error {
+	for _, logEvent := range rec.Logs {
+		payload := suptypes.LogToMessagePayload(logEvent)
+		id := suptypes.Identifier{
+			Origin:      logEvent.Address,
+			BlockNumber: logEvent.BlockNumber,
+			LogIndex:    uint32(logEvent.Index),
+			Timestamp:   includedIn.Time,
+			ChainID:     chainID,
+		}
+		payloadHash := crypto.Keccak256Hash(payload)
+		i.Entries = append(i.Entries, suptypes.Message{
+			Identifier:  id,
+			PayloadHash: payloadHash,
+		})
+	}
+	return nil
 }
 
 type IntentTx[V Call, R Result] struct {
@@ -94,36 +110,27 @@ func NewIntent[V Call, R Result](opts ...Option) *IntentTx[V, R] {
 	v.PlannedTx.Data.Fn(func(ctx context.Context) (hexutil.Bytes, error) {
 		return v.Content.Value().Data()
 	})
-	v.Result.DependOn(&v.PlannedTx.Included)
+	// TODO add access-list relation
+
+	v.Result.DependOn(&v.PlannedTx.Included, &v.PlannedTx.IncludedBlock, &v.PlannedTx.ChainID)
 	v.Result.Fn(func(ctx context.Context) (R, error) {
 		var r R
-		err := r.FromReceipt(v.PlannedTx.Included.Value())
+		err := r.FromReceipt(ctx, v.PlannedTx.Included.Value(), v.PlannedTx.IncludedBlock.Value(), v.PlannedTx.ChainID.Value())
 		return r, err
 	})
 	return v
 }
 
-func getTimestamp(ctx context.Context, blockHash common.Hash) (uint64, error) {
-	return 123, nil // TODO
-}
-
-func initMsgToExecTrigger(ctx context.Context, executor common.Address, logEvent *types.Log) (*ExecTrigger, error) {
-	payload := suptypes.LogToMessagePayload(logEvent)
-	timestamp, err := getTimestamp(ctx, logEvent.BlockHash)
-	if err != nil {
-		return nil, err
+func executeIndexed(events *plan.Lazy[*InteropOutput], index int) func(ctx context.Context) (*ExecTrigger, error) {
+	return func(ctx context.Context) (*ExecTrigger, error) {
+		if x := len(events.Value().Entries); x <= index {
+			return nil, fmt.Errorf("invalid index: %d, only have %d events", index, x)
+		}
+		return &ExecTrigger{
+			Executor: common.Address{},
+			Msg:      events.Value().Entries[index],
+		}, nil
 	}
-	return &ExecTrigger{
-		Executor: executor,
-		Identifier: suptypes.Identifier{
-			Origin:      logEvent.Address,
-			BlockNumber: logEvent.BlockNumber,
-			LogIndex:    uint32(logEvent.Index),
-			Timestamp:   timestamp,
-			ChainID:     eth.ChainID{},
-		},
-		PayloadHash: crypto.Keccak256Hash(payload),
-	}, nil
 }
 
 func TestInteropTx(t *testing.T) {
@@ -133,30 +140,37 @@ func TestInteropTx(t *testing.T) {
 
 	priv, err := crypto.GenerateKey()
 	require.NoError(t, err)
-	opts := []Option{
-		WithPrivateKey(priv),
-		// TODO: add options that submit and confirm the tx etc.
-	}
 
-	txA := NewIntent[*InitTrigger, *InteropOutput](opts...)
+	cl, err := sources.NewEthClient()
+	require.NoError(t, err)
+
+	opts := Combine(
+		WithPrivateKey(priv),
+		WithTransactionSubmitter(cl),
+		WithAssumedInclusion(cl),
+		WithRetryInclusion(10, retry.Exponential()),
+		WithBlockInclusionInfo(cl),
+	)
+
+	txSimple := NewPlannedTx(opts, WithEth(big.NewInt(1234)))
+	rec, err := txSimple.Included.Eval(context.Background())
+	require.NoError(t, err)
+
+	txA := NewIntent[*InitTrigger, *InteropOutput](opts)
 	txA.Content.Set(&InitTrigger{
 		Emitter:    eventLogger,
 		Topics:     []common.Hash{},
 		OpaqueData: []byte("hello world!"),
 	})
 
-	txB := NewIntent[*ExecTrigger]()
-	txB.Content.DependOn(&txA.PlannedTx.Included, &txA.PlannedTx.Success)
-	txB.Content.Fn(func(ctx context.Context) (*ExecTrigger, error) {
-		initMsgReceipt := txA.PlannedTx.Included.Value()
-		logEvent := initMsgReceipt.Logs[0]
-		return initMsgToExecTrigger(ctx, eventLogger, logEvent)
-	})
+	txB := NewIntent[*ExecTrigger, *InteropOutput]()
+	txB.Content.DependOn(&txA.Result)
+	txB.Content.Fn(executeIndexed(&txA.Result, 0))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	recA, err := txB.PlannedTx.Included.Eval(ctx)
+	recA, err := txA.PlannedTx.Included.Eval(ctx)
 	require.NoError(t, err)
 	t.Logf("included initiating tx in block %s", recA.BlockHash)
 
