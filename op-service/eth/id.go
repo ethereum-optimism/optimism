@@ -100,19 +100,6 @@ func (id L1BlockRef) ParentID() BlockID {
 // Because L1BlockRefs are strict subsets of L2BlockRefs, BlockRef is a direct alias of L1BlockRef
 type BlockRef = L1BlockRef
 
-func (b BlockRef) MarshalJSON() ([]byte, error) {
-	type BlockRefAlias BlockRef
-	return json.Marshal(&struct {
-		Number hexutil.Uint64 `json:"number"`
-		Time   hexutil.Uint64 `json:"timestamp"`
-		BlockRefAlias
-	}{
-		Number:        hexutil.Uint64(b.Number),
-		Time:          hexutil.Uint64(b.Time),
-		BlockRefAlias: BlockRefAlias(b),
-	})
-}
-
 func (b *BlockRef) UnmarshalJSON(data []byte) error {
 	type BlockRefAlias BlockRef
 	aux := &struct {
