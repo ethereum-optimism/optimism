@@ -35,10 +35,9 @@ pub fn revm_spec_by_timestamp_after_bedrock(
     chain_spec: impl OpHardforks,
     timestamp: u64,
 ) -> OpSpecId {
-    // if chain_spec.is_interop_active_at_timestamp(timestamp) {
-    //     OpSpecId::INTEROP
-    // } else
-    if chain_spec.is_isthmus_active_at_timestamp(timestamp) {
+    if chain_spec.is_interop_active_at_timestamp(timestamp) {
+        OpSpecId::INTEROP
+    } else if chain_spec.is_isthmus_active_at_timestamp(timestamp) {
         OpSpecId::ISTHMUS
     } else if chain_spec.is_holocene_active_at_timestamp(timestamp) {
         OpSpecId::HOLOCENE
@@ -71,10 +70,10 @@ mod tests {
             let cs = ChainSpecBuilder::mainnet().chain(reth_chainspec::Chain::from_id(10)).into();
             f(cs).build()
         }
-        // assert_eq!(
-        //     revm_spec_by_timestamp_after_bedrock(op_cs(|cs| cs.interop_activated()), 0),
-        //     OpSpecId::INTEROP
-        // );
+        assert_eq!(
+            revm_spec_by_timestamp_after_bedrock(op_cs(|cs| cs.interop_activated()), 0),
+            OpSpecId::INTEROP
+        );
         assert_eq!(
             revm_spec_by_timestamp_after_bedrock(op_cs(|cs| cs.isthmus_activated()), 0),
             OpSpecId::ISTHMUS
