@@ -11,11 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
 
-var excludedFiles = []string{
-	"OPPrestateUpdater.sol",
-	"OPContractsManager.sol",
-}
-var opcmArtifactPath = "forge-artifacts/OPContractsManager.sol/OPContractsManager.json"
+var opcmArtifactPath = "forge-artifacts/OPContractsManager.sol/OPContractsManagerUpgrader.json"
 var opcmUpgradeFunctionSelector = "ff2dd5a1"
 
 func main() {
@@ -29,14 +25,11 @@ func main() {
 
 	// Create a new array of string paths and only add the file to
 	// the array if it's not in the global excludedFiles array.
-	includedFiles := []string{}
-	for _, fileName := range fileNames {
-		if slices.Contains(excludedFiles, fileName.Name()) {
-			continue
-		}
-		artifactPath := "forge-artifacts/" + fileName.Name() + "/*.json"
-		includedFiles = append(includedFiles, artifactPath)
+	var excludedFiles = []string{
+		"OPPrestateUpdater.sol",
+		"OPContractsManager.sol",
 	}
+	includedFiles := filterFilesAndDeriveArtifactPath(fileNames, excludedFiles)
 
 	// Process.
 	if _, err := common.ProcessFilesGlob(
@@ -56,20 +49,8 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		return nil, []error{err}
 	}
 
-	// Find if it contains any upgrade function.
-	upgradeFunctions := []solc.AstNode{}
-	for _, astNode := range artifact.Ast.Nodes {
-		if astNode.NodeType == "ContractDefinition" {
-			for _, node := range astNode.Nodes {
-				if hasUpgradeFunction(node) {
-					upgradeFunctions = append(upgradeFunctions, node)
-				}
-			}
-		}
-	}
-
-	// If there are no upgradeFunctions, return early.
-	if len(upgradeFunctions) == 0 {
+	// Find if it contains any upgrade function and if there are no upgradeFunctions, return early.
+	if getNumberOfUpgradeFunctions(artifact) == 0 {
 		return nil, nil
 	}
 
@@ -80,20 +61,10 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	}
 
 	// Get the AST of OPCM's upgrade function.
-	opcmUpgradeAst := solc.AstNode{}
-	for _, astNode := range opcmAst.Ast.Nodes {
-		if astNode.NodeType == "ContractDefinition" {
-			for _, node := range astNode.Nodes {
-				if isOpcmUpgradeFunction(node) {
-					opcmUpgradeAst = node
-					break
-				}
-			}
-		}
-	}
+	opcmUpgradeAst := getOpcmUpgradeFunctionAst(opcmAst)
 
 	// Check that there is a call to contract.upgrade.
-	contractName := strings.Split(filepath.Base(filepath.Dir(artifactPath)), ".")[0]
+	contractName := strings.Split(filepath.Base(artifactPath), ".")[0]
 	typeName := "contract " + contractName
 	if !upgradesContract(opcmUpgradeAst.Body.Statements, typeName) {
 		return nil, []error{fmt.Errorf("OPCM upgrade function does not call %v.upgrade", contractName)}
@@ -102,9 +73,17 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	return nil, nil
 }
 
-func upgradesContract(nodes []solc.AstNode, typeName string) bool {
+// We want to ensure that:
+// - Top level external upgrade calls can be identified
+// - External upgrade calls within in a block i.e `{ }` can be identified
+// - External upgrade calls within a for, while, do loop can be identified
+// - External upgrade calls within the true/false block of if/else-if/else statements can be identified
+// - External upgrade calls within a try or catch path
+// - Any combination of the aforementioned can be identified
+// - TODO: External upgrade calls within the true/false block of ternary statements can be identified
+func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string) bool {
 	// Loop through all statements finding any external call to an upgrade function with a contract type of `typeName`
-	for _, node := range nodes {
+	for _, node := range opcmUpgradeAst {
 		// To support nested statements or blocks.
 		if node.Statements != nil {
 			found := upgradesContract(*node.Statements, typeName)
@@ -116,13 +95,13 @@ func upgradesContract(nodes []solc.AstNode, typeName string) bool {
 		// To support conditions.
 		if node.Condition != nil {
 			if node.TrueBody != nil {
-				found := upgradesContract(node.TrueBody.Statements, typeName)
+				found := upgradesContract([]solc.AstNode{*node.TrueBody}, typeName)
 				if found {
 					return found
 				}
 			}
 			if node.FalseBody != nil {
-				found := upgradesContract(node.FalseBody.Statements, typeName)
+				found := upgradesContract([]solc.AstNode{*node.FalseBody}, typeName)
 				if found {
 					return found
 				}
@@ -130,17 +109,47 @@ func upgradesContract(nodes []solc.AstNode, typeName string) bool {
 		}
 
 		// To support loops.
-		if node.Body != nil {
+		if node.Body != nil && node.Body.Statements != nil {
 			found := upgradesContract(node.Body.Statements, typeName)
 			if found {
 				return found
 			}
 		}
 
+		// To support try/catch blocks.
+		// Try part
+		if node.NodeType == "TryStatement" && node.ExternalCall != nil {
+			found := upgradesContract([]solc.AstNode{*node.ExternalCall}, typeName)
+			if found {
+				return found
+			}
+		}
+		// Catch part
+		if node.Clauses != nil {
+			for _, clause := range node.Clauses {
+				if clause.Block != nil && clause.Block.Statements != nil {
+					found := upgradesContract(clause.Block.Statements, typeName)
+					if found {
+						return found
+					}
+				}
+			}
+		}
+
 		// If not nested, check if the statement is an external call to an upgrade function with a contract type of `typeName`
 		if node.NodeType == "ExpressionStatement" {
-			if node.Expression.Expression != nil {
+			if node.Expression.Expression != nil && node.Expression.Expression.Expression != nil {
 				if node.Expression.Expression.MemberName == "upgrade" && node.Expression.Expression.Expression.TypeDescriptions.TypeString == typeName {
+					return true
+				}
+			}
+		}
+
+		// To support try external calls.
+		if node.NodeType == "FunctionCall" && node.TryCall {
+			// Try branch.
+			if node.Expression != nil && node.Expression.Expression != nil {
+				if node.Expression.MemberName == "upgrade" && node.Expression.Expression.TypeDescriptions.TypeString == typeName {
 					return true
 				}
 			}
@@ -151,15 +160,54 @@ func upgradesContract(nodes []solc.AstNode, typeName string) bool {
 	return false
 }
 
-func isOpcmUpgradeFunction(node solc.AstNode) bool {
-	return node.NodeType == "FunctionDefinition" &&
-		node.Name == "upgrade" &&
-		node.Visibility == "external" &&
-		node.FunctionSelector == opcmUpgradeFunctionSelector
+// Convert all file names to their corresponding artifact paths while excluding any file that is in the excludedFiles array.
+func filterFilesAndDeriveArtifactPath(fileNames []os.DirEntry, excludedFiles []string) []string {
+	includedFiles := []string{}
+	for _, fileName := range fileNames {
+		if slices.Contains(excludedFiles, fileName.Name()) {
+			continue
+		}
+		artifactPath := "forge-artifacts/" + fileName.Name() + "/*.json"
+		includedFiles = append(includedFiles, artifactPath)
+	}
+
+	return includedFiles
 }
 
-func hasUpgradeFunction(node solc.AstNode) bool {
-	return node.NodeType == "FunctionDefinition" &&
-		node.Name == "upgrade" &&
-		(node.Visibility == "external" || node.Visibility == "public")
+// Get the AST of OPCM's upgrade function.
+func getOpcmUpgradeFunctionAst(opcmArtifact *solc.ForgeArtifact) *solc.AstNode {
+	opcmUpgradeAst := solc.AstNode{}
+	for _, astNode := range opcmArtifact.Ast.Nodes {
+		if astNode.NodeType == "ContractDefinition" && astNode.Name == "OPContractsManagerUpgrader" {
+			for _, node := range astNode.Nodes {
+				if node.NodeType == "FunctionDefinition" &&
+					node.Name == "upgrade" &&
+					node.Visibility == "external" &&
+					node.FunctionSelector == opcmUpgradeFunctionSelector {
+					opcmUpgradeAst = node
+					break
+				}
+			}
+		}
+	}
+
+	return &opcmUpgradeAst
+}
+
+// Get the first upgrade function from the input artifact.
+func getNumberOfUpgradeFunctions(artifact *solc.ForgeArtifact) int {
+	upgradeFunctions := []solc.AstNode{}
+	for _, astNode := range artifact.Ast.Nodes {
+		if astNode.NodeType == "ContractDefinition" {
+			for _, node := range astNode.Nodes {
+				if node.NodeType == "FunctionDefinition" &&
+					node.Name == "upgrade" &&
+					(node.Visibility == "external" || node.Visibility == "public") {
+					upgradeFunctions = append(upgradeFunctions, node)
+				}
+			}
+		}
+	}
+
+	return len(upgradeFunctions)
 }
