@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -38,11 +37,10 @@ type DeploymentAddresses map[string]types.Address
 type DeploymentStateAddresses map[string]DeploymentAddresses
 
 type DeploymentState struct {
-	L1Addresses DeploymentAddresses `json:"l1_addresses"`
-	L2Addresses DeploymentAddresses `json:"l2_addresses"`
-	L1Wallets   WalletList          `json:"l1_wallets"`
-	L2Wallets   WalletList          `json:"l2_wallets"`
-	Config      *params.ChainConfig `json:"chain_config"`
+	Addresses DeploymentAddresses `json:"addresses"`
+	L1Wallets WalletList          `json:"l1_wallets"`
+	L2Wallets WalletList          `json:"l2_wallets"`
+	Config    *params.ChainConfig `json:"chain_config"`
 }
 
 type DeployerState struct {
@@ -66,7 +64,6 @@ type Wallet struct {
 
 // WalletList holds a list of wallets
 type WalletList []*Wallet
-type WalletMap map[string]*Wallet
 
 type DeployerData struct {
 	L1ValidatorWallets WalletList     `json:"wallets"`
@@ -160,22 +157,16 @@ func parseWalletsFile(r io.Reader) (map[string]WalletList, error) {
 
 	for id, chain := range rawData {
 		// Create a map to store wallets by name
-		walletMap := make(WalletMap)
+		walletMap := make(map[string]Wallet)
 		hasAddress := make(map[string]bool)
 
 		// First pass: collect addresses
 		for key, value := range chain {
 			if strings.HasSuffix(key, "Address") {
 				name := strings.TrimSuffix(key, "Address")
-				wallet, ok := walletMap[name]
-				if !ok || wallet == nil {
-					wallet = &Wallet{
-						Name:    name,
-						Address: common.HexToAddress(value),
-					}
-				} else {
-					log.Warn("duplicate wallet name key in wallets file", "name", name)
-				}
+				wallet := walletMap[name]
+				wallet.Address = common.HexToAddress(value)
+				wallet.Name = name
 				walletMap[name] = wallet
 				hasAddress[name] = true
 			}
@@ -197,7 +188,7 @@ func parseWalletsFile(r io.Reader) (map[string]WalletList, error) {
 		wl := make(WalletList, 0, len(walletMap))
 		for name, wallet := range walletMap {
 			if hasAddress[name] {
-				wl = append(wl, wallet)
+				wl = append(wl, &wallet)
 			}
 		}
 
@@ -262,22 +253,12 @@ func parseStateFile(r io.Reader) (*DeployerState, error) {
 			continue
 		}
 
-		l1Addresses := mapDeployment(deployment)
+		addresses := mapDeployment(deployment)
 
-		// op-deployer currently does not categorize L2 addresses
-		// so we need to map them manually.
-		// TODO: Update op-deployer to sort rollup contracts by category
-		l2Addresses := make(DeploymentAddresses)
-		for _, addressName := range []string{"optimismMintableERC20FactoryProxy"} {
-			if addr, ok := l1Addresses[addressName]; ok {
-				l2Addresses[addressName] = addr
-				delete(l1Addresses, addressName)
+		if len(addresses) > 0 {
+			result.Deployments[id] = DeploymentState{
+				Addresses: addresses,
 			}
-		}
-
-		result.Deployments[id] = DeploymentState{
-			L1Addresses: l1Addresses,
-			L2Addresses: l2Addresses,
 		}
 	}
 

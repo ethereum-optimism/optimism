@@ -67,8 +67,7 @@ func TestParseStateFile(t *testing.T) {
 		require.True(t, ok, "Chain %s not found in result", tt.chainID)
 
 		for key, expected := range tt.expected {
-			actual := chain.L1Addresses[key]
-			// TODO: add L2 addresses
+			actual := chain.Addresses[key]
 			require.Equal(t, expected, actual, "Chain %s, %s: expected %s, got %s", tt.chainID, key, expected, actual)
 		}
 	}
