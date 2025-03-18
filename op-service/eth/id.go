@@ -1,11 +1,9 @@
 package eth
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -99,53 +97,6 @@ func (id L1BlockRef) ParentID() BlockID {
 // BlockRef is a Block Ref indepdendent of L1 or L2
 // Because L1BlockRefs are strict subsets of L2BlockRefs, BlockRef is a direct alias of L1BlockRef
 type BlockRef = L1BlockRef
-
-func (b BlockRef) MarshalJSON() ([]byte, error) {
-	type BlockRefAlias BlockRef
-	return json.Marshal(&struct {
-		Number hexutil.Uint64 `json:"number"`
-		Time   hexutil.Uint64 `json:"timestamp"`
-		BlockRefAlias
-	}{
-		Number:        hexutil.Uint64(b.Number),
-		Time:          hexutil.Uint64(b.Time),
-		BlockRefAlias: BlockRefAlias(b),
-	})
-}
-
-func (b *BlockRef) UnmarshalJSON(data []byte) error {
-	type BlockRefAlias BlockRef
-	aux := &struct {
-		Number json.RawMessage `json:"number"`
-		Time   json.RawMessage `json:"timestamp"`
-		*BlockRefAlias
-	}{
-		BlockRefAlias: (*BlockRefAlias)(b),
-	}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	if err := parseHexOrUint64Field(aux.Number, &b.Number); err != nil {
-		return fmt.Errorf("failed to parse block number: %w", err)
-	}
-
-	if err := parseHexOrUint64Field(aux.Time, &b.Time); err != nil {
-		return fmt.Errorf("failed to parse block timestamp: %w", err)
-	}
-
-	return nil
-}
-
-func parseHexOrUint64Field(data json.RawMessage, target *uint64) error {
-	var hexVal hexutil.Uint64
-	if err := json.Unmarshal(data, &hexVal); err == nil {
-		*target = uint64(hexVal)
-		return nil
-	}
-
-	return json.Unmarshal(data, target)
-}
 
 func BlockRefFromHeader(h *types.Header) *BlockRef {
 	return &BlockRef{

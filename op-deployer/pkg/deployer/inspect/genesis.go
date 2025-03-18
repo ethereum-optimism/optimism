@@ -65,14 +65,14 @@ func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*core.Gene
 		return nil, nil, fmt.Errorf("failed to combine L2 init config: %w", err)
 	}
 
-	l2GenesisBuilt, err := genesis.BuildL2Genesis(&config, l2Allocs, chainState.StartBlock)
+	l2GenesisBuilt, err := genesis.BuildL2Genesis(&config, l2Allocs, chainState.StartBlock.ToBlockRef())
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to build L2 genesis: %w", err)
 	}
 	l2GenesisBlock := l2GenesisBuilt.ToBlock()
 
 	rollupConfig, err := config.RollupConfig(
-		chainState.StartBlock,
+		chainState.StartBlock.ToBlockRef(),
 		l2GenesisBlock.Hash(),
 		l2GenesisBlock.Number().Uint64(),
 	)
