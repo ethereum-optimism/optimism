@@ -380,24 +380,24 @@ contract FetchChainInfo is Script {
     }
 
     function _getGuardian(address _portal) internal view returns (address) {
-        try IFetcher(_portal).guardian() returns (address _guardian) {
-            return _guardian;
+        try IFetcher(_portal).guardian() returns (address guardian_) {
+            return guardian_;
         } catch {
             return IFetcher(_portal).GUARDIAN();
         }
     }
 
     function _getSystemConfigProxy(address _portal) internal view returns (address) {
-        try IFetcher(_portal).systemConfig() returns (address _systemConfig) {
-            return _systemConfig;
+        try IFetcher(_portal).systemConfig() returns (address systemConfig_) {
+            return systemConfig_;
         } catch {
             return IFetcher(_portal).SYSTEM_CONFIG();
         }
     }
 
     function _getOptimismPortalProxy(address _l1CrossDomainMessengerProxy) internal view returns (address) {
-        try IFetcher(_l1CrossDomainMessengerProxy).PORTAL() returns (address _optimismPortal) {
-            return _optimismPortal;
+        try IFetcher(_l1CrossDomainMessengerProxy).PORTAL() returns (address optimismPortal_) {
+            return optimismPortal_;
         } catch {
             return IFetcher(_l1CrossDomainMessengerProxy).portal();
         }
@@ -410,8 +410,8 @@ contract FetchChainInfo is Script {
     }
 
     function _getL1ERC721BridgeProxy(address _systemConfigProxy) internal view returns (address) {
-        try IFetcher(_systemConfigProxy).l1ERC721Bridge() returns (address _l1ERC721BridgeProxy) {
-            return _l1ERC721BridgeProxy;
+        try IFetcher(_systemConfigProxy).l1ERC721Bridge() returns (address l1ERC721BridgeProxy_) {
+            return l1ERC721BridgeProxy_;
         } catch {
             return address(0);
         }
@@ -419,17 +419,17 @@ contract FetchChainInfo is Script {
 
     function _getOptimismMintableERC20FactoryProxy(address _systemConfigProxy) internal view returns (address) {
         try IFetcher(_systemConfigProxy).optimismMintableERC20Factory() returns (
-            address _optimismMintableERC20FactoryProxy
+            address optimismMintableERC20FactoryProxy_
         ) {
-            return _optimismMintableERC20FactoryProxy;
+            return optimismMintableERC20FactoryProxy_;
         } catch {
             return address(0);
         }
     }
 
     function _getDisputeGameFactoryProxy(address _systemConfigProxy) internal view returns (address) {
-        try IFetcher(_systemConfigProxy).disputeGameFactory() returns (address _disputeGameFactoryProxy) {
-            return _disputeGameFactoryProxy;
+        try IFetcher(_systemConfigProxy).disputeGameFactory() returns (address disputeGameFactoryProxy_) {
+            return disputeGameFactoryProxy_;
         } catch {
             // Some older chains have L2OutputOracle instead of DisputeGameFactory
             return address(0);
@@ -437,16 +437,16 @@ contract FetchChainInfo is Script {
     }
 
     function _getSuperchainConfig(address _optimismPortalProxy) internal view returns (address) {
-        try IFetcher(_optimismPortalProxy).superchainConfig() returns (address _superchainConfig) {
-            return _superchainConfig;
+        try IFetcher(_optimismPortalProxy).superchainConfig() returns (address superchainConfig_) {
+            return superchainConfig_;
         } catch {
             return address(0);
         }
     }
 
     function _getFaultDisputeGame(address _disputeGameFactoryProxy) internal view returns (address) {
-        try IFetcher(_disputeGameFactoryProxy).gameImpls(GameTypes.CANNON) returns (address _faultDisputeGame) {
-            return _faultDisputeGame;
+        try IFetcher(_disputeGameFactoryProxy).gameImpls(GameTypes.CANNON) returns (address faultDisputeGame_) {
+            return faultDisputeGame_;
         } catch {
             return address(0);
         }
@@ -454,9 +454,9 @@ contract FetchChainInfo is Script {
 
     function _getPermissionedDisputeGame(address _disputeGameFactoryProxy) internal view returns (address) {
         try IFetcher(_disputeGameFactoryProxy).gameImpls(GameTypes.PERMISSIONED_CANNON) returns (
-            address _permissionedDisputeGame
+            address permissionedDisputeGame_
         ) {
-            return _permissionedDisputeGame;
+            return permissionedDisputeGame_;
         } catch {
             return address(0);
         }
