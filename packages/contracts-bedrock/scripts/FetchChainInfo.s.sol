@@ -403,10 +403,10 @@ contract FetchChainInfo is Script {
         }
     }
 
-    function _getAddressManager(address _l1CrossDomainMessengerProxy) internal view returns (address addressManager) {
+    function _getAddressManager(address _l1CrossDomainMessengerProxy) internal view returns (address) {
         uint256 ADDRESS_MANAGER_MAPPING_SLOT = 1;
         bytes32 slot = keccak256(abi.encode(_l1CrossDomainMessengerProxy, ADDRESS_MANAGER_MAPPING_SLOT));
-        addressManager = address(uint160(uint256((vm.load(_l1CrossDomainMessengerProxy, slot)))));
+        return address(uint160(uint256((vm.load(_l1CrossDomainMessengerProxy, slot)))));
     }
 
     function _getL1ERC721BridgeProxy(address _systemConfigProxy) internal view returns (address) {
