@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
-import "forge-std/Script.sol";
-import "forge-std/console.sol";
+import { Script } from "forge-std/Script.sol";
 import { GameTypes, GameType } from "src/dispute/lib/Types.sol";
 
 /// @notice Contains getters for arbitrary methods from all L1 contracts, including legacy getters
@@ -380,111 +379,111 @@ contract FetchChainInfo is Script {
         }
     }
 
-    function _getGuardian(address portal) internal view returns (address) {
-        try IFetcher(portal).guardian() returns (address guardian) {
-            return guardian;
+    function _getGuardian(address _portal) internal view returns (address) {
+        try IFetcher(_portal).guardian() returns (address _guardian) {
+            return _guardian;
         } catch {
-            return IFetcher(portal).GUARDIAN();
+            return IFetcher(_portal).GUARDIAN();
         }
     }
 
-    function _getSystemConfigProxy(address portal) internal view returns (address) {
-        try IFetcher(portal).systemConfig() returns (address systemConfig) {
-            return systemConfig;
+    function _getSystemConfigProxy(address _portal) internal view returns (address) {
+        try IFetcher(_portal).systemConfig() returns (address _systemConfig) {
+            return _systemConfig;
         } catch {
-            return IFetcher(portal).SYSTEM_CONFIG();
+            return IFetcher(_portal).SYSTEM_CONFIG();
         }
     }
 
-    function _getOptimismPortalProxy(address l1CrossDomainMessengerProxy) internal view returns (address) {
-        try IFetcher(l1CrossDomainMessengerProxy).PORTAL() returns (address optimismPortal) {
-            return optimismPortal;
+    function _getOptimismPortalProxy(address _l1CrossDomainMessengerProxy) internal view returns (address) {
+        try IFetcher(_l1CrossDomainMessengerProxy).PORTAL() returns (address _optimismPortal) {
+            return _optimismPortal;
         } catch {
-            return IFetcher(l1CrossDomainMessengerProxy).portal();
+            return IFetcher(_l1CrossDomainMessengerProxy).portal();
         }
     }
 
-    function _getAddressManager(address l1CrossDomainMessengerProxy) internal view returns (address addressManager) {
+    function _getAddressManager(address _l1CrossDomainMessengerProxy) internal view returns (address addressManager) {
         uint256 ADDRESS_MANAGER_MAPPING_SLOT = 1;
-        bytes32 slot = keccak256(abi.encode(l1CrossDomainMessengerProxy, ADDRESS_MANAGER_MAPPING_SLOT));
-        addressManager = address(uint160(uint256((vm.load(l1CrossDomainMessengerProxy, slot)))));
+        bytes32 slot = keccak256(abi.encode(_l1CrossDomainMessengerProxy, ADDRESS_MANAGER_MAPPING_SLOT));
+        addressManager = address(uint160(uint256((vm.load(_l1CrossDomainMessengerProxy, slot)))));
     }
 
-    function _getL1ERC721BridgeProxy(address systemConfigProxy) internal view returns (address) {
-        try IFetcher(systemConfigProxy).l1ERC721Bridge() returns (address l1ERC721BridgeProxy) {
-            return l1ERC721BridgeProxy;
+    function _getL1ERC721BridgeProxy(address _systemConfigProxy) internal view returns (address) {
+        try IFetcher(_systemConfigProxy).l1ERC721Bridge() returns (address _l1ERC721BridgeProxy) {
+            return _l1ERC721BridgeProxy;
         } catch {
             return address(0);
         }
     }
 
-    function _getOptimismMintableERC20FactoryProxy(address systemConfigProxy) internal view returns (address) {
-        try IFetcher(systemConfigProxy).optimismMintableERC20Factory() returns (
-            address optimismMintableERC20FactoryProxy
+    function _getOptimismMintableERC20FactoryProxy(address _systemConfigProxy) internal view returns (address) {
+        try IFetcher(_systemConfigProxy).optimismMintableERC20Factory() returns (
+            address _optimismMintableERC20FactoryProxy
         ) {
-            return optimismMintableERC20FactoryProxy;
+            return _optimismMintableERC20FactoryProxy;
         } catch {
             return address(0);
         }
     }
 
-    function _getDisputeGameFactoryProxy(address systemConfigProxy) internal view returns (address) {
-        try IFetcher(systemConfigProxy).disputeGameFactory() returns (address disputeGameFactoryProxy) {
-            return disputeGameFactoryProxy;
+    function _getDisputeGameFactoryProxy(address _systemConfigProxy) internal view returns (address) {
+        try IFetcher(_systemConfigProxy).disputeGameFactory() returns (address _disputeGameFactoryProxy) {
+            return _disputeGameFactoryProxy;
         } catch {
             // Some older chains have L2OutputOracle instead of DisputeGameFactory
             return address(0);
         }
     }
 
-    function _getSuperchainConfig(address optimismPortalProxy) internal view returns (address) {
-        try IFetcher(optimismPortalProxy).superchainConfig() returns (address superchainConfig) {
-            return superchainConfig;
+    function _getSuperchainConfig(address _optimismPortalProxy) internal view returns (address) {
+        try IFetcher(_optimismPortalProxy).superchainConfig() returns (address _superchainConfig) {
+            return _superchainConfig;
         } catch {
             return address(0);
         }
     }
 
-    function _getFaultDisputeGame(address disputeGameFactoryProxy) internal view returns (address) {
-        try IFetcher(disputeGameFactoryProxy).gameImpls(GameTypes.CANNON) returns (address faultDisputeGame) {
-            return faultDisputeGame;
+    function _getFaultDisputeGame(address _disputeGameFactoryProxy) internal view returns (address) {
+        try IFetcher(_disputeGameFactoryProxy).gameImpls(GameTypes.CANNON) returns (address _faultDisputeGame) {
+            return _faultDisputeGame;
         } catch {
             return address(0);
         }
     }
 
-    function _getPermissionedDisputeGame(address disputeGameFactoryProxy) internal view returns (address) {
-        try IFetcher(disputeGameFactoryProxy).gameImpls(GameTypes.PERMISSIONED_CANNON) returns (
-            address permissionedDisputeGame
+    function _getPermissionedDisputeGame(address _disputeGameFactoryProxy) internal view returns (address) {
+        try IFetcher(_disputeGameFactoryProxy).gameImpls(GameTypes.PERMISSIONED_CANNON) returns (
+            address _permissionedDisputeGame
         ) {
-            return permissionedDisputeGame;
+            return _permissionedDisputeGame;
         } catch {
             return address(0);
         }
     }
 
-    function _getAnchorStateRegistryProxy(address permissionedDisputeGame) internal view returns (address) {
-        return IFetcher(permissionedDisputeGame).anchorStateRegistry();
+    function _getAnchorStateRegistryProxy(address _permissionedDisputeGame) internal view returns (address) {
+        return IFetcher(_permissionedDisputeGame).anchorStateRegistry();
     }
 
-    function _getDelayedWETHProxy(address disputeGame) internal view returns (address) {
-        (bool ok, bytes memory data) = address(disputeGame).staticcall(abi.encodeWithSelector(IFetcher.weth.selector));
+    function _getDelayedWETHProxy(address _disputeGame) internal view returns (address) {
+        (bool ok, bytes memory data) = address(_disputeGame).staticcall(abi.encodeCall(IFetcher.weth, ()));
         if (ok && data.length == 32) return abi.decode(data, (address));
         else return address(0);
     }
 
-    function _getMips(address permissionedDisputeGame) internal view returns (address) {
-        return IFetcher(permissionedDisputeGame).vm();
+    function _getMips(address _permissionedDisputeGame) internal view returns (address) {
+        return IFetcher(_permissionedDisputeGame).vm();
     }
 
-    function _getBatchSubmitter(address systemConfigProxy) internal view returns (address) {
-        bytes32 batcherHash = IFetcher(systemConfigProxy).batcherHash();
+    function _getBatchSubmitter(address _systemConfigProxy) internal view returns (address) {
+        bytes32 batcherHash = IFetcher(_systemConfigProxy).batcherHash();
         return address(uint160(uint256(batcherHash)));
     }
 
-    function _getProxyAdmin(address systemConfigProxy) internal returns (address) {
+    function _getProxyAdmin(address _systemConfigProxy) internal returns (address) {
         vm.prank(address(0));
-        return IFetcher(systemConfigProxy).admin();
+        return IFetcher(_systemConfigProxy).admin();
     }
 
     function _processProofType(FetchChainInfoOutput _fo) internal {
