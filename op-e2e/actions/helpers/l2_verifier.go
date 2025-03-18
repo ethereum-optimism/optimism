@@ -284,7 +284,7 @@ func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) 
 }
 
 func (s *l2VerifierBackend) SetRecoverMode(ctx context.Context, mode bool) error {
-	return nil
+	return errors.New("recover mode unsupported")
 }
 
 func (s *L2Verifier) DerivationMetricsTracer() *testutils.TestDerivationMetrics {
