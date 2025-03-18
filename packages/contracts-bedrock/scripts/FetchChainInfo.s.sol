@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.15;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
@@ -59,6 +59,7 @@ contract FetchChainInfoInput {
 }
 
 contract FetchChainInfoOutput {
+    // contract addresses
     address internal _addressManager;
     address internal _l1CrossDomainMessengerProxy;
     address internal _l1ERC721BridgeProxy;
@@ -70,7 +71,8 @@ contract FetchChainInfoOutput {
     address internal _proxyAdmin;
     address internal _superchainConfig;
     address internal _anchorStateRegistryProxy;
-    address internal _delayedWETHProxy;
+    address internal _permissionedWethProxy;
+    address internal _permissionlessWethProxy;
     address internal _disputeGameFactoryProxy;
     address internal _faultDisputeGame;
     address internal _mips;
@@ -87,23 +89,12 @@ contract FetchChainInfoOutput {
     address internal _unsafeBlockSigner;
     address internal _batchSubmitter;
 
+    // fault proof status
     bool internal _faultProofPermissioned;
     bool internal _faultProofPermissionless;
     GameType internal _respectedGameType;
 
-    function set(bytes4 _sel, bool _bool) public {
-        if (_sel == this.faultProofPermissioned.selector) _faultProofPermissioned = _bool;
-        else if (_sel == this.faultProofPermissionless.selector) _faultProofPermissionless = _bool;
-        else revert("FetchChainInfoOutput: unknown bool selector");
-    }
-
-    function set(bytes4 _sel, GameType _gameType) public {
-        if (_sel == this.respectedGameType.selector) _respectedGameType = _gameType;
-        else revert("FetchChainInfoOutput: unknown GameType selector");
-    }
-
     function set(bytes4 _sel, address _addr) public {
-        require(_addr != address(0), "FetchChainInfoOutput: cannot set zero address");
         if (_sel == this.addressManager.selector) _addressManager = _addr;
         else if (_sel == this.l1CrossDomainMessengerProxy.selector) _l1CrossDomainMessengerProxy = _addr;
         else if (_sel == this.l1ERC721BridgeProxy.selector) _l1ERC721BridgeProxy = _addr;
@@ -115,7 +106,8 @@ contract FetchChainInfoOutput {
         else if (_sel == this.proxyAdmin.selector) _proxyAdmin = _addr;
         else if (_sel == this.superchainConfig.selector) _superchainConfig = _addr;
         else if (_sel == this.anchorStateRegistryProxy.selector) _anchorStateRegistryProxy = _addr;
-        else if (_sel == this.delayedWETHProxy.selector) _delayedWETHProxy = _addr;
+        else if (_sel == this.permissionedWethProxy.selector) _permissionedWethProxy = _addr;
+        else if (_sel == this.permissionlessWethProxy.selector) _permissionlessWethProxy = _addr;
         else if (_sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = _addr;
         else if (_sel == this.faultDisputeGame.selector) _faultDisputeGame = _addr;
         else if (_sel == this.mips.selector) _mips = _addr;
@@ -130,6 +122,17 @@ contract FetchChainInfoOutput {
         else if (_sel == this.unsafeBlockSigner.selector) _unsafeBlockSigner = _addr;
         else if (_sel == this.batchSubmitter.selector) _batchSubmitter = _addr;
         else revert("FetchChainInfoOutput: unknown address selector");
+    }
+
+    function set(bytes4 _sel, bool _bool) public {
+        if (_sel == this.faultProofPermissioned.selector) _faultProofPermissioned = _bool;
+        else if (_sel == this.faultProofPermissionless.selector) _faultProofPermissionless = _bool;
+        else revert("FetchChainInfoOutput: unknown bool selector");
+    }
+
+    function set(bytes4 _sel, GameType _gameType) public {
+        if (_sel == this.respectedGameType.selector) _respectedGameType = _gameType;
+        else revert("FetchChainInfoOutput: unknown GameType selector");
     }
 
     function addressManager() public view returns (address) {
@@ -190,9 +193,12 @@ contract FetchChainInfoOutput {
         return _anchorStateRegistryProxy;
     }
 
-    function delayedWETHProxy() public view returns (address) {
-        require(_delayedWETHProxy != address(0), "FetchChainInfoOutput: delayedWETHProxy not set");
-        return _delayedWETHProxy;
+    function permissionedWethProxy() public view returns (address) {
+        return _permissionedWethProxy;
+    }
+
+    function permissionlessWethProxy() public view returns (address) {
+        return _permissionlessWethProxy;
     }
 
     function disputeGameFactoryProxy() public view returns (address) {
@@ -278,11 +284,7 @@ contract FetchChainInfo is Script {
         _processSystemConfig(_fi, _fo);
         _processMessengerAndPortal(_fi, _fo);
         _processDisputeGameFactory(_fo);
-
-        //(bool _permissioned, bool _permissionless, GameType _gameType) = _checkProofTypes(_fo);
-        //_fo.set(_fo.faultProofPermissioned.selector, _permissioned);
-        //_fo.set(_fo.faultProofPermissionless.selector, _permissionless);
-        //_fo.set(_fo.respectedGameType.selector, _gameType);
+        _processProofType(_fo);
     }
 
     function _processSystemConfig(FetchChainInfoInput _fi, FetchChainInfoOutput _fo) internal {
@@ -335,7 +337,6 @@ contract FetchChainInfo is Script {
         address systemConfigProxy = _fo.systemConfigProxy();
         address optimismPortalProxy = _fo.optimismPortalProxy();
 
-        // Some older chains don't have a DisputeGameFactory.
         address disputeGameFactoryProxy = _getDisputeGameFactoryProxy(systemConfigProxy);
         if (disputeGameFactoryProxy != address(0)) {
             _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
@@ -343,6 +344,9 @@ contract FetchChainInfo is Script {
             address faultDisputeGame = _getFaultDisputeGame(disputeGameFactoryProxy);
             if (faultDisputeGame != address(0)) {
                 _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
+
+                address permissionlessWethProxy = _getDelayedWETHProxy(faultDisputeGame);
+                _fo.set(_fo.permissionlessWethProxy.selector, permissionlessWethProxy);
             }
 
             address permissionedDisputeGame = _getPermissionedDisputeGame(disputeGameFactoryProxy);
@@ -355,6 +359,9 @@ contract FetchChainInfo is Script {
                 address anchorStateRegistryProxy = _getAnchorStateRegistryProxy(permissionedDisputeGame);
                 _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
 
+                address permissionedWethProxy = _getDelayedWETHProxy(permissionedDisputeGame);
+                _fo.set(_fo.permissionedWethProxy.selector, permissionedWethProxy);
+
                 address mips = _getMips(permissionedDisputeGame);
                 _fo.set(_fo.mips.selector, mips);
 
@@ -365,7 +372,7 @@ contract FetchChainInfo is Script {
                 _fo.set(_fo.proposer.selector, proposer);
             }
         } else {
-            // Older chains have an L2OutputOracleProxy.
+            // Some older chains have L2OutputOracle instead of DisputeGameFactory.
             address l2OutputOracleProxy = IFetcher(optimismPortalProxy).L2_ORACLE();
             _fo.set(_fo.l2OutputOracleProxy.selector, l2OutputOracleProxy);
             address proposer = IFetcher(l2OutputOracleProxy).PROPOSER();
@@ -425,7 +432,8 @@ contract FetchChainInfo is Script {
         try IFetcher(systemConfigProxy).disputeGameFactory() returns (address disputeGameFactoryProxy) {
             return disputeGameFactoryProxy;
         } catch {
-            return address(0); // Older chains don't have a dispute game factory, they have the L2OutputOracle
+            // Some older chains have L2OutputOracle instead of DisputeGameFactory
+            return address(0);
         }
     }
 
@@ -459,6 +467,12 @@ contract FetchChainInfo is Script {
         return IFetcher(permissionedDisputeGame).anchorStateRegistry();
     }
 
+    function _getDelayedWETHProxy(address disputeGame) internal view returns (address) {
+        (bool ok, bytes memory data) = address(disputeGame).staticcall(abi.encodeWithSelector(IFetcher.weth.selector));
+        if (ok && data.length == 32) return abi.decode(data, (address));
+        else return address(0);
+    }
+
     function _getMips(address permissionedDisputeGame) internal view returns (address) {
         return IFetcher(permissionedDisputeGame).vm();
     }
@@ -473,20 +487,18 @@ contract FetchChainInfo is Script {
         return IFetcher(systemConfigProxy).admin();
     }
 
-    function _checkProofTypes(FetchChainInfoOutput _fo)
-        internal
-        view
-        returns (bool permissioned, bool permissionless, GameType gameType)
-    {
+    function _processProofType(FetchChainInfoOutput _fo) internal {
         address disputeFactory = _fo.disputeGameFactoryProxy();
         if (disputeFactory == address(0)) {
-            return (false, false, GameTypes.CANNON);
+            return;
         }
+        _fo.set(_fo.faultProofPermissioned.selector, true);
+
         address gameImpls = IFetcher(disputeFactory).gameImpls(GameTypes.CANNON);
         if (gameImpls == address(0)) {
-            return (true, false, GameTypes.CANNON);
+            return;
         }
-        gameType = IFetcher(_fo.optimismPortalProxy()).respectedGameType();
-        return (true, true, gameType);
+        _fo.set(_fo.faultProofPermissionless.selector, true);
+        _fo.set(_fo.respectedGameType.selector, IFetcher(_fo.optimismPortalProxy()).respectedGameType());
     }
 }
