@@ -29,7 +29,7 @@ var (
 )
 
 type L1OriginSelectorIface interface {
-	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef, recoverMode bool) (eth.L1BlockRef, error)
+	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 }
 
 type Metrics interface {
@@ -493,7 +493,7 @@ func (d *Sequencer) startBuildingBlock() {
 	recoverMode := d.recoverMode.Load()
 
 	// Figure out which L1 origin block we're going to be building on top of.
-	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head, recoverMode)
+	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head)
 	if err != nil {
 		d.nextAction = d.timeNow().Add(time.Second)
 		d.nextActionOK = d.active.Load()

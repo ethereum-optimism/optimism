@@ -28,6 +28,8 @@ type L1OriginSelector struct {
 	cfg  *rollup.Config
 	spec *rollup.ChainSpec
 
+	recoverMode bool
+
 	l1 L1Blocks
 
 	// Internal cache of L1 origins for faster access.
@@ -37,13 +39,14 @@ type L1OriginSelector struct {
 	mu sync.Mutex
 }
 
-func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks) *L1OriginSelector {
+func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks, recoverMode bool) *L1OriginSelector {
 	return &L1OriginSelector{
-		ctx:  ctx,
-		log:  log,
-		cfg:  cfg,
-		spec: rollup.NewChainSpec(cfg),
-		l1:   l1,
+		ctx:         ctx,
+		log:         log,
+		cfg:         cfg,
+		spec:        rollup.NewChainSpec(cfg),
+		l1:          l1,
+		recoverMode: recoverMode,
 	}
 }
 
@@ -62,8 +65,8 @@ func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
 // FindL1Origin determines what the next L1 Origin should be.
 // The L1 Origin is either the L2 Head's Origin, or the following L1 block
 // if the next L2 block's time is greater than or equal to the L2 Head's Origin.
-func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef, recoverMode bool) (eth.L1BlockRef, error) {
-	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head, recoverMode)
+func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
@@ -110,11 +113,11 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	return nextOrigin, nil
 }
 
-func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head eth.L2BlockRef, recoverMode bool) (eth.L1BlockRef, eth.L1BlockRef, error) {
+func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, eth.L1BlockRef, error) {
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
-	if recoverMode {
+	if los.recoverMode {
 		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
 		if err != nil {
 			return eth.L1BlockRef{}, eth.L1BlockRef{},
@@ -170,7 +173,7 @@ func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
 	ctx, cancel := context.WithTimeout(los.ctx, 500*time.Millisecond)
 	defer cancel()
 
-	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, unsafeL2Head, false)
+	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, unsafeL2Head)
 	if err != nil {
 		los.log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
 		return
