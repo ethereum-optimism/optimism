@@ -92,32 +92,20 @@ func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg
 
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
-	u1 := miner.UnsafeID()
-	env.BatchAndMine(t)
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActL2PipelineFull(t)
-	syncStatus := sequencer.SyncStatus()
-	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2)
-	require.Equal(t, u1, syncStatus.UnsafeL2.L1Origin)
-	require.False(t, env.Sd.RollupCfg.IsIsthmus(syncStatus.SafeL2.Time))
+	safeL2 := env.BatchMineAndSync(t)
+	require.False(t, env.Sd.RollupCfg.IsIsthmus(sequencer.SyncStatus().SafeL2.Time))
 
-	requireL1InfoParams(syncStatus.SafeL2, 0, 0)
-	env.RunFaultProofProgram(t, syncStatus.SafeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
+	requireL1InfoParams(safeL2, 0, 0)
+	env.RunFaultProofProgram(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 
 	sequencer.ActBuildL2ToIsthmus(t)
 	sequencer.ActL2EmptyBlock(t) // one more to have Isthmus L1 info deposit
-	u2 := miner.UnsafeID()
-	env.BatchAndMine(t)
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActL2PipelineFull(t)
-	syncStatus = sequencer.SyncStatus()
-	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2)
-	require.Equal(t, syncStatus.UnsafeL2.L1Origin, u2)
-	require.True(t, env.Sd.RollupCfg.IsIsthmus(syncStatus.SafeL2.Time))
+	safeL2 = env.BatchMineAndSync(t)
+	require.True(t, env.Sd.RollupCfg.IsIsthmus(sequencer.SyncStatus().SafeL2.Time))
 
 	// Assert that operator fee params are zero since they were set before Isthmus activated.
-	requireL1InfoParams(syncStatus.SafeL2, 0, 0)
-	env.RunFaultProofProgram(t, syncStatus.SafeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
+	requireL1InfoParams(safeL2, 0, 0)
+	env.RunFaultProofProgram(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 
 	// modify both to ensure we test with different parameters
 	testOperatorFeeScalar *= 2
@@ -130,14 +118,8 @@ func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg
 	miner.ActL1EndBlock(t)
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
-	u3 := miner.UnsafeID()
-	env.BatchAndMine(t)
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActL2PipelineFull(t)
-	syncStatus = sequencer.SyncStatus()
-	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2)
-	require.Equal(t, u3, syncStatus.UnsafeL2.L1Origin)
+	safeL2 = env.BatchMineAndSync(t)
 
-	requireL1InfoParams(syncStatus.SafeL2, testOperatorFeeScalar, testOperatorFeeConstant)
-	env.RunFaultProofProgram(t, syncStatus.SafeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
+	requireL1InfoParams(safeL2, testOperatorFeeScalar, testOperatorFeeConstant)
+	env.RunFaultProofProgram(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
