@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -820,6 +821,69 @@ func TestConfigImplementsBlockType(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("TestHasOptimismWithdrawalsRoot_%s", test.name), func(t *testing.T) {
 			assert.Equal(t, config.HasOptimismWithdrawalsRoot(test.blockTime), test.hasOptimismWithdrawalsRoot)
+		})
+	}
+}
+
+func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
+	hol, sep := params.HoleskyChainConfig, params.SepoliaChainConfig
+
+	for _, tt := range []struct {
+		name                   string
+		pectraBlobScheduleTime *uint64
+		l2genesisTime          uint64
+		l1chainID              *big.Int
+		expMissing             bool
+	}{
+		{
+			name:                   "sepolia-ok",
+			pectraBlobScheduleTime: u64ptr(1742486400), // sepolia superchain
+			l2genesisTime:          1691802540,         // op-sepolia
+			l1chainID:              sep.ChainID,
+		},
+		{
+			name:                   "holesky-ok",
+			pectraBlobScheduleTime: u64ptr(1742486400), // sepolia superchain
+			l2genesisTime:          1691802540,         // op-sepolia
+			l1chainID:              hol.ChainID,
+		},
+		{
+			name:          "sepolia-missing",
+			l2genesisTime: 1691802540, // op-sepolia
+			l1chainID:     sep.ChainID,
+			expMissing:    true,
+		},
+		{
+			name:          "holesky-missing",
+			l2genesisTime: 1691802540, // op-sepolia
+			l1chainID:     hol.ChainID,
+			expMissing:    true,
+		},
+		{
+			name:          "sepolia-young-genesis",
+			l2genesisTime: *sep.PragueTime + 1,
+			l1chainID:     sep.ChainID,
+		},
+		{
+			name:          "holesky-young-genesis",
+			l2genesisTime: *hol.PragueTime + 1,
+			l1chainID:     hol.ChainID,
+		},
+		{
+			name:          "other-missing-ok",
+			l2genesisTime: 1691802540,
+			l1chainID:     big.NewInt(1),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Genesis: Genesis{
+					L2Time: tt.l2genesisTime,
+				},
+				PectraBlobScheduleTime: tt.pectraBlobScheduleTime,
+				L1ChainID:              tt.l1chainID,
+			}
+			assert.Equal(t, tt.expMissing, cfg.ProbablyMissingPectraBlobSchedule())
 		})
 	}
 }

@@ -126,7 +126,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		cfg.Driver.SequencerStopped = true
 	}
 
-	if err := cfg.Check(); err != nil {
+	if err := cfg.Check(); errors.Is(err, node.ErrMissingPectraBlobSchedule) &&
+		!ctx.Bool(flags.IgnoreMissingPectraBlobSchedule.Name) {
+		log.Error("Your rollup config seems to be missing the Pectra blob schedule fix. " +
+			"Reach out to your chain operator for the correct Pectra blob schedule configuration. " +
+			"If you know what you are doing, you can disable this error by setting the " +
+			"'--ignore-missing-pectra-blob-schedule' flag or 'IGNORE_MISSING_PECTRA_BLOB_SCHEDULE' env var.")
+		return nil, err
+	} else if err != nil {
 		return nil, err
 	}
 	return cfg, nil

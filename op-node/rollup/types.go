@@ -358,6 +358,32 @@ func (cfg *Config) HasOptimismWithdrawalsRoot(timestamp uint64) bool {
 	return cfg.IsIsthmus(timestamp)
 }
 
+// ProbablyMissingPectraBlobSchedule returns whether the chain is likely missing the Pectra blob
+// schedule fix.
+// A chain probably needs the Pectra blob schedule fix if:
+// - its L1 in Holesky or Sepolia, and
+// - its genesis is before the L1's Prague activation.
+func (cfg *Config) ProbablyMissingPectraBlobSchedule() bool {
+	if cfg.PectraBlobScheduleTime != nil {
+		return false
+	}
+
+	var pragueTime uint64
+	if cfg.L1ChainID.Cmp(params.HoleskyChainConfig.ChainID) == 0 {
+		pragueTime = *params.HoleskyChainConfig.PragueTime
+	} else if cfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) == 0 {
+		pragueTime = *params.SepoliaChainConfig.PragueTime
+	} else {
+		// Only Holesky and Sepolia chains may have run into the
+		// Pectra blob schedule bug.
+		return false
+	}
+
+	// Only chains whose genesis was before the L1's prague activation need
+	// the Pectra blob schedule fix.
+	return pragueTime >= cfg.Genesis.L2Time
+}
+
 // validateAltDAConfig checks the two approaches to configuring alt-da mode.
 // If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
 func validateAltDAConfig(cfg *Config) error {

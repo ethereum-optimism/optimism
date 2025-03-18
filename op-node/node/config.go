@@ -127,6 +127,8 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 	return nil
 }
 
+var ErrMissingPectraBlobSchedule = errors.New("probably missing Pectra blob schedule")
+
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if err := cfg.L1.Check(); err != nil {
@@ -153,6 +155,9 @@ func (cfg *Config) Check() error {
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
+	}
+	if cfg.Rollup.ProbablyMissingPectraBlobSchedule() {
+		return ErrMissingPectraBlobSchedule
 	}
 	if err := cfg.Metrics.Check(); err != nil {
 		return fmt.Errorf("metrics config error: %w", err)
