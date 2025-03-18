@@ -229,3 +229,35 @@ contract ForkTester {
         require(testAddr.balance == uint256(2), "balance should be 2");
     }
 }
+
+interface IDummy {
+    function dummy() external pure;
+}
+
+contract ErrorTester {
+    error Foobar();
+
+    function customErr() external pure {
+        revert Foobar();
+    }
+
+    function revertMsg() external pure {
+        revert("beep");
+    }
+
+    function nonExistentMethod() external pure {
+        IDummy dummy = IDummy(address(uint160(0x1234)));
+        dummy.dummy();
+    }
+
+    function nested() external {
+        ErrorTesterInner inner = new ErrorTesterInner();
+        inner.dead();
+    }
+}
+
+contract ErrorTesterInner {
+    function dead() external pure {
+        revert("honk");
+    }
+}
