@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
 )
 
@@ -30,8 +32,11 @@ func (f *KurtosisContext) GetEnclave(ctx context.Context, name string) (interfac
 
 // EnclaveContext implements interfaces.EnclaveContext for testing
 type EnclaveContext struct {
-	RunErr    error
-	Responses []interfaces.StarlarkResponse
+	RunErr        error
+	Responses     []interfaces.StarlarkResponse
+	ArtifactNames []*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid
+	ArtifactData  []byte
+	UploadErr     error
 }
 
 func (f *EnclaveContext) RunStarlarkPackage(ctx context.Context, pkg string, params *starlark_run_config.StarlarkRunConfig) (<-chan interfaces.StarlarkResponse, string, error) {
@@ -52,6 +57,21 @@ func (f *EnclaveContext) RunStarlarkPackage(ctx context.Context, pkg string, par
 
 func (f *EnclaveContext) RunStarlarkScript(ctx context.Context, script string, params *starlark_run_config.StarlarkRunConfig) error {
 	return f.RunErr
+}
+
+func (f *EnclaveContext) GetAllFilesArtifactNamesAndUuids(ctx context.Context) ([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, error) {
+	return f.ArtifactNames, nil
+}
+
+func (f *EnclaveContext) DownloadFilesArtifact(ctx context.Context, name string) ([]byte, error) {
+	return f.ArtifactData, nil
+}
+
+func (f *EnclaveContext) UploadFiles(pathToUpload string, artifactName string) (services.FilesArtifactUUID, services.FileArtifactName, error) {
+	if f.UploadErr != nil {
+		return "", "", f.UploadErr
+	}
+	return "test-uuid", services.FileArtifactName(artifactName), nil
 }
 
 // StarlarkResponse implements interfaces.StarlarkResponse for testing

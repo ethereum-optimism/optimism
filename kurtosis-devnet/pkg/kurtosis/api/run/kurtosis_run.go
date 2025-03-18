@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
@@ -75,18 +76,16 @@ func (r *KurtosisRunner) Run(ctx context.Context, packageName string, args io.Re
 		return nil
 	}
 
-	// Try to get existing enclave first
-	enclaveCtx, err := r.kurtosisCtx.GetEnclave(ctx, r.enclave)
+	mgr, err := enclave.NewKurtosisEnclaveManager(
+		enclave.WithKurtosisContext(r.kurtosisCtx),
+	)
 	if err != nil {
-		// If enclave doesn't exist, create a new one
-		fmt.Printf("Creating a new enclave for Starlark to run inside...\n")
-		enclaveCtx, err = r.kurtosisCtx.CreateEnclave(ctx, r.enclave)
-		if err != nil {
-			return fmt.Errorf("failed to create enclave: %w", err)
-		}
-		fmt.Printf("Enclave '%s' created successfully\n\n", r.enclave)
-	} else {
-		fmt.Printf("Using existing enclave '%s'\n\n", r.enclave)
+		return fmt.Errorf("failed to create Kurtosis enclave manager: %w", err)
+	}
+	// Try to get existing enclave first
+	enclaveCtx, err := mgr.GetEnclave(ctx, r.enclave)
+	if err != nil {
+		return fmt.Errorf("failed to get enclave: %w", err)
 	}
 
 	// Set up run config with args if provided
