@@ -6,7 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher"
+	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/compare"
+	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 
@@ -32,8 +33,14 @@ func main() {
 		{
 			Name:   "fetch",
 			Usage:  "fetches onchain data for a given chain",
-			Flags:  cliapp.ProtectFlags(fetcher.FetchChainInfoFlags),
-			Action: fetcher.FetchChainInfoCLI(),
+			Flags:  cliapp.ProtectFlags(fetch.FetchChainInfoFlags),
+			Action: fetch.FetchChainInfoCLI(),
+		},
+		{
+			Name:   "compare",
+			Usage:  "compares onchain data (from fetch) to expected data",
+			Flags:  cliapp.ProtectFlags(compare.CompareFlags),
+			Action: compare.CompareCLI(),
 		},
 	}
 	app.Writer = os.Stdout

@@ -1,17 +1,13 @@
 package script
 
 import (
-	_ "embed"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 )
-
-type FetchChainInfoInput struct {
-	SystemConfigProxy     common.Address
-	L1StandardBridgeProxy common.Address
-}
 
 // Copied struct from superchain-registry/ops/internal/config/chain.go
 type Addresses struct {
@@ -26,7 +22,8 @@ type Addresses struct {
 	ProxyAdmin                        common.Address `toml:"ProxyAdmin,omitempty" json:"ProxyAdmin,omitempty"`
 	SuperchainConfig                  common.Address `toml:"SuperchainConfig,omitempty" json:"SuperchainConfig,omitempty"`
 	AnchorStateRegistryProxy          common.Address `toml:"AnchorStateRegistryProxy,omitempty" json:"AnchorStateRegistryProxy,omitempty"`
-	DelayedWETHProxy                  common.Address `toml:"DelayedWETHProxy,omitempty" json:"DelayedWETHProxy,omitempty"`
+	PermissionedWethProxy             common.Address `toml:"PermissionedWethProxy,omitempty" json:"PermissionedWethProxy,omitempty"`
+	PermissionlessWethProxy           common.Address `toml:"PermissionlessWethProxy,omitempty" json:"PermissionlessWethProxy,omitempty"`
 	DisputeGameFactoryProxy           common.Address `toml:"DisputeGameFactoryProxy,omitempty" json:"DisputeGameFactoryProxy,omitempty"`
 	FaultDisputeGame                  common.Address `toml:"FaultDisputeGame,omitempty" json:"FaultDisputeGame,omitempty"`
 	Mips                              common.Address `toml:"MIPS,omitempty" json:"MIPS,omitempty"`
@@ -50,23 +47,40 @@ type FetchChainInfoOutput struct {
 	Roles
 	FaultProofPermissioned   bool
 	FaultProofPermissionless bool
-}
-
-type ChainConfig struct {
-	Addresses        Addresses        `toml:"addresses" json:"addresses"`
-	Roles            Roles            `toml:"roles" json:"roles"`
-	FaultProofStatus FaultProofStatus `toml:"fault_proof_status" json:"fault_proof_status"`
-}
-
-type FaultProofStatus struct {
-	Permissioned   bool
-	Permissionless bool
+	RespectedGameType        uint32
 }
 
 func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
-func FetchChainInfo(h *script.Host, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
-	return opcm.RunScriptSingle[FetchChainInfoInput, FetchChainInfoOutput](h, input, "FetchChainInfo.s.sol", "FetchChainInfo")
+func WriteChainConfigToFile(output FetchChainInfoOutput, chainName string, chainId uint64) error {
+	fileData := ChainConfig{
+		ChainName: chainName,
+		ChainId:   chainId,
+		Addresses: output.Addresses,
+		Roles:     output.Roles,
+		FaultProofStatus: FaultProofStatus{
+			Permissioned:      output.FaultProofPermissioned,
+			Permissionless:    output.FaultProofPermissionless,
+			RespectedGameType: output.RespectedGameType,
+		},
+	}
+
+	json, err := json.MarshalIndent(fileData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal output: %w", err)
+	}
+
+	if err := os.MkdirAll("./.fetcher", 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	outputFile := filepath.Join("./.fetcher", fmt.Sprintf("%d.json", chainId))
+	err = os.WriteFile(outputFile, json, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write output to file: %w", err)
+	}
+
+	return nil
 }

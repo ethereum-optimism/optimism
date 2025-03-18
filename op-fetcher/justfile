@@ -1,9 +1,13 @@
-build: forge-build
-  go build -o bin/op-fetcher cmd/op-fetcher/main.go
+build:
+  go build -o bin/op-fetcher cmd/main.go
 
-forge-build:
+build-go: build
+
+build-all: build-contracts build-go
+
+build-contracts:
   #!/bin/bash
-  mkdir -p ./pkg/fetcher/forge-artifacts
+  mkdir -p ./pkg/fetcher/fetch/forge-artifacts
   cd ../packages/contracts-bedrock
-  FOUNDRY_PROFILE=lite forge build
-  cp -r forge-artifacts/FetchChainInfo.s.sol ../../op-fetcher/pkg/fetcher/forge-artifacts
+  just build-dev
+  cp -r forge-artifacts/FetchChainInfo.s.sol ../../op-fetcher/pkg/fetcher/fetch/forge-artifacts
