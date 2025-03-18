@@ -153,7 +153,7 @@ func (su *SupervisorService) initRPCServer(cfg *config.Config) error {
 		cfg.Version,
 		oprpc.WithLogger(su.log),
 	)
-	RegisterRPCs(su.log, cfg, server, su.backend)
+	RegisterRPCs(su.log, cfg, server, su.backend, su.metrics)
 	su.rpcServer = server
 	return nil
 }
@@ -162,11 +162,7 @@ type RpcServer interface {
 	AddAPI(rpc.API)
 }
 
-func RegisterRPCs(logger log.Logger, cfg *config.Config, server RpcServer, backend Backend) {
-	m := metrics.NoopMetrics
-	if cfg.MetricsConfig.Enabled {
-		m = metrics.NewMetrics("default")
-	}
+func RegisterRPCs(logger log.Logger, cfg *config.Config, server RpcServer, backend Backend, m metrics.Metricer) {
 	if cfg.RPC.EnableAdmin {
 		logger.Info("Admin RPC enabled")
 		server.AddAPI(rpc.API{
