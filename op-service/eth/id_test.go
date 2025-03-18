@@ -10,11 +10,13 @@ import (
 
 func TestBlockRef_Deserialize(t *testing.T) {
 	tests := []struct {
+		name                 string
 		input                string
 		expected             BlockRef
 		expectedErrSubString string
 	}{
 		{
+			name:  "hex numbers",
 			input: `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":"0x727172","timestamp":"0x67884564"}`,
 			expected: BlockRef{
 				Hash:       common.HexToHash("0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940"),
@@ -24,6 +26,7 @@ func TestBlockRef_Deserialize(t *testing.T) {
 			},
 		},
 		{
+			name:  "regular numbers",
 			input: `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":1234,"timestamp":2345}`,
 			expected: BlockRef{
 				Hash:       common.HexToHash("0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940"),
@@ -33,11 +36,13 @@ func TestBlockRef_Deserialize(t *testing.T) {
 			},
 		},
 		{
+			name:                 "negative numbers",
 			input:                `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":-1234,"timestamp":2345}`,
 			expected:             BlockRef{},
 			expectedErrSubString: "cannot unmarshal number -1234 into Go value of type uint64",
 		},
 		{
+			name:                 "not numbers",
 			input:                `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":"foo","timestamp":"bar"}`,
 			expected:             BlockRef{},
 			expectedErrSubString: "cannot unmarshal string into Go value of type uint64",
