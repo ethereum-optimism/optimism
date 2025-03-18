@@ -254,6 +254,15 @@ contract ErrorTester {
         ErrorTesterInner inner = new ErrorTesterInner();
         inner.dead();
     }
+
+    function tryCatch() external {
+        ErrorTesterInner inner = new ErrorTesterInner();
+
+        try inner.dead() {
+        } catch Error(string memory reason) {
+            require(keccak256(abi.encodePacked(reason)) == keccak256(abi.encodePacked("honk")), "reason should be 'honk'");
+        }
+    }
 }
 
 contract ErrorTesterInner {

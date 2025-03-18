@@ -373,7 +373,9 @@ func (h *Host) Call(from common.Address, to common.Address, input []byte, gas ui
 	returnData, leftOverGas, err = h.env.Call(from, to, input, gas, value)
 
 	// replace the returned error with the inner EVM error (if one exists)
-	if h.evmRevertErr != nil {
+	// h.evmRevertErr will contain expected reverts (e.g. those from proxies)
+	// so we only replace the error if the call itself returns an error
+	if err != nil && h.evmRevertErr != nil {
 		err = h.evmRevertErr
 	}
 
