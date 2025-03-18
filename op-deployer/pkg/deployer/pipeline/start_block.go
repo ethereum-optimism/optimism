@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,6 +13,43 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+type legacyBlockRefMarshaler eth.BlockRef
+
+func (b *legacyBlockRefMarshaler) UnmarshalJSON(data []byte) error {
+	type BlockRefAlias legacyBlockRefMarshaler
+	aux := &struct {
+		Number json.RawMessage `json:"number"`
+		Time   json.RawMessage `json:"timestamp"`
+		*BlockRefAlias
+	}{
+		BlockRefAlias: (*BlockRefAlias)(b),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if err := parseHexOrUint64Field(aux.Number, &b.Number); err != nil {
+		return fmt.Errorf("failed to parse block number: %w", err)
+	}
+
+	if err := parseHexOrUint64Field(aux.Time, &b.Time); err != nil {
+		return fmt.Errorf("failed to parse block timestamp: %w", err)
+	}
+
+	return nil
+}
+
+// parseHexOrUint64Field attempts to unmarshal as a hex-encoded uint64 then falls back to unmarshalling as a uint64.
+func parseHexOrUint64Field(data json.RawMessage, target *uint64) error {
+	var hexVal hexutil.Uint64
+	if err := json.Unmarshal(data, &hexVal); err == nil {
+		*target = uint64(hexVal)
+		return nil
+	}
+
+	return json.Unmarshal(data, target)
+}
 
 func blockRefFromRpc(ctx context.Context, l1Client *rpc.Client, numberArg string) (*eth.BlockRef, error) {
 	var l1BRJ eth.BlockRef
