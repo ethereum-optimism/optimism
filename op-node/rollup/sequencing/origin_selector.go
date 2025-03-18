@@ -42,7 +42,7 @@ type L1OriginSelector struct {
 func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks, recoverMode bool) *L1OriginSelector {
 	return &L1OriginSelector{
 		ctx:         ctx,
-		log:         log,
+		log:         log.With("recover_mode", recoverMode),
 		cfg:         cfg,
 		spec:        rollup.NewChainSpec(cfg),
 		l1:          l1,
