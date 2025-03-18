@@ -1,4 +1,4 @@
-package pipeline
+package eth
 
 import (
 	"encoding/json"
@@ -8,17 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLegacyBlockRefMarshaler_Unmarshal(t *testing.T) {
+func TestBlockRef_Deserialize(t *testing.T) {
 	tests := []struct {
 		name                 string
 		input                string
-		expected             legacyBlockRefMarshaler
+		expected             BlockRef
 		expectedErrSubString string
 	}{
 		{
 			name:  "hex numbers",
 			input: `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":"0x727172","timestamp":"0x67884564"}`,
-			expected: legacyBlockRefMarshaler{
+			expected: BlockRef{
 				Hash:       common.HexToHash("0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940"),
 				ParentHash: common.HexToHash("0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9"),
 				Number:     7500146,
@@ -28,7 +28,7 @@ func TestLegacyBlockRefMarshaler_Unmarshal(t *testing.T) {
 		{
 			name:  "regular numbers",
 			input: `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":1234,"timestamp":2345}`,
-			expected: legacyBlockRefMarshaler{
+			expected: BlockRef{
 				Hash:       common.HexToHash("0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940"),
 				ParentHash: common.HexToHash("0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9"),
 				Number:     1234,
@@ -38,20 +38,20 @@ func TestLegacyBlockRefMarshaler_Unmarshal(t *testing.T) {
 		{
 			name:                 "negative numbers",
 			input:                `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":-1234,"timestamp":2345}`,
-			expected:             legacyBlockRefMarshaler{},
+			expected:             BlockRef{},
 			expectedErrSubString: "cannot unmarshal number -1234 into Go value of type uint64",
 		},
 		{
 			name:                 "not numbers",
 			input:                `{"hash":"0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940","parentHash":"0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9","number":"foo","timestamp":"bar"}`,
-			expected:             legacyBlockRefMarshaler{},
+			expected:             BlockRef{},
 			expectedErrSubString: "cannot unmarshal string into Go value of type uint64",
 		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.input, func(t *testing.T) {
-			var blockRef legacyBlockRefMarshaler
+			var blockRef BlockRef
 			err := json.Unmarshal([]byte(test.input), &blockRef)
 			if test.expectedErrSubString != "" {
 				require.Error(t, err)
@@ -64,15 +64,15 @@ func TestLegacyBlockRefMarshaler_Unmarshal(t *testing.T) {
 	}
 }
 
-func TestLegacyBlockRefMarshaler_Marshal(t *testing.T) {
+func TestBlockRef_Serialize(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    legacyBlockRefMarshaler
+		input    BlockRef
 		expected string
 	}{
 		{
 			name: "typical block",
-			input: legacyBlockRefMarshaler{
+			input: BlockRef{
 				Hash:       common.HexToHash("0xd84d7e6e3de812c7e0305d52971dc7488acaa2b2611ecc5e222e6bfc350d1940"),
 				ParentHash: common.HexToHash("0xbfbf7e85c93e031b97fad589175d509631672c62f76c4b12280614cce4031ff9"),
 				Number:     7500146,
@@ -82,7 +82,7 @@ func TestLegacyBlockRefMarshaler_Marshal(t *testing.T) {
 		},
 		{
 			name: "zero values",
-			input: legacyBlockRefMarshaler{
+			input: BlockRef{
 				Hash:       common.Hash{},
 				ParentHash: common.Hash{},
 				Number:     0,
