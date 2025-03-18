@@ -79,8 +79,8 @@ func processFile(artifactPath string) (*common.Void, []error) {
 // - External upgrade calls within a for, while, do loop can be identified
 // - External upgrade calls within the true/false block of if/else-if/else statements can be identified
 // - External upgrade calls within a try or catch path
+// - External upgrade calls within the true/false block of ternary statements can be identified
 // - Any combination of the aforementioned can be identified
-// - TODO: External upgrade calls within the true/false block of ternary statements can be identified
 func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string) bool {
 	// Loop through all statements finding any external call to an upgrade function with a contract type of `typeName`
 	for _, node := range opcmUpgradeAst {
@@ -92,19 +92,47 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string) bool {
 			}
 		}
 
-		// To support conditions.
-		if node.Condition != nil {
-			if node.TrueBody != nil {
-				found := upgradesContract([]solc.AstNode{*node.TrueBody}, typeName)
+		// For if/else-if/else statements
+		if node.TrueBody != nil {
+			found := upgradesContract([]solc.AstNode{*node.TrueBody}, typeName)
+			if found {
+				return found
+			}
+		}
+		if node.FalseBody != nil {
+			found := upgradesContract([]solc.AstNode{*node.FalseBody}, typeName)
+			if found {
+				return found
+			}
+		}
+
+		// For tenary statement
+		if node.Expression != nil && node.Expression.NodeType == "Conditional" {
+			if node.Expression.TrueExpression != nil {
+				found := upgradesContract([]solc.AstNode{*node.Expression.TrueExpression}, typeName)
 				if found {
 					return found
 				}
 			}
-			if node.FalseBody != nil {
-				found := upgradesContract([]solc.AstNode{*node.FalseBody}, typeName)
+			if node.Expression.FalseExpression != nil {
+				found := upgradesContract([]solc.AstNode{*node.Expression.FalseExpression}, typeName)
 				if found {
 					return found
 				}
+			}
+		}
+
+		// For nested tenary statement
+		if node.TrueExpression != nil {
+			found := upgradesContract([]solc.AstNode{*node.TrueExpression}, typeName)
+			if found {
+				return found
+			}
+		}
+		if node.FalseExpression != nil {
+			found := upgradesContract([]solc.AstNode{*node.FalseExpression}, typeName)
+			if found {
+				return found
 			}
 		}
 
@@ -145,8 +173,8 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string) bool {
 			}
 		}
 
-		// To support try external calls.
-		if node.NodeType == "FunctionCall" && node.TryCall {
+		// To support try external calls and external calls within tenary statements.
+		if node.NodeType == "FunctionCall" {
 			// Try branch.
 			if node.Expression != nil && node.Expression.Expression != nil {
 				if node.Expression.MemberName == "upgrade" && node.Expression.Expression.TypeDescriptions.TypeString == typeName {

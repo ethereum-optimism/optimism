@@ -206,14 +206,16 @@ type AstNode struct {
 	Value    interface{} `json:"value,omitempty"`
 
 	// Other fields
-	ModifierName *Expression  `json:"modifierName,omitempty"`
-	Modifiers    []AstNode    `json:"modifiers,omitempty"`
-	Arguments    []Expression `json:"arguments,omitempty"`
-	Condition    *Expression  `json:"condition,omitempty"`
-	TrueBody     *AstNode     `json:"trueBody,omitempty"`
-	FalseBody    *AstNode     `json:"falseBody,omitempty"`
-	Operator     string       `json:"operator,omitempty"`
-	Statements   *[]AstNode   `json:"statements,omitempty"`
+	ModifierName    *Expression  `json:"modifierName,omitempty"`
+	Modifiers       []AstNode    `json:"modifiers,omitempty"`
+	Arguments       []Expression `json:"arguments,omitempty"`
+	Condition       *Expression  `json:"condition,omitempty"`
+	TrueBody        *AstNode     `json:"trueBody,omitempty"`
+	FalseBody       *AstNode     `json:"falseBody,omitempty"`
+	TrueExpression  *AstNode     `json:"trueExpression,omitempty"`
+	FalseExpression *AstNode     `json:"falseExpression,omitempty"`
+	Operator        string       `json:"operator,omitempty"`
+	Statements      *[]AstNode   `json:"statements,omitempty"`
 }
 
 type Clauses struct {
