@@ -59,6 +59,7 @@ where
             client,
             EngineCapabilities::new(OP_ENGINE_CAPABILITIES.iter().copied()),
             engine_validator,
+            ctx.config.engine.accept_execution_requests_hash,
         );
 
         Ok(OpEngineApi::new(inner))
