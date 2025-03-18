@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ProgramAction_OperatorFeeConstistency(gt *testing.T) {
+func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 	type testCase int64
 
 	const (
