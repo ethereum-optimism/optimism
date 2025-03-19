@@ -1137,17 +1137,47 @@ jobs:
       - utils/checkout-with-mise
       - attach_workspace:
           at: "."
+      # Restore cached Go modules
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-
+      # Download dependencies first
+      - run:
+          name: Download Go dependencies
+          working_directory: op-acceptance-tests
+          command: go mod download
+      # Prepare the test environment
+      - run:
+          name: Prepare test environment (compile tests and cache results)
+          working_directory: op-acceptance-tests
+          command: go test -v ./... || true # ignore failures; we're just compiling the tests
+      # Run the actual acceptance tests with optimized settings
       - run:
           name: Run acceptance tests
+          working_directory: op-acceptance-tests
           no_output_timeout: <<parameters.no_output_timeout>>
-          command: |
-            cd op-acceptance-tests && just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
-      - store_test_results:
-          path: ./op-acceptance-tests/results
-          when: always
-      - store_artifacts:
-          path: ./op-acceptance-tests/logs
-          when: always
+          environment:
+            GOFLAGS: "-mod=mod"
+            GO111MODULE: "on"
+          command: just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+      # Save the module cache for future runs
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
+      # Store test results and artifacts
+      - when:
+          condition: always
+          steps:
+            - store_test_results:
+                path: ./op-acceptance-tests/results
+      - when:
+          condition: always
+          steps:
+            - store_artifacts:
+                path: ./op-acceptance-tests/logs
+      # Notification step
       - when:
           condition: "<<parameters.notify>>"
           steps:
