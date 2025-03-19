@@ -40,6 +40,28 @@ golang-docker: ## Builds Docker images for Go components using buildx
 			op-node op-batcher op-proposer op-challenger op-dispute-mon op-supervisor
 .PHONY: golang-docker
 
+# Make sure to run `make docker-builder` first, to setup a multi-arch builder.
+layr-labs-docker-push: ## Builds and pushes op-batcher/node Docker image to ghcr.io
+	@GIT_TAG=$$(git tag --points-at HEAD 2>/dev/null | grep -E 'op-' | head -n1); \
+	if [ -n "$$GIT_TAG" ]; then \
+		IMAGE_TAGS="$$(echo $$GIT_TAG | tr '/' '-'),latest"; \
+	else \
+		IMAGE_TAGS="$$(git rev-parse HEAD),latest"; \
+	fi; \
+	echo "Using tags: $$IMAGE_TAGS"; \
+	GIT_COMMIT=$$(git rev-parse HEAD) \
+	GIT_DATE=$$(git show -s --format='%ct') \
+	IMAGE_TAGS=$$IMAGE_TAGS \
+	REGISTRY=ghcr.io \
+	REPOSITORY=layr-labs/optimism \
+	PLATFORMS="linux/amd64,linux/arm64" \
+	docker buildx bake \
+			--progress plain \
+			--push \
+			-f docker-bake.hcl \
+			op-batcher op-node
+.PHONY: layr-labs-docker
+
 docker-builder-clean: ## Removes the Docker buildx builder
 	docker buildx rm buildx-build
 .PHONY: docker-builder-clean
