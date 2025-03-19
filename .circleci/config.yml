@@ -1658,8 +1658,8 @@ workflows:
       - analyze-op-program-client:
           context: circleci-repo-readonly-authenticated-github-token
       - op-acceptance-tests:
-          devnet: simple
-          gate: localnet
+          devnet: isthmus
+          gate: isthmus
           context: circleci-repo-readonly-authenticated-github-token
       - op-program-compat:
           context: circleci-repo-readonly-authenticated-github-token
