@@ -37,8 +37,6 @@ reth-optimism-primitives.workspace = true
 
 # revm
 revm.workspace = true
-revm-database.workspace = true
-revm-primitives.workspace = true
 op-revm.workspace = true
 
 # misc
@@ -63,7 +61,6 @@ std = [
     "alloy-eips/std",
     "alloy-genesis/std",
     "alloy-primitives/std",
-    "revm-primitives/std",
     "reth-primitives-traits/std",
     "revm/std",
     "reth-optimism-primitives/std",
@@ -80,7 +77,6 @@ std = [
     "reth-execution-types/std",
     "alloy-evm/std",
     "alloy-op-evm/std",
-    "revm-database/std",
     "op-revm/std",
     "reth-evm/std",
     "tracing/std",

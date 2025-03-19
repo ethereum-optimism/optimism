@@ -229,9 +229,13 @@ mod tests {
     use reth_optimism_chainspec::BASE_MAINNET;
     use reth_optimism_primitives::{OpBlock, OpPrimitives, OpReceipt};
     use reth_primitives_traits::{Account, RecoveredBlock};
-    use revm::{database_interface::EmptyDBTyped, inspector::NoOpInspector, state::AccountInfo};
-    use revm_database::{BundleState, CacheDB};
-    use revm_primitives::Log;
+    use revm::{
+        database::{BundleState, CacheDB},
+        database_interface::EmptyDBTyped,
+        inspector::NoOpInspector,
+        primitives::Log,
+        state::AccountInfo,
+    };
     use std::sync::Arc;
 
     fn test_evm_config() -> OpEvmConfig {
