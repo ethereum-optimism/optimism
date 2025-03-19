@@ -19,6 +19,7 @@ type Call interface {
 
 type Result interface {
 	FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error
+	Init() Result
 }
 
 type IntentTx[V Call, R Result] struct {
@@ -45,7 +46,7 @@ func NewIntent[V Call, R Result](opts ...txplan.Option) *IntentTx[V, R] {
 	})
 	v.Result.DependOn(&v.PlannedTx.Included, &v.PlannedTx.IncludedBlock, &v.PlannedTx.ChainID)
 	v.Result.Fn(func(ctx context.Context) (R, error) {
-		var r R
+		r := (*new(R)).Init().(R)
 		err := r.FromReceipt(ctx, v.PlannedTx.Included.Value(), v.PlannedTx.IncludedBlock.Value(), v.PlannedTx.ChainID.Value())
 		return r, err
 	})
