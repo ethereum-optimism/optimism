@@ -172,6 +172,58 @@ func (s *L2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (
 	return cfg, nil
 }
 
+func (s *L2CLient) StatelessOutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.StatelessOutputV0, error) {
+	head, txs, err := s.InfoAndTxsByNumber(ctx, blockNum)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get L2 block by hash: %w", err)
+	}
+	return s.statelessOutputV0(ctx, head, txs)
+}
+
+func (s *L2CLient) StatelessOutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.StatelessOutputV0, error) {
+	head, txs, err := s.InfoAndTxsByHash(ctx, blockHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get L2 block by hash: %w", err)
+	}
+	return s.statelessOutputV0(ctx, head, txs)
+}
+
+func (s *L2Client) statelessOutputV0(ctx context.Context, block eth.BlockInfo) (*eth.StatelessOutputV0, error) {
+	if block == nil {
+		return nil, ethereum.NotFound
+	}
+
+	blockHash := block.Hash()
+	var messagePasserStorageRoot eth.Bytes32
+	if s.rollupCfg.IsIsthmus(block.Time()) {
+		// If Isthmus hard fork has activated, we can get the messagePasserStorageRoot directly from the header
+		// instead of having to compute it from the contract storage trie.
+		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())
+	} else {
+		proof, err := s.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get contract proof at block %s: %w", blockHash, err)
+		}
+		if proof == nil {
+			return nil, fmt.Errorf("proof %w", ethereum.NotFound)
+		}
+		// make sure that the proof (including storage hash) that we retrieved is correct by verifying it against the state-root
+		if err := proof.Verify(block.Root()); err != nil {
+			return nil, fmt.Errorf("invalid withdrawal root hash, state root was %s: %w", block.Root(), err)
+		}
+		messagePasserStorageRoot = eth.Bytes32(proof.StorageHash)
+	}
+
+	stateRoot := eth.Bytes32(block.Root())
+	return &eth.StatelessOutputV0{
+		StateRoot:                stateRoot,
+		MessagePasserStorageRoot: messagePasserStorageRoot,
+		BlockHash:                blockHash,
+		Transactions:             transactions,
+		Witness:                  witness,
+	}, nil
+}
+
 func (s *L2Client) OutputV0AtBlockNumber(ctx context.Context, blockNum uint64) (*eth.OutputV0, error) {
 	head, err := s.InfoByNumber(ctx, blockNum)
 	if err != nil {
