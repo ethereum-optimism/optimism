@@ -5,8 +5,9 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"math/big"
+
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,7 +22,7 @@ import (
 
 type PlannedTx struct {
 	// Block that we schedule against
-	AgainstBlock  plan.Lazy[*types.Header]
+	AgainstBlock  plan.Lazy[eth.BlockInfo]
 	Unsigned      plan.Lazy[types.TxData]
 	Signed        plan.Lazy[*types.Transaction]
 	Submitted     plan.Lazy[struct{}]
@@ -68,10 +69,14 @@ func Combine(opts ...Option) Option {
 func NewPlannedTx(opts ...Option) *PlannedTx {
 	tx := &PlannedTx{}
 	tx.Defaults()
-	for _, opt := range opts {
-		opt(tx)
-	}
+	Combine(opts...)(tx)
 	return tx
+}
+
+func WithTo(to *common.Address) Option {
+	return func(tx *PlannedTx) {
+		tx.To.Set(to)
+	}
 }
 
 func WithValue(val *big.Int) Option {
@@ -168,11 +173,15 @@ func WithAssumedInclusion(cl ReceiptGetter) Option {
 	}
 }
 
-func WithRetryInclusion(maxAttempts int, strat retry.Strategy) Option {
+func WithRetryInclusion(cl ReceiptGetter, maxAttempts int, strategy retry.Strategy) Option {
 	return func(tx *PlannedTx) {
+		tx.Included.DependOn(&tx.Signed, &tx.Submitted)
+		tx.Included.Fn(func(ctx context.Context) (*types.Receipt, error) {
+			return cl.TransactionReceipt(ctx, tx.Signed.Value().Hash())
+		})
 		tx.Included.Wrap(func(fn plan.Fn[*types.Receipt]) plan.Fn[*types.Receipt] {
 			return func(ctx context.Context) (*types.Receipt, error) {
-				return retry.Do(ctx, maxAttempts, strat, func() (*types.Receipt, error) {
+				return retry.Do(ctx, maxAttempts, strategy, func() (*types.Receipt, error) {
 					return fn(ctx)
 				})
 			}
@@ -207,6 +216,34 @@ func WithPendingNonce(cl PendingNonceAt) Option {
 	}
 }
 
+type AgainstLatestBlock interface {
+	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
+}
+
+func WithAgainstLatestBlock(cl AgainstLatestBlock) Option {
+	return func(tx *PlannedTx) {
+		tx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
+			return cl.InfoByLabel(ctx, eth.Unsafe)
+		})
+	}
+}
+
+type ChainID interface {
+	ChainID(ctx context.Context) (*big.Int, error)
+}
+
+func WithChainID(cl ChainID) Option {
+	return func(tx *PlannedTx) {
+		tx.ChainID.Fn(func(ctx context.Context) (eth.ChainID, error) {
+			chainID, err := cl.ChainID(ctx)
+			if err != nil {
+				return eth.ChainID{}, err
+			}
+			return eth.ChainIDFromBig(chainID), nil
+		})
+	}
+}
+
 func (tx *PlannedTx) Defaults() {
 	tx.Type.Set(types.DynamicFeeTxType)
 	tx.To.Set(nil)
@@ -224,7 +261,7 @@ func (tx *PlannedTx) Defaults() {
 	tx.GasFeeCap.DependOn(&tx.GasTipCap, &tx.AgainstBlock)
 	tx.GasFeeCap.Fn(func(ctx context.Context) (*big.Int, error) {
 		tip := tx.GasTipCap.Value()
-		basefee := tx.AgainstBlock.Value().BaseFee
+		basefee := tx.AgainstBlock.Value().BaseFee()
 		feeCap := big.NewInt(0)
 		feeCap = feeCap.Add(tip, basefee)
 		return feeCap, nil

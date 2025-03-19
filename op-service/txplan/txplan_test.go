@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -17,7 +18,10 @@ func TestPlannedTx_Defaults(t *testing.T) {
 
 	ptx := NewPlannedTx(WithPrivateKey(key), WithValue(big.NewInt(123)))
 	t.Log("tx", ptx.Signed.String())
-	ptx.AgainstBlock.Set(&types.Header{BaseFee: big.NewInt(7e9)})
+
+	block := types.NewBlock(&types.Header{BaseFee: big.NewInt(7e9)}, nil, nil, nil, types.DefaultBlockConfig)
+	blockInfo := eth.BlockToInfo(block)
+	ptx.AgainstBlock.Set(blockInfo)
 
 	expectedAddr := crypto.PubkeyToAddress(key.PublicKey)
 	signer := types.LatestSignerForChainID(big.NewInt(1))
