@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/script"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -49,7 +50,7 @@ func NewComparatorFromCli(ctx *cli.Context) (*Comparator, error) {
 		return nil, fmt.Errorf("failed to unmarshal addresses file: %w", err)
 	}
 
-	chainConfigs, err := readChainConfigs(lgr, fetchOutputDir)
+	chainConfigs, err := readChainConfigs(fetchOutputDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read chain configs: %w", err)
 	}
@@ -69,7 +70,7 @@ func NewComparatorFromCli(ctx *cli.Context) (*Comparator, error) {
 
 // readChainConfigs reads all json files in a given directory and returns a
 // map of chainId to ChainConfig
-func readChainConfigs(lgr log.Logger, dirPath string) (map[uint64]script.ChainConfig, error) {
+func readChainConfigs(dirPath string) (map[uint64]script.ChainConfig, error) {
 	files, err := os.ReadDir(dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read directory: %w", err)
@@ -77,7 +78,8 @@ func readChainConfigs(lgr log.Logger, dirPath string) (map[uint64]script.ChainCo
 
 	configs := make(map[uint64]script.ChainConfig)
 	for _, file := range files {
-		if file.IsDir() {
+		if file.IsDir() ||
+			!strings.HasSuffix(file.Name(), ".json") {
 			continue
 		}
 
@@ -94,8 +96,7 @@ func readChainConfigs(lgr log.Logger, dirPath string) (map[uint64]script.ChainCo
 		}
 
 		if config.ChainId == 0 {
-			lgr.Warn("skipping file", "filePath", filePath)
-			continue
+			return nil, fmt.Errorf("chain id is not set for %s", filePath)
 		}
 
 		configs[config.ChainId] = config

@@ -14,7 +14,7 @@ func (c *Comparator) CompareProofs() (map[uint64]script.FaultProofStatus, error)
 		c.lgr.Info("comparing chain info", "chainID", chainID)
 		expected, exists := c.ChainList[chainID]
 		if !exists {
-			return result, fmt.Errorf("chainID %d exists in CombinedAddresses but not in FetchOutput", chainID)
+			return result, fmt.Errorf("chainID %d exists in FetchOutput but not in ChainList", chainID)
 		}
 
 		if expected.FaultProofStatus != actual.FaultProofStatus {
