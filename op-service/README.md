@@ -25,6 +25,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── log             - Logging CLI and middleware utils
 ├── metrics         - Metrics types, metering abstractions, server utils
 ├── oppprof         - P-Prof CLI types and server setup
+├── plan            - Utils to create a lazy evaluated value following dependencies
 ├── predeploys      - OP-Stack predeploy definitions
 ├── queue           - Generic queue implementation
 ├── retry           - Function retry utils
@@ -39,6 +40,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── testutils       - Simplified Ethereum types, mock RPC bindings, utils for testing.
 ├── tls             - CLI flags and utils to work with TLS connections
 ├── txmgr           - Transaction manager: automated nonce, fee and confirmation handling.
+├── txplan          - PlannedTx to declaratively build/execute/wait transactions
 └── *.go            - Miscellaneous utils (soon to be deprecated / moved)
 ```
 
