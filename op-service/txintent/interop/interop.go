@@ -19,6 +19,7 @@ import (
 
 var _ txintent.Call = (*InitTrigger)(nil)
 var _ txintent.Call = (*ExecTrigger)(nil)
+var _ txintent.Call = (*RelayTrigger)(nil)
 var _ txintent.Result = (*InteropOutput)(nil)
 
 type InitTrigger struct {
@@ -124,4 +125,36 @@ func ExecuteIndexed(events *plan.Lazy[*InteropOutput], index int) func(ctx conte
 			Msg:      events.Value().Entries[index],
 		}, nil
 	}
+}
+
+type RelayTrigger struct {
+	ExecTrigger
+	Payload []byte
+}
+
+func (v *RelayTrigger) Data() ([]byte, error) {
+	// TODO: Need to do better construct call input than this
+	relayMessage := w3.MustNewFunc("relayMessage((address Origin, uint256 BlockNumber, uint256 LogIndex, uint256 Timestamp, uint256 ChainId), bytes sentMessage)", "bytes returnData")
+	type Identifier struct {
+		Origin      common.Address
+		BlockNumber *big.Int
+		LogIndex    *big.Int
+		Timestamp   *big.Int
+		ChainId     *big.Int
+	}
+	identifier := &Identifier{
+		v.Msg.Identifier.Origin,
+		big.NewInt(int64(v.Msg.Identifier.BlockNumber)),
+		big.NewInt(int64(v.Msg.Identifier.LogIndex)),
+		big.NewInt(int64(v.Msg.Identifier.Timestamp)),
+		v.Msg.Identifier.ChainID.ToBig(),
+	}
+	relayMessageCalldata, err := relayMessage.EncodeArgs(
+		identifier,
+		v.Payload,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return relayMessageCalldata, nil
 }
