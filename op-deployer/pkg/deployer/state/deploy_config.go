@@ -1,6 +1,7 @@
 package state
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -29,6 +30,9 @@ var (
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
 	upgradeSchedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
 	if intent.UseInterop {
+		if upgradeSchedule.L2GenesisIsthmusTimeOffset == nil {
+			return genesis.DeployConfig{}, errors.New("expecting isthmus fork to be enabled for interop deployments")
+		}
 		upgradeSchedule.UseInterop = true
 	}
 

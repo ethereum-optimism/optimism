@@ -174,6 +174,10 @@ func (s *interopE2ESystem) prepareWorld(w WorldResourcePaths) (*interopgen.World
 	worldCfg, err := s.recipe.Build(s.hdWallet)
 	require.NoError(s.t, err)
 
+	for _, l2Cfg := range worldCfg.L2s {
+		require.NotNil(s.t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting isthmus fork to be enabled for interop deployments")
+	}
+
 	// create a logger for the world configuration
 	logger := s.logger.New("role", "world")
 	require.NoError(s.t, worldCfg.Check(logger))

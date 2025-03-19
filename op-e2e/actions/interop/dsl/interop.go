@@ -134,6 +134,10 @@ func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 	worldCfg, err := recipe.Build(hdWallet)
 	require.NoError(t, err)
 
+	for _, l2Cfg := range worldCfg.L2s {
+		require.NotNil(t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting isthmus fork to be enabled for interop deployments")
+	}
+
 	// create the foundry artifacts and source map
 	foundryArtifacts := foundry.OpenArtifactsDir(foundryArtifactsDir)
 	sourceMap := foundry.NewSourceMapFS(os.DirFS(sourceMapDir))
