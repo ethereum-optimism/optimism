@@ -3,6 +3,7 @@ package faultproofs
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	oppreimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -234,7 +236,7 @@ func TestOutputCannonStepWithPreimage_Multithreaded(t *testing.T) {
 
 func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	testPreimageStep := func(t *testing.T, preimageType utils.PreimageOpt, preloadPreimage bool) {
+	testPreimageStep := func(t *testing.T, preimageOptConfig utils.PreimageOptConfig, preloadPreimage bool) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
@@ -256,21 +258,37 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
 		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageType, preimageLoadCheck, preloadPreimage)
+		// We need the honest challenger to step-defend the STF from A -> B such that A loads the preimage
+		// The ChallengeToPreimageLoadAtTarget method will induce a step-defend on odd numbered trace index from the honest challenger.
+		step := game.FindOddStepForPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageOptConfig)
+		game.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, step, preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
 
-	preimageConditions := []string{"keccak", "sha256", "blob"}
-	for _, preimageType := range preimageConditions {
-		preimageType := preimageType
-		t.Run("non-existing preimage-"+preimageType, func(t *testing.T) {
-			testPreimageStep(t, utils.FirstPreimageLoadOfType(preimageType), false)
+	t.Run("non-existing preimage-keccak", func(t *testing.T) {
+		conf := utils.PreimageOptConfigForType(oppreimage.Keccak256KeyType)
+		testPreimageStep(t, conf, false)
+	})
+	t.Run("non-existing preimage-sha256", func(t *testing.T) {
+		conf := utils.PreimageOptConfigForType(oppreimage.Sha256KeyType)
+		testPreimageStep(t, conf, false)
+	})
+
+	// Include non-zero offset to induce a load of the part of the preimage after the length prefix
+	blobOffsets := []uint32{0, 8, 16, 24, 32, 40, 48, 56, 60}
+	for _, offset := range blobOffsets {
+		t.Run("non-existing preimage-blob-"+strconv.Itoa(int(offset)), func(t *testing.T) {
+			conf := utils.PreimageOptConfigForType(oppreimage.BlobKeyType)
+			conf.Offset = offset
+			testPreimageStep(t, conf, false)
 		})
 	}
+
 	// Only test pre-existing images with one type to save runtime
 	t.Run("preimage already exists", func(t *testing.T) {
-		testPreimageStep(t, utils.FirstKeccakPreimageLoad(), true)
+		conf := utils.PreimageOptConfigForType(oppreimage.Keccak256KeyType)
+		testPreimageStep(t, conf, true)
 	})
 }
 

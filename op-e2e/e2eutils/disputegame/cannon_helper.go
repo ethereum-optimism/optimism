@@ -171,18 +171,40 @@ func (g *CannonHelper) CreateStepPreimageLoadCheck(ctx context.Context) Preimage
 	}
 }
 
+func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, poConfig utils.PreimageOptConfig) uint64 {
+	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
+	for {
+		preimageOpt := poConfig.PreimageLoad()
+		g.t.Logf("Finding step with preimage load config %#v", poConfig)
+		step, err := provider.FindStep(ctx, 0, preimageOpt)
+		if errors.Is(err, io.EOF) {
+			// Unlikely to happen, but potential flake if it does occur
+			g.t.Fatalf("Trace does not contain an odd step that matching the specified preimage load")
+		}
+		g.require.NoError(err, "Find step failed")
+		if step%2 == 1 {
+			return step
+		}
+		poConfig.AfterStep = step + 1
+	}
+}
+
+func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
+	// Identifying the first state transition that loads a global preimage
+	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
+	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
+	g.require.NoError(err)
+	g.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, challengerKey, targetTraceIndex, preimageCheck, preloadPreimage)
+}
+
 // ChallengeToPreimageLoad challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
 // It does this by:
 // 1. Identifying the first state transition that loads a global preimage
 // 2. Descending the execution game tree to reach the step that loads the preimage
 // 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
-	// Identifying the first state transition that loads a global preimage
+func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, targetTraceIndex uint64, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
 	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
-	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
-	g.require.NoError(err)
-
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	execDepth := g.splitGame.ExecDepth(ctx)
 	g.require.NotEqual(outputRootClaim.Position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")

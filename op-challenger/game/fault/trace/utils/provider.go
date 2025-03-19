@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -92,5 +93,23 @@ func FirstPrecompilePreimageLoad() PreimageOpt {
 func PreimageLargerThan(size int) PreimageOpt {
 	return func() preimageOpts {
 		return []string{"--stop-at-preimage-larger-than", strconv.Itoa(size)}
+	}
+}
+
+type PreimageOptConfig struct {
+	KeyPrefix string
+	Offset    uint32
+	AfterStep uint64
+}
+
+func PreimageOptConfigForType(keyType preimage.KeyType) PreimageOptConfig {
+	return PreimageOptConfig{KeyPrefix: fmt.Sprintf("%x", keyType)}
+}
+
+func (conf PreimageOptConfig) PreimageLoad() PreimageOpt {
+	keyPrefix := strings.TrimPrefix(conf.KeyPrefix, "0x")
+	keyPrefix = strings.TrimPrefix(keyPrefix, "0X")
+	return func() preimageOpts {
+		return []string{"--stop-at-preimage", fmt.Sprintf("%s@%v@%v", keyPrefix, conf.Offset, conf.AfterStep)}
 	}
 }
