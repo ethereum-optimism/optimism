@@ -8,12 +8,17 @@ ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-ac
 default:
     @just acceptance-test simple holocene
 
-isthmus:
-    @just acceptance-test isthmus isthmus
-
 holocene:
     @just acceptance-test simple holocene
 
+isthmus:
+    @just acceptance-test isthmus isthmus
+
+interop:
+    @just acceptance-test interop interop
+
+
+# DEVNET_ENV_URL
 
 # Run acceptance tests with mise-managed binary
 acceptance-test devnet="simple" gate="holocene":
