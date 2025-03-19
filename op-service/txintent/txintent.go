@@ -14,7 +14,7 @@ import (
 type Call interface {
 	To() (*common.Address, error)
 	Data() ([]byte, error)
-	// AccessList
+	AccessList() (types.AccessList, error)
 }
 
 type Result interface {
@@ -39,8 +39,10 @@ func NewIntent[V Call, R Result](opts ...txplan.Option) *IntentTx[V, R] {
 	v.PlannedTx.Data.Fn(func(ctx context.Context) (hexutil.Bytes, error) {
 		return v.Content.Value().Data()
 	})
-	// TODO add access-list relation
-
+	v.PlannedTx.AccessList.DependOn(&v.Content)
+	v.PlannedTx.AccessList.Fn(func(ctx context.Context) (types.AccessList, error) {
+		return v.Content.Value().AccessList()
+	})
 	v.Result.DependOn(&v.PlannedTx.Included, &v.PlannedTx.IncludedBlock, &v.PlannedTx.ChainID)
 	v.Result.Fn(func(ctx context.Context) (R, error) {
 		var r R
