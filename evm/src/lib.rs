@@ -54,8 +54,10 @@ pub struct OpEvmConfig<
     N: NodePrimitives = OpPrimitives,
     R = OpRethReceiptBuilder,
 > {
-    executor_factory: OpBlockExecutorFactory<R, Arc<ChainSpec>>,
-    block_assembler: OpBlockAssembler<ChainSpec>,
+    /// Inner [`OpBlockExecutorFactory`].
+    pub executor_factory: OpBlockExecutorFactory<R, Arc<ChainSpec>>,
+    /// Optimism block assembler.
+    pub block_assembler: OpBlockAssembler<ChainSpec>,
     _pd: core::marker::PhantomData<N>,
 }
 

@@ -193,6 +193,11 @@ impl<N: NodePrimitives> OpBuiltPayload<N> {
     pub const fn fees(&self) -> U256 {
         self.fees
     }
+
+    /// Converts the value into [`SealedBlock`].
+    pub fn into_sealed_block(self) -> SealedBlock<N::Block> {
+        Arc::unwrap_or_clone(self.block)
+    }
 }
 
 impl<N: NodePrimitives> BuiltPayload for OpBuiltPayload<N> {

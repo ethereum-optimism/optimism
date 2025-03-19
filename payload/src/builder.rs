@@ -264,7 +264,8 @@ pub struct OpBuilder<'a, Txs> {
 }
 
 impl<'a, Txs> OpBuilder<'a, Txs> {
-    fn new(best: impl FnOnce(BestTransactionsAttributes) -> Txs + Send + Sync + 'a) -> Self {
+    /// Creates a new [`OpBuilder`].
+    pub fn new(best: impl FnOnce(BestTransactionsAttributes) -> Txs + Send + Sync + 'a) -> Self {
         Self { best: Box::new(best) }
     }
 }
