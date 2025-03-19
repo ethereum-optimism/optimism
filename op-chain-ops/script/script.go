@@ -519,6 +519,7 @@ func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Addre
 	if len(h.callStack) == 0 {
 		return
 	}
+
 	parentCallFrame := h.callStack[len(h.callStack)-1]
 	if parentCallFrame.Prank == nil {
 		return
@@ -581,10 +582,6 @@ func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, rever
 // handleRevertErr bubbles up error messages from within the EVM to callers. This makes it more obvious what went wrong
 // by putting the root causes of reverts in error messages, rather than buried in logs.
 func (h *Host) handleRevertErr(addr common.Address, err error, revertMsg string, revertData []byte) {
-	if h.evmRevertErr != nil {
-		return
-	}
-
 	// if we have an actual revert message, use that
 	if revertMsg != "" {
 		h.evmRevertErr = fmt.Errorf("execution reverted at %s with message: %s", addr, revertMsg)

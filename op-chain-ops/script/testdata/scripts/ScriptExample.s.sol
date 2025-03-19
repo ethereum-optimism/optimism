@@ -262,6 +262,10 @@ contract ErrorTester {
         } catch Error(string memory reason) {
             require(keccak256(abi.encodePacked(reason)) == keccak256(abi.encodePacked("honk")), "reason should be 'honk'");
         }
+
+        // Reverting here validates that reverts in a try/catch
+        // are replaced by other reverts.
+        revert("caught");
     }
 }
 

@@ -460,18 +460,14 @@ func TestScriptErrorHandling(t *testing.T) {
 		{
 			"try/catch",
 			"tryCatch()",
-			"",
+			"caught",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := bytes4(tt.method)
 			_, _, err := h.Call(scriptContext.Sender, addr, input[:], DefaultFoundryGasLimit, uint256.NewInt(0))
-			if tt.expError == "" {
-				require.NoError(t, err)
-			} else {
-				require.ErrorContains(t, err, tt.expError)
-			}
+			require.ErrorContains(t, err, tt.expError)
 			require.Nil(t, h.evmRevertErr)
 		})
 	}
