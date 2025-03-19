@@ -467,3 +467,99 @@ func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
 	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
 	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
 }
+
+func TestInterop_IntraBlockReferenceReplacement(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+
+	system := dsl.NewInteropDSL(t)
+
+	actors := system.Actors
+	alice := system.CreateUser()
+	emitterContract := dsl.NewEmitterContract(t)
+	// Deploy emitter contract to both chains
+	system.AddL2Block(actors.ChainA, dsl.WithL2BlockTransactions(
+		emitterContract.Deploy(alice),
+	))
+	system.AddL2Block(actors.ChainB, dsl.WithL2BlockTransactions(
+		emitterContract.Deploy(alice),
+	))
+
+	assertHeads(t, actors.ChainA, 1, 0, 1, 0)
+	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
+
+	// Create initiating and executing messages within the same block
+	var (
+		chainAExecTx *dsl.GeneratedTransaction
+		chainBExecTx *dsl.GeneratedTransaction
+		chainBInitTx *dsl.GeneratedTransaction
+	)
+	{
+		actors.ChainA.Sequencer.ActL2StartBlock(t)
+		actors.ChainB.Sequencer.ActL2StartBlock(t)
+
+		chainAInitTx := emitterContract.EmitMessage(alice, "chainA message")(actors.ChainA)
+		chainAInitTx.Include()
+
+		// Create messages with a conflicting payload on chain B, while also emitting an initiating message
+		chainBExecTx := system.InboxContract.Execute(alice, chainAInitTx,
+			dsl.WithPayload([]byte("this message was never emitted")))(actors.ChainB)
+		chainBExecTx.Include()
+		chainBInitTx = emitterContract.EmitMessage(alice, "chainB message")(actors.ChainB)
+		chainBInitTx.Include()
+
+		// Create a message with a valid message on chain A, pointing to the initiating message on B from the same block
+		// as an invalid message.
+		chainAExecTx = system.InboxContract.Execute(alice, chainBInitTx)(actors.ChainA)
+		chainAExecTx.Include()
+
+		actors.ChainA.Sequencer.ActL2EndBlock(t)
+		actors.ChainB.Sequencer.ActL2EndBlock(t)
+	}
+
+	assertHeads(t, actors.ChainA, 2, 0, 1, 0)
+	assertHeads(t, actors.ChainB, 2, 0, 1, 0)
+
+	system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
+		opts.SkipCrossSafeUpdate = true
+	})
+
+	assertHeads(t, actors.ChainA, 2, 2, 1, 0)
+	assertHeads(t, actors.ChainB, 2, 2, 1, 0)
+
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	system.AddL2Block(actors.ChainA)
+	system.AddL2Block(actors.ChainB, dsl.WithL1BlockCrossUnsafe())
+	system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
+		opts.SkipCrossSafeUpdate = true
+	})
+	statusA, statusB := actors.ChainA.Sequencer.SyncStatus(), actors.ChainB.Sequencer.SyncStatus()
+	t.Logf("statusA :%#v", statusA)
+	t.Logf("statusB :%#v", statusB)
+
+	system.AddL2Block(actors.ChainA)
+	// A cross-unsafe head advances, but B's cross-unsafe head stalls
+	system.AddL2Block(actors.ChainB, dsl.WithL1BlockCrossUnsafe())
+	statusA, statusB = actors.ChainA.Sequencer.SyncStatus(), actors.ChainB.Sequencer.SyncStatus()
+	t.Logf("statusA :%#v", statusA)
+	t.Logf("statusB :%#v", statusB)
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	statusA, statusB = actors.ChainA.Sequencer.SyncStatus(), actors.ChainB.Sequencer.SyncStatus()
+	t.Logf("statusA :%#v", statusA)
+	t.Logf("statusB :%#v", statusB)
+	require.True(t, statusA.CrossUnsafeL2.Number > 1, "chainA cross-unsafe head is stalled")
+	// cross-unsafe on A advances again, but B continues to stall
+	require.True(t, statusB.CrossUnsafeL2.Number > 1, "chainB cross-unsafe head is stalled")
+
+	// assert that the invalid message txs were reorged out
+	chainBExecTx.CheckNotIncluded()
+	chainBInitTx.CheckNotIncluded() // Should have been reorged out with chainBExecTx
+	chainAExecTx.CheckNotIncluded() // Reorged out because chainBInitTx was reorged out
+}
