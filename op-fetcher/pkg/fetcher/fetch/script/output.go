@@ -54,7 +54,7 @@ func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
-func WriteChainConfigToFile(output FetchChainInfoOutput, chainName string, chainId uint64) error {
+func WriteChainConfigToFile(outputDir string, output FetchChainInfoOutput, chainName string, chainId uint64) error {
 	fileData := ChainConfig{
 		ChainName: chainName,
 		ChainId:   chainId,
@@ -72,11 +72,11 @@ func WriteChainConfigToFile(output FetchChainInfoOutput, chainName string, chain
 		return fmt.Errorf("failed to marshal output: %w", err)
 	}
 
-	if err := os.MkdirAll("./.fetcher", 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	outputFile := filepath.Join("./.fetcher", fmt.Sprintf("%d.json", chainId))
+	outputFile := filepath.Join(outputDir, fmt.Sprintf("%d.json", chainId))
 	err = os.WriteFile(outputFile, json, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write output to file: %w", err)

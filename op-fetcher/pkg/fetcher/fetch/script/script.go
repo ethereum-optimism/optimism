@@ -18,13 +18,13 @@ type ChainConfig struct {
 	ChainName        string           `toml:"chain_name" json:"chain_name"`
 	Addresses        Addresses        `toml:"addresses" json:"addresses"`
 	Roles            Roles            `toml:"roles" json:"roles"`
-	FaultProofStatus FaultProofStatus `toml:"fault_proof_status" json:"fault_proof_status"`
+	FaultProofStatus FaultProofStatus `toml:"fault_proofs" json:"fault_proofs"`
 }
 
 type FaultProofStatus struct {
-	Permissioned      bool
-	Permissionless    bool
-	RespectedGameType uint32
+	Permissioned      bool   `toml:"permissioned" json:"permissioned"`
+	Permissionless    bool   `toml:"permissionless" json:"permissionless"`
+	RespectedGameType uint32 `toml:"respected_game_type" json:"respected_game_type"`
 }
 
 func FetchChainInfo(h *script.Host, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
