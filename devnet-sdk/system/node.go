@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
@@ -16,9 +21,10 @@ var (
 )
 
 type node struct {
-	rpcUrl string
-
-	clients *clientManager
+	rpcUrl   string
+	clients  *clientManager
+	mu       sync.Mutex
+	registry interfaces.ContractsRegistry
 }
 
 func newNode(rpcUrl string, clients *clientManager) *node {
@@ -77,4 +83,51 @@ func (n *node) BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInf
 		return nil, err
 	}
 	return block, nil
+}
+
+func (n *node) Client() (*sources.EthClient, error) {
+	return n.clients.Client(n.rpcUrl)
+}
+
+func (n *node) GethClient() (*ethclient.Client, error) {
+	return n.clients.GethClient(n.rpcUrl)
+}
+
+func (n *node) ContractsRegistry() interfaces.ContractsRegistry {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if n.registry != nil {
+		return n.registry
+	}
+	client, err := n.clients.GethClient(n.rpcUrl)
+	if err != nil {
+		return contracts.NewEmptyRegistry()
+	}
+
+	n.registry = contracts.NewClientRegistry(client)
+	return n.registry
+}
+
+func (n *node) RPCURL() string {
+	return n.rpcUrl
+}
+
+func (n *node) SupportsEIP(ctx context.Context, eip uint64) bool {
+	client, err := n.Client()
+	if err != nil {
+		return false
+	}
+
+	switch eip {
+	case 1559:
+		return checkHeader(ctx, client, func(h eth.BlockInfo) bool {
+			return h.BaseFee() != nil
+		})
+	case 4844:
+		return checkHeader(ctx, client, func(h eth.BlockInfo) bool {
+			return h.ExcessBlobGas() != nil
+		})
+	}
+	return false
 }

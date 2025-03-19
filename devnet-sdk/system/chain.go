@@ -7,9 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -119,46 +117,14 @@ func (m *clientManager) GethClient(rpcURL string) (*ethclient.Client, error) {
 
 type chain struct {
 	id          string
-	rpcUrl      string
 	wallets     WalletMap
-	clients     *clientManager
-	registry    interfaces.ContractsRegistry
-	mu          sync.Mutex
-	node        Node
+	nodes       []Node
 	chainConfig *params.ChainConfig
 	addresses   AddressMap
 }
 
-func (c *chain) Node() Node {
-	return c.node
-}
-
-func (c *chain) Client() (*sources.EthClient, error) {
-	return c.clients.Client(c.rpcUrl)
-}
-
-func (c *chain) GethClient() (*ethclient.Client, error) {
-	return c.clients.GethClient(c.rpcUrl)
-}
-
-func (c *chain) ContractsRegistry() interfaces.ContractsRegistry {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.registry != nil {
-		return c.registry
-	}
-	client, err := c.clients.GethClient(c.rpcUrl)
-	if err != nil {
-		return contracts.NewEmptyRegistry()
-	}
-
-	c.registry = contracts.NewClientRegistry(client)
-	return c.registry
-}
-
-func (c *chain) RPCURL() string {
-	return c.rpcUrl
+func (c *chain) Nodes() []Node {
+	return c.nodes
 }
 
 // Wallet returns the first wallet which meets all provided constraints, or an
@@ -180,6 +146,25 @@ func (c *chain) ID() types.ChainID {
 	return types.ChainID(id)
 }
 
+func (c *chain) Config() (*params.ChainConfig, error) {
+	if c.chainConfig == nil {
+		return nil, fmt.Errorf("chain config not configured on L1 chains yet")
+	}
+	return c.chainConfig, nil
+}
+
+func (c *chain) Addresses() AddressMap {
+	return c.addresses
+}
+
+// SupportsEIP checks if the chain's first node supports the given EIP
+func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
+	if len(c.nodes) == 0 {
+		return false
+	}
+	return c.nodes[0].SupportsEIP(ctx, eip)
+}
+
 func checkHeader(ctx context.Context, client *sources.EthClient, check func(eth.BlockInfo) bool) bool {
 	info, err := client.InfoByLabel(ctx, eth.Unsafe)
 	if err != nil {
@@ -188,38 +173,21 @@ func checkHeader(ctx context.Context, client *sources.EthClient, check func(eth.
 	return check(info)
 }
 
-func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
-	client, err := c.Client()
-	if err != nil {
-		return false
+func newNodesFromDescriptor(d *descriptors.Chain) []Node {
+	clients := newClientManager()
+	nodes := make([]Node, len(d.Nodes))
+	for i, node := range d.Nodes {
+		rpc := node.Services["el"].Endpoints["rpc"]
+		nodes[i] = newNode(fmt.Sprintf("http://%s:%d", rpc.Host, rpc.Port), clients)
 	}
-
-	switch eip {
-	case 1559:
-		return checkHeader(ctx, client, func(h eth.BlockInfo) bool {
-			return h.BaseFee() != nil
-		})
-	case 4844:
-		return checkHeader(ctx, client, func(h eth.BlockInfo) bool {
-			return h.ExcessBlobGas() != nil
-		})
-	}
-	return false
+	return nodes
 }
 
-func (c *chain) Config() (*params.ChainConfig, error) {
-	if c.chainConfig == nil {
-		return nil, fmt.Errorf("chain config not configured on L1 chains yet")
-	}
-	return c.chainConfig, nil
-}
-
-func newChainFromDescriptor(d *descriptors.Chain) (Chain, error) {
+func newChainFromDescriptor(d *descriptors.Chain) (*chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
-	firstNodeRPC := d.Nodes[0].Services["el"].Endpoints["rpc"]
-	rpcURL := fmt.Sprintf("http://%s:%d", firstNodeRPC.Host, firstNodeRPC.Port)
 
-	c := newChain(d.ID, rpcURL, nil, d.Config, AddressMap(d.Addresses)) // Create chain first
+	nodes := newNodesFromDescriptor(d)
+	c := newChain(d.ID, nil, d.Config, AddressMap(d.Addresses), nodes) // Create chain first
 
 	wallets, err := newWalletMapFromDescriptorWalletMap(d.Wallets, c)
 	if err != nil {
@@ -230,37 +198,29 @@ func newChainFromDescriptor(d *descriptors.Chain) (Chain, error) {
 	return c, nil
 }
 
-func newChain(chainID string, rpcUrl string, wallets WalletMap, chainConfig *params.ChainConfig, addresses AddressMap) *chain {
-	clients := newClientManager()
+func newChain(chainID string, wallets WalletMap, chainConfig *params.ChainConfig, addresses AddressMap, nodes []Node) *chain {
 	chain := &chain{
 		id:          chainID,
-		rpcUrl:      rpcUrl,
 		wallets:     wallets,
-		clients:     clients,
-		node:        newNode(rpcUrl, clients),
+		nodes:       nodes,
 		chainConfig: chainConfig,
 		addresses:   addresses,
 	}
 	return chain
 }
 
-func (c *chain) Addresses() AddressMap {
-	return c.addresses
-}
-
-func newL2ChainFromDescriptor(d *descriptors.L2Chain) (L2Chain, error) {
+func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
-	firstNodeRPC := d.Nodes[0].Services["el"].Endpoints["rpc"]
-	rpcURL := fmt.Sprintf("http://%s:%d", firstNodeRPC.Host, firstNodeRPC.Port)
 
-	c := newL2Chain(d.ID, rpcURL, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses)) // Create chain first
+	nodes := newNodesFromDescriptor(&d.Chain)
+	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses), nodes) // Create chain first
 
 	wallets := make(WalletMap)
 	for key, w := range d.Wallets {
 		// TODO: The assumption that the wallet will necessarily be used on chain `d` may
 		// be problematic if the L2 admin wallets are to be used to sign L1 transactions.
 		// TBD on whether they belong somewhere other than `d.Wallets`.
-		k, err := newWallet(w.PrivateKey, w.Address, c)
+		k, err := newWallet(w.PrivateKey, w.Address, c.chain)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create wallet: %w", err)
 		}
@@ -271,9 +231,9 @@ func newL2ChainFromDescriptor(d *descriptors.L2Chain) (L2Chain, error) {
 	return c, nil
 }
 
-func newL2Chain(chainID string, rpcUrl string, l1Wallets WalletMap, l2Wallets WalletMap, chainConfig *params.ChainConfig, l1Addresses AddressMap, l2Addresses AddressMap) *l2Chain {
+func newL2Chain(chainID string, l1Wallets WalletMap, l2Wallets WalletMap, chainConfig *params.ChainConfig, l1Addresses AddressMap, l2Addresses AddressMap, nodes []Node) *l2Chain {
 	chain := &l2Chain{
-		chain:       newChain(chainID, rpcUrl, l2Wallets, chainConfig, l2Addresses),
+		chain:       newChain(chainID, l2Wallets, chainConfig, l2Addresses, nodes),
 		l1Addresses: l1Addresses,
 		l1Wallets:   l1Wallets,
 	}

@@ -13,12 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 )
@@ -28,20 +26,13 @@ var (
 	_ Wallet = (*wallet)(nil)
 )
 
-// internalChain provides access to internal chain functionality
-type internalChain interface {
-	Chain
-	Client() (*sources.EthClient, error)
-	GethClient() (*ethclient.Client, error)
-}
-
 type wallet struct {
 	privateKey types.Key
 	address    types.Address
-	chain      internalChain
+	chain      Chain
 }
 
-func newWalletMapFromDescriptorWalletMap(descriptorWalletMap descriptors.WalletMap, chain internalChain) (WalletMap, error) {
+func newWalletMapFromDescriptorWalletMap(descriptorWalletMap descriptors.WalletMap, chain Chain) (WalletMap, error) {
 	result := WalletMap{}
 	for k, v := range descriptorWalletMap {
 		wallet, err := newWallet(v.PrivateKey, v.Address, chain)
@@ -53,7 +44,7 @@ func newWalletMapFromDescriptorWalletMap(descriptorWalletMap descriptors.WalletM
 	return result, nil
 }
 
-func newWallet(pk string, addr types.Address, chain internalChain) (*wallet, error) {
+func newWallet(pk string, addr types.Address, chain Chain) (*wallet, error) {
 	privateKey, err := privateKeyFromString(pk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert private from string: %w", err)
@@ -106,7 +97,7 @@ func (w *wallet) SendETH(to types.Address, amount types.Balance) types.WriteInvo
 }
 
 func (w *wallet) Balance() types.Balance {
-	client, err := w.chain.Client()
+	client, err := w.chain.Nodes()[0].Client()
 	if err != nil {
 		return types.Balance{}
 	}
@@ -141,7 +132,7 @@ func (w *wallet) ExecuteMessage(identifier bindings.Identifier, sentMessage []by
 }
 
 type initiateMessageImpl struct {
-	chain     internalChain
+	chain     Chain
 	processor TransactionProcessor
 	from      types.Address
 
@@ -152,7 +143,7 @@ type initiateMessageImpl struct {
 
 func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
 	builder := NewTxBuilder(ctx, i.chain)
-	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	messenger, err := i.chain.Nodes()[0].ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init transaction: %w", err)
 	}
@@ -196,7 +187,7 @@ func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
 }
 
 type executeMessageImpl struct {
-	chain     internalChain
+	chain     Chain
 	processor TransactionProcessor
 	from      types.Address
 
@@ -206,7 +197,7 @@ type executeMessageImpl struct {
 
 func (i *executeMessageImpl) Call(ctx context.Context) (any, error) {
 	builder := NewTxBuilder(ctx, i.chain)
-	messenger, err := i.chain.ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	messenger, err := i.chain.Nodes()[0].ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init transaction: %w", err)
 	}
@@ -265,7 +256,7 @@ func (i *executeMessageImpl) Send(ctx context.Context) types.InvocationResult {
 }
 
 func (w *wallet) Nonce() uint64 {
-	client, err := w.chain.Client()
+	client, err := w.chain.Nodes()[0].Client()
 	if err != nil {
 		return 0
 	}
@@ -320,7 +311,7 @@ func (w *wallet) Sign(tx Transaction) (Transaction, error) {
 
 func (w *wallet) Send(ctx context.Context, tx Transaction) error {
 	if st, ok := tx.(RawTransaction); ok {
-		client, err := w.chain.Client()
+		client, err := w.chain.Nodes()[0].Client()
 		if err != nil {
 			return fmt.Errorf("failed to get client: %w", err)
 		}
@@ -334,7 +325,7 @@ func (w *wallet) Send(ctx context.Context, tx Transaction) error {
 }
 
 type sendImpl struct {
-	chain     internalChain
+	chain     Chain
 	processor TransactionProcessor
 	from      types.Address
 	to        types.Address
@@ -388,7 +379,7 @@ func (i *sendImpl) Send(ctx context.Context) types.InvocationResult {
 }
 
 type sendResult struct {
-	chain   internalChain
+	chain   Chain
 	tx      Transaction
 	receipt Receipt
 	err     error
@@ -399,7 +390,7 @@ func (r *sendResult) Error() error {
 }
 
 func (r *sendResult) Wait() error {
-	client, err := r.chain.GethClient()
+	client, err := r.chain.Nodes()[0].GethClient()
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}

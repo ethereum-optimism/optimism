@@ -32,7 +32,7 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 		user := walletGetter(ctx)
 
 		scw0Addr := constants.SuperchainWETH
-		scw0, err := chain.ContractsRegistry().SuperchainWETH(scw0Addr)
+		scw0, err := chain.Nodes()[0].ContractsRegistry().SuperchainWETH(scw0Addr)
 		require.NoError(t, err)
 		logger.Info("using SuperchainWETH", "contract", scw0Addr)
 
@@ -95,10 +95,16 @@ func TestSmokeTestFailure(t *testing.T) {
 		system.WalletMap{
 			"user1": mockWallet,
 		},
+		[]system.Node{&mockFailingNode{
+			reg: &mockContractsRegistry{},
+		}},
 	)
 	mockL2Chain := newMockFailingL2Chain(
 		sdktypes.ChainID(big.NewInt(1234)),
 		system.WalletMap{"user1": mockWallet},
+		[]system.Node{&mockFailingNode{
+			reg: &mockContractsRegistry{},
+		}},
 	)
 	mockSys := &mockFailingSystem{l1Chain: mockL1Chain, l2Chain: mockL2Chain}
 
@@ -115,20 +121,4 @@ func TestSmokeTestFailure(t *testing.T) {
 	// Verify that the test failed due to SendETH error
 	require.True(t, rt.Failed(), "test should have failed")
 	require.Contains(t, rt.Logs(), "transaction failure", "unexpected failure message")
-}
-
-func lowLevelSystemScenario(sysGetter validators.LowLevelSystemGetter) systest.SystemTestFunc {
-	return func(t systest.T, sys system.System) {
-		logger := testlog.Logger(t, log.LevelInfo).With("test", "TestLowLevelSystem", "devnet", sys.Identifier())
-		_ = sysGetter(t.Context())
-		logger.Info("low level system acquired")
-	}
-}
-
-func TestLowLevelSystem(t *testing.T) {
-	lowLevelSys, validator := validators.AcquireLowLevelSystem()
-	systest.SystemTest(t,
-		lowLevelSystemScenario(lowLevelSys),
-		validator,
-	)
 }

@@ -21,13 +21,11 @@ func TestCheckFjordScript(t *testing.T) {
 
 	l2ChainIndex := uint64(0)
 
-	lowLevelSystemGetter, lowLevelSystemValidator := validators.AcquireLowLevelSystem()
 	walletGetter, walletValidator := validators.AcquireL2WalletWithFunds(l2ChainIndex, types.NewBalance(big.NewInt(1_000_000)))
 	forkConfigGetter, forkValidatorA := validators.AcquireL2WithFork(l2ChainIndex, rollup.Fjord)
 	_, forkValidatorB := validators.AcquireL2WithoutFork(l2ChainIndex, rollup.Granite)
 	systest.SystemTest(t,
-		checkFjordScriptScenario(lowLevelSystemGetter, walletGetter, forkConfigGetter, l2ChainIndex),
-		lowLevelSystemValidator,
+		checkFjordScriptScenario(walletGetter, forkConfigGetter, l2ChainIndex),
 		walletValidator,
 		forkValidatorA,
 		forkValidatorB,
@@ -35,22 +33,20 @@ func TestCheckFjordScript(t *testing.T) {
 
 	forkConfigGetter, notForkValidator := validators.AcquireL2WithoutFork(l2ChainIndex, rollup.Fjord)
 	systest.SystemTest(t,
-		checkFjordScriptScenario(lowLevelSystemGetter, walletGetter, forkConfigGetter, l2ChainIndex),
-		lowLevelSystemValidator,
+		checkFjordScriptScenario(walletGetter, forkConfigGetter, l2ChainIndex),
 		walletValidator,
 		notForkValidator,
 	)
 
 }
 
-func checkFjordScriptScenario(lowLevelSystemGetter validators.LowLevelSystemGetter, walletGetter validators.WalletGetter, chainConfigGetter validators.ChainConfigGetter, chainIndex uint64) systest.SystemTestFunc {
+func checkFjordScriptScenario(walletGetter validators.WalletGetter, chainConfigGetter validators.ChainConfigGetter, chainIndex uint64) systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
-		llsys := lowLevelSystemGetter(t.Context())
 		wallet := walletGetter(t.Context())
 		chainConfig := chainConfigGetter(t.Context())
 
 		l2 := sys.L2s()[chainIndex]
-		l2LowLevelClient, err := llsys.L2s()[chainIndex].GethClient()
+		l2LowLevelClient, err := sys.L2s()[chainIndex].Nodes()[0].GethClient()
 		require.NoError(t, err)
 
 		// Get the wallet's private key and address
@@ -65,7 +61,7 @@ func checkFjordScriptScenario(lowLevelSystemGetter validators.LowLevelSystemGett
 			Addr: walletAddr,
 		}
 
-		block, err := l2.Node().BlockByNumber(t.Context(), nil)
+		block, err := l2.Nodes()[0].BlockByNumber(t.Context(), nil)
 		require.NoError(t, err)
 		time := block.Time()
 

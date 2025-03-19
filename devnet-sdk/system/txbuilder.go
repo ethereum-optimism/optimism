@@ -70,11 +70,11 @@ func NewTxBuilder(ctx context.Context, chain Chain, opts ...TxBuilderOption) *Tx
 
 	// Skip network checks if tx type is forced
 	if builder.forcedTxType == nil {
-		if builder.chain.SupportsEIP(ctx, 1559) {
+		if builder.chain.Nodes()[0].SupportsEIP(ctx, 1559) {
 			builder.supportedTxTypes = append(builder.supportedTxTypes, types.DynamicFeeTxType)
 			builder.supportedTxTypes = append(builder.supportedTxTypes, types.AccessListTxType)
 		}
-		if builder.chain.SupportsEIP(ctx, 4844) {
+		if builder.chain.Nodes()[0].SupportsEIP(ctx, 4844) {
 			builder.supportedTxTypes = append(builder.supportedTxTypes, types.BlobTxType)
 		}
 	}
@@ -180,7 +180,7 @@ func (b *TxBuilder) chooseTxType(hasAccessList bool, hasBlobs bool) uint8 {
 
 // getNonce gets the next nonce for the given address
 func (b *TxBuilder) getNonce(from common.Address) (uint64, error) {
-	nonce, err := b.chain.Node().PendingNonceAt(b.ctx, from)
+	nonce, err := b.chain.Nodes()[0].PendingNonceAt(b.ctx, from)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get nonce: %w", err)
 	}
@@ -189,7 +189,7 @@ func (b *TxBuilder) getNonce(from common.Address) (uint64, error) {
 
 // getGasPrice gets the suggested gas price from the network
 func (b *TxBuilder) getGasPrice() (*big.Int, error) {
-	gasPrice, err := b.chain.Node().GasPrice(b.ctx)
+	gasPrice, err := b.chain.Nodes()[0].GasPrice(b.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gas price: %w", err)
 	}
@@ -202,7 +202,7 @@ func (b *TxBuilder) calculateGasLimit(opts *TxOpts) (uint64, error) {
 		return opts.gasLimit, nil
 	}
 
-	estimated, err := b.chain.Node().GasLimit(b.ctx, opts)
+	estimated, err := b.chain.Nodes()[0].GasLimit(b.ctx, opts)
 	if err != nil {
 		return 0, fmt.Errorf("failed to estimate gas: %w", err)
 	}
