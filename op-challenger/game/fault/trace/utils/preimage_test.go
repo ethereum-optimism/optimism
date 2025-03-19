@@ -160,7 +160,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 		// Check the KZG proof is valid
 		var actualPoint kzg4844.Point
-		new(big.Int).SetUint64(actual.BlobFieldIndex).FillBytes(actualPoint[:])
+		actualPoint = actual.ZPoint
 		actualClaim := kzg4844.Claim(actual.GetPreimageWithoutSize())
 		actualCommitment := kzg4844.Commitment(actual.BlobCommitment)
 		actualProof := kzg4844.Proof(actual.BlobProof)

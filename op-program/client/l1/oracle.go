@@ -3,7 +3,10 @@ package l1
 import (
 	"encoding/binary"
 	"fmt"
+	"math/big"
+	"math/bits"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -110,7 +113,8 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 	fieldElemKey := make([]byte, 80)
 	copy(fieldElemKey[:48], commitment)
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+		rootOfUnity := RootsOfUnity[i].Bytes()
+		copy(fieldElemKey[48:], rootOfUnity[:])
 		fieldElement := p.oracle.Get(preimage.BlobKey(crypto.Keccak256(fieldElemKey)))
 
 		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
@@ -129,4 +133,38 @@ func (p *PreimageOracle) Precompile(address common.Address, input []byte, requir
 		panic(fmt.Sprintf("unexpected precompile oracle behavior, got result: %x", result))
 	}
 	return result[1:], result[0] == 1
+}
+
+var RootsOfUnity [4096]fr.Element
+
+func init() {
+	const maxOrderRoot uint64 = 32
+	var rootOfUnity fr.Element
+	_, err := rootOfUnity.SetString("10238227357739495823651030575849232062558860180284477541189508159991286009131")
+	if err != nil {
+		panic("failed to initialize root of unity")
+	}
+	// Find generator subgroup of order x.
+	// This can be constructed by powering a generator of the largest 2-adic subgroup of order 2^32 by an exponent
+	// of (2^32)/x, provided x is <= 2^32.
+	logx := uint64(bits.TrailingZeros64(4096))
+	expo := uint64(1 << (maxOrderRoot - logx))
+
+	var generator fr.Element
+	generator.Exp(rootOfUnity, big.NewInt(int64(expo))) // Domain.Generator has order x now.
+	// Compute all relevant roots of unity, i.e. the multiplicative subgroup of size x.
+	current := fr.One()
+	for i := uint64(0); i < 4096; i++ {
+		RootsOfUnity[i] = current
+		current.Mul(&current, &generator)
+	}
+	shiftCorrection := uint64(64 - bits.TrailingZeros64(4096))
+
+	for i := uint64(0); i < 4096; i++ {
+		// Find index irev, such that i and irev get swapped
+		irev := bits.Reverse64(i) >> shiftCorrection
+		if irev > i {
+			RootsOfUnity[i], RootsOfUnity[irev] = RootsOfUnity[irev], RootsOfUnity[i]
+		}
+	}
 }

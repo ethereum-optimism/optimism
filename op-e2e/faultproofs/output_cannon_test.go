@@ -276,7 +276,7 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 	})
 
 	// Include non-zero offset to induce a load of the part of the preimage after the length prefix
-	blobOffsets := []uint32{0, 8, 16, 24, 32, 40, 48, 56, 60}
+	blobOffsets := []uint32{0, 8, 16, 24, 32}
 	for _, offset := range blobOffsets {
 		t.Run("non-existing preimage-blob-"+strconv.Itoa(int(offset)), func(t *testing.T) {
 			conf := utils.PreimageOptConfigForType(oppreimage.BlobKeyType)

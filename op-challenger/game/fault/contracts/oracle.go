@@ -126,7 +126,7 @@ func (c *PreimageOracleContractLatest) AddGlobalDataTx(data *types.PreimageOracl
 		return call.ToTxCandidate()
 	case preimage.BlobKeyType:
 		call := c.contract.Call(methodLoadBlobPreimagePart,
-			new(big.Int).SetUint64(data.BlobFieldIndex),
+			new(big.Int).SetBytes(data.ZPoint[:]),
 			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
 			data.BlobCommitment,
 			data.BlobProof,

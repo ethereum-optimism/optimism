@@ -5,10 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -74,20 +74,28 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 		return nil, fmt.Errorf("%w, expected length %v but was %v", ErrInvalidBlobKeyPreimage, fieldElemKeyLength, len(inputs))
 	}
 	commitment := inputs[:commitmentLength]
-	requiredFieldElement := binary.BigEndian.Uint64(inputs[72:])
+	var zPoint [32]byte
+	copy(zPoint[:], inputs[commitmentLength:])
+	var sourceFieldElement []byte
+	var feIndex uint64
 
 	// Now, reconstruct the full blob by loading the 4096 field elements.
 	blob := eth.Blob{}
 	fieldElemKey := make([]byte, fieldElemKeyLength)
 	copy(fieldElemKey[:commitmentLength], commitment)
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+		root := l1.RootsOfUnity[i].Bytes()
+		copy(fieldElemKey[48:], root[:])
 		key := preimage.BlobKey(crypto.Keccak256(fieldElemKey)).PreimageKey()
 		fieldElement, err := source.Get(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load field element %v with key %v:  %w", i, common.Hash(key), err)
 		}
 		copy(blob[i<<5:(i+1)<<5], fieldElement[:])
+		if bytes.Equal(root[:], zPoint[:]) {
+			sourceFieldElement = fieldElement
+			feIndex = uint64(i)
+		}
 	}
 
 	// Sanity check the blob data matches the commitment
@@ -96,20 +104,26 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 		return nil, fmt.Errorf("invalid blob commitment: %w", err)
 	}
 	// Compute the KZG proof for the required field element
-	var point kzg4844.Point
-	new(big.Int).SetUint64(requiredFieldElement).FillBytes(point[:])
+	//var point kzg4844.Point
+	//new(big.Int).SetUint64(requiredFieldElement).FillBytes(point[:])
 	data := kzg4844.Blob(blob)
-	kzgProof, claim, err := kzg4844.ComputeProof(&data, point)
+	kzgProof, claim, err := kzg4844.ComputeProof(&data, kzg4844.Point(zPoint))
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute kzg proof: %w", err)
 	}
-	err = kzg4844.VerifyProof(kzg4844.Commitment(commitment), point, claim, kzgProof)
+	if !bytes.Equal(sourceFieldElement, claim[:]) {
+		return nil, fmt.Errorf("constructed fe claim does not match source at index %v", feIndex)
+	}
+
+	err = kzg4844.VerifyProof(kzg4844.Commitment(commitment), zPoint, claim, kzgProof)
 	if err != nil {
+		fmt.Printf("failed to verify proof: %v. commitment %x point %x claim %x kzgProof %x\n",
+			err, commitment, zPoint, claim, kzgProof)
 		return nil, fmt.Errorf("failed to verify proof: %w", err)
 	}
 
 	claimWithLength := lengthPrefixed(claim[:])
-	return types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, requiredFieldElement, commitment, kzgProof[:]), nil
+	return types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, zPoint, commitment, kzgProof[:]), nil
 }
 
 func (l *PreimageLoader) loadPrecompilePreimage(proof *ProofData) (*types.PreimageOracleData, error) {

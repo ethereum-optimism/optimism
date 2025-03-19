@@ -347,7 +347,8 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		blobKey := make([]byte, 80)
 		copy(blobKey[:48], sidecar.KZGCommitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-			binary.BigEndian.PutUint64(blobKey[72:], uint64(i))
+			rootOfUnity := l1.RootsOfUnity[i].Bytes()
+			copy(blobKey[48:], rootOfUnity[:])
 			blobKeyHash := crypto.Keccak256Hash(blobKey)
 			if err := p.kvStore.Put(preimage.Keccak256Key(blobKeyHash).PreimageKey(), blobKey); err != nil {
 				return err
