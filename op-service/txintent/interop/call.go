@@ -1,17 +1,12 @@
 package txintent
 
 import (
-	"context"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/lmittmann/w3"
 
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -20,7 +15,6 @@ import (
 var _ txintent.Call = (*InitTrigger)(nil)
 var _ txintent.Call = (*ExecTrigger)(nil)
 var _ txintent.Call = (*RelayTrigger)(nil)
-var _ txintent.Result = (*InteropOutput)(nil)
 
 type InitTrigger struct {
 	Emitter    common.Address // address of the EventLogger contract
@@ -86,45 +80,6 @@ func (v *ExecTrigger) AccessList() (types.AccessList, error) {
 		StorageKeys: suptypes.EncodeAccessList([]suptypes.Access{access}),
 	}}
 	return accessList, nil
-}
-
-type InteropOutput struct {
-	Entries []suptypes.Message
-}
-
-func (i *InteropOutput) Init() txintent.Result {
-	return &InteropOutput{}
-}
-
-func (i *InteropOutput) FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error {
-	for _, logEvent := range rec.Logs {
-		payload := suptypes.LogToMessagePayload(logEvent)
-		id := suptypes.Identifier{
-			Origin:      logEvent.Address,
-			BlockNumber: logEvent.BlockNumber,
-			LogIndex:    uint32(logEvent.Index),
-			Timestamp:   includedIn.Time,
-			ChainID:     chainID,
-		}
-		payloadHash := crypto.Keccak256Hash(payload)
-		i.Entries = append(i.Entries, suptypes.Message{
-			Identifier:  id,
-			PayloadHash: payloadHash,
-		})
-	}
-	return nil
-}
-
-func ExecuteIndexed(events *plan.Lazy[*InteropOutput], index int) func(ctx context.Context) (*ExecTrigger, error) {
-	return func(ctx context.Context) (*ExecTrigger, error) {
-		if x := len(events.Value().Entries); x <= index {
-			return nil, fmt.Errorf("invalid index: %d, only have %d events", index, x)
-		}
-		return &ExecTrigger{
-			Executor: common.Address{},
-			Msg:      events.Value().Entries[index],
-		}, nil
-	}
 }
 
 type RelayTrigger struct {
