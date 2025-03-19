@@ -46,7 +46,7 @@ acceptance-test devnet="simple" gate="holocene":
         echo "Using mise-managed binary: $BINARY_PATH"
 
         # Run the op-acceptor binary
-        "$BINARY_PATH" \
+        DEVNET_ENV_URL="kt://{{devnet}}-devnet" "$BINARY_PATH" \
             --testdir "{{REPO_ROOT}}" \
             --gate {{gate}} \
             --validators ./acceptance-tests.yaml \
