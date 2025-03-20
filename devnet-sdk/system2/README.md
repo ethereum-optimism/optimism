@@ -19,6 +19,7 @@
 - The system compose is responsible for the lifecycle of each component. E.g. kurtosis will keep running, but an in-process system will couple to the test lifecycle and shutdown via `t.Cleanup`.
 - Test gates can inspect a system, abort if needed, or remediate shortcomings of the system with help of an `Orchestrator` (the test setup features offered by the system composer or maintainer).
 - The `Setup` is a struct that may be extended with additional struct-fields in the future, without breaking the `Option` function-signature.
+- There are no "chains": the word "chain" is reserved for the protocol typing of the onchain / state-transition related logic. Instead, there are "networks", which include the offchain resources and attached services of a chain.
 
 ## Overview
 
@@ -31,7 +32,7 @@ There are some common patterns in this package:
 - `X`-`Config`: to provide data when instantiating a default component.
 - `New`-`X`: creates a default component (generally a shim, using RPC to wrap around the actual service) to implement an interface.
 - `Extensible`-`X` (interface): extension-interface, used during setup to add sub-components to a thing.
-  E.g. register and additional batch-submitter to an `ExtensibleL2Chain`.
+  E.g. register and additional batch-submitter to an `ExtensibleL2Network`.
 
 ### Components
 
@@ -40,10 +41,10 @@ Available components:
 - `System`: a collection of chains and other components
 - `Superchain`: a definition of L2s that share protocol rules
 - `Cluster`: a definition of an interop dependency set.
-- `L1Chain`: a L1 chain configuration, with registered L1 components
+- `L1Network`: a L1 chain configuration and registered L1 components
   - `L1ELNode`: L1 execution-layer node, like geth or reth.
   - `L1CLNode`: L1 consensus-layer node. A full beacon node or a mock consensus replacement for testing.
-- `L2Chain`: a L2 chain configuration, with registered L2 components
+- `L2Network`: a L2 chain configuration and registered L2 components
   - `L2ELNode`: L2 execution-engine, like op-geth or op-reth
   - `L2CLNode`: op-node service, or equivalent
   - `L2Batcher`: op-batcher, or equivalent

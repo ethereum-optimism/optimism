@@ -11,18 +11,18 @@ type System interface {
 
 	Superchain(id SuperchainID) Superchain
 	Cluster(id L2ClusterID) Cluster
-	L1Chain(id L1ChainID) L1Chain
-	L2Chain(id L2ChainID) L2Chain
+	L1Network(id L1NetworkID) L1Network
+	L2Network(id L2NetworkID) L2Network
 
 	Superchains() []SuperchainID
 	Clusters() []L2ClusterID
-	L1Chains() []L1ChainID
-	L2Chains() []L2ChainID
+	L1Networks() []L1NetworkID
+	L2Networks() []L2NetworkID
 
-	// L1ChainID looks up the L1ChainID (system name) by eth ChainID
-	L1ChainID(id eth.ChainID) L1ChainID
-	// L2ChainID looks up the L2ChainID (system name) by eth ChainID
-	L2ChainID(id eth.ChainID) L2ChainID
+	// L1NetworkID looks up the L1NetworkID (system name) by eth ChainID
+	L1NetworkID(id eth.ChainID) L1NetworkID
+	// L2NetworkID looks up the L2NetworkID (system name) by eth ChainID
+	L2NetworkID(id eth.ChainID) L2NetworkID
 
 	User(id UserID) User
 	Users() []UserID
@@ -35,8 +35,8 @@ type ExtensibleSystem interface {
 	System
 	AddSuperchain(v Superchain)
 	AddCluster(v Cluster)
-	AddL1Chain(v L1Chain)
-	AddL2Chain(v L2Chain)
+	AddL1Network(v L1Network)
+	AddL2Network(v L2Network)
 	AddUser(v User)
 }
 
@@ -52,18 +52,18 @@ type presetSystem struct {
 	superchains locks.RWMap[SuperchainID, Superchain]
 	clusters    locks.RWMap[L2ClusterID, Cluster]
 
-	// tracks L1 chains by name
-	l1Chains locks.RWMap[L1ChainID, L1Chain]
-	// tracks L2 chains by name
-	l2Chains locks.RWMap[L2ChainID, L2Chain]
+	// tracks L1 networks by name
+	l1Networks locks.RWMap[L1NetworkID, L1Network]
+	// tracks L2 networks by name
+	l2Networks locks.RWMap[L2NetworkID, L2Network]
 
-	// tracks names of L1 chains by eth.ChainID
-	l1ChainIDs locks.RWMap[eth.ChainID, L1ChainID]
-	// tracks names of L2 chains by eth.ChainID
-	l2ChainIDs locks.RWMap[eth.ChainID, L2ChainID]
+	// tracks IDs of L1 networks by eth.ChainID
+	l1ChainIDs locks.RWMap[eth.ChainID, L1NetworkID]
+	// tracks IDs of L2 networks by eth.ChainID
+	l2ChainIDs locks.RWMap[eth.ChainID, L2NetworkID]
 
-	// tracks all chains, and ensures there are no chains with the same eth.ChainID
-	chains locks.RWMap[eth.ChainID, Chain]
+	// tracks all networks, and ensures there are no networks with the same eth.ChainID
+	networks locks.RWMap[eth.ChainID, Network]
 
 	users locks.RWMap[UserID, User]
 }
@@ -97,39 +97,39 @@ func (p *presetSystem) AddCluster(v Cluster) {
 	p.require().True(p.clusters.SetIfMissing(v.ID(), v), "cluster %s must not already exist", v.ID())
 }
 
-func (p *presetSystem) L1Chain(id L1ChainID) L1Chain {
-	v, ok := p.l1Chains.Get(id)
+func (p *presetSystem) L1Network(id L1NetworkID) L1Network {
+	v, ok := p.l1Networks.Get(id)
 	p.require().True(ok, "l1 chain %s must exist", id)
 	return v
 }
 
-func (p *presetSystem) AddL1Chain(v L1Chain) {
+func (p *presetSystem) AddL1Network(v L1Network) {
 	id := v.ID()
-	p.require().True(p.chains.SetIfMissing(id.ChainID, v), "chain with id %s must not already exist", id.ChainID)
+	p.require().True(p.networks.SetIfMissing(id.ChainID, v), "chain with id %s must not already exist", id.ChainID)
 	p.require().True(p.l1ChainIDs.SetIfMissing(id.ChainID, id), "l1 chain id %s mapping must not already exist", id)
-	p.require().True(p.l1Chains.SetIfMissing(id, v), "l1 chain %s must not already exist", id)
+	p.require().True(p.l1Networks.SetIfMissing(id, v), "l1 chain %s must not already exist", id)
 }
 
-func (p *presetSystem) L2Chain(id L2ChainID) L2Chain {
-	v, ok := p.l2Chains.Get(id)
+func (p *presetSystem) L2Network(id L2NetworkID) L2Network {
+	v, ok := p.l2Networks.Get(id)
 	p.require().True(ok, "l2 chain %s must exist", id)
 	return v
 }
 
-func (p *presetSystem) AddL2Chain(v L2Chain) {
+func (p *presetSystem) AddL2Network(v L2Network) {
 	id := v.ID()
-	p.require().True(p.chains.SetIfMissing(id.ChainID, v), "chain with id %s must not already exist", id.ChainID)
+	p.require().True(p.networks.SetIfMissing(id.ChainID, v), "chain with id %s must not already exist", id.ChainID)
 	p.require().True(p.l2ChainIDs.SetIfMissing(id.ChainID, id), "l2 chain id %s mapping must not already exist", id)
-	p.require().True(p.l2Chains.SetIfMissing(id, v), "l2 chain %s must not already exist", id)
+	p.require().True(p.l2Networks.SetIfMissing(id, v), "l2 chain %s must not already exist", id)
 }
 
-func (p *presetSystem) L1ChainID(id eth.ChainID) L1ChainID {
+func (p *presetSystem) L1NetworkID(id eth.ChainID) L1NetworkID {
 	v, ok := p.l1ChainIDs.Get(id)
 	p.require().True(ok, "l1 chain id %s mapping must exist", id)
 	return v
 }
 
-func (p *presetSystem) L2ChainID(id eth.ChainID) L2ChainID {
+func (p *presetSystem) L2NetworkID(id eth.ChainID) L2NetworkID {
 	v, ok := p.l2ChainIDs.Get(id)
 	p.require().True(ok, "l2 chain id %s mapping must exist", id)
 	return v
@@ -153,12 +153,12 @@ func (p *presetSystem) Clusters() []L2ClusterID {
 	return SortL2ClusterIDs(p.clusters.Keys())
 }
 
-func (p *presetSystem) L1Chains() []L1ChainID {
-	return SortL1ChainIDs(p.l1Chains.Keys())
+func (p *presetSystem) L1Networks() []L1NetworkID {
+	return SortL1NetworkIDs(p.l1Networks.Keys())
 }
 
-func (p *presetSystem) L2Chains() []L2ChainID {
-	return SortL2ChainIDs(p.l2Chains.Keys())
+func (p *presetSystem) L2Networks() []L2NetworkID {
+	return SortL2NetworkIDs(p.l2Networks.Keys())
 }
 
 func (p *presetSystem) Users() []UserID {
