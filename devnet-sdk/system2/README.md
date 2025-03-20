@@ -29,6 +29,7 @@
 There are some common patterns in this package:
 
 - `X` (interface): presents a component
+- `X`-`Kind`: to identify the typing of the component.
 - `X`-`ID`: to identify the component. May be a combination of a name and chain-ID, e.g. there may be a default `sequencer` on each L2 chain.
 - `X`-`Config`: to provide data when instantiating a default component.
 - `New`-`X`: creates a default component (generally a shim, using RPC to wrap around the actual service) to implement an interface.
