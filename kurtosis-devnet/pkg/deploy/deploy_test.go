@@ -96,14 +96,14 @@ func TestDeploy(t *testing.T) {
 	}
 
 	// Create a mock EnclaveFS function
-	mockEnclaveFSFunc := func(ctx context.Context, enclave string) (*ktfs.EnclaveFS, error) {
+	mockEnclaveFSFunc := func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error) {
 		mockCtx := &mockEnclaveContext{
 			artifacts: []string{
 				"devnet-descriptor-1",
 				"devnet-descriptor-2",
 			},
 		}
-		return ktfs.NewEnclaveFSWithContext(mockCtx), nil
+		return ktfs.NewEnclaveFS(ctx, enclave, ktfs.WithEnclaveCtx(mockCtx))
 	}
 
 	d := NewDeployer(
@@ -187,7 +187,8 @@ func TestGetNextDevnetDescriptor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockCtx := &mockEnclaveContext{artifacts: tt.artifacts}
-			fs := ktfs.NewEnclaveFSWithContext(mockCtx)
+			fs, err := ktfs.NewEnclaveFS(context.Background(), "test-enclave", ktfs.WithEnclaveCtx(mockCtx))
+			require.NoError(t, err)
 			got, err := getNextDevnetDescriptor(context.Background(), fs)
 			if tt.wantErrText != "" {
 				require.Error(t, err)

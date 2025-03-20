@@ -11,12 +11,15 @@ import (
 
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
+	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockEnclaveContext struct {
 	artifacts map[string][]byte
 	uploaded  map[string]map[string][]byte // artifactName -> path -> content
+	fs        afero.Fs                     // filesystem to use for operations
 }
 
 func (m *mockEnclaveContext) DownloadFilesArtifact(_ context.Context, name string) ([]byte, error) {
@@ -29,7 +32,7 @@ func (m *mockEnclaveContext) UploadFiles(pathToUpload string, artifactName strin
 	}
 	m.uploaded[artifactName] = make(map[string][]byte)
 
-	err := filepath.Walk(pathToUpload, func(path string, info os.FileInfo, err error) error {
+	err := afero.Walk(m.fs, pathToUpload, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -42,7 +45,7 @@ func (m *mockEnclaveContext) UploadFiles(pathToUpload string, artifactName strin
 			return err
 		}
 
-		content, err := os.ReadFile(path)
+		content, err := afero.ReadFile(m.fs, path)
 		if err != nil {
 			return err
 		}
@@ -129,9 +132,12 @@ func TestArtifactExtraction(t *testing.T) {
 				artifacts: map[string][]byte{
 					"test-artifact": createTarGzArtifact(t, tt.files),
 				},
+				fs: afero.NewMemMapFs(),
 			}
 
-			fs := NewEnclaveFSWithContext(mockCtx)
+			fs, err := NewEnclaveFS(context.Background(), "test-enclave", WithEnclaveCtx(mockCtx), WithFs(mockCtx.fs))
+			require.NoError(t, err)
+
 			artifact, err := fs.GetArtifact(context.Background(), "test-artifact")
 			require.NoError(t, err)
 
@@ -183,11 +189,16 @@ func TestPutArtifact(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			fs := afero.NewMemMapFs()
 			mockCtx := &mockEnclaveContext{
 				artifacts: make(map[string][]byte),
+				fs:        fs,
 			}
 
-			fs := NewEnclaveFSWithContext(mockCtx)
+			enclaveFs := &EnclaveFS{
+				enclaveCtx: mockCtx,
+				fs:         fs,
+			}
 
 			// Create readers for all files
 			var readers []*ArtifactFileReader
@@ -199,7 +210,7 @@ func TestPutArtifact(t *testing.T) {
 			}
 
 			// Put the artifact
-			err := fs.PutArtifact(context.Background(), "test-artifact", readers...)
+			err := enclaveFs.PutArtifact(context.Background(), "test-artifact", readers...)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -235,9 +246,12 @@ func TestMultipleExtractCalls(t *testing.T) {
 		artifacts: map[string][]byte{
 			"test-artifact": createTarGzArtifact(t, files),
 		},
+		fs: afero.NewMemMapFs(),
 	}
 
-	fs := NewEnclaveFSWithContext(mockCtx)
+	fs, err := NewEnclaveFS(context.Background(), "test-enclave", WithEnclaveCtx(mockCtx), WithFs(mockCtx.fs))
+	require.NoError(t, err)
+
 	artifact, err := fs.GetArtifact(context.Background(), "test-artifact")
 	require.NoError(t, err)
 
@@ -316,5 +330,114 @@ func TestMultipleExtractCalls(t *testing.T) {
 	for reqPath, wantContent := range allFiles {
 		require.Equal(t, wantContent, allBuffers[reqPath].String(),
 			"third extraction: content mismatch for %s", reqPath)
+	}
+}
+
+func TestArtifact_Download(t *testing.T) {
+	tests := []struct {
+		name     string
+		files    map[string][]byte // map of filepath to content
+		wantErr  bool
+		validate func(t *testing.T, fs afero.Fs)
+	}{
+		{
+			name: "single file download",
+			files: map[string][]byte{
+				"test.txt": []byte("hello world"),
+			},
+			validate: func(t *testing.T, fs afero.Fs) {
+				content, err := afero.ReadFile(fs, "test.txt")
+				require.NoError(t, err)
+				assert.Equal(t, []byte("hello world"), content)
+			},
+		},
+		{
+			name: "nested directory structure",
+			files: map[string][]byte{
+				"dir/test.txt":        []byte("hello"),
+				"dir/subdir/test.txt": []byte("world"),
+			},
+			validate: func(t *testing.T, fs afero.Fs) {
+				content1, err := afero.ReadFile(fs, "dir/test.txt")
+				require.NoError(t, err)
+				assert.Equal(t, []byte("hello"), content1)
+
+				content2, err := afero.ReadFile(fs, "dir/subdir/test.txt")
+				require.NoError(t, err)
+				assert.Equal(t, []byte("world"), content2)
+			},
+		},
+		{
+			name: "empty directory",
+			files: map[string][]byte{
+				"dir/": nil,
+			},
+			validate: func(t *testing.T, fs afero.Fs) {
+				exists, err := afero.DirExists(fs, "dir")
+				require.NoError(t, err)
+				assert.True(t, exists)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a tar.gz archive in memory
+			var buf bytes.Buffer
+			gw := gzip.NewWriter(&buf)
+			tw := tar.NewWriter(gw)
+
+			// Add files to the archive
+			for path, content := range tt.files {
+				header := &tar.Header{
+					Name: path,
+				}
+				if content == nil {
+					header.Typeflag = tar.TypeDir
+					header.Mode = 0755
+				} else {
+					header.Typeflag = tar.TypeReg
+					header.Size = int64(len(content))
+					header.Mode = 0644
+				}
+
+				err := tw.WriteHeader(header)
+				require.NoError(t, err)
+
+				if content != nil {
+					_, err = tw.Write(content)
+					require.NoError(t, err)
+				}
+			}
+
+			err := tw.Close()
+			require.NoError(t, err)
+			err = gw.Close()
+			require.NoError(t, err)
+
+			// Create in-memory filesystem
+			memFs := afero.NewMemMapFs()
+
+			// Create an Artifact from the archive
+			rawData := buf.Bytes()
+			zipReader, err := gzip.NewReader(bytes.NewReader(rawData))
+			require.NoError(t, err)
+			artifact := &Artifact{
+				rawData: rawData,
+				reader:  tar.NewReader(zipReader),
+				fs:      memFs,
+			}
+
+			// Test Download function
+			err = artifact.Download("")
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Run validation
+			tt.validate(t, memFs)
+		})
 	}
 }
