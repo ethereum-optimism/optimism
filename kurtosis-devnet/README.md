@@ -9,7 +9,7 @@ For Mac users, the following command should suffice:
 ```
 brew install kurtosis-tech/tap/kurtosis-cli
 ```
-Check your Kurtosis version with `kurtosis version`. The current ideal version for these devnets is `1.4.3`.
+Check your Kurtosis version with `kurtosis version`. The current ideal version for these devnets is `1.5.0`.
 
 Docker Desktop may be substituted by an alternative like Orbstack if you have that installed.
 
