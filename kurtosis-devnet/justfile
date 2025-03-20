@@ -118,5 +118,5 @@ pectra-devnet: (devnet "pectra.yaml")
 isthmus-devnet: (devnet "isthmus.yaml")
 
 # subshells
-enter-devnet DEVNET CHAIN='Ethereum':
-    exec go run ../devnet-sdk/shell/cmd/enter/main.go --devnet kt://{{DEVNET}} --chain {{CHAIN}}
+enter-devnet DEVNET CHAIN='Ethereum' NODE_INDEX='0':
+    exec go run ../devnet-sdk/shell/cmd/enter/main.go --devnet kt://{{DEVNET}} --chain {{CHAIN}} --node-index {{NODE_INDEX}}

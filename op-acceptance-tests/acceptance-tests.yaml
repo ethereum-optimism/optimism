@@ -24,6 +24,7 @@ gates:
     description: "Isthmus network tests."
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus
+        timeout: 20m
 
   - id: interop
     inherits:

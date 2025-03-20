@@ -311,9 +311,9 @@ func performOperatorFeeTest(t systest.T, sys system.System, l1FundingWallet syst
 	l2Chain := sys.L2s()[chainIdx]
 	l2GethSeqClient, err := l2Chain.Nodes()[0].GethClient()
 	require.NoError(t, err)
-	// l2RethFullClient, err := l2Chain.Nodes()[1].GethClient()
-	// require.NoError(t, err)
-	// l2MultiClient := systest.NewMultiClient([]*ethclient.Client{l2GethSeqClient, l2RethFullClient})
+	l2RethFullClient, err := l2Chain.Nodes()[1].GethClient()
+	require.NoError(t, err)
+	l2MultiClient := systest.NewMultiClient([]*ethclient.Client{l2GethSeqClient, l2RethFullClient})
 
 	// Get the genesis config
 	l1ChainID, err := l1GethClient.ChainID(ctx)
@@ -390,8 +390,7 @@ func performOperatorFeeTest(t systest.T, sys system.System, l1FundingWallet syst
 	time.Sleep(2 * time.Minute)
 
 	// // Check for chain fork
-	// startBlock, err := l2MultiClient.HeaderByNumber(ctx, nil)
-	startBlock, err := l2GethSeqClient.HeaderByNumber(ctx, nil)
+	startBlock, err := l2MultiClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	logger.Debug("Got L2 head block", "number", startBlock.Number)
 
@@ -421,8 +420,7 @@ func performOperatorFeeTest(t systest.T, sys system.System, l1FundingWallet syst
 		"hash", tx.Hash().Hex())
 
 	// Get block header where transaction was included
-	// endHeader, err := l2MultiClient.HeaderByNumber(ctx, receipt.BlockNumber)
-	endHeader, err := l2GethSeqClient.HeaderByNumber(ctx, receipt.BlockNumber)
+	endHeader, err := l2MultiClient.HeaderByNumber(ctx, receipt.BlockNumber)
 	require.NoError(t, err)
 	require.Equal(t, endHeader.Coinbase, predeploys.SequencerFeeVaultAddr, "coinbase address should always be the same as the sequencer fee vault address")
 
