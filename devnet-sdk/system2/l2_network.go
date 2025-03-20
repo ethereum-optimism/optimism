@@ -75,6 +75,7 @@ type L2Network interface {
 // ExtensibleL2Network is an optional extension interface for L2Network,
 // for adding new components to the chain. Used during test-setup, not generally during test execution.
 type ExtensibleL2Network interface {
+	ExtensibleNetwork
 	L2Network
 	AddL2Batcher(v L2Batcher)
 	AddL2Proposer(v L2Proposer)

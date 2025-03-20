@@ -52,7 +52,7 @@ Available components:
   - `L2Batcher`: op-batcher, or equivalent
   - `L2Proposer`: op-proposer, or equivalent
   - `L2Challenger`: op-challenger, or equivalent
-- `L2Supervisor`: op-supervisor service
+- `Supervisor`: op-supervisor service, or equivalent
 - `Faucet`: util to create funded user-accounts
 - `User`: util to interact with a chain using an EOA key
 

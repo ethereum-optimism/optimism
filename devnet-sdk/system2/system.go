@@ -24,8 +24,8 @@ type System interface {
 	// L2NetworkID looks up the L2NetworkID (system name) by eth ChainID
 	L2NetworkID(id eth.ChainID) L2NetworkID
 
-	User(id UserID) User
-	Users() []UserID
+	Supervisor(id SupervisorID) Supervisor
+	Supervisors() []SupervisorID
 }
 
 // ExtensibleSystem is an extension-interface to add new components to the system.
@@ -37,7 +37,7 @@ type ExtensibleSystem interface {
 	AddCluster(v Cluster)
 	AddL1Network(v L1Network)
 	AddL2Network(v L2Network)
-	AddUser(v User)
+	AddSupervisor(v Supervisor)
 }
 
 // SystemConfig sets up a System.
@@ -65,7 +65,7 @@ type presetSystem struct {
 	// tracks all networks, and ensures there are no networks with the same eth.ChainID
 	networks locks.RWMap[eth.ChainID, Network]
 
-	users locks.RWMap[UserID, User]
+	supervisors locks.RWMap[SupervisorID, Supervisor]
 }
 
 var _ ExtensibleSystem = (*presetSystem)(nil)
@@ -135,14 +135,14 @@ func (p *presetSystem) L2NetworkID(id eth.ChainID) L2NetworkID {
 	return v
 }
 
-func (p *presetSystem) User(id UserID) User {
-	v, ok := p.users.Get(id)
-	p.require().True(ok, "user %s must exist", id)
+func (p *presetSystem) Supervisor(id SupervisorID) Supervisor {
+	v, ok := p.supervisors.Get(id)
+	p.require().True(ok, "supervisor %s must exist", id)
 	return v
 }
 
-func (p *presetSystem) AddUser(v User) {
-	p.require().True(p.users.SetIfMissing(v.ID(), v), "user %s must not already exist", v.ID())
+func (p *presetSystem) AddSupervisor(v Supervisor) {
+	p.require().True(p.supervisors.SetIfMissing(v.ID(), v), "supervisor %s must not already exist", v.ID())
 }
 
 func (p *presetSystem) Superchains() []SuperchainID {
@@ -161,6 +161,6 @@ func (p *presetSystem) L2Networks() []L2NetworkID {
 	return SortL2NetworkIDs(p.l2Networks.Keys())
 }
 
-func (p *presetSystem) Users() []UserID {
-	return SortUserIDs(p.users.Keys())
+func (p *presetSystem) Supervisors() []SupervisorID {
+	return SortSupervisorIDs(p.supervisors.Keys())
 }

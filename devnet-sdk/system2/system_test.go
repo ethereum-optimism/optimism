@@ -60,13 +60,13 @@ func TestSystemTypes(t *testing.T) {
 
 	priv, err := crypto.GenerateKey()
 	require.NoError(t, err)
-	user := NewUser(UserConfig{
+	userA := NewUser(UserConfig{
 		CommonConfig: setup.CommonConfig(),
-		ID:           UserID{Key: "user", ChainID: l1Net.ID().ChainID},
+		ID:           UserID{Key: "userA", ChainID: l1Net.ID().ChainID},
 		Priv:         priv,
 		EL:           l1EL,
 	})
-	setup.System.AddUser(user)
+	l1Net.AddUser(userA)
 
 	superchain := NewSuperchain(SuperchainConfig{
 		CommonConfig: setup.CommonConfig(),
@@ -80,6 +80,13 @@ func TestSystemTypes(t *testing.T) {
 		DependencySet: nil,
 	})
 	setup.System.AddCluster(cluster)
+
+	supervisor := NewSupervisor(SupervisorConfig{
+		CommonConfig: setup.CommonConfig(),
+		ID:           SupervisorID("supervisor0"),
+		Client:       nil,
+	})
+	setup.System.AddSupervisor(supervisor)
 
 	addL2 := func(chainID eth.ChainID) {
 		l1ChainID := l1Net.ChainID()
@@ -148,10 +155,17 @@ func TestSystemTypes(t *testing.T) {
 	require.Equal(t, 1, len(l1Networks))
 	require.Equal(t, l1Net.ChainID(), l1Networks[0].ChainID)
 
+	users := l1Net.Users()
+	require.Equal(t, 1, len(users))
+	require.Equal(t, userA.ID(), users[0])
+
 	require.Len(t, l1Net.L1ELNodes(), 1)
 	require.Len(t, l1Net.L1CLNodes(), 1)
 	l1EL.Logger().Info("L1 EL Node")
 	l1CL.Logger().Info("L1 CL Node")
+
+	require.Equal(t, supervisor, setup.System.Supervisor(SupervisorID("supervisor0")))
+	supervisor.Logger().Info("supervisor is registered")
 
 	l2NetA := setup.System.L2Network(l2Networks[0])
 	require.Len(t, l2NetA.L2ELNodes(), 1)

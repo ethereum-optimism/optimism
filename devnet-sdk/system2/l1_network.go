@@ -43,6 +43,7 @@ type L1Network interface {
 }
 
 type ExtensibleL1Network interface {
+	ExtensibleNetwork
 	L1Network
 	AddL1ELNode(v L1ELNode)
 	AddL1CLNode(v L1CLNode)

@@ -13,16 +13,18 @@ import (
 // UserID identifies a User by name and chainID, is type-safe, and can be value-copied and used as map key.
 type UserID idWithChain
 
+const UserKind Kind = "User"
+
 func (id UserID) String() string {
-	return idWithChain(id).string("User")
+	return idWithChain(id).string(UserKind)
 }
 
 func (id UserID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("User")
+	return idWithChain(id).marshalText(UserKind)
 }
 
 func (id *UserID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("User", data)
+	return (*idWithChain)(id).unmarshalText(UserKind, data)
 }
 
 func SortUserIDs(ids []UserID) []UserID {
