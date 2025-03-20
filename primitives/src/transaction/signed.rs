@@ -22,9 +22,7 @@ use core::{
     ops::Deref,
 };
 use derive_more::{AsRef, Deref};
-use op_alloy_consensus::{
-    DepositTransaction, OpPooledTransaction, OpTxEnvelope, OpTypedTransaction, TxDeposit,
-};
+use op_alloy_consensus::{OpPooledTransaction, OpTxEnvelope, OpTypedTransaction, TxDeposit};
 use op_revm::transaction::deposit::DepositTransactionParts;
 #[cfg(any(test, feature = "reth-codec"))]
 use proptest as _;
@@ -690,26 +688,6 @@ impl TryFrom<OpTransactionSigned> for OpPooledTransaction {
             }
             OpTypedTransaction::Deposit(_) => Err(TransactionConversionError::UnsupportedForP2P),
         }
-    }
-}
-
-impl DepositTransaction for OpTransactionSigned {
-    fn source_hash(&self) -> Option<B256> {
-        match &self.transaction {
-            OpTypedTransaction::Deposit(tx) => Some(tx.source_hash),
-            _ => None,
-        }
-    }
-
-    fn mint(&self) -> Option<u128> {
-        match &self.transaction {
-            OpTypedTransaction::Deposit(tx) => tx.mint,
-            _ => None,
-        }
-    }
-
-    fn is_system_transaction(&self) -> bool {
-        self.is_deposit()
     }
 }
 
