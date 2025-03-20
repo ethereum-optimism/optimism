@@ -379,10 +379,6 @@ func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 		c := c
 		name := reflect.TypeOf(c).Elem().Name()
 		gt.Run(name, func(gt *testing.T) {
-			if name == "cascadeInvalidBlockCase" || name == "swapCascadeInvalidBlockCase" || name == "cyclicDependencyInvalidCase" {
-				// TODO(#14307): Support cascading block invalidations in the supervisor
-				gt.Skip("Skipping cascade invalid block case")
-			}
 			t := helpers.NewDefaultTesting(gt)
 			system := dsl.NewInteropDSL(t)
 
@@ -1427,8 +1423,8 @@ func (c *cascadeInvalidBlockCase) Setup(t helpers.StatefulTesting, system *dsl.I
 func (c *cascadeInvalidBlockCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
 	c.msgA.CheckNotEmitted()
 	c.msgA.CheckNotExecuted()
-	c.msgB.CheckEmitted()
-	c.msgB.CheckExecuted()
+	c.msgB.CheckNotEmitted()
+	c.msgB.CheckNotExecuted()
 }
 
 type swapCascadeInvalidBlockCase struct {
