@@ -25,16 +25,32 @@ type Orchestrator interface {
 // step 3: maybe try different things, if none work, test-skip
 // }
 
-// Setup provides inputs for Option, to use during system construction
+// Setup provides inputs for Option, to use during system construction.
+// This object is not meant to persist longer than the execution of applicable Option(s).
+// New struct-fields may be added in the future, but existing fields should not be removed for compatibility with Option implementations.
 type Setup struct {
-	Ctx          context.Context
-	Log          log.Logger
-	T            T
-	Require      *require.Assertions
-	System       ExtensibleSystem
+	// Ctx is the context for option execution.
+	// The caller of Option should cancel the context after completion of the option.
+	// The context may be interrupted if the test is aborted during option execution.
+	Ctx context.Context
+	// Log is a setup-wide logger, and may be used after setup by the components created by the option.
+	Log log.Logger
+	// T is a minimal test interface for panic-checks / assertions,
+	// and may be passed down into components created by the option.
+	T T
+	// Require is a helper around the above T, ready to assert against.
+	Require *require.Assertions
+	// System is the frontend presentation of the system under test,
+	// this is where component interfaces are registered to make them available to the test.
+	System ExtensibleSystem
+	// Orchestrator is the backend responsible for managing components,
+	// and providing backend-specific options where needed, e.g. spawning new services.
 	Orchestrator Orchestrator
 }
 
+// CommonConfig is a convenience method to build the config common between all components.
+// Note that component constructors will decorate the logger with metadata for internal use,
+// the caller of the component constructor can generally leave the logger as-is.
 func (setup *Setup) CommonConfig() CommonConfig {
 	return CommonConfig{
 		Log: setup.Log,
