@@ -17,7 +17,7 @@ reth-chainspec.workspace = true
 reth-primitives-traits.workspace = true
 reth-revm = { workspace = true, features = ["witness"] }
 reth-transaction-pool.workspace = true
-reth-provider.workspace = true
+reth-storage-api.workspace = true
 reth-evm.workspace = true
 reth-execution-types.workspace = true
 reth-payload-builder.workspace = true
@@ -31,7 +31,7 @@ reth-payload-validator.workspace = true
 # op-reth
 reth-optimism-evm.workspace = true
 reth-optimism-forks.workspace = true
-reth-optimism-primitives = { workspace = true, features = ["reth-codec"] }
+reth-optimism-primitives.workspace = true
 reth-optimism-txpool.workspace = true
 
 # ethereum
