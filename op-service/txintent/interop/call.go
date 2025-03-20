@@ -1,6 +1,7 @@
 package txintent
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
@@ -33,7 +34,11 @@ func (v *InitTrigger) To() (*common.Address, error) {
 func (v *InitTrigger) Data() ([]byte, error) {
 	// TODO: Need to do better construct call input than this
 	emitLog := w3.MustNewFunc("emitLog(bytes32[] topics, bytes data)", "")
-	return emitLog.EncodeArgs(v.Topics, v.OpaqueData)
+	calldata, err := emitLog.EncodeArgs(v.Topics, v.OpaqueData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct calldata: %v", err)
+	}
+	return calldata, nil
 }
 
 func (v *InitTrigger) AccessList() (types.AccessList, error) {
@@ -55,7 +60,11 @@ func (v *SendTrigger) To() (*common.Address, error) {
 func (v *SendTrigger) Data() ([]byte, error) {
 	// TODO: Need to do better construct call input than this
 	sendMessage := w3.MustNewFunc("sendMessage(uint256, address, bytes calldata)", "bytes32")
-	return sendMessage.EncodeArgs(v.DestChainID.ToBig(), v.Target, v.RelayedCalldata)
+	calldata, err := sendMessage.EncodeArgs(v.DestChainID.ToBig(), v.Target, v.RelayedCalldata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct calldata: %v", err)
+	}
+	return calldata, nil
 }
 
 func (v *SendTrigger) AccessList() (types.AccessList, error) {
@@ -90,14 +99,11 @@ func (v *ExecTrigger) Data() ([]byte, error) {
 		big.NewInt(int64(v.Msg.Identifier.Timestamp)),
 		v.Msg.Identifier.ChainID.ToBig(),
 	}
-	validateMessageCalldata, err := validateMessage.EncodeArgs(
-		identifier,
-		v.Msg.PayloadHash,
-	)
+	calldata, err := validateMessage.EncodeArgs(identifier, v.Msg.PayloadHash)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to construct calldata: %v", err)
 	}
-	return validateMessageCalldata, nil
+	return calldata, nil
 }
 
 func (v *ExecTrigger) AccessList() (types.AccessList, error) {
@@ -132,12 +138,9 @@ func (v *RelayTrigger) Data() ([]byte, error) {
 		big.NewInt(int64(v.Msg.Identifier.Timestamp)),
 		v.Msg.Identifier.ChainID.ToBig(),
 	}
-	relayMessageCalldata, err := relayMessage.EncodeArgs(
-		identifier,
-		v.Payload,
-	)
+	calldata, err := relayMessage.EncodeArgs(identifier, v.Payload)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to construct calldata: %v", err)
 	}
-	return relayMessageCalldata, nil
+	return calldata, nil
 }
