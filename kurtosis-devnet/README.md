@@ -1,15 +1,8 @@
 # Getting Started
 
 Running a Kurtosis Devnet has the following prerequisites:
-- Kurtosis must be installed
+- Kurtosis must be installed. This is automatically handled by `mise`, same as with other dev tools in this repository
 - Docker Desktop must be installed and running
-
-Platform specific installation instructions for Kurtosis may be found [in Kurtosis documentation](https://docs.kurtosis.com/install/), alternatively Mac, Windows and Linux binaries can be found [here](https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts).
-For Mac users, the following command should suffice:
-```
-brew install kurtosis-tech/tap/kurtosis-cli
-```
-Check your Kurtosis version with `kurtosis version`. The current ideal version for these devnets is `1.5.0`.
 
 Docker Desktop may be substituted by an alternative like Orbstack if you have that installed.
 
