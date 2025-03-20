@@ -11,6 +11,7 @@ import (
 
 var _ txintent.Call = (*MultiTrigger)(nil)
 
+// Trigger for using the MultiCall3 to batch Calls
 type MultiTrigger struct {
 	Emitter common.Address // address of the MultiCall3 contract
 	Calls   []txintent.Call

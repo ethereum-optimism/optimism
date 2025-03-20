@@ -20,6 +20,7 @@ func (m *MulticallOutput) Init() txintent.Result {
 	return &MulticallOutput{}
 }
 
+// FromReceipt stores all gained info
 func (m *MulticallOutput) FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error {
 	m.receipt = rec
 	m.includedIn = includedIn
