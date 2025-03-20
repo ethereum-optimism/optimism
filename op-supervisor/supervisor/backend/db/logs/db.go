@@ -270,7 +270,8 @@ func (db *DB) LatestSealedBlock() (id eth.BlockID, ok bool) {
 }
 
 // Contains returns no error iff the specified logHash is recorded in the specified blockNum and logIdx.
-// If the log is out of reach, then ErrFuture is returned.
+// If the log is out of reach and the block is complete, an ErrConflict is returned.
+// If the log is out of reach and the block is not complete, an ErrFuture is returned.
 // If the log is determined to conflict with the canonical chain, then ErrConflict is returned.
 // logIdx is the index of the log in the array of all logs in the block.
 // This can be used to check the validity of cross-chain interop events.
@@ -295,6 +296,10 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 
 	entryLogHash, iter, err := db.findLogInfo(blockNum, logIdx)
 	if err != nil {
+		// if we get an ErrFuture but have a complete block, then we really have a conflict
+		if errors.Is(err, types.ErrFuture) && db.lastEntryContext.hasCompleteBlock() {
+			return types.BlockSeal{}, types.ErrConflict
+		}
 		return types.BlockSeal{}, err // may be ErrConflict if the block does not have as many logs
 	}
 	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", entryLogHash)
@@ -348,8 +353,7 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 }
 
 // findLogInfo returns the hash of the log at the specified block number and log index.
-// If the log index is out of range we return an ErrFuture if the block is complete,
-// or ErrConflict if it's not.
+// If a log isn't found at the index we return an ErrFuture, even if the block is complete.
 func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (common.Hash, Iterator, error) {
 	if blockNum == 0 {
 		return common.Hash{}, nil, types.ErrConflict // no logs in block 0
@@ -365,10 +369,6 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (common.Hash, Iterator
 		return common.Hash{}, nil, err
 	}
 	if err := iter.NextInitMsg(); err != nil {
-		// if we get an ErrFuture but have a complete block, then we really have a conflict
-		if errors.Is(err, types.ErrFuture) && db.lastEntryContext.hasCompleteBlock() {
-			err = types.ErrConflict
-		}
 		return common.Hash{}, nil, fmt.Errorf("failed to read initiating message %d, on top of block %d: %w", logIdx, blockNum, err)
 	}
 	if _, x, ok := iter.SealedBlock(); !ok {

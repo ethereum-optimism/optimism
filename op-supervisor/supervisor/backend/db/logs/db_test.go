@@ -736,6 +736,42 @@ func TestContains(t *testing.T) {
 		})
 }
 
+func TestContainsOutOfRangeLogIndex(t *testing.T) {
+	runDBTest(t,
+		func(t *testing.T, db *DB, m *stubMetrics) {
+			bl10 := eth.BlockID{Hash: createHash(10), Number: 10}
+			require.NoError(t, db.lastEntryContext.forceBlock(bl10, 5000))
+
+			// Create a block with 2 logs
+			require.NoError(t, db.AddLog(createHash(1), bl10, 0, nil))
+			require.NoError(t, db.AddLog(createHash(2), bl10, 1, nil))
+			bl11 := eth.BlockID{Hash: createHash(11), Number: 11}
+			require.NoError(t, db.SealBlock(bl10.Hash, bl11, 5001))
+
+			// Create a block with 0 logs
+			bl12 := eth.BlockID{Hash: createHash(12), Number: 12}
+			require.NoError(t, db.SealBlock(bl11.Hash, bl12, 5002))
+
+			// Create a log for an unsealed block
+			require.NoError(t, db.AddLog(createHash(3), bl12, 0, nil))
+		},
+		func(t *testing.T, db *DB, m *stubMetrics) {
+			// Asking for existing logs should succeed
+			requireContains(t, db, 11, 0, 5001, createHash(1))
+			requireContains(t, db, 11, 1, 5001, createHash(2))
+
+			// Asking for out of range log index should return a conflict
+			requireConflicts(t, db, 11, 2, 5001, createHash(3))
+
+			// Asking for logs in a complete block with no logs should return a conflict
+			requireConflicts(t, db, 12, 0, 5002, createHash(4))
+
+			// Asking for logs in a block that isn't complete yet should return a future
+			requireFuture(t, db, 13, 0, 5003, createHash(6))
+			requireFuture(t, db, 13, 1, 5003, createHash(6))
+		})
+}
+
 func TestExecutes(t *testing.T) {
 	execMsg1 := types.ExecutingMessage{
 		Chain:     33,
