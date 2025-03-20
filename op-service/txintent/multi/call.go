@@ -1,28 +1,64 @@
 package txintent
 
 import (
+	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/lmittmann/w3"
 )
 
 var _ txintent.Call = (*MultiTrigger)(nil)
 
 type MultiTrigger struct {
-	Calls []txintent.Call
+	Emitter common.Address // address of the MultiCall3 contract
+	Calls   []txintent.Call
 }
 
-func (v *MultiTrigger) To() (*common.Address, error) {
-	// TODO format multi-call
-	return nil, nil
+func (m *MultiTrigger) To() (*common.Address, error) {
+	return &m.Emitter, nil
 }
 
 func (v *MultiTrigger) Data() ([]byte, error) {
-	// TODO format multi-call
-	return nil, nil
+	type Call3Value struct {
+		Target       common.Address
+		AllowFailure bool
+		CallData     []byte
+	}
+	var multicall []Call3Value
+	for _, call := range v.Calls {
+		target, err := call.To()
+		if err != nil {
+			return nil, fmt.Errorf("failed to aggregate to: %w", err)
+		}
+		calldata, err := call.Data()
+		if err != nil {
+			return nil, fmt.Errorf("failed to aggregate calldata: %w", err)
+		}
+		multicall = append(multicall, Call3Value{
+			Target:       *target,
+			AllowFailure: false,
+			CallData:     calldata,
+		})
+	}
+	// TODO: Need to do better construct call input than this
+	aggregate3 := w3.MustNewFunc("aggregate3((address target, bool allowFailure, bytes callData)[])", "(bool, bytes)[]")
+	calldata, err := aggregate3.EncodeArgs(multicall)
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct calldata: %w", err)
+	}
+	return calldata, nil
 }
 
 func (v *MultiTrigger) AccessList() (types.AccessList, error) {
-	// TODO format multi-call
-	return nil, nil
+	var aggAccessList types.AccessList
+	for _, call := range v.Calls {
+		accessList, err := call.AccessList()
+		if err != nil {
+			return nil, fmt.Errorf("failed to aggregate access list: %v", err)
+		}
+		aggAccessList = append(aggAccessList, accessList...)
+	}
+	return aggAccessList, nil
 }
