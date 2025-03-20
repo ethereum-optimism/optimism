@@ -57,7 +57,7 @@ func (v *MultiTrigger) AccessList() (types.AccessList, error) {
 	for _, call := range v.Calls {
 		accessList, err := call.AccessList()
 		if err != nil {
-			return nil, fmt.Errorf("failed to aggregate access list: %v", err)
+			return nil, fmt.Errorf("failed to aggregate access list: %w", err)
 		}
 		aggAccessList = append(aggAccessList, accessList...)
 	}
