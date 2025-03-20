@@ -11,16 +11,18 @@ import (
 // L2CLNodeID identifies a L2CLNode by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2CLNodeID idWithChain
 
+const L2CLNodeKind Kind = "L2CLNode"
+
 func (id L2CLNodeID) String() string {
-	return idWithChain(id).string("L2CLNode")
+	return idWithChain(id).string(L2CLNodeKind)
 }
 
 func (id L2CLNodeID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("L2CLNode")
+	return idWithChain(id).marshalText(L2CLNodeKind)
 }
 
 func (id *L2CLNodeID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("L2CLNode", data)
+	return (*idWithChain)(id).unmarshalText(L2CLNodeKind, data)
 }
 
 func SortL2CLNodeIDs(ids []L2CLNodeID) []L2CLNodeID {

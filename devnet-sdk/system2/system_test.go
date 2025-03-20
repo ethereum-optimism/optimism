@@ -76,7 +76,7 @@ func TestSystemTypes(t *testing.T) {
 
 	cluster := NewCluster(ClusterConfig{
 		CommonConfig:  setup.CommonConfig(),
-		ID:            L2ClusterID("devnet"),
+		ID:            ClusterID("devnet"),
 		DependencySet: nil,
 	})
 	setup.System.AddCluster(cluster)

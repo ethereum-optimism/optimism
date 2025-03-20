@@ -7,16 +7,18 @@ import (
 // L2ProposerID identifies a L2Proposer by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2ProposerID idWithChain
 
+const L2ProposerKind Kind = "L2Proposer"
+
 func (id L2ProposerID) String() string {
-	return idWithChain(id).string("L2Proposer")
+	return idWithChain(id).string(L2ProposerKind)
 }
 
 func (id L2ProposerID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("L2Proposer")
+	return idWithChain(id).marshalText(L2ProposerKind)
 }
 
 func (id *L2ProposerID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("L2Proposer", data)
+	return (*idWithChain)(id).unmarshalText(L2ProposerKind, data)
 }
 
 func SortL2ProposerIDs(ids []L2ProposerID) []L2ProposerID {

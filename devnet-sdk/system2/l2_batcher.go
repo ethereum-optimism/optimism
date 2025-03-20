@@ -7,16 +7,18 @@ import (
 // L2BatcherID identifies a L2Batcher by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2BatcherID idWithChain
 
+const L2BatcherKind Kind = "L2Batcher"
+
 func (id L2BatcherID) String() string {
-	return idWithChain(id).string("L2Batcher")
+	return idWithChain(id).string(L2BatcherKind)
 }
 
 func (id L2BatcherID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("L2Batcher")
+	return idWithChain(id).marshalText(L2BatcherKind)
 }
 
 func (id *L2BatcherID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("L2Batcher", data)
+	return (*idWithChain)(id).unmarshalText(L2BatcherKind, data)
 }
 
 func SortL2BatcherIDs(ids []L2BatcherID) []L2BatcherID {

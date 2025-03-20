@@ -5,16 +5,18 @@ import "github.com/stretchr/testify/require"
 // L1ELNodeID identifies a L1ELNode by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L1ELNodeID idWithChain
 
+const L1ELNodeKind Kind = "L1ELNode"
+
 func (id L1ELNodeID) String() string {
-	return idWithChain(id).string("L1ELNode")
+	return idWithChain(id).string(L1ELNodeKind)
 }
 
 func (id L1ELNodeID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("L1ELNode")
+	return idWithChain(id).marshalText(L1ELNodeKind)
 }
 
 func (id *L1ELNodeID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("L1ELNode", data)
+	return (*idWithChain)(id).unmarshalText(L1ELNodeKind, data)
 }
 
 func SortL1ELNodeIDs(ids []L1ELNodeID) []L1ELNodeID {

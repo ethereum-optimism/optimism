@@ -4,29 +4,32 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
-// L2ClusterID identifies a Cluster by name, is type-safe, and can be value-copied and used as map key.
-type L2ClusterID genericID
+// ClusterID identifies a Cluster by name, is type-safe, and can be value-copied and used as map key.
+type ClusterID genericID
 
-func (id L2ClusterID) String() string {
-	return genericID(id).string("L2Cluster")
+const ClusterKind Kind = "Cluster"
+
+func (id ClusterID) String() string {
+	return genericID(id).string(ClusterKind)
 }
 
-func (id L2ClusterID) MarshalText() ([]byte, error) {
-	return genericID(id).marshalText("L2Cluster")
+func (id ClusterID) MarshalText() ([]byte, error) {
+	return genericID(id).marshalText(ClusterKind)
 }
 
-func (id *L2ClusterID) UnmarshalText(data []byte) error {
-	return (*genericID)(id).unmarshalText("L2Cluster", data)
+func (id *ClusterID) UnmarshalText(data []byte) error {
+	return (*genericID)(id).unmarshalText(ClusterKind, data)
 }
 
-func SortL2ClusterIDs(ids []L2ClusterID) []L2ClusterID {
+func SortClusterIDs(ids []ClusterID) []ClusterID {
 	return copyAndSortCmp(ids)
 }
 
-// Cluster represents a set of L2 chains that interop
+// Cluster represents a set of chains that interop with each other.
+// This may include L1 chains (although potentially not two-way interop due to consensus-layer limitations).
 type Cluster interface {
 	Common
-	ID() L2ClusterID
+	ID() ClusterID
 
 	DependencySet() depset.DependencySet
 }
@@ -35,14 +38,14 @@ type Cluster interface {
 type ClusterConfig struct {
 	CommonConfig
 	DependencySet depset.DependencySet
-	ID            L2ClusterID
+	ID            ClusterID
 }
 
 // presetCluster implements Cluster with preset values
 type presetCluster struct {
 	commonImpl
 	depSet depset.DependencySet
-	id     L2ClusterID
+	id     ClusterID
 }
 
 var _ Cluster = (*presetCluster)(nil)
@@ -56,7 +59,7 @@ func NewCluster(cfg ClusterConfig) Cluster {
 	}
 }
 
-func (p *presetCluster) ID() L2ClusterID {
+func (p *presetCluster) ID() ClusterID {
 	return p.id
 }
 

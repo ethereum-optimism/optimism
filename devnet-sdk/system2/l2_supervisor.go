@@ -9,16 +9,18 @@ import (
 // L2SupervisorID identifies a L2Supervisor by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2SupervisorID genericID
 
+const L2SupervisorKind Kind = "L2Supervisor"
+
 func (id L2SupervisorID) String() string {
-	return genericID(id).string("L2Supervisor")
+	return genericID(id).string(L2SupervisorKind)
 }
 
 func (id L2SupervisorID) MarshalText() ([]byte, error) {
-	return genericID(id).marshalText("L2Supervisor")
+	return genericID(id).marshalText(L2SupervisorKind)
 }
 
 func (id *L2SupervisorID) UnmarshalText(data []byte) error {
-	return (*genericID)(id).unmarshalText("L2Supervisor", data)
+	return (*genericID)(id).unmarshalText(L2SupervisorKind, data)
 }
 
 func SortL2SupervisorIDs(ids []L2SupervisorID) []L2SupervisorID {

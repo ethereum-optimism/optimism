@@ -10,12 +10,12 @@ type System interface {
 	Common
 
 	Superchain(id SuperchainID) Superchain
-	Cluster(id L2ClusterID) Cluster
+	Cluster(id ClusterID) Cluster
 	L1Network(id L1NetworkID) L1Network
 	L2Network(id L2NetworkID) L2Network
 
 	Superchains() []SuperchainID
-	Clusters() []L2ClusterID
+	Clusters() []ClusterID
 	L1Networks() []L1NetworkID
 	L2Networks() []L2NetworkID
 
@@ -50,7 +50,7 @@ type presetSystem struct {
 	commonImpl
 
 	superchains locks.RWMap[SuperchainID, Superchain]
-	clusters    locks.RWMap[L2ClusterID, Cluster]
+	clusters    locks.RWMap[ClusterID, Cluster]
 
 	// tracks L1 networks by name
 	l1Networks locks.RWMap[L1NetworkID, L1Network]
@@ -87,7 +87,7 @@ func (p *presetSystem) AddSuperchain(v Superchain) {
 	p.require().True(p.superchains.SetIfMissing(v.ID(), v), "superchain %s must not already exist", v.ID())
 }
 
-func (p *presetSystem) Cluster(id L2ClusterID) Cluster {
+func (p *presetSystem) Cluster(id ClusterID) Cluster {
 	v, ok := p.clusters.Get(id)
 	p.require().True(ok, "cluster %s must exist", id)
 	return v
@@ -149,8 +149,8 @@ func (p *presetSystem) Superchains() []SuperchainID {
 	return SortSuperchainIDs(p.superchains.Keys())
 }
 
-func (p *presetSystem) Clusters() []L2ClusterID {
-	return SortL2ClusterIDs(p.clusters.Keys())
+func (p *presetSystem) Clusters() []ClusterID {
+	return SortClusterIDs(p.clusters.Keys())
 }
 
 func (p *presetSystem) L1Networks() []L1NetworkID {

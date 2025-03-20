@@ -8,16 +8,18 @@ import (
 // L1CLNodeID identifies a L1CLNode by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L1CLNodeID idWithChain
 
+const L1CLNodeKind Kind = "L1CLNode"
+
 func (id L1CLNodeID) String() string {
-	return idWithChain(id).string("L1CLNode")
+	return idWithChain(id).string(L1CLNodeKind)
 }
 
 func (id L1CLNodeID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("L1CLNode")
+	return idWithChain(id).marshalText(L1CLNodeKind)
 }
 
 func (id *L1CLNodeID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("L1CLNode", data)
+	return (*idWithChain)(id).unmarshalText(L1CLNodeKind, data)
 }
 
 func SortL1CLNodeIDs(ids []L1CLNodeID) []L1CLNodeID {

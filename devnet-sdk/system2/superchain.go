@@ -10,16 +10,18 @@ type SuperchainDeployment interface {
 // SuperchainID identifies a Superchain by name, is type-safe, and can be value-copied and used as map key.
 type SuperchainID genericID
 
+const SuperchainKind Kind = "Superchain"
+
 func (id SuperchainID) String() string {
-	return genericID(id).string("L2Supervisor")
+	return genericID(id).string(SuperchainKind)
 }
 
 func (id SuperchainID) MarshalText() ([]byte, error) {
-	return genericID(id).marshalText("L2Supervisor")
+	return genericID(id).marshalText(SuperchainKind)
 }
 
 func (id *SuperchainID) UnmarshalText(data []byte) error {
-	return (*genericID)(id).unmarshalText("L2Supervisor", data)
+	return (*genericID)(id).unmarshalText(SuperchainKind, data)
 }
 
 func SortSuperchainIDs(ids []SuperchainID) []SuperchainID {

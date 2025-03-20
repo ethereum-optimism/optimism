@@ -3,16 +3,18 @@ package system2
 // FaucetID identifies a Faucet by name and chainID, is type-safe, and can be value-copied and used as map key.
 type FaucetID idWithChain
 
+const FaucetKind Kind = "Faucet"
+
 func (id FaucetID) String() string {
-	return idWithChain(id).string("Faucet")
+	return idWithChain(id).string(FaucetKind)
 }
 
 func (id FaucetID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("Faucet")
+	return idWithChain(id).marshalText(FaucetKind)
 }
 
 func (id *FaucetID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("Faucet", data)
+	return (*idWithChain)(id).unmarshalText(FaucetKind, data)
 }
 
 func SortFaucetIDs(ids []FaucetID) []FaucetID {

@@ -16,16 +16,18 @@ import (
 // L2NetworkID identifies a L2Network by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2NetworkID idWithChain
 
+const L2NetworkKind Kind = "L2Network"
+
 func (id L2NetworkID) String() string {
-	return idWithChain(id).string("L2Network")
+	return idWithChain(id).string(L2NetworkKind)
 }
 
 func (id L2NetworkID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText("L2Network")
+	return idWithChain(id).marshalText(L2NetworkKind)
 }
 
 func (id *L2NetworkID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText("L2Network", data)
+	return (*idWithChain)(id).unmarshalText(L2NetworkKind, data)
 }
 
 func SortL2NetworkIDs(ids []L2NetworkID) []L2NetworkID {

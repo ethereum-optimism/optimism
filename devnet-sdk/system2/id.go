@@ -11,6 +11,22 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+// Kind represents a kind of component, this is used to make each ID unique, even when encoded as text.
+type Kind string
+
+func (k Kind) String() string {
+	return string(k)
+}
+
+func (k Kind) MarshalText() ([]byte, error) {
+	return []byte(k), nil
+}
+
+func (k *Kind) UnmarshalText(data []byte) error {
+	*k = Kind(data)
+	return nil
+}
+
 const maxIDLength = 100
 
 var errInvalidID = errors.New("invalid ID")
@@ -22,11 +38,11 @@ type idWithChain struct {
 	ChainID eth.ChainID
 }
 
-func (id idWithChain) string(kind string) string {
+func (id idWithChain) string(kind Kind) string {
 	return fmt.Sprintf("%s-%s-%s", kind, id.Key, id.ChainID)
 }
 
-func (id idWithChain) marshalText(kind string) ([]byte, error) {
+func (id idWithChain) marshalText(kind Kind) ([]byte, error) {
 	k := string(id.Key)
 	if len(k) > maxIDLength {
 		return nil, errInvalidID
@@ -35,12 +51,12 @@ func (id idWithChain) marshalText(kind string) ([]byte, error) {
 	return []byte(k), nil
 }
 
-func (id *idWithChain) unmarshalText(kind string, data []byte) error {
+func (id *idWithChain) unmarshalText(kind Kind, data []byte) error {
 	kindData, mainData, ok := bytes.Cut(data, []byte("-"))
 	if !ok {
 		return fmt.Errorf("expected kind-prefix, but id has none: %q", data)
 	}
-	if x := string(kindData); x != kind {
+	if x := string(kindData); x != string(kind) {
 		return fmt.Errorf("id %q has unexpected kind %q, expected %q", string(data), x, kind)
 	}
 	before, after, ok := bytes.Cut(mainData, []byte("-"))
@@ -63,23 +79,23 @@ func (id *idWithChain) unmarshalText(kind string, data []byte) error {
 // and has type-safe text encoding/decoding to prevent accidental mixups.
 type genericID string
 
-func (id genericID) string(kind string) string {
+func (id genericID) string(kind Kind) string {
 	return fmt.Sprintf("%s-%s", kind, string(id))
 }
 
-func (id genericID) marshalText(kind string) ([]byte, error) {
+func (id genericID) marshalText(kind Kind) ([]byte, error) {
 	if len(id) > maxIDLength {
 		return nil, errInvalidID
 	}
 	return []byte(fmt.Sprintf("%s-%s", kind, string(id))), nil
 }
 
-func (id *genericID) unmarshalText(kind string, data []byte) error {
+func (id *genericID) unmarshalText(kind Kind, data []byte) error {
 	kindData, mainData, ok := bytes.Cut(data, []byte("-"))
 	if !ok {
 		return fmt.Errorf("expected kind-prefix, but id has none: %q", data)
 	}
-	if x := string(kindData); x != kind {
+	if x := string(kindData); x != string(kind) {
 		return fmt.Errorf("id %q has unexpected kind %q, expected %q", string(data), x, kind)
 	}
 	if len(mainData) > maxIDLength {
