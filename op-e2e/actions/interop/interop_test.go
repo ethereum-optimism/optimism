@@ -468,7 +468,15 @@ func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
 	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
 }
 
-func TestInterop_IntraBlockReferenceReplacement(gt *testing.T) {
+func TestInteropIntraBlockReferenceReplacementChainBIsInvalid(gt *testing.T) {
+	testInteropIntraBlockReferenceReplacement(gt, false)
+}
+
+func TestInteropIntraBlockReferenceReplacementChainAIsInvalid(gt *testing.T) {
+	testInteropIntraBlockReferenceReplacement(gt, true)
+}
+
+func testInteropIntraBlockReferenceReplacement(gt *testing.T, reverse bool) {
 	t := helpers.NewDefaultTesting(gt)
 	system := dsl.NewInteropDSL(t)
 	actors := system.Actors
@@ -483,31 +491,41 @@ func TestInterop_IntraBlockReferenceReplacement(gt *testing.T) {
 	assertHeads(t, actors.ChainA, 1, 0, 1, 0)
 	assertHeads(t, actors.ChainB, 1, 0, 1, 0)
 
+	// Determine which chain is the invalid chain and which is the other chain
+	// We'll perform all operations on chains A and B in the same order but will
+	// include the invalid message on one chain or the other.
+	initialInvalidChain := actors.ChainB
+	otherChain := actors.ChainA
+	if reverse {
+		initialInvalidChain = actors.ChainA
+		otherChain = actors.ChainB
+	}
+
 	// Create a scenario where ChainB has a block with an invalid message and ChainA references it.
 	// The blocks on both chains should be marked as invalid and replaced.
 	var (
-		chainAExecTx *dsl.GeneratedTransaction
-		chainBExecTx *dsl.GeneratedTransaction
-		chainBInitTx *dsl.GeneratedTransaction
+		otherChainExecTx   *dsl.GeneratedTransaction
+		invalidExecTx      *dsl.GeneratedTransaction
+		invalidChainInitTx *dsl.GeneratedTransaction
 	)
 	{
 		actors.ChainA.Sequencer.ActL2StartBlock(t)
 		actors.ChainB.Sequencer.ActL2StartBlock(t)
 
-		chainAInitTx := emitterContract.EmitMessage(alice, "chainA message")(actors.ChainA)
-		chainAInitTx.Include()
+		otherChainInitTx := emitterContract.EmitMessage(alice, "valid message on other chain")(otherChain)
+		otherChainInitTx.Include()
 
 		// Create messages with a conflicting payload on chain B, while also emitting an initiating message
-		chainBExecTx = system.InboxContract.Execute(alice, chainAInitTx,
-			dsl.WithPayload([]byte("this message was never emitted")))(actors.ChainB)
-		chainBExecTx.Include()
-		chainBInitTx = emitterContract.EmitMessage(alice, "chainB message")(actors.ChainB)
-		chainBInitTx.Include()
+		invalidExecTx = system.InboxContract.Execute(alice, otherChainInitTx,
+			dsl.WithPayload([]byte("this message was never emitted")))(initialInvalidChain)
+		invalidExecTx.Include()
+		invalidChainInitTx = emitterContract.EmitMessage(alice, "valid message on invalid chain")(initialInvalidChain)
+		invalidChainInitTx.Include()
 
 		// Create a message with a valid message on chain A, pointing to the initiating message on B from the same block
 		// as an invalid message.
-		chainAExecTx = system.InboxContract.Execute(alice, chainBInitTx)(actors.ChainA)
-		chainAExecTx.Include()
+		otherChainExecTx = system.InboxContract.Execute(alice, invalidChainInitTx)(otherChain)
+		otherChainExecTx.Include()
 
 		actors.ChainA.Sequencer.ActL2EndBlock(t)
 		actors.ChainB.Sequencer.ActL2EndBlock(t)
@@ -552,7 +570,7 @@ func TestInterop_IntraBlockReferenceReplacement(gt *testing.T) {
 	assertHeads(t, actors.ChainB, 2, 2, 2, 2)
 
 	// Assert that the invalid message txs were reorged out
-	chainBExecTx.CheckNotIncluded()
-	chainBInitTx.CheckNotIncluded() // Should have been reorged out with chainBExecTx
-	chainAExecTx.CheckNotIncluded() // Reorged out because chainBInitTx was reorged out
+	invalidExecTx.CheckNotIncluded()
+	invalidChainInitTx.CheckNotIncluded() // Should have been reorged out with chainBExecTx
+	otherChainExecTx.CheckNotIncluded()   // Reorged out because chainBInitTx was reorged out
 }
