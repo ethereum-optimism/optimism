@@ -31,9 +31,9 @@ type ELNodeConfig struct {
 type rpcELNode struct {
 	commonImpl
 
-	cl      client.RPC
-	ethCl   *sources.EthClient
-	chainID eth.ChainID
+	client    client.RPC
+	ethClient *sources.EthClient
+	chainID   eth.ChainID
 }
 
 var _ ELNode = (*rpcELNode)(nil)
@@ -45,8 +45,8 @@ func newRpcELNode(cfg ELNodeConfig) rpcELNode {
 
 	return rpcELNode{
 		commonImpl: newCommon(cfg.CommonConfig),
-		cl:         cfg.Client,
-		ethCl:      ethCl,
+		client:     cfg.Client,
+		ethClient:  ethCl,
 		chainID:    cfg.ChainID,
 	}
 }
@@ -56,9 +56,9 @@ func (r *rpcELNode) ChainID() eth.ChainID {
 }
 
 func (r *rpcELNode) EthClient() EthClient {
-	return r.ethCl
+	return r.ethClient
 }
 
 func (r *rpcELNode) Close() {
-	r.cl.Close()
+	r.client.Close()
 }

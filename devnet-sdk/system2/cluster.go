@@ -34,8 +34,8 @@ type Cluster interface {
 // ClusterConfig is the config to create a default cluster object
 type ClusterConfig struct {
 	CommonConfig
-	DepSet depset.DependencySet
-	ID     L2ClusterID
+	DependencySet depset.DependencySet
+	ID            L2ClusterID
 }
 
 // presetCluster implements Cluster with preset values
@@ -52,7 +52,7 @@ func NewCluster(cfg ClusterConfig) Cluster {
 	return &presetCluster{
 		id:         cfg.ID,
 		commonImpl: newCommon(cfg.CommonConfig),
-		depSet:     cfg.DepSet,
+		depSet:     cfg.DependencySet,
 	}
 }
 

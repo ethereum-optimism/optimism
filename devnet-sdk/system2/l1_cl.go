@@ -43,8 +43,8 @@ type L1CLNodeConfig struct {
 
 type rpcL1CLNode struct {
 	commonImpl
-	id L1CLNodeID
-	cl sources.BeaconClient
+	id     L1CLNodeID
+	client sources.BeaconClient
 }
 
 var _ L1CLNode = (*rpcL1CLNode)(nil)
@@ -54,7 +54,7 @@ func NewL1CLNode(cfg L1CLNodeConfig) L1CLNode {
 	return &rpcL1CLNode{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
-		cl:         sources.NewBeaconHTTPClient(cfg.Client),
+		client:     sources.NewBeaconHTTPClient(cfg.Client),
 	}
 }
 
@@ -63,5 +63,5 @@ func (r *rpcL1CLNode) ID() L1CLNodeID {
 }
 
 func (r *rpcL1CLNode) BeaconClient() sources.BeaconClient {
-	return r.cl
+	return r.client
 }

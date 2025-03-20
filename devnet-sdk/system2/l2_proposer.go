@@ -39,8 +39,8 @@ type L2ProposerConfig struct {
 
 type rpcL2Proposer struct {
 	commonImpl
-	id L2ProposerID
-	cl client.RPC
+	id     L2ProposerID
+	client client.RPC
 }
 
 var _ L2Proposer = (*rpcL2Proposer)(nil)
@@ -50,7 +50,7 @@ func NewL2Proposer(cfg L2ProposerConfig) L2Proposer {
 	return &rpcL2Proposer{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
-		cl:         cfg.Client,
+		client:     cfg.Client,
 	}
 }
 

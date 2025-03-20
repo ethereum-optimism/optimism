@@ -20,6 +20,7 @@
 - Test gates can inspect a system, abort if needed, or remediate shortcomings of the system with help of an `Orchestrator` (the test setup features offered by the system composer or maintainer).
 - The `Setup` is a struct that may be extended with additional struct-fields in the future, without breaking the `Option` function-signature.
 - There are no "chains": the word "chain" is reserved for the protocol typing of the onchain / state-transition related logic. Instead, there are "networks", which include the offchain resources and attached services of a chain.
+- Do not abreviate "client" to "cl", to avoid confusion with "consensus-layer".
 
 ## Overview
 

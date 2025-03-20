@@ -44,8 +44,8 @@ type rpcL2Supervisor struct {
 	commonImpl
 	id L2SupervisorID
 
-	cl  client.RPC
-	api interface {
+	client client.RPC
+	api    interface {
 		sources.SupervisorQueryAPI
 		sources.SupervisorAdminAPI
 	}
@@ -58,7 +58,7 @@ func NewL2Supervisor(cfg L2SupervisorConfig) L2Supervisor {
 	return &rpcL2Supervisor{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
-		cl:         cfg.Client,
+		client:     cfg.Client,
 		api:        sources.NewSupervisorClient(cfg.Client, &opmetrics.NoopRPCMetrics{}),
 	}
 }

@@ -49,9 +49,9 @@ type L2CLNodeConfig struct {
 
 type rpcL2CLNode struct {
 	commonImpl
-	id       L2CLNodeID
-	cl       client.RPC
-	rollupCl RollupAPI
+	id           L2CLNodeID
+	client       client.RPC
+	rollupClient RollupAPI
 }
 
 var _ L2CLNode = (*rpcL2CLNode)(nil)
@@ -59,10 +59,10 @@ var _ L2CLNode = (*rpcL2CLNode)(nil)
 func NewL2CLNode(cfg L2CLNodeConfig) L2CLNode {
 	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID, "id", cfg.ID)
 	return &rpcL2CLNode{
-		commonImpl: newCommon(cfg.CommonConfig),
-		id:         cfg.ID,
-		cl:         cfg.Client,
-		rollupCl:   sources.NewRollupClient(cfg.Client),
+		commonImpl:   newCommon(cfg.CommonConfig),
+		id:           cfg.ID,
+		client:       cfg.Client,
+		rollupClient: sources.NewRollupClient(cfg.Client),
 	}
 }
 
@@ -71,5 +71,5 @@ func (r *rpcL2CLNode) ID() L2CLNodeID {
 }
 
 func (r *rpcL2CLNode) RollupAPI() RollupAPI {
-	return r.rollupCl
+	return r.rollupClient
 }

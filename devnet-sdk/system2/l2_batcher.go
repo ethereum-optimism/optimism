@@ -41,8 +41,8 @@ type L2BatcherConfig struct {
 
 type rpcL2Batcher struct {
 	commonImpl
-	id L2BatcherID
-	cl client.RPC
+	id     L2BatcherID
+	client client.RPC
 }
 
 var _ L2Batcher = (*rpcL2Batcher)(nil)
@@ -52,7 +52,7 @@ func NewL2Batcher(cfg L2BatcherConfig) L2Batcher {
 	return &rpcL2Batcher{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
-		cl:         cfg.Client,
+		client:     cfg.Client,
 	}
 }
 

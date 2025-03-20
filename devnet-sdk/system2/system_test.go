@@ -75,9 +75,9 @@ func TestSystemTypes(t *testing.T) {
 	setup.System.AddSuperchain(superchain)
 
 	cluster := NewCluster(ClusterConfig{
-		CommonConfig: setup.CommonConfig(),
-		ID:           L2ClusterID("devnet"),
-		DepSet:       nil,
+		CommonConfig:  setup.CommonConfig(),
+		ID:            L2ClusterID("devnet"),
+		DependencySet: nil,
 	})
 	setup.System.AddCluster(cluster)
 
