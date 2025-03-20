@@ -36,7 +36,7 @@ func (v *InitTrigger) Data() ([]byte, error) {
 	emitLog := w3.MustNewFunc("emitLog(bytes32[] topics, bytes data)", "")
 	calldata, err := emitLog.EncodeArgs(v.Topics, v.OpaqueData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to construct calldata: %v", err)
+		return nil, fmt.Errorf("failed to construct calldata: %w", err)
 	}
 	return calldata, nil
 }
@@ -62,7 +62,7 @@ func (v *SendTrigger) Data() ([]byte, error) {
 	sendMessage := w3.MustNewFunc("sendMessage(uint256, address, bytes calldata)", "bytes32")
 	calldata, err := sendMessage.EncodeArgs(v.DestChainID.ToBig(), v.Target, v.RelayedCalldata)
 	if err != nil {
-		return nil, fmt.Errorf("failed to construct calldata: %v", err)
+		return nil, fmt.Errorf("failed to construct calldata: %w", err)
 	}
 	return calldata, nil
 }
@@ -101,7 +101,7 @@ func (v *ExecTrigger) Data() ([]byte, error) {
 	}
 	calldata, err := validateMessage.EncodeArgs(identifier, v.Msg.PayloadHash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to construct calldata: %v", err)
+		return nil, fmt.Errorf("failed to construct calldata: %w", err)
 	}
 	return calldata, nil
 }
@@ -140,7 +140,7 @@ func (v *RelayTrigger) Data() ([]byte, error) {
 	}
 	calldata, err := relayMessage.EncodeArgs(identifier, v.Payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to construct calldata: %v", err)
+		return nil, fmt.Errorf("failed to construct calldata: %w", err)
 	}
 	return calldata, nil
 }
