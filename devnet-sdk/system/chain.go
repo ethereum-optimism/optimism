@@ -216,18 +216,17 @@ func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
 	nodes := newNodesFromDescriptor(&d.Chain)
 	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses), nodes) // Create chain first
 
-	wallets := make(WalletMap)
-	for key, w := range d.Wallets {
-		// TODO: The assumption that the wallet will necessarily be used on chain `d` may
-		// be problematic if the L2 admin wallets are to be used to sign L1 transactions.
-		// TBD on whether they belong somewhere other than `d.Wallets`.
-		k, err := newWallet(w.PrivateKey, w.Address, c.chain)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create wallet: %w", err)
-		}
-		wallets[key] = k
+	l2Wallets, err := newWalletMapFromDescriptorWalletMap(d.Wallets, c)
+	if err != nil {
+		return nil, err
 	}
-	c.wallets = wallets // Set wallets after creation
+	c.wallets = l2Wallets
+
+	l1Wallets, err := newWalletMapFromDescriptorWalletMap(d.L1Wallets, c)
+	if err != nil {
+		return nil, err
+	}
+	c.l1Wallets = l1Wallets
 
 	return c, nil
 }

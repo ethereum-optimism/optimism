@@ -203,7 +203,7 @@ func TestChainConfig(t *testing.T) {
 	// Test getting environment variables
 	t.Run("get environment variables", func(t *testing.T) {
 		env, err := chain.GetEnv(
-			WithCastIntegration(true),
+			WithCastIntegration(true, 0),
 		)
 		require.NoError(t, err)
 
@@ -224,7 +224,7 @@ func TestChainConfig(t *testing.T) {
 			},
 		}
 		_, err := noNodesChain.GetEnv(
-			WithCastIntegration(true),
+			WithCastIntegration(true, 0),
 		)
 		assert.Error(t, err)
 	})
@@ -242,7 +242,7 @@ func TestChainConfig(t *testing.T) {
 			},
 		}
 		_, err := missingServiceChain.GetEnv(
-			WithCastIntegration(true),
+			WithCastIntegration(true, 0),
 		)
 		assert.Error(t, err)
 	})
@@ -264,7 +264,7 @@ func TestChainConfig(t *testing.T) {
 			},
 		}
 		_, err := missingEndpointChain.GetEnv(
-			WithCastIntegration(true),
+			WithCastIntegration(true, 0),
 		)
 		assert.Error(t, err)
 	})
