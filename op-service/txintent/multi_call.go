@@ -3,18 +3,17 @@ package txintent
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/lmittmann/w3"
 )
 
-var _ txintent.Call = (*MultiTrigger)(nil)
+var _ Call = (*MultiTrigger)(nil)
 
 // Trigger for using the MultiCall3 to batch Calls
 type MultiTrigger struct {
 	Emitter common.Address // address of the MultiCall3 contract
-	Calls   []txintent.Call
+	Calls   []Call
 }
 
 func (m *MultiTrigger) To() (*common.Address, error) {

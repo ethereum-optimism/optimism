@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/lmittmann/w3"
@@ -14,11 +13,11 @@ import (
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-var _ txintent.Call = (*InitTrigger)(nil)
-var _ txintent.Call = (*ExecTrigger)(nil)
+var _ Call = (*InitTrigger)(nil)
+var _ Call = (*ExecTrigger)(nil)
 
-var _ txintent.Call = (*SendTrigger)(nil)
-var _ txintent.Call = (*RelayTrigger)(nil)
+var _ Call = (*SendTrigger)(nil)
+var _ Call = (*RelayTrigger)(nil)
 
 // Trigger for using the EventLogger to trigger emitLog
 type InitTrigger struct {

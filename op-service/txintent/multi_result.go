@@ -4,11 +4,10 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-var _ txintent.Result = (*MulticallOutput)(nil)
+var _ Result = (*MulticallOutput)(nil)
 
 type MulticallOutput struct {
 	receipt    *types.Receipt
@@ -16,7 +15,7 @@ type MulticallOutput struct {
 	chainID    eth.ChainID
 }
 
-func (m *MulticallOutput) Init() txintent.Result {
+func (m *MulticallOutput) Init() Result {
 	return &MulticallOutput{}
 }
 

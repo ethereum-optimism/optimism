@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -14,13 +13,13 @@ import (
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-var _ txintent.Result = (*InteropOutput)(nil)
+var _ Result = (*InteropOutput)(nil)
 
 type InteropOutput struct {
 	Entries []suptypes.Message
 }
 
-func (i *InteropOutput) Init() txintent.Result {
+func (i *InteropOutput) Init() Result {
 	return &InteropOutput{}
 }
 
@@ -42,6 +41,25 @@ func (i *InteropOutput) FromReceipt(ctx context.Context, rec *types.Receipt, inc
 		})
 	}
 	return nil
+}
+
+// ExecuteIndexeds returns a lambda to transform InteropOutput to a new MultiTrigger which batches multiple ExecTrigger
+func ExecuteIndexeds(multicaller, executor common.Address, events *plan.Lazy[*InteropOutput], indexes []int) func(ctx context.Context) (*MultiTrigger, error) {
+	return func(ctx context.Context) (*MultiTrigger, error) {
+		multiCalls := []Call{}
+		for _, index := range indexes {
+			if x := len(events.Value().Entries); x <= index {
+				return nil, fmt.Errorf("invalid index: %d, only have %d events", index, x)
+			}
+			multiCalls = append(multiCalls,
+				&ExecTrigger{
+					Executor: executor,
+					Msg:      events.Value().Entries[index],
+				},
+			)
+		}
+		return &MultiTrigger{Emitter: multicaller, Calls: multiCalls}, nil
+	}
 }
 
 // ExecuteIndexed returns a lambda to transform InteropOutput to a new ExecTrigger
