@@ -70,6 +70,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		OpcmGameTypeAdderAddress:                dio.OpcmGameTypeAdder,
 		OpcmDeployerAddress:                     dio.OpcmDeployer,
 		OpcmUpgraderAddress:                     dio.OpcmUpgrader,
+		OpcmInteropMigratorAddress:              dio.OpcmInteropMigrator,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
 		ETHLockboxImplAddress:                   dio.ETHLockboxImpl,

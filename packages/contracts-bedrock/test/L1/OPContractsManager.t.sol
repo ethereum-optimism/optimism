@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { console2 as console } from "forge-std/console2.sol";
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";

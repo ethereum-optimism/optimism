@@ -75,6 +75,7 @@ type ImplementationsDeployment struct {
 	OpcmGameTypeAdderAddress                common.Address `json:"opcmGameTypeAdderAddress"`
 	OpcmDeployerAddress                     common.Address `json:"opcmDeployerAddress"`
 	OpcmUpgraderAddress                     common.Address `json:"opcmUpgraderAddress"`
+	OpcmInteropMigratorAddress              common.Address `json:"opcmInteropMigratorAddress"`
 	DelayedWETHImplAddress                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImplAddress               common.Address `json:"optimismPortalImplAddress"`
 	ETHLockboxImplAddress                   common.Address `json:"ethLockboxImplAddress"`

@@ -29,6 +29,7 @@ var contractNameExceptions = map[string]string{
 	"OpcmGameTypeAdder":           "OPContractsManager.sol/OPContractsManagerGameTypeAdder.json",
 	"OpcmDeployer":                "OPContractsManager.sol/OPContractsManagerDeployer.json",
 	"OpcmUpgrader":                "OPContractsManager.sol/OPContractsManagerUpgrader.json",
+	"OpcmInteropMigrator":         "OPContractsManager.sol/OPContractsManagerInteropMigrator.json",
 }
 
 func getArtifactPath(name string) string {
