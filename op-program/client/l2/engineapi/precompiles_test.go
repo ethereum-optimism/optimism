@@ -1,6 +1,7 @@
 package engineapi
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -149,7 +150,7 @@ func TestEcrecover(t *testing.T) {
 func TestBn256Pairing(t *testing.T) {
 	setup := func(enableGranite bool) (vm.PrecompiledContract, *stubPrecompileOracle) {
 		orig := &stubPrecompile{}
-		oracle := &stubPrecompileOracle{result: true32Byte}
+		oracle := &stubPrecompileOracle{result: bytes.Clone(true32Byte)}
 		overrides := CreatePrecompileOverrides(oracle)
 		override := overrides(params.Rules{IsOptimismGranite: enableGranite}, orig, bn256PairingPrecompileAddress)
 		return override, oracle
@@ -225,7 +226,7 @@ func TestKzgPointEvaluationPrecompile(t *testing.T) {
 	oracleResult := common.FromHex(blobPrecompileReturnValue)
 	setup := func() (vm.PrecompiledContract, *stubPrecompileOracle) {
 		orig := &stubPrecompile{}
-		oracle := &stubPrecompileOracle{result: oracleResult}
+		oracle := &stubPrecompileOracle{result: bytes.Clone(oracleResult)}
 		overrides := CreatePrecompileOverrides(oracle)
 		override := overrides(params.Rules{}, orig, kzgPointEvaluationPrecompileAddress)
 		return override, oracle
@@ -342,7 +343,7 @@ func TestBLSPrecompileWithSizeLimit(t *testing.T) {
 		oracleResult := testCase.validOutput
 		setup := func() (vm.PrecompiledContract, *stubPrecompileOracle) {
 			orig := &stubPrecompile{}
-			oracle := &stubPrecompileOracle{result: oracleResult}
+			oracle := &stubPrecompileOracle{result: bytes.Clone(oracleResult)}
 			overrides := CreatePrecompileOverrides(oracle)
 			override := overrides(params.Rules{}, orig, testCase.address)
 			return override, oracle
