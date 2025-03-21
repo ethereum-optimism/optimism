@@ -18,7 +18,7 @@ contract FFIInterface {
         returns (bytes32, bytes32, bytes32, bytes32, bytes[] memory)
     {
         string[] memory cmds = new string[](10);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "getProveWithdrawalTransactionInputs";
@@ -53,7 +53,7 @@ contract FFIInterface {
         returns (bytes32)
     {
         string[] memory cmds = new string[](10);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "hashCrossDomainMessage";
@@ -80,7 +80,7 @@ contract FFIInterface {
         returns (bytes32)
     {
         string[] memory cmds = new string[](10);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "hashWithdrawal";
@@ -105,7 +105,7 @@ contract FFIInterface {
         returns (bytes32)
     {
         string[] memory cmds = new string[](8);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "hashOutputRootProof";
@@ -131,7 +131,7 @@ contract FFIInterface {
         returns (bytes32)
     {
         string[] memory cmds = new string[](12);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "hashDepositTransaction";
@@ -150,7 +150,7 @@ contract FFIInterface {
 
     function encodeDepositTransaction(Types.UserDepositTransaction calldata txn) external returns (bytes memory) {
         string[] memory cmds = new string[](13);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "encodeDepositTransaction";
@@ -180,7 +180,7 @@ contract FFIInterface {
         returns (bytes memory)
     {
         string[] memory cmds = new string[](10);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "encodeCrossDomainMessage";
@@ -219,7 +219,7 @@ contract FFIInterface {
 
     function decodeVersionedNonce(uint256 nonce) external returns (uint256, uint256) {
         string[] memory cmds = new string[](5);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "decodeVersionedNonce";
@@ -234,7 +234,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory, bytes memory, bytes[] memory)
     {
         string[] memory cmds = new string[](4);
-        cmds[0] = "./scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "./scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "trie";
         cmds[3] = variant;
@@ -244,7 +244,7 @@ contract FFIInterface {
 
     function getCannonMemoryProof(uint32 pc, uint32 insn) external returns (bytes32, bytes memory) {
         string[] memory cmds = new string[](6);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof";
@@ -265,7 +265,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](8);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof";
@@ -290,7 +290,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](10);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof";
@@ -316,7 +316,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](9);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof2";
@@ -340,7 +340,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](8);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProofWrongLeaf";
@@ -355,7 +355,7 @@ contract FFIInterface {
 
     function getCannonMemory64Proof(uint64 addr, uint64 value) external returns (bytes32, bytes memory) {
         string[] memory cmds = new string[](6);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi-cannon64";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof";
@@ -376,7 +376,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](8);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi-cannon64";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof";
@@ -401,7 +401,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](10);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi-cannon64";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof";
@@ -427,7 +427,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](9);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi-cannon64";
         cmds[2] = "diff";
         cmds[3] = "cannonMemoryProof2";
@@ -443,7 +443,7 @@ contract FFIInterface {
 
     function encodeScalarEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external returns (bytes32) {
         string[] memory cmds = new string[](6);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "encodeScalarEcotone";
@@ -455,7 +455,7 @@ contract FFIInterface {
 
     function decodeScalarEcotone(bytes32 _scalar) external returns (uint32, uint32) {
         string[] memory cmds = new string[](5);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "decodeScalarEcotone";
@@ -474,7 +474,7 @@ contract FFIInterface {
         returns (bytes memory)
     {
         string[] memory cmds = new string[](8);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "encodeGasPayingToken";
@@ -489,7 +489,7 @@ contract FFIInterface {
 
     function encodeDependency(uint256 _chainId) external returns (bytes memory) {
         string[] memory cmds = new string[](5);
-        cmds[0] = "scripts/go-ffi/go-ffi.sh";
+        cmds[0] = "scripts/go-ffi/build-go-ffi.sh";
         cmds[1] = "go-ffi";
         cmds[2] = "diff";
         cmds[3] = "encodeDependency";

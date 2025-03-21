@@ -20,7 +20,7 @@ To use `go-ffi` in a forge test, simply invoke the binary using the solidity `Pr
 ```solidity
 function myFFITest() public {
     string[] memory commands = new string[](4);
-    commands[0] = "./scripts/go-ffi/go-ffi.sh";
+    commands[0] = "./scripts/go-ffi/build-go-ffi.sh";
     commands[1] = "go-ffi";
     commands[2] = "trie";
     commands[3] = "valid";

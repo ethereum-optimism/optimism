@@ -1477,7 +1477,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         }
 
         string[] memory commands = new string[](6);
-        commands[0] = "scripts/go-ffi/go-ffi.sh";
+        commands[0] = "scripts/go-ffi/build-go-ffi.sh";
         commands[1] = "go-ffi";
         commands[2] = "merkle";
         commands[3] = "gen_proof";
