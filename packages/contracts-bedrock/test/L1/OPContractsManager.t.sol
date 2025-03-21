@@ -1618,12 +1618,12 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         // Mock out the owners of the ProxyAdmins to be different.
         vm.mockCall(
             address(input.opChainConfigs[0].proxyAdmin),
-            abi.encodeWithSelector(IProxyAdmin.owner.selector),
+            abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(1234))
         );
         vm.mockCall(
             address(input.opChainConfigs[1].proxyAdmin),
-            abi.encodeWithSelector(IProxyAdmin.owner.selector),
+            abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(5678))
         );
 
@@ -1631,9 +1631,7 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
         vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch.selector
-            )
+            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch.selector
         );
         DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
     }
@@ -1650,9 +1648,7 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
         vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector
-            )
+            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector
         );
         DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
     }
@@ -1664,12 +1660,12 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         // Mock out the SuperchainConfig addresses to be different.
         vm.mockCall(
             address(chainDeployOutput1.optimismPortalProxy),
-            abi.encodeWithSelector(IOptimismPortal2.superchainConfig.selector),
+            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
             abi.encode(address(1234))
         );
         vm.mockCall(
             address(chainDeployOutput2.optimismPortalProxy),
-            abi.encodeWithSelector(IOptimismPortal2.superchainConfig.selector),
+            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
             abi.encode(address(5678))
         );
 
@@ -1677,9 +1673,7 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
         vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector
-            )
+            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector
         );
         DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
     }
