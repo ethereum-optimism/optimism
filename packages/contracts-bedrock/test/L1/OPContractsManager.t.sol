@@ -856,16 +856,11 @@ contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
     }
 }
 
-contract OPContractsManager_AddGameType_Test is Test {
+contract OPContractsManager_TestInit is Test {
     IOPContractsManager internal opcm;
-
     IOPContractsManager.DeployOutput internal chainDeployOutput;
 
-    event GameTypeAdded(
-        uint256 indexed l2ChainId, GameType indexed gameType, IDisputeGame newDisputeGame, IDisputeGame oldDisputeGame
-    );
-
-    function setUp() public {
+    function setUp() public virtual {
         ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
@@ -1043,6 +1038,12 @@ contract OPContractsManager_AddGameType_Test is Test {
             })
         );
     }
+}
+
+contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
+    event GameTypeAdded(
+        uint256 indexed l2ChainId, GameType indexed gameType, IDisputeGame newDisputeGame, IDisputeGame oldDisputeGame
+    );
 
     function test_addGameType_permissioned_succeeds() public {
         IOPContractsManager.AddGameInput memory input = newGameInputFactory(true);
@@ -1220,203 +1221,12 @@ contract OPContractsManager_AddGameType_Test is Test {
     }
 }
 
-contract OPContractsManager_UpdatePrestate_Test is Test {
-    IOPContractsManager internal opcm;
+contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
     IOPContractsManager internal prestateUpdater;
-
-    OPContractsManager.OpChainConfig[] internal opChainConfigs;
     OPContractsManager.AddGameInput[] internal gameInput;
 
-    IOPContractsManager.DeployOutput internal chainDeployOutput;
-
-    function setUp() public {
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
-        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
-        IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
-        bytes32 salt = hex"01";
-        IOPContractsManager.Blueprints memory blueprints;
-
-        (blueprints.addressManager,) = Blueprint.create(vm.getCode("AddressManager"), salt);
-        (blueprints.proxy,) = Blueprint.create(vm.getCode("Proxy"), salt);
-        (blueprints.proxyAdmin,) = Blueprint.create(vm.getCode("ProxyAdmin"), salt);
-        (blueprints.l1ChugSplashProxy,) = Blueprint.create(vm.getCode("L1ChugSplashProxy"), salt);
-        (blueprints.resolvedDelegateProxy,) = Blueprint.create(vm.getCode("ResolvedDelegateProxy"), salt);
-        (blueprints.superPermissionedDisputeGame,) = Blueprint.create(vm.getCode("SuperPermissionedDisputeGame"), salt);
-        (blueprints.superPermissionlessDisputeGame,) = Blueprint.create(vm.getCode("SuperFaultDisputeGame"), salt);
-        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) =
-            Blueprint.create(vm.getCode("PermissionedDisputeGame"), salt);
-        (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) =
-            Blueprint.create(vm.getCode("FaultDisputeGame"), salt);
-
-        IOPContractsManager.Implementations memory impls = IOPContractsManager.Implementations({
-            superchainConfigImpl: DeployUtils.create1({
-                _name: "SuperchainConfig",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
-            }),
-            protocolVersionsImpl: DeployUtils.create1({
-                _name: "ProtocolVersions",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ()))
-            }),
-            l1ERC721BridgeImpl: DeployUtils.create1({
-                _name: "L1ERC721Bridge",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ERC721Bridge.__constructor__, ()))
-            }),
-            optimismPortalImpl: DeployUtils.create1({
-                _name: "OptimismPortal2",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal2.__constructor__, (1)))
-            }),
-            ethLockboxImpl: DeployUtils.create1({
-                _name: "ETHLockbox",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IETHLockbox.__constructor__, ()))
-            }),
-            systemConfigImpl: DeployUtils.create1({
-                _name: "SystemConfig",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
-            }),
-            optimismMintableERC20FactoryImpl: DeployUtils.create1({
-                _name: "OptimismMintableERC20Factory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ()))
-            }),
-            l1CrossDomainMessengerImpl: DeployUtils.create1({
-                _name: "L1CrossDomainMessenger",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ()))
-            }),
-            l1StandardBridgeImpl: DeployUtils.create1({
-                _name: "L1StandardBridge",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1StandardBridge.__constructor__, ()))
-            }),
-            disputeGameFactoryImpl: DeployUtils.create1({
-                _name: "DisputeGameFactory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDisputeGameFactory.__constructor__, ()))
-            }),
-            anchorStateRegistryImpl: DeployUtils.create1({
-                _name: "AnchorStateRegistry",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IAnchorStateRegistry.__constructor__, (1)))
-            }),
-            delayedWETHImpl: DeployUtils.create1({
-                _name: "DelayedWETH",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (3)))
-            }),
-            mipsImpl: DeployUtils.create1({
-                _name: "MIPS",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IMIPS.__constructor__,
-                        (
-                            IPreimageOracle(
-                                DeployUtils.create1({
-                                    _name: "PreimageOracle",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IPreimageOracle.__constructor__, (126000, 86400))
-                                    )
-                                })
-                            )
-                        )
-                    )
-                )
-            })
-        });
-
-        vm.etch(address(superchainConfigProxy), hex"01");
-        vm.etch(address(protocolVersionsProxy), hex"01");
-
-        IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManagerContractsContainer",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls))
-                ),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
-        );
-
-        opcm = IOPContractsManager(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManager",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManager.__constructor__,
-                        (
-                            IOPContractsManagerGameTypeAdder(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerGameTypeAdder",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerDeployer(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerDeployer",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerUpgrader(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerUpgrader",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerInteropMigrator(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerInteropMigrator",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            superchainConfigProxy,
-                            protocolVersionsProxy,
-                            superchainProxyAdmin,
-                            "dev",
-                            address(this)
-                        )
-                    )
-                ),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
-        );
-
-        chainDeployOutput = opcm.deploy(
-            IOPContractsManager.DeployInput({
-                roles: IOPContractsManager.Roles({
-                    opChainProxyAdminOwner: address(this),
-                    systemConfigOwner: address(this),
-                    batcher: address(this),
-                    unsafeBlockSigner: address(this),
-                    proposer: address(this),
-                    challenger: address(this)
-                }),
-                basefeeScalar: 1,
-                blobBasefeeScalar: 1,
-                startingAnchorRoot: abi.encode(
-                    Proposal({
-                        root: Hash.wrap(0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef),
-                        l2SequenceNumber: 0
-                    })
-                ),
-                l2ChainId: 100,
-                saltMixer: "hello",
-                gasLimit: 30_000_000,
-                disputeGameType: GameType.wrap(1),
-                disputeAbsolutePrestate: Claim.wrap(
-                    bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
-                ),
-                disputeMaxGameDepth: 73,
-                disputeSplitDepth: 30,
-                disputeClockExtension: Duration.wrap(10800),
-                disputeMaxClockDuration: Duration.wrap(302400)
-            })
-        );
-
+    function setUp() public override {
+        super.setUp();
         prestateUpdater = opcm;
     }
 
