@@ -74,6 +74,7 @@ func (m *clientManager) Client(rpcURL string) (*sources.EthClient, error) {
 		TransactionsCacheSize: 10,
 		HeadersCacheSize:      10,
 		PayloadsCacheSize:     10,
+		BlockRefsCacheSize:    10,
 		TrustRPC:              false,
 		MustBePostMerge:       true,
 		RPCProviderKind:       sources.RPCKindStandard,
