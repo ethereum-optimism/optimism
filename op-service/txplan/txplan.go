@@ -85,6 +85,12 @@ func WithValue(val *big.Int) Option {
 	}
 }
 
+func WithData(data []byte) Option {
+	return func(tx *PlannedTx) {
+		tx.Data.Set(data)
+	}
+}
+
 func WithAccessList(al types.AccessList) Option {
 	return func(tx *PlannedTx) {
 		tx.AccessList.Set(al)
