@@ -44,8 +44,8 @@
     "sourceCodeHash": "0xfa56426153227e798150f6becc30a33fd20a3c6e0d73c797a3922dd631acbb57"
   },
   "src/L2/CrossL2Inbox.sol:CrossL2Inbox": {
-    "initCodeHash": "0xa7d89c648e0dd2f0a95780feb7ce7674dbd35a1c2de354a0222da7cef8b596c6",
-    "sourceCodeHash": "0xe001c9d4cf55e90c227459573b7eaac6015dea6cd9622ebf117e9ecba54cb4cc"
+    "initCodeHash": "0x66c2269abef8605d2ad1a3786fcaa37d5d178085a7d09895e075594ef569c303",
+    "sourceCodeHash": "0x655f706b65ad24661bce70a411d58987422585c16fe8e5831608f8e86e646397"
   },
   "src/L2/ETHLiquidity.sol:ETHLiquidity": {
     "initCodeHash": "0xfcb50f32bbbd7e426f83c5c320ea655b896c026324a5e51983c1b15041ef88ca",

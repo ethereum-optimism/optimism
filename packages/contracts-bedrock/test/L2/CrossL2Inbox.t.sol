@@ -8,7 +8,8 @@ import { Test } from "forge-std/Test.sol";
 import { ICrossL2Inbox } from "interfaces/L2/ICrossL2Inbox.sol";
 
 // Target contracts
-import { CrossL2InboxWithSlotWarming, Identifier } from "test/mocks/CrossL2InboxWithSlotWarming.sol";
+import { CrossL2InboxWithSlotWarming } from "test/mocks/CrossL2InboxWithSlotWarming.sol";
+import { Identifier } from "src/L2/CrossL2Inbox.sol";
 
 /// @title CrossL2InboxTest
 /// @dev Contract for testing the CrossL2Inbox contract.
