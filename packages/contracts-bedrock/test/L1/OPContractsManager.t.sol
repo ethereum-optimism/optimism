@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { console2 as console } from "forge-std/console2.sol";
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -47,6 +48,7 @@ import {
     IOPContractsManagerContractsContainer,
     IOPContractsManagerInteropMigrator
 } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManager200 } from "interfaces/L1/IOPContractsManager200.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
@@ -331,7 +333,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
                 "AnchorStateRegistry"
             )
         );
-        address proxyBp = deployedOPCM.blueprints().proxy;
+        address proxyBp = IOPContractsManager200(address(deployedOPCM)).blueprints().proxy;
         Blueprint.Preamble memory preamble = Blueprint.parseBlueprintPreamble(proxyBp.code);
         bytes memory initCode = bytes.concat(preamble.initcode, abi.encode(proxyAdmin));
         address newAnchorStateRegistryProxy = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);

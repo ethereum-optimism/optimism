@@ -1358,7 +1358,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Deploy the new SuperPermissionedDisputeGame.
             ISuperPermissionedDisputeGame newSuperPDG = ISuperPermissionedDisputeGame(
                 Blueprint.deployFrom(
-                    blueprints().superPermissionedDisputeGame,
+                    blueprints().superPermissionedDisputeGame1,
+                    blueprints().superPermissionedDisputeGame2,
                     computeSalt(
                         block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperPermissionedDisputeGame"
                     ),
@@ -1413,7 +1414,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Deploy the new SuperFaultDisputeGame.
             ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
                 Blueprint.deployFrom(
-                    blueprints().superPermissionlessDisputeGame,
+                    blueprints().superPermissionlessDisputeGame1,
+                    blueprints().superPermissionlessDisputeGame2,
                     computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperFaultDisputeGame"),
                     encodePermissionlessFDGConstructor(
                         IFaultDisputeGame.GameConstructorParams({
@@ -1507,8 +1509,10 @@ contract OPContractsManager is ISemver {
         address permissionedDisputeGame2;
         address permissionlessDisputeGame1;
         address permissionlessDisputeGame2;
-        address superPermissionedDisputeGame;
-        address superPermissionlessDisputeGame;
+        address superPermissionedDisputeGame1;
+        address superPermissionedDisputeGame2;
+        address superPermissionlessDisputeGame1;
+        address superPermissionlessDisputeGame2;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.

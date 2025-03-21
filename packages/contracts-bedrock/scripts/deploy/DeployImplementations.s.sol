@@ -560,7 +560,9 @@ contract DeployImplementations is Script {
         deployOPCMUpgrader(_dio);
         deployOPCMInteropMigrator(_dio);
 
+        // Semgrep rule will fail because the arguments are encoded inside of a separate function.
         opcm_ = IOPContractsManager(
+            // nosemgrep: sol-safety-deployutils-args
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
                 _args: encodeOPCMConstructor(_l1ContractsRelease, _dii, _dio),
@@ -629,14 +631,12 @@ contract DeployImplementations is Script {
         require(checkAddress == address(0), "OPCM-40");
         (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("ResolvedDelegateProxy"), _salt);
         require(checkAddress == address(0), "OPCM-50");
-        (blueprints.superPermissionedDisputeGame, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperPermissionedDisputeGame"), _salt);
-        require(checkAddress == address(0), "OPCM-60");
-        (blueprints.superPermissionlessDisputeGame, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperFaultDisputeGame"), _salt);
-        require(checkAddress == address(0), "OPCM-70");
         // The max initcode/runtimecode size is 48KB/24KB.
         // But for Blueprint, the initcode is stored as runtime code, that's why it's necessary to split into 2 parts.
         (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("PermissionedDisputeGame"), _salt);
         (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("FaultDisputeGame"), _salt);
+        (blueprints.superPermissionedDisputeGame1, blueprints.superPermissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperPermissionedDisputeGame"), _salt);
+        (blueprints.superPermissionlessDisputeGame1, blueprints.superPermissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperFaultDisputeGame"), _salt);
         // forgefmt: disable-end
         vm.stopBroadcast();
 
