@@ -36,7 +36,7 @@ anvil = "v1.0.0"
 # Other dependencies
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.3.2-pro"
-kurtosis = "1.5.0"
+kurtosis = "1.6.0"
 op-acceptor = "op-acceptor/v0.1.4"
 
 # Fake dependencies

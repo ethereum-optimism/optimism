@@ -149,3 +149,22 @@ Beyond deployment, we can interact with enclaves normally.
 
 In particular, cleaning up a devnet can be achieved using
 `kurtosis rm FOO-devnet` and the likes.
+
+## Troubleshooting
+
+In some cases, a newer kurtosis client might not be able to handle an
+older kurtosis engine. This typically happens if the kurtosis
+command-line managed by mise gets updated while some enclaves are
+already running.
+
+To help recover, you can kill the old engine with:
+
+```shell
+docker rm -f $(docker ps -aqf "name=kurtosis-*")
+```
+
+Potentially you'll also need to cleanup dangling docker networks:
+
+```shell
+docker network rm -f $(docker network ls -qf "name=kt-*")
+```
