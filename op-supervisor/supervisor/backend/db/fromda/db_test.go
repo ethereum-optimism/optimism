@@ -111,6 +111,14 @@ func mockL1(i uint64) types.BlockSeal {
 	}
 }
 
+func mockL1Ref(i uint64) eth.BlockRef {
+	v := mockL1(i)
+	if i == 0 {
+		v.MustWithParent(eth.BlockID{})
+	}
+	return v.MustWithParent(mockL1(i - 1).ID())
+}
+
 func mockL2(i uint64) types.BlockSeal {
 	var h common.Hash
 	if i != 0 {
@@ -119,8 +127,16 @@ func mockL2(i uint64) types.BlockSeal {
 	return types.BlockSeal{
 		Hash:      h,
 		Number:    i,
-		Timestamp: 1000_000 + i*12,
+		Timestamp: 1000_000 + i*2,
 	}
+}
+
+func mockL2Ref(i uint64) eth.BlockRef {
+	v := mockL2(i)
+	if i == 0 {
+		v.MustWithParent(eth.BlockID{})
+	}
+	return v.MustWithParent(mockL2(i - 1).ID())
 }
 
 func toRef(seal types.BlockSeal, parentHash common.Hash) eth.BlockRef {
@@ -1219,4 +1235,148 @@ func TestRewindToDifferent(t *testing.T) {
 			})
 		},
 	)
+}
+
+func TestDBLookup(t *testing.T) {
+	l1Ref0 := mockL1Ref(0)
+	l1Ref1 := mockL1Ref(1)
+	l1Ref2 := mockL1Ref(2)
+	l1Ref3 := mockL1Ref(3)
+	l1Ref4 := mockL1Ref(4)
+	l1Ref5 := mockL1Ref(5)
+	l1Ref6 := mockL1Ref(6) // candidate cross-safe scope where we learn prior derived blocks need to be invalidated
+	l1Ref7 := mockL1Ref(7)
+
+	l2Ref0 := mockL2Ref(0) // genesis
+	l2Ref1 := mockL2Ref(1) // canonical, from L1 1
+	l2Ref2 := mockL2Ref(2) // canonical, from L1 2
+	l2Ref3 := mockL2Ref(3) // optimistic, from L1 3, to be non-canonical once we reach L1 6
+	l2Ref4 := mockL2Ref(4) // optimistic, from L1 3, to be non-canonical once we reach L1 6
+	l2Ref5 := mockL2Ref(5) // optimistic, from L1 3, to be non-canonical once we reach L1 6
+	l2Ref6 := mockL2Ref(6) // optimistic, from L1 4, to be non-canonical once we reach L1 6
+	l2Ref7 := mockL2Ref(7) // optimistic, from L1 4, to be non-canonical once we reach L1 6
+	l2Ref8 := mockL2Ref(8) // optimistic, from L1 5, to be non-canonical once we reach L1 6
+	l2Ref9 := mockL2Ref(9) // optimistic, from L1 6, to be non-canonical once we reach L1 6 (cross-verification is after local derivation)
+
+	l2Ref3p := l2Ref3 // canonical later, replacement block, from L1 6
+	l2Ref3p.Hash[0] ^= 0xff
+	l2Ref4p := l2Ref4
+
+	l2Ref4p.ParentHash = l2Ref3p.Hash // canonical later, block after replacement block
+	l2Ref4p.Hash[0] ^= 0xff
+
+	runDBTest(t,
+		func(t *testing.T, db *DB, m *stubMetrics) {
+			require.NoError(t, db.AddDerived(l1Ref0, l2Ref0))
+
+			require.NoError(t, db.AddDerived(l1Ref1, l2Ref0)) // scope bump
+			require.NoError(t, db.AddDerived(l1Ref1, l2Ref1))
+
+			require.NoError(t, db.AddDerived(l1Ref2, l2Ref1)) // scope bump
+			require.NoError(t, db.AddDerived(l1Ref2, l2Ref2))
+
+			require.NoError(t, db.AddDerived(l1Ref3, l2Ref2)) // scope bump
+			require.NoError(t, db.AddDerived(l1Ref3, l2Ref3))
+			require.NoError(t, db.AddDerived(l1Ref3, l2Ref4))
+			require.NoError(t, db.AddDerived(l1Ref3, l2Ref5))
+
+			require.NoError(t, db.AddDerived(l1Ref4, l2Ref5)) // scope bump
+			require.NoError(t, db.AddDerived(l1Ref4, l2Ref6))
+			require.NoError(t, db.AddDerived(l1Ref4, l2Ref7))
+
+			require.NoError(t, db.AddDerived(l1Ref5, l2Ref7)) // scope bump
+			require.NoError(t, db.AddDerived(l1Ref5, l2Ref8))
+
+			require.NoError(t, db.AddDerived(l1Ref6, l2Ref8)) // scope bump
+			require.NoError(t, db.AddDerived(l1Ref6, l2Ref9))
+
+			_, _, err := db.lookup(6, 3) // 3 was never derived from 6 at this point, we didn't apply the invalidation yet
+			require.ErrorIs(t, err, types.ErrDataCorruption)
+
+			// If we scan for the first thing at or after (6, 3) we should find (6, 8)
+			_, v, err := db.lookupOrAfter(6, 3)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref6.ID(), v.source.ID())
+			require.Equal(t, l2Ref8.ID(), v.derived.ID())
+
+			invalidated := types.DerivedBlockRefPair{
+				Source:  l1Ref6,
+				Derived: l1Ref3,
+			}
+			require.NoError(t, db.RewindAndInvalidate(invalidated))
+
+			_, v, err = db.lookup(6, 3) // now we have an invalidated place-holder that matches the (6, 3) lookup
+			require.NoError(t, err)
+			require.True(t, v.invalidated)
+			require.Equal(t, l1Ref6.ID(), v.source.ID())
+			require.Equal(t, l2Ref3.ID(), v.derived.ID())
+
+			// we cannot proceed in any way until actually replacing the invalidated placeholder block
+			require.ErrorIs(t, db.AddDerived(l1Ref6, l2Ref4p), types.ErrAwaitReplacementBlock)
+			require.ErrorIs(t, db.AddDerived(l1Ref7, l2Ref3p), types.ErrAwaitReplacementBlock)
+			require.ErrorIs(t, db.AddDerived(l1Ref7, l2Ref4p), types.ErrAwaitReplacementBlock)
+
+			replacement, err := db.ReplaceInvalidatedBlock(l2Ref3p, l2Ref3.Hash)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref6.ID(), replacement.Source.ID())
+			require.Equal(t, l2Ref3p.ID(), replacement.Derived.ID())
+
+			_, v, err = db.lookup(6, 3)
+			require.NoError(t, err)
+			require.False(t, v.invalidated) // not invalid, this is canonical now
+			require.Equal(t, l1Ref6.ID(), v.source.ID())
+			require.Equal(t, l2Ref3p.ID(), v.derived.ID())
+
+			require.NoError(t, db.AddDerived(l1Ref7, l2Ref3p)) // scope bump
+			require.NoError(t, db.AddDerived(l1Ref7, l2Ref4p))
+		},
+		func(t *testing.T, db *DB, m *stubMetrics) {
+
+			_, link, err := db.lookup(5, 7)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref5.ID(), link.source.ID())
+			require.Equal(t, l2Ref7.ID(), link.derived.ID()) // not canonical in L2, but available, attached to older L1 scope
+
+			_, link, err = db.lookup(5, 3) // block 3 was passed already in scope 5, but returned back to in scope 6, and should thus not be a valid lookup
+			require.ErrorIs(t, err, types.ErrDataCorruption)
+
+			_, link, err = db.lookup(6, 3)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref6.ID(), link.source.ID())
+			require.Equal(t, l2Ref3p.ID(), link.derived.ID())
+
+			_, link, err = db.lookup(7, 3)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref7.ID(), link.source.ID())
+			require.Equal(t, l2Ref3p.ID(), link.derived.ID())
+
+			_, link, err = db.lookup(7, 4)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref7.ID(), link.source.ID())
+			require.Equal(t, l2Ref4p.ID(), link.derived.ID())
+
+			// Now that we have a chain that jumps from (source=5, derived=8) to (source=6, derived=3),
+			// let's do some searches and assert we get the expected results.
+
+			// TODO: these are broken
+			_, v, err := db.derivedNumToLastSource(3)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref6.ID(), v.source.ID())
+			require.Equal(t, l2Ref3p.ID(), v.derived.ID())
+
+			_, v, err = db.derivedNumToFirstSource(3)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref3.ID(), v.source.ID())
+			require.Equal(t, l2Ref3.ID(), v.derived.ID())
+
+			_, v, err = db.derivedNumToLastSource(4)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref7.ID(), v.source.ID())
+			require.Equal(t, l2Ref4p.ID(), v.derived.ID())
+
+			_, v, err = db.derivedNumToFirstSource(4)
+			require.NoError(t, err)
+			require.Equal(t, l1Ref3.ID(), v.source.ID())
+			require.Equal(t, l2Ref4.ID(), v.derived.ID())
+		})
 }

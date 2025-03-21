@@ -86,6 +86,9 @@ func invariantFileSizeMatchesEntryCountMetric(stat os.FileInfo, m *stubMetrics) 
 
 func invariantDerivedTimestamp(prev, current LinkEntry) error {
 	if current.derived.Timestamp < prev.derived.Timestamp {
+		if current.source.Number == prev.source.Number+1 {
+			return nil // allowed, if the information is based on a new source block that may have invalidated prior data
+		}
 		return fmt.Errorf("derived timestamp must be >=, current: %s, prev: %s", current.derived, prev.derived)
 	}
 	return nil

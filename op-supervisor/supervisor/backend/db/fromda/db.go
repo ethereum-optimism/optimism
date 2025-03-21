@@ -66,6 +66,9 @@ func (db *DB) First() (pair types.DerivedBlockSealPair, err error) {
 	return last.sealOrErr()
 }
 
+// PreviousDerived returns the previous derived block.
+// This will prioritize the last time the input L2 block number was seen, and consistency-checks it against the hash.
+// Older occurrences of the same number with different hash cannot be iterated from, and are non-canonical.
 func (db *DB) PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
@@ -94,7 +97,7 @@ func (db *DB) PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal,
 	return prev.derived, nil
 }
 
-// Latest returns the last known values:
+// Last returns the last known values:
 // source: the L1 block that the L2 block is safe for (not necessarily the first, multiple L2 blocks may be derived from the same L1 block).
 // derived: the L2 block that was derived (not necessarily the first, the L1 block may have been empty and repeated the last safe L2 block).
 // If the last entry is invalidated, this returns a types.ErrAwaitReplacementBlock error.
@@ -137,7 +140,7 @@ func (db *DB) Invalidated() (pair types.DerivedBlockSealPair, err error) {
 	}, nil
 }
 
-// LastDerivedAt returns the last L2 block derived from the given L1 block.
+// SourceToLastDerived returns the last L2 block derived from the given L1 block.
 // This may return types.ErrAwaitReplacementBlock if the entry was invalidated and needs replacement.
 func (db *DB) SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, err error) {
 	db.rwLock.RLock()
@@ -158,10 +161,12 @@ func (db *DB) SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, 
 
 // NextDerived finds the next L2 block after derived, and what it was derived from.
 // This may return types.ErrAwaitReplacementBlock if the entry was invalidated and needs replacement.
+// This will prioritize the last time the input L2 block number was seen, and consistency-checks it against the hash.
+// Older occurrences of the same number with different hash cannot be iterated from, and are non-canonical.
 func (db *DB) NextDerived(derived eth.BlockID) (pair types.DerivedBlockSealPair, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	// get the last time this L2 block was seen.
+	// Get the last time this L2 block was seen. This is attached to the latest L1 view, and thus canonical.
 	selfIndex, self, err := db.derivedNumToLastSource(derived.Number)
 	if err != nil {
 		return types.DerivedBlockSealPair{}, fmt.Errorf("failed to find derived %d: %w", derived.Number, err)
@@ -200,7 +205,9 @@ func (db *DB) ContainsDerived(derived eth.BlockID) error {
 }
 
 // DerivedToFirstSource determines where a L2 block was first derived from.
-// (a L2 block may repeat if the following L1 blocks are empty and don't produce additional L2 blocks)
+//   - A L2 block may repeat if the following L1 blocks are empty and don't produce additional L2 blocks
+//   - A L2 block may reoccur later (with a gap) attached to a newer L1 block,
+//     if the prior information was invalidated with new L1 information.
 func (db *DB) DerivedToFirstSource(derived eth.BlockID) (types.BlockSeal, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
@@ -250,6 +257,7 @@ func (db *DB) previousSource(source eth.BlockID) (types.BlockSeal, error) {
 func (db *DB) NextSource(source eth.BlockID) (types.BlockSeal, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
+	// Source-entries are unique, doesn't matter if we use the first derived entry or last derived entry.
 	selfIndex, self, err := db.sourceNumToLastDerived(source.Number)
 	if err != nil {
 		return types.BlockSeal{}, fmt.Errorf("failed to find derived-from %d: %w", source.Number, err)
@@ -288,37 +296,63 @@ func (db *DB) Next(pair types.DerivedIDPair) (types.DerivedBlockSealPair, error)
 
 func (db *DB) derivedNumToFirstSource(derivedNum uint64) (entrydb.EntryIdx, LinkEntry, error) {
 	// Forward: prioritize the first entry.
-	return db.find(false, func(link LinkEntry) int {
+	return db.find(false, false, func(link LinkEntry) int {
 		return cmp.Compare(link.derived.Number, derivedNum)
 	})
 }
 
 func (db *DB) derivedNumToLastSource(derivedNum uint64) (entrydb.EntryIdx, LinkEntry, error) {
 	// Reverse: prioritize the last entry.
-	return db.find(true, func(link LinkEntry) int {
+	return db.find(true, false, func(link LinkEntry) int {
 		return cmp.Compare(derivedNum, link.derived.Number)
 	})
 }
 
 func (db *DB) sourceNumToFirstDerived(sourceNum uint64) (entrydb.EntryIdx, LinkEntry, error) {
 	// Forward: prioritize the first entry.
-	return db.find(false, func(link LinkEntry) int {
+	return db.find(false, false, func(link LinkEntry) int {
 		return cmp.Compare(link.source.Number, sourceNum)
 	})
 }
 
 func (db *DB) sourceNumToLastDerived(sourceNum uint64) (entrydb.EntryIdx, LinkEntry, error) {
 	// Reverse: prioritize the last entry.
-	return db.find(true, func(link LinkEntry) int {
+	return db.find(true, false, func(link LinkEntry) int {
 		return cmp.Compare(sourceNum, link.source.Number)
 	})
 }
 
+// lookup returns the *only* entry for which source and derived block numbers match.
+// For any given source block a derived block should only show up once.
+// There may however be other derived blocks.
 func (db *DB) lookup(source, derived uint64) (entrydb.EntryIdx, LinkEntry, error) {
-	return db.find(false, func(link LinkEntry) int {
-		res := cmp.Compare(link.derived.Number, derived)
+	// Lookup direction does not matter, as we do an exact lookup.
+	return db.find(true, false, func(link LinkEntry) int {
+		// Source (L1) is the primary key ("major key"):
+		// the source number is always strictly incremental in the DB,
+		// and can thus safely be used for global search
+		res := cmp.Compare(source, link.source.Number)
 		if res == 0 {
-			return cmp.Compare(link.source.Number, source)
+			// Derived (L2) blocks can re-occur in the DB, after invalidation of local-safe blocks.
+			// Within the same source block it is strictly incremental however.
+			return cmp.Compare(derived, link.derived.Number)
+		}
+		return res
+	})
+}
+
+func (db *DB) lookupOrAfter(source, derived uint64) (entrydb.EntryIdx, LinkEntry, error) {
+	// We search left to right, so that if we miss the `derived` target,
+	// we end up on the first item that is after it.
+	return db.find(false, true, func(link LinkEntry) int {
+		// Source (L1) is the primary key ("major key"):
+		// the source number is always strictly incremental in the DB,
+		// and can thus safely be used for global search
+		res := cmp.Compare(link.source.Number, source)
+		if res == 0 {
+			// Derived (L2) blocks can re-occur in the DB, after invalidation of local-safe blocks.
+			// Within the same source block it is strictly incremental however.
+			return cmp.Compare(link.derived.Number, derived)
 		}
 		return res
 	})
@@ -327,7 +361,7 @@ func (db *DB) lookup(source, derived uint64) (entrydb.EntryIdx, LinkEntry, error
 // find finds the first entry for which cmpFn(link) returns 0.
 // The cmpFn entries to the left should return -1, entries to the right 1.
 // If reverse, the cmpFn should be flipped too, and the last entry for which cmpFn(link) is 0 will be found.
-func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryIdx, LinkEntry, error) {
+func (db *DB) find(reverse bool, acceptClosest bool, cmpFn func(link LinkEntry) int) (entrydb.EntryIdx, LinkEntry, error) {
 	n := db.store.Size()
 	if n == 0 {
 		return -1, LinkEntry{}, types.ErrFuture
@@ -381,14 +415,9 @@ func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryI
 			} else {
 				return -1, LinkEntry{}, fmt.Errorf("query is before first entry %s: %w", link, types.ErrSkipped)
 			}
-		} else {
+		} else if !acceptClosest {
 			return -1, LinkEntry{}, fmt.Errorf("traversed data, no exact match found, but hit %s: %w", link, types.ErrDataCorruption)
 		}
-	}
-	if cmpFn(link) != 0 {
-		// Search should have returned lowest entry >= the target.
-		// And we already checked it's not > the target
-		panic(fmt.Errorf("invalid search result %s, did not match equality check", link))
 	}
 	return entrydb.EntryIdx(result), link, nil
 }

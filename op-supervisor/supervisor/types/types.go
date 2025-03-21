@@ -405,6 +405,10 @@ func (refs *DerivedBlockRefPair) Seals() DerivedBlockSealPair {
 	}
 }
 
+func (refs DerivedBlockRefPair) String() string {
+	return fmt.Sprintf("refPair(source: %s, derived: %s)", refs.Source, refs.Derived)
+}
+
 // DerivedBlockSealPair is a pair of block seals, where Derived (L2) is derived from Source (L1).
 type DerivedBlockSealPair struct {
 	Source  BlockSeal `json:"source"`
@@ -418,10 +422,18 @@ func (seals *DerivedBlockSealPair) IDs() DerivedIDPair {
 	}
 }
 
+func (seals DerivedBlockSealPair) String() string {
+	return fmt.Sprintf("sealPair(source: %s, derived: %s)", seals.Source, seals.Derived)
+}
+
 // DerivedIDPair is a pair of block IDs, where Derived (L2) is derived from Source (L1).
 type DerivedIDPair struct {
 	Source  eth.BlockID `json:"source"`
 	Derived eth.BlockID `json:"derived"`
+}
+
+func (ids DerivedIDPair) String() string {
+	return fmt.Sprintf("idPair(source: %s, derived: %s)", ids.Source, ids.Derived)
 }
 
 type BlockReplacement struct {
