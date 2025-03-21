@@ -20,5 +20,7 @@ type SequencerIface interface {
 	SetMaxSafeLag(ctx context.Context, v uint64) error
 	OverrideLeader(ctx context.Context) error
 	ConductorEnabled(ctx context.Context) bool
+	SetSidecarQueryURL(ctx context.Context, url string) error
+	HasSidecar(ctx context.Context) bool
 	Close()
 }

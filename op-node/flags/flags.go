@@ -242,6 +242,12 @@ var (
 		Value:    0,
 		Category: SequencerCategory,
 	}
+	SequencerSidecarQueryUrlFlag = &cli.StringFlag{
+		Name:     "sequencer.sequencer-sidecar-query-url",
+		Usage:    "URL for Sidecar Json-RPC endpoint",
+		EnvVars:  prefixEnvVars("SEQUENCER_SIDECAR_QUERY_URL"),
+		Category: SequencerCategory,
+	}
 	SequencerL1Confs = &cli.Uint64Flag{
 		Name:     "sequencer.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
@@ -447,6 +453,7 @@ var optionalFlags = []cli.Flag{
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
+	SequencerSidecarQueryUrlFlag,
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,

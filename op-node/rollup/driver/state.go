@@ -84,6 +84,7 @@ func (s *Driver) Start() error {
 		if err := s.sequencer.SetMaxSafeLag(s.driverCtx, s.driverConfig.SequencerMaxSafeLag); err != nil {
 			return fmt.Errorf("failed to set sequencer max safe lag: %w", err)
 		}
+		s.sequencer.SetSidecarQueryURL(s.driverCtx, s.driverConfig.SequencerSidecarQueryURL)
 		if err := s.sequencer.Init(s.driverCtx, !s.driverConfig.SequencerStopped); err != nil {
 			return fmt.Errorf("persist initial sequencer state: %w", err)
 		}

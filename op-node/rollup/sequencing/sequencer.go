@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
@@ -84,6 +85,8 @@ type Sequencer struct {
 	spec      *rollup.ChainSpec
 
 	maxSafeLag atomic.Uint64
+
+	sidecarQueryURL string
 
 	// active identifies whether the sequencer is running.
 	// This is an atomic value, so it can be read without locking the whole sequencer.
@@ -223,6 +226,10 @@ func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 
 	d.nextActionOK = d.active.Load()
 
+	// TODO: schedule async sidecar request ahead of sealing;
+	// if not enough time for sealing, attempt to call sync now?
+	// async call will need to subsequently schedule or immediately call sealing,
+
 	// schedule sealing
 	now := d.timeNow()
 	payloadTime := time.Unix(int64(x.Parent.Time+d.rollupCfg.BlockTime), 0)
@@ -260,6 +267,17 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	if d.latest.Info != x.Info {
 		return // not our payload, should be ignored.
 	}
+	// if sidecar exists, attempt to fetch transactions and insert as first and last (real) transactions
+	if d.sidecarQueryURL != "" {
+		rpcContext, _ := context.WithTimeout(d.ctx, time.Millisecond*30)
+		rpcClient, _ := rpc.DialContext(rpcContext, d.sidecarQueryURL)
+		// rpcClient.CallContext(rpcContext, ...)
+		rpcClient.Close()
+		// if len(x.Envelope.ExecutionPayload.Transactions) > 0 {
+		//   x.Envelope.ExecutionPayload.Transactions = append(topOfBlock, append(x.Envelope.ExecutionPayload.Transactions, bottomOfBlock))
+		// }
+	}
+
 	d.log.Info("Sequencer sealed block", "payloadID", x.Info.ID,
 		"block", x.Envelope.ExecutionPayload.ID(),
 		"parent", x.Envelope.ExecutionPayload.ParentID(),
@@ -741,6 +759,15 @@ func (d *Sequencer) OverrideLeader(ctx context.Context) error {
 
 func (d *Sequencer) ConductorEnabled(ctx context.Context) bool {
 	return d.conductor.Enabled(ctx)
+}
+
+func (d *Sequencer) SetSidecarQueryURL(ctx context.Context, url string) error {
+	d.sidecarQueryURL = url
+	return nil
+}
+
+func (d *Sequencer) HasSidecar(ctx context.Context) bool {
+	return d.sidecarQueryURL != ""
 }
 
 func (d *Sequencer) Close() {

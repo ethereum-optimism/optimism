@@ -44,6 +44,14 @@ func (ds DisabledSequencer) SetMaxSafeLag(ctx context.Context, v uint64) error {
 	return ErrSequencerNotEnabled
 }
 
+func (ds DisabledSequencer) SetSidecarQueryURL(ctx context.Context, url string) error {
+	return ErrSequencerNotEnabled
+}
+
+func (ds DisabledSequencer) HasSidecar(ctx context.Context) bool {
+	return false
+}
+
 func (ds DisabledSequencer) OverrideLeader(ctx context.Context) error {
 	return ErrSequencerNotEnabled
 }
