@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
@@ -71,6 +72,13 @@ type Wallet interface {
 	Nonce() uint64
 
 	TransactionProcessor
+}
+
+// WalletV2 is a temporary interface for integrating txplan and txintent
+type WalletV2 interface {
+	PrivateKey() *ecdsa.PrivateKey
+	Client() *sources.EthClient
+	Ctx() context.Context
 }
 
 // TransactionProcessor is a helper interface for signing and sending transactions.
