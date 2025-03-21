@@ -359,11 +359,6 @@
   },
   {
     "inputs": [],
-    "name": "OPContractsManagerInteropMigrator_ProxyAdminMismatch",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch",
     "type": "error"
   },

@@ -1183,11 +1183,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
 /// @notice This contract is used to migrate one or more OP Stack chains to use the Super Root dispute
 ///         games and shared dispute game contracts.
 contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
-    /// @notice Thrown when the ProxyAdmin of one or more of the provided OP Stack chains being
-    ///         migrated does not match the ProxyAdmin of the first provided chain.
-    error OPContractsManagerInteropMigrator_ProxyAdminMismatch();
-
-    /// @notice Thrown when the ProxyAdmin owner is not the address executing the migration.
+    /// @notice Thrown when the ProxyAdmin owner of one or more of the provided OP Stack chains
+    ///         being migrated does not match the ProxyAdmin owner of the first provided chain.
     error OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
 
     /// @notice Thrown when the SuperchainConfig of one or more of the provided OP Stack chains
@@ -1225,20 +1222,16 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
     ///         dispute game contracts.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public virtual {
-        // Check that all of the configs have the same proxy admin and prestate.
+        // Check that all of the configs have the same proxy admin owner and prestate.
         for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
-            if (_input.opChainConfigs[i].proxyAdmin != _input.opChainConfigs[0].proxyAdmin) {
-                revert OPContractsManagerInteropMigrator_ProxyAdminMismatch();
+            // Different chains might actually have different ProxyAdmin contracts, but it's fine
+            // as long as the owner of all of those contracts is the same.
+            if (_input.opChainConfigs[i].proxyAdmin.owner() != _input.opChainConfigs[0].proxyAdmin.owner()) {
+                revert OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
             }
             if (_input.opChainConfigs[i].absolutePrestate.raw() != _input.opChainConfigs[0].absolutePrestate.raw()) {
                 revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
             }
-        }
-
-        // Check that the owner of the ProxyAdmin is the upgrade controller.
-        address proxyAdminOwner = _input.opChainConfigs[0].proxyAdmin.owner();
-        if (proxyAdminOwner != address(this)) {
-            revert OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
         }
 
         // Grab an array of portals from the configs.
@@ -1253,6 +1246,12 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 revert OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
             }
         }
+
+        // NOTE that here and in the rest of this function, we are using the first provided chain's
+        // ProxyAdmin contract as the ProxyAdmin for all of the newly shared contracts. This is
+        // safe because we already checked that all of the provided chains have the same ProxyAdmin
+        // owner and therefore have the same access models.
+        address proxyAdminOwner = _input.opChainConfigs[0].proxyAdmin.owner();
 
         // Deploy the new ETHLockbox.
         IETHLockbox newEthLockbox = IETHLockbox(
@@ -1562,9 +1561,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.12.1
+    /// @custom:semver 1.13.0
     function version() public pure virtual returns (string memory) {
-        return "1.12.1";
+        return "1.13.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

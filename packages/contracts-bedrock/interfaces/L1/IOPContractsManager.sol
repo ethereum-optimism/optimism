@@ -84,7 +84,6 @@ interface IOPContractsManagerUpgrader {
 }
 
 interface IOPContractsManagerInteropMigrator {
-    error OPContractsManagerInteropMigrator_ProxyAdminMismatch();
     error OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
     error OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
     error OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
