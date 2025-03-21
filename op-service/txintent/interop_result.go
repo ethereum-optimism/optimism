@@ -63,13 +63,13 @@ func ExecuteIndexeds(multicaller, executor common.Address, events *plan.Lazy[*In
 }
 
 // ExecuteIndexed returns a lambda to transform InteropOutput to a new ExecTrigger
-func ExecuteIndexed(events *plan.Lazy[*InteropOutput], index int) func(ctx context.Context) (*ExecTrigger, error) {
+func ExecuteIndexed(executor common.Address, events *plan.Lazy[*InteropOutput], index int) func(ctx context.Context) (*ExecTrigger, error) {
 	return func(ctx context.Context) (*ExecTrigger, error) {
 		if x := len(events.Value().Entries); x <= index {
 			return nil, fmt.Errorf("invalid index: %d, only have %d events", index, x)
 		}
 		return &ExecTrigger{
-			Executor: common.Address{},
+			Executor: executor,
 			Msg:      events.Value().Entries[index],
 		}, nil
 	}
