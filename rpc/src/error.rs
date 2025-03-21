@@ -172,7 +172,6 @@ where
             },
             EVMError::Database(err) => Self::Eth(err.into()),
             EVMError::Header(err) => Self::Eth(err.into()),
-            EVMError::Precompile(err) => Self::Eth(EthApiError::EvmPrecompile(err)),
             EVMError::Custom(err) => Self::Eth(EthApiError::EvmCustom(err)),
         }
     }
