@@ -61,6 +61,12 @@ library GameTypes {
     /// @notice A dispute game type that uses the asterisc vm with Kona.
     GameType internal constant ASTERISC_KONA = GameType.wrap(3);
 
+    /// @notice A dispute game type that uses the cannon vm (Super Roots).
+    GameType internal constant SUPER_CANNON = GameType.wrap(4);
+
+    /// @notice A dispute game type that uses the permissioned cannon vm (Super Roots).
+    GameType internal constant SUPER_PERMISSIONED_CANNON = GameType.wrap(5);
+
     /// @notice A dispute game type that uses OP Succinct
     GameType internal constant OP_SUCCINCT = GameType.wrap(6);
 

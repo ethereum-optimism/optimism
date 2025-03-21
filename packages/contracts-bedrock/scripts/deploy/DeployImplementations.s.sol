@@ -23,7 +23,7 @@ import {
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
     IOPContractsManagerContractsContainer,
-    IOPContractsManagerInteropUpgrader
+    IOPContractsManagerInteropMigrator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -254,7 +254,6 @@ contract DeployImplementationsOutput is BaseDeployIO {
         DeployUtils.assertValidContractAddress(address(_opcmUpgrader));
         return _opcmUpgrader;
     }
-
 
     function opcmInteropMigrator() public view returns (IOPContractsManagerInteropMigrator) {
         DeployUtils.assertValidContractAddress(address(_opcmInteropMigrator));
@@ -564,27 +563,46 @@ contract DeployImplementations is Script {
         opcm_ = IOPContractsManager(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManager.__constructor__,
-                        (
-                            _dio.opcmGameTypeAdder(),
-                            _dio.opcmDeployer(),
-                            _dio.opcmUpgrader(),
-                            _dii.superchainConfigProxy(),
-                            _dii.protocolVersionsProxy(),
-                            _dii.superchainProxyAdmin(),
-                            _l1ContractsRelease,
-                            _dii.upgradeController()
-                        )
-                    )
-                ),
+                _args: encodeOPCMConstructor(_l1ContractsRelease, _dii, _dio),
                 _salt: _salt
             })
         );
 
         vm.label(address(opcm_), "OPContractsManager");
         _dio.set(_dio.opcm.selector, address(opcm_));
+    }
+
+    /// @notice Encodes the constructor of the OPContractsManager contract. Used to avoid stack too
+    ///         deep errors inside of the createOPCMContract function.
+    /// @param _l1ContractsRelease The release of the L1 contracts.
+    /// @param _dii The deployment input parameters.
+    /// @param _dio The deployment output parameters.
+    /// @return encoded_ The encoded constructor.
+    function encodeOPCMConstructor(
+        string memory _l1ContractsRelease,
+        DeployImplementationsInput _dii,
+        DeployImplementationsOutput _dio
+    )
+        internal
+        view
+        returns (bytes memory encoded_)
+    {
+        encoded_ = DeployUtils.encodeConstructor(
+            abi.encodeCall(
+                IOPContractsManager.__constructor__,
+                (
+                    _dio.opcmGameTypeAdder(),
+                    _dio.opcmDeployer(),
+                    _dio.opcmUpgrader(),
+                    _dio.opcmInteropMigrator(),
+                    _dii.superchainConfigProxy(),
+                    _dii.protocolVersionsProxy(),
+                    _dii.superchainProxyAdmin(),
+                    _l1ContractsRelease,
+                    _dii.upgradeController()
+                )
+            )
+        );
     }
 
     function deployOPContractsManager(
@@ -611,6 +629,10 @@ contract DeployImplementations is Script {
         require(checkAddress == address(0), "OPCM-40");
         (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("ResolvedDelegateProxy"), _salt);
         require(checkAddress == address(0), "OPCM-50");
+        (blueprints.superPermissionedDisputeGame, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperPermissionedDisputeGame"), _salt);
+        require(checkAddress == address(0), "OPCM-60");
+        (blueprints.superPermissionlessDisputeGame, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperFaultDisputeGame"), _salt);
+        require(checkAddress == address(0), "OPCM-70");
         // The max initcode/runtimecode size is 48KB/24KB.
         // But for Blueprint, the initcode is stored as runtime code, that's why it's necessary to split into 2 parts.
         (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("PermissionedDisputeGame"), _salt);
@@ -937,7 +959,9 @@ contract DeployImplementations is Script {
         IOPContractsManagerInteropMigrator impl = IOPContractsManagerInteropMigrator(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager.sol:OPContractsManagerInteropMigrator",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, ())),
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, (_dio.opcmContractsContainer()))
+                ),
                 _salt: _salt
             })
         );

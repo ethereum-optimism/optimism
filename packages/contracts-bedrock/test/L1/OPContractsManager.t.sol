@@ -44,7 +44,8 @@ import {
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
-    IOPContractsManagerContractsContainer
+    IOPContractsManagerContractsContainer,
+    IOPContractsManagerInteropMigrator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -55,7 +56,8 @@ import {
     OPContractsManagerGameTypeAdder,
     OPContractsManagerDeployer,
     OPContractsManagerUpgrader,
-    OPContractsManagerContractsContainer
+    OPContractsManagerContractsContainer,
+    OPContractsManagerInteropMigrator
 } from "src/L1/OPContractsManager.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
@@ -68,6 +70,7 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerGameTypeAdder _opcmGameTypeAdder,
         OPContractsManagerDeployer _opcmDeployer,
         OPContractsManagerUpgrader _opcmUpgrader,
+        OPContractsManagerInteropMigrator _opcmInteropMigrator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -78,6 +81,7 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmGameTypeAdder,
             _opcmDeployer,
             _opcmUpgrader,
+            _opcmInteropMigrator,
             _superchainConfig,
             _protocolVersions,
             _superchainProxyAdmin,
@@ -199,6 +203,7 @@ contract OPContractsManager_InternalMethods_Test is Test {
             _opcmGameTypeAdder: new OPContractsManagerGameTypeAdder(container),
             _opcmDeployer: new OPContractsManagerDeployer(container),
             _opcmUpgrader: new OPContractsManagerUpgrader(container),
+            _opcmInteropMigrator: new OPContractsManagerInteropMigrator(container),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
@@ -941,46 +946,11 @@ contract OPContractsManager_AddGameType_Test is Test {
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
-        IOPContractsManagerGameTypeAdder opcmGameTypeAdder = IOPContractsManagerGameTypeAdder(
+        IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
             DeployUtils.createDeterministic({
-                _name: "OPContractsManagerGameTypeAdder",
+                _name: "OPContractsManagerContractsContainer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManagerGameTypeAdder.__constructor__,
-                        (
-                            IOPContractsManagerContractsContainer(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerContractsContainer",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(
-                                            IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls)
-                                        )
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            )
-                        )
-                    )
-                ),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
-        );
-
-        IOPContractsManagerDeployer opcmDeployer = IOPContractsManagerDeployer(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManagerDeployer",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (opcmGameTypeAdder.contractsContainer()))
-                ),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
-        );
-
-        IOPContractsManagerUpgrader opcmUpgrader = IOPContractsManagerUpgrader(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManagerUpgrader",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (opcmGameTypeAdder.contractsContainer()))
+                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls))
                 ),
                 _salt: DeployUtils.DEFAULT_SALT
             })
@@ -993,9 +963,42 @@ contract OPContractsManager_AddGameType_Test is Test {
                     abi.encodeCall(
                         IOPContractsManager.__constructor__,
                         (
-                            opcmGameTypeAdder,
-                            opcmDeployer,
-                            opcmUpgrader,
+                            IOPContractsManagerGameTypeAdder(
+                                DeployUtils.createDeterministic({
+                                    _name: "OPContractsManagerGameTypeAdder",
+                                    _args: DeployUtils.encodeConstructor(
+                                        abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (container))
+                                    ),
+                                    _salt: DeployUtils.DEFAULT_SALT
+                                })
+                            ),
+                            IOPContractsManagerDeployer(
+                                DeployUtils.createDeterministic({
+                                    _name: "OPContractsManagerDeployer",
+                                    _args: DeployUtils.encodeConstructor(
+                                        abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (container))
+                                    ),
+                                    _salt: DeployUtils.DEFAULT_SALT
+                                })
+                            ),
+                            IOPContractsManagerUpgrader(
+                                DeployUtils.createDeterministic({
+                                    _name: "OPContractsManagerUpgrader",
+                                    _args: DeployUtils.encodeConstructor(
+                                        abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (container))
+                                    ),
+                                    _salt: DeployUtils.DEFAULT_SALT
+                                })
+                            ),
+                            IOPContractsManagerInteropMigrator(
+                                DeployUtils.createDeterministic({
+                                    _name: "OPContractsManagerInteropMigrator",
+                                    _args: DeployUtils.encodeConstructor(
+                                        abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, (container))
+                                    ),
+                                    _salt: DeployUtils.DEFAULT_SALT
+                                })
+                            ),
                             superchainConfigProxy,
                             protocolVersionsProxy,
                             superchainProxyAdmin,
@@ -1238,17 +1241,12 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
         (blueprints.proxyAdmin,) = Blueprint.create(vm.getCode("ProxyAdmin"), salt);
         (blueprints.l1ChugSplashProxy,) = Blueprint.create(vm.getCode("L1ChugSplashProxy"), salt);
         (blueprints.resolvedDelegateProxy,) = Blueprint.create(vm.getCode("ResolvedDelegateProxy"), salt);
+        (blueprints.superPermissionedDisputeGame,) = Blueprint.create(vm.getCode("SuperPermissionedDisputeGame"), salt);
+        (blueprints.superPermissionlessDisputeGame,) = Blueprint.create(vm.getCode("SuperFaultDisputeGame"), salt);
         (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) =
             Blueprint.create(vm.getCode("PermissionedDisputeGame"), salt);
         (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) =
             Blueprint.create(vm.getCode("FaultDisputeGame"), salt);
-
-        IPreimageOracle oracle = IPreimageOracle(
-            DeployUtils.create1({
-                _name: "PreimageOracle",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (126000, 86400)))
-            })
-        );
 
         IOPContractsManager.Implementations memory impls = IOPContractsManager.Implementations({
             superchainConfigImpl: DeployUtils.create1({
@@ -1301,7 +1299,21 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
             }),
             mipsImpl: DeployUtils.create1({
                 _name: "MIPS",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (oracle)))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IMIPS.__constructor__,
+                        (
+                            IPreimageOracle(
+                                DeployUtils.create1({
+                                    _name: "PreimageOracle",
+                                    _args: DeployUtils.encodeConstructor(
+                                        abi.encodeCall(IPreimageOracle.__constructor__, (126000, 86400))
+                                    )
+                                })
+                            )
+                        )
+                    )
+                )
             })
         });
 
@@ -1348,6 +1360,15 @@ contract OPContractsManager_UpdatePrestate_Test is Test {
                                     _name: "OPContractsManagerUpgrader",
                                     _args: DeployUtils.encodeConstructor(
                                         abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (container))
+                                    ),
+                                    _salt: DeployUtils.DEFAULT_SALT
+                                })
+                            ),
+                            IOPContractsManagerInteropMigrator(
+                                DeployUtils.createDeterministic({
+                                    _name: "OPContractsManagerInteropMigrator",
+                                    _args: DeployUtils.encodeConstructor(
+                                        abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, (container))
                                     ),
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
