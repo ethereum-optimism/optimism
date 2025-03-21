@@ -1115,14 +1115,6 @@ jobs:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
         default: ""
-      notify:
-        description: Whether to notify on failure
-        type: boolean
-        default: false
-      mentions:
-        description: Slack user or group to mention when notifying of failures
-        type: string
-        default: ""
       resource_class:
         description: Machine resource class
         type: string
@@ -1178,11 +1170,9 @@ jobs:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
       # Notification step
-      - when:
-          condition: "<<parameters.notify>>"
-          steps:
-            - notify-failures-on-develop:
-                mentions: "<<parameters.mentions>>"
+      - notify-failures-on-develop:
+          channel: "C03N11M0BBN"  # #notify-ci-failures
+          mentions: "@protocol-devx-pod"
 
   sanitize-op-program:
     docker:
@@ -1691,6 +1681,9 @@ workflows:
           devnet: isthmus
           gate: isthmus
           context: circleci-repo-readonly-authenticated-github-token
+          filters:
+            branches:
+              only: develop
       - op-program-compat:
           context: circleci-repo-readonly-authenticated-github-token
       - bedrock-go-tests:
