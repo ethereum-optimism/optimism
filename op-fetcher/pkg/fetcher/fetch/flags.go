@@ -10,20 +10,26 @@ var (
 		Usage:    "L1 RPC URL",
 		Required: true,
 	}
-	ChainConfigDirFlag = &cli.StringFlag{
-		Name:     "chain-config-dir",
-		Usage:    "directory containing input chain config toml files",
+	SystemConfigProxyFlag = &cli.StringFlag{
+		Name:     "system-config",
+		Usage:    "contract address for SystemConfigProxy",
 		Required: true,
 	}
-	OutputDirFlag = &cli.StringFlag{
-		Name:     "output-dir",
-		Usage:    "directory to write output json files (one per input chain config toml file)",
+	L1StandardBridgeProxyFlag = &cli.StringFlag{
+		Name:     "l1-standard-bridge",
+		Usage:    "contract address for L1StandardBridgeProxy",
+		Required: true,
+	}
+	OutputFileFlag = &cli.StringFlag{
+		Name:     "output-file",
+		Usage:    "file to write output json",
 		Required: true,
 	}
 )
 
 var FetchChainInfoFlags = []cli.Flag{
 	L1RPCURLFlag,
-	ChainConfigDirFlag,
-	OutputDirFlag,
+	OutputFileFlag,
+	SystemConfigProxyFlag,
+	L1StandardBridgeProxyFlag,
 }
