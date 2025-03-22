@@ -18,7 +18,7 @@ use reth_downloaders::file_client::FileClientError;
 use serde::{Deserialize, Serialize};
 use tokio_util::codec::Decoder;
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 /// Specific codec for reading raw block bodies from a file
 /// with optimism-specific signature handling
 pub(crate) struct OvmBlockFileCodec;
