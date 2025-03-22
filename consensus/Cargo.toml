@@ -25,8 +25,7 @@ reth-trie-common.workspace = true
 # op-reth
 reth-optimism-forks.workspace = true
 reth-optimism-chainspec.workspace = true
-# remove this after feature cleanup
-reth-optimism-primitives = { workspace = true, features = ["serde"] }
+reth-optimism-primitives.workspace = true
 
 # ethereum
 alloy-eips.workspace = true
