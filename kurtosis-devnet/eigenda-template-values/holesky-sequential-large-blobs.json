@@ -1,0 +1,16 @@
+{
+  "eigenda-proxy": {
+    "useMemstore": false,
+    "secrets": {
+      "eigenda.signer-private-key-hex": "",
+      "eigenda.eth_rpc": ""
+    }
+  },
+  "batcher": {
+    "max-channel-duration": 150,
+    "altda.max-concurrent-da-requests": 1,
+    "target-num-frames": 1000,
+    "max-l1-tx-size-bytes": 1000,
+    "batch-type": 1
+  }
+}

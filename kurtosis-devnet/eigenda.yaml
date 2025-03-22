@@ -5,6 +5,17 @@
 # TODO: Connect this with an eigenda v1 kurtosis devnet instead of using our holesky testnet.
 #       See https://github.com/Layr-Labs/avs-devnet/blob/main/examples/eigenda.yaml
 {{- $context := or . (dict)}}
+# TODO: I hate yaml templating... should really move to something more reasonable. CUE perhaps?
+# use proxy by default, otherwise connect with eigenda holesky backend
+{{- $useProxyMemstore := dig "eigenda-proxy" "useMemstore" true $context }}
+{{- $eigendaBackendSignerKey := dig "eigenda-proxy" "secrets" "eigenda.signer-private-key-hex" "" $context }}
+{{- $eigendaBackendEthRpc := dig "eigenda-proxy" "secrets" "eigenda.eth_rpc" "" $context }}
+{{- if not $useProxyMemstore}}
+  # make sure the secrets are populated when using eigenda-holesky backend
+  {{- if or (eq $eigendaBackendSignerKey "") (eq $eigendaBackendEthRpc "") }}
+    {{- fail "Missing required eigenda-proxy eigenda-backend secrets." }}
+  {{- end }}
+{{- end }}
 ---
 optimism_package:
   altda_deploy_config:
@@ -24,7 +35,9 @@ optimism_package:
   chains:
     - participants:
       - el_type: op-geth
-        el_image: ""
+        # latest tag is currently broken until the next stable release, see https://github.com/ethereum-optimism/op-geth/pull/515
+        # Also see discussion in https://discord.com/channels/1244729134312198194/1260624141497798706/1342556343495692320
+        el_image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:optimism"
         el_log_level: ""
         el_extra_env_vars: {}
         el_extra_labels: {}
@@ -35,7 +48,7 @@ optimism_package:
         cl_extra_env_vars: {}
         cl_extra_labels: {}
         cl_extra_params: []
-        count: 2
+        count: 1
       network_params:
         network: "kurtosis"
         network_id: "2151908"
@@ -47,45 +60,52 @@ optimism_package:
         fund_dev_accounts: true
       batcher_params:
         image: {{ localDockerImage "op-batcher" }}
-        extra_params: []
+        extra_params:
+          - --max-channel-duration
+          - '{{ dig "batcher" "max-channel-duration" 2 $context }}'
+          - --altda.max-concurrent-da-requests
+          - '{{ dig "batcher" "altda.max-concurrent-da-requests" 1 $context }}'
+          # max-pending-tx should be same as altda.max-concurrent-da-requests given that each commitment is sent as a single l1 tx right now.
+          # See https://github.com/ethereum-optimism/SUPs/pull/1 for progress on batching commitments.
+          - --max-pending-tx
+          - '{{ dig "batcher" "altda.max-concurrent-da-requests" 1 $context }}'
+          - --target-num-frames
+          - '{{ dig "batcher" "target-num-frames" 1 $context }}'
+          - --max-l1-tx-size-bytes
+          - '{{ dig "batcher" "max-l1-tx-size-bytes" 1000 $context }}'
+          - --batch-type
+          - '{{ dig "batcher" "batch-type" 1 $context }}'
+          - --throttle-threshold=500_000 # start throttling after 500KB of blocks backlog
+          - --throttle-block-size=1000 # throttle op-geth blocks to 1000 gas
       proposer_params:
         image: {{ localDockerImage "op-proposer" }}
         extra_params: []
         game_type: 1
         proposal_interval: 10m
       challenger_params:
+        # TODO: reenable once we start testing secure integrations
+        enabled: false
         image: {{ localDockerImage "op-challenger" }}
         cannon_prestate_path: ""
         cannon_prestates_url: "http://fileserver/proofs/op-program/cannon"
         extra_params: []
-      mev_params:
-        rollup_boost_image: ""
-        builder_host: ""
-        builder_port: ""
       da_server_params:
-        image: ghcr.io/layr-labs/eigenda-proxy:v1.6.3
+        image: ghcr.io/layr-labs/eigenda-proxy:v1.6.5
         cmd:
-          - --addr
-          - 0.0.0.0
-          - --port
-          - "3100"
-          - --eigenda.disperser-rpc
-          - disperser-holesky.eigenda.xyz:443
-          - --eigenda.svc-manager-addr
-          - "0xD4A7E1Bd8015057293f0D0A557088c286942e84b"
+          - --addr=0.0.0.0
+          - --port=3100
+        {{- if $useProxyMemstore }}
+          - --memstore.enabled
+          - --memstore.expiration=30m
+        {{- else }} # connect to eigenda holesky backend
+          - --eigenda.disperser-rpc=disperser-holesky.eigenda.xyz:443
+          - --eigenda.svc-manager-addr=0xD4A7E1Bd8015057293f0D0A557088c286942e84b
           # The two params below are loaded from the eigenda-secrets.json file
-          - --eigenda.signer-private-key-hex
-          - {{ dig "secrets" "eigenda.signer-private-key-hex" "" $context }}
-          - --eigenda.eth-rpc
-          - {{ dig "secrets" "eigenda.eth_rpc" "" $context }}
+          - --eigenda.signer-private-key-hex={{ $eigendaBackendSignerKey }}
+          - --eigenda.eth-rpc={{ $eigendaBackendEthRpc }}
+        {{- end }}
       additional_services:
         - da_server
-  op_contract_deployer_params:
-    image: {{ localDockerImage "op-deployer" }}
-    l1_artifacts_locator: {{ localContractArtifacts "l1" }}
-    l2_artifacts_locator: {{ localContractArtifacts "l2" }}
-    global_deploy_overrides:
-      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate }}
   global_log_level: "info"
   global_node_selectors: {}
   global_tolerations: []
@@ -93,6 +113,8 @@ optimism_package:
 ethereum_package:
   participants:
     - el_type: geth
+      el_extra_params:
+        - --graphql # needed to query for batcher-inbox txs to test failover working correctly
       cl_type: teku
   network_params:
     preset: minimal
@@ -106,7 +128,3 @@ ethereum_package:
           "nonce": "1"
         }
       }
-  port_publisher:
-    el:
-      enabled: true
-      public_port_start: 32000

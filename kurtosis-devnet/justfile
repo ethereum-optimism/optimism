@@ -44,6 +44,8 @@ op-wheel-image TAG='op-wheel:devnet': (_docker_build_stack TAG "op-wheel-target"
 KURTOSIS_PACKAGE := "github.com/ethpandaops/optimism-package"
 
 # Devnet template recipe
+# Note: Make sure that TEMPLATE_FILE is in the kurtosis-devnet/ directory.
+#       Cannot use a file from the kurtosis-devnet/templates/ directory for example.
 devnet TEMPLATE_FILE DATA_FILE="" NAME="":
     #!/usr/bin/env bash
     export DEVNET_NAME={{NAME}}
@@ -73,65 +75,87 @@ devnet-test DEVNET *TEST:
 
 # Devnet recipes
 
-# EigenDA devnet that uses eigenda-proxy connected to eigenda holesky testnet network
+##### These are the main eigenda commands used by CI and automated tests #####
+
+# Start an EigenDA devnet with the given values file (see options in eigenda-template-values/).
+# The devnet will be named "eigenda-devnet" by default, but you can override this with the NAME argument.
+# We also start a tx-fuzzer separately, since the optimism-package doesn't currently have that configurable as part of its package.
 [group('eigenda')]
-eigenda-holesky-devnet-start: (devnet "eigenda-holesky.yaml" "eigenda-secrets.json" "eigenda-holesky")
+eigenda-devnet-start VALUES_FILE="eigenda-template-values/memstore-concurrent-large-blobs.json" ENCLAVE_PREFIX="eigenda": (devnet "eigenda.yaml" VALUES_FILE ENCLAVE_PREFIX)
+  just eigenda-devnet-add-tx-fuzzer {{ENCLAVE_PREFIX}}-devnet
 [group('eigenda')]
-eigenda-holesky-devnet-clean:
-  kurtosis enclave rm eigenda-holesky-devnet --force
-# EigenDA devnet that uses the eigenda-proxy in memstore mode (simulates an eigenda network but generates random certs)
+eigenda-devnet-clean ENCLAVE_NAME="eigenda-devnet":
+    kurtosis enclave rm {{ENCLAVE_NAME}} --force
+# Runs all tests that end with the `_Memstore` suffix, assuming the devnet was started with memstore proxy,
+# meaning with a config file in eigenda-template-values/memstore-* .
 [group('eigenda')]
-eigenda-memstore-devnet-start: (devnet "eigenda-memstore.yaml")
+eigenda-devnet-test-memstore *ARGS="":
+    go test ./tests/eigenda/... -run "_Memstore$" -timeout 20m {{ARGS}}
+# Runs all tests that end with the `_Holesky` suffix, assuming the devnet was started with proxy using holesky backend.
+# To start the devnet with holesky backend, the files in eigenda-template-values/holesky-* need have secrets injected.
+# Take a look at how CI does it in .github/workflows/kurtosis-devnet.yml .
 [group('eigenda')]
-eigenda-memstore-devnet-clean:
-  kurtosis enclave rm eigenda-memstore-devnet --force
+eigenda-devnet-test-holesky *ARGS="":
+    go test ./tests/eigenda/... -run "_Holesky$" -timeout 20m {{ARGS}}
+[group('eigenda')]
+eigenda-devnet-add-tx-fuzzer ENCLAVE_NAME="eigenda-devnet" *ARGS="":
+  kurtosis service add {{ENCLAVE_NAME}} tx-fuzz ethpandaops/tx-fuzz:master -- \
+    spam \
+    --sk "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" \
+    --rpc "http://op-el-1-op-geth-op-node-op-kurtosis:8545" \
+    --slot-time 2 \
+    --accounts 100 --txcount 1 \
+    {{ARGS}}
+
+##### EigenDA Commands below are for debugging and manual testing #####
+
 # Cause proxy to start returning 503 errors to batcher, as a signal
-# to failover to ethDA. Use `eigenda-memstore-devnet-failback` to revert.
+# to failover to ethDA. Use `eigenda-devnet-failback` to revert.
 [group('eigenda')]
-eigenda-memstore-devnet-failover:
+eigenda-devnet-failover ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
-  PROXY_ENDPOINT=$(kurtosis port print eigenda-memstore-devnet da-server-op-kurtosis http)
+  PROXY_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} da-server-op-kurtosis http)
   curl -X PATCH $PROXY_ENDPOINT/memstore/config -d '{"PutReturnsFailoverError": true}'
 [group('eigenda')]
-eigenda-memstore-devnet-failback:
+eigenda-devnet-failback ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
-  PROXY_ENDPOINT=$(kurtosis port print eigenda-memstore-devnet da-server-op-kurtosis http)
+  PROXY_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} da-server-op-kurtosis http)
   curl -X PATCH $PROXY_ENDPOINT/memstore/config -d '{"PutReturnsFailoverError": false}'
 [group('eigenda')]
-eigenda-memstore-devnet-grafana:
+eigenda-devnet-grafana ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
-  GRAFANA_URL=$(kurtosis port print eigenda-memstore-devnet grafana http)
+  GRAFANA_URL=$(kurtosis port print {{ENCLAVE_NAME}} grafana http)
   open $GRAFANA_URL
 [group('eigenda')]
-eigenda-memstore-devnet-sync-status:
+eigenda-devnet-sync-status ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
-  OPNODE_ENDPOINT=$(kurtosis port print eigenda-memstore-devnet op-cl-1-op-node-op-geth-op-kurtosis http)
+  OPNODE_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} op-cl-1-op-node-op-geth-op-kurtosis http)
   cast rpc optimism_syncStatus --rpc-url $OPNODE_ENDPOINT | jq
 [group('eigenda')]
-eigenda-memstore-devnet-configs:
+eigenda-devnet-configs ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
   echo "OP-NODE ROLLUP CONFIG:"
-  OPNODE_ENDPOINT=$(kurtosis port print eigenda-memstore-devnet op-cl-1-op-node-op-geth-op-kurtosis http)
+  OPNODE_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} op-cl-1-op-node-op-geth-op-kurtosis http)
   cast rpc optimism_rollupConfig --rpc-url $OPNODE_ENDPOINT | jq
   echo "TEKU L1-CL SPEC:"
-  TEKU_ENDPOINT=$(kurtosis port print eigenda-memstore-devnet cl-1-teku-geth http)
+  TEKU_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} cl-1-teku-geth http)
   curl $TEKU_ENDPOINT/eth/v1/config/spec | jq
   echo "PROXY MEMSTORE CONFIG:"
-  PROXY_ENDPOINT=$(kurtosis port print eigenda-memstore-devnet da-server-op-kurtosis http)
+  PROXY_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} da-server-op-kurtosis http)
   curl $PROXY_ENDPOINT/memstore/config | jq
 # We unfortunately have to restart the batcher in this ugly way right now just to change even a single flag.
-# This is b/c op's kurtosis setup right now is not idempotent so if we change a param in eigenda-memstore.yaml
-# and rerun `just eigenda-memstore-devnet`, the entire devnet gets respun up which takes a long time.
+# This is b/c op's kurtosis setup right now is not idempotent so if we change a param in a values file
+# and rerun `just eigenda-devnet-start`, the entire devnet gets respun up which takes a long time.
 # Track progress for fixing this in https://github.com/ethereum-optimism/optimism/issues/14390.
 # Kurtosis also doesn't have a simple way to update a running service's config, like `kubectl edit` for k8s.
 # See https://github.com/kurtosis-tech/kurtosis/issues/2628 for this issue.
 # Restart batcher with new flags or image.
 [group('eigenda')]
-eigenda-memstore-devnet-restart-batcher:
+eigenda-devnet-restart-batcher ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
-  # IMAGE=op-batcher:eigenda-memstore-devnet
+  # IMAGE=op-batcher:{{ENCLAVE_NAME}}
   IMAGE=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.10.0
-  kurtosis service add eigenda-memstore-devnet op-batcher-op-kurtosis \
+  kurtosis service add {{ENCLAVE_NAME}} op-batcher-op-kurtosis \
     $IMAGE \
     --ports "http=8548,metrics=9001" \
     -- op-batcher \
@@ -154,14 +178,15 @@ eigenda-memstore-devnet-restart-batcher:
       --altda.enabled=True \
       --altda.da-server=http://da-server-op-kurtosis:3100 \
       --altda.da-service \
-      --altda.max-concurrent-da-requests=1 \
-      --max-channel-duration=2 \
-      --target-num-frames=1 \
+      --altda.max-concurrent-da-requests=100 \
+      --max-pending-tx=100 \
+      --max-channel-duration=10 \
+      --target-num-frames=10 \
       --max-l1-tx-size-bytes=1000 \
-      --batch-type=1
-[group('eigenda')]
-eigenda-memstore-devnet-test:
-    go test ./tests/eigenda/...
+      --batch-type=1 \
+      --throttle-threshold=500_000 \
+      --throttle-block-size=1000
+
 
 # Simple devnet
 simple-devnet: (devnet "simple.yaml")
