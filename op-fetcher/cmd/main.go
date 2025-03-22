@@ -26,12 +26,12 @@ func main() {
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
 	app.Name = "op-fetcher"
-	app.Usage = "Tool to fetch OP Chains info from onchain"
+	app.Usage = "tool to fetch OP Chain config info from onchain"
 	app.Flags = cliapp.ProtectFlags(deployer.GlobalFlags)
 	app.Commands = []*cli.Command{
 		{
 			Name:   "fetch",
-			Usage:  "fetches onchain data for a given chain and one json file output for each chain",
+			Usage:  "fetches onchain data for a given chain",
 			Flags:  cliapp.ProtectFlags(fetch.FetchChainInfoFlags),
 			Action: fetch.FetchChainInfoCLI(),
 		},
