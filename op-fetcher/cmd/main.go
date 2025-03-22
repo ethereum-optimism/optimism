@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/compare"
 	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -35,12 +34,6 @@ func main() {
 			Usage:  "fetches onchain data for a given chain and one json file output for each chain",
 			Flags:  cliapp.ProtectFlags(fetch.FetchChainInfoFlags),
 			Action: fetch.FetchChainInfoCLI(),
-		},
-		{
-			Name:   "compare",
-			Usage:  "compares onchain data (collected from fetch command) to expected data in json file",
-			Flags:  cliapp.ProtectFlags(compare.CompareFlags),
-			Action: compare.CompareCLI(),
 		},
 	}
 	app.Writer = os.Stdout
