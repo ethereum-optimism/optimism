@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -47,6 +48,19 @@ func (s *SuperDisputeSystem) NodeEndpoint(name string) endpoint.RPC {
 	return s.sys.L2GethEndpoint(network, node)
 }
 
+func (s *SuperDisputeSystem) L2NodeEndpoints() []endpoint.RPC {
+	networks := s.sys.L2IDs()
+	endpoints := make([]endpoint.RPC, len(networks))
+	for i, network := range networks {
+		endpoints[i] = s.sys.L2GethEndpoint(network, "sequencer")
+	}
+	return endpoints
+}
+
+func (s *SuperDisputeSystem) SupervisorEndpoint() endpoint.RPC {
+	return endpoint.URL(s.sys.Supervisor().RPC())
+}
+
 func (s *SuperDisputeSystem) NodeClient(name string) *ethclient.Client {
 	if name == "l1" {
 		return s.sys.L1GethClient()
@@ -78,6 +92,10 @@ func (s *SuperDisputeSystem) RollupCfgs() []*rollup.Config {
 	return cfgs
 }
 
+func (s *SuperDisputeSystem) DependencySet() *depset.StaticConfigDependencySet {
+	return s.sys.DependencySet()
+}
+
 func (s *SuperDisputeSystem) L2Geneses() []*core.Genesis {
 	networks := s.sys.L2IDs()
 	cfgs := make([]*core.Genesis, len(networks))
@@ -93,6 +111,10 @@ func (s *SuperDisputeSystem) PrestateVariant() challenger.PrestateVariant {
 
 func (s *SuperDisputeSystem) AdvanceTime(duration time.Duration) {
 	s.sys.AdvanceL1Time(duration)
+}
+
+func (s *SuperDisputeSystem) IsSupersystem() bool {
+	return true
 }
 
 var _ DisputeSystem = (*SuperDisputeSystem)(nil)

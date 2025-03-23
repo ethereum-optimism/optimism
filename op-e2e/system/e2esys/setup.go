@@ -18,6 +18,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -398,7 +399,8 @@ func (sys *System) DisputeGameFactoryAddr() common.Address {
 }
 
 func (sys *System) SupervisorClient() *sources.SupervisorClient {
-	panic("supervisor not supported for single chain system")
+	sys.t.Fatal("supervisor client is not available for single chain system")
+	return nil
 }
 
 func (sys *System) Config() SystemConfig { return sys.Cfg }
@@ -426,6 +428,24 @@ func (sys *System) NodeEndpoint(name string) endpoint.RPC {
 		sys.t.Fatalf("unknown eth instance: %s", name)
 	}
 	return ethInst.UserRPC()
+}
+
+func (sys *System) L2NodeEndpoints() []endpoint.RPC {
+	return []endpoint.RPC{sys.NodeEndpoint("sequencer")}
+}
+
+func (sys *System) SupervisorEndpoint() endpoint.RPC {
+	sys.t.Fatalf("supervisor endpoint is not supported for pre-interop System")
+	return nil
+}
+
+func (sys *System) DependencySet() *depset.StaticConfigDependencySet {
+	sys.t.Fatalf("dependency set source is not supported for pre-interop System")
+	return nil
+}
+
+func (sys *System) IsSupersystem() bool {
+	return false
 }
 
 func (sys *System) RollupEndpoint(name string) endpoint.RPC {

@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultTimeout = 5 * time.Minute
+const defaultTimeout = 20 * time.Minute
 
 type SplitGameHelper struct {
 	T                     *testing.T
@@ -372,7 +372,7 @@ func (g *SplitGameHelper) GameData(ctx context.Context) string {
 		pos := claim.Position
 		extra := g.DescribePosition(pos, splitDepth)
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v %v\n",
-			i, claim.Position.ToGIndex().Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond, extra)
+			i, claim.Position.ToGIndex(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond, extra)
 	}
 	l2BlockNum := g.L2BlockNum(ctx)
 	status, err := g.Game.GetStatus(ctx)
@@ -555,7 +555,7 @@ func (g *SplitGameHelper) StepFails(ctx context.Context, claimIdx int64, isAttac
 	validStepErr := "0xfb4e40dd"
 	invalidPrestateErr := "0x696550ff"
 	if !strings.Contains(err.Error(), validStepErr) && !strings.Contains(err.Error(), invalidPrestateErr) {
-		g.Require.Failf("Revert reason should be abi encoded ValidStep() or InvalidPrestate() but was: %v", err.Error())
+		g.Require.Failf("Revert reason should be abi encoded ValidStep() or InvalidPrestate()", "err is %v", err.Error())
 	}
 }
 

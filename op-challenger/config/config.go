@@ -100,6 +100,66 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 }
 
+func NewInteropConfig(
+	gameFactoryAddress common.Address,
+	l1EthRpc string,
+	l1BeaconApi string,
+	supervisorRpc string,
+	l2Rpcs []string,
+	datadir string,
+	supportedTraceTypes ...types.TraceType,
+) Config {
+	return Config{
+		L1EthRpc:           l1EthRpc,
+		L1Beacon:           l1BeaconApi,
+		SupervisorRPC:      supervisorRpc,
+		L2Rpcs:             l2Rpcs,
+		GameFactoryAddress: gameFactoryAddress,
+		MaxConcurrency:     uint(runtime.NumCPU()),
+		PollInterval:       DefaultPollInterval,
+
+		TraceTypes: supportedTraceTypes,
+
+		MaxPendingTx: DefaultMaxPendingTx,
+
+		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
+		MetricsConfig: opmetrics.DefaultCLIConfig(),
+		PprofConfig:   oppprof.DefaultCLIConfig(),
+
+		Datadir: datadir,
+
+		Cannon: vm.Config{
+			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
+		Asterisc: vm.Config{
+			VmType:          types.TraceTypeAsterisc,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		AsteriscKona: vm.Config{
+			VmType:          types.TraceTypeAsteriscKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		GameWindow: DefaultGameWindow,
+	}
+}
+
 func NewConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
