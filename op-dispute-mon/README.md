@@ -1,4 +1,4 @@
-# op-dispute-mon
+"# op-dispute-mon
 
 The `op-dispute-mon` is an off-chain service to monitor dispute games.
 
@@ -7,7 +7,7 @@ The `op-dispute-mon` is an off-chain service to monitor dispute games.
 Clone this repo. Then run:
 
 ```shell
-make op-dispute-mon
+just op-dispute-mon
 ```
 
 This will build the `op-dispute-mon` binary which can be run with
@@ -27,3 +27,4 @@ shows the available config options and can be accessed by running `./bin/op-disp
   --rollup-rpc <Optimism-Rollup-RPC-URL>
 
 ```
+"
