@@ -151,9 +151,7 @@ func (s *interopE2ESystem) AdvanceL1Time(duration time.Duration) {
 }
 
 func (s *interopE2ESystem) DisputeGameFactoryAddr() common.Address {
-	// Currently uses the dispute game factory for the first L2 chain.
-	// Ultimately this should be a factory shared by all chains in the dependency set
-	return s.worldDeployment.L2s[s.L2IDs()[0]].DisputeGameFactoryProxy
+	return s.worldDeployment.Interop.DisputeGameFactory
 }
 
 // prepareHDWallet creates a new HD wallet to derive keys from
