@@ -1,4 +1,4 @@
-"# op-dispute-mon
+# op-dispute-mon
 
 The `op-dispute-mon` is an off-chain service to monitor dispute games.
 
@@ -27,4 +27,3 @@ shows the available config options and can be accessed by running `./bin/op-disp
   --rollup-rpc <Optimism-Rollup-RPC-URL>
 
 ```
-"
