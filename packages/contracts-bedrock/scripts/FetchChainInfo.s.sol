@@ -67,17 +67,16 @@ contract FetchChainInfoOutput {
     address internal _optimismMintableERC20FactoryProxy;
     address internal _optimismPortalProxy;
     address internal _systemConfigProxy;
-    address internal _proxyAdmin;
+    address internal _opChainProxyAdmin;
     address internal _superchainConfig;
     address internal _anchorStateRegistryProxy;
-    address internal _permissionedWethProxy;
-    address internal _permissionlessWethProxy;
+    address internal _delayedWETHPermissionedGameProxy;
+    address internal _delayedWETHPermissionlessGameProxy;
     address internal _disputeGameFactoryProxy;
     address internal _faultDisputeGame;
     address internal _mips;
     address internal _permissionedDisputeGame;
     address internal _preimageOracle;
-    address internal _daChallengeAddress;
 
     // roles
     address internal _systemConfigOwner;
@@ -102,17 +101,16 @@ contract FetchChainInfoOutput {
         else if (_sel == this.optimismMintableERC20FactoryProxy.selector) _optimismMintableERC20FactoryProxy = _addr;
         else if (_sel == this.optimismPortalProxy.selector) _optimismPortalProxy = _addr;
         else if (_sel == this.systemConfigProxy.selector) _systemConfigProxy = _addr;
-        else if (_sel == this.proxyAdmin.selector) _proxyAdmin = _addr;
+        else if (_sel == this.opChainProxyAdmin.selector) _opChainProxyAdmin = _addr;
         else if (_sel == this.superchainConfig.selector) _superchainConfig = _addr;
         else if (_sel == this.anchorStateRegistryProxy.selector) _anchorStateRegistryProxy = _addr;
-        else if (_sel == this.permissionedWethProxy.selector) _permissionedWethProxy = _addr;
-        else if (_sel == this.permissionlessWethProxy.selector) _permissionlessWethProxy = _addr;
+        else if (_sel == this.delayedWETHPermissionedGameProxy.selector) _delayedWETHPermissionedGameProxy = _addr;
+        else if (_sel == this.delayedWETHPermissionlessGameProxy.selector) _delayedWETHPermissionlessGameProxy = _addr;
         else if (_sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = _addr;
         else if (_sel == this.faultDisputeGame.selector) _faultDisputeGame = _addr;
         else if (_sel == this.mips.selector) _mips = _addr;
         else if (_sel == this.permissionedDisputeGame.selector) _permissionedDisputeGame = _addr;
         else if (_sel == this.preimageOracle.selector) _preimageOracle = _addr;
-        else if (_sel == this.daChallengeAddress.selector) _daChallengeAddress = _addr;
         else if (_sel == this.systemConfigOwner.selector) _systemConfigOwner = _addr;
         else if (_sel == this.proxyAdminOwner.selector) _proxyAdminOwner = _addr;
         else if (_sel == this.guardian.selector) _guardian = _addr;
@@ -177,9 +175,9 @@ contract FetchChainInfoOutput {
         return _systemConfigProxy;
     }
 
-    function proxyAdmin() public view returns (address) {
-        require(_proxyAdmin != address(0), "FetchChainInfoOutput: proxyAdmin not set");
-        return _proxyAdmin;
+    function opChainProxyAdmin() public view returns (address) {
+        require(_opChainProxyAdmin != address(0), "FetchChainInfoOutput: opChainProxyAdmin not set");
+        return _opChainProxyAdmin;
     }
 
     function superchainConfig() public view returns (address) {
@@ -192,12 +190,12 @@ contract FetchChainInfoOutput {
         return _anchorStateRegistryProxy;
     }
 
-    function permissionedWethProxy() public view returns (address) {
-        return _permissionedWethProxy;
+    function delayedWETHPermissionedGameProxy() public view returns (address) {
+        return _delayedWETHPermissionedGameProxy;
     }
 
-    function permissionlessWethProxy() public view returns (address) {
-        return _permissionlessWethProxy;
+    function delayedWETHPermissionlessGameProxy() public view returns (address) {
+        return _delayedWETHPermissionlessGameProxy;
     }
 
     function disputeGameFactoryProxy() public view returns (address) {
@@ -223,11 +221,6 @@ contract FetchChainInfoOutput {
     function preimageOracle() public view returns (address) {
         require(_preimageOracle != address(0), "FetchChainInfoOutput: preimageOracle not set");
         return _preimageOracle;
-    }
-
-    function daChallengeAddress() public view returns (address) {
-        require(_daChallengeAddress != address(0), "FetchChainInfoOutput: daChallengeAddress not set");
-        return _daChallengeAddress;
     }
 
     function systemConfigOwner() public view returns (address) {
@@ -299,10 +292,10 @@ contract FetchChainInfo is Script {
         address batchSubmitter = _getBatchSubmitter(systemConfigProxy);
         _fo.set(_fo.batchSubmitter.selector, batchSubmitter);
 
-        address proxyAdmin = _getProxyAdmin(systemConfigProxy);
-        _fo.set(_fo.proxyAdmin.selector, proxyAdmin);
+        address opChainProxyAdmin = _getProxyAdmin(systemConfigProxy);
+        _fo.set(_fo.opChainProxyAdmin.selector, opChainProxyAdmin);
 
-        address proxyAdminOwner = IFetcher(proxyAdmin).owner();
+        address proxyAdminOwner = IFetcher(opChainProxyAdmin).owner();
         _fo.set(_fo.proxyAdminOwner.selector, proxyAdminOwner);
 
         address l1ERC721BridgeProxy = _getL1ERC721BridgeProxy(systemConfigProxy);
@@ -344,8 +337,8 @@ contract FetchChainInfo is Script {
             if (faultDisputeGame != address(0)) {
                 _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
 
-                address permissionlessWethProxy = _getDelayedWETHProxy(faultDisputeGame);
-                _fo.set(_fo.permissionlessWethProxy.selector, permissionlessWethProxy);
+                address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);
+                _fo.set(_fo.delayedWETHPermissionlessGameProxy.selector, delayedWETHPermissionlessGameProxy);
             }
 
             address permissionedDisputeGame = _getPermissionedDisputeGame(disputeGameFactoryProxy);
@@ -358,8 +351,8 @@ contract FetchChainInfo is Script {
                 address anchorStateRegistryProxy = _getAnchorStateRegistryProxy(permissionedDisputeGame);
                 _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
 
-                address permissionedWethProxy = _getDelayedWETHProxy(permissionedDisputeGame);
-                _fo.set(_fo.permissionedWethProxy.selector, permissionedWethProxy);
+                address delayedWETHPermissionedGameProxy = _getDelayedWETHProxy(permissionedDisputeGame);
+                _fo.set(_fo.delayedWETHPermissionedGameProxy.selector, delayedWETHPermissionedGameProxy);
 
                 address mips = _getMips(permissionedDisputeGame);
                 _fo.set(_fo.mips.selector, mips);
