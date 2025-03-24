@@ -199,13 +199,28 @@ func RandomAccessListTx(rng *rand.Rand, signer types.Signer) *types.Transaction 
 		To:         RandomTo(rng),
 		Value:      RandomETH(rng, 10),
 		Data:       RandomData(rng, rng.Intn(RandomDataSize)),
-		AccessList: nil,
+		AccessList: RandomAccessList(rng),
 	}
 	tx, err := types.SignNewTx(key, signer, txData)
 	if err != nil {
 		panic(err)
 	}
 	return tx
+}
+
+func RandomAccessList(rng *rand.Rand) types.AccessList {
+	accessList := []types.AccessTuple{}
+	for range rng.Intn(3) {
+		storageKeys := []common.Hash{}
+		for range rng.Intn(4) {
+			storageKeys = append(storageKeys, RandomHash(rng))
+		}
+		accessList = append(accessList, types.AccessTuple{
+			Address:     RandomAddress(rng),
+			StorageKeys: storageKeys,
+		})
+	}
+	return accessList
 }
 
 func RandomDynamicFeeTxWithBaseFee(rng *rand.Rand, baseFee *big.Int, signer types.Signer) *types.Transaction {
