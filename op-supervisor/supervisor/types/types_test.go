@@ -567,7 +567,7 @@ func TestRevision(t *testing.T) {
 	require.Equal(t, uint64(0), Revision(0).Number())
 	require.Equal(t, 0, Revision(0).Cmp(0))
 	require.Equal(t, -1, Revision(0).Cmp(1))
-	require.Equal(t, 0, Revision(0).OpenEnded().Cmp(1))
+	require.Equal(t, -1, Revision(0).OpenEnded().Cmp(1)) // open-end does not affect comparison
 
 	require.Equal(t, 1, Revision(123).Cmp(0))
 	require.Equal(t, 1, Revision(123).Cmp(122))
@@ -578,8 +578,8 @@ func TestRevision(t *testing.T) {
 	require.Equal(t, 1, Revision(123).OpenEnded().Cmp(0))
 	require.Equal(t, 1, Revision(123).OpenEnded().Cmp(122))
 	require.Equal(t, 0, Revision(123).OpenEnded().Cmp(123))
-	require.Equal(t, 0, Revision(123).OpenEnded().Cmp(124))
-	require.Equal(t, 0, Revision(123).OpenEnded().Cmp(150))
+	require.Equal(t, -1, Revision(123).OpenEnded().Cmp(124))
+	require.Equal(t, -1, Revision(123).OpenEnded().Cmp(150))
 
 	require.Equal(t, "Rev(any)", RevisionAny.String())
 	require.Equal(t, "Rev(123 open)", Revision(123).OpenEnded().String())

@@ -92,9 +92,6 @@ func (r Revision) Cmp(blockNum uint64) int {
 	if r.Number() == blockNum {
 		return 0
 	}
-	if r.OpenEnd() {
-		return 0
-	}
 	return -1
 }
 
