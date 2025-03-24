@@ -1531,6 +1531,34 @@ jobs:
           command: |
             goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
+  diff-fetcher-forge-artifacts:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise
+      - check-changed:
+          patterns: contracts-bedrock/packages
+      - install-contracts-dependencies
+      - run:
+          name: Build contracts
+          command: |
+            just build-contracts
+          working_directory: op-fetcher
+      - run:
+          name: Compare forge artifacts
+          command: |
+            diff -qr "packages/contracts-bedrock/forge-artifacts/FetchChainInfo.s.sol" \
+                    "op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol"
+
+            if [ $? -ne 0 ]; then
+              echo "ERROR: The checked-in forge artifacts for FetchChainInfo.s.sol do not match the ci build."
+              echo "Please run 'just build-contracts' in the op-fetcher directory and commit the changes."
+              exit 1
+            fi
+
+            echo "✅ Checked-in forge artifacts match the ci build"
+
   stale-check:
       machine:
         image: ubuntu-2204:2024.08.1
@@ -1649,6 +1677,9 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+          context: circleci-repo-readonly-authenticated-github-token
+      - diff-fetcher-forge-artifacts:
+          context: circleci-repo-readonly-authenticated-github-token
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
