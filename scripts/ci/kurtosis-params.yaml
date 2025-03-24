@@ -6,9 +6,10 @@ optimism_package:
         el_builder_image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101500.0
       network_params:
         network: "kurtosis"
+        fund_dev_accounts: true
       additional_services: ["rollup-boost"]
       mev_params:
-        rollup_boost_image: "flashbots/rollup-boost:0.3rc4"
+        rollup_boost_image: "rollup-boost:develop"
 ethereum_package:
   participants:
   - el_type: geth
