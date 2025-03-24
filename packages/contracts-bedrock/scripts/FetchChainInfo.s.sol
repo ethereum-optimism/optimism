@@ -199,7 +199,6 @@ contract FetchChainInfoOutput {
     }
 
     function disputeGameFactoryProxy() public view returns (address) {
-        require(_disputeGameFactoryProxy != address(0), "FetchChainInfoOutput: disputeGameFactoryProxy not set");
         return _disputeGameFactoryProxy;
     }
 
@@ -348,20 +347,20 @@ contract FetchChainInfo is Script {
                 address challenger = IFetcher(permissionedDisputeGame).challenger();
                 _fo.set(_fo.challenger.selector, challenger);
 
-                address anchorStateRegistryProxy = _getAnchorStateRegistryProxy(permissionedDisputeGame);
+                address anchorStateRegistryProxy = IFetcher(permissionedDisputeGame).anchorStateRegistry();
                 _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
+
+                address proposer = IFetcher(permissionedDisputeGame).proposer();
+                _fo.set(_fo.proposer.selector, proposer);
 
                 address delayedWETHPermissionedGameProxy = _getDelayedWETHProxy(permissionedDisputeGame);
                 _fo.set(_fo.delayedWETHPermissionedGameProxy.selector, delayedWETHPermissionedGameProxy);
 
-                address mips = _getMips(permissionedDisputeGame);
+                address mips = IFetcher(permissionedDisputeGame).vm();
                 _fo.set(_fo.mips.selector, mips);
 
                 address preimageOracle = IFetcher(mips).oracle();
                 _fo.set(_fo.preimageOracle.selector, preimageOracle);
-
-                address proposer = IFetcher(permissionedDisputeGame).proposer();
-                _fo.set(_fo.proposer.selector, proposer);
             }
         } else {
             // Some older chains have L2OutputOracle instead of DisputeGameFactory.
@@ -389,10 +388,10 @@ contract FetchChainInfo is Script {
     }
 
     function _getOptimismPortalProxy(address _l1CrossDomainMessengerProxy) internal view returns (address) {
-        try IFetcher(_l1CrossDomainMessengerProxy).PORTAL() returns (address optimismPortal_) {
+        try IFetcher(_l1CrossDomainMessengerProxy).portal() returns (address optimismPortal_) {
             return optimismPortal_;
         } catch {
-            return IFetcher(_l1CrossDomainMessengerProxy).portal();
+            return IFetcher(_l1CrossDomainMessengerProxy).PORTAL();
         }
     }
 
@@ -455,18 +454,10 @@ contract FetchChainInfo is Script {
         }
     }
 
-    function _getAnchorStateRegistryProxy(address _permissionedDisputeGame) internal view returns (address) {
-        return IFetcher(_permissionedDisputeGame).anchorStateRegistry();
-    }
-
     function _getDelayedWETHProxy(address _disputeGame) internal view returns (address) {
         (bool ok, bytes memory data) = address(_disputeGame).staticcall(abi.encodeCall(IFetcher.weth, ()));
         if (ok && data.length == 32) return abi.decode(data, (address));
         else return address(0);
-    }
-
-    function _getMips(address _permissionedDisputeGame) internal view returns (address) {
-        return IFetcher(_permissionedDisputeGame).vm();
     }
 
     function _getBatchSubmitter(address _systemConfigProxy) internal view returns (address) {
@@ -480,6 +471,11 @@ contract FetchChainInfo is Script {
     }
 
     function _processProofType(FetchChainInfoOutput _fo) internal {
+        // Initialize values
+        _fo.set(_fo.faultProofPermissioned.selector, false);
+        _fo.set(_fo.faultProofPermissionless.selector, false);
+        _fo.set(_fo.respectedGameType.selector, GameTypes.CANNON);
+
         address disputeFactory = _fo.disputeGameFactoryProxy();
         if (disputeFactory == address(0)) {
             return;
