@@ -10,36 +10,25 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// ExecutionMode defines the execution mode for rollup boost
-type ExecutionMode string
+type ExecutionMode bool
 
-const (
-	// ExecutionModeEnabled means rollup boost will forward tx to builder
-	ExecutionModeEnabled ExecutionMode = "enabled"
-	// ExecutionModeDisabled means rollup boost will not forward tx to builder
-	ExecutionModeDisabled ExecutionMode = "disabled"
-)
-
-// RollupBoostDebug defines the interface for controlling the rollup boost debug API.
-//
-//go:generate mockery --name RollupBoostDebug --output mocks/ --with-expecter=true
-type RollupBoostDebug interface {
+type RollupBoostControl interface {
 	// GetExecutionMode gets the current execution mode of rollup boost
-	GetExecutionMode(ctx context.Context) (ExecutionMode, error)
+	GetExecutionMode(ctx context.Context) (bool, error)
 	// SetExecutionMode sets the execution mode of rollup boost
-	SetExecutionMode(ctx context.Context, mode ExecutionMode) error
+	SetExecutionMode(ctx context.Context, enabled bool) error
 }
 
-// RollupBoostDebugClient implements RollupBoostDebug
-type RollupBoostDebugClient struct {
+// RollupBoostControlClient implements RollupBoostControl
+type RollupBoostControlClient struct {
 	client *rpc.Client
 	log    log.Logger
 }
 
-var _ RollupBoostDebug = (*RollupBoostDebugClient)(nil)
+var _ RollupBoostControl = (*RollupBoostControlClient)(nil)
 
-// NewRollupBoostDebugClient creates a new RollupBoostDebugClient
-func NewRollupBoostDebugClient(ctx context.Context, url string, log log.Logger) (*RollupBoostDebugClient, error) {
+// NewRollupBoostControlClient creates a new RollupBoostControlClient
+func NewRollupBoostControlClient(ctx context.Context, url string, log log.Logger) (*RollupBoostControlClient, error) {
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -48,33 +37,33 @@ func NewRollupBoostDebugClient(ctx context.Context, url string, log log.Logger) 
 		return nil, fmt.Errorf("failed to dial rollup boost debug API: %w", err)
 	}
 
-	return &RollupBoostDebugClient{
+	return &RollupBoostControlClient{
 		client: client,
 		log:    log.New("component", "rollupboost-client"),
 	}, nil
 }
 
-// GetExecutionMode implements RollupBoostDebug
-func (c *RollupBoostDebugClient) GetExecutionMode(ctx context.Context) (ExecutionMode, error) {
+// GetExecutionMode implements RollupBoostControl
+func (c *RollupBoostControlClient) GetExecutionMode(ctx context.Context) (bool, error) {
 	var result struct {
-		ExecutionMode string `json:"execution_mode"`
+		ExecutionMode bool `json:"execution_mode"`
 	}
 	err := c.client.CallContext(ctx, &result, "debug_executionMode")
 	if err != nil {
-		return "", fmt.Errorf("failed to get execution mode: %w", err)
+		return false, fmt.Errorf("failed to get execution mode: %w", err)
 	}
-	return ExecutionMode(result.ExecutionMode), nil
+	return result.ExecutionMode, nil
 }
 
-// SetExecutionMode implements RollupBoostDebug
-func (c *RollupBoostDebugClient) SetExecutionMode(ctx context.Context, mode ExecutionMode) error {
+// SetExecutionMode implements RollupBoostControl
+func (c *RollupBoostControlClient) SetExecutionMode(ctx context.Context, enabled bool) error {
 	var result struct {
-		ExecutionMode string `json:"execution_mode"`
+		ExecutionMode bool `json:"execution_mode"`
 	}
-	err := c.client.CallContext(ctx, &result, "debug_setExecutionMode", string(mode))
+	err := c.client.CallContext(ctx, &result, "debug_setExecutionMode", enabled)
 	if err != nil {
 		return fmt.Errorf("failed to set execution mode: %w", err)
 	}
-	c.log.Info("Set rollup boost execution mode", "mode", mode)
+	c.log.Info("Set rollup boost execution mode", "enabled", enabled)
 	return nil
 }
