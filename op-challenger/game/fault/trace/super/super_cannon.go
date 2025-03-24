@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -39,7 +40,7 @@ func NewSuperCannonTraceAccessor(
 	}
 	outputProvider := NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 	cannonCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, claimInfo ClaimInfo) (types.TraceProvider, error) {
-		logger := logger.New("agreedPrestate", claimInfo.AgreedPrestate, "claim", claimInfo.Claim, "localContext", localContext)
+		logger := logger.New("agreedPrestate", hexutil.Bytes(claimInfo.AgreedPrestate), "claim", claimInfo.Claim, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
 		localInputs := utils.LocalGameInputs{
 			L1Head:           l1Head.Hash,

@@ -33,11 +33,11 @@ func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inpu
 	if inputs.L2Head != (common.Hash{}) {
 		args = append(args, "--l2.head", inputs.L2Head.Hex())
 	}
-	if inputs.L2OutputRoot != (common.Hash{}) {
-		args = append(args, "--l2.outputroot", inputs.L2OutputRoot.Hex())
-	}
+	// --l2.agreed-prestate and --l2.outputroot are mutually exclusive flags
 	if len(inputs.AgreedPreState) > 0 {
 		args = append(args, "--l2.agreed-prestate", common.Bytes2Hex(inputs.AgreedPreState))
+	} else if inputs.L2OutputRoot != (common.Hash{}) {
+		args = append(args, "--l2.outputroot", inputs.L2OutputRoot.Hex())
 	}
 	if cfg.DepsetConfigPath != "" {
 		args = append(args, "--depset.config", cfg.DepsetConfigPath)

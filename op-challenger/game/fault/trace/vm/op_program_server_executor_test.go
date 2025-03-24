@@ -182,6 +182,15 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		require.Equal(t, common.Bytes2Hex(val), pairs["--l2.agreed-prestate"])
 	})
 
+	t.Run("WithAgreedPrestateAndL2Output", func(t *testing.T) {
+		val := []byte{1, 6, 53, 42}
+		pairs := oracleCommand(t, log.LvlInfo, func(_ *Config, inputs *utils.LocalGameInputs) {
+			inputs.L2OutputRoot = common.Hash{0xab}
+			inputs.AgreedPreState = val
+		})
+		require.Equal(t, common.Bytes2Hex(val), pairs["--l2.agreed-prestate"])
+	})
+
 	t.Run("WithouDepsetConfig", func(t *testing.T) {
 		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.DepsetConfigPath = ""
