@@ -265,7 +265,7 @@ func latestSuperchainConfigs() (*superchain.ChainConfigLoader, error) {
 		return nil, fmt.Errorf("failed to write superchain-registry-commit.txt: %w", err)
 	}
 	cmd := exec.Command(scriptPath)
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	cmd.Dir = dir
 	if err := cmd.Run(); err != nil {
