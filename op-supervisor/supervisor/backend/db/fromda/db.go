@@ -82,8 +82,8 @@ func (db *DB) First() (pair types.DerivedBlockSealPair, err error) {
 }
 
 // PreviousDerived returns the previous derived block.
+// Warning: only safe to use on cross-DB.
 // This will prioritize the last time the input L2 block number was seen, and consistency-checks it against the hash.
-// Older occurrences of the same number with different hash cannot be iterated from, and are non-canonical.
 func (db *DB) PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
@@ -124,6 +124,21 @@ func (db *DB) Last() (pair types.DerivedBlockSealPair, err error) {
 		return types.DerivedBlockSealPair{}, err
 	}
 	return link.sealOrErr()
+}
+
+// TODO test SourceToLastRevision
+func (db *DB) SourceToLastRevision(source eth.BlockID) (revision types.Revision, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	_, link, err := db.sourceNumToLastDerived(source.Number)
+	if err != nil {
+		return types.Revision(0), err
+	}
+	if link.source.ID() != source {
+		return types.Revision(0), fmt.Errorf("expected source %s, got source %s in DB: %w",
+			source, link.source, types.ErrConflict)
+	}
+	return link.revision, nil
 }
 
 // latest is like Latest, but without lock, for internal use.
@@ -196,6 +211,52 @@ func (db *DB) NextDerived(derived eth.BlockID, revision types.Revision) (pair ty
 	return next.sealOrErr()
 }
 
+// TODO Candidate
+func (db *DB) Candidate(maxSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	_, lastOffered, err := db.sourceNumToLastDerived(maxSource.Number)
+	if err != nil {
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to get last derived block from %s: %w", maxSource, err)
+	}
+	if lastOffered.source.ID() != maxSource {
+		return types.DerivedBlockRefPair{}, fmt.Errorf("expected source %s, but got %s: %w", maxSource, afterDerived, types.ErrConflict)
+	}
+	parentSource, err := db.PreviousSource(maxSource)
+	if err != nil {
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to get parent source of %s: %w", maxSource, err)
+	}
+	sourceRef, err := lastOffered.source.WithParent(parentSource.ID())
+	if err != nil {
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to combine %s with parent %s: %w", lastOffered.source, parentSource, err)
+	}
+	if lastOffered.derived.Number > afterDerived.Number {
+		// keep source, just find the next canonical entry.
+		// That entry can be attached to an older source however.
+		_, link, err := db.derivedNumToLastSource(afterDerived.Number+1, revision)
+		if errors.Is(err, types.ErrNotExact) {
+			_, link, err = db.derivedNumToLastSource(afterDerived.Number+1, types.Revision(afterDerived.Number+1))
+			if err != nil {
+				return types.DerivedBlockRefPair{}, fmt.Errorf("cannot find derived block %d: %w", afterDerived.Number+1, types.ErrDataCorruption)
+			}
+		}
+		derivedRef, err := link.derived.WithParent(afterDerived)
+		if err != nil {
+			return types.DerivedBlockRefPair{}, err
+		}
+		return types.DerivedBlockRefPair{
+			Source:  sourceRef,
+			Derived: derivedRef,
+		}, nil
+	} else {
+		// need scope-bump before we can access next derived values
+		return types.DerivedBlockRefPair{
+			Source:  sourceRef,
+			Derived: eth.BlockRef{},
+		}, types.ErrOutOfScope
+	}
+}
+
 // DerivedToRevision retrieves the revision of the latest occurrence of the given block.
 // This may be open-ended (read: match not-yet cross-safe blocks) if the block is not known yet.
 // WARNING: this is only safe to use on the cross-safe DB.
@@ -218,6 +279,27 @@ func (db *DB) DerivedToRevision(derived eth.BlockID) (types.Revision, error) {
 	}
 	if id := link.derived.ID(); id != derived {
 		return types.Revision(0), fmt.Errorf("cannot determine revision, db entry %s does not match query %s: %w", id, derived, types.ErrConflict)
+	}
+	return link.revision, nil
+}
+
+// SourceToRevision lookups a specific source entry, and returns the corresponding revision.
+// This ignores invalidation status of the given pair.
+// It is used in those cases also, to determine the revision to use for a cross-safe DB,
+// based on the invalidated entry in the local-safe DB.
+func (db *DB) SourceToRevision(source eth.BlockID) (types.Revision, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+
+	if db.store.Size() == 0 {
+		return FirstRevision, nil
+	}
+	_, link, err := db.sourceNumToLastDerived(source.Number)
+	if err != nil {
+		return types.Revision(0), err
+	}
+	if link.source.ID() != source {
+		return types.Revision(0), fmt.Errorf("expected %s, got %s: %w", source, link.source, types.ErrConflict)
 	}
 	return link.revision, nil
 }
@@ -486,7 +568,7 @@ func (db *DB) find(reverse bool, acceptClosest bool, cmpFn func(link LinkEntry) 
 				return -1, LinkEntry{}, fmt.Errorf("query is before first entry %s: %w", link, types.ErrSkipped)
 			}
 		} else if !acceptClosest {
-			return -1, LinkEntry{}, fmt.Errorf("traversed data, no exact match found, but hit %s: %w", link, types.ErrDataCorruption)
+			return -1, LinkEntry{}, fmt.Errorf("traversed data, no exact match found, but hit %s: %w", link, types.ErrNotExact)
 		}
 	}
 	return entrydb.EntryIdx(result), link, nil

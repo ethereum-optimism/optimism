@@ -61,24 +61,29 @@ type DerivationStorage interface {
 	SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, err error)
 
 	// traversal
-	Next(pair types.DerivedIDPair) (next types.DerivedBlockSealPair, err error)
 	NextSource(source eth.BlockID) (nextSource types.BlockSeal, err error)
-	NextDerived(derived eth.BlockID, revision types.Revision) (next types.DerivedBlockSealPair, err error)
+
+	Candidate(afterSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error)
+
 	PreviousSource(source eth.BlockID) (prevSource types.BlockSeal, err error)
+
+	// Warning: only safe to use on cross-DB
 	PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error)
 
 	// type-specific
 	Invalidated() (pair types.DerivedBlockSealPair, err error)
 	ContainsDerived(derived eth.BlockID, revision types.Revision) error
 
+	// DerivedToRevision is only safe to use on the cross-safe DB.
 	DerivedToRevision(derived eth.BlockID) (types.Revision, error)
 
-	// writing
-	AddDerived(source eth.BlockRef, derived eth.BlockRef) error
-	AddRevisedDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error
-	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, revision types.Revision, err error)
+	SourceToRevision(source eth.BlockID) (types.Revision, error)
 
-	// rewining
+	// writing
+	AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error
+	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, err error)
+
+	// rewinding
 	RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error
 	RewindToScope(scope eth.BlockID) error
 	RewindToFirstDerived(v eth.BlockID, revision types.Revision) error

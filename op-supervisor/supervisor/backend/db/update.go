@@ -95,16 +95,20 @@ func (db *ChainsDB) UpdateLocalSafe(chain eth.ChainID, source eth.BlockRef, last
 }
 
 func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.BlockRef, lastDerived eth.BlockRef, nodeId string) {
-	logger := db.logger.New("chain", chain, "ource", source, "lastDerived", lastDerived)
+	logger := db.logger.New("chain", chain, "source", source, "lastDerived", lastDerived)
 	localDB, ok := db.localDBs.Get(chain)
 	if !ok {
 		logger.Error("Cannot update local-safe DB, unknown chain")
 		return
 	}
 	logger.Debug("Updating local safe DB")
-	if err := localDB.AddDerived(source, lastDerived); err != nil {
+	if err := localDB.AddDerived(source, lastDerived, types.RevisionAny); err != nil {
 		if errors.Is(err, types.ErrIneffective) {
 			logger.Info("Node is syncing known source blocks on known latest local-safe block", "err", err)
+			return
+		}
+		if errors.Is(err, types.ErrDataCorruption) {
+			logger.Warn("TODO", "err", err)
 			return
 		}
 		logger.Warn("Failed to update local safe", "err", err)
@@ -131,7 +135,7 @@ func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.Block
 		return fmt.Errorf("cannot UpdateCrossUnsafe: %w: %s", types.ErrUnknownChain, chain)
 	}
 	if !db.isInitialized(chain) {
-		return fmt.Errorf("cannot UpdateCrossSafe on uninitialized database: %w", types.ErrUninitialized)
+		return fmt.Errorf("cannot UpdateCrossUnsafe on uninitialized database: %w", types.ErrUninitialized)
 	}
 	v.Set(crossUnsafe)
 	db.logger.Info("Updated cross-unsafe", "chain", chain, "crossUnsafe", crossUnsafe)
@@ -157,9 +161,18 @@ func (db *ChainsDB) UpdateCrossSafe(chain eth.ChainID, l1View eth.BlockRef, last
 func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.BlockRef, lastCrossDerived eth.BlockRef) error {
 	crossDB, ok := db.crossDBs.Get(chain)
 	if !ok {
-		return fmt.Errorf("cannot UpdateCrossSafe: %w: %s", types.ErrUnknownChain, chain)
+		return fmt.Errorf("cannot UpdateCrossSafe, no cross-safe DB: %w: %s", types.ErrUnknownChain, chain)
 	}
-	if err := crossDB.AddDerived(l1View, lastCrossDerived); err != nil {
+	localDB, ok := db.localDBs.Get(chain)
+	if !ok {
+		return fmt.Errorf("cannot UpdateCrossSafe, no local-safe DB: %w: %s", types.ErrUnknownChain, chain)
+	}
+	// local DB here already has the new block, incl. replacement data, to sync with the cross-db
+	revision, err := localDB.SourceToRevision(l1View.ID())
+	if err != nil {
+		return fmt.Errorf("failed to lookup revision: %w", err)
+	}
+	if err := crossDB.AddDerived(l1View, lastCrossDerived, revision); err != nil {
 		return err
 	}
 	db.logger.Info("Updated cross-safe", "chain", chain, "l1View", l1View, "lastCrossDerived", lastCrossDerived)
@@ -321,19 +334,23 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 	}
 
 	db.logger.Warn("Replacing local block", "replacement", replacement)
-	result, revision, err := localSafeDB.ReplaceInvalidatedBlock(replacement, invalidated)
+	result, err := localSafeDB.ReplaceInvalidatedBlock(replacement, invalidated)
 	if err != nil {
 		db.logger.Error("Cannot replace invalidated block in local-safe DB",
 			"invalidated", invalidated, "replacement", replacement, "err", err)
 		return
 	}
 
+	revision := types.Revision(result.Derived.Number)
 	db.logger.Info("Replacing block", "chain", chainID, "replacement", replacement, "revision", revision)
-	if err := crossSafeDB.AddRevisedDerived(result.Source, result.Derived, revision); err != nil {
+
+	// TODO: not strictly necessary, but prevents cross-safe routine from doing it (although a race condition too)
+	if err := crossSafeDB.AddDerived(result.Source, result.Derived, revision); err != nil {
 		db.logger.Error("Cannot register replacement block in cross-safe DB",
 			"invalidated", invalidated, "replacement", replacement, "revision", revision, "err", err)
 		return
 	}
+
 	// Consider the replacement as a new local-unsafe block, so we can try to index the new event-data.
 	db.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainID,

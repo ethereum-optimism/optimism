@@ -9,11 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef) error {
-	return db.AddRevisedDerived(source, derived, types.RevisionAny)
-}
-
-func (db *DB) AddRevisedDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
+func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	return db.addLink(source, derived, common.Hash{}, revision)
@@ -21,7 +17,8 @@ func (db *DB) AddRevisedDerived(source eth.BlockRef, derived eth.BlockRef, revis
 
 // ReplaceInvalidatedBlock replaces the current Invalidated block with the given replacement.
 // The to-be invalidated hash must be provided for consistency checks.
-func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, revision types.Revision, err error) {
+func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (
+	out types.DerivedBlockRefPair, err error) {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
@@ -31,29 +28,29 @@ func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidat
 	// and where we thus stopped building additional entries for it.
 	lastIndex := db.store.LastEntryIdx()
 	if lastIndex < 0 {
-		return types.DerivedBlockRefPair{}, 0, types.ErrFuture
+		return types.DerivedBlockRefPair{}, types.ErrFuture
 	}
 	last, err := db.readAt(lastIndex)
 	if err != nil {
-		return types.DerivedBlockRefPair{}, 0, fmt.Errorf("failed to read last derivation data: %w", err)
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to read last derivation data: %w", err)
 	}
 	if !last.invalidated {
-		return types.DerivedBlockRefPair{}, 0, fmt.Errorf("cannot replace block %d, that was not invalidated, with block %s: %w", last.derived, replacementDerived, types.ErrConflict)
+		return types.DerivedBlockRefPair{}, fmt.Errorf("cannot replace block %d, that was not invalidated, with block %s: %w", last.derived, replacementDerived, types.ErrConflict)
 	}
 	if last.derived.Hash != invalidated {
-		return types.DerivedBlockRefPair{}, 0, fmt.Errorf("cannot replace invalidated %s, DB contains %s: %w", invalidated, last.derived, types.ErrConflict)
+		return types.DerivedBlockRefPair{}, fmt.Errorf("cannot replace invalidated %s, DB contains %s: %w", invalidated, last.derived, types.ErrConflict)
 	}
 	// Find the parent-block of derived-from.
 	// We need this to build a block-ref, so the DB can be consistency-checked when the next entry is added.
 	// There is always one, since the first entry in the DB should never be an invalidated one.
 	prevSource, err := db.previousSource(last.source.ID())
 	if err != nil {
-		return types.DerivedBlockRefPair{}, 0, err
+		return types.DerivedBlockRefPair{}, err
 	}
 	// Remove the invalidated placeholder and everything after
 	err = db.store.Truncate(lastIndex - 1)
 	if err != nil {
-		return types.DerivedBlockRefPair{}, 0, err
+		return types.DerivedBlockRefPair{}, err
 	}
 	replacement := types.DerivedBlockRefPair{
 		Source:  last.source.ForceWithParent(prevSource.ID()),
@@ -61,9 +58,9 @@ func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidat
 	}
 	// Insert the replacement
 	if err := db.addLink(replacement.Source, replacement.Derived, invalidated, last.revision); err != nil {
-		return types.DerivedBlockRefPair{}, 0, fmt.Errorf("failed to add %s as replacement at %s: %w", replacement.Derived, replacement.Source, err)
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to add %s as replacement at %s: %w", replacement.Derived, replacement.Source, err)
 	}
-	return replacement, last.revision, nil
+	return replacement, nil
 }
 
 // RewindAndInvalidate rolls back the database to just before the invalidated block,
@@ -357,6 +354,7 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 			// So check if it's canonical, and if it is, we can gracefully accept it, to allow forwards progress.
 			_, got, err := db.lookup(source.Number, derived.Number)
 			if err != nil {
+				// TODO
 				return fmt.Errorf("failed to check if block %s with old source %s was derived from canonical source chain: %w",
 					derived, source, err)
 			}

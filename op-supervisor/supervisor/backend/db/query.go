@@ -179,13 +179,14 @@ func (db *ChainsDB) AcceptedBlock(chainID eth.ChainID, id eth.BlockID) error {
 	if err != nil {
 		return fmt.Errorf("failed to get revision: %w", err)
 	}
+	db.logger.Info("Checking if accepted", "chain", chainID, "id", id, "revision", revision)
 	// If the block is not cross-safe, then the revision will be the latest, open-ended.
 	// If the block was invalidated, then ContainsDerived will error with types.ErrAwaitReplacementBlock.
 	if err := localDB.ContainsDerived(id, revision); err != nil {
 		if errors.Is(err, types.ErrFuture) {
 			return nil // Optimistically accept blocks that we haven't seen as local-derived yet.
 		}
-		return fmt.Errorf("failed to check older local-safe db entry: %w", err)
+		return fmt.Errorf("failed to check older local-safe db entry %s: %w", revision, err)
 	}
 	return err
 }
@@ -362,49 +363,26 @@ func (db *ChainsDB) CandidateCrossSafe(chain eth.ChainID) (result types.DerivedB
 		return types.DerivedBlockRefPair{}, err
 	}
 
-	revision, err := xDB.DerivedToRevision(crossSafe.Derived.ID())
+	revision, err := xDB.SourceToRevision(crossSafe.Source.ID())
 	if err != nil {
-		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to get revision of cross-safe entry: %w", err)
-	}
-	candidate, err := lDB.NextDerived(crossSafe.Derived.ID(), revision)
-	if err != nil {
-		if errors.Is(err, types.ErrAwaitReplacementBlock) {
-			// If we cannot promote due to need for replacement, then abort
-			return types.DerivedBlockRefPair{}, fmt.Errorf("candidate cross-safe block %s is invalidated: %w", crossSafe, err)
-		}
 		return types.DerivedBlockRefPair{}, err
 	}
-	candidateRef := candidate.Derived.MustWithParent(crossSafe.Derived.ID())
-
-	// attach the parent (or zero-block) to the cross-safe source
-	var crossSafeSourceRef eth.BlockRef
-	parentSource, err := lDB.PreviousSource(crossSafe.Source.ID())
-	if errors.Is(err, types.ErrPreviousToFirst) {
-		// if we are working with the first item in the database, PreviousSource will return ErrPreviousToFirst
-		// in which case we can attach a zero parent to the block, as the parent block is unknown
-		// ForceWithParent will not panic if the parent is not as expected (like a zero-block)
-		crossSafeSourceRef = crossSafe.Source.ForceWithParent(eth.BlockID{})
-	} else if err != nil {
-		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to find parent-block of derived-from %s: %w", crossSafe.Source, err)
-	} else {
-		// if we have a parent, we can attach it to the cross-safe source
-		// MustWithParent will panic if the parent is not the previous block
-		crossSafeSourceRef = crossSafe.Source.MustWithParent(parentSource.ID())
+	candidate, err := lDB.Candidate(crossSafe.Source.ID(), crossSafe.Derived.ID(), revision)
+	if err != nil {
+		// forward candidate value, even if error, in case a scope-bump is needed
+		return candidate, err
 	}
+	db.logger.Debug("Determined cross-safe candidate block revision", "crossSafe", crossSafe)
 
-	result = types.DerivedBlockRefPair{
-		Source:  crossSafeSourceRef,
-		Derived: candidateRef,
-	}
 	if candidate.Source.Number <= crossSafe.Source.Number {
 		db.logger.Debug("Cross-safe source matches or exceeds candidate source", "crossSafe", crossSafe, "candidate", candidate)
-		return result, nil
+		return candidate, nil
 	}
-	return result, types.ErrOutOfScope
+	return candidate, types.ErrOutOfScope
 }
 
-func (db *ChainsDB) PreviousDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
-	lDB, ok := db.localDBs.Get(chain)
+func (db *ChainsDB) PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
+	xDB, ok := db.crossDBs.Get(chain)
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
 	}
@@ -412,7 +390,7 @@ func (db *ChainsDB) PreviousDerived(chain eth.ChainID, derived eth.BlockID) (pre
 	if err != nil {
 		return types.BlockSeal{}, err
 	}
-	return lDB.PreviousDerived(derived, revision)
+	return xDB.PreviousDerived(derived, revision)
 }
 
 func (db *ChainsDB) PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource types.BlockSeal, err error) {
