@@ -458,6 +458,8 @@ contract FetchChainInfoTest is Test {
         fetchChainInfo.run(ctx.input, ctx.output);
 
         assertEq(ctx.output.delayedWETHPermissionedGameProxy(), WETH_PERMISSIONED, "PermissionedGame WETH should match");
-        assertEq(ctx.output.delayedWETHPermissionlessGameProxy(), WETH_PERMISSIONLESS, "PermissionlessGame WETH should match");
+        assertEq(
+            ctx.output.delayedWETHPermissionlessGameProxy(), WETH_PERMISSIONLESS, "PermissionlessGame WETH should match"
+        );
     }
 }
