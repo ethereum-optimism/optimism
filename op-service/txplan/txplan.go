@@ -8,6 +8,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -47,8 +48,8 @@ type PlannedTx struct {
 	Gas        plan.Lazy[uint64]
 	To         plan.Lazy[*common.Address]
 	Value      plan.Lazy[*big.Int]
-	AccessList plan.Lazy[types.AccessList] // resolves to nil if not an attribute
-	//AuthList   plan.Lazy[struct{}]         // resolves to nil if not a 7702 tx
+	AccessList plan.Lazy[types.AccessList]             // resolves to nil if not an attribute
+	AuthList   plan.Lazy[[]types.SetCodeAuthorization] // resolves to nil if not a 7702 tx
 }
 
 func (ptx *PlannedTx) String() string {
@@ -94,6 +95,24 @@ func WithData(data []byte) Option {
 func WithAccessList(al types.AccessList) Option {
 	return func(tx *PlannedTx) {
 		tx.AccessList.Set(al)
+	}
+}
+
+func WithAuthorizations(auths []types.SetCodeAuthorization) Option {
+	return func(tx *PlannedTx) {
+		tx.AuthList.Set(auths)
+	}
+}
+
+func WithType(t uint8) Option {
+	return func(tx *PlannedTx) {
+		tx.Type.Set(t)
+	}
+}
+
+func WithGasLimit(limit uint64) Option {
+	return func(tx *PlannedTx) {
+		tx.Gas.Set(limit)
 	}
 }
 
@@ -261,6 +280,7 @@ func (tx *PlannedTx) Defaults() {
 	tx.Value.Set(big.NewInt(0))
 	tx.Nonce.Set(0)
 	tx.AccessList.Set(types.AccessList{})
+	tx.AuthList.Set([]types.SetCodeAuthorization{})
 
 	// Bump the fee-cap to be at least as high as the tip-cap,
 	// and as high as the basefee.
@@ -299,7 +319,7 @@ func (tx *PlannedTx) Defaults() {
 		&tx.To,
 		&tx.Value,
 		&tx.AccessList,
-		//&tx.AuthList,
+		&tx.AuthList,
 	)
 	tx.Unsigned.Fn(func(ctx context.Context) (types.TxData, error) {
 		chainID := tx.ChainID.Value()
@@ -341,6 +361,26 @@ func (tx *PlannedTx) Defaults() {
 				Value:      tx.Value.Value(),
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),
+				V:          nil,
+				R:          nil,
+				S:          nil,
+			}, nil
+		case types.SetCodeTxType:
+			if tx.To.Value() == nil {
+				return nil, errors.New("to address required for SetCodeTx")
+			}
+
+			return &types.SetCodeTx{
+				ChainID:    uint256.MustFromBig(chainID.ToBig()),
+				Nonce:      tx.Nonce.Value(),
+				GasTipCap:  uint256.MustFromBig(tx.GasTipCap.Value()),
+				GasFeeCap:  uint256.MustFromBig(tx.GasFeeCap.Value()),
+				Gas:        tx.Gas.Value(),
+				To:         *tx.To.Value(),
+				Value:      uint256.MustFromBig(tx.Value.Value()),
+				Data:       tx.Data.Value(),
+				AccessList: tx.AccessList.Value(),
+				AuthList:   tx.AuthList.Value(),
 				V:          nil,
 				R:          nil,
 				S:          nil,
