@@ -13,6 +13,13 @@ use tracing_subscriber::layer::SubscriberExt;
 
 use crate::{Args, LogFormat};
 
+/// Span attribute keys that should be recorded as metric labels.
+///
+/// Use caution when adding new attributes here and keep
+/// label cardinality in mind. Not all span attributes make
+/// appropriate labels.
+pub const SPAN_ATTRIBUTE_LABELS: [&str; 3] = ["code", "has_attributes", "payload_source"];
+
 /// Custom span processor that records span durations as histograms
 #[derive(Debug)]
 struct MetricsSpanProcessor;
@@ -34,22 +41,24 @@ impl SpanProcessor for MetricsSpanProcessor {
         };
 
         // Add custom labels
-        let mut labels = vec![
-            ("span_kind", format!("{:?}", span.span_kind)),
-            ("status", status.into()),
-        ];
-
-        if span.name.starts_with("fork_choice_update") {
-            let with_attributes = span
-                .attributes
-                .iter()
-                .find(|e| e.key.as_str() == "has_attributes")
-                .map(|e| e.value.as_str());
-
-            if let Some(with_attributes) = with_attributes {
-                labels.push(("has_attributes", with_attributes.to_string()));
-            }
-        }
+        let labels = span
+            .attributes
+            .iter()
+            .filter(|attr| SPAN_ATTRIBUTE_LABELS.contains(&attr.key.as_str()))
+            .map(|attr| {
+                (
+                    attr.key.as_str().to_string(),
+                    attr.value.as_str().to_string(),
+                )
+            })
+            .chain(
+                [
+                    ("span_kind".to_string(), format!("{:?}", span.span_kind)),
+                    ("status".to_string(), status.into()),
+                ]
+                .into_iter(),
+            )
+            .collect::<Vec<_>>();
 
         histogram!(format!("{}_duration", span.name), &labels).record(duration);
     }

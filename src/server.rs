@@ -289,7 +289,8 @@ impl EngineApiServer for RollupBoostServer {
         err,
         fields(
             otel.kind = ?SpanKind::Server,
-            %payload_id
+            %payload_id,
+            payload_source
         )
     )]
     async fn get_payload_v3(
@@ -342,10 +343,12 @@ impl EngineApiServer for RollupBoostServer {
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
         let (payload, context) = match (builder_payload, l2_payload) {
-            (Ok(Some(builder)), _) => Ok((builder, "builder")),
-            (_, Ok(l2)) => Ok((l2, "l2")),
+            (Ok(Some(builder)), _) => Ok((builder, PayloadSource::Builder)),
+            (_, Ok(l2)) => Ok((l2, PayloadSource::L2)),
             (_, Err(e)) => Err(e),
         }?;
+
+        tracing::Span::current().record("payload_source", context.to_string());
 
         let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
         let block_hash = inner_payload.block_hash();
