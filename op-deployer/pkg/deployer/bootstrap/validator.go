@@ -56,6 +56,7 @@ type ValidatorInput struct {
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImpl"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImpl"`
 	MIPSImpl                         common.Address `json:"mipsImpl" evm:"mipsImpl"`
+	WithdrawalDelaySeconds           uint64         `json:"withdrawalDelaySeconds"`
 }
 
 type ValidatorOutput struct {
