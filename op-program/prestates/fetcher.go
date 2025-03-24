@@ -10,8 +10,7 @@ import (
 )
 
 // standardPrestatesUrl is the URL to the TOML file in superchain registry that defines the list of standard prestates
-// Note that this explicitly points to the main branch and is not pinned to a specific version. The verification check
-// intends to
+// Note that this explicitly points to the main branch and is not pinned to a specific version.
 const standardPrestatesUrl = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/refs/heads/main/validation/standard/standard-prestates.toml"
 
 func LoadReleases(overrideFile string) (*Prestates, error) {

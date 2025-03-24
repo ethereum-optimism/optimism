@@ -23,6 +23,13 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+const (
+	monorepoGoModAtTag            = "https://github.com/ethereum-optimism/optimism/raw/refs/tags/%s/go.mod"
+	superchainRegistryCommitAtRef = "https://github.com/ethereum-optimism/op-geth/raw/%s/superchain-registry-commit.txt"
+	superchainConfigsZipAtTag     = "https://github.com/ethereum-optimism/op-geth/raw/refs/tags/%s/superchain/superchain-configs.zip"
+	syncSuperchainScript          = "https://github.com/ethereum-optimism/op-geth/raw/refs/heads/optimism/sync-superchain.sh"
+)
+
 type PrestateInfo struct {
 	Hash    common.Hash `json:"hash"`
 	Version string      `json:"version"`
@@ -110,14 +117,14 @@ func main() {
 	}
 	log.Info("Found op-geth version", "version", gethVersion)
 
-	registryCommitBytes, err := fetch(fmt.Sprintf("https://github.com/ethereum-optimism/op-geth/raw/%s/superchain-registry-commit.txt", gethVersion))
+	registryCommitBytes, err := fetch(fmt.Sprintf(superchainRegistryCommitAtRef, gethVersion))
 	if err != nil {
 		log.Crit("Failed to fetch superchain registry commit info", "err", err)
 	}
 	commit := strings.TrimSpace(string(registryCommitBytes))
 	log.Info("Found superchain registry commit info", "commit", commit)
 
-	prestateConfigData, err := fetch(fmt.Sprintf("https://github.com/ethereum-optimism/op-geth/raw/refs/tags/%s/superchain/superchain-configs.zip", gethVersion))
+	prestateConfigData, err := fetch(fmt.Sprintf(superchainConfigsZipAtTag, gethVersion))
 	if err != nil {
 		log.Crit("Failed to fetch prestate's superchain registry config zip", "err", err)
 	}
@@ -245,7 +252,7 @@ func checkChainConfig(actual *superchain.ChainConfig, expected *superchain.Chain
 // sync-superchain.sh script from op-geth to create a zip of configs that can be read by op-geth's ChainConfigLoader.
 func latestSuperchainConfigs() (*superchain.ChainConfigLoader, error) {
 	// Download the op-geth script to build the superchain config
-	script, err := fetch("https://github.com/ethereum-optimism/op-geth/raw/refs/heads/optimism/sync-superchain.sh")
+	script, err := fetch(syncSuperchainScript)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch sync-superchain.sh script: %w", err)
 	}
@@ -287,7 +294,7 @@ func commitInfo(repository string, commit string, mainBranch string, dir string)
 }
 
 func fetchMonorepoGoMod(opProgramTag string) (*modfile.File, error) {
-	goModUrl := fmt.Sprintf("https://github.com/ethereum-optimism/optimism/raw/refs/tags/%s/go.mod", opProgramTag)
+	goModUrl := fmt.Sprintf(monorepoGoModAtTag, opProgramTag)
 	goMod, err := fetch(goModUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch go.mod: %w", err)
