@@ -13,20 +13,22 @@ import (
 // Copied struct from superchain-registry/ops/internal/config/chain.go
 type Addresses struct {
 	interopgen.L2OpchainDeployment
+	// Shared singletons
+	SuperchainConfig common.Address `json:"SuperchainConfig"`
+	Mips             common.Address `json:"MIPS"`
+	PreimageOracle   common.Address `json:"PreimageOracle"`
+	// Legacy contracts
 	L2OutputOracleProxy common.Address `json:"L2OutputOracleProxy"`
-	SuperchainConfig    common.Address `json:"SuperchainConfig"`
-	Mips                common.Address `json:"MIPS"`
-	PreimageOracle      common.Address `json:"PreimageOracle"`
 }
 
 type Roles struct {
-	SystemConfigOwner common.Address `toml:"SystemConfigOwner,omitempty" json:"SystemConfigOwner,omitempty"`
-	ProxyAdminOwner   common.Address `toml:"ProxyAdminOwner,omitempty" json:"ProxyAdminOwner,omitempty"`
-	Guardian          common.Address `toml:"Guardian,omitempty" json:"Guardian,omitempty"`
-	Challenger        common.Address `toml:"Challenger,omitempty" json:"Challenger,omitempty"`
-	Proposer          common.Address `toml:"Proposer,omitempty" json:"Proposer,omitempty"`
-	UnsafeBlockSigner common.Address `toml:"UnsafeBlockSigner,omitempty" json:"UnsafeBlockSigner,omitempty"`
-	BatchSubmitter    common.Address `toml:"BatchSubmitter,omitempty" json:"BatchSubmitter,omitempty"`
+	SystemConfigOwner      common.Address `json:"SystemConfigOwner"`
+	OpChainProxyAdminOwner common.Address `json:"OpChainProxyAdminOwner"`
+	Guardian               common.Address `json:"Guardian"`
+	Challenger             common.Address `json:"Challenger"`
+	Proposer               common.Address `json:"Proposer"`
+	UnsafeBlockSigner      common.Address `json:"UnsafeBlockSigner"`
+	BatchSubmitter         common.Address `json:"BatchSubmitter"`
 }
 
 type FetchChainInfoOutput struct {

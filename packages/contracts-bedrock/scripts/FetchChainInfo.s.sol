@@ -80,7 +80,7 @@ contract FetchChainInfoOutput {
 
     // roles
     address internal _systemConfigOwner;
-    address internal _proxyAdminOwner;
+    address internal _opChainProxyAdminOwner;
     address internal _guardian;
     address internal _challenger;
     address internal _proposer;
@@ -112,7 +112,7 @@ contract FetchChainInfoOutput {
         else if (_sel == this.permissionedDisputeGame.selector) _permissionedDisputeGame = _addr;
         else if (_sel == this.preimageOracle.selector) _preimageOracle = _addr;
         else if (_sel == this.systemConfigOwner.selector) _systemConfigOwner = _addr;
-        else if (_sel == this.proxyAdminOwner.selector) _proxyAdminOwner = _addr;
+        else if (_sel == this.opChainProxyAdminOwner.selector) _opChainProxyAdminOwner = _addr;
         else if (_sel == this.guardian.selector) _guardian = _addr;
         else if (_sel == this.challenger.selector) _challenger = _addr;
         else if (_sel == this.proposer.selector) _proposer = _addr;
@@ -228,9 +228,9 @@ contract FetchChainInfoOutput {
         return _systemConfigOwner;
     }
 
-    function proxyAdminOwner() public view returns (address) {
-        require(_proxyAdminOwner != address(0), "FetchChainInfoOutput: proxyAdminOwner not set");
-        return _proxyAdminOwner;
+    function opChainProxyAdminOwner() public view returns (address) {
+        require(_opChainProxyAdminOwner != address(0), "FetchChainInfoOutput: opChainProxyAdminOwner not set");
+        return _opChainProxyAdminOwner;
     }
 
     function guardian() public view returns (address) {
@@ -295,8 +295,8 @@ contract FetchChainInfo is Script {
         address opChainProxyAdmin = _getProxyAdmin(systemConfigProxy);
         _fo.set(_fo.opChainProxyAdmin.selector, opChainProxyAdmin);
 
-        address proxyAdminOwner = IFetcher(opChainProxyAdmin).owner();
-        _fo.set(_fo.proxyAdminOwner.selector, proxyAdminOwner);
+        address opChainProxyAdminOwner = IFetcher(opChainProxyAdmin).owner();
+        _fo.set(_fo.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
 
         address l1ERC721BridgeProxy = _getL1ERC721BridgeProxy(systemConfigProxy);
         _fo.set(_fo.l1ERC721BridgeProxy.selector, l1ERC721BridgeProxy);
