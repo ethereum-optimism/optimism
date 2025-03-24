@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -139,7 +138,6 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client *source
 	localInputs := utils.LocalGameInputs{
 		L1Head:           l1Head.Hash,
 		AgreedPreState:   agreedPrestate,
-		L2OutputRoot:     crypto.Keccak256Hash(agreedPrestate),
 		L2Claim:          claim,
 		L2SequenceNumber: new(big.Int).SetUint64(claimTimestamp + 10), // Anything beyond the claim
 	}
