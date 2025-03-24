@@ -256,7 +256,7 @@ contract FetchChainInfoTest is Test {
         return ctx_;
     }
 
-    function test_legacy_contract_l2_output_oracle() public {
+    function test_legacyL2OutputOracle_succeeds() public {
         TestContext memory ctx = _prepareLegacyTestContext();
 
         LegacyMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
@@ -283,7 +283,7 @@ contract FetchChainInfoTest is Test {
         assertFalse(ctx.output.faultProofPermissionless(), "Permissionless proofs should be disabled");
     }
 
-    function test_modern_contract_fp_permissioned() public {
+    function test_modernPermissioned_succeeds() public {
         TestContext memory ctx = _prepareModernTestContext();
 
         ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
@@ -309,7 +309,7 @@ contract FetchChainInfoTest is Test {
         assertTrue(LibGameType.raw(ctx.output.respectedGameType()) == LibGameType.raw(GameTypes.CANNON));
     }
 
-    function test_modern_contract_fp_permissionless() public {
+    function test_modernPermissionless_succeeds() public {
         TestContext memory ctx = _prepareModernTestContext();
 
         ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
@@ -360,7 +360,7 @@ contract FetchChainInfoTest is Test {
     }
 
     // Test to verify fallback mechanism for guardian() to GUARDIAN()
-    function test_guardian_fallback() public {
+    function test_guardianFallback_succeeds() public {
         TestContext memory ctx = _prepareTestContext();
 
         // Create mixed mock contracts to test fallback
@@ -393,7 +393,7 @@ contract FetchChainInfoTest is Test {
     }
 
     // Test to verify the fallback mechanism for portal() to PORTAL()
-    function test_portal_fallback() public {
+    function test_portalFallback_succeeds() public {
         TestContext memory ctx = _prepareTestContext();
 
         // Create mixed mock contracts to test fallback
@@ -426,7 +426,7 @@ contract FetchChainInfoTest is Test {
     }
 
     // Test delayedWETH mechanism for permissioned and permissionless games
-    function test_delayed_weth() public {
+    function test_delayedWeth_succeeds() public {
         TestContext memory ctx = _prepareModernTestContext();
 
         // Setup dispute game factory with both game types
@@ -458,8 +458,6 @@ contract FetchChainInfoTest is Test {
         fetchChainInfo.run(ctx.input, ctx.output);
 
         assertEq(ctx.output.delayedWETHPermissionedGameProxy(), WETH_PERMISSIONED, "PermissionedGame WETH should match");
-        assertEq(
-            ctx.output.delayedWETHPermissionlessGameProxy(), WETH_PERMISSIONLESS, "PermissionlessGame WETH should match"
-        );
+        assertEq(ctx.output.delayedWETHPermissionlessGameProxy(), WETH_PERMISSIONLESS, "PermissionlessGame WETH should match");
     }
 }
