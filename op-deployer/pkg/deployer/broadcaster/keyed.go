@@ -247,8 +247,5 @@ func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint6
 	}
 
 	limit := uint64(float64(gas) * GasPadFactor)
-	if limit > blockGasLimit {
-		return blockGasLimit
-	}
-	return limit
+	return min(limit, blockGasLimit)
 }
