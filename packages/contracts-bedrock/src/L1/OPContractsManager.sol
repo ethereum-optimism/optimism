@@ -195,6 +195,31 @@ abstract contract OPContractsManagerBase {
         return Bytes.slice(dataWithSelector, 4);
     }
 
+    function encodePermissionlessSuperFDGConstructor(ISuperFaultDisputeGame.GameConstructorParams memory _params)
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        bytes memory dataWithSelector = abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (_params));
+        return Bytes.slice(dataWithSelector, 4);
+    }
+
+    function encodePermissionedSuperFDGConstructor(
+        ISuperFaultDisputeGame.GameConstructorParams memory _params,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        bytes memory dataWithSelector =
+            abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
+        return Bytes.slice(dataWithSelector, 4);
+    }
+
     /// @notice Returns the implementation contract address for a given game type.
     function getGameImplementation(
         IDisputeGameFactory _disputeGameFactory,
@@ -1254,6 +1279,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         address proxyAdminOwner = _input.opChainConfigs[0].proxyAdmin.owner();
 
         // Deploy the new ETHLockbox.
+        // NOTE that here and in the rest of this function we use block.timestamp as a fake chain
+        // id for any new contracts that are deployed. The L2 chain id is not used for anything
+        // except the salt mixer, so making it the same as the block timestamp means that new
+        // contracts will be generated every time this function is called. This is totally fine for
+        // our purposes here, there's no strong need to have deterministic addresses ahead of time.
         IETHLockbox newEthLockbox = IETHLockbox(
             deployProxy({
                 _l2ChainId: block.timestamp,
@@ -1355,6 +1385,10 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             );
 
             // Deploy the new SuperPermissionedDisputeGame.
+            // NOTE that we use a chain id of 0 here (instead of the block timestamp) because the
+            // use of the chain id is different and actually passed into the constructor of the
+            // dispute game contracts. Since these are Super dispute games and involve multiple
+            // chains, the contracts enforce that the chain id is zero.
             ISuperPermissionedDisputeGame newSuperPDG = ISuperPermissionedDisputeGame(
                 Blueprint.deployFrom(
                     blueprints().superPermissionedDisputeGame1,
@@ -1362,8 +1396,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     computeSalt(
                         block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperPermissionedDisputeGame"
                     ),
-                    encodePermissionedFDGConstructor(
-                        IFaultDisputeGame.GameConstructorParams({
+                    encodePermissionedSuperFDGConstructor(
+                        ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
                             absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
@@ -1416,8 +1450,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     blueprints().superPermissionlessDisputeGame1,
                     blueprints().superPermissionlessDisputeGame2,
                     computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperFaultDisputeGame"),
-                    encodePermissionlessFDGConstructor(
-                        IFaultDisputeGame.GameConstructorParams({
+                    encodePermissionlessSuperFDGConstructor(
+                        ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_CANNON,
                             absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
