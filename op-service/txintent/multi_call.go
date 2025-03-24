@@ -42,7 +42,7 @@ func (v *MultiTrigger) Data() ([]byte, error) {
 			CallData:     calldata,
 		})
 	}
-	// TODO: Need to do better construct call input than this
+	// TODO(15005): Need to do better construct call input than this
 	aggregate3 := w3.MustNewFunc("aggregate3((address target, bool allowFailure, bytes callData)[])", "(bool, bytes)[]")
 	calldata, err := aggregate3.EncodeArgs(multicall)
 	if err != nil {
