@@ -6,9 +6,6 @@ on:
   # Run nightly at 00:00 UTC
   schedule:
     - cron: '0 0 * * *'
-  pull_request:
-    branches:
-      - main
 
 jobs:
   integration-tests:
@@ -24,6 +21,11 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
+    
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
 
       - name: Install Contender
         run: |
