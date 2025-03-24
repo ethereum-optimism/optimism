@@ -1,5 +1,11 @@
 package bindings
 
+// This file was generated and edited by below sequences:
+//   cd packages/contracts-bedrock
+//   solc --optimize --bin --abi -o out src/integration/EventLogger.sol
+//   abigen --abi out/EventLogger.abi --bin out/EventLogger.bin --pkg bindings --out eventlogger.go
+// Resulting eventlogger.go was moved to this file, and only the needed implementation was left here.
+
 import (
 	"errors"
 
