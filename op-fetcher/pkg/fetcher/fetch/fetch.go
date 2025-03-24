@@ -73,10 +73,8 @@ func (f *Fetcher) FetchChainInfo(ctx context.Context) (script.FetchChainInfoOutp
 		return script.FetchChainInfoOutput{}, fmt.Errorf("failed to create script host: %w", err)
 	}
 
-	scriptOutput, err := script.FetchChainInfo(l1Host, script.FetchChainInfoInput{
+	return script.FetchChainInfo(l1Host, script.FetchChainInfoInput{
 		SystemConfigProxy:     f.SystemConfigProxy,
 		L1StandardBridgeProxy: f.L1StandardBridgeProxy,
 	})
-
-	return scriptOutput, nil
 }
