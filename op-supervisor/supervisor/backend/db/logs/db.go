@@ -589,9 +589,8 @@ func (db *DB) Rewind(newHead eth.BlockID) error {
 	} else if hash != newHead.Hash {
 		return fmt.Errorf("cannot rewind to %s, have %s: %w", newHead, eth.BlockID{Hash: hash, Number: num}, types.ErrConflict)
 	}
-	// Truncate to contain idx+1 entries, since indices are 0 based,
-	// this deletes everything after idx
-	if err := db.store.Truncate(iter.NextIndex()); err != nil {
+	// Truncate to contain idx entries. The Truncate func keeps the given index as last index.
+	if err := db.store.Truncate(iter.NextIndex() - 1); err != nil {
 		return fmt.Errorf("failed to truncate to block %s: %w", newHead, err)
 	}
 	// Use db.init() to find the log context for the new latest log entry

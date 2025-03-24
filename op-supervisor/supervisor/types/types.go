@@ -39,6 +39,65 @@ func (ci *ChainIndex) UnmarshalText(data []byte) error {
 	return nil
 }
 
+type Revision uint64
+
+// RevisionAny is used as indicator to ignore the revision during lookups.
+// This is used in the cross-safe queries,
+// where there will only ever be a single derived block per derived block number,
+// but where the revision is still tracked to match the local-safe DB block replacements.
+// We use the max-uint64 value, since this is reserved, and will not be allowed to decode/encode.
+const RevisionAny = ^Revision(0)
+
+func (r Revision) Any() bool {
+	return r == RevisionAny
+}
+
+// OpenEnded turns the revision in a new revision with open end (see OpenEnd)
+func (r Revision) OpenEnded() Revision {
+	return r | (1 << 63)
+}
+
+// OpenEnd returns if the revision may additionally match an invalidated entry
+func (r Revision) OpenEnd() bool {
+	return r&(1<<63) != 0
+}
+
+// Number returns the block-number, where the revision started (i.e. the invalidated/replacement block height)
+func (r Revision) Number() uint64 {
+	return uint64(r) &^ uint64(1<<63)
+}
+
+func (r Revision) String() string {
+	if r.Any() {
+		return "Rev(any)"
+	}
+	if r.OpenEnd() {
+		return fmt.Sprintf("Rev(%d open)", r.Number())
+	}
+	return fmt.Sprintf("Rev(%d)", r.Number())
+}
+
+// Cmp returns:
+// 0 if the revision matches any block number
+// 1 if the revision is higher than the given number
+// 0 if the revision is equal than the given number
+// -1 if the revision is lower than the given number
+func (r Revision) Cmp(blockNum uint64) int {
+	if r.Any() {
+		return 0
+	}
+	if r.Number() > blockNum {
+		return 1
+	}
+	if r.Number() == blockNum {
+		return 0
+	}
+	if r.OpenEnd() {
+		return 0
+	}
+	return -1
+}
+
 // ContainsQuery contains all the information needed to check a message
 // against a chain's database, to determine if it is valid (ie all invariants hold).
 type ContainsQuery struct {

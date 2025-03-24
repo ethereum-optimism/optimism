@@ -60,22 +60,25 @@ func (db *ChainsDB) Rewind(chain eth.ChainID, headBlock eth.BlockID) error {
 		return fmt.Errorf("failed to rewind to block %v: %w", headBlock, err)
 	}
 
-	// Rewind the localDB
 	localDB, ok := db.localDBs.Get(chain)
 	if !ok {
 		return fmt.Errorf("cannot Rewind (localDB not found): %w: %s", types.ErrUnknownChain, chain)
 	}
-	if err := localDB.RewindToFirstDerived(headBlock); err != nil {
-		return fmt.Errorf("failed to rewind localDB to block %v: %w", headBlock, err)
-	}
-
-	// Rewind the crossDB
 	crossDB, ok := db.crossDBs.Get(chain)
 	if !ok {
 		return fmt.Errorf("cannot Rewind (crossDB not found): %w: %s", types.ErrUnknownChain, chain)
 	}
-	if err := crossDB.RewindToFirstDerived(headBlock); err != nil {
-		return fmt.Errorf("failed to rewind crossDB to block %v: %w", headBlock, err)
+
+	revision, err := crossDB.DerivedToRevision(headBlock)
+	if err != nil {
+		return fmt.Errorf("cannot determine revision of %s on %s: %w", headBlock, chain, err)
+	}
+
+	if err := localDB.RewindToFirstDerived(headBlock, revision); err != nil {
+		return fmt.Errorf("failed to rewind localDB to block %s on %s: %w", headBlock, chain, err)
+	}
+	if err := crossDB.RewindToFirstDerived(headBlock, revision); err != nil {
+		return fmt.Errorf("failed to rewind crossDB to block %s on %s: %w", headBlock, chain, err)
 	}
 	return nil
 }
@@ -305,16 +308,30 @@ func (db *ChainsDB) ResetCrossUnsafeIfNewerThan(chainID eth.ChainID, number uint
 }
 
 func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef, invalidated common.Hash) {
+	crossSafeDB, ok := db.crossDBs.Get(chainID)
+	if !ok {
+		db.logger.Error("Cannot find DB for replacement block", "chain", chainID)
+		return
+	}
+
 	localSafeDB, ok := db.localDBs.Get(chainID)
 	if !ok {
 		db.logger.Error("Cannot find DB for replacement block", "chain", chainID)
 		return
 	}
 
-	result, err := localSafeDB.ReplaceInvalidatedBlock(replacement, invalidated)
+	db.logger.Warn("Replacing local block", "replacement", replacement)
+	result, revision, err := localSafeDB.ReplaceInvalidatedBlock(replacement, invalidated)
 	if err != nil {
 		db.logger.Error("Cannot replace invalidated block in local-safe DB",
 			"invalidated", invalidated, "replacement", replacement, "err", err)
+		return
+	}
+
+	db.logger.Info("Replacing block", "chain", chainID, "replacement", replacement, "revision", revision)
+	if err := crossSafeDB.AddRevisedDerived(result.Source, result.Derived, revision); err != nil {
+		db.logger.Error("Cannot register replacement block in cross-safe DB",
+			"invalidated", invalidated, "replacement", replacement, "revision", revision, "err", err)
 		return
 	}
 	// Consider the replacement as a new local-unsafe block, so we can try to index the new event-data.
@@ -325,7 +342,12 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 	// The local-safe DB changed, so emit an event, so other sub-systems can react to the change.
 	db.emitter.Emit(superevents.LocalSafeUpdateEvent{
 		ChainID:      chainID,
-		NewLocalSafe: result,
+		NewLocalSafe: result.Seals(),
+	})
+	// The cross-safe DB changed also
+	db.emitter.Emit(superevents.CrossSafeUpdateEvent{
+		ChainID:      chainID,
+		NewCrossSafe: result.Seals(),
 	})
 
 	// TODO Make sure the events-DB has a matching block-hash with the replacement, roll it back otherwise.

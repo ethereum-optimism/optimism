@@ -2,6 +2,7 @@ package fromda
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -24,8 +25,22 @@ type EntryStore interface {
 }
 
 // DB implements an append only database for log data and cross-chain dependencies.
-// Each entry is fixed size, and denotes an increment in L1 (derived-from) and/or L2 (derived) block.
+// Each entry is fixed size, and denotes an increment in L1 (source) and/or L2 (derived) block.
+//
 // Data is an append-only log, that can be binary searched for any necessary derivation-link data.
+//
+// The DB only rewinds when the L1 (source) entries are invalidated.
+// If the L2 (derived) entries are no longer valid (due to cross-chain dependency invalidation),
+// then we register the new L2 entries with a higher revision number
+// (matching the block-number of the block where it first invalidated and replaced).
+//
+// The key-space of the DB is thus as following, in order:
+// - source block number -> incremental, there may be adjacent repeat entries (for multiple L2 blocks derived from same L1 block)
+// - revision number -> incremental, repeats until the chain invalidates something
+// - derived block number -> NOT incremental, but incremental within the scope of a single revision.
+//
+// This key-space allows for fast binary-search over the source blocks to find any derived blocks,
+// but also the reverse: if the revision is known, the derived blocks can be searched, to find the relevant source data.
 type DB struct {
 	log    log.Logger
 	m      Metrics
@@ -69,16 +84,16 @@ func (db *DB) First() (pair types.DerivedBlockSealPair, err error) {
 // PreviousDerived returns the previous derived block.
 // This will prioritize the last time the input L2 block number was seen, and consistency-checks it against the hash.
 // Older occurrences of the same number with different hash cannot be iterated from, and are non-canonical.
-func (db *DB) PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
+func (db *DB) PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	// last is always the latest view, and thus canonical.
-	_, lastCanonical, err := db.derivedNumToLastSource(derived.Number)
+	_, lastCanonical, err := db.derivedNumToLastSource(derived.Number, revision)
 	if err != nil {
 		return types.BlockSeal{}, fmt.Errorf("failed to find last derived %d: %w", derived.Number, err)
 	}
 	// get the first time this L2 block was seen.
-	selfIndex, self, err := db.derivedNumToFirstSource(derived.Number)
+	selfIndex, self, err := db.derivedNumToFirstSource(derived.Number, revision)
 	if err != nil {
 		return types.BlockSeal{}, fmt.Errorf("failed to find first derived %d: %w", derived.Number, err)
 	}
@@ -163,11 +178,11 @@ func (db *DB) SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, 
 // This may return types.ErrAwaitReplacementBlock if the entry was invalidated and needs replacement.
 // This will prioritize the last time the input L2 block number was seen, and consistency-checks it against the hash.
 // Older occurrences of the same number with different hash cannot be iterated from, and are non-canonical.
-func (db *DB) NextDerived(derived eth.BlockID) (pair types.DerivedBlockSealPair, err error) {
+func (db *DB) NextDerived(derived eth.BlockID, revision types.Revision) (pair types.DerivedBlockSealPair, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	// Get the last time this L2 block was seen. This is attached to the latest L1 view, and thus canonical.
-	selfIndex, self, err := db.derivedNumToLastSource(derived.Number)
+	selfIndex, self, err := db.derivedNumToLastSource(derived.Number, revision)
 	if err != nil {
 		return types.DerivedBlockSealPair{}, fmt.Errorf("failed to find derived %d: %w", derived.Number, err)
 	}
@@ -181,16 +196,43 @@ func (db *DB) NextDerived(derived eth.BlockID) (pair types.DerivedBlockSealPair,
 	return next.sealOrErr()
 }
 
+// DerivedToRevision retrieves the revision of the latest occurrence of the given block.
+// This may be open-ended (read: match not-yet cross-safe blocks) if the block is not known yet.
+// WARNING: this is only safe to use on the cross-safe DB.
+func (db *DB) DerivedToRevision(derived eth.BlockID) (types.Revision, error) {
+	_, link, err := db.derivedNumToLastSource(derived.Number, types.RevisionAny)
+	if err != nil {
+		if errors.Is(err, types.ErrFuture) {
+			last, err := db.latest()
+			if err != nil {
+				if errors.Is(err, types.ErrFuture) {
+					return FirstRevision, nil // default revision on empty DB
+				}
+				return types.Revision(0), fmt.Errorf("cannot determine revision, failed to get last entry: %w", err)
+			}
+			// The query is in the future, and may be an invalidated block with a later revision.
+			// Use an open-ended revision to match this query.
+			return last.revision.OpenEnded(), nil
+		}
+		return types.Revision(0), fmt.Errorf("cannot determine revision, failed to get link entry: %w", err)
+	}
+	if id := link.derived.ID(); id != derived {
+		return types.Revision(0), fmt.Errorf("cannot determine revision, db entry %s does not match query %s: %w", id, derived, types.ErrConflict)
+	}
+	return link.revision, nil
+}
+
 // ContainsDerived checks if the given block is canonical for the given chain.
 // This returns an ErrFuture if the block is not known yet.
 // An ErrConflict if there is a different block.
 // Or an ErrAwaitReplacementBlock if it was invalidated.
-func (db *DB) ContainsDerived(derived eth.BlockID) error {
+func (db *DB) ContainsDerived(derived eth.BlockID, revision types.Revision) error {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
+
 	// Take the last entry: this will be the latest canonical view,
 	// if the block was previously invalidated.
-	_, link, err := db.derivedNumToLastSource(derived.Number)
+	_, link, err := db.derivedNumToLastSource(derived.Number, revision)
 	if err != nil {
 		return err
 	}
@@ -208,10 +250,10 @@ func (db *DB) ContainsDerived(derived eth.BlockID) error {
 //   - A L2 block may repeat if the following L1 blocks are empty and don't produce additional L2 blocks
 //   - A L2 block may reoccur later (with a gap) attached to a newer L1 block,
 //     if the prior information was invalidated with new L1 information.
-func (db *DB) DerivedToFirstSource(derived eth.BlockID) (types.BlockSeal, error) {
+func (db *DB) DerivedToFirstSource(derived eth.BlockID, revision types.Revision) (types.BlockSeal, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	_, link, err := db.derivedNumToFirstSource(derived.Number)
+	_, link, err := db.derivedNumToFirstSource(derived.Number, revision)
 	if err != nil {
 		return types.BlockSeal{}, err
 	}
@@ -294,17 +336,40 @@ func (db *DB) Next(pair types.DerivedIDPair) (types.DerivedBlockSealPair, error)
 	return next.sealOrErr()
 }
 
-func (db *DB) derivedNumToFirstSource(derivedNum uint64) (entrydb.EntryIdx, LinkEntry, error) {
+func (db *DB) derivedNumToFirstSource(derivedNum uint64, revision types.Revision) (entrydb.EntryIdx, LinkEntry, error) {
 	// Forward: prioritize the first entry.
 	return db.find(false, false, func(link LinkEntry) int {
-		return cmp.Compare(link.derived.Number, derivedNum)
+		res := -revision.Cmp(link.revision.Number())
+		if res == 0 {
+			return cmp.Compare(link.derived.Number, derivedNum)
+		}
+		return res
 	})
 }
 
-func (db *DB) derivedNumToLastSource(derivedNum uint64) (entrydb.EntryIdx, LinkEntry, error) {
+func (db *DB) derivedNumToLastSource(derivedNum uint64, revision types.Revision) (entrydb.EntryIdx, LinkEntry, error) {
+	// If the revision is open-ended we need to check if we have an invalidated
+	// entry waiting to be matched.
+	if revision.OpenEnd() {
+		lastIndex := db.store.LastEntryIdx()
+		if lastIndex < 0 {
+			return 0, LinkEntry{}, types.ErrFuture
+		}
+		last, err := db.readAt(lastIndex)
+		if err != nil {
+			return 0, LinkEntry{}, err
+		}
+		if last.invalidated && derivedNum == last.derived.Number {
+			return lastIndex, last, nil
+		}
+	}
 	// Reverse: prioritize the last entry.
 	return db.find(true, false, func(link LinkEntry) int {
-		return cmp.Compare(derivedNum, link.derived.Number)
+		res := revision.Cmp(link.revision.Number())
+		if res == 0 {
+			return cmp.Compare(derivedNum, link.derived.Number)
+		}
+		return res
 	})
 }
 
@@ -341,6 +406,11 @@ func (db *DB) lookup(source, derived uint64) (entrydb.EntryIdx, LinkEntry, error
 	})
 }
 
+// lookupOrAfter looks for the (source, derived) pair.
+// However, the pair may not be present, the DB may only have derived later blocks from the given source.
+// If so, return the first derived entry from that source.
+// This is useful when rolling back after invalidating: the local-safe DB may have derived newer data from later sources
+// than what the cross-safe DB is deriving.
 func (db *DB) lookupOrAfter(source, derived uint64) (entrydb.EntryIdx, LinkEntry, error) {
 	// We search left to right, so that if we miss the `derived` target,
 	// we end up on the first item that is after it.
