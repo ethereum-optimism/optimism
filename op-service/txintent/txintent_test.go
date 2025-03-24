@@ -100,10 +100,11 @@ func TestTxIntentMultiCall(t *testing.T) {
 		randomTxs = append(randomTxs, randomTx)
 		// make sure To is not nil
 		randomTo := testutils.RandomAddress(rng)
+		randomAccessList := testutils.RandomAccessList(rng)
 		multiTrigger.Calls = append(multiTrigger.Calls, &call{
 			to:         &randomTo,
 			data:       randomTx.Data(),
-			accessList: randomTx.AccessList(),
+			accessList: randomAccessList,
 		})
 	}
 	tx.Content.Fn(func(ctx context.Context) (*MultiTrigger, error) {

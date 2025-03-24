@@ -199,7 +199,7 @@ func RandomAccessListTx(rng *rand.Rand, signer types.Signer) *types.Transaction 
 		To:         RandomTo(rng),
 		Value:      RandomETH(rng, 10),
 		Data:       RandomData(rng, rng.Intn(RandomDataSize)),
-		AccessList: RandomAccessList(rng),
+		AccessList: nil,
 	}
 	tx, err := types.SignNewTx(key, signer, txData)
 	if err != nil {
@@ -210,9 +210,9 @@ func RandomAccessListTx(rng *rand.Rand, signer types.Signer) *types.Transaction 
 
 func RandomAccessList(rng *rand.Rand) types.AccessList {
 	accessList := []types.AccessTuple{}
-	for range rng.Intn(3) {
+	for range 1 + rng.Intn(3) {
 		storageKeys := []common.Hash{}
-		for range rng.Intn(4) {
+		for range 1 + rng.Intn(4) {
 			storageKeys = append(storageKeys, RandomHash(rng))
 		}
 		accessList = append(accessList, types.AccessTuple{
