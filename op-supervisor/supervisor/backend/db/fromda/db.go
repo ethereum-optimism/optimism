@@ -126,17 +126,12 @@ func (db *DB) Last() (pair types.DerivedBlockSealPair, err error) {
 	return link.sealOrErr()
 }
 
-// TODO test SourceToLastRevision
-func (db *DB) SourceToLastRevision(source eth.BlockID) (revision types.Revision, err error) {
+func (db *DB) LastRevision() (revision types.Revision, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	_, link, err := db.sourceNumToLastDerived(source.Number)
+	link, err := db.latest()
 	if err != nil {
 		return types.Revision(0), err
-	}
-	if link.source.ID() != source {
-		return types.Revision(0), fmt.Errorf("expected source %s, got source %s in DB: %w",
-			source, link.source, types.ErrConflict)
 	}
 	return link.revision, nil
 }
@@ -263,19 +258,9 @@ func (db *DB) Candidate(maxSource eth.BlockID, afterDerived eth.BlockID, revisio
 func (db *DB) DerivedToRevision(derived eth.BlockID) (types.Revision, error) {
 	_, link, err := db.derivedNumToLastSource(derived.Number, types.RevisionAny)
 	if err != nil {
-		if errors.Is(err, types.ErrFuture) {
-			last, err := db.latest()
-			if err != nil {
-				if errors.Is(err, types.ErrFuture) {
-					return FirstRevision, nil // default revision on empty DB
-				}
-				return types.Revision(0), fmt.Errorf("cannot determine revision, failed to get last entry: %w", err)
-			}
-			// The query is in the future, and may be an invalidated block with a later revision.
-			// Use an open-ended revision to match this query.
-			return last.revision.OpenEnded(), nil
-		}
-		return types.Revision(0), fmt.Errorf("cannot determine revision, failed to get link entry: %w", err)
+		// This often happens in the cross-safe DB,
+		// when looking for the revision of a local-safe entry that is not yet in the cross-safe DB.
+		return types.Revision(0), fmt.Errorf("failed to get link entry: %w", err)
 	}
 	if id := link.derived.ID(); id != derived {
 		return types.Revision(0), fmt.Errorf("cannot determine revision, db entry %s does not match query %s: %w", id, derived, types.ErrConflict)
@@ -430,21 +415,6 @@ func (db *DB) derivedNumToFirstSource(derivedNum uint64, revision types.Revision
 }
 
 func (db *DB) derivedNumToLastSource(derivedNum uint64, revision types.Revision) (entrydb.EntryIdx, LinkEntry, error) {
-	// If the revision is open-ended we need to check if we have an invalidated
-	// entry waiting to be matched.
-	if revision.OpenEnd() {
-		lastIndex := db.store.LastEntryIdx()
-		if lastIndex < 0 {
-			return 0, LinkEntry{}, types.ErrFuture
-		}
-		last, err := db.readAt(lastIndex)
-		if err != nil {
-			return 0, LinkEntry{}, err
-		}
-		if last.invalidated && derivedNum == last.derived.Number {
-			return lastIndex, last, nil
-		}
-	}
 	// Reverse: prioritize the last entry.
 	return db.find(true, false, func(link LinkEntry) int {
 		res := revision.Cmp(link.revision.Number())

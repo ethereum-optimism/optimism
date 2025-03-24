@@ -99,7 +99,15 @@ func (db *ChainsDB) findRevision(chainID eth.ChainID, block eth.BlockID) (types.
 	if !ok {
 		return types.Revision(0), types.ErrUnknownChain
 	}
-	return xdb.DerivedToRevision(block)
+	rev, err := xdb.DerivedToRevision(block)
+	if errors.Is(err, types.ErrFuture) {
+		ldb, ok := db.localDBs.Get(chainID)
+		if !ok {
+			return types.Revision(0), types.ErrUnknownChain
+		}
+		return ldb.LastRevision()
+	}
+	return rev, nil
 }
 
 func (db *ChainsDB) IsLocalSafe(chainID eth.ChainID, block eth.BlockID) error {
@@ -180,7 +188,9 @@ func (db *ChainsDB) AcceptedBlock(chainID eth.ChainID, id eth.BlockID) error {
 		return fmt.Errorf("failed to get revision: %w", err)
 	}
 	db.logger.Info("Checking if accepted", "chain", chainID, "id", id, "revision", revision)
-	// If the block is not cross-safe, then the revision will be the latest, open-ended.
+	// If the block is not cross-safe, then the revision will be the latest
+	// (assuming the trailing local-safe data only has 1 revision;
+	//  the same or something net-new exactly starting after cross-safe).
 	// If the block was invalidated, then ContainsDerived will error with types.ErrAwaitReplacementBlock.
 	if err := localDB.ContainsDerived(id, revision); err != nil {
 		if errors.Is(err, types.ErrFuture) {
@@ -374,11 +384,11 @@ func (db *ChainsDB) CandidateCrossSafe(chain eth.ChainID) (result types.DerivedB
 	}
 	db.logger.Debug("Determined cross-safe candidate block revision", "crossSafe", crossSafe)
 
-	if candidate.Source.Number <= crossSafe.Source.Number {
-		db.logger.Debug("Cross-safe source matches or exceeds candidate source", "crossSafe", crossSafe, "candidate", candidate)
-		return candidate, nil
+	if candidate.Source.Number < crossSafe.Source.Number {
+		db.logger.Error("Candidate block has lower source", "crossSafe", crossSafe, "candidate", candidate)
+		return candidate, types.ErrDataCorruption
 	}
-	return candidate, types.ErrOutOfScope
+	return candidate, nil
 }
 
 func (db *ChainsDB) PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {

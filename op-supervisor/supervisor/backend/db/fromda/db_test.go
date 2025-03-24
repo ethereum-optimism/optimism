@@ -1345,8 +1345,6 @@ func TestDeepInvalidate(t *testing.T) {
 			require.ErrorIs(t, db.ContainsDerived(l2Ref3.ID(), secondRevision), types.ErrAwaitReplacementBlock)
 			// Older non-invalidated entries are considered valid still
 			require.NoError(t, db.ContainsDerived(l2Ref2.ID(), FirstRevision))
-			// If open-ended, we expect to hit the invalidated entry, even though it has a newer revision
-			require.ErrorIs(t, db.ContainsDerived(l2Ref3.ID(), FirstRevision.OpenEnded()), types.ErrAwaitReplacementBlock)
 
 			// We cannot invalidate what is already invalidated
 			require.ErrorIs(t, db.RewindAndInvalidate(invalidated), types.ErrAwaitReplacementBlock)
@@ -1370,7 +1368,6 @@ func TestDeepInvalidate(t *testing.T) {
 
 			require.NoError(t, db.ContainsDerived(l2Ref3.ID(), FirstRevision), types.ErrConflict)
 			require.ErrorIs(t, db.ContainsDerived(l2Ref3.ID(), secondRevision), types.ErrConflict)
-			require.ErrorIs(t, db.ContainsDerived(l2Ref3.ID(), secondRevision.OpenEnded()), types.ErrConflict)
 			require.NoError(t, db.ContainsDerived(l2Ref3p.ID(), secondRevision))
 
 			require.NoError(t, dbAddDerivedAny(db, l1Ref7, l2Ref3p)) // scope bump
@@ -1531,9 +1528,8 @@ func TestDerivedToRevision(t *testing.T) {
 
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {
-			v, err := db.DerivedToRevision(l2Ref0.ID())
-			require.NoError(t, err)
-			require.Equal(t, FirstRevision, v, "empty DB starts with default revision")
+			_, err := db.DerivedToRevision(l2Ref0.ID())
+			require.ErrorIs(t, err, types.ErrFuture)
 
 			require.NoError(t, dbAddDerivedAny(db, l1Ref0, l2Ref0))
 
@@ -1583,8 +1579,7 @@ func TestDerivedToRevision(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, types.Revision(5), v)
 
-			v, err = db.DerivedToRevision(l2Ref7.ID())
-			require.NoError(t, err)
-			require.Equal(t, types.Revision(5).OpenEnded(), v)
+			_, err = db.DerivedToRevision(l2Ref7.ID())
+			require.ErrorIs(t, err, types.ErrFuture)
 		})
 }

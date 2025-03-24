@@ -354,7 +354,6 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 			// So check if it's canonical, and if it is, we can gracefully accept it, to allow forwards progress.
 			_, got, err := db.lookup(source.Number, derived.Number)
 			if err != nil {
-				// TODO
 				return fmt.Errorf("failed to check if block %s with old source %s was derived from canonical source chain: %w",
 					derived, source, err)
 			}

@@ -77,6 +77,7 @@ type DerivationStorage interface {
 	// DerivedToRevision is only safe to use on the cross-safe DB.
 	DerivedToRevision(derived eth.BlockID) (types.Revision, error)
 
+	LastRevision() (revision types.Revision, err error)
 	SourceToRevision(source eth.BlockID) (types.Revision, error)
 
 	// writing

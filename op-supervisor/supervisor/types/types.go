@@ -52,16 +52,6 @@ func (r Revision) Any() bool {
 	return r == RevisionAny
 }
 
-// OpenEnded turns the revision in a new revision with open end (see OpenEnd)
-func (r Revision) OpenEnded() Revision {
-	return r | (1 << 63)
-}
-
-// OpenEnd returns if the revision may additionally match an invalidated entry
-func (r Revision) OpenEnd() bool {
-	return r&(1<<63) != 0
-}
-
 // Number returns the block-number, where the revision started (i.e. the invalidated/replacement block height)
 func (r Revision) Number() uint64 {
 	return uint64(r) &^ uint64(1<<63)
@@ -70,9 +60,6 @@ func (r Revision) Number() uint64 {
 func (r Revision) String() string {
 	if r.Any() {
 		return "Rev(any)"
-	}
-	if r.OpenEnd() {
-		return fmt.Sprintf("Rev(%d open)", r.Number())
 	}
 	return fmt.Sprintf("Rev(%d)", r.Number())
 }

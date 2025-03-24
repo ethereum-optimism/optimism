@@ -558,7 +558,7 @@ func (m *mockCrossSafeDeps) NextSource(chain eth.ChainID, source eth.BlockID) (a
 	return eth.BlockRef{}, nil
 }
 
-func (m *mockCrossSafeDeps) PreviousDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
+func (m *mockCrossSafeDeps) PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
 	if m.previousDerivedFn != nil {
 		return m.previousDerivedFn(chain, derived)
 	}

@@ -321,12 +321,6 @@ func (db *ChainsDB) ResetCrossUnsafeIfNewerThan(chainID eth.ChainID, number uint
 }
 
 func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef, invalidated common.Hash) {
-	crossSafeDB, ok := db.crossDBs.Get(chainID)
-	if !ok {
-		db.logger.Error("Cannot find DB for replacement block", "chain", chainID)
-		return
-	}
-
 	localSafeDB, ok := db.localDBs.Get(chainID)
 	if !ok {
 		db.logger.Error("Cannot find DB for replacement block", "chain", chainID)
@@ -344,13 +338,6 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 	revision := types.Revision(result.Derived.Number)
 	db.logger.Info("Replacing block", "chain", chainID, "replacement", replacement, "revision", revision)
 
-	// TODO: not strictly necessary, but prevents cross-safe routine from doing it (although a race condition too)
-	if err := crossSafeDB.AddDerived(result.Source, result.Derived, revision); err != nil {
-		db.logger.Error("Cannot register replacement block in cross-safe DB",
-			"invalidated", invalidated, "replacement", replacement, "revision", revision, "err", err)
-		return
-	}
-
 	// Consider the replacement as a new local-unsafe block, so we can try to index the new event-data.
 	db.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainID,
@@ -361,11 +348,6 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 		ChainID:      chainID,
 		NewLocalSafe: result.Seals(),
 	})
-	// The cross-safe DB changed also
-	db.emitter.Emit(superevents.CrossSafeUpdateEvent{
-		ChainID:      chainID,
-		NewCrossSafe: result.Seals(),
-	})
-
-	// TODO Make sure the events-DB has a matching block-hash with the replacement, roll it back otherwise.
+	// The event-DB will start indexing, and then unblock cross-safe update
+	// of the new replaced block, via regular cross-safe update worker routine.
 }
