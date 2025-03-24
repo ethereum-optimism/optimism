@@ -165,7 +165,7 @@ where
 
 impl<Types, P> EngineValidator<Types> for OpEngineValidator<P>
 where
-    Types: EngineTypes<PayloadAttributes = OpPayloadAttributes, ExecutionData = OpExecutionData>,
+    Types: PayloadTypes<PayloadAttributes = OpPayloadAttributes, ExecutionData = OpExecutionData>,
     P: StateProviderFactory + Unpin + 'static,
 {
     fn validate_version_specific_fields(
