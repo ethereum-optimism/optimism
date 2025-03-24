@@ -18,9 +18,13 @@ address constant WETH_PERMISSIONLESS = address(0x600);
 // Base mock contract with common functionality
 contract BaseMockContract {
     address public owner;
-    address public admin;
+    address internal _admin;
     bytes32 public batcherHash;
     address public unsafeBlockSigner;
+
+    function admin() external view returns (address) {
+        return _admin;
+    }
 
     // Payable receive function to allow tests to work
     receive() external payable { }
@@ -66,7 +70,7 @@ contract LegacyMockContract is BaseMockContract {
 
     // This function will intentionally revert to test fallback paths
     function disputeGameFactory() external pure {
-        revert("Function does not exist");
+        revert("LegacyMockContract: disputeGameFactory() does not exist");
     }
 }
 
@@ -206,50 +210,50 @@ contract FetchChainInfoTest is Test {
     }
 
     function _setupProxyAdmin(address systemConfigProxy, address proxyAdmin) internal {
-        vm.mockCall(systemConfigProxy, abi.encodeWithSignature("admin()"), abi.encode(proxyAdmin));
+        vm.mockCall(systemConfigProxy, abi.encodeCall(BaseMockContract.admin, ()), abi.encode(proxyAdmin));
     }
 
-    function _prepareTestContext() internal returns (TestContext memory ctx) {
-        ctx.input = new FetchChainInfoInput();
-        ctx.output = new FetchChainInfoOutput();
+    function _prepareTestContext() internal returns (TestContext memory ctx_) {
+        ctx_.input = new FetchChainInfoInput();
+        ctx_.output = new FetchChainInfoOutput();
 
-        ctx.proxyAdminOwner = TEST_PROXY_ADMIN_OWNER;
-        ctx.proxyAdmin = address(new ProxyAdminMock(ctx.proxyAdminOwner));
+        ctx_.proxyAdminOwner = TEST_PROXY_ADMIN_OWNER;
+        ctx_.proxyAdmin = address(new ProxyAdminMock(ctx_.proxyAdminOwner));
 
-        return ctx;
+        return ctx_;
     }
 
-    function _prepareLegacyTestContext() internal returns (TestContext memory ctx) {
-        ctx = _prepareTestContext();
+    function _prepareLegacyTestContext() internal returns (TestContext memory ctx_) {
+        ctx_ = _prepareTestContext();
 
-        ctx.systemConfigProxy = address(new LegacyMockContract());
-        ctx.l1StandardBridgeProxy = address(new LegacyMockContract());
-        ctx.l1CrossDomainMessenger = address(new LegacyMockContract());
-        ctx.optimismPortal = address(new LegacyMockContract());
-        ctx.l2OutputOracle = address(new LegacyMockContract());
+        ctx_.systemConfigProxy = address(new LegacyMockContract());
+        ctx_.l1StandardBridgeProxy = address(new LegacyMockContract());
+        ctx_.l1CrossDomainMessenger = address(new LegacyMockContract());
+        ctx_.optimismPortal = address(new LegacyMockContract());
+        ctx_.l2OutputOracle = address(new LegacyMockContract());
 
-        ctx.input.set(ctx.input.systemConfigProxy.selector, ctx.systemConfigProxy);
-        ctx.input.set(ctx.input.l1StandardBridgeProxy.selector, ctx.l1StandardBridgeProxy);
+        ctx_.input.set(ctx_.input.systemConfigProxy.selector, ctx_.systemConfigProxy);
+        ctx_.input.set(ctx_.input.l1StandardBridgeProxy.selector, ctx_.l1StandardBridgeProxy);
 
-        _setupProxyAdmin(ctx.systemConfigProxy, ctx.proxyAdmin);
+        _setupProxyAdmin(ctx_.systemConfigProxy, ctx_.proxyAdmin);
 
-        return ctx;
+        return ctx_;
     }
 
-    function _prepareModernTestContext() internal returns (TestContext memory ctx) {
-        ctx = _prepareTestContext();
+    function _prepareModernTestContext() internal returns (TestContext memory ctx_) {
+        ctx_ = _prepareTestContext();
 
-        ctx.systemConfigProxy = address(new ModernMockContract());
-        ctx.l1StandardBridgeProxy = address(new ModernMockContract());
-        ctx.l1CrossDomainMessenger = address(new ModernMockContract());
-        ctx.optimismPortal = address(new ModernMockContract());
+        ctx_.systemConfigProxy = address(new ModernMockContract());
+        ctx_.l1StandardBridgeProxy = address(new ModernMockContract());
+        ctx_.l1CrossDomainMessenger = address(new ModernMockContract());
+        ctx_.optimismPortal = address(new ModernMockContract());
 
-        ctx.input.set(ctx.input.systemConfigProxy.selector, ctx.systemConfigProxy);
-        ctx.input.set(ctx.input.l1StandardBridgeProxy.selector, ctx.l1StandardBridgeProxy);
+        ctx_.input.set(ctx_.input.systemConfigProxy.selector, ctx_.systemConfigProxy);
+        ctx_.input.set(ctx_.input.l1StandardBridgeProxy.selector, ctx_.l1StandardBridgeProxy);
 
-        _setupProxyAdmin(ctx.systemConfigProxy, ctx.proxyAdmin);
+        _setupProxyAdmin(ctx_.systemConfigProxy, ctx_.proxyAdmin);
 
-        return ctx;
+        return ctx_;
     }
 
     function test_legacy_contract_l2_output_oracle() public {
@@ -264,7 +268,9 @@ contract FetchChainInfoTest is Test {
         _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
 
         // Mock a system config without disputeGameFactory (force L2_ORACLE path)
-        vm.mockCall(ctx.systemConfigProxy, abi.encodeWithSignature("disputeGameFactory()"), abi.encode(address(0)));
+        vm.mockCall(
+            ctx.systemConfigProxy, abi.encodeCall(LegacyMockContract.disputeGameFactory, ()), abi.encode(address(0))
+        );
 
         fetchChainInfo = new FetchChainInfo();
         fetchChainInfo.run(ctx.input, ctx.output);
@@ -364,7 +370,9 @@ contract FetchChainInfoTest is Test {
         ctx.optimismPortal = address(new LegacyMockContract()); // Legacy with GUARDIAN
 
         // Explicitly mock getDisputeGameFactoryProxy to return zero address
-        vm.mockCall(ctx.systemConfigProxy, abi.encodeWithSignature("disputeGameFactory()"), abi.encode(address(0)));
+        vm.mockCall(
+            ctx.systemConfigProxy, abi.encodeCall(LegacyMockContract.disputeGameFactory, ()), abi.encode(address(0))
+        );
 
         ctx.input.set(ctx.input.systemConfigProxy.selector, ctx.systemConfigProxy);
         ctx.input.set(ctx.input.l1StandardBridgeProxy.selector, ctx.l1StandardBridgeProxy);
@@ -395,7 +403,9 @@ contract FetchChainInfoTest is Test {
         ctx.optimismPortal = address(new LegacyMockContract());
 
         // Explicitly mock getDisputeGameFactoryProxy to return zero address
-        vm.mockCall(ctx.systemConfigProxy, abi.encodeWithSignature("disputeGameFactory()"), abi.encode(address(0)));
+        vm.mockCall(
+            ctx.systemConfigProxy, abi.encodeCall(LegacyMockContract.disputeGameFactory, ()), abi.encode(address(0))
+        );
 
         ctx.input.set(ctx.input.systemConfigProxy.selector, ctx.systemConfigProxy);
         ctx.input.set(ctx.input.l1StandardBridgeProxy.selector, ctx.l1StandardBridgeProxy);
