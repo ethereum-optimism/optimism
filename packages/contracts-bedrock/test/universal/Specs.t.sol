@@ -916,6 +916,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "StandardValidator", _sel: _getSel("l1StandardBridgeVersion()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("optimismMintableERC20FactoryVersion()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("preimageOracleVersion()") });
+        _addSpec({ _name: "StandardValidator", _sel: _getSel("withdrawalDelaySeconds()") });
     }
 
     /// @dev Computes the selector from a function signature.

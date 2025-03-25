@@ -953,7 +953,7 @@ abstract contract StandardValidatorTest is Test {
     function _mockDelayedWETH(address _weth) public {
         vm.mockCall(address(_weth), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.0"));
         vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.owner, ()), abi.encode(l1PAOMultisig));
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1 weeks));
+        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1 weeks / 2));
     }
 }
 
