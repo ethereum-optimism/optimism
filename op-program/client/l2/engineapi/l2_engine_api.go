@@ -167,6 +167,9 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, attrs *eth.PayloadAttribut
 	if err != nil {
 		return err
 	}
+	if attrs.SidecarUrl != "" {
+		processor.sidecar = attrs.SidecarUrl
+	}
 
 	ea.blockProcessor = processor
 	ea.pendingIndices = make(map[common.Address]uint64)

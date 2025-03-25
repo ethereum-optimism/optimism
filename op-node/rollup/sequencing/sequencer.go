@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
@@ -266,16 +265,6 @@ func (d *Sequencer) onInvalidPayloadAttributes(x engine.InvalidPayloadAttributes
 func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	if d.latest.Info != x.Info {
 		return // not our payload, should be ignored.
-	}
-	// if sidecar exists, attempt to fetch transactions and insert as first and last (real) transactions
-	if d.sidecarQueryURL != "" {
-		rpcContext, _ := context.WithTimeout(d.ctx, time.Millisecond*30)
-		rpcClient, _ := rpc.DialContext(rpcContext, d.sidecarQueryURL)
-		// rpcClient.CallContext(rpcContext, ...)
-		rpcClient.Close()
-		// if len(x.Envelope.ExecutionPayload.Transactions) > 0 {
-		//   x.Envelope.ExecutionPayload.Transactions = append(topOfBlock, append(x.Envelope.ExecutionPayload.Transactions, bottomOfBlock))
-		// }
 	}
 
 	d.log.Info("Sequencer sealed block", "payloadID", x.Info.ID,
@@ -584,6 +573,9 @@ func (d *Sequencer) startBuildingBlock() {
 		"num", l2Head.Number+1, "time", uint64(attrs.Timestamp),
 		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
 
+	if d.sidecarQueryURL != "" {
+		attrs.SidecarUrl = d.sidecarQueryURL
+	}
 	// Start a payload building process.
 	withParent := &derive.AttributesWithParent{
 		Attributes:  attrs,

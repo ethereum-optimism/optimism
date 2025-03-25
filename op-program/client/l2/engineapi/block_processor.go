@@ -1,9 +1,12 @@
 package engineapi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
+	"slices"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -15,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -39,6 +43,7 @@ type BlockProcessor struct {
 	gasPool      *core.GasPool
 	dataProvider BlockDataProvider
 	evm          *vm.EVM
+	sidecar      string
 }
 
 func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent common.Hash, attrs *eth.PayloadAttributes) (*BlockProcessor, error) {
@@ -152,6 +157,12 @@ func (b *BlockProcessor) AddTx(tx *types.Transaction) (*types.Receipt, error) {
 	return receipt, nil
 }
 
+type L3Txns struct {
+	addForL3      bool
+	topOfBlock    types.Transaction
+	bottomOfBlock types.Transaction
+}
+
 func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 	body := types.Body{
 		Transactions: b.transactions,
@@ -166,6 +177,23 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		core.ProcessWithdrawalQueue(&_requests, b.evm)
 		// EIP-7251
 		core.ProcessConsolidationQueue(&_requests, b.evm)
+	}
+
+	// if sidecar exists, attempt to fetch transactions and insert as first and last (real) transactions
+	if b.sidecar != "" {
+		rpcContext, _ := context.WithTimeout(context.Background(), time.Millisecond*30)
+		rpcClient, err := rpc.DialContext(rpcContext, b.sidecar)
+		if err == nil {
+			var l3Txns L3Txns
+			rpcClient.CallContext(rpcContext, &l3Txns, "l3sc_GetTxnsExtendingBlock", b.header.ParentHash)
+			rpcClient.Close()
+			if l3Txns.addForL3 {
+				topOfBlock := []*types.Transaction{&l3Txns.topOfBlock}
+				bottomOfBlock := []*types.Transaction{&l3Txns.bottomOfBlock}
+
+				b.transactions = slices.Concat(topOfBlock, b.transactions, bottomOfBlock)
+			}
+		}
 	}
 
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
