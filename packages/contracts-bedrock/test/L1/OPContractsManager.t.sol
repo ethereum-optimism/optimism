@@ -1414,7 +1414,12 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
     /// @notice Helper function to execute a migration with a revert selector.
     /// @param _input The input to the migration function.
     /// @param _revertSelector The selector of the revert to expect.
-    function _doMigration(IOPContractsManagerInteropMigrator.MigrateInput memory _input, bytes4 _revertSelector) internal {
+    function _doMigration(
+        IOPContractsManagerInteropMigrator.MigrateInput memory _input,
+        bytes4 _revertSelector
+    )
+        internal
+    {
         // Set the proxy admin owner to be a delegate caller.
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
         vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
@@ -1651,7 +1656,9 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         );
 
         // Execute the migration.
-        _doMigration(input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch.selector);
+        _doMigration(
+            input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch.selector
+        );
     }
 
     /// @notice Tests that the migration function reverts when the absolute prestates are mismatched.
@@ -1663,7 +1670,9 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         input.opChainConfigs[0].absolutePrestate = absolutePrestate2;
 
         // Execute the migration.
-        _doMigration(input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector);
+        _doMigration(
+            input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector
+        );
     }
 
     /// @notice Tests that the migration function reverts when the SuperchainConfig addresses are mismatched.
@@ -1683,6 +1692,8 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         );
 
         // Execute the migration.
-        _doMigration(input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector);
+        _doMigration(
+            input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector
+        );
     }
 }
