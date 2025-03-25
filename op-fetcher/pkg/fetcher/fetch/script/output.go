@@ -1,16 +1,10 @@
 package script
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Copied struct from superchain-registry/ops/internal/config/chain.go
 type Addresses struct {
 	interopgen.L2OpchainDeployment
 	// Shared singletons
@@ -39,14 +33,19 @@ type FetchChainInfoOutput struct {
 	RespectedGameType        uint32
 }
 
+type ChainConfig struct {
+	Addresses        Addresses        `json:"addresses"`
+	Roles            Roles            `json:"roles"`
+	FaultProofStatus FaultProofStatus `json:"fault_proofs"`
+}
+
 func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
-func WriteChainConfigToFile(outputDir string, output FetchChainInfoOutput, chainName string, chainId uint64) error {
-	fileData := ChainConfig{
-		ChainName: chainName,
-		ChainId:   chainId,
+// CreateChainConfig creates a nicely structured output from the flat FetchChainInfoOutput
+func CreateChainConfig(output FetchChainInfoOutput) ChainConfig {
+	return ChainConfig{
 		Addresses: output.Addresses,
 		Roles:     output.Roles,
 		FaultProofStatus: FaultProofStatus{
@@ -55,21 +54,4 @@ func WriteChainConfigToFile(outputDir string, output FetchChainInfoOutput, chain
 			RespectedGameType: output.RespectedGameType,
 		},
 	}
-
-	json, err := json.MarshalIndent(fileData, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal output: %w", err)
-	}
-
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	outputFile := filepath.Join(outputDir, fmt.Sprintf("%d.json", chainId))
-	err = os.WriteFile(outputFile, json, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write output to file: %w", err)
-	}
-
-	return nil
 }

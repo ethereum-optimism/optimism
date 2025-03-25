@@ -31,7 +31,8 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to validate: %w", err)
 		}
 
-		json, err := json.MarshalIndent(result, "", "  ")
+		fileData := script.CreateChainConfig(result)
+		json, err := json.MarshalIndent(fileData, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal output: %w", err)
 		}

@@ -13,9 +13,7 @@ type FetchChainInfoInput struct {
 	L1StandardBridgeProxy common.Address
 }
 
-type ChainConfig struct {
-	ChainId          uint64           `toml:"chain_id" json:"chain_id"`
-	ChainName        string           `toml:"chain_name" json:"chain_name"`
+type FormattedFetchChainInfoOutput struct {
 	Addresses        Addresses        `toml:"addresses" json:"addresses"`
 	Roles            Roles            `toml:"roles" json:"roles"`
 	FaultProofStatus FaultProofStatus `toml:"fault_proofs" json:"fault_proofs"`
