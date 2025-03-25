@@ -88,8 +88,8 @@ contract FetchChainInfoOutput {
     address internal _batchSubmitter;
 
     // fault proof status
-    bool internal _faultProofPermissioned;
-    bool internal _faultProofPermissionless;
+    bool internal _permissioned;
+    bool internal _permissionless;
     GameType internal _respectedGameType;
 
     function set(bytes4 _sel, address _addr) public {
@@ -122,8 +122,8 @@ contract FetchChainInfoOutput {
     }
 
     function set(bytes4 _sel, bool _bool) public {
-        if (_sel == this.faultProofPermissioned.selector) _faultProofPermissioned = _bool;
-        else if (_sel == this.faultProofPermissionless.selector) _faultProofPermissionless = _bool;
+        if (_sel == this.permissioned.selector) _permissioned = _bool;
+        else if (_sel == this.permissionless.selector) _permissionless = _bool;
         else revert("FetchChainInfoOutput: unknown bool selector");
     }
 
@@ -257,12 +257,12 @@ contract FetchChainInfoOutput {
         return _batchSubmitter;
     }
 
-    function faultProofPermissioned() public view returns (bool) {
-        return _faultProofPermissioned;
+    function permissioned() public view returns (bool) {
+        return _permissioned;
     }
 
-    function faultProofPermissionless() public view returns (bool) {
-        return _faultProofPermissionless;
+    function permissionless() public view returns (bool) {
+        return _permissionless;
     }
 
     function respectedGameType() public view returns (GameType) {
@@ -331,13 +331,13 @@ contract FetchChainInfo is Script {
         if (disputeGameFactoryProxy != address(0)) {
             // Permissioned fault proofs enabled
             _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
-            _fo.set(_fo.faultProofPermissioned.selector, true);
+            _fo.set(_fo.permissioned.selector, true);
 
             address faultDisputeGame = _getFaultDisputeGame(disputeGameFactoryProxy);
             if (faultDisputeGame != address(0)) {
                 // Permissionless fault proofs enabled
                 _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
-                _fo.set(_fo.faultProofPermissionless.selector, true);
+                _fo.set(_fo.permissionless.selector, true);
                 _fo.set(_fo.respectedGameType.selector, IFetcher(optimismPortalProxy).respectedGameType());
 
                 address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);

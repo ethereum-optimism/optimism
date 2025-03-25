@@ -279,8 +279,8 @@ contract FetchChainInfoTest is Test {
         assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
         assertEq(ctx.output.proposer(), TEST_PROPOSER, "Proposer should match");
 
-        assertFalse(ctx.output.faultProofPermissioned(), "Permissioned proofs should be disabled");
-        assertFalse(ctx.output.faultProofPermissionless(), "Permissionless proofs should be disabled");
+        assertFalse(ctx.output.permissioned(), "Permissioned proofs should be disabled");
+        assertFalse(ctx.output.permissionless(), "Permissionless proofs should be disabled");
     }
 
     function test_modernPermissioned_succeeds() public {
@@ -304,8 +304,8 @@ contract FetchChainInfoTest is Test {
         assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
         assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
 
-        assertTrue(ctx.output.faultProofPermissioned(), "Permissioned proofs should be enabled");
-        assertFalse(ctx.output.faultProofPermissionless(), "Permissionless proofs should be disabled");
+        assertTrue(ctx.output.permissioned(), "Permissioned proofs should be enabled");
+        assertFalse(ctx.output.permissionless(), "Permissionless proofs should be disabled");
         assertTrue(LibGameType.raw(ctx.output.respectedGameType()) == LibGameType.raw(GameTypes.CANNON));
     }
 
@@ -355,8 +355,8 @@ contract FetchChainInfoTest is Test {
         assertEq(ctx.output.preimageOracle(), ctx.preimageOracle, "PreimageOracle should match");
         assertEq(ctx.output.anchorStateRegistryProxy(), ctx.anchorStateRegistry, "AnchorStateRegistry should match");
 
-        assertTrue(ctx.output.faultProofPermissioned(), "Permissioned proofs should be enabled");
-        assertTrue(ctx.output.faultProofPermissionless(), "Permissionless proofs should be enabled");
+        assertTrue(ctx.output.permissioned(), "Permissioned proofs should be enabled");
+        assertTrue(ctx.output.permissionless(), "Permissionless proofs should be enabled");
     }
 
     // Test to verify fallback mechanism for guardian() to GUARDIAN()

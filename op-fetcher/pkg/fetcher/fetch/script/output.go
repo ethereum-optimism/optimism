@@ -28,9 +28,7 @@ type Roles struct {
 type FetchChainInfoOutput struct {
 	Addresses
 	Roles
-	FaultProofPermissioned   bool
-	FaultProofPermissionless bool
-	RespectedGameType        uint32
+	FaultProofStatus
 }
 
 type ChainConfig struct {
@@ -46,12 +44,8 @@ func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {
 // CreateChainConfig creates a nicely structured output from the flat FetchChainInfoOutput
 func CreateChainConfig(output FetchChainInfoOutput) ChainConfig {
 	return ChainConfig{
-		Addresses: output.Addresses,
-		Roles:     output.Roles,
-		FaultProofStatus: FaultProofStatus{
-			Permissioned:      output.FaultProofPermissioned,
-			Permissionless:    output.FaultProofPermissionless,
-			RespectedGameType: output.RespectedGameType,
-		},
+		Addresses:        output.Addresses,
+		Roles:            output.Roles,
+		FaultProofStatus: output.FaultProofStatus,
 	}
 }
