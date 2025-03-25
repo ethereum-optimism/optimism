@@ -43,7 +43,9 @@ jobs:
         run: ./scripts/ci/stress.sh install
       
       - name: Deploy Devnet
-        run: just devnet-up
+        run: |
+          kurtosis analytics disable
+          just devnet-up
 
       - name: Run Integration Tests
         run: just stress-test

@@ -86,7 +86,6 @@ case "$1" in
         echo "Commands:"
         echo "  install - Install Kurtosis CLI"
         echo "  install-contender - Install Contender"
-        echo "  build-and-tag - Build and tag the Development Rollup Boost image"
         echo "  deploy  - Deploy the Optimism package"
         echo "  run     - Run the Optimism package"
         echo "  clean   - Clean up the Kurtosis environment"
