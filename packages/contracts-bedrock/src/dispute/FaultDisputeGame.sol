@@ -297,13 +297,13 @@ contract FaultDisputeGame is Clone, ISemver {
         if (initialized) revert AlreadyInitialized();
 
         // Grab the latest anchor root.
-        (Hash root, uint256 rootBlockNumber) = ANCHOR_STATE_REGISTRY.getAnchorRoot();
+        (Hash root, uint256 rootL2SequenceNumber) = ANCHOR_STATE_REGISTRY.getAnchorRoot();
 
         // Should only happen if this is a new game type that hasn't been set up yet.
         if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
 
         // Set the starting proposal.
-        startingOutputRoot = Proposal({ l2SequenceNumber: rootBlockNumber, root: root });
+        startingOutputRoot = Proposal({ l2SequenceNumber: rootL2SequenceNumber, root: root });
 
         // Revert if the calldata size is not the expected length.
         //
@@ -326,9 +326,9 @@ contract FaultDisputeGame is Clone, ISemver {
             }
         }
 
-        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
-        // configured starting block number.
-        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
+        // Do not allow the game to be initialized if the root claim corresponds to a l2 sequence number (timestamp) at
+        // or before the configured starting sequence number.
+        if (l2BlockNumber() <= rootL2SequenceNumber) revert UnexpectedRootClaim(rootClaim());
 
         // Set the root claim
         claimData.push(
@@ -652,7 +652,7 @@ contract FaultDisputeGame is Clone, ISemver {
         l2SequenceNumber_ = l2BlockNumber();
     }
 
-    /// @notice Only the starting block number of the game.
+    /// @notice Only the starting sequence number (timestamp) of the game.
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
         startingBlockNumber_ = startingOutputRoot.l2SequenceNumber;
     }
@@ -1255,8 +1255,8 @@ contract FaultDisputeGame is Clone, ISemver {
         // 2. If it was a defense, the starting output root is `claim`, and the disputed output root is
         //    elsewhere in the DAG (it must commit to the block # index at depth of `outputPos + 1`).
         if (wasAttack) {
-            // If this is an attack on the first output root (the block directly after the starting
-            // block number), the starting claim nor position exists in the tree. We leave these as
+            // If this is an attack on the first super root (the block directly after the starting
+            // timestamp), the starting claim nor position exists in the tree. We leave these as
             // 0, which can be easily identified due to 0 being an invalid Gindex.
             if (outputPos.indexAtDepth() > 0) {
                 ClaimData storage starting = _findTraceAncestor(Position.wrap(outputPos.raw() - 1), claimIdx, true);
