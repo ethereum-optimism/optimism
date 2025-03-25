@@ -236,6 +236,15 @@ If the sync-state is far behind, the op-node may need archived blob data to sync
 A faster alternative may be to bootstrap through the execution-layer sync mode,
 where the execution-engine may perform an optimized long-range sync, such as snap-sync.
 
+### Sequencer Window Expiry
+
+If the sequencer window expires (for example, due to extended batcher downtime), some manual intervention is required to help the chain recover.
+By restarting the sequencer with `SEQUENCER_RECOVER=true`, or by calling the `optimism_setRecoverMode` admin API method, the sequencer's behavior is changed.
+While recover mode is enabled, the tx pool is disabled and the l1 origin is progressed steadily: this means blocks are sequenced which are identical to those produced
+by verifiers under autoderivation. To enable the quickest recovery, the batcher should be configured for singular (not span) batches.
+After some time, the l1 origin of the l2 safe head will once again catch up close to the l1 head. Then, the recover mode should be disabled and the chain is
+back in a normal state.
+
 ## Testing
 
 <!-- describe testing methods and approach to test coverage -->
