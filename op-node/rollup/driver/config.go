@@ -22,6 +22,6 @@ type Config struct {
 	SequencerMaxSafeLag uint64 `json:"sequencer_max_safe_lag"`
 
 	// RecoverMode forces the sequencer to select the next L1 Origin exactly, and create an empty block,
-	// to be compatible with verifiers forcefully generating the same block.
+	// to be compatible with verifiers forcefully generating the same block while catching up the sequencing window timeout.
 	RecoverMode bool `json:"recover_mode"`
 }
