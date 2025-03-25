@@ -44,7 +44,11 @@ To enable metrics, you can set the `--metrics` flag. This will start a metrics s
 curl http://localhost:9090/metrics
 ```
 
-To check that rollup-boost is sending requests to get blocks from the builder, you can check the `builder_get_payload_v3` metric which is incremented when a `engine_getPayloadV3` call is proxied to the builder.
+All spans create duration histogram metrics with the name "{span_name}_duration". Currently, this list includes:
+
+- fork_choice_updated_v3_duration
+- get_payload_v3_duration
+- new_payload_v3_duration
 
 Additionally, execution engines such as op-rbuilder has rpc metrics exposed to check if `engine_getPayloadV3` requests have been received. To check if the builder blocks are landing on-chain, the builder can be configured to include a builder transaction in the block, which is captured as part of the builder metrics. To see more details about obserability in the op-builder, you can check op-rbuilder's [README](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder).
 
