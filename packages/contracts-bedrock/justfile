@@ -117,8 +117,11 @@ anvil-fork:
 # Helpful for debugging.
 test-upgrade-against-anvil *ARGS: build-go-ffi
   #!/bin/bash
-  echo "Running upgrade tests at block $pinnedBlockNumber"
-  export FORK_BLOCK_NUMBER=$pinnedBlockNumber
+  if [ -z "$FORK_BLOCK_NUMBER" ]; then
+    export FORK_BLOCK_NUMBER=$pinnedBlockNumber
+  fi
+  echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
+
   export FORK_RPC_URL=http://127.0.0.1:8545
   export FORK_TEST=true
   forge test {{ARGS}} \
