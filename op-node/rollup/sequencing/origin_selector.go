@@ -45,7 +45,7 @@ func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config
 	r.Store(recoverMode)
 	return &L1OriginSelector{
 		ctx:         ctx,
-		log:         log.With("recover_mode", recoverMode),
+		log:         log,
 		cfg:         cfg,
 		spec:        rollup.NewChainSpec(cfg),
 		l1:          l1,
@@ -137,6 +137,7 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
 		}
 		los.nextOrigin = nextOrigin
+		los.log.Info("origin selector in recover mode", "current_origin", los.currentOrigin, "next_origin", los.nextOrigin, "l2_head", l2Head)
 		return los.currentOrigin, los.nextOrigin, nil
 	}
 
