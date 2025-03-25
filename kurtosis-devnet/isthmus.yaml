@@ -4,7 +4,7 @@ optimism_package:
   chains:
     - participants:
       - el_type: op-geth
-        el_image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:4bc345b22fbee14d3162becd197373a9565b7c6d"
+        el_image: ""
         el_log_level: ""
         el_extra_env_vars: {}
         el_extra_labels: {}

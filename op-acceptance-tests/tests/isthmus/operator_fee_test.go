@@ -389,7 +389,7 @@ func performOperatorFeeTest(t systest.T, sys system.System, l1FundingWallet syst
 	logger.Info("Waiting 2 minutes for L2 nodes to sync with L1 origin where operator fee was set")
 	time.Sleep(2 * time.Minute)
 
-	// // Check for chain fork
+	// Check for chain fork
 	startBlock, err := l2MultiClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
 	logger.Debug("Got L2 head block", "number", startBlock.Number)
