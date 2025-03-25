@@ -275,7 +275,6 @@ contract FetchChainInfo is Script {
         _processSystemConfig(_fi, _fo);
         _processMessengerAndPortal(_fi, _fo);
         _processDisputeGameFactory(_fo);
-        _processProofType(_fo);
     }
 
     function _processSystemConfig(FetchChainInfoInput _fi, FetchChainInfoOutput _fo) internal {
@@ -330,11 +329,16 @@ contract FetchChainInfo is Script {
 
         address disputeGameFactoryProxy = _getDisputeGameFactoryProxy(systemConfigProxy);
         if (disputeGameFactoryProxy != address(0)) {
+            // Permissioned fault proofs enabled
             _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
+            _fo.set(_fo.faultProofPermissioned.selector, true);
 
             address faultDisputeGame = _getFaultDisputeGame(disputeGameFactoryProxy);
             if (faultDisputeGame != address(0)) {
+                // Permissionless fault proofs enabled
                 _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
+                _fo.set(_fo.faultProofPermissionless.selector, true);
+                _fo.set(_fo.respectedGameType.selector, IFetcher(optimismPortalProxy).respectedGameType());
 
                 address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);
                 _fo.set(_fo.delayedWETHPermissionlessGameProxy.selector, delayedWETHPermissionlessGameProxy);
@@ -468,25 +472,5 @@ contract FetchChainInfo is Script {
     function _getProxyAdmin(address _systemConfigProxy) internal returns (address) {
         vm.prank(address(0));
         return IFetcher(_systemConfigProxy).admin();
-    }
-
-    function _processProofType(FetchChainInfoOutput _fo) internal {
-        // Initialize values
-        _fo.set(_fo.faultProofPermissioned.selector, false);
-        _fo.set(_fo.faultProofPermissionless.selector, false);
-        _fo.set(_fo.respectedGameType.selector, GameTypes.CANNON);
-
-        address disputeFactory = _fo.disputeGameFactoryProxy();
-        if (disputeFactory == address(0)) {
-            return;
-        }
-        _fo.set(_fo.faultProofPermissioned.selector, true);
-
-        address gameImpls = IFetcher(disputeFactory).gameImpls(GameTypes.CANNON);
-        if (gameImpls == address(0)) {
-            return;
-        }
-        _fo.set(_fo.faultProofPermissionless.selector, true);
-        _fo.set(_fo.respectedGameType.selector, IFetcher(_fo.optimismPortalProxy()).respectedGameType());
     }
 }
