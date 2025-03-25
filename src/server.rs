@@ -1,52 +1,50 @@
 use crate::client::ExecutionClient;
 use crate::debug_api::DebugServer;
-use crate::metrics::ServerMetrics;
 use alloy_primitives::B256;
 use moka::sync::Cache;
+use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use std::time::Instant;
 
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
 use jsonrpsee::RpcModule;
-use jsonrpsee::core::{ClientError, RegisterMethodError, RpcResult, async_trait};
+use jsonrpsee::core::{RegisterMethodError, RpcResult, async_trait};
 use jsonrpsee::types::ErrorObject;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
-use opentelemetry::global::{self, BoxedSpan, BoxedTracer};
-use opentelemetry::trace::{Span, TraceContextExt, Tracer};
-use opentelemetry::{Context, KeyValue};
 use serde::{Deserialize, Serialize};
 
-use tracing::{debug, error, info};
+use tracing::{debug, info, instrument};
 
 use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: u64 = 100;
 
 pub struct PayloadTraceContext {
-    tracer: BoxedTracer,
     block_hash_to_payload_ids: Cache<B256, Vec<PayloadId>>,
-    payload_id_to_span: Cache<PayloadId, Arc<BoxedSpan>>,
-    local_to_external_payload_ids: Cache<PayloadId, PayloadId>,
+    payload_id: Cache<PayloadId, (bool, Option<tracing::Id>)>,
 }
 
 impl PayloadTraceContext {
     fn new() -> Self {
         PayloadTraceContext {
-            tracer: global::tracer("rollup-boost"),
             block_hash_to_payload_ids: Cache::new(CACHE_SIZE),
-            payload_id_to_span: Cache::new(CACHE_SIZE),
-            local_to_external_payload_ids: Cache::new(CACHE_SIZE),
+            payload_id: Cache::new(CACHE_SIZE),
         }
     }
 
-    fn store(&self, payload_id: PayloadId, parent_hash: B256, parent_span: BoxedSpan) {
-        self.payload_id_to_span
-            .insert(payload_id, Arc::new(parent_span));
+    fn store(
+        &self,
+        payload_id: PayloadId,
+        parent_hash: B256,
+        has_attributes: bool,
+        trace_id: Option<tracing::Id>,
+    ) {
+        self.payload_id
+            .insert(payload_id, (has_attributes, trace_id));
         self.block_hash_to_payload_ids
             .entry(parent_hash)
             .and_upsert_with(|o| match o {
@@ -61,36 +59,34 @@ impl PayloadTraceContext {
             });
     }
 
-    fn retrieve_by_parent_hash(&self, parent_hash: &B256) -> Option<Vec<Arc<BoxedSpan>>> {
+    fn trace_ids_from_parent_hash(&self, parent_hash: &B256) -> Option<Vec<tracing::Id>> {
         self.block_hash_to_payload_ids
             .get(parent_hash)
             .map(|payload_ids| {
                 payload_ids
                     .iter()
-                    .filter_map(|payload_id| self.payload_id_to_span.get(payload_id))
+                    .filter_map(|payload_id| self.payload_id.get(payload_id).and_then(|x| x.1))
                     .collect()
             })
     }
 
-    fn retrieve_by_payload_id(&self, payload_id: &PayloadId) -> Option<Arc<BoxedSpan>> {
-        self.payload_id_to_span.get(payload_id)
+    fn trace_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
+        self.payload_id.get(payload_id).and_then(|x| x.1)
+    }
+
+    fn has_attributes(&self, payload_id: &PayloadId) -> bool {
+        self.payload_id
+            .get(payload_id)
+            .map(|x| x.0)
+            .unwrap_or_default()
     }
 
     fn remove_by_parent_hash(&self, block_hash: &B256) {
         if let Some(payload_ids) = self.block_hash_to_payload_ids.remove(block_hash) {
             for payload_id in payload_ids.iter() {
-                self.payload_id_to_span.remove(payload_id);
+                self.payload_id.remove(payload_id);
             }
         }
-    }
-
-    fn store_payload_id_mapping(&self, local_id: PayloadId, external_id: PayloadId) {
-        self.local_to_external_payload_ids
-            .insert(local_id, external_id);
-    }
-
-    fn get_external_payload_id(&self, local_id: &PayloadId) -> Option<PayloadId> {
-        self.local_to_external_payload_ids.get(local_id)
     }
 }
 
@@ -118,10 +114,9 @@ impl ExecutionMode {
 
 #[derive(Clone)]
 pub struct RollupBoostServer {
-    pub l2_client: ExecutionClient,
-    pub builder_client: ExecutionClient,
+    pub l2_client: Arc<ExecutionClient>,
+    pub builder_client: Arc<ExecutionClient>,
     pub boost_sync: bool,
-    pub metrics: Option<Arc<ServerMetrics>>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
 }
@@ -131,14 +126,12 @@ impl RollupBoostServer {
         l2_client: ExecutionClient,
         builder_client: ExecutionClient,
         boost_sync: bool,
-        metrics: Option<Arc<ServerMetrics>>,
         initial_execution_mode: ExecutionMode,
     ) -> Self {
         Self {
-            l2_client,
-            builder_client,
+            l2_client: Arc::new(l2_client),
+            builder_client: Arc::new(builder_client),
             boost_sync,
-            metrics,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
             execution_mode: Arc::new(Mutex::new(initial_execution_mode)),
         }
@@ -222,70 +215,33 @@ pub trait EngineApi {
 
 #[async_trait]
 impl EngineApiServer for RollupBoostServer {
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
+            has_attributes = payload_attributes.is_some(),
+            head_block_hash = %fork_choice_state.head_block_hash,
+            timestamp = ?payload_attributes.as_ref().map(|attrs| attrs.payload_attributes.timestamp),
+            payload_id
+        )
+    )]
     async fn fork_choice_updated_v3(
         &self,
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
-        let start = Instant::now();
-        let res = self
-            .fork_choice_updated_v3(fork_choice_state, payload_attributes)
-            .await;
-        let elapsed = start.elapsed();
-        if let Some(metrics) = &self.metrics {
-            metrics.fork_choice_updated_v3_total.record(elapsed);
-        }
-        res
-    }
-
-    async fn get_payload_v3(
-        &self,
-        payload_id: PayloadId,
-    ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
-        let start = Instant::now();
-        let res = self.get_payload_v3(payload_id).await;
-        let elapsed = start.elapsed();
-        if let Some(metrics) = &self.metrics {
-            metrics.get_payload_v3_total.record(elapsed);
-        }
-        res
-    }
-
-    async fn new_payload_v3(
-        &self,
-        payload: ExecutionPayloadV3,
-        versioned_hashes: Vec<B256>,
-        parent_beacon_block_root: B256,
-    ) -> RpcResult<PayloadStatus> {
-        let start = Instant::now();
-        let res = self
-            .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
-            .await;
-        let elapsed = start.elapsed();
-        if let Some(metrics) = &self.metrics {
-            metrics.new_payload_v3_total.record(elapsed);
-        }
-        res
-    }
-}
-
-impl RollupBoostServer {
-    async fn fork_choice_updated_v3(
-        &self,
-        fork_choice_state: ForkchoiceState,
-        payload_attributes: Option<OpPayloadAttributes>,
-    ) -> RpcResult<ForkchoiceUpdated> {
-        info!(
-            message = "received fork_choice_updated_v3",
-            "head_block_hash" = %fork_choice_state.head_block_hash,
-            "has_attributes" = payload_attributes.is_some(),
-        );
-
+        info!("received fork_choice_updated_v3");
         // First get the local payload ID from L2 client
         let l2_response = self
             .l2_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
             .await?;
+
+        let span = tracing::Span::current();
+        if let Some(payload_id) = l2_response.payload_id {
+            span.record("payload_id", payload_id.to_string());
+        }
 
         // TODO: Use _is_block_building_call to log the correct message during the async call to builder
         let (should_send_to_builder, _is_block_building_call) =
@@ -302,246 +258,129 @@ impl RollupBoostServer {
             };
 
         let execution_mode = self.execution_mode();
+        let trace_id = span.id();
+        if let Some(payload_id) = l2_response.payload_id {
+            self.payload_trace_context.store(
+                payload_id,
+                fork_choice_state.head_block_hash,
+                payload_attributes.is_some(),
+                trace_id,
+            );
+        }
 
         if execution_mode.is_disabled() {
             debug!(message = "execution mode is disabled, skipping FCU call to builder", "head_block_hash" = %fork_choice_state.head_block_hash);
         } else if should_send_to_builder {
-            let span: Option<BoxedSpan> =
-                if let (Some(payload_attributes), Some(local_payload_id)) =
-                    (payload_attributes.clone(), l2_response.payload_id)
-                {
-                    let mut parent_span = self
-                        .payload_trace_context
-                        .tracer
-                        .start_with_context("build-block", &Context::current());
-
-                    parent_span.set_attribute(KeyValue::new(
-                        "parent_hash",
-                        fork_choice_state.head_block_hash.to_string(),
-                    ));
-                    parent_span.set_attribute(KeyValue::new(
-                        "timestamp",
-                        payload_attributes.payload_attributes.timestamp as i64,
-                    ));
-                    parent_span
-                        .set_attribute(KeyValue::new("payload_id", local_payload_id.to_string()));
-                    let ctx = Context::current()
-                        .with_remote_span_context(parent_span.span_context().clone());
-                    self.payload_trace_context.store(
-                        local_payload_id,
-                        fork_choice_state.head_block_hash,
-                        parent_span,
-                    );
-                    Some(
-                        self.payload_trace_context
-                            .tracer
-                            .start_with_context("fcu", &ctx),
-                    )
-                } else {
-                    None
-                };
-
-            // async call to builder to trigger payload building and sync
             let builder_client = self.builder_client.clone();
-            let attr = payload_attributes.clone();
-            let payload_trace_context = self.payload_trace_context.clone();
-            let local_payload_id = l2_response.payload_id;
             tokio::spawn(async move {
-                match builder_client
-                    .fork_choice_updated_v3(fork_choice_state, attr)
-                    .await
-                {
-                    Ok(response) => {
-                        let external_payload_id = response.payload_id;
-                        if let (Some(local_id), Some(external_id)) =
-                            (local_payload_id, external_payload_id)
-                        {
-                            // Only store mapping if local and external IDs are different
-                            if local_id != external_id {
-                                payload_trace_context
-                                    .store_payload_id_mapping(local_id, external_id);
-                            }
-                        }
-                        if response.is_invalid() {
-                            let payload_id_str = external_payload_id
-                                .map(|id| id.to_string())
-                                .unwrap_or_default();
-                            error!(message = "builder rejected fork_choice_updated_v3 with attributes", "url" = ?builder_client.auth_rpc, "payload_id" = payload_id_str, "validation_error" = %response.payload_status.status);
-                        } else if let Some(external_id) = external_payload_id {
-                            info!(
-                                message = "called fork_choice_updated_v3 to builder with payload attributes",
-                                "url" = ?builder_client.auth_rpc,
-                                "payload_status" = %response.payload_status.status,
-                                "payload_id" = %external_id
-                            );
-                        } else {
-                            info!(
-                                message = "called fork_choice_updated_v3 to builder without payload attributes",
-                                "url" = ?builder_client.auth_rpc,
-                                "payload_status" = %response.payload_status.status
-                            );
-                        }
-                    }
-
-                    Err(e) => {
-                        error!(
-                            message = "error calling fork_choice_updated_v3 to builder",
-                            "url" = ?builder_client.auth_rpc,
-                            "error" = %e,
-                            "head_block_hash" = %fork_choice_state.head_block_hash
-                        );
-                    }
-                }
-                if let Some(mut s) = span {
-                    s.end()
-                };
+                let _ = builder_client
+                    .fork_choice_updated_v3(fork_choice_state.clone(), payload_attributes.clone())
+                    .await;
             });
         } else {
-            // If no payload attributes are provided, the builder will not build a block
-            // We store a mapping from the local payload ID to an empty payload ID to signal
-            // during get_payload_v3 request that the builder does not need to be queried.
-            if let Some(local_id) = l2_response.payload_id {
-                let payload_trace_context = self.payload_trace_context.clone();
-
-                payload_trace_context.store_payload_id_mapping(local_id, PayloadId::default());
-            } else {
-                error!(message = "no local payload id returned from l2 client", "head_block_hash" = %fork_choice_state.head_block_hash);
-            }
-
             info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash);
         }
 
         Ok(l2_response)
     }
 
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
+            %payload_id,
+            payload_source
+        )
+    )]
     async fn get_payload_v3(
         &self,
         payload_id: PayloadId,
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
-        info!(message = "received get_payload_v3", "payload_id" = %payload_id);
-        let l2_client_future = self.l2_client.get_payload_v3(payload_id);
+        info!("received get_payload_v3");
 
+        let l2_client_future = self.l2_client.get_payload_v3(payload_id);
         let builder_client_future = Box::pin(async move {
             let execution_mode = self.execution_mode();
             if !execution_mode.is_get_payload_enabled() {
                 info!(message = "dry run mode is enabled, skipping get payload builder call");
 
                 // We are in dry run mode, so we do not want to call the builder.
-                return Err(ClientError::Call(ErrorObject::owned(
+                return Err(ErrorObject::owned(
                     INVALID_REQUEST_CODE,
                     "Dry run mode is enabled",
                     None::<String>,
-                )));
+                ));
             }
 
-            let parent_span = self
-                .payload_trace_context
-                .retrieve_by_payload_id(&payload_id);
-            let span = parent_span.clone().map(|span| {
-                self.payload_trace_context.tracer.start_with_context(
-                    "get_payload",
-                    &Context::current().with_remote_span_context(span.span_context().clone()),
-                )
-            });
+            if let Some(cause) = self.payload_trace_context.trace_id(&payload_id) {
+                tracing::Span::current().follows_from(cause);
+            }
 
-            // Get the external builder's payload ID that corresponds to our local payload ID
-            // If no mapping exists, fallback to local ID
-            let external_payload_id = self
-                .payload_trace_context
-                .get_external_payload_id(&payload_id)
-                .unwrap_or(payload_id);
-
-            if external_payload_id == PayloadId::default() {
-                info!(
-                    message =
-                        "no-tx-pool call and builder did not build a block, defer to L2 result"
-                );
-
-                // Note: We are sending an error here to return early from the future and this error
-                // is not logged later on, so it's not causing issues. However, we should find a better
-                // way to handle this case in the future rather than relying on this error being silently
-                // ignored.
-                return Err(ClientError::Call(ErrorObject::owned(
-                    INVALID_REQUEST_CODE,
-                    "Builder payload was not valid",
-                    None::<String>,
-                )));
+            if !self.payload_trace_context.has_attributes(&payload_id) {
+                // block builder won't build a block without attributes
+                info!(message = "no attributes found, skipping get_payload_v3 call to builder");
+                return Ok(None);
             }
 
             let builder = self.builder_client.clone();
-            let (payload, source) = builder.get_payload_v3(external_payload_id).await.map_err(|e| {
-                error!(message = "error calling get_payload_v3 from builder", "url" = ?builder.auth_rpc, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
-                e
-                })?;
-
-            let block_hash = ExecutionPayload::from(payload.clone().execution_payload).block_hash();
-            info!(message = "received payload from builder", "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id, "block_hash" = %block_hash);
+            let payload = builder.get_payload_v3(payload_id).await?;
 
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
-            let payload_status = self.l2_client.auth_client.new_payload_v3(payload.execution_payload.clone(), vec![], payload.parent_beacon_block_root).await.map_err(|e| {
-                error!(message = "error calling new_payload_v3 to validate builder payload", "url" = ?self.l2_client.auth_rpc, "error" = %e, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
-                e
-            })?;
-            if let Some(mut s) = span {
-                s.end();
-            };
-            if let Some(mut parent) = parent_span {
-                let parent = Arc::get_mut(&mut parent);
-                if let Some(parent) = parent {
-                    parent.end();
-                }
-            };
+            let _ = self
+                .l2_client
+                .new_payload_v3(
+                    payload.execution_payload.clone(),
+                    vec![],
+                    payload.parent_beacon_block_root,
+                )
+                .await?;
 
-            if payload_status.is_invalid() {
-                error!(message = "builder payload was not valid", "url" = ?builder.auth_rpc, "payload_status" = %payload_status.status, "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
-                Err(ClientError::Call(ErrorObject::owned(
-                    INVALID_REQUEST_CODE,
-                    "Builder payload was not valid",
-                    None::<String>,
-                )))
-            } else {
-                info!(message = "received payload status from local execution engine validating builder payload", "local_payload_id" = %payload_id, "external_payload_id" = %external_payload_id);
-                Ok((payload, source))
-            }
+            Ok(Some(payload))
         });
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
-        let payload = match (builder_payload, l2_payload) {
-            (Ok(builder), _) => Ok(builder),
-            (Err(_), Ok(l2)) => Ok(l2),
-            (Err(_), Err(e)) => Err(e),
-        };
-        payload.map(|(payload, context)| {
-            let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
-            let block_hash = inner_payload.block_hash();
-            let block_number = inner_payload.block_number();
+        let (payload, context) = match (builder_payload, l2_payload) {
+            (Ok(Some(builder)), _) => Ok((builder, PayloadSource::Builder)),
+            (_, Ok(l2)) => Ok((l2, PayloadSource::L2)),
+            (_, Err(e)) => Err(e),
+        }?;
 
-            if let Some(metrics) = &self.metrics {
-                metrics.increment_blocks_created(&context);
-            }
+        tracing::Span::current().record("payload_source", context.to_string());
 
-            // Note: This log message is used by integration tests to track payload context.
-            // While not ideal to rely on log parsing, it provides a reliable way to verify behavior.
-            // Happy to consider an alternative approach later on.
-            info!(
-                message = "returning block",
-                "hash" = %block_hash,
-                "number" = %block_number,
-                "context" = %context,
-                "payload_id" = %payload_id
-            );
-            payload
-        })
+        let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
+        let block_hash = inner_payload.block_hash();
+        let block_number = inner_payload.block_number();
+
+        // Note: This log message is used by integration tests to track payload context.
+        // While not ideal to rely on log parsing, it provides a reliable way to verify behavior.
+        // Happy to consider an alternative approach later on.
+        info!(
+            message = "returning block",
+            "hash" = %block_hash,
+            "number" = %block_number,
+            %context,
+            %payload_id,
+        );
+        Ok(payload)
     }
 
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
+        )
+    )]
     async fn new_payload_v3(
         &self,
         payload: ExecutionPayloadV3,
         versioned_hashes: Vec<B256>,
         parent_beacon_block_root: B256,
     ) -> RpcResult<PayloadStatus> {
+        info!("received new_payload_v3");
         let execution_payload = ExecutionPayload::from(payload.clone());
         let block_hash = execution_payload.block_hash();
         let parent_hash = execution_payload.parent_hash();
@@ -549,21 +388,15 @@ impl RollupBoostServer {
         // async call to builder to sync the builder node
         let execution_mode = self.execution_mode();
         if self.boost_sync && !execution_mode.is_disabled() {
-            let parent_spans = self
+            if let Some(causes) = self
                 .payload_trace_context
-                .retrieve_by_parent_hash(&parent_hash);
-            let spans: Option<Vec<BoxedSpan>> = parent_spans.as_ref().map(|spans| {
-                spans
-                    .iter()
-                    .map(|span| {
-                        self.payload_trace_context.tracer.start_with_context(
-                            "new_payload",
-                            &Context::current()
-                                .with_remote_span_context(span.span_context().clone()),
-                        )
-                    })
-                    .collect()
-            });
+                .trace_ids_from_parent_hash(&parent_hash)
+            {
+                causes.iter().for_each(|cause| {
+                    tracing::Span::current().follows_from(cause);
+                });
+            }
+
             self.payload_trace_context
                 .remove_by_parent_hash(&parent_hash);
 
@@ -571,32 +404,25 @@ impl RollupBoostServer {
             let builder_payload = payload.clone();
             let builder_versioned_hashes = versioned_hashes.clone();
             tokio::spawn(async move {
-                let _ = builder.new_payload_v3(builder_payload, builder_versioned_hashes, parent_beacon_block_root).await
-                .map(|response: PayloadStatus| {
-                    if response.is_invalid() {
-                        error!(message = "builder rejected new_payload_v3", "url" = ?builder.auth_rpc, "block_hash" = %block_hash);
-                    } else {
-                        info!(message = "called new_payload_v3 to builder", "url" = ?builder.auth_rpc, "payload_status" = %response.status, "block_hash" = %block_hash);
-                    }
-                }).map_err(|e| {
-                    error!(message = "error calling new_payload_v3 to builder", "url" = ?builder.auth_rpc, "error" = %e, "block_hash" = %block_hash);
-                    e
-                });
-                if let Some(mut spans) = spans {
-                    spans.iter_mut().for_each(|s| s.end());
-                };
+                let _ = builder
+                    .new_payload_v3(
+                        builder_payload,
+                        builder_versioned_hashes,
+                        parent_beacon_block_root,
+                    )
+                    .await;
             });
         }
-        self.l2_client
+        Ok(self
+            .l2_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
-            .await
+            .await?)
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::complexity)]
 mod tests {
-
     use super::*;
     use alloy_primitives::hex;
     use alloy_primitives::{FixedBytes, U256};
@@ -699,25 +525,18 @@ mod tests {
 
             let l2_auth_rpc = Uri::from_str(&format!("http://{}:{}", HOST, L2_PORT)).unwrap();
             let l2_client =
-                ExecutionClient::new(l2_auth_rpc, jwt_secret, 2000, None, PayloadSource::L2)
-                    .unwrap();
+                ExecutionClient::new(l2_auth_rpc, jwt_secret, 2000, PayloadSource::L2).unwrap();
 
             let builder_auth_rpc =
                 Uri::from_str(&format!("http://{}:{}", HOST, BUILDER_PORT)).unwrap();
-            let builder_client = ExecutionClient::new(
-                builder_auth_rpc,
-                jwt_secret,
-                2000,
-                None,
-                PayloadSource::Builder,
-            )
-            .unwrap();
+            let builder_client =
+                ExecutionClient::new(builder_auth_rpc, jwt_secret, 2000, PayloadSource::Builder)
+                    .unwrap();
 
             let rollup_boost_client = RollupBoostServer::new(
                 l2_client,
                 builder_client,
                 boost_sync,
-                None,
                 ExecutionMode::Enabled,
             );
 
@@ -759,7 +578,6 @@ mod tests {
         engine_success().await;
         boost_sync_enabled().await;
         builder_payload_err().await;
-        test_local_external_payload_ids_different().await;
         test_local_external_payload_ids_same().await;
     }
 
@@ -841,9 +659,9 @@ mod tests {
             let get_payload_requests_builder_mu = get_payload_requests_builder.lock();
             let new_payload_requests = test_harness.l2_mock.new_payload_requests.clone();
             let new_payload_requests_mu = new_payload_requests.lock();
-            assert_eq!(get_payload_requests_builder_mu.len(), 1);
+            assert_eq!(get_payload_requests_builder_mu.len(), 0);
             assert_eq!(get_payload_requests_mu.len(), 1);
-            assert_eq!(new_payload_requests_mu.len(), 2);
+            assert_eq!(new_payload_requests_mu.len(), 1);
             let req: &PayloadId = get_payload_requests_mu.first().unwrap();
             assert_eq!(*req, PayloadId::new([0, 0, 0, 0, 0, 0, 0, 1]));
         }
@@ -1013,67 +831,13 @@ mod tests {
 
         {
             let builder_gp_reqs = builder_mock.get_payload_requests.lock();
-            assert_eq!(builder_gp_reqs.len(), 1);
-            assert_eq!(builder_gp_reqs[0], same_id);
+            assert_eq!(builder_gp_reqs.len(), 0);
         }
 
         {
             let local_gp_reqs = l2_mock.get_payload_requests.lock();
             assert_eq!(local_gp_reqs.len(), 1);
             assert_eq!(local_gp_reqs[0], same_id);
-        }
-
-        test_harness.cleanup().await;
-    }
-
-    async fn test_local_external_payload_ids_different() {
-        let local_id = PayloadId::new([1, 2, 3, 4, 5, 6, 7, 8]);
-        let external_id = PayloadId::new([9, 9, 9, 9, 9, 9, 9, 9]);
-
-        let mut l2_mock = MockEngineServer::new();
-        let mut fcu_resp =
-            ForkchoiceUpdated::new(PayloadStatus::from_status(PayloadStatusEnum::Valid));
-        fcu_resp.payload_id = Some(local_id);
-        l2_mock.fcu_response = Ok(fcu_resp);
-
-        let mut builder_mock = MockEngineServer::new();
-        builder_mock.override_payload_id = Some(external_id);
-
-        let test_harness =
-            TestHarness::new(true, Some(l2_mock.clone()), Some(builder_mock.clone())).await;
-
-        // Test FCU call
-        let fcu = ForkchoiceState {
-            head_block_hash: B256::random(),
-            safe_block_hash: B256::random(),
-            finalized_block_hash: B256::random(),
-        };
-        let fcu_response = test_harness.client.fork_choice_updated_v3(fcu, None).await;
-        assert!(fcu_response.is_ok());
-
-        // wait for builder to observe the FCU call
-        sleep(std::time::Duration::from_millis(100)).await;
-
-        assert_eq!(l2_mock.fcu_requests.lock().len(), 1);
-        assert_eq!(builder_mock.fcu_requests.lock().len(), 1);
-
-        // Test getPayload call with local->external mapping
-        let get_res = test_harness.client.get_payload_v3(local_id).await;
-        assert!(get_res.is_ok(), "getPayload should succeed");
-
-        // wait for builder to observe the getPayload call
-        sleep(std::time::Duration::from_millis(100)).await;
-
-        {
-            let builder_gp = builder_mock.get_payload_requests.lock();
-            assert_eq!(builder_gp.len(), 1);
-            assert_eq!(builder_gp[0], external_id);
-        }
-
-        {
-            let l2_gp = l2_mock.get_payload_requests.lock();
-            assert_eq!(l2_gp.len(), 1);
-            assert_eq!(l2_gp[0], local_id);
         }
 
         test_harness.cleanup().await;

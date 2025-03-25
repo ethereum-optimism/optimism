@@ -54,7 +54,11 @@ impl Service for RollupBoostConfig {
             .arg(Arg::Port {
                 name: "debug".into(),
                 preferred: 5555,
-            });
+            })
+            .arg("--tracing")
+            .arg("--metrics")
+            .arg("--log-level")
+            .arg("trace");
 
         cmd
     }

@@ -1,22 +1,16 @@
-use std::time::Duration;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
+use eyre::Result;
 use metrics::{Counter, Histogram, counter, histogram};
 use metrics_derive::Metrics;
+use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_util::layers::{PrefixLayer, Stack};
 
-use crate::server::PayloadSource;
+use crate::{Args, init_metrics_server};
 
 #[derive(Metrics)]
 #[metrics(scope = "rpc")]
 pub struct ServerMetrics {
-    #[metric(describe = "Total latency for server `engine_newPayloadV3` call")]
-    pub new_payload_v3_total: Histogram,
-
-    #[metric(describe = "Total latency for server `engine_getPayloadV3` call")]
-    pub get_payload_v3_total: Histogram,
-
-    #[metric(describe = "Total latency for server `engine_forkChoiceUpdatedV3` call")]
-    pub fork_choice_updated_v3_total: Histogram,
-
     // Builder proxy metrics
     #[metric(describe = "Latency for builder client forwarded rpc calls (excluding the engine api)", labels = ["method"])]
     #[allow(dead_code)]
@@ -36,39 +30,7 @@ pub struct ServerMetrics {
     pub l2_rpc_response_count: Counter,
 }
 
-#[derive(Metrics)]
-#[metrics(scope = "rpc")]
-pub struct ClientMetrics {
-    #[metric(describe = "Latency for client `engine_newPayloadV3` call")]
-    #[allow(dead_code)]
-    pub new_payload_v3: Histogram,
-
-    #[metric(describe = "Number of client `engine_newPayloadV3` responses", labels = ["code"])]
-    #[allow(dead_code)]
-    pub new_payload_v3_response_count: Counter,
-
-    #[metric(describe = "Latency for client `engine_getPayloadV3` call")]
-    #[allow(dead_code)]
-    pub get_payload_v3: Histogram,
-
-    #[metric(describe = "Number of client `engine_getPayloadV3` responses", labels = ["code"])]
-    #[allow(dead_code)]
-    pub get_payload_v3_response_count: Counter,
-
-    #[metric(describe = "Latency for client `engine_forkChoiceUpdatedV3` call")]
-    #[allow(dead_code)]
-    pub fork_choice_updated_v3: Histogram,
-
-    #[metric(describe = "Number of client `engine_forkChoiceUpdatedV3` responses", labels = ["code"])]
-    #[allow(dead_code)]
-    pub fork_choice_updated_v3_response_count: Counter,
-}
-
 impl ServerMetrics {
-    pub fn increment_blocks_created(&self, source: &PayloadSource) {
-        counter!("rpc.blocks_created", "source" => source.to_string()).increment(1);
-    }
-
     pub fn record_builder_forwarded_call(&self, latency: Duration, method: String) {
         histogram!("rpc.builder_forwarded_call", "method" => method).record(latency.as_secs_f64());
     }
@@ -106,32 +68,21 @@ impl ServerMetrics {
     }
 }
 
-impl ClientMetrics {
-    pub fn new(source: &PayloadSource) -> Self {
-        Self {
-            new_payload_v3: histogram!("rpc.new_payload_v3", "target" => source.to_string()),
-            get_payload_v3: histogram!("rpc.get_payload_v3", "target" => source.to_string()),
-            fork_choice_updated_v3: histogram!("rpc.fork_choice_updated_v3", "target" => source.to_string()),
-            new_payload_v3_response_count: counter!("rpc.new_payload_v3_response_count"),
-            get_payload_v3_response_count: counter!("rpc.get_payload_v3_response_count"),
-            fork_choice_updated_v3_response_count: counter!(
-                "rpc.fork_choice_updated_v3_response_count"
-            ),
-        }
-    }
+pub(crate) fn init_metrics(args: &Args) -> Result<Option<Arc<ServerMetrics>>> {
+    if args.metrics {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
 
-    pub fn record_new_payload_v3(&self, latency: Duration, code: String) {
-        self.new_payload_v3.record(latency.as_secs_f64());
-        counter!("rpc.new_payload_v3_response_count", "code" => code).increment(1);
-    }
+        Stack::new(recorder)
+            .push(PrefixLayer::new("rollup-boost"))
+            .install()?;
 
-    pub fn record_get_payload_v3(&self, latency: Duration, code: String) {
-        self.get_payload_v3.record(latency.as_secs_f64());
-        counter!("rpc.get_payload_v3_response_count", "code" => code).increment(1);
-    }
-
-    pub fn record_fork_choice_updated_v3(&self, latency: Duration, code: String) {
-        self.fork_choice_updated_v3.record(latency.as_secs_f64());
-        counter!("rpc.fork_choice_updated_v3_response_count", "code" => code).increment(1);
+        // Start the metrics server
+        let metrics_addr = format!("{}:{}", args.metrics_host, args.metrics_port);
+        let addr: SocketAddr = metrics_addr.parse()?;
+        tokio::spawn(init_metrics_server(addr, handle)); // Run the metrics server in a separate task
+        Ok(Some(Arc::new(ServerMetrics::default())))
+    } else {
+        Ok(None)
     }
 }
