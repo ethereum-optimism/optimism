@@ -291,7 +291,7 @@ const (
 	invalidChainID     invalidType = "invalidChainID"
 )
 
-// executeIndexedFault builds on top of txintent.ExecuteIndexed to inject a fault for the identifer of message
+// executeIndexedFault builds on top of txintent.ExecuteIndexed to inject a fault for the identifier of message
 func executeIndexedFault(executor common.Address, events *plan.Lazy[*txintent.InteropOutput], index int, rng *rand.Rand, faults []invalidType) func(ctx context.Context) (*txintent.ExecTrigger, error) {
 	return func(ctx context.Context) (*txintent.ExecTrigger, error) {
 		execTrigger, err := txintent.ExecuteIndexed(executor, events, index)(ctx)
