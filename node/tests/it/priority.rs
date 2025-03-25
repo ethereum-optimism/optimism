@@ -101,7 +101,7 @@ fn build_components<Node>(
 where
     Node: FullNodeTypes<
         Types: NodeTypesWithEngine<
-            Engine = OpEngineTypes,
+            Payload = OpEngineTypes,
             ChainSpec = OpChainSpec,
             Primitives = OpPrimitives,
         >,

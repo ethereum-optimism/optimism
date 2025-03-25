@@ -99,7 +99,7 @@ impl OpNode {
     where
         Node: FullNodeTypes<
             Types: NodeTypesWithEngine<
-                Engine = OpEngineTypes,
+                Payload = OpEngineTypes,
                 ChainSpec = OpChainSpec,
                 Primitives = OpPrimitives,
             >,
@@ -163,7 +163,7 @@ impl<N> Node<N> for OpNode
 where
     N: FullNodeTypes<
         Types: NodeTypesWithEngine<
-            Engine = OpEngineTypes,
+            Payload = OpEngineTypes,
             ChainSpec = OpChainSpec,
             Primitives = OpPrimitives,
             Storage = OpStorage,
@@ -221,7 +221,7 @@ impl NodeTypes for OpNode {
 }
 
 impl NodeTypesWithEngine for OpNode {
-    type Engine = OpEngineTypes;
+    type Payload = OpEngineTypes;
 }
 
 /// Add-ons w.r.t. optimism.
@@ -276,7 +276,7 @@ where
             ChainSpec = OpChainSpec,
             Primitives = OpPrimitives,
             Storage = OpStorage,
-            Engine = OpEngineTypes,
+            Payload = OpEngineTypes,
         >,
         Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
     >,
@@ -355,7 +355,7 @@ where
             ChainSpec = OpChainSpec,
             Primitives = OpPrimitives,
             Storage = OpStorage,
-            Engine = OpEngineTypes,
+            Payload = OpEngineTypes,
         >,
         Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
     >,
@@ -376,7 +376,7 @@ where
         Types: NodeTypesWithEngine<
             ChainSpec = OpChainSpec,
             Primitives = OpPrimitives,
-            Engine = OpEngineTypes,
+            Payload = OpEngineTypes,
         >,
     >,
     OpEthApiBuilder: EthApiBuilder<N>,
@@ -652,7 +652,7 @@ impl<Txs> OpPayloadBuilder<Txs> {
     where
         Node: FullNodeTypes<
             Types: NodeTypesWithEngine<
-                Engine = OpEngineTypes,
+                Payload = OpEngineTypes,
                 ChainSpec = OpChainSpec,
                 Primitives = OpPrimitives,
             >,
@@ -679,7 +679,7 @@ impl<Node, Pool, Txs> PayloadBuilderBuilder<Node, Pool> for OpPayloadBuilder<Txs
 where
     Node: FullNodeTypes<
         Types: NodeTypesWithEngine<
-            Engine = OpEngineTypes,
+            Payload = OpEngineTypes,
             ChainSpec = OpChainSpec,
             Primitives = OpPrimitives,
         >,
@@ -817,7 +817,7 @@ where
     Types: NodeTypesWithEngine<
         ChainSpec = OpChainSpec,
         Primitives = OpPrimitives,
-        Engine = OpEngineTypes,
+        Payload = OpEngineTypes,
     >,
     Node: FullNodeComponents<Types = Types>,
 {
