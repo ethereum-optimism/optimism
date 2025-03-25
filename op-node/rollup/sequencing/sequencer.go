@@ -30,6 +30,7 @@ var (
 
 type L1OriginSelectorIface interface {
 	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
+	SetRecoverMode(bool)
 }
 
 type Metrics interface {
@@ -753,6 +754,7 @@ func (d *Sequencer) ConductorEnabled(ctx context.Context) bool {
 }
 
 func (d *Sequencer) SetRecoverMode(mode bool) {
+	d.l1OriginSelector.SetRecoverMode(mode)
 	d.recoverMode.Store(mode)
 }
 

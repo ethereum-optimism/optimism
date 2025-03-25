@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -28,7 +29,7 @@ type L1OriginSelector struct {
 	cfg  *rollup.Config
 	spec *rollup.ChainSpec
 
-	recoverMode bool
+	recoverMode *atomic.Bool
 
 	l1 L1Blocks
 
@@ -40,14 +41,20 @@ type L1OriginSelector struct {
 }
 
 func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks, recoverMode bool) *L1OriginSelector {
+	r := atomic.Bool{}
+	r.Store(recoverMode)
 	return &L1OriginSelector{
 		ctx:         ctx,
 		log:         log.With("recover_mode", recoverMode),
 		cfg:         cfg,
 		spec:        rollup.NewChainSpec(cfg),
 		l1:          l1,
-		recoverMode: recoverMode,
+		recoverMode: &r,
 	}
+}
+
+func (los *L1OriginSelector) SetRecoverMode(enabled bool) {
+	los.recoverMode.Store(enabled)
 }
 
 func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
@@ -117,7 +124,7 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
-	if los.recoverMode {
+	if los.recoverMode.Load() {
 		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
 		if err != nil {
 			return eth.L1BlockRef{}, eth.L1BlockRef{},

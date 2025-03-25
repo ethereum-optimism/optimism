@@ -202,8 +202,8 @@ func TestOriginSelectorAdvances(t *testing.T) {
 	// It may not be ready yet. Expect an error, even if we could stick to c.
 	l1.ExpectL1BlockRefByNumber(d.Number, eth.BlockRef{}, ethereum.NotFound)
 
-	// at origin d, and can stick to c (thanks to timestamp), if it wasn't for recover mode.
-	s.recoverMode = true
+	// at origin d, and could stick to c (thanks to timestamp), if it wasn't for recover mode.
+	s.recoverMode.Store(true)
 	l2Head = eth.L2BlockRef{
 		L1Origin: c.ID(),
 		Time:     d.Time + 4,
@@ -216,7 +216,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 	l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
 	l1.ExpectL1BlockRefByNumber(d.Number, d, nil)
 	next, err = s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, d, next)
 }
 
