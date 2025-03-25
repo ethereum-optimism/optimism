@@ -42,6 +42,7 @@ type KurtosisDeployer struct {
 	enclaveInspecter srcInterfaces.EnclaveInspecter
 	enclaveObserver  srcInterfaces.EnclaveObserver
 	jwtExtractor     srcInterfaces.JWTExtractor
+	depsetExtractor  srcInterfaces.DepsetExtractor
 
 	// interface for kurtosis interactions
 	kurtosisCtx apiInterfaces.KurtosisContextInterface
@@ -97,6 +98,12 @@ func WithKurtosisJWTExtractor(extractor srcInterfaces.JWTExtractor) KurtosisDepl
 	}
 }
 
+func WithKurtosisDepsetExtractor(extractor srcInterfaces.DepsetExtractor) KurtosisDeployerOptions {
+	return func(d *KurtosisDeployer) {
+		d.depsetExtractor = extractor
+	}
+}
+
 func WithKurtosisKurtosisContext(kurtosisCtx apiInterfaces.KurtosisContextInterface) KurtosisDeployerOptions {
 	return func(d *KurtosisDeployer) {
 		d.kurtosisCtx = kurtosisCtx
@@ -115,6 +122,7 @@ func NewKurtosisDeployer(opts ...KurtosisDeployerOptions) (*KurtosisDeployer, er
 		enclaveInspecter: &enclaveInspectAdapter{},
 		enclaveObserver:  &enclaveDeployerAdapter{},
 		jwtExtractor:     &enclaveJWTAdapter{},
+		depsetExtractor:  &enclaveDepsetAdapter{},
 	}
 
 	for _, opt := range opts {
@@ -162,10 +170,17 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 		return nil, fmt.Errorf("failed to extract JWT data: %w", err)
 	}
 
+	// Get dependency set
+	depsetData, err := d.depsetExtractor.ExtractData(ctx, d.enclave)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract dependency set: %w", err)
+	}
+
 	env := &KurtosisEnvironment{
 		DevnetEnvironment: descriptors.DevnetEnvironment{
 			L2:       make([]*descriptors.L2Chain, 0, len(spec.Chains)),
 			Features: spec.Features,
+			DepSet:   depsetData,
 		},
 	}
 

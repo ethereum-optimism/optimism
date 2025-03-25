@@ -2,6 +2,7 @@ package kurtosis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -115,6 +116,36 @@ type fakeJWTExtractor struct {
 
 func (f *fakeJWTExtractor) ExtractData(ctx context.Context, enclave string) (*jwt.Data, error) {
 	return f.data, f.err
+}
+
+type fakeDepsetExtractor struct {
+	data json.RawMessage
+	err  error
+}
+
+func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) (json.RawMessage, error) {
+	return f.data, f.err
+}
+
+// mockKurtosisContext implements interfaces.KurtosisContextInterface for testing
+type mockKurtosisContext struct {
+	enclaveCtx interfaces.EnclaveContext
+	getErr     error
+	createErr  error
+}
+
+func (m *mockKurtosisContext) GetEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	return m.enclaveCtx, nil
+}
+
+func (m *mockKurtosisContext) CreateEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
+	return m.enclaveCtx, nil
 }
 
 func TestDeploy(t *testing.T) {
@@ -233,7 +264,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 	// Create test services map with the expected structure
 	testServices := make(inspect.ServiceMap)
 	testServices["el-1-geth-lighthouse"] = inspect.PortMap{
-		"rpc": {Port: 52645},
+		"rpc": descriptors.PortInfo{Port: 52645},
 	}
 
 	testWallet := &deployer.Wallet{
@@ -313,6 +344,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 							},
 						},
 					},
+					DepSet: json.RawMessage(`{}`),
 				},
 			},
 		},
@@ -341,8 +373,13 @@ func TestGetEnvironmentInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock Kurtosis context that won't try to connect to a real engine
+			mockCtx := &mockKurtosisContext{
+				enclaveCtx: &fake.EnclaveContext{},
+			}
+
 			deployer, err := NewKurtosisDeployer(
-				WithKurtosisKurtosisContext(&fake.KurtosisContext{}),
+				WithKurtosisKurtosisContext(mockCtx),
 				WithKurtosisEnclaveInspecter(&fakeEnclaveInspecter{
 					result: tt.inspect,
 					err:    tt.err,
@@ -353,6 +390,10 @@ func TestGetEnvironmentInfo(t *testing.T) {
 				}),
 				WithKurtosisJWTExtractor(&fakeJWTExtractor{
 					data: tt.jwt,
+					err:  tt.err,
+				}),
+				WithKurtosisDepsetExtractor(&fakeDepsetExtractor{
+					data: json.RawMessage(`{}`),
 					err:  tt.err,
 				}),
 			)

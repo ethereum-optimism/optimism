@@ -1,6 +1,8 @@
 package descriptors
 
 import (
+	"encoding/json"
+
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -63,5 +65,6 @@ type DevnetEnvironment struct {
 	L1   *Chain     `json:"l1"`
 	L2   []*L2Chain `json:"l2"`
 
-	Features []string `json:"features,omitempty"`
+	Features []string        `json:"features,omitempty"`
+	DepSet   json.RawMessage `json:"dep_set,omitempty"`
 }
