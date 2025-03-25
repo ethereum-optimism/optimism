@@ -23,17 +23,6 @@ install_contender() {
     cargo install --git https://github.com/flashbots/contender --bin contender --force
 }
 
-build_and_tag() {
-    docker buildx build -t rollup-boost:develop . 
-}
-
-deploy() {
-    # Run the kurtosis optimism package
-    echo "Running Kurtosis..."
-    kurtosis analytics disable
-    kurtosis run github.com/ethpandaops/optimism-package --args-file ./scripts/ci/kurtosis-params.yaml --enclave op-rollup-boost
-}
-
 run() {
     # Note we use `rollup-boost` in combination with `op-geth-builder` as the JSON RPC servers to assert transaction relaying functionality
     # as well as inclusion of transactions that have only been sent to the builder (verifying the builder's payloads are being included in the canonical chain)
@@ -44,7 +33,7 @@ run() {
 
     # Figure out first the builder's JSON-RPC URL
     ROLLUP_BOOST_SOCKET=$(kurtosis port print op-rollup-boost op-rollup-boost-1-op-kurtosis rpc)
-    OP_GETH_BUILDER_SOCKET=$(kurtosis port print op-rollup-boost op-el-builder-1-op-geth-op-node-op-kurtosis rpc)
+    OP_RETH_BUILDER_SOCKET=$(kurtosis port print op-rollup-boost op-el-builder-1-op-reth-op-node-op-kurtosis rpc)
 
     # Private key with prefunded balance
     PREFUNDED_PRIV_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
@@ -60,16 +49,16 @@ run() {
     else
         echo "✅ Prefunded address has balance"
     fi
-    
+
     # Download the scenario for contender
-    wget https://raw.githubusercontent.com/flashbots/contender/refs/heads/main/scenarios/stress.toml -O scenario.toml
+    wget https://raw.githubusercontent.com/flashbots/contender/refs/heads/main/scenarios/stress.toml -O "/tmp/scenario.toml"
 
     # Deploy the contract with contender, this should be enough to check that the
     # builder is working as expected
-    contender setup -p $PREFUNDED_PRIV_KEY scenario.toml $ROLLUP_BOOST_SOCKET
+    contender setup -p $PREFUNDED_PRIV_KEY "/tmp/scenario.toml" $ROLLUP_BOOST_SOCKET
 
     # Run the scenario on the builder
-    contender run -p $PREFUNDED_PRIV_KEY fill-block $OP_GETH_BUILDER_SOCKET
+    contender run -p $PREFUNDED_PRIV_KEY fill-block $OP_RETH_BUILDER_SOCKET
 }
 
 clean() {
@@ -85,12 +74,6 @@ case "$1" in
         ;;
     "install-contender")
         install_contender
-        ;;
-    "build-and-tag")
-        build_and_tag
-        ;;
-    "deploy")
-        deploy
         ;;
     "run")
         run

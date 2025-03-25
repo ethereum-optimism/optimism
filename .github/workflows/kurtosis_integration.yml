@@ -6,6 +6,9 @@ on:
   # Run nightly at 00:00 UTC
   schedule:
     - cron: '0 0 * * *'
+  pull_request:
+    branches:
+      - main
 
 jobs:
   integration-tests:
@@ -26,21 +29,21 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+      
+      - name: Install Just
+        uses: taiki-e/install-action@just
 
       - name: Install Contender
         run: |
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev libfontconfig1-dev libfontconfig
-          ./scripts/ci/kurtosis.sh install-contender
+          ./scripts/ci/stress.sh install-contender
 
       - name: Install Kurtosis
-        run: ./scripts/ci/kurtosis.sh install
+        run: ./scripts/ci/stress.sh install
       
-      - name: Build and Tag
-        run: ./scripts/ci/kurtosis.sh build-and-tag
-
-      - name: Deploy Optimism Package
-        run: ./scripts/ci/kurtosis.sh deploy
+      - name: Deploy Devnet
+        run: just devnet-up
 
       - name: Run Integration Tests
-        run: ./scripts/ci/kurtosis.sh run
+        run: just stress-test

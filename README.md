@@ -193,6 +193,26 @@ To run rollup-boost in debug mode with a specific execution mode, you can use th
 rollup-boost debug set-execution-mode [enabled|dry-run|disabled]
 ```
 
+### Rollup Boost Devnet
+To run rollup-boost in an op-stack devnet first make sure you have [just](https://github.com/casey/just), and [kurtosis-cli](https://docs.kurtosis.com/install/) installed. 
+
+Then run the following command to start the devnet:
+```sh
+just devnet-up
+```
+
+To stop the devnet run:  
+```sh
+just devnet-down
+```
+
+To run a stress test against the devnet with [contender](https://github.com/flashbots/contender) first make sure you have contender installed.
+
+Then run the following command:
+```sh
+just stress-test
+```
+
 ## License
 
 The code in this project is free software under the [MIT License](/LICENSE).
