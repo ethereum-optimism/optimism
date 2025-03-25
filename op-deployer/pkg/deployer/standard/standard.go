@@ -143,7 +143,15 @@ func ManagerImplementationAddrFor(chainID uint64, tag string) (common.Address, e
 	if !ok {
 		return common.Address{}, fmt.Errorf("unsupported tag for chain ID %d: %s", chainID, tag)
 	}
-	return common.Address(*versionData.OPContractsManager.Address), nil
+	if versionData.OPContractsManager.Address != nil {
+		// op-contracts/v1.8.0 and earlier use proxied opcm
+		return common.Address(*versionData.OPContractsManager.Address), nil
+	}
+	if versionData.OPContractsManager.ImplementationAddress != nil {
+		// op-contracts/v2.0.0-rc.1 and later use non-proxied opcm
+		return common.Address(*versionData.OPContractsManager.ImplementationAddress), nil
+	}
+	return common.Address{}, fmt.Errorf("OPContractsManager address is nil for tag %s", tag)
 }
 
 // SuperchainProxyAdminAddrFor returns the address of the Superchain ProxyAdmin for the given chain ID.

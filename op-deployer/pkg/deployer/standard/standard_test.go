@@ -99,3 +99,56 @@ func TestL2ProxyAdminOwner(t *testing.T) {
 		require.Equal(t, common.Address(test.expAddr), addr)
 	}
 }
+
+func TestManagerImplementationAddrFor(t *testing.T) {
+	testCases := []struct {
+		name          string
+		chainID       uint64
+		tag           string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "proxied opcm",
+			chainID:     1,
+			tag:         "op-contracts/v1.8.0",
+			expectError: false,
+		},
+		{
+			name:        "non-proxied opcm",
+			chainID:     1,
+			tag:         "op-contracts/v2.0.0-rc.1",
+			expectError: false,
+		},
+		{
+			name:          "unsupported chainID",
+			chainID:       999999,
+			tag:           "op-contracts/v1.8.0",
+			expectError:   true,
+			errorContains: "unsupported chainID",
+		},
+		{
+			name:          "unsupported tag",
+			chainID:       1,
+			tag:           "op-contracts/v999.999.999",
+			expectError:   true,
+			errorContains: "unsupported tag",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			addr, err := ManagerImplementationAddrFor(tc.chainID, tc.tag)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorContains != "" {
+					require.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				require.NoError(t, err)
+				require.NotEqual(t, common.Address{}, addr, "address should not be empty")
+			}
+		})
+	}
+}
