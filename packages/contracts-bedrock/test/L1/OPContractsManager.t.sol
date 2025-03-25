@@ -1405,15 +1405,40 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         });
     }
 
+    /// @notice Helper function to execute a migration.
+    /// @param _input The input to the migration function.
+    function _doMigration(IOPContractsManagerInteropMigrator.MigrateInput memory _input) internal {
+        _doMigration(_input, bytes4(0));
+    }
+
+    /// @notice Helper function to execute a migration with a revert selector.
+    /// @param _input The input to the migration function.
+    /// @param _revertSelector The selector of the revert to expect.
+    function _doMigration(IOPContractsManagerInteropMigrator.MigrateInput memory _input, bytes4 _revertSelector) internal {
+        // Set the proxy admin owner to be a delegate caller.
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
+        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Execute a delegatecall to the OPCM migration function.
+        // Check gas usage of the migration function.
+        uint256 gasBefore = gasleft();
+        if (_revertSelector != bytes4(0)) {
+            vm.expectRevert(_revertSelector);
+        }
+        DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (_input)));
+        uint256 gasAfter = gasleft();
+
+        // Make sure the gas usage is less than 20 million so we can definitely fit in a block.
+        assertLt(gasBefore - gasAfter, 20_000_000, "Gas usage too high");
+    }
+
     /// @notice Tests that the migration function succeeds when requesting to use the
     ///         permissionless game.
     function test_migrate_withPermissionlessGame_succeeds() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
-        // Execute a delegatecall to the OPCM migration function.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-        DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
+        // Execute the migration.
+        _doMigration(input);
 
         // Grab the two OptimismPortal addresses.
         IOptimismPortal2 optimismPortal1 =
@@ -1421,7 +1446,7 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         IOptimismPortal2 optimismPortal2 =
             IOptimismPortal2(payable(chainDeployOutput2.systemConfigProxy.optimismPortal()));
 
-        // Grab the AnchorStateRegistry from the SystemConfig for both chains, confirm same.
+        // Grab the AnchorStateRegistry from the OptimismPortal for both chains, confirm same.
         assertEq(
             address(optimismPortal1.anchorStateRegistry()),
             address(optimismPortal2.anchorStateRegistry()),
@@ -1442,7 +1467,7 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
 
-        // Grab the ETHLockbox from the SystemConfig for both chains, confirm same.
+        // Grab the ETHLockbox from the OptimismPortal for both chains, confirm same.
         assertEq(address(optimismPortal1.ethLockbox()), address(optimismPortal2.ethLockbox()), "ETHLockbox mismatch");
 
         // Extract the ETHLockbox now that we know it's the same on both chains.
@@ -1520,10 +1545,8 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         // Change the input to not use the permissionless game.
         input.usePermissionlessGame = false;
 
-        // Execute a delegatecall to the OPCM migration function.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-        DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
+        // Execute the migration.
+        _doMigration(input);
 
         // Grab the two OptimismPortal addresses.
         IOptimismPortal2 optimismPortal1 =
@@ -1627,13 +1650,8 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
             abi.encode(address(5678))
         );
 
-        // Execute a delegatecall to the OPCM migration function.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-        vm.expectRevert(
-            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch.selector
-        );
-        DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
+        // Execute the migration.
+        _doMigration(input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch.selector);
     }
 
     /// @notice Tests that the migration function reverts when the absolute prestates are mismatched.
@@ -1644,13 +1662,8 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         input.opChainConfigs[0].absolutePrestate = absolutePrestate1;
         input.opChainConfigs[0].absolutePrestate = absolutePrestate2;
 
-        // Execute a delegatecall to the OPCM migration function.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-        vm.expectRevert(
-            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector
-        );
-        DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
+        // Execute the migration.
+        _doMigration(input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AbsolutePrestateMismatch.selector);
     }
 
     /// @notice Tests that the migration function reverts when the SuperchainConfig addresses are mismatched.
@@ -1669,12 +1682,7 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
             abi.encode(address(5678))
         );
 
-        // Execute a delegatecall to the OPCM migration function.
-        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
-        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-        vm.expectRevert(
-            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector
-        );
-        DelegateCaller(proxyAdminOwner).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.migrate, (input)));
+        // Execute the migration.
+        _doMigration(input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_SuperchainConfigMismatch.selector);
     }
 }

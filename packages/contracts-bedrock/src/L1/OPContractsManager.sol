@@ -1330,7 +1330,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             })
         );
 
-        // Select the correct game type based on the type being used by the existing portals.
+        // Select the correct game type based on the input.
         GameType newGameType;
         if (_input.usePermissionlessGame) {
             newGameType = GameTypes.SUPER_CANNON;
