@@ -28,7 +28,7 @@ Solidity scripts are much more ergonomic than Go code for complex on-chain inter
 - Simple ABI encoding/decoding.
 - Clear separation of concerns between inter-contract calls, and the underlying RPC calls that drive them.
 
-The alternative is to encode all on-chain interactions in Go code. This is possible, but it is much more verbose and 
+The alternative is to encode all on-chain interactions in Go code. This is possible, but it is much more verbose and
 requires writing bindings between Go and the Solidity ABI. These bindings are error-prone and difficult to maintain.
 
 ## Engine Implementation
@@ -39,9 +39,9 @@ hooks that drive most of the engine's behavior. The best way to understand these
 
 ## Using the Engine
 
-OP Deployer uses the etching tooling described above to communicate between OP Deployer and the scripting engine. 
-Most Solidity scripts define an input contract, an output contract, and the script itself. The script reads data 
-from fields on the input contract, then sets fields on the output contract as it runs. OP Deployer defines the input 
+OP Deployer uses the etching tooling described above to communicate between OP Deployer and the scripting engine.
+Most Solidity scripts define an input contract, an output contract, and the script itself. The script reads data
+from fields on the input contract, then sets fields on the output contract as it runs. OP Deployer defines the input
 and output contracts as Go structs, like this:
 
 ```go
@@ -68,30 +68,30 @@ package foo_script
 func Run(host *script.Host, input FooInput) (FooOutput, error) {
 	// Create a variable to hold our output
 	var output FooOutput
-	
+
 	// Make new addresses for our input/output contracts
 	inputAddr := host.NewScriptAddress()
 	outputAddr := host.NewScriptAddress()
 
 	// Inject the input/output contracts into the EVM as precompiles
-	cleanupInput, err := script.WithPrecompileAtAddress[*FooInput](host, inputAddr, &input)
+	cleanupInput, err := script.WithPrecompileAtAddress(host, inputAddr, &input)
 	if err != nil {
 		return output, fmt.Errorf("failed to insert input precompile: %w", err)
 	}
 	defer cleanupInput()
 
-	cleanupOutput, err := script.WithPrecompileAtAddress[*FooOutput](host, outputAddr, &output,
+	cleanupOutput, err := script.WithPrecompileAtAddress(host, outputAddr, &output,
 		script.WithFieldSetter[*FooOutput])
 	if err != nil {
 		return output, fmt.Errorf("failed to insert output precompile: %w", err)
 	}
 	defer cleanupOutput()
-	
+
 	// ... do stuff with the input/output contracts ...
 }
 ```
 
-The script engine will automatically generate getters and setters for the fields on the input and output contracts. 
+The script engine will automatically generate getters and setters for the fields on the input and output contracts.
 You can use the `evm:` struct tag to customize the behavior of these getters and setters.
 
 Finally, the script itself gets etched into the EVM's memory and executed, like this:
@@ -120,6 +120,6 @@ func Run(host *script.Host, input FooInput) (FooOutput, error) {
 }
 ```
 
-You may notice that the script is loaded from a file. To run the scripting engine, contract artifacts (**not** 
-source code) must exist somewhere on disk for the scripting engine to use. For more information on that, see the 
+You may notice that the script is loaded from a file. To run the scripting engine, contract artifacts (**not**
+source code) must exist somewhere on disk for the scripting engine to use. For more information on that, see the
 chapter on artifacts locators.

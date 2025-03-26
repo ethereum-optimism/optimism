@@ -47,7 +47,7 @@ func L2Genesis(l2Host *script.Host, input *L2GenesisInput) error {
 	deployConfig := &genesis.DeployConfig{
 		L2InitializationConfig: input.L2Config,
 	}
-	cleanupDeployConfig, err := script.WithPrecompileAtAddress[*genesis.DeployConfig](l2Host, deployConfigAddr, deployConfig, script.WithFieldsOnly[*genesis.DeployConfig])
+	cleanupDeployConfig, err := script.WithPrecompileAtAddress(l2Host, deployConfigAddr, deployConfig, script.WithFieldsOnly[*genesis.DeployConfig])
 	if err != nil {
 		return fmt.Errorf("failed to insert DeployConfig precompile: %w", err)
 	}

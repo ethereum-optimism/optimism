@@ -21,13 +21,13 @@ func RunScriptSingle[I any, O any](
 	inputAddr := host.NewScriptAddress()
 	outputAddr := host.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*I](host, inputAddr, &input)
+	cleanupInput, err := script.WithPrecompileAtAddress(host, inputAddr, &input)
 	if err != nil {
 		return output, fmt.Errorf("failed to insert input precompile: %w", err)
 	}
 	defer cleanupInput()
 
-	cleanupOutput, err := script.WithPrecompileAtAddress[*O](host, outputAddr, &output,
+	cleanupOutput, err := script.WithPrecompileAtAddress(host, outputAddr, &output,
 		script.WithFieldSetter[*O])
 	if err != nil {
 		return output, fmt.Errorf("failed to insert output precompile: %w", err)
@@ -59,7 +59,7 @@ func RunScriptVoid[I any](
 ) error {
 	inputAddr := host.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*I](host, inputAddr, &input)
+	cleanupInput, err := script.WithPrecompileAtAddress(host, inputAddr, &input)
 	if err != nil {
 		return fmt.Errorf("failed to insert input precompile: %w", err)
 	}

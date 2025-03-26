@@ -35,13 +35,13 @@ func DeployAltDA(
 	inputAddr := host.NewScriptAddress()
 	outputAddr := host.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*DeployAltDAInput](host, inputAddr, &input)
+	cleanupInput, err := script.WithPrecompileAtAddress(host, inputAddr, &input)
 	if err != nil {
 		return output, fmt.Errorf("failed to insert DeployAltDAInput precompile: %w", err)
 	}
 	defer cleanupInput()
 
-	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployAltDAOutput](host, outputAddr, &output,
+	cleanupOutput, err := script.WithPrecompileAtAddress(host, outputAddr, &output,
 		script.WithFieldSetter[*DeployAltDAOutput])
 	if err != nil {
 		return output, fmt.Errorf("failed to insert DeployAltDAOutput precompile: %w", err)

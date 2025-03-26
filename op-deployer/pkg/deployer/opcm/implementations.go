@@ -68,13 +68,13 @@ func DeployImplementations(
 	inputAddr := host.NewScriptAddress()
 	outputAddr := host.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*DeployImplementationsInput](host, inputAddr, &input)
+	cleanupInput, err := script.WithPrecompileAtAddress(host, inputAddr, &input)
 	if err != nil {
 		return output, fmt.Errorf("failed to insert DeployImplementationsInput precompile: %w", err)
 	}
 	defer cleanupInput()
 
-	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployImplementationsOutput](host, outputAddr, &output,
+	cleanupOutput, err := script.WithPrecompileAtAddress(host, outputAddr, &output,
 		script.WithFieldSetter[*DeployImplementationsOutput])
 	if err != nil {
 		return output, fmt.Errorf("failed to insert DeployImplementationsOutput precompile: %w", err)

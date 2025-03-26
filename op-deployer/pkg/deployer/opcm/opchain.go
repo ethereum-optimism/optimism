@@ -113,14 +113,14 @@ func ReadImplementationAddresses(host *script.Host, input ReadImplementationAddr
 	inputAddr := host.NewScriptAddress()
 	outputAddr := host.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*ReadImplementationAddressesInput](host, inputAddr, &input)
+	cleanupInput, err := script.WithPrecompileAtAddress(host, inputAddr, &input)
 	if err != nil {
 		return rio, fmt.Errorf("failed to insert ReadImplementationAddressesInput precompile: %w", err)
 	}
 	defer cleanupInput()
 	host.Label(inputAddr, "ReadImplementationAddressesInput")
 
-	cleanupOutput, err := script.WithPrecompileAtAddress[*ReadImplementationAddressesOutput](host, outputAddr, &rio,
+	cleanupOutput, err := script.WithPrecompileAtAddress(host, outputAddr, &rio,
 		script.WithFieldSetter[*ReadImplementationAddressesOutput])
 	if err != nil {
 		return rio, fmt.Errorf("failed to insert ReadImplementationAddressesOutput precompile: %w", err)
