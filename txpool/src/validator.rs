@@ -147,11 +147,30 @@ where
 
         let outcome = self.inner.validate_one(origin, transaction);
 
+        self.apply_op_checks(outcome)
+    }
+
+    /// Validates all given transactions.
+    ///
+    /// Returns all outcomes for the given transactions in the same order.
+    ///
+    /// See also [`Self::validate_one`]
+    pub fn validate_all(
+        &self,
+        transactions: Vec<(TransactionOrigin, Tx)>,
+    ) -> Vec<TransactionValidationOutcome<Tx>> {
+        transactions.into_iter().map(|(origin, tx)| self.validate_one(origin, tx)).collect()
+    }
+
+    /// Performs the necessary opstack specific checks based on top of the regular eth outcome.
+    fn apply_op_checks(
+        &self,
+        outcome: TransactionValidationOutcome<Tx>,
+    ) -> TransactionValidationOutcome<Tx> {
         if !self.requires_l1_data_gas_fee() {
             // no need to check L1 gas fee
             return outcome
         }
-
         // ensure that the account has enough balance to cover the L1 gas cost
         if let TransactionValidationOutcome::Valid {
             balance,
@@ -198,20 +217,7 @@ where
                 propagate,
             }
         }
-
         outcome
-    }
-
-    /// Validates all given transactions.
-    ///
-    /// Returns all outcomes for the given transactions in the same order.
-    ///
-    /// See also [`Self::validate_one`]
-    pub fn validate_all(
-        &self,
-        transactions: Vec<(TransactionOrigin, Tx)>,
-    ) -> Vec<TransactionValidationOutcome<Tx>> {
-        transactions.into_iter().map(|(origin, tx)| self.validate_one(origin, tx)).collect()
     }
 }
 
