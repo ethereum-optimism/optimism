@@ -40,16 +40,13 @@ type L1OriginSelector struct {
 	mu sync.Mutex
 }
 
-func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks, recoverMode bool) *L1OriginSelector {
-	r := atomic.Bool{}
-	r.Store(recoverMode)
+func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config, l1 L1Blocks) *L1OriginSelector {
 	return &L1OriginSelector{
-		ctx:         ctx,
-		log:         log,
-		cfg:         cfg,
-		spec:        rollup.NewChainSpec(cfg),
-		l1:          l1,
-		recoverMode: &r,
+		ctx:  ctx,
+		log:  log,
+		cfg:  cfg,
+		spec: rollup.NewChainSpec(cfg),
+		l1:   l1,
 	}
 }
 

@@ -50,7 +50,7 @@ func TestOriginSelectorFetchCurrentError(t *testing.T) {
 
 	l1.ExpectL1BlockRefByHash(a.Hash, eth.L1BlockRef{}, errors.New("test error"))
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "test error")
@@ -58,7 +58,7 @@ func TestOriginSelectorFetchCurrentError(t *testing.T) {
 	// The same outcome occurs when the cached origin is different from that of the L2 head.
 	l1.ExpectL1BlockRefByHash(a.Hash, eth.L1BlockRef{}, errors.New("test error"))
 
-	s = NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s = NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = b
 
 	_, err = s.FindL1Origin(ctx, l2Head)
@@ -93,7 +93,7 @@ func TestOriginSelectorFetchNextError(t *testing.T) {
 		Time:     24,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -164,7 +164,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 			Time:     24,
 		}
 
-		s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+		s := NewL1OriginSelector(ctx, log, cfg, l1)
 
 		requireL1OriginAt := func(l2Head eth.L2BlockRef, want eth.L1BlockRef) {
 			got, err := s.FindL1Origin(ctx, l2Head)
@@ -261,7 +261,7 @@ func TestOriginSelectorHandlesReset(t *testing.T) {
 		Time:     24,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 	s.nextOrigin = b
 
@@ -318,7 +318,7 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 	// This is called as part of the background prefetch job
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -375,7 +375,7 @@ func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
 		Time:     22,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 	s.nextOrigin = b
 
@@ -423,7 +423,7 @@ func TestOriginSelectorRespectsSeqDrift(t *testing.T) {
 
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 
 	next, err := s.FindL1Origin(ctx, l2Head)
 	require.NoError(t, err)
@@ -465,7 +465,7 @@ func TestOriginSelectorRespectsConfDepth(t *testing.T) {
 	}
 
 	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
-	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -512,7 +512,7 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 
 	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
 	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
-	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "sequencer time drift")
@@ -548,7 +548,7 @@ func TestOriginSelector_FjordSeqDrift(t *testing.T) {
 		Time:     27, // next L2 block time would be past pre-Fjord seq drift
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -589,7 +589,7 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
 		Time:     27,
 	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 	s.nextOrigin = b
 
@@ -635,7 +635,7 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTimeNoCache(t *testing.T) {
 
 	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
 	next, err := s.FindL1Origin(ctx, l2Head)
@@ -698,7 +698,7 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 
 	l1Head := b
 	confDepthL1 := confdepth.NewConfDepth(2, func() eth.L1BlockRef { return l1Head }, l1)
-	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
 	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "sequencer time drift")
@@ -727,7 +727,7 @@ func TestOriginSelectorMiscEvent(t *testing.T) {
 	l1 := &testutils.MockL1Source{}
 	defer l1.AssertExpectations(t)
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1, false)
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
 
 	// This event is not handled
 	handled := s.OnEvent(rollup.L1TemporaryErrorEvent{})
