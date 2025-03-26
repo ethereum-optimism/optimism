@@ -61,11 +61,12 @@ func (setup *Setup) CommonConfig() CommonConfig {
 // Option is used to define a function that inspects and/or changes a System.
 type Option func(setup *Setup)
 
-// Append constructs a new Option that that first applies the receiver, and then the remaining options.
+// Add adds changes the option into a new Option that that first applies the receiver, and then the remaining options.
 // This is a convenience for bundling options together.
-func (fn Option) Append(other ...Option) Option {
-	return func(setup *Setup) {
-		fn(setup)
+func (fn *Option) Add(other ...Option) {
+	inner := *fn
+	*fn = func(setup *Setup) {
+		inner(setup)
 		for _, oFn := range other {
 			oFn(setup)
 		}
