@@ -22,6 +22,7 @@ use alloy_chains::Chain;
 use alloy_consensus::{proofs::storage_root_unhashed, Header};
 use alloy_eips::eip7840::BlobParams;
 use alloy_genesis::Genesis;
+use alloy_hardforks::Hardfork;
 use alloy_primitives::{B256, U256};
 pub use base::BASE_MAINNET;
 pub use base_sepolia::BASE_SEPOLIA;
@@ -30,10 +31,10 @@ pub use dev::OP_DEV;
 pub use op::OP_MAINNET;
 pub use op_sepolia::OP_SEPOLIA;
 use reth_chainspec::{
-    BaseFeeParams, BaseFeeParamsKind, ChainSpec, ChainSpecBuilder, DepositContract, EthChainSpec,
-    EthereumHardforks, ForkFilter, ForkId, Hardforks, Head,
+    BaseFeeParams, BaseFeeParamsKind, ChainSpec, ChainSpecBuilder, DepositContract,
+    DisplayHardforks, EthChainSpec, EthereumHardforks, ForkFilter, ForkId, Hardforks, Head,
 };
-use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition, Hardfork};
+use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition};
 use reth_network_peers::NodeRecord;
 use reth_optimism_forks::{OpHardfork, OpHardforks, OP_MAINNET_HARDFORKS};
 use reth_optimism_primitives::ADDRESS_L2_TO_L1_MESSAGE_PASSER;
@@ -227,7 +228,12 @@ impl EthChainSpec for OpChainSpec {
     }
 
     fn display_hardforks(&self) -> Box<dyn core::fmt::Display> {
-        Box::new(ChainSpec::display_hardforks(self))
+        // filter only op hardforks
+        let op_forks = self.inner.hardforks.forks_iter().filter(|(fork, _)| {
+            !EthereumHardfork::VARIANTS.iter().any(|h| h.name() == (*fork).name())
+        });
+
+        Box::new(DisplayHardforks::new(op_forks))
     }
 
     fn genesis_header(&self) -> &Self::Header {
@@ -1054,5 +1060,13 @@ mod tests {
         let genesis: Genesis = serde_json::from_str(geth_genesis).unwrap();
         let chainspec = OpChainSpec::from_genesis(genesis);
         assert!(chainspec.is_holocene_active_at_timestamp(1732633200));
+    }
+
+    #[test]
+    fn display_hardorks() {
+        let content = BASE_MAINNET.display_hardforks().to_string();
+        for eth_hf in EthereumHardfork::VARIANTS {
+            assert!(!content.contains(eth_hf.name()));
+        }
     }
 }
