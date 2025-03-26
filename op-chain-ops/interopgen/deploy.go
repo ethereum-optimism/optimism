@@ -35,6 +35,9 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		if !cfg.L1.ChainID.IsUint64() || cfg.L1.ChainID.Uint64() != l2Cfg.L1ChainID {
 			return nil, nil, fmt.Errorf("chain L2 %s declared different L1 chain ID %d in config than global %d", id, l2Cfg.L1ChainID, cfg.L1.ChainID)
 		}
+		if l2Cfg.L2GenesisJovianTimeOffset != nil {
+			return nil, nil, fmt.Errorf("jovian is not compatible with interop, but got fork offset %d", *l2Cfg.L2GenesisJovianTimeOffset)
+		}
 	}
 
 	deployments := &WorldDeployment{

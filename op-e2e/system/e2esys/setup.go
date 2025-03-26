@@ -110,6 +110,7 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 
 	secrets := secrets.DefaultSecrets
 	deployConfig := config.DeployConfig(sco.AllocType)
+	require.Nil(t, deployConfig.L2GenesisJovianTimeOffset, "jovian not supported yet")
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
 	e2eutils.ApplyDeployConfigForks(deployConfig)
 	require.NoError(t, deployConfig.Check(testlog.Logger(t, log.LevelInfo)),
@@ -583,6 +584,9 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
 		c = sys.TimeTravelClock
 	}
+
+	// sanity-check the deploy config
+	require.Nil(t, cfg.DeployConfig.L2GenesisJovianTimeOffset, "Jovian is not supported in op-e2e tests yet")
 
 	if err := cfg.DeployConfig.Check(testlog.Logger(t, log.LevelInfo)); err != nil {
 		return nil, err
