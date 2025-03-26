@@ -3,7 +3,6 @@ package faultproofs
 import (
 	"context"
 	"testing"
-	"time"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -15,6 +14,6 @@ func TestCreateSuperCannonGame(t *testing.T) {
 	ctx := context.Background()
 	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
 	sys.L2IDs()
-	game := disputeGameFactory.StartSuperCannonGame(ctx, uint64(time.Now().Unix())+3, common.Hash{0x01})
+	game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 	game.LogGameData(ctx)
 }
