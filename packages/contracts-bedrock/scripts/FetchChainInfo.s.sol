@@ -338,7 +338,13 @@ contract FetchChainInfo is Script {
                 // Permissionless fault proofs enabled
                 _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
                 _fo.set(_fo.permissionless.selector, true);
-                _fo.set(_fo.respectedGameType.selector, IFetcher(optimismPortalProxy).respectedGameType());
+
+                try IFetcher(optimismPortalProxy).respectedGameType() returns (GameType gameType_) {
+                    _fo.set(_fo.respectedGameType.selector, gameType_);
+                } catch {
+                    // In case OptimismPortalProxy does not have respectedGameType() function
+                    _fo.set(_fo.respectedGameType.selector, GameTypes.CANNON);
+                }
 
                 address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);
                 _fo.set(_fo.delayedWETHPermissionlessGameProxy.selector, delayedWETHPermissionlessGameProxy);
