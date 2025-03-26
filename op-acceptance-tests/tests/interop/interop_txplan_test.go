@@ -478,7 +478,7 @@ func randomDirectedGraph(
 
 			ch := make(chan *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput])
 
-			// publisher initiates txCnt transations that includes multiple random messages
+			// publisher initiates txCnt transactions that includes multiple random messages
 			publisherRng := rand.New(rand.NewSource(localRng.Int63()))
 			go func(ch chan<- *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], rng *rand.Rand) {
 				defer wg.Done()
