@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/require"
 )
 
 func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs, l1ID system2.L1NetworkID) system2.Option {
@@ -48,7 +47,7 @@ func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs
 			ids := nodeIDs[idx]
 
 			elRPC, err := findProtocolService(setup, ELServiceName, RPCProtocol, node.Services)
-			require.NoError(setup.T, err)
+			setup.Require.NoError(err)
 			elClient := rpcClient(setup, elRPC)
 			l2.AddL2ELNode(system2.NewL2ELNode(system2.L2ELNodeConfig{
 				ELNodeConfig: system2.ELNodeConfig{
@@ -60,7 +59,7 @@ func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs
 			}))
 
 			clRPC, err := findProtocolService(setup, CLServiceName, RPCProtocol, node.Services)
-			require.NoError(setup.T, err)
+			setup.Require.NoError(err)
 			clClient := rpcClient(setup, clRPC)
 			l2.AddL2CLNode(system2.NewL2CLNode(system2.L2CLNodeConfig{
 				ID:           ids.CL,
@@ -71,7 +70,7 @@ func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs
 
 		for name, wallet := range net.Wallets {
 			priv, err := crypto.HexToECDSA(wallet.PrivateKey)
-			require.NoError(setup.T, err)
+			setup.Require.NoError(err)
 			l2.AddUser(system2.NewUser(system2.UserConfig{
 				CommonConfig: commonConfig,
 				ID:           system2.UserID{Key: name, ChainID: l2ID},
@@ -92,7 +91,7 @@ func WithBatcher(idx int, l2ID system2.L2NetworkID, id system2.L2BatcherID) syst
 		l2 := setup.System.L2Network(l2ID)
 
 		batcherRPC, err := findProtocolService(setup, "batcher", RPCProtocol, net.Services)
-		require.NoError(setup.T, err)
+		setup.Require.NoError(err)
 		l2.(system2.ExtensibleL2Network).AddL2Batcher(system2.NewL2Batcher(system2.L2BatcherConfig{
 			CommonConfig: commonConfig,
 			ID:           id,
@@ -110,7 +109,7 @@ func WithProposer(idx int, l2ID system2.L2NetworkID, id system2.L2ProposerID) sy
 		l2 := setup.System.L2Network(l2ID)
 
 		proposerRPC, err := findProtocolService(setup, "proposer", RPCProtocol, net.Services)
-		require.NoError(setup.T, err)
+		setup.Require.NoError(err)
 		l2.(system2.ExtensibleL2Network).AddL2Proposer(system2.NewL2Proposer(system2.L2ProposerConfig{
 			CommonConfig: commonConfig,
 			ID:           id,
@@ -128,7 +127,7 @@ func WithChallenger(idx int, l2ID system2.L2NetworkID, id system2.L2ChallengerID
 		l2 := setup.System.L2Network(l2ID)
 
 		_, err := findProtocolService(setup, "challenger", MetricsProtocol, net.Services)
-		require.NoError(setup.T, err)
+		setup.Require.NoError(err)
 		l2.(system2.ExtensibleL2Network).AddL2Challenger(system2.NewL2Challenger(system2.L2ChallengerConfig{
 			CommonConfig: commonConfig,
 			ID:           id,
@@ -137,9 +136,9 @@ func WithChallenger(idx int, l2ID system2.L2NetworkID, id system2.L2ChallengerID
 }
 
 func defineSystemKeys(setup *system2.Setup) system2.L2Keys {
-	// TODO: get actual mnemonic from Kurtosis
+	// TODO(#15040): get actual mnemonic from Kurtosis
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(setup.T, err)
+	setup.Require.NoError(err)
 
 	return &keyring{
 		keys:  keys,

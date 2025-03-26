@@ -5,7 +5,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/require"
 )
 
 func WithL1(id system2.L1NetworkID, nodes []DefaultSystemExtL1NodeIDs) system2.Option {
@@ -29,7 +28,7 @@ func WithL1(id system2.L1NetworkID, nodes []DefaultSystemExtL1NodeIDs) system2.O
 			ids := nodes[idx]
 
 			elRPC, err := findProtocolService(setup, ELServiceName, RPCProtocol, node.Services)
-			require.NoError(setup.T, err)
+			setup.Require.NoError(err)
 			elClient := rpcClient(setup, elRPC)
 			l1.AddL1ELNode(system2.NewL1ELNode(system2.L1ELNodeConfig{
 				ELNodeConfig: system2.ELNodeConfig{
@@ -41,7 +40,7 @@ func WithL1(id system2.L1NetworkID, nodes []DefaultSystemExtL1NodeIDs) system2.O
 			}))
 
 			clHTTP, err := findProtocolService(setup, CLServiceName, HTTPProtocol, node.Services)
-			require.NoError(setup.T, err)
+			setup.Require.NoError(err)
 			l1.AddL1CLNode(system2.NewL1CLNode(system2.L1CLNodeConfig{
 				ID:           ids.CL,
 				CommonConfig: commonConfig,
@@ -51,7 +50,7 @@ func WithL1(id system2.L1NetworkID, nodes []DefaultSystemExtL1NodeIDs) system2.O
 
 		for name, wallet := range env.L1.Wallets {
 			priv, err := crypto.HexToECDSA(wallet.PrivateKey)
-			require.NoError(setup.T, err)
+			setup.Require.NoError(err)
 			l1.AddUser(system2.NewUser(system2.UserConfig{
 				CommonConfig: commonConfig,
 				ID:           system2.UserID{Key: name, ChainID: l1ID},

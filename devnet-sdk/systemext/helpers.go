@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system2"
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -34,7 +33,7 @@ func rpcClient(setup *system2.Setup, endpoint string) client.RPC {
 		opts = append(opts, client.WithLazyDial())
 	}
 	cl, err := client.NewRPC(setup.Ctx, setup.Log, endpoint, opts...)
-	require.NoError(setup.T, err)
+	setup.Require.NoError(err)
 	return cl
 }
 

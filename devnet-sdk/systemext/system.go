@@ -55,18 +55,18 @@ func DefaultSystemExt(env *descriptors.DevnetEnvironment, opts ...OrchestratorOp
 		}
 	})
 
-	opt.Append(WithL1(ids.L1, ids.Nodes))
-	opt.Append(WithSuperchain(ids.Superchain))
-	opt.Append(WithSupervisor(ids.Supervisor))
-	opt.Append(WithCluster(ids.Cluster))
+	opt.Add(WithL1(ids.L1, ids.Nodes))
+	opt.Add(WithSuperchain(ids.Superchain))
+	opt.Add(WithSupervisor(ids.Supervisor))
+	opt.Add(WithCluster(ids.Cluster))
 
 	for idx := range env.L2 {
 		l2IDs := ids.L2s[idx]
-		opt.Append(WithL2(idx, l2IDs.L2, l2IDs.Nodes, ids.L1))
+		opt.Add(WithL2(idx, l2IDs.L2, l2IDs.Nodes, ids.L1))
 
-		opt.Append(WithBatcher(idx, l2IDs.L2, l2IDs.L2Batcher))
-		opt.Append(WithProposer(idx, l2IDs.L2, l2IDs.L2Proposer))
-		opt.Append(WithChallenger(idx, l2IDs.L2, l2IDs.L2Challenger))
+		opt.Add(WithBatcher(idx, l2IDs.L2, l2IDs.L2Batcher))
+		opt.Add(WithProposer(idx, l2IDs.L2, l2IDs.L2Proposer))
+		opt.Add(WithChallenger(idx, l2IDs.L2, l2IDs.L2Challenger))
 	}
 
 	return ids, opt

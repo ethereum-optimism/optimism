@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system2"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -21,9 +20,9 @@ type l1AddressBook struct {
 
 func newL1AddressBook(setup *system2.Setup, addresses descriptors.AddressMap) *l1AddressBook {
 	protocolVersions, ok := addresses[ProtocolVersionsAddressName]
-	require.True(setup.T, ok)
+	setup.Require.True(ok)
 	superchainConfig, ok := addresses[SuperchainConfigAddressName]
-	require.True(setup.T, ok)
+	setup.Require.True(ok)
 
 	book := &l1AddressBook{
 		protocolVersions: protocolVersions,
@@ -49,7 +48,7 @@ type l2AddressBook struct {
 
 func newL2AddressBook(setup *system2.Setup, addresses descriptors.AddressMap) *l2AddressBook {
 	systemConfig, ok := addresses[SystemConfigAddressName]
-	require.True(setup.T, ok)
+	setup.Require.True(ok)
 
 	return &l2AddressBook{
 		systemConfig: systemConfig,
