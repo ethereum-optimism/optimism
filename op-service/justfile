@@ -16,6 +16,7 @@ fuzz:
         "FuzzExecutionPayloadMarshalUnmarshalV1" \
         "FuzzExecutionPayloadMarshalUnmarshalV2" \
         "FuzzExecutionPayloadMarshalUnmarshalV3" \
+        "FuzzExecutionPayloadMarshalUnmarshalV4" \
         "FuzzOBP01" \
         "FuzzEncodeDecodeBlob" \
         "FuzzDetectNonBijectivity" \
