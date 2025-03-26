@@ -8,8 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -39,15 +37,7 @@ func NewWalletV2FromWalletAndChain(ctx context.Context, wallet Wallet, chain Cha
 	}, nil
 }
 
-func NewWalletV2(ctx context.Context, rpcURL, privHex string, clCfg *sources.EthClientConfig, log log.Logger) (*walletV2, error) {
-	privRaw, err := hexutil.Decode(privHex)
-	if err != nil {
-		return nil, err
-	}
-	priv, err := crypto.ToECDSA(privRaw)
-	if err != nil {
-		return nil, err
-	}
+func NewWalletV2(ctx context.Context, rpcURL string, priv *ecdsa.PrivateKey, clCfg *sources.EthClientConfig, log log.Logger) (*walletV2, error) {
 	if clCfg == nil {
 		clCfg = &sources.EthClientConfig{
 			MaxRequestsPerBatch:   10,
