@@ -35,7 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/superutil"
 )
 
 var ErrAlreadyClosed = errors.New("node is already closed")
@@ -437,14 +436,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	}
 
 	if cfg.Rollup.ChainOpConfig == nil {
-		if !cfg.Rollup.L2ChainID.IsUint64() {
-			return fmt.Errorf("cfg.Rollup.ChainOpConfig is nil and cfg.Rollup.L2ChainID is not set to a valid chain ID, preventing lookup in superchain registry")
-		}
-		chainCfg, err := superutil.LoadOPStackChainConfigFromChainID(cfg.Rollup.L2ChainID.Uint64())
-		if err != nil {
-			return fmt.Errorf(`cfg.Rollup.ChainOpConfig is nil and could not load from the superchain registry. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w`, err)
-		}
-		cfg.Rollup.ChainOpConfig = chainCfg.Optimism
+		return fmt.Errorf(`cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w`, err)
 	}
 
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
