@@ -3,10 +3,12 @@ package env
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/url"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type DevnetEnv struct {
@@ -53,6 +55,11 @@ func LoadDevnetFromURL(devnetURL string) (*DevnetEnv, error) {
 		return nil, fmt.Errorf("error parsing JSON: %w", err)
 	}
 
+	config, err = fixupDevnetConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("error fixing up devnet config: %w", err)
+	}
+
 	return &DevnetEnv{
 		Config: config,
 		Name:   name,
@@ -82,4 +89,19 @@ func (d *DevnetEnv) GetChain(chainName string) (*ChainConfig, error) {
 		devnetURL: d.URL,
 		name:      chainName,
 	}, nil
+}
+
+func fixupDevnetConfig(config descriptors.DevnetEnvironment) (descriptors.DevnetEnvironment, error) {
+	// we should really get this from the kurtosis output, but the data doesn't exist yet, so craft a minimal one.
+	if config.L1.Config == nil {
+		l1ID := new(big.Int)
+		l1ID, ok := l1ID.SetString(config.L1.ID, 10)
+		if !ok {
+			return config, fmt.Errorf("invalid L1 ID: %s", config.L1.ID)
+		}
+		config.L1.Config = &params.ChainConfig{
+			ChainID: l1ID,
+		}
+	}
+	return config, nil
 }

@@ -16,6 +16,7 @@ func TestLoadDevnetEnv(t *testing.T) {
 	content := `{
 		"l1": {
 			"name": "l1",
+			"id": "1",
 			"nodes": [{
 				"services": {
 					"el": {
@@ -35,6 +36,7 @@ func TestLoadDevnetEnv(t *testing.T) {
 		},
 		"l2": [{
 			"name": "op",
+			"id": "2",
 			"nodes": [{
 				"services": {
 					"el": {
