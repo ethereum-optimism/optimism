@@ -29,7 +29,7 @@ type L1OriginSelector struct {
 	cfg  *rollup.Config
 	spec *rollup.ChainSpec
 
-	recoverMode *atomic.Bool
+	recoverMode atomic.Bool
 
 	l1 L1Blocks
 
