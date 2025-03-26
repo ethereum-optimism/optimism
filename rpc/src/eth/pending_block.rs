@@ -4,23 +4,23 @@ use crate::OpEthApi;
 use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::B256;
-use reth_chainspec::EthChainSpec;
+use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::ConfigureEvm;
 use reth_node_api::NodePrimitives;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{OpBlock, OpReceipt, OpTransactionSigned};
 use reth_primitives_traits::{RecoveredBlock, SealedHeader};
-use reth_provider::{
-    BlockReader, BlockReaderIdExt, ChainSpecProvider, ProviderBlock, ProviderHeader,
-    ProviderReceipt, ProviderTx, ReceiptProvider, StateProviderFactory,
-};
 use reth_rpc_eth_api::{
     helpers::{LoadPendingBlock, SpawnBlocking},
     types::RpcTypes,
     EthApiTypes, FromEthApiError, FromEvmError, RpcNodeCore,
 };
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
+use reth_storage_api::{
+    BlockReader, BlockReaderIdExt, ProviderBlock, ProviderHeader, ProviderReceipt, ProviderTx,
+    ReceiptProvider, StateProviderFactory,
+};
 use reth_transaction_pool::{PoolTransaction, TransactionPool};
 
 impl<N> LoadPendingBlock for OpEthApi<N>

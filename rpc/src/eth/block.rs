@@ -8,12 +8,12 @@ use reth_node_api::BlockBody;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 use reth_primitives_traits::SignedTransaction;
-use reth_provider::{BlockReader, HeaderProvider};
 use reth_rpc_eth_api::{
     helpers::{EthBlocks, LoadBlock, LoadPendingBlock, LoadReceipt, SpawnBlocking},
     types::RpcTypes,
     RpcReceipt,
 };
+use reth_storage_api::{BlockReader, HeaderProvider};
 
 use crate::{eth::OpNodeCore, OpEthApi, OpEthApiError, OpReceiptBuilder};
 

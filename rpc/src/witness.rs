@@ -12,11 +12,12 @@ use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_payload_builder::{OpPayloadBuilder, OpPayloadPrimitives};
 use reth_optimism_txpool::OpPooledTx;
 use reth_primitives_traits::SealedHeader;
-use reth_provider::{
-    BlockReaderIdExt, NodePrimitivesProvider, ProviderError, ProviderResult, StateProviderFactory,
-};
 pub use reth_rpc_api::DebugExecutionWitnessApiServer;
 use reth_rpc_server_types::{result::internal_rpc_err, ToRpcResult};
+use reth_storage_api::{
+    errors::{ProviderError, ProviderResult},
+    BlockReaderIdExt, NodePrimitivesProvider, StateProviderFactory,
+};
 use reth_tasks::TaskSpawner;
 use reth_transaction_pool::TransactionPool;
 use std::{fmt::Debug, sync::Arc};
