@@ -81,7 +81,10 @@ func (s *Driver) Start() error {
 	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled,
 		"sequencerStopped", s.driverConfig.SequencerStopped, "recoverMode", s.driverConfig.RecoverMode)
 	if s.driverConfig.SequencerEnabled {
-		s.sequencer.SetRecoverMode(s.driverConfig.RecoverMode)
+		if s.driverConfig.RecoverMode {
+			log.Warn("sequencer is in recover mode")
+			s.sequencer.SetRecoverMode(true)
+		}
 		if err := s.sequencer.SetMaxSafeLag(s.driverCtx, s.driverConfig.SequencerMaxSafeLag); err != nil {
 			return fmt.Errorf("failed to set sequencer max safe lag: %w", err)
 		}
