@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	gosync "sync"
 	"sync/atomic"
 	"time"
@@ -18,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	gethevent "github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -439,9 +437,12 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	}
 
 	if cfg.Rollup.ChainOpConfig == nil {
-		chainCfg, err := loadOrFetchChainConfig(ctx, cfg.Rollup.L2ChainID, rpcClient)
+		if !cfg.Rollup.L2ChainID.IsUint64() {
+			return fmt.Errorf("cfg.Rollup.ChainOpConfig is nil and cfg.Rollup.L2ChainID is not set to a valid chain ID, preventing lookup in superchain registry")
+		}
+		chainCfg, err := superutil.LoadOPStackChainConfigFromChainID(cfg.Rollup.L2ChainID.Uint64())
 		if err != nil {
-			return fmt.Errorf("failed to load or fetch chain config for id %v: %w", cfg.Rollup.L2ChainID, err)
+			return fmt.Errorf(`cfg.Rollup.ChainOpConfig is nil and could not load from the superchain registry. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w`, err)
 		}
 		cfg.Rollup.ChainOpConfig = chainCfg.Optimism
 	}
@@ -449,22 +450,6 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
 		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, managedMode)
 	return nil
-}
-
-func loadOrFetchChainConfig(ctx context.Context, id *big.Int, cl client.RPC) (*params.ChainConfig, error) {
-	if id.IsUint64() {
-		cfg, err := superutil.LoadOPStackChainConfigFromChainID(id.Uint64())
-		if err == nil {
-			return cfg, nil
-		}
-		// ignore error, try to fetch chain config in full
-	}
-	// if not already recognized, then fetch the chain config manually
-	var config params.ChainConfig
-	if err := cl.CallContext(ctx, &config, "debug_chainConfig"); err != nil {
-		return nil, fmt.Errorf("fetching: %w", err)
-	}
-	return &config, nil
 }
 
 func (n *OpNode) initRPCServer(cfg *Config) error {
