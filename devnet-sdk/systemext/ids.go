@@ -44,7 +44,7 @@ func collectSystemExtIDs(env *descriptors.DevnetEnvironment) DefaultSystemExtIDs
 	ids := DefaultSystemExtIDs{
 		L1: system2.L1NetworkID{
 			Key:     env.L1.Name,
-			ChainID: eth.ChainIDFromBig(env.L1.Config.ChainID),
+			ChainID: l1ID,
 		},
 		Nodes:      l1Nodes,
 		Superchain: system2.SuperchainID(env.Name),

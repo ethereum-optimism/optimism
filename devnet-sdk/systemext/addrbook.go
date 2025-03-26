@@ -46,8 +46,8 @@ type l2AddressBook struct {
 	systemConfig common.Address
 }
 
-func newL2AddressBook(setup *system2.Setup, addresses descriptors.AddressMap) *l2AddressBook {
-	systemConfig, ok := addresses[SystemConfigAddressName]
+func newL2AddressBook(setup *system2.Setup, l1Addresses descriptors.AddressMap) *l2AddressBook {
+	systemConfig, ok := l1Addresses[SystemConfigAddressName]
 	setup.Require.True(ok)
 
 	return &l2AddressBook{

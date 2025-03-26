@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system2"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func WithL1(id system2.L1NetworkID, nodes []DefaultSystemExtL1NodeIDs) system2.Option {
@@ -49,12 +48,13 @@ func WithL1(id system2.L1NetworkID, nodes []DefaultSystemExtL1NodeIDs) system2.O
 		}
 
 		for name, wallet := range env.L1.Wallets {
-			priv, err := crypto.HexToECDSA(wallet.PrivateKey)
+			priv, err := decodePrivateKey(wallet.PrivateKey)
 			setup.Require.NoError(err)
 			l1.AddUser(system2.NewUser(system2.UserConfig{
 				CommonConfig: commonConfig,
 				ID:           system2.UserID{Key: name, ChainID: l1ID},
 				Priv:         priv,
+				EL:           l1.L1ELNode(l1.L1ELNodes()[0]),
 			}))
 		}
 

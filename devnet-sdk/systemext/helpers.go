@@ -1,11 +1,14 @@
 package systemext
 
 import (
+	"crypto/ecdsa"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system2"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -37,7 +40,7 @@ func rpcClient(setup *system2.Setup, endpoint string) client.RPC {
 	return cl
 }
 
-func findProtocolService(setup *system2.Setup, svc string, protocol string, services map[string]descriptors.Service) (string, error) {
+func findProtocolService(setup *system2.Setup, svc string, protocol string, services descriptors.ServiceMap) (string, error) {
 	orchestrator := getOrchestrator(setup)
 
 	for name, service := range services {
@@ -54,4 +57,9 @@ func findProtocolService(setup *system2.Setup, svc string, protocol string, serv
 		}
 	}
 	return "", fmt.Errorf("%s not found", svc)
+}
+
+func decodePrivateKey(key string) (*ecdsa.PrivateKey, error) {
+	b := common.FromHex(key)
+	return crypto.ToECDSA(b)
 }

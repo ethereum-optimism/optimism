@@ -46,7 +46,13 @@ func DefaultSystemExt(env *descriptors.DevnetEnvironment, opts ...OrchestratorOp
 	opt := system2.Option(func(setup *system2.Setup) {
 		setup.Log.Info("Mapping descriptor")
 
-		orchestrator := setup.Orchestrator.(*Orchestrator)
+		var orchestrator *Orchestrator
+		if setup.Orchestrator == nil {
+			orchestrator = &Orchestrator{}
+			setup.Orchestrator = orchestrator
+		} else {
+			orchestrator = setup.Orchestrator.(*Orchestrator)
+		}
 		setup.Require.Nil(orchestrator.env, "orchestrator env should be nil")
 		setup.Require.NotNil(env, "env should not be nil")
 		orchestrator.env = env

@@ -29,13 +29,13 @@ func (o *Orchestrator) isInterop() bool {
 	return isInterop(o.env) && len(o.env.L2) > 0
 }
 
-func (o *Orchestrator) WithPrivatePorts() OrchestratorOption {
+func WithPrivatePorts() OrchestratorOption {
 	return func(orchestrator *Orchestrator) {
 		orchestrator.usePrivatePorts = true
 	}
 }
 
-func (o *Orchestrator) WithEagerRPCClients() OrchestratorOption {
+func WithEagerRPCClients() OrchestratorOption {
 	return func(orchestrator *Orchestrator) {
 		orchestrator.useEagerRPCClients = true
 	}

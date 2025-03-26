@@ -5,7 +5,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs, l1ID system2.L1NetworkID) system2.Option {
@@ -32,7 +31,7 @@ func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs
 				L1ChainID: l1ChainID.ToBig(),
 				L2ChainID: l2ID.ToBig(),
 			},
-			Deployment: newL2AddressBook(setup, net.Addresses),
+			Deployment: newL2AddressBook(setup, net.L1Addresses),
 			Keys:       defineSystemKeys(setup),
 			Superchain: setup.System.Superchain(system2.SuperchainID(env.Name)),
 			L1:         l1,
@@ -58,7 +57,7 @@ func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs
 				ID: ids.EL,
 			}))
 
-			clRPC, err := findProtocolService(setup, CLServiceName, RPCProtocol, node.Services)
+			clRPC, err := findProtocolService(setup, CLServiceName, HTTPProtocol, node.Services)
 			setup.Require.NoError(err)
 			clClient := rpcClient(setup, clRPC)
 			l2.AddL2CLNode(system2.NewL2CLNode(system2.L2CLNodeConfig{
@@ -69,12 +68,13 @@ func WithL2(idx int, id system2.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs
 		}
 
 		for name, wallet := range net.Wallets {
-			priv, err := crypto.HexToECDSA(wallet.PrivateKey)
+			priv, err := decodePrivateKey(wallet.PrivateKey)
 			setup.Require.NoError(err)
 			l2.AddUser(system2.NewUser(system2.UserConfig{
 				CommonConfig: commonConfig,
 				ID:           system2.UserID{Key: name, ChainID: l2ID},
 				Priv:         priv,
+				EL:           l2.L2ELNode(l2.L2ELNodes()[0]),
 			}))
 		}
 
@@ -90,7 +90,7 @@ func WithBatcher(idx int, l2ID system2.L2NetworkID, id system2.L2BatcherID) syst
 
 		l2 := setup.System.L2Network(l2ID)
 
-		batcherRPC, err := findProtocolService(setup, "batcher", RPCProtocol, net.Services)
+		batcherRPC, err := findProtocolService(setup, "batcher", HTTPProtocol, net.Services)
 		setup.Require.NoError(err)
 		l2.(system2.ExtensibleL2Network).AddL2Batcher(system2.NewL2Batcher(system2.L2BatcherConfig{
 			CommonConfig: commonConfig,
@@ -108,7 +108,7 @@ func WithProposer(idx int, l2ID system2.L2NetworkID, id system2.L2ProposerID) sy
 
 		l2 := setup.System.L2Network(l2ID)
 
-		proposerRPC, err := findProtocolService(setup, "proposer", RPCProtocol, net.Services)
+		proposerRPC, err := findProtocolService(setup, "proposer", HTTPProtocol, net.Services)
 		setup.Require.NoError(err)
 		l2.(system2.ExtensibleL2Network).AddL2Proposer(system2.NewL2Proposer(system2.L2ProposerConfig{
 			CommonConfig: commonConfig,
