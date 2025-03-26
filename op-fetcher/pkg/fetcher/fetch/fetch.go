@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/script"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
@@ -21,7 +22,15 @@ var forgeArtifacts embed.FS
 
 func FetchChainInfoCLI() func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
-		fetcher, err := NewFetcherFromCli(cliCtx)
+		outputFile := cliCtx.String(OutputFileFlag.Name)
+		systemConfigProxy := common.HexToAddress(cliCtx.String(SystemConfigProxyFlag.Name))
+		l1StandardBridge := common.HexToAddress(cliCtx.String(L1StandardBridgeProxyFlag.Name))
+		l1RPCURL := cliCtx.String(L1RPCURLFlag.Name)
+
+		logCfg := oplog.ReadCLIConfig(cliCtx)
+		lgr := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
+
+		fetcher, err := NewFetcher(lgr, l1RPCURL, systemConfigProxy, l1StandardBridge)
 		if err != nil {
 			return err
 		}
@@ -32,17 +41,17 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 		}
 
 		fileData := script.CreateChainConfig(result)
-		json, err := json.MarshalIndent(fileData, "", "  ")
+		jsonData, err := json.MarshalIndent(fileData, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal output: %w", err)
 		}
 
-		err = os.WriteFile(fetcher.OutputFile, json, 0644)
+		err = os.WriteFile(outputFile, jsonData, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to write output to file: %w", err)
 		}
 
-		fetcher.lgr.Info("completed fetching chain info", "outputFile", fetcher.OutputFile)
+		fetcher.lgr.Info("completed fetching chain info", "outputFile", outputFile)
 		return nil
 	}
 }
