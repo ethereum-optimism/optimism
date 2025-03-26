@@ -9,12 +9,15 @@ use alloy_rpc_types_engine::{
 use derive_more::Constructor;
 use jsonrpsee::proc_macros::rpc;
 use jsonrpsee_core::{server::RpcModule, RpcResult};
-use op_alloy_rpc_types_engine::{OpExecutionData, OpExecutionPayloadV4};
+use op_alloy_rpc_types_engine::{
+    OpExecutionData, OpExecutionPayloadV4, ProtocolVersion, SuperchainSignal,
+};
 use reth_chainspec::EthereumHardforks;
 use reth_node_api::{EngineTypes, EngineValidator};
 use reth_provider::{BlockReader, HeaderProvider, StateProviderFactory};
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
+use reth_rpc_server_types::result::internal_rpc_err;
 use reth_transaction_pool::TransactionPool;
 use tracing::trace;
 
@@ -34,6 +37,7 @@ pub const OP_ENGINE_CAPABILITIES: &[&str] = &[
     "engine_newPayloadV4",
     "engine_getPayloadBodiesByHashV1",
     "engine_getPayloadBodiesByRangeV1",
+    "engine_signalSuperchainV1",
 ];
 
 /// Extension trait that gives access to Optimism engine API RPC methods.
@@ -194,6 +198,12 @@ pub trait OpEngineApi<Engine: EngineTypes> {
         count: U64,
     ) -> RpcResult<ExecutionPayloadBodiesV1>;
 
+    /// Signals superchain information to the Engine.
+    /// Returns the latest supported OP-Stack protocol version of the execution engine.
+    /// See also <https://specs.optimism.io/protocol/exec-engine.html#engine_signalsuperchainv1>
+    #[method(name = "engine_signalSuperchainV1")]
+    async fn signal_superchain_v1(&self, _signal: SuperchainSignal) -> RpcResult<ProtocolVersion>;
+
     /// Returns the execution client version information.
     ///
     /// Note:
@@ -323,6 +333,11 @@ where
     ) -> RpcResult<ExecutionPayloadBodiesV1> {
         trace!(target: "rpc::engine", "Serving engine_getPayloadBodiesByRangeV1");
         Ok(self.inner.get_payload_bodies_by_range_v1_metered(start.to(), count.to()).await?)
+    }
+
+    async fn signal_superchain_v1(&self, _signal: SuperchainSignal) -> RpcResult<ProtocolVersion> {
+        trace!(target: "rpc::engine", "Serving signal_superchain_v1");
+        Err(internal_rpc_err("unimplemented"))
     }
 
     async fn get_client_version_v1(
