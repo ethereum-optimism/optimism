@@ -578,10 +578,47 @@ mod tests {
                     Head { number: 0, ..Default::default() },
                     ForkId { hash: ForkHash([0xca, 0xf5, 0x17, 0xed]), next: 3950000 },
                 ),
-                // TODO: complete these, see https://github.com/paradigmxyz/reth/issues/8012
+                // London
+                (
+                    Head { number: 105235063, ..Default::default() },
+                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
+                ),
+                // Bedrock
+                (
+                    Head { number: 105235063, ..Default::default() },
+                    ForkId { hash: ForkHash([0xe3, 0x39, 0x8d, 0x7c]), next: 1704992401 },
+                ),
+                // Shanghai
+                (
+                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
+                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
+                ),
+                // OP activation timestamps
+                // https://specs.optimism.io/protocol/superchain-upgrades.html#activation-timestamps
+                // Canyon
+                (
+                    Head { number: 105235063, timestamp: 1704992401, ..Default::default() },
+                    ForkId { hash: ForkHash([0xbd, 0xd4, 0xfd, 0xb2]), next: 1710374401 },
+                ),
+                // Ecotone
                 (
                     Head { number: 105235063, timestamp: 1710374401, ..Default::default() },
                     ForkId { hash: ForkHash([0x19, 0xda, 0x4c, 0x52]), next: 1720627201 },
+                ),
+                // Fjord
+                (
+                    Head { number: 105235063, timestamp: 1720627201, ..Default::default() },
+                    ForkId { hash: ForkHash([0x49, 0xfb, 0xfe, 0x1e]), next: 1726070401 },
+                ),
+                // Granite
+                (
+                    Head { number: 105235063, timestamp: 1726070401, ..Default::default() },
+                    ForkId { hash: ForkHash([0x44, 0x70, 0x4c, 0xde]), next: 1736445601 },
+                ),
+                // Holocene
+                (
+                    Head { number: 105235063, timestamp: 1736445601, ..Default::default() },
+                    ForkId { hash: ForkHash([0x2b, 0xd9, 0x3d, 0xc8]), next: 0 },
                 ),
             ],
         );
