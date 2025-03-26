@@ -206,7 +206,9 @@ func (db *DB) NextDerived(derived eth.BlockID, revision types.Revision) (pair ty
 	return next.sealOrErr()
 }
 
-// TODO Candidate
+// Candidate returns the candidate block for cross-safe promotion after the given
+// (maxSource, afterDerived) pair (the cross-safe block).
+// It may return types.ErrOutOfScope with a pair value, to request the source to increase.
 func (db *DB) Candidate(maxSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
@@ -217,14 +219,24 @@ func (db *DB) Candidate(maxSource eth.BlockID, afterDerived eth.BlockID, revisio
 	if lastOffered.source.ID() != maxSource {
 		return types.DerivedBlockRefPair{}, fmt.Errorf("expected source %s, but got %s: %w", maxSource, afterDerived, types.ErrConflict)
 	}
+	maxSourceSeal := lastOffered.source
+
+	// attach the parent (or zero-block) to the cross-safe source
+	var sourceRef eth.BlockRef
 	parentSource, err := db.PreviousSource(maxSource)
-	if err != nil {
-		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to get parent source of %s: %w", maxSource, err)
+	if errors.Is(err, types.ErrPreviousToFirst) {
+		// if we are working with the first item in the database, PreviousSource will return ErrPreviousToFirst
+		// in which case we can attach a zero parent to the block, as the parent block is unknown
+		// ForceWithParent will not panic if the parent is not as expected (like a zero-block)
+		sourceRef = maxSourceSeal.ForceWithParent(eth.BlockID{})
+	} else if err != nil {
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to find parent-block of derived-from %s: %w", maxSourceSeal, err)
+	} else {
+		// if we have a parent, we can attach it to the cross-safe source
+		// MustWithParent will panic if the parent is not the previous block
+		sourceRef = maxSourceSeal.MustWithParent(parentSource.ID())
 	}
-	sourceRef, err := lastOffered.source.WithParent(parentSource.ID())
-	if err != nil {
-		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to combine %s with parent %s: %w", lastOffered.source, parentSource, err)
-	}
+
 	if lastOffered.derived.Number > afterDerived.Number {
 		// keep source, just find the next canonical entry.
 		// That entry can be attached to an older source however.
