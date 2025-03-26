@@ -1,4 +1,7 @@
-use crate::conditional::MaybeConditionalTransaction;
+use crate::{
+    conditional::MaybeConditionalTransaction,
+    interop::{MaybeInteropTransaction, TransactionInterop},
+};
 use alloy_consensus::{
     transaction::Recovered, BlobTransactionSidecar, BlobTransactionValidationError, Typed2718,
 };
@@ -7,6 +10,7 @@ use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use c_kzg::KzgSettings;
 use core::fmt::Debug;
+use parking_lot::RwLock;
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_primitives_traits::{InMemorySize, SignedTransaction};
 use reth_transaction_pool::{
@@ -34,6 +38,9 @@ pub struct OpPooledTransaction<
     /// Optional conditional attached to this transaction.
     conditional: Option<Box<TransactionConditional>>,
 
+    /// Optional interop validation attached to this transaction.
+    interop: Arc<RwLock<Option<TransactionInterop>>>,
+
     /// Cached EIP-2718 encoded bytes of the transaction, lazily computed.
     encoded_2718: OnceLock<Bytes>,
 }
@@ -45,6 +52,7 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
             inner: EthPooledTransaction::new(transaction, encoded_length),
             estimated_tx_compressed_size: Default::default(),
             conditional: None,
+            interop: Arc::new(RwLock::new(None)),
             _pd: core::marker::PhantomData,
             encoded_2718: Default::default(),
         }
@@ -79,6 +87,16 @@ impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Poo
 
     fn conditional(&self) -> Option<&TransactionConditional> {
         self.conditional.as_deref()
+    }
+}
+
+impl<Cons, Pooled> MaybeInteropTransaction for OpPooledTransaction<Cons, Pooled> {
+    fn set_interop(&self, interop: TransactionInterop) {
+        *self.interop.write() = Some(interop);
+    }
+
+    fn interop(&self) -> Option<TransactionInterop> {
+        self.interop.read().clone()
     }
 }
 
@@ -246,8 +264,14 @@ where
 
 /// Helper trait to provide payload builder with access to conditionals and encoded bytes of
 /// transaction.
-pub trait OpPooledTx: MaybeConditionalTransaction + PoolTransaction {}
-impl<T> OpPooledTx for T where T: MaybeConditionalTransaction + PoolTransaction {}
+pub trait OpPooledTx:
+    MaybeConditionalTransaction + MaybeInteropTransaction + PoolTransaction
+{
+}
+impl<T> OpPooledTx for T where
+    T: MaybeConditionalTransaction + MaybeInteropTransaction + PoolTransaction
+{
+}
 
 #[cfg(test)]
 mod tests {

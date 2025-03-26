@@ -14,6 +14,7 @@ pub use validator::{OpL1BlockInfo, OpTransactionValidator};
 pub mod conditional;
 mod transaction;
 pub use transaction::{OpPooledTransaction, OpPooledTx};
+pub mod interop;
 pub mod maintain;
 
 use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTaskExecutor};

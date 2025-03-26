@@ -40,7 +40,9 @@ use reth_optimism_rpc::{
     witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
     OpEthApi, OpEthApiError, SequencerClient,
 };
-use reth_optimism_txpool::{conditional::MaybeConditionalTransaction, OpPooledTx};
+use reth_optimism_txpool::{
+    conditional::MaybeConditionalTransaction, interop::MaybeInteropTransaction, OpPooledTx,
+};
 use reth_provider::{providers::ProviderFactoryBuilder, CanonStateSubscriptions, EthStorage};
 use reth_rpc_api::DebugApiServer;
 use reth_rpc_eth_api::ext::L2EthApiExtServer;
@@ -511,7 +513,9 @@ impl<T> OpPoolBuilder<T> {
 impl<Node, T> PoolBuilder<Node> for OpPoolBuilder<T>
 where
     Node: FullNodeTypes<Types: NodeTypes<ChainSpec: OpHardforks>>,
-    T: EthPoolTransaction<Consensus = TxTy<Node::Types>> + MaybeConditionalTransaction,
+    T: EthPoolTransaction<Consensus = TxTy<Node::Types>>
+        + MaybeConditionalTransaction
+        + MaybeInteropTransaction,
 {
     type Pool = OpTransactionPool<Node::Provider, DiskFileBlobStore, T>;
 
