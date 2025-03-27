@@ -41,7 +41,7 @@ optimism_package:
           }
         }
       extra_params:
-        - {{ $flags.log_level }}
+      - {{ $flags.log_level }}
   chains:
     - participants:
       - el_type: op-geth
