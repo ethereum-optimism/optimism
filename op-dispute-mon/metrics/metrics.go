@@ -242,6 +242,7 @@ var _ Metricer = (*Metrics)(nil)
 func NewMetrics() *Metrics {
 	registry := opmetrics.NewRegistry()
 	factory := opmetrics.With(registry)
+	rpcClientMetrics := opmetrics.MakeRPCClientMetrics(Namespace, factory)
 
 	return &Metrics{
 		ns:       Namespace,
@@ -250,7 +251,7 @@ func NewMetrics() *Metrics {
 
 		CacheMetrics:     opmetrics.NewCacheMetrics(factory, Namespace, "provider_cache", "Provider cache"),
 		ContractMetrics:  contractMetrics.MakeContractMetrics(Namespace, factory),
-		RPCClientMetrics: &opmetrics.RPCClientMetrics{},
+		RPCClientMetrics: &rpcClientMetrics,
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "info",

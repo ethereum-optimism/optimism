@@ -37,6 +37,7 @@ var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 func NewMetrics(runConfigs []RunConfig) *Metrics {
 	registry := opmetrics.NewRegistry()
 	factory := opmetrics.With(registry)
+	rpcClientMetrics := opmetrics.MakeRPCClientMetrics(Namespace, factory)
 
 	metrics := &Metrics{
 		ns:       Namespace,
@@ -45,7 +46,7 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 
 		ContractMetrics:  contractMetrics.MakeContractMetrics(Namespace, factory),
 		VmMetrics:        metrics.NewVmMetrics(Namespace, factory),
-		RPCClientMetrics: &opmetrics.RPCClientMetrics{},
+		RPCClientMetrics: &rpcClientMetrics,
 
 		up: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,
