@@ -6,7 +6,7 @@ use crate::{
     txpool::{OpTransactionPool, OpTransactionValidator},
     OpEngineApiBuilder, OpEngineTypes,
 };
-use op_alloy_consensus::OpPooledTransaction;
+use op_alloy_consensus::{interop::SafetyLevel, OpPooledTransaction};
 use reth_chainspec::{EthChainSpec, Hardforks};
 use reth_evm::{execute::BasicBlockExecutorProvider, ConfigureEvm, EvmFactory, EvmFactoryFor};
 use reth_network::{NetworkConfig, NetworkHandle, NetworkManager, NetworkPrimitives, PeersInfo};
@@ -41,7 +41,10 @@ use reth_optimism_rpc::{
     OpEthApi, OpEthApiError, SequencerClient,
 };
 use reth_optimism_txpool::{
-    conditional::MaybeConditionalTransaction, interop::MaybeInteropTransaction, OpPooledTx,
+    conditional::MaybeConditionalTransaction,
+    interop::MaybeInteropTransaction,
+    supervisor::{SupervisorClient, DEFAULT_SUPERVISOR_URL},
+    OpPooledTx,
 };
 use reth_provider::{providers::ProviderFactoryBuilder, CanonStateSubscriptions, EthStorage};
 use reth_rpc_api::DebugApiServer;
@@ -113,7 +116,11 @@ impl OpNode {
             .node_types::<Node>()
             .pool(
                 OpPoolBuilder::default()
-                    .with_enable_tx_conditional(self.args.enable_tx_conditional),
+                    .with_enable_tx_conditional(self.args.enable_tx_conditional)
+                    .with_supervisor(
+                        self.args.supervisor_http.clone(),
+                        self.args.supervisor_safety_level,
+                    ),
             )
             .payload(BasicPayloadServiceBuilder::new(
                 OpPayloadBuilder::new(compute_pending_block).with_da_config(self.da_config.clone()),
@@ -479,6 +486,10 @@ pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
     pub pool_config_overrides: PoolBuilderConfigOverrides,
     /// Enable transaction conditionals.
     pub enable_tx_conditional: bool,
+    /// Supervisor client url
+    pub supervisor_http: String,
+    /// Supervisor safety level
+    pub supervisor_safety_level: SafetyLevel,
     /// Marker for the pooled transaction type.
     _pd: core::marker::PhantomData<T>,
 }
@@ -488,6 +499,8 @@ impl<T> Default for OpPoolBuilder<T> {
         Self {
             pool_config_overrides: Default::default(),
             enable_tx_conditional: false,
+            supervisor_http: DEFAULT_SUPERVISOR_URL.to_string(),
+            supervisor_safety_level: SafetyLevel::CrossUnsafe,
             _pd: Default::default(),
         }
     }
@@ -508,6 +521,17 @@ impl<T> OpPoolBuilder<T> {
         self.pool_config_overrides = pool_config_overrides;
         self
     }
+
+    /// Sets the supervisor client
+    pub fn with_supervisor(
+        mut self,
+        supervisor_client: String,
+        supervisor_safety_level: SafetyLevel,
+    ) -> Self {
+        self.supervisor_http = supervisor_client;
+        self.supervisor_safety_level = supervisor_safety_level;
+        self
+    }
 }
 
 impl<Node, T> PoolBuilder<Node> for OpPoolBuilder<T>
@@ -523,6 +547,17 @@ where
         let Self { pool_config_overrides, .. } = self;
         let data_dir = ctx.config().datadir();
         let blob_store = DiskFileBlobStore::open(data_dir.blobstore(), Default::default())?;
+        // supervisor used for interop
+        if ctx.chain_spec().is_interop_active_at_timestamp(ctx.head().timestamp) &&
+            self.supervisor_http == DEFAULT_SUPERVISOR_URL
+        {
+            info!(target: "reth::cli",
+                url=%DEFAULT_SUPERVISOR_URL,
+                "Default supervisor url is used, consider changing --rollup.supervisor-http."
+            );
+        }
+        let supervisor_client =
+            SupervisorClient::new(self.supervisor_http.clone(), self.supervisor_safety_level).await;
 
         let validator = TransactionValidationTaskExecutor::eth_builder(ctx.provider().clone())
             .no_eip4844()
@@ -539,6 +574,7 @@ where
                     // In --dev mode we can't require gas fees because we're unable to decode
                     // the L1 block info
                     .require_l1_data_gas_fee(!ctx.config().dev.dev)
+                    .with_supervisor(supervisor_client.clone())
             });
 
         let transaction_pool = reth_transaction_pool::Pool::new(

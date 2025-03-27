@@ -287,8 +287,8 @@ mod tests {
         blobstore::InMemoryBlobStore, validate::EthTransactionValidatorBuilder, TransactionOrigin,
         TransactionValidationOutcome,
     };
-    #[test]
-    fn validate_optimism_transaction() {
+    #[tokio::test]
+    async fn validate_optimism_transaction() {
         let client = MockEthProvider::default().with_chain_spec(OP_MAINNET.clone());
         let validator = EthTransactionValidatorBuilder::new(client)
             .no_shanghai()
@@ -313,7 +313,7 @@ mod tests {
         let signed_recovered = Recovered::new_unchecked(signed_tx, signer);
         let len = signed_recovered.encode_2718_len();
         let pooled_tx: OpPooledTransaction = OpPooledTransaction::new(signed_recovered, len);
-        let outcome = validator.validate_one(origin, pooled_tx);
+        let outcome = validator.validate_one(origin, pooled_tx).await;
 
         let err = match outcome {
             TransactionValidationOutcome::Invalid(_, err) => err,

@@ -12,10 +12,13 @@ mod validator;
 pub use validator::{OpL1BlockInfo, OpTransactionValidator};
 
 pub mod conditional;
+pub mod supervisor;
 mod transaction;
 pub use transaction::{OpPooledTransaction, OpPooledTx};
+mod error;
 pub mod interop;
 pub mod maintain;
+pub use error::InvalidCrossTx;
 
 use reth_transaction_pool::{CoinbaseTipOrdering, Pool, TransactionValidationTaskExecutor};
 
