@@ -122,7 +122,9 @@ func TestPrecompile(t *testing.T) {
 }
 
 type DeploymentExample struct {
-	FooBar common.Address
+	FooBar    common.Address
+	IsEnabled bool
+	GameType  uint32
 }
 
 func TestDeploymentOutputPrecompile(t *testing.T) {
@@ -130,14 +132,40 @@ func TestDeploymentOutputPrecompile(t *testing.T) {
 	p, err := NewPrecompile[*DeploymentExample](e, WithFieldSetter[*DeploymentExample])
 	require.NoError(t, err)
 
-	addr := common.Address{0: 0x42, 19: 0xaa}
-	fooBarSelector := bytes4("fooBar()")
-	var input []byte
-	input = append(input, setterFnBytes4[:]...)
-	input = append(input, rightPad32(fooBarSelector[:])...)
-	input = append(input, leftPad32(addr[:])...)
-	out, err := p.Run(input)
-	require.NoError(t, err)
-	require.Empty(t, out)
-	require.Equal(t, addr, e.FooBar)
+	t.Run("address setter", func(t *testing.T) {
+		addr := common.Address{0: 0x42, 19: 0xaa}
+		fooBarSelector := bytes4("fooBar()")
+		var input []byte
+		input = append(input, setAddressFnBytes4[:]...)
+		input = append(input, rightPad32(fooBarSelector[:])...)
+		input = append(input, leftPad32(addr[:])...)
+		out, err := p.Run(input)
+		require.NoError(t, err)
+		require.Empty(t, out)
+		require.Equal(t, addr, e.FooBar)
+	})
+
+	t.Run("boolean setter", func(t *testing.T) {
+		boolSelector := bytes4("isEnabled()")
+		var boolInput []byte
+		boolInput = append(boolInput, setBoolFnBytes4[:]...)
+		boolInput = append(boolInput, rightPad32(boolSelector[:])...)
+		boolInput = append(boolInput, b32(1)...) // true value
+		out, err := p.Run(boolInput)
+		require.NoError(t, err)
+		require.Empty(t, out)
+		require.True(t, e.IsEnabled)
+	})
+
+	t.Run("uint32 setter", func(t *testing.T) {
+		uint32Selector := bytes4("gameType()")
+		var uint32Input []byte
+		uint32Input = append(uint32Input, setUint32FnBytes4[:]...)
+		uint32Input = append(uint32Input, rightPad32(uint32Selector[:])...)
+		uint32Input = append(uint32Input, b32(42)...) // uint32 value
+		out, err := p.Run(uint32Input)
+		require.NoError(t, err)
+		require.Empty(t, out)
+		require.Equal(t, uint32(42), e.GameType)
+	})
 }

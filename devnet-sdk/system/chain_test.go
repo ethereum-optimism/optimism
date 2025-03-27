@@ -5,10 +5,10 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/empty"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestClientManager(t *testing.T) {
@@ -67,14 +67,65 @@ func TestChainFromDescriptor(t *testing.T) {
 				Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
 			},
 		},
+		Addresses: descriptors.AddressMap{
+			"user1": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
 	}
 
-	chain, err := chainFromDescriptor(descriptor)
+	chain, err := newChainFromDescriptor(descriptor)
 	assert.Nil(t, err)
 	assert.NotNil(t, chain)
-	lowLevelChain, ok := chain.(LowLevelChain)
-	assert.True(t, ok)
-	assert.Equal(t, "http://localhost:8545", lowLevelChain.RPCURL())
+	assert.Equal(t, "http://localhost:8545", chain.Nodes()[0].RPCURL())
+
+	// Compare the underlying big.Int values
+	chainID := chain.ID()
+	expectedID := big.NewInt(1)
+	assert.Equal(t, 0, expectedID.Cmp(chainID))
+}
+
+func TestL2ChainFromDescriptor(t *testing.T) {
+	descriptor := &descriptors.L2Chain{
+		Chain: descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": descriptors.Service{
+							Endpoints: descriptors.EndpointMap{
+								"rpc": descriptors.PortInfo{
+									Host: "localhost",
+									Port: 8545,
+								},
+							},
+						},
+					},
+				},
+			},
+			Wallets: descriptors.WalletMap{
+				"user1": descriptors.Wallet{
+					PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+					Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
+				},
+			},
+			Addresses: descriptors.AddressMap{
+				"user2": common.HexToAddress("0x1234567890123456789012345678901234567891"),
+			},
+		},
+		L1Addresses: descriptors.AddressMap{
+			"user1": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		L1Wallets: descriptors.WalletMap{
+			"user1": descriptors.Wallet{
+				PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			},
+		},
+	}
+
+	chain, err := newL2ChainFromDescriptor(descriptor)
+	assert.Nil(t, err)
+	assert.NotNil(t, chain)
+	assert.Equal(t, "http://localhost:8545", chain.Nodes()[0].RPCURL())
 
 	// Compare the underlying big.Int values
 	chainID := chain.ID()
@@ -83,20 +134,16 @@ func TestChainFromDescriptor(t *testing.T) {
 }
 
 func TestChainWallet(t *testing.T) {
-	ctx := context.Background()
 	testAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	wallet, err := newWallet("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", testAddr, nil)
 	assert.Nil(t, err)
 
-	chain := newChain("1", "http://localhost:8545", map[string]Wallet{
-		"user1": wallet,
-	})
+	l1Chain := newChain("1", WalletMap{"user1": wallet}, nil, map[string]common.Address{}, []Node{})
 
 	t.Run("finds wallet meeting constraints", func(t *testing.T) {
 		constraint := &addressConstraint{addr: testAddr}
-		wallets, err := chain.Wallets(ctx)
-		require.NoError(t, err)
+		wallets := l1Chain.Wallets()
 
 		for _, w := range wallets {
 			if constraint.CheckWallet(w) {
@@ -111,8 +158,7 @@ func TestChainWallet(t *testing.T) {
 	t.Run("returns error when no wallet meets constraints", func(t *testing.T) {
 		wrongAddr := common.HexToAddress("0x0987654321098765432109876543210987654321")
 		constraint := &addressConstraint{addr: wrongAddr}
-		wallets, err := chain.Wallets(ctx)
-		require.NoError(t, err)
+		wallets := l1Chain.Wallets()
 
 		for _, w := range wallets {
 			if constraint.CheckWallet(w) {
@@ -156,7 +202,7 @@ func TestChainID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			chain := newChain(tt.idString, "", nil)
+			chain := newChain(tt.idString, WalletMap{}, nil, AddressMap{}, []Node{})
 			got := chain.ID()
 			// Compare the underlying big.Int values
 			assert.Equal(t, 0, tt.want.Cmp(got))
@@ -166,7 +212,7 @@ func TestChainID(t *testing.T) {
 
 func TestSupportsEIP(t *testing.T) {
 	ctx := context.Background()
-	chain := newChain("1", "http://localhost:8545", nil)
+	chain := newChain("1", WalletMap{}, nil, AddressMap{}, []Node{})
 
 	// Since we can't reliably test against a live node, we're just testing the error case
 	t.Run("returns false for connection error", func(t *testing.T) {
@@ -175,17 +221,29 @@ func TestSupportsEIP(t *testing.T) {
 	})
 }
 
+// mockContractsRegistry extends empty.EmptyRegistry to provide mock contract instances
+type mockContractsRegistry struct {
+	empty.EmptyRegistry
+}
+
 func TestContractsRegistry(t *testing.T) {
-	chain := newChain("1", "http://localhost:8545", nil)
+	node := &mockNode{}
+	// Create a mock for testing
+	mockRegistry := &mockContractsRegistry{}
+
+	// Set up the mock to return the registry when ContractsRegistry() is called
+	node.On("ContractsRegistry").Return(mockRegistry)
+
+	chain := newChain("1", WalletMap{}, nil, AddressMap{}, []Node{node})
 
 	t.Run("returns empty registry on error", func(t *testing.T) {
-		registry := chain.ContractsRegistry()
+		registry := chain.Nodes()[0].ContractsRegistry()
 		assert.NotNil(t, registry)
 	})
 
 	t.Run("caches registry", func(t *testing.T) {
-		registry1 := chain.ContractsRegistry()
-		registry2 := chain.ContractsRegistry()
+		registry1 := chain.Nodes()[0].ContractsRegistry()
+		registry2 := chain.Nodes()[0].ContractsRegistry()
 		assert.Same(t, registry1, registry2)
 	})
 }

@@ -2,11 +2,94 @@ package build
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
+	"net/url"
+	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"text/template"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 )
+
+// cmdRunner abstracts command execution for testing
+type cmdRunner interface {
+	CombinedOutput() ([]byte, error)
+}
+
+// defaultCmdRunner is the default implementation that uses exec.Command
+type defaultCmdRunner struct {
+	*exec.Cmd
+}
+
+func (r *defaultCmdRunner) CombinedOutput() ([]byte, error) {
+	return r.Cmd.CombinedOutput()
+}
+
+// cmdFactory creates commands
+type cmdFactory func(name string, arg ...string) cmdRunner
+
+// defaultCmdFactory is the default implementation that uses exec.Command
+func defaultCmdFactory(name string, arg ...string) cmdRunner {
+	return &defaultCmdRunner{exec.Command(name, arg...)}
+}
+
+// dockerClient interface defines the Docker client methods we use
+type dockerClient interface {
+	ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error)
+	ImageTag(ctx context.Context, source, target string) error
+}
+
+// dockerProvider abstracts the creation of Docker clients
+type dockerProvider interface {
+	newClient() (dockerClient, error)
+}
+
+// defaultDockerProvider is the default implementation of dockerProvider
+type defaultDockerProvider struct{}
+
+func (p *defaultDockerProvider) newClient() (dockerClient, error) {
+	opts := []client.Opt{client.FromEnv}
+
+	// Check if default docker socket exists
+	hostURL, err := url.Parse(client.DefaultDockerHost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse default docker host: %w", err)
+	}
+
+	// For unix sockets, check if the socket file exists
+	unixOS := runtime.GOOS == "linux" || runtime.GOOS == "darwin"
+	if hostURL.Scheme == "unix" && unixOS {
+		if _, err := os.Stat(hostURL.Path); os.IsNotExist(err) {
+			// Default socket doesn't exist, try to find an alternate location. Docker Desktop uses a socket in the home directory.
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			// Try to use the non-privileged socket if available
+			homeSocketPath := fmt.Sprintf("%s/.docker/run/docker.sock", homeDir)
+			if runtime.GOOS == "linux" {
+				homeSocketPath = fmt.Sprintf("%s/.docker/desktop/docker.sock", homeDir)
+			}
+
+			// If that socket exists, make it the default. Otherwise, leave it alone, and hope some environment variable has been set.
+			if _, err := os.Stat(homeSocketPath); err == nil {
+				socketURL := &url.URL{
+					Scheme: "unix",
+					Path:   homeSocketPath,
+				}
+				// prepend the host, so that it can still be overridden by the environment.
+				opts = append([]client.Opt{client.WithHost(socketURL.String())}, opts...)
+			}
+		}
+	}
+
+	return client.NewClientWithOpts(opts...)
+}
 
 // DockerBuilder handles building docker images using just commands
 type DockerBuilder struct {
@@ -16,6 +99,10 @@ type DockerBuilder struct {
 	cmdTemplate *template.Template
 	// Dry run mode
 	dryRun bool
+	// Docker provider for creating clients
+	dockerProvider dockerProvider
+	// Command factory for testing
+	cmdFactory cmdFactory
 
 	builtImages map[string]string
 }
@@ -48,13 +135,29 @@ func WithDockerDryRun(dryRun bool) DockerBuilderOptions {
 	}
 }
 
+// withDockerProvider is a package-private option for testing
+func withDockerProvider(provider dockerProvider) DockerBuilderOptions {
+	return func(b *DockerBuilder) {
+		b.dockerProvider = provider
+	}
+}
+
+// withCmdFactory is a package-private option for testing
+func withCmdFactory(factory cmdFactory) DockerBuilderOptions {
+	return func(b *DockerBuilder) {
+		b.cmdFactory = factory
+	}
+}
+
 // NewDockerBuilder creates a new DockerBuilder instance
 func NewDockerBuilder(opts ...DockerBuilderOptions) *DockerBuilder {
 	b := &DockerBuilder{
-		baseDir:     ".",
-		cmdTemplate: defaultCmdTemplate,
-		dryRun:      false,
-		builtImages: make(map[string]string),
+		baseDir:        ".",
+		cmdTemplate:    defaultCmdTemplate,
+		dryRun:         false,
+		dockerProvider: &defaultDockerProvider{},
+		cmdFactory:     defaultCmdFactory,
+		builtImages:    make(map[string]string),
 	}
 
 	for _, opt := range opts {
@@ -71,12 +174,20 @@ type templateData struct {
 }
 
 // Build executes the docker build command for the given project and image tag
+// Note: the returned image tag is the image ID, so we don't accidentally
+// de-duplicate steps that should not be de-duplicated.
 func (b *DockerBuilder) Build(projectName, imageTag string) (string, error) {
 	if builtImage, ok := b.builtImages[projectName]; ok {
 		return builtImage, nil
 	}
 
 	log.Printf("Building docker image for project: %s with tag: %s", projectName, imageTag)
+
+	if b.dryRun {
+		b.builtImages[projectName] = imageTag
+		return imageTag, nil
+	}
+
 	// Prepare template data
 	data := templateData{
 		ImageTag:    imageTag,
@@ -90,17 +201,35 @@ func (b *DockerBuilder) Build(projectName, imageTag string) (string, error) {
 	}
 
 	// Create command
-	cmd := exec.Command("sh", "-c", cmdBuf.String())
-	cmd.Dir = b.baseDir
-
-	if !b.dryRun {
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return "", fmt.Errorf("build command failed: %w\nOutput: %s", err, string(output))
-		}
+	cmd := b.cmdFactory("sh", "-c", cmdBuf.String())
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("build command failed: %w\nOutput: %s", err, string(output))
 	}
 
-	// Return the image tag as confirmation of successful build
-	b.builtImages[projectName] = imageTag
-	return imageTag, nil
+	dockerClient, err := b.dockerProvider.newClient()
+	if err != nil {
+		return "", fmt.Errorf("failed to create docker client: %w", err)
+	}
+
+	ctx := context.Background()
+
+	// Inspect the image to get its ID
+	inspect, _, err := dockerClient.ImageInspectWithRaw(ctx, imageTag)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect image: %w", err)
+	}
+
+	// Get the short ID (first 12 characters of the SHA256)
+	shortID := strings.TrimPrefix(inspect.ID, "sha256:")[:12]
+
+	// Create a new tag with projectName:shortID
+	fullTag := fmt.Sprintf("%s:%s", projectName, shortID)
+	err = dockerClient.ImageTag(ctx, imageTag, fullTag)
+	if err != nil {
+		return "", fmt.Errorf("failed to tag image: %w", err)
+	}
+
+	b.builtImages[projectName] = fullTag
+	return fullTag, nil
 }

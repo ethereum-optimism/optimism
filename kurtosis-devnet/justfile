@@ -1,5 +1,7 @@
 set shell := ["/bin/bash", "-c"]
 
+KURTOSIS_PACKAGE := "./optimism-package-trampoline/"
+
 test:
     go test --tags=testonly ./...
 
@@ -68,10 +70,8 @@ op-proposer-image TAG='op-proposer:devnet': (_docker_build_stack TAG "op-propose
 op-supervisor-image TAG='op-supervisor:devnet': (_docker_build_stack TAG "op-supervisor-target")
 op-wheel-image TAG='op-wheel:devnet': (_docker_build_stack TAG "op-wheel-target")
 
-KURTOSIS_PACKAGE := "github.com/ethpandaops/optimism-package"
-
 # Devnet template recipe
-devnet TEMPLATE_FILE DATA_FILE="" NAME="":
+devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE:
     #!/usr/bin/env bash
     export DEVNET_NAME={{NAME}}
     if [ -z "{{NAME}}" ]; then
@@ -82,7 +82,7 @@ devnet TEMPLATE_FILE DATA_FILE="" NAME="":
         fi
     fi
     export ENCL_NAME="$DEVNET_NAME"-devnet
-    go run cmd/main.go -kurtosis-package {{KURTOSIS_PACKAGE}} \
+    go run cmd/main.go -kurtosis-package {{PACKAGE}} \
         -environment "tests/$ENCL_NAME.json" \
         -template "{{TEMPLATE_FILE}}" \
         -data "{{DATA_FILE}}" \
@@ -118,5 +118,5 @@ pectra-devnet: (devnet "pectra.yaml")
 isthmus-devnet: (devnet "isthmus.yaml")
 
 # subshells
-enter-devnet DEVNET CHAIN='Ethereum':
-    exec go run ../devnet-sdk/shell/cmd/enter/main.go --devnet kt://{{DEVNET}} --chain {{CHAIN}}
+enter-devnet DEVNET CHAIN='Ethereum' NODE_INDEX='0':
+    exec go run ../devnet-sdk/shell/cmd/enter/main.go --devnet kt://{{DEVNET}} --chain {{CHAIN}} --node-index {{NODE_INDEX}}

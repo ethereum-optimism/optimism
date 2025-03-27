@@ -27,6 +27,10 @@ forge-build-dev *ARGS:
 build-source:
   forge build --skip "/**/test/**" --skip "/**/scripts/**"
 
+# Builds source contracts and scripts, skipping tests.
+build-no-tests:
+  forge build --skip "/**/test/**"
+
 # Builds the contracts.
 build *ARGS: lint-fix-no-fail
   just forge-build {{ARGS}}
@@ -63,7 +67,18 @@ test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
 # Default block number for the forked upgrade path.
-export pinnedBlockNumber := env_var_or_default('FORK_BLOCK_NUMBER', '21971446')
+
+export sepoliaBlockNumber := "7701807"
+export mainnetBlockNumber := "21983965"
+
+export pinnedBlockNumber := if env_var_or_default("FORK_BASE_CHAIN", "") == "mainnet" {
+    mainnetBlockNumber
+} else if env_var_or_default("FORK_BASE_CHAIN", "") == "sepolia" {
+    sepoliaBlockNumber
+} else {
+    mainnetBlockNumber
+}
+
 print-pinned-block-number:
   echo $pinnedBlockNumber
 
@@ -76,8 +91,8 @@ print-pinned-block-number:
 #   when the L1 chain is upgraded.
 prepare-upgrade-env *ARGS : build-go-ffi
   #!/bin/bash
-  echo "Running upgrade tests at block $pinnedBlockNumber"
   export FORK_BLOCK_NUMBER=$pinnedBlockNumber
+  echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
   export FORK_TEST=true
   export USE_MT_CANNON=true
@@ -292,6 +307,7 @@ check:
   semver-diff-check-no-build \
   validate-deploy-configs \
   validate-spacers-no-build \
+  reinitializer-check-no-build \
   interfaces-check-no-build \
   lint-forge-tests-check-no-build
 
@@ -340,6 +356,18 @@ pre-pr *ARGS:
     cp -r "$TEMP_BUILD_DIR/forge-artifacts" ./
     cp -r "$TEMP_BUILD_DIR/cache" ./
   fi
+
+twrap:
+    #!/usr/bin/env sh
+    if [ -z "$WRAP_DISABLED" ]; then
+        tput rmam
+        export WRAP_DISABLED=1
+        echo "Terminal line wrapping disabled"
+    else
+        tput smam
+        unset WRAP_DISABLED
+        echo "Terminal line wrapping enabled"
+    fi
 
 # Fixes linting errors.
 lint-fix:

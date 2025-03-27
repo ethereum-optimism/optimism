@@ -9,10 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWithdrawals_L2OO(t *testing.T) {
-	testWithdrawals(t, config.AllocTypeL2OO)
-}
-
 func TestWithdrawals_Standard(t *testing.T) {
 	testWithdrawals(t, config.AllocTypeStandard)
 }

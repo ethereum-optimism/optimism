@@ -207,13 +207,8 @@ func (p *Prefetcher) bulkPrefetch(ctx context.Context, hint string) error {
 
 		// ignore keys because we want to rehash all of the values for safety
 		values := make([]hexutil.Bytes, 0, len(result.State)+len(result.Codes))
-		for _, value := range result.State {
-			values = append(values, value)
-		}
-
-		for _, value := range result.Codes {
-			values = append(values, value)
-		}
+		values = append(values, result.State...)
+		values = append(values, result.Codes...)
 
 		return p.storeNodes(values)
 	default:

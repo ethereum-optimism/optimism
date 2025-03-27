@@ -13,7 +13,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import {
     IStandardValidatorBase,
     IStandardValidatorV180,
-    IStandardValidatorV200
+    IStandardValidatorV200,
+    IStandardValidatorV300
 } from "interfaces/L1/IStandardValidator.sol";
 
 /// @title DeployStandardValidatorInput
@@ -26,6 +27,7 @@ contract DeployStandardValidatorInput is BaseDeployIO {
     address internal _l1PAOMultisig;
     address internal _mips;
     address internal _challenger;
+    uint256 internal _withdrawalDelaySeconds;
 
     // Implementation addresses
     address internal _superchainConfigImpl;
@@ -98,6 +100,15 @@ contract DeployStandardValidatorInput is BaseDeployIO {
     function set(bytes4 _sel, string memory _value) public {
         if (_sel == this.release.selector) {
             _release = _value;
+        } else {
+            revert("DeployStandardValidator: unknown selector");
+        }
+    }
+
+    function set(bytes4 _sel, uint256 _value) public {
+        if (_sel == this.withdrawalDelaySeconds.selector) {
+            require(_value > 0, "DeployStandardValidator: withdrawalDelaySeconds must be greater than 0");
+            _withdrawalDelaySeconds = _value;
         } else {
             revert("DeployStandardValidator: unknown selector");
         }
@@ -192,6 +203,11 @@ contract DeployStandardValidatorInput is BaseDeployIO {
         require(_mipsImpl != address(0), "DeployStandardValidator: mipsImpl not set");
         return _mipsImpl;
     }
+
+    function withdrawalDelaySeconds() public view returns (uint256) {
+        require(_withdrawalDelaySeconds > 0, "DeployStandardValidator: withdrawalDelaySeconds not set");
+        return _withdrawalDelaySeconds;
+    }
 }
 
 /// @title DeployStandardValidatorOutput
@@ -245,6 +261,8 @@ contract DeployStandardValidator is Script {
             validator = deployValidatorV180(_si);
         } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v2.0.0"))) {
             validator = deployValidatorV200(_si);
+        } else if (keccak256(bytes(_si.release())) == keccak256(bytes("v3.0.0"))) {
+            validator = deployValidatorV300(_si);
         } else {
             revert("DeployStandardValidator: invalid release version");
         }
@@ -258,7 +276,14 @@ contract DeployStandardValidator is Script {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IStandardValidatorV180.__constructor__,
-                    (getImplementations(_si), _si.superchainConfig(), _si.l1PAOMultisig(), _si.mips(), _si.challenger())
+                    (
+                        getImplementations(_si),
+                        _si.superchainConfig(),
+                        _si.l1PAOMultisig(),
+                        _si.mips(),
+                        _si.challenger(),
+                        _si.withdrawalDelaySeconds()
+                    )
                 )
             ),
             _salt: DeployUtils.DEFAULT_SALT
@@ -274,13 +299,43 @@ contract DeployStandardValidator is Script {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IStandardValidatorV200.__constructor__,
-                    (getImplementations(_si), _si.superchainConfig(), _si.l1PAOMultisig(), _si.mips(), _si.challenger())
+                    (
+                        getImplementations(_si),
+                        _si.superchainConfig(),
+                        _si.l1PAOMultisig(),
+                        _si.mips(),
+                        _si.challenger(),
+                        _si.withdrawalDelaySeconds()
+                    )
                 )
             ),
             _salt: DeployUtils.DEFAULT_SALT
         });
 
         vm.label(validator, "StandardValidatorV200");
+        return validator;
+    }
+
+    function deployValidatorV300(DeployStandardValidatorInput _si) internal returns (address) {
+        address validator = DeployUtils.createDeterministic({
+            _name: "StandardValidator.sol:StandardValidatorV300",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IStandardValidatorV300.__constructor__,
+                    (
+                        getImplementations(_si),
+                        _si.superchainConfig(),
+                        _si.l1PAOMultisig(),
+                        _si.mips(),
+                        _si.challenger(),
+                        _si.withdrawalDelaySeconds()
+                    )
+                )
+            ),
+            _salt: DeployUtils.DEFAULT_SALT
+        });
+
+        vm.label(validator, "StandardValidatorV300");
         return validator;
     }
 
@@ -305,6 +360,7 @@ contract DeployStandardValidator is Script {
         require(v180.l1PAOMultisig() == _si.l1PAOMultisig(), "SV180-20");
         require(v180.mips() == _si.mips(), "SV180-30");
         require(v180.challenger() == _si.challenger(), "SV180-40");
+        require(v180.withdrawalDelaySeconds() == _si.withdrawalDelaySeconds(), "SV180-50");
     }
 
     function assertValidValidatorV200(DeployStandardValidatorInput _si, address _validator) internal view {
@@ -313,5 +369,6 @@ contract DeployStandardValidator is Script {
         require(v200.l1PAOMultisig() == _si.l1PAOMultisig(), "SV200-20");
         require(v200.mips() == _si.mips(), "SV200-30");
         require(v200.challenger() == _si.challenger(), "SV200-40");
+        require(v200.withdrawalDelaySeconds() == _si.withdrawalDelaySeconds(), "SV200-50");
     }
 }

@@ -29,6 +29,7 @@ contract StandardValidatorBase {
     address public l1PAOMultisig;
     address public mips;
     address public challenger;
+    uint256 public withdrawalDelaySeconds;
 
     // Implementation addresses as state variables
     address public l1ERC721BridgeImpl;
@@ -60,12 +61,14 @@ contract StandardValidatorBase {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     ) {
         superchainConfig = _superchainConfig;
         l1PAOMultisig = _l1PAOMultisig;
         mips = _mips;
         challenger = _challenger;
+        withdrawalDelaySeconds = _withdrawalDelaySeconds;
 
         // Set implementation addresses from struct
         l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
@@ -170,11 +173,12 @@ contract StandardValidatorBase {
     )
         internal
         view
+        virtual
         returns (string memory)
     {
         ISemver _semver = ISemver(address(_sysCfg));
         _errors = internalRequire(stringEq(_semver.version(), systemConfigVersion()), "SYSCON-10", _errors);
-        _errors = internalRequire(_sysCfg.gasLimit() == uint64(60_000_000), "SYSCON-20", _errors);
+        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(200_000_000), "SYSCON-20", _errors);
         _errors = internalRequire(_sysCfg.scalar() >> 248 == 1, "SYSCON-30", _errors);
         _errors =
             internalRequire(_admin.getProxyImplementation(address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
@@ -459,7 +463,7 @@ contract StandardValidatorBase {
             _errors
         );
         _errors = internalRequire(_weth.owner() == l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
-        _errors = internalRequire(_weth.delay() == 1 weeks, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
         return _errors;
     }
 
@@ -550,9 +554,17 @@ contract StandardValidatorV180 is StandardValidatorBase {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
+        StandardValidatorBase(
+            _implementations,
+            _superchainConfig,
+            _l1PAOMultisig,
+            _mips,
+            _challenger,
+            _withdrawalDelaySeconds
+        )
     { }
 
     function validate(InputV180 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -581,9 +593,17 @@ contract StandardValidatorV200 is StandardValidatorBase {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
+        StandardValidatorBase(
+            _implementations,
+            _superchainConfig,
+            _l1PAOMultisig,
+            _mips,
+            _challenger,
+            _withdrawalDelaySeconds
+        )
     { }
 
     function validate(InputV200 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -657,6 +677,131 @@ contract StandardValidatorV200 is StandardValidatorBase {
     }
 
     function mipsVersion() public pure override returns (string memory) {
+        return "1.3.0";
+    }
+
+    function permissionedDisputeGameVersion() public pure override returns (string memory) {
+        return "1.4.1";
+    }
+
+    function preimageOracleVersion() public pure override returns (string memory) {
+        return "1.1.4";
+    }
+}
+
+contract StandardValidatorV300 is StandardValidatorBase {
+    struct InputV300 {
+        IProxyAdmin proxyAdmin;
+        ISystemConfig sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+    }
+
+    constructor(
+        ImplementationsBase memory _implementations,
+        ISuperchainConfig _superchainConfig,
+        address _l1PAOMultisig,
+        address _mips,
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
+    )
+        StandardValidatorBase(
+            _implementations,
+            _superchainConfig,
+            _l1PAOMultisig,
+            _mips,
+            _challenger,
+            _withdrawalDelaySeconds
+        )
+    { }
+
+    function validate(InputV300 memory _input, bool _allowFailure) public view returns (string memory) {
+        string memory _errors = "";
+
+        _errors = super.validate(_errors, _input.sysCfg, _input.proxyAdmin, _input.absolutePrestate, _input.l2ChainID);
+
+        if (bytes(_errors).length > 0 && !_allowFailure) {
+            revert(string.concat("StandardValidatorV300: ", _errors));
+        }
+
+        return _errors;
+    }
+
+    function assertValidSystemConfig(
+        string memory _errors,
+        ISystemConfig _sysCfg,
+        IProxyAdmin _admin
+    )
+        internal
+        view
+        override
+        returns (string memory)
+    {
+        _errors = super.assertValidSystemConfig(_errors, _sysCfg, _admin);
+        _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
+        _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
+        return _errors;
+    }
+
+    function assertValidAnchorStateRegistry(
+        string memory _errors,
+        IDisputeGameFactory _dgf,
+        IAnchorStateRegistry _asr,
+        IProxyAdmin _admin,
+        GameType _gameType,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        override
+        returns (string memory)
+    {
+        _errors = super.assertValidAnchorStateRegistry(_errors, _dgf, _asr, _admin, _gameType, _errorPrefix);
+        _errors = internalRequire(
+            _admin.getProxyImplementation(address(_asr)) == anchorStateRegistryImpl,
+            string.concat(_errorPrefix, "-ANCHORP-20"),
+            _errors
+        );
+        return _errors;
+    }
+
+    function systemConfigVersion() public pure override returns (string memory) {
+        return "2.5.0";
+    }
+
+    function optimismPortalVersion() public pure override returns (string memory) {
+        return "3.14.0";
+    }
+
+    function l1CrossDomainMessengerVersion() public pure override returns (string memory) {
+        return "2.6.0";
+    }
+
+    function l1ERC721BridgeVersion() public pure override returns (string memory) {
+        return "2.4.0";
+    }
+
+    function l1StandardBridgeVersion() public pure override returns (string memory) {
+        return "2.3.0";
+    }
+
+    function mipsVersion() public pure override returns (string memory) {
+        return "1.0.0";
+    }
+
+    function optimismMintableERC20FactoryVersion() public pure override returns (string memory) {
+        return "1.10.1";
+    }
+
+    function disputeGameFactoryVersion() public pure override returns (string memory) {
+        return "1.0.1";
+    }
+
+    function anchorStateRegistryVersion() public pure override returns (string memory) {
+        return "2.2.2";
+    }
+
+    function delayedWETHVersion() public pure override returns (string memory) {
         return "1.3.0";
     }
 

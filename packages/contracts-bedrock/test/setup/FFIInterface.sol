@@ -188,6 +188,28 @@ contract FFIInterface {
         return abi.decode(result, (bytes));
     }
 
+    function encodeSuperRootProof(Types.SuperRootProof calldata proof) external returns (bytes memory) {
+        string[] memory cmds = new string[](4);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "encodeSuperRootProof";
+        cmds[3] = vm.toString(abi.encode(proof));
+
+        bytes memory result = Process.run(cmds);
+        return abi.decode(result, (bytes));
+    }
+
+    function hashSuperRootProof(Types.SuperRootProof calldata proof) external returns (bytes32) {
+        string[] memory cmds = new string[](4);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "hashSuperRootProof";
+        cmds[3] = vm.toString(abi.encode(proof));
+
+        bytes memory result = Process.run(cmds);
+        return abi.decode(result, (bytes32));
+    }
+
     function decodeVersionedNonce(uint256 nonce) external returns (uint256, uint256) {
         string[] memory cmds = new string[](4);
         cmds[0] = "scripts/go-ffi/go-ffi";
@@ -203,7 +225,7 @@ contract FFIInterface {
         external
         returns (bytes32, bytes memory, bytes memory, bytes[] memory)
     {
-        string[] memory cmds = new string[](6);
+        string[] memory cmds = new string[](3);
         cmds[0] = "./scripts/go-ffi/go-ffi";
         cmds[1] = "trie";
         cmds[2] = variant;

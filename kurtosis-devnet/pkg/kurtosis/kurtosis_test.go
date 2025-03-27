@@ -2,6 +2,7 @@ package kurtosis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -117,6 +118,36 @@ func (f *fakeJWTExtractor) ExtractData(ctx context.Context, enclave string) (*jw
 	return f.data, f.err
 }
 
+type fakeDepsetExtractor struct {
+	data json.RawMessage
+	err  error
+}
+
+func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) (json.RawMessage, error) {
+	return f.data, f.err
+}
+
+// mockKurtosisContext implements interfaces.KurtosisContextInterface for testing
+type mockKurtosisContext struct {
+	enclaveCtx interfaces.EnclaveContext
+	getErr     error
+	createErr  error
+}
+
+func (m *mockKurtosisContext) GetEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
+	if m.getErr != nil {
+		return nil, m.getErr
+	}
+	return m.enclaveCtx, nil
+}
+
+func (m *mockKurtosisContext) CreateEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
+	return m.enclaveCtx, nil
+}
+
 func TestDeploy(t *testing.T) {
 	testSpec := &spec.EnclaveSpec{
 		Chains: []spec.ChainSpec{
@@ -201,7 +232,7 @@ func TestDeploy(t *testing.T) {
 				}),
 				WithKurtosisEnclaveObserver(&fakeEnclaveObserver{
 					state: &deployer.DeployerData{
-						Wallets: testWallets,
+						L1ValidatorWallets: testWallets,
 					},
 					err: tt.deployerErr,
 				}),
@@ -233,16 +264,15 @@ func TestGetEnvironmentInfo(t *testing.T) {
 	// Create test services map with the expected structure
 	testServices := make(inspect.ServiceMap)
 	testServices["el-1-geth-lighthouse"] = inspect.PortMap{
-		"rpc": {Port: 52645},
+		"rpc": descriptors.PortInfo{Port: 52645},
 	}
 
-	testWallets := deployer.WalletList{
-		{
-			Name:       "test-wallet",
-			Address:    common.HexToAddress("0x123"),
-			PrivateKey: "0xabc",
-		},
+	testWallet := &deployer.Wallet{
+		Name:       "test-wallet",
+		Address:    common.HexToAddress("0x123"),
+		PrivateKey: "0xabc",
 	}
+	testWallets := deployer.WalletList{testWallet}
 
 	testJWTs := &jwt.Data{
 		L1JWT: "test-l1-jwt",
@@ -272,11 +302,20 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			name:    "successful environment info with JWT",
 			spec:    testSpec,
 			inspect: &inspect.InspectData{UserServices: testServices},
-			deploy:  &deployer.DeployerData{Wallets: testWallets},
-			jwt:     testJWTs,
+			deploy: &deployer.DeployerData{
+				L1ValidatorWallets: testWallets,
+				State: &deployer.DeployerState{
+					Addresses: deployer.DeploymentAddresses{
+						"0x123": common.HexToAddress("0x123"),
+					},
+				},
+				L1ChainID: "1234",
+			},
+			jwt: testJWTs,
 			want: &KurtosisEnvironment{
 				DevnetEnvironment: descriptors.DevnetEnvironment{
 					L1: &descriptors.Chain{
+						ID:       "1234",
 						Name:     "Ethereum",
 						Services: make(descriptors.ServiceMap),
 						Nodes: []descriptors.Node{
@@ -285,15 +324,27 @@ func TestGetEnvironmentInfo(t *testing.T) {
 							},
 						},
 						JWT: testJWTs.L1JWT,
-					},
-					L2: []*descriptors.Chain{
-						{
-							Name:     "op-kurtosis",
-							ID:       "1234",
-							Services: make(descriptors.ServiceMap),
-							JWT:      testJWTs.L2JWT,
+						Addresses: descriptors.AddressMap{
+							"0x123": common.HexToAddress("0x123"),
+						},
+						Wallets: descriptors.WalletMap{
+							testWallet.Name: {
+								Address:    testWallet.Address,
+								PrivateKey: testWallet.PrivateKey,
+							},
 						},
 					},
+					L2: []*descriptors.L2Chain{
+						{
+							Chain: descriptors.Chain{
+								Name:     "op-kurtosis",
+								ID:       "1234",
+								Services: make(descriptors.ServiceMap),
+								JWT:      testJWTs.L2JWT,
+							},
+						},
+					},
+					DepSet: nil,
 				},
 			},
 		},
@@ -318,12 +369,141 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			err:     fmt.Errorf("jwt failed"),
 			wantErr: true,
 		},
+		{
+			name: "with interop feature - depset fetched",
+			spec: &spec.EnclaveSpec{
+				Chains: []spec.ChainSpec{
+					{
+						Name:      "op-kurtosis",
+						NetworkID: "1234",
+					},
+				},
+				Features: spec.FeatureList{spec.FeatureInterop},
+			},
+			inspect: &inspect.InspectData{UserServices: testServices},
+			deploy: &deployer.DeployerData{
+				L1ValidatorWallets: testWallets,
+				State: &deployer.DeployerState{
+					Addresses: deployer.DeploymentAddresses{
+						"0x123": common.HexToAddress("0x123"),
+					},
+				},
+				L1ChainID: "1234",
+			},
+			jwt: testJWTs,
+			want: &KurtosisEnvironment{
+				DevnetEnvironment: descriptors.DevnetEnvironment{
+					L1: &descriptors.Chain{
+						ID:       "1234",
+						Name:     "Ethereum",
+						Services: make(descriptors.ServiceMap),
+						Nodes: []descriptors.Node{
+							{
+								Services: l1Services,
+							},
+						},
+						JWT: testJWTs.L1JWT,
+						Addresses: descriptors.AddressMap{
+							"0x123": common.HexToAddress("0x123"),
+						},
+						Wallets: descriptors.WalletMap{
+							testWallet.Name: {
+								Address:    testWallet.Address,
+								PrivateKey: testWallet.PrivateKey,
+							},
+						},
+					},
+					L2: []*descriptors.L2Chain{
+						{
+							Chain: descriptors.Chain{
+								Name:     "op-kurtosis",
+								ID:       "1234",
+								Services: make(descriptors.ServiceMap),
+								JWT:      testJWTs.L2JWT,
+							},
+						},
+					},
+					Features: spec.FeatureList{spec.FeatureInterop},
+					DepSet:   json.RawMessage(`{}`),
+				},
+			},
+		},
+		{
+			name: "without interop feature - depset not fetched",
+			spec: &spec.EnclaveSpec{
+				Chains: []spec.ChainSpec{
+					{
+						Name:      "op-kurtosis",
+						NetworkID: "1234",
+					},
+				},
+				Features: spec.FeatureList{},
+			},
+			inspect: &inspect.InspectData{UserServices: testServices},
+			deploy: &deployer.DeployerData{
+				L1ValidatorWallets: testWallets,
+				State: &deployer.DeployerState{
+					Addresses: deployer.DeploymentAddresses{
+						"0x123": common.HexToAddress("0x123"),
+					},
+				},
+				L1ChainID: "1234",
+			},
+			jwt: testJWTs,
+			want: &KurtosisEnvironment{
+				DevnetEnvironment: descriptors.DevnetEnvironment{
+					L1: &descriptors.Chain{
+						ID:       "1234",
+						Name:     "Ethereum",
+						Services: make(descriptors.ServiceMap),
+						Nodes: []descriptors.Node{
+							{
+								Services: l1Services,
+							},
+						},
+						JWT: testJWTs.L1JWT,
+						Addresses: descriptors.AddressMap{
+							"0x123": common.HexToAddress("0x123"),
+						},
+						Wallets: descriptors.WalletMap{
+							testWallet.Name: {
+								Address:    testWallet.Address,
+								PrivateKey: testWallet.PrivateKey,
+							},
+						},
+					},
+					L2: []*descriptors.L2Chain{
+						{
+							Chain: descriptors.Chain{
+								Name:     "op-kurtosis",
+								ID:       "1234",
+								Services: make(descriptors.ServiceMap),
+								JWT:      testJWTs.L2JWT,
+							},
+						},
+					},
+					Features: spec.FeatureList{},
+					DepSet:   nil,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock Kurtosis context that won't try to connect to a real engine
+			mockCtx := &mockKurtosisContext{
+				enclaveCtx: &fake.EnclaveContext{},
+			}
+
+			// Create depset data based on whether interop is enabled
+			var depsetData json.RawMessage
+			if tt.spec != nil && tt.spec.Features.Contains(spec.FeatureInterop) {
+				depsetData = json.RawMessage(`{}`)
+			}
+
 			deployer, err := NewKurtosisDeployer(
-				WithKurtosisKurtosisContext(&fake.KurtosisContext{}),
+				WithKurtosisKurtosisContext(mockCtx),
 				WithKurtosisEnclaveInspecter(&fakeEnclaveInspecter{
 					result: tt.inspect,
 					err:    tt.err,
@@ -334,6 +514,10 @@ func TestGetEnvironmentInfo(t *testing.T) {
 				}),
 				WithKurtosisJWTExtractor(&fakeJWTExtractor{
 					data: tt.jwt,
+					err:  tt.err,
+				}),
+				WithKurtosisDepsetExtractor(&fakeDepsetExtractor{
+					data: depsetData,
 					err:  tt.err,
 				}),
 			)

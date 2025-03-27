@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/deployer"
@@ -24,4 +25,8 @@ type EnclaveObserver interface {
 
 type JWTExtractor interface {
 	ExtractData(context.Context, string) (*jwt.Data, error)
+}
+
+type DepsetExtractor interface {
+	ExtractData(context.Context, string) (json.RawMessage, error)
 }

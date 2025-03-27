@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
-import { Claim, Duration, GameType, GameTypes, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 // Interfaces
@@ -17,20 +17,21 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
+import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IHasSuperchainConfig } from "interfaces/L1/IHasSuperchainConfig.sol";
-import { ISystemConfigInterop } from "interfaces/L1/ISystemConfigInterop.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 contract OPContractsManagerContractsContainer {
     /// @notice Addresses of the Blueprint contracts.
@@ -59,6 +60,9 @@ contract OPContractsManagerContractsContainer {
 }
 
 abstract contract OPContractsManagerBase {
+    /// @notice Thrown when an invalid game type is used.
+    error OPContractsManager_InvalidGameType();
+
     /// @notice The blueprint contract addresses contract.
     OPContractsManagerContractsContainer public immutable contractsContainer;
 
@@ -191,6 +195,31 @@ abstract contract OPContractsManagerBase {
         return Bytes.slice(dataWithSelector, 4);
     }
 
+    function encodePermissionlessSuperFDGConstructor(ISuperFaultDisputeGame.GameConstructorParams memory _params)
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        bytes memory dataWithSelector = abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (_params));
+        return Bytes.slice(dataWithSelector, 4);
+    }
+
+    function encodePermissionedSuperFDGConstructor(
+        ISuperFaultDisputeGame.GameConstructorParams memory _params,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        bytes memory dataWithSelector =
+            abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
+        return Bytes.slice(dataWithSelector, 4);
+    }
+
     /// @notice Returns the implementation contract address for a given game type.
     function getGameImplementation(
         IDisputeGameFactory _disputeGameFactory,
@@ -298,6 +327,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
             // This conversion is safe because the GameType is a uint32, which will always fit in an int256.
             int256 gameTypeInt = int256(uint256(gameConfig.disputeGameType.raw()));
+
             // Ensure that the game configs are added in ascending order, and not duplicated.
             if (lastGameConfig >= gameTypeInt) revert OPContractsManager.InvalidGameConfigs();
             lastGameConfig = gameTypeInt;
@@ -309,6 +339,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     getGameImplementation(getDisputeGameFactory(gameConfig.systemConfig), GameTypes.PERMISSIONED_CANNON)
                 )
             );
+
             // Pull out the chain ID.
             uint256 l2ChainId = getL2ChainId(pdg);
 
@@ -526,66 +557,142 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) external virtual {
         OPContractsManager.Implementations memory impls = getImplementations();
-        OPContractsManager.Blueprints memory bps = getBlueprints();
 
         for (uint256 i = 0; i < _opChainConfigs.length; i++) {
             assertValidOpChainConfig(_opChainConfigs[i]);
-            ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
 
-            // -------- Upgrade Contracts Stored in SystemConfig --------
+            // Use the SystemConfig to grab the DisputeGameFactory address.
+            IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfigs[i].systemConfigProxy.disputeGameFactory());
 
-            // OptimismPortal and L1CrossDomainMessenger are being upgraded to include the fixes
-            // for EIP-7623 (minimum gas limits for L1 -> L2 messages).
-            upgradeTo(_opChainConfigs[i].proxyAdmin, opChainAddrs.optimismPortal, impls.optimismPortalImpl);
-            upgradeTo(
-                _opChainConfigs[i].proxyAdmin, opChainAddrs.l1CrossDomainMessenger, impls.l1CrossDomainMessengerImpl
-            );
+            // All chains have the PermissionedDisputeGame, grab that.
+            IPermissionedDisputeGame permissionedDisputeGame =
+                IPermissionedDisputeGame(address(getGameImplementation(dgf, GameTypes.PERMISSIONED_CANNON)));
 
-            // L1ERC721Bridge and L1StandardBridge are being upgraded to include the tweaks to the
-            // EOA checking code for EIP-7702 (code length == 23).
-            upgradeTo(_opChainConfigs[i].proxyAdmin, opChainAddrs.l1ERC721Bridge, impls.l1ERC721BridgeImpl);
-            upgradeTo(_opChainConfigs[i].proxyAdmin, opChainAddrs.l1StandardBridge, impls.l1StandardBridgeImpl);
-
-            // -------- Discover and Upgrade Proofs Contracts --------
-
-            // All chains have the Permissioned Dispute Game.
-            IPermissionedDisputeGame permissionedDisputeGame = IPermissionedDisputeGame(
-                address(
-                    getGameImplementation(
-                        IDisputeGameFactory(opChainAddrs.disputeGameFactory), GameTypes.PERMISSIONED_CANNON
-                    )
-                )
-            );
-
-            // We're also going to need the l2ChainId below, so we cache it in the outer scope.
+            // Grab the L2 chain ID from the PermissionedDisputeGame.
             uint256 l2ChainId = getL2ChainId(IFaultDisputeGame(address(permissionedDisputeGame)));
 
-            deployAndSetNewGameImpl({
-                _l2ChainId: l2ChainId,
-                _disputeGame: IDisputeGame(address(permissionedDisputeGame)),
-                _gameType: GameTypes.PERMISSIONED_CANNON,
-                _opChainConfig: _opChainConfigs[i],
-                _implementations: impls,
-                _blueprints: bps,
-                _opChainAddrs: opChainAddrs
-            });
-
-            // Now retrieve the permissionless game. If it exists, replace its implementation.
-            IFaultDisputeGame permissionlessDisputeGame = IFaultDisputeGame(
-                address(getGameImplementation(IDisputeGameFactory(opChainAddrs.disputeGameFactory), GameTypes.CANNON))
+            // Start by upgrading the SystemConfig contract to have the l2ChainId.
+            upgradeToAndCall(
+                _opChainConfigs[i].proxyAdmin,
+                address(_opChainConfigs[i].systemConfigProxy),
+                impls.systemConfigImpl,
+                abi.encodeCall(ISystemConfig.upgrade, (l2ChainId))
             );
 
-            if (address(permissionlessDisputeGame) != address(0)) {
-                // Deploy and set a new permissionless game to update its prestate
+            // Grab chain addresses here. We need to do this after the SystemConfig upgrade or the
+            // addresses will be incorrect.
+            ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
+
+            // Grab the current respectedGameType from the OptimismPortal contract before the upgrade.
+            GameType respectedGameType = IOptimismPortal(payable(opChainAddrs.optimismPortal)).respectedGameType();
+
+            // Grab the current SuperchainConfig from the OptimismPortal contract before the upgrade.
+            ISuperchainConfig superchainConfig =
+                IOptimismPortal(payable(opChainAddrs.optimismPortal)).superchainConfig();
+
+            // Separate context to avoid stack too deep.
+            IAnchorStateRegistry newAnchorStateRegistryProxy;
+            {
+                // Deploy a new AnchorStateRegistry contract.
+                // We use the SOT suffix to avoid CREATE2 conflicts with the existing ASR.
+                newAnchorStateRegistryProxy = IAnchorStateRegistry(
+                    deployProxy({
+                        _l2ChainId: l2ChainId,
+                        _proxyAdmin: _opChainConfigs[i].proxyAdmin,
+                        _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
+                        _contractName: "AnchorStateRegistry-SOT"
+                    })
+                );
+
+                // Separate context to avoid stack too deep.
+                {
+                    // Get the existing anchor root from the old AnchorStateRegistry contract.
+                    // Get the AnchorStateRegistry from the PermissionedDisputeGame.
+                    (Hash root, uint256 l2BlockNumber) = getAnchorStateRegistry(
+                        IFaultDisputeGame(address(permissionedDisputeGame))
+                    ).anchors(respectedGameType);
+
+                    // Upgrade and initialize the AnchorStateRegistry contract.
+                    // Since this is a net-new contract, we need to initialize it.
+                    upgradeToAndCall(
+                        _opChainConfigs[i].proxyAdmin,
+                        address(newAnchorStateRegistryProxy),
+                        impls.anchorStateRegistryImpl,
+                        abi.encodeCall(
+                            IAnchorStateRegistry.initialize,
+                            (
+                                superchainConfig,
+                                dgf,
+                                Proposal({ root: root, l2SequenceNumber: l2BlockNumber }),
+                                respectedGameType
+                            )
+                        )
+                    );
+                }
+            }
+
+            // Upgrade the OptimismPortal contract implementation.
+            upgradeTo(_opChainConfigs[i].proxyAdmin, opChainAddrs.optimismPortal, impls.optimismPortalImpl);
+
+            // Separate context to avoid stack too deep.
+            {
+                // Deploy the ETHLockbox proxy.
+                IETHLockbox ethLockbox;
+                {
+                    ethLockbox = IETHLockbox(
+                        deployProxy({
+                            _l2ChainId: l2ChainId,
+                            _proxyAdmin: _opChainConfigs[i].proxyAdmin,
+                            _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
+                            _contractName: "ETHLockbox"
+                        })
+                    );
+
+                    // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
+                    IOptimismPortal[] memory portals = new IOptimismPortal[](1);
+                    portals[0] = IOptimismPortal(payable(opChainAddrs.optimismPortal));
+                    upgradeToAndCall(
+                        _opChainConfigs[i].proxyAdmin,
+                        address(ethLockbox),
+                        impls.ethLockboxImpl,
+                        abi.encodeCall(IETHLockbox.initialize, (superchainConfig, portals))
+                    );
+                }
+
+                // Call `upgrade` on the OptimismPortal contract.
+                IOptimismPortal(payable(opChainAddrs.optimismPortal)).upgrade(newAnchorStateRegistryProxy, ethLockbox);
+            }
+
+            // We also need to redeploy the dispute games because the AnchorStateRegistry is new.
+            // Separate context to avoid stack too deep.
+            {
+                // Deploy and set a new permissioned game to update its prestate.
                 deployAndSetNewGameImpl({
                     _l2ChainId: l2ChainId,
-                    _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
-                    _gameType: GameTypes.CANNON,
-                    _opChainConfig: _opChainConfigs[i],
-                    _implementations: impls,
-                    _blueprints: bps,
-                    _opChainAddrs: opChainAddrs
+                    _disputeGame: IDisputeGame(address(permissionedDisputeGame)),
+                    _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                    _gameType: GameTypes.PERMISSIONED_CANNON,
+                    _opChainConfig: _opChainConfigs[i]
                 });
+            }
+
+            // Separate context to avoid stack too deep.
+            {
+                // Now retrieve the permissionless game.
+                IFaultDisputeGame permissionlessDisputeGame =
+                    IFaultDisputeGame(address(getGameImplementation(dgf, GameTypes.CANNON)));
+
+                // If it exists, replace its implementation.
+                if (address(permissionlessDisputeGame) != address(0)) {
+                    // Deploy and set a new permissionless game to update its prestate
+                    deployAndSetNewGameImpl({
+                        _l2ChainId: l2ChainId,
+                        _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
+                        _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                        _gameType: GameTypes.CANNON,
+                        _opChainConfig: _opChainConfigs[i]
+                    });
+                }
             }
 
             // Emit the upgraded event with the address of the caller. Since this will be a delegatecall,
@@ -616,32 +723,39 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Deploys and sets a new dispute game implementation
     /// @param _l2ChainId The L2 chain ID
     /// @param _disputeGame The current dispute game implementation
+    /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
     /// @param _gameType The type of game to deploy
     /// @param _opChainConfig The OP chain configuration
-    /// @param _blueprints The blueprint addresses
-    /// @param _implementations The implementation addresses
-    /// @param _opChainAddrs The OP chain addresses
     function deployAndSetNewGameImpl(
         uint256 _l2ChainId,
         IDisputeGame _disputeGame,
+        IAnchorStateRegistry _newAnchorStateRegistryProxy,
         GameType _gameType,
-        OPContractsManager.OpChainConfig memory _opChainConfig,
-        OPContractsManager.Blueprints memory _blueprints,
-        OPContractsManager.Implementations memory _implementations,
-        ISystemConfig.Addresses memory _opChainAddrs
+        OPContractsManager.OpChainConfig memory _opChainConfig
     )
         internal
     {
+        OPContractsManager.Blueprints memory bps = getBlueprints();
+        OPContractsManager.Implementations memory impls = getImplementations();
+
         // Get the constructor params for the game
         IFaultDisputeGame.GameConstructorParams memory params =
             getGameConstructorParams(IFaultDisputeGame(address(_disputeGame)));
 
         // Modify the params with the new vm values.
-        params.vm = IBigStepper(_implementations.mipsImpl);
-        if (Claim.unwrap(_opChainConfig.absolutePrestate) == bytes32(0)) {
+        params.anchorStateRegistry = IAnchorStateRegistry(address(_newAnchorStateRegistryProxy));
+        params.vm = IBigStepper(impls.mipsImpl);
+
+        // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
+        // that already exists on the current dispute game.
+        if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
+            params.absolutePrestate = _opChainConfig.absolutePrestate;
+        }
+
+        // As a sanity check, if the prestate is zero here, revert.
+        if (params.absolutePrestate.raw() == bytes32(0)) {
             revert OPContractsManager.PrestateNotSet();
         }
-        params.absolutePrestate = _opChainConfig.absolutePrestate;
 
         IDisputeGame newGame;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
@@ -649,8 +763,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             address challenger = getChallenger(IPermissionedDisputeGame(address(_disputeGame)));
             newGame = IDisputeGame(
                 Blueprint.deployFrom(
-                    _blueprints.permissionedDisputeGame1,
-                    _blueprints.permissionedDisputeGame2,
+                    bps.permissionedDisputeGame1,
+                    bps.permissionedDisputeGame2,
                     computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig), "PermissionedDisputeGame"),
                     encodePermissionedFDGConstructor(params, proposer, challenger)
                 )
@@ -658,14 +772,19 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         } else {
             newGame = IDisputeGame(
                 Blueprint.deployFrom(
-                    _blueprints.permissionlessDisputeGame1,
-                    _blueprints.permissionlessDisputeGame2,
+                    bps.permissionlessDisputeGame1,
+                    bps.permissionlessDisputeGame2,
                     computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig), "PermissionlessDisputeGame"),
                     encodePermissionlessFDGConstructor(params)
                 )
             );
         }
-        setDGFImplementation(IDisputeGameFactory(_opChainAddrs.disputeGameFactory), _gameType, IDisputeGame(newGame));
+
+        // Grab the DisputeGameFactory from the SystemConfig.
+        IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
+
+        // Set the new implementation.
+        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
     }
 }
 
@@ -722,9 +841,11 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         // Deploy ERC-1967 proxied contracts.
         output.l1ERC721BridgeProxy =
             IL1ERC721Bridge(deployProxy(_input.l2ChainId, output.opChainProxyAdmin, _input.saltMixer, "L1ERC721Bridge"));
-        output.optimismPortalProxy = IOptimismPortal2(
+        output.optimismPortalProxy = IOptimismPortal(
             payable(deployProxy(_input.l2ChainId, output.opChainProxyAdmin, _input.saltMixer, "OptimismPortal"))
         );
+        output.ethLockboxProxy =
+            IETHLockbox(deployProxy(_input.l2ChainId, output.opChainProxyAdmin, _input.saltMixer, "ETHLockbox"));
         output.systemConfigProxy =
             ISystemConfig(deployProxy(_input.l2ChainId, output.opChainProxyAdmin, _input.saltMixer, "SystemConfig"));
         output.optimismMintableERC20FactoryProxy = IOptimismMintableERC20Factory(
@@ -805,6 +926,12 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         upgradeToAndCall(
             output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
         );
+
+        // Initialize the ETHLockbox.
+        IOptimismPortal[] memory portals = new IOptimismPortal[](1);
+        portals[0] = output.optimismPortalProxy;
+        data = encodeETHLockboxInitializer(_superchainConfig, portals);
+        upgradeToAndCall(output.opChainProxyAdmin, address(output.ethLockboxProxy), implementation.ethLockboxImpl, data);
 
         data = encodeSystemConfigInitializer(_input, output);
         upgradeToAndCall(
@@ -890,7 +1017,6 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
             l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
-            disputeGameFactory: address(_output.disputeGameFactoryProxy),
             optimismPortal: address(_output.optimismPortalProxy),
             optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy)
         });
@@ -898,7 +1024,6 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
         assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
         assertValidContractAddress(opChainAddrs_.l1StandardBridge);
-        assertValidContractAddress(opChainAddrs_.disputeGameFactory);
         assertValidContractAddress(opChainAddrs_.optimismPortal);
         assertValidContractAddress(opChainAddrs_.optimismMintableERC20Factory);
     }
@@ -959,14 +1084,22 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         returns (bytes memory)
     {
         return abi.encodeCall(
-            IOptimismPortal2.initialize,
-            (
-                _output.disputeGameFactoryProxy,
-                _output.systemConfigProxy,
-                _superchainConfig,
-                GameTypes.PERMISSIONED_CANNON
-            )
+            IOptimismPortal.initialize,
+            (_output.systemConfigProxy, _superchainConfig, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
         );
+    }
+
+    /// @notice Helper method for encoding the ETHLockbox initializer data.
+    function encodeETHLockboxInitializer(
+        ISuperchainConfig _superchainConfig,
+        IOptimismPortal[] memory _portals
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        return abi.encodeCall(IETHLockbox.initialize, (_superchainConfig, _portals));
     }
 
     /// @notice Helper method for encoding the SystemConfig initializer data.
@@ -993,7 +1126,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 _input.roles.unsafeBlockSigner,
                 referenceResourceConfig,
                 chainIdToBatchInboxAddress(_input.l2ChainId),
-                opChainAddrs
+                opChainAddrs,
+                _input.l2ChainId
             )
         );
     }
@@ -1050,10 +1184,10 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         virtual
         returns (bytes memory)
     {
-        OutputRoot memory startingAnchorRoot = abi.decode(_input.startingAnchorRoot, (OutputRoot));
+        Proposal memory startingAnchorRoot = abi.decode(_input.startingAnchorRoot, (Proposal));
         return abi.encodeCall(
             IAnchorStateRegistry.initialize,
-            (_superchainConfig, _output.disputeGameFactoryProxy, _output.optimismPortalProxy, startingAnchorRoot)
+            (_superchainConfig, _output.disputeGameFactoryProxy, startingAnchorRoot, GameTypes.PERMISSIONED_CANNON)
         );
     }
 
@@ -1070,48 +1204,273 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     }
 }
 
-contract OPContractsManagerDeployerInterop is OPContractsManagerDeployer {
-    constructor(OPContractsManagerContractsContainer _contractsContainer)
-        OPContractsManagerDeployer(_contractsContainer)
-    { }
+/// @title OPContractsManagerInteropMigrator
+/// @notice This contract is used to migrate one or more OP Stack chains to use the Super Root dispute
+///         games and shared dispute game contracts.
+contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
+    /// @notice Thrown when the ProxyAdmin owner of one or more of the provided OP Stack chains
+    ///         being migrated does not match the ProxyAdmin owner of the first provided chain.
+    error OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
 
-    // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument
-    // that we must account for.
-    function encodeSystemConfigInitializer(
-        OPContractsManager.DeployInput memory _input,
-        OPContractsManager.DeployOutput memory _output
-    )
-        internal
-        view
-        virtual
-        override
-        returns (bytes memory)
-    {
-        (IResourceMetering.ResourceConfig memory referenceResourceConfig, ISystemConfig.Addresses memory opChainAddrs) =
-            defaultSystemConfigParams(_input, _output);
+    /// @notice Thrown when the SuperchainConfig of one or more of the provided OP Stack chains
+    ///         being migrated does not match the SuperchainConfig of the first provided chain.
+    error OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
 
-        // TODO For now we assume that the dependency manager is the same as system config owner.
-        // This is currently undefined since it's not part of the standard config, so we may need
-        // to update where this value is pulled from in the future. To support a different dependency
-        // manager in this contract without an invasive change of redefining the `Roles` struct,
-        // we will make the change described in https://github.com/ethereum-optimism/optimism/issues/11783.
-        address dependencyManager = address(_input.roles.systemConfigOwner);
+    /// @notice Thrown when the absolute prestate of one or more of the provided OP Stack chains
+    ///         being migrated does not match the absolute prestate of the first provided chain.
+    error OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
 
-        return abi.encodeCall(
-            ISystemConfigInterop.initialize,
-            (
-                _input.roles.systemConfigOwner,
-                _input.basefeeScalar,
-                _input.blobBasefeeScalar,
-                bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                _input.gasLimit,
-                _input.roles.unsafeBlockSigner,
-                referenceResourceConfig,
-                chainIdToBatchInboxAddress(_input.l2ChainId),
-                opChainAddrs,
-                dependencyManager
+    /// @notice Parameters for creating the new Super Root dispute games that must be provided by
+    ///         the caller. Other parameters are selected automatically.
+    struct GameParameters {
+        address proposer;
+        address challenger;
+        uint256 maxGameDepth;
+        uint256 splitDepth;
+        uint256 initBond;
+        Duration clockExtension;
+        Duration maxClockDuration;
+    }
+
+    /// @notice Input parameters for the migration.
+    struct MigrateInput {
+        bool usePermissionlessGame;
+        Proposal startingAnchorRoot;
+        GameParameters gameParameters;
+        OPContractsManager.OpChainConfig[] opChainConfigs;
+    }
+
+    /// @param _contractsContainer Container of blueprints and implementations.
+    constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
+
+    /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
+    ///         dispute game contracts.
+    /// @param _input The input parameters for the migration.
+    function migrate(MigrateInput calldata _input) public virtual {
+        // Check that all of the configs have the same proxy admin owner and prestate.
+        for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
+            // Different chains might actually have different ProxyAdmin contracts, but it's fine
+            // as long as the owner of all of those contracts is the same.
+            if (_input.opChainConfigs[i].proxyAdmin.owner() != _input.opChainConfigs[0].proxyAdmin.owner()) {
+                revert OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
+            }
+            if (_input.opChainConfigs[i].absolutePrestate.raw() != _input.opChainConfigs[0].absolutePrestate.raw()) {
+                revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
+            }
+        }
+
+        // Grab an array of portals from the configs.
+        IOptimismPortal[] memory portals = new IOptimismPortal[](_input.opChainConfigs.length);
+        for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
+            portals[i] = IOptimismPortal(payable(_input.opChainConfigs[i].systemConfigProxy.optimismPortal()));
+        }
+
+        // Check that the portals have the same SuperchainConfig.
+        for (uint256 i = 0; i < portals.length; i++) {
+            if (portals[i].superchainConfig() != portals[0].superchainConfig()) {
+                revert OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
+            }
+        }
+
+        // NOTE that here and in the rest of this function, we are using the first provided chain's
+        // ProxyAdmin contract as the ProxyAdmin for all of the newly shared contracts. This is
+        // safe because we already checked that all of the provided chains have the same ProxyAdmin
+        // owner and therefore have the same access models.
+        address proxyAdminOwner = _input.opChainConfigs[0].proxyAdmin.owner();
+
+        // Deploy the new ETHLockbox.
+        // NOTE that here and in the rest of this function we use block.timestamp as a fake chain
+        // id for any new contracts that are deployed. The L2 chain id is not used for anything
+        // except the salt mixer, so making it the same as the block timestamp means that new
+        // contracts will be generated every time this function is called. This is totally fine for
+        // our purposes here, there's no strong need to have deterministic addresses ahead of time.
+        IETHLockbox newEthLockbox = IETHLockbox(
+            deployProxy({
+                _l2ChainId: block.timestamp,
+                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                _contractName: "ETHLockbox-Interop"
+            })
+        );
+
+        // Initialize the new ETHLockbox.
+        // Note that this authorizes the portals to use the ETHLockbox.
+        upgradeToAndCall(
+            _input.opChainConfigs[0].proxyAdmin,
+            address(newEthLockbox),
+            getImplementations().ethLockboxImpl,
+            abi.encodeCall(IETHLockbox.initialize, (portals[0].superchainConfig(), portals))
+        );
+
+        // Deploy the new DisputeGameFactory.
+        IDisputeGameFactory newDisputeGameFactory = IDisputeGameFactory(
+            deployProxy({
+                _l2ChainId: block.timestamp,
+                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                _contractName: "DisputeGameFactory-Interop"
+            })
+        );
+
+        // Initialize the new DisputeGameFactory.
+        upgradeToAndCall(
+            _input.opChainConfigs[0].proxyAdmin,
+            address(newDisputeGameFactory),
+            getImplementations().disputeGameFactoryImpl,
+            abi.encodeCall(IDisputeGameFactory.initialize, (proxyAdminOwner))
+        );
+
+        // Deploy the new AnchorStateRegistry.
+        IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
+            deployProxy({
+                _l2ChainId: block.timestamp,
+                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                _contractName: "AnchorStateRegistry-Interop"
+            })
+        );
+
+        // Select the correct game type based on the input.
+        GameType newGameType;
+        if (_input.usePermissionlessGame) {
+            newGameType = GameTypes.SUPER_CANNON;
+        } else {
+            newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
+        }
+
+        // Initialize the new AnchorStateRegistry.
+        upgradeToAndCall(
+            _input.opChainConfigs[0].proxyAdmin,
+            address(newAnchorStateRegistry),
+            getImplementations().anchorStateRegistryImpl,
+            abi.encodeCall(
+                IAnchorStateRegistry.initialize,
+                (portals[0].superchainConfig(), newDisputeGameFactory, _input.startingAnchorRoot, newGameType)
             )
         );
+
+        // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
+        for (uint256 i = 0; i < portals.length; i++) {
+            // Authorize the existing ETHLockboxes to use the new ETHLockbox.
+            IETHLockbox existingLockbox = IETHLockbox(payable(address(portals[i].ethLockbox())));
+            newEthLockbox.authorizeLockbox(existingLockbox);
+
+            // Migrate the existing ETHLockbox to the new ETHLockbox.
+            existingLockbox.migrateLiquidity(newEthLockbox);
+
+            // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
+            portals[i].migrateToSuperRoots(newEthLockbox, newAnchorStateRegistry);
+        }
+
+        // Separate context to avoid stack too deep.
+        {
+            // Deploy a new DelayedWETH proxy for the permissioned game.
+            IDelayedWETH newPermissionedDelayedWETHProxy = IDelayedWETH(
+                payable(
+                    deployProxy({
+                        _l2ChainId: block.timestamp,
+                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                        _contractName: "DelayedWETH-Interop-Permissioned"
+                    })
+                )
+            );
+
+            // Initialize the new DelayedWETH proxy.
+            upgradeToAndCall(
+                _input.opChainConfigs[0].proxyAdmin,
+                address(newPermissionedDelayedWETHProxy),
+                getImplementations().delayedWETHImpl,
+                abi.encodeCall(IDelayedWETH.initialize, (proxyAdminOwner, portals[0].superchainConfig()))
+            );
+
+            // Deploy the new SuperPermissionedDisputeGame.
+            // NOTE that we use a chain id of 0 here (instead of the block timestamp) because the
+            // use of the chain id is different and actually passed into the constructor of the
+            // dispute game contracts. Since these are Super dispute games and involve multiple
+            // chains, the contracts enforce that the chain id is zero.
+            ISuperPermissionedDisputeGame newSuperPDG = ISuperPermissionedDisputeGame(
+                Blueprint.deployFrom(
+                    blueprints().superPermissionedDisputeGame1,
+                    blueprints().superPermissionedDisputeGame2,
+                    computeSalt(
+                        block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperPermissionedDisputeGame"
+                    ),
+                    encodePermissionedSuperFDGConstructor(
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
+                            maxGameDepth: _input.gameParameters.maxGameDepth,
+                            splitDepth: _input.gameParameters.splitDepth,
+                            clockExtension: _input.gameParameters.clockExtension,
+                            maxClockDuration: _input.gameParameters.maxClockDuration,
+                            vm: IBigStepper(getImplementations().mipsImpl),
+                            weth: newPermissionedDelayedWETHProxy,
+                            anchorStateRegistry: newAnchorStateRegistry,
+                            l2ChainId: 0
+                        }),
+                        _input.gameParameters.proposer,
+                        _input.gameParameters.challenger
+                    )
+                )
+            );
+
+            // Register the new SuperPermissionedDisputeGame.
+            newDisputeGameFactory.setImplementation(
+                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG))
+            );
+            newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
+        }
+
+        // If the permissionless game is being used, set that up too.
+        if (_input.usePermissionlessGame) {
+            // Deploy a new DelayedWETH proxy for the permissionless game.
+            IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
+                payable(
+                    deployProxy({
+                        _l2ChainId: block.timestamp,
+                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
+                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
+                        _contractName: "DelayedWETH-Interop-Permissionless"
+                    })
+                )
+            );
+
+            // Initialize the new DelayedWETH proxy.
+            upgradeToAndCall(
+                _input.opChainConfigs[0].proxyAdmin,
+                address(newPermissionlessDelayedWETHProxy),
+                getImplementations().delayedWETHImpl,
+                abi.encodeCall(IDelayedWETH.initialize, (proxyAdminOwner, portals[0].superchainConfig()))
+            );
+
+            // Deploy the new SuperFaultDisputeGame.
+            ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
+                Blueprint.deployFrom(
+                    blueprints().superPermissionlessDisputeGame1,
+                    blueprints().superPermissionlessDisputeGame2,
+                    computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperFaultDisputeGame"),
+                    encodePermissionlessSuperFDGConstructor(
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.SUPER_CANNON,
+                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
+                            maxGameDepth: _input.gameParameters.maxGameDepth,
+                            splitDepth: _input.gameParameters.splitDepth,
+                            clockExtension: _input.gameParameters.clockExtension,
+                            maxClockDuration: _input.gameParameters.maxClockDuration,
+                            vm: IBigStepper(getImplementations().mipsImpl),
+                            weth: newPermissionlessDelayedWETHProxy,
+                            anchorStateRegistry: newAnchorStateRegistry,
+                            l2ChainId: 0
+                        })
+                    )
+                )
+            );
+
+            // Register the new SuperFaultDisputeGame.
+            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
+            newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
+        }
     }
 }
 
@@ -1134,7 +1493,7 @@ contract OPContractsManager is ISemver {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
-        // The correct type is OutputRoot memory but OP Deployer does not yet support structs.
+        // The correct type is Proposal memory but OP Deployer does not yet support structs.
         bytes startingAnchorRoot;
         // The salt mixer is used as part of making the resulting salt unique.
         string saltMixer;
@@ -1157,8 +1516,9 @@ contract OPContractsManager is ISemver {
         IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
         IL1StandardBridge l1StandardBridgeProxy;
         IL1CrossDomainMessenger l1CrossDomainMessengerProxy;
+        IETHLockbox ethLockboxProxy;
         // Fault proof contracts below.
-        IOptimismPortal2 optimismPortalProxy;
+        IOptimismPortal optimismPortalProxy;
         IDisputeGameFactory disputeGameFactoryProxy;
         IAnchorStateRegistry anchorStateRegistryProxy;
         IFaultDisputeGame faultDisputeGame;
@@ -1182,6 +1542,10 @@ contract OPContractsManager is ISemver {
         address permissionedDisputeGame2;
         address permissionlessDisputeGame1;
         address permissionlessDisputeGame2;
+        address superPermissionedDisputeGame1;
+        address superPermissionedDisputeGame2;
+        address superPermissionlessDisputeGame1;
+        address superPermissionlessDisputeGame2;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.
@@ -1190,6 +1554,7 @@ contract OPContractsManager is ISemver {
         address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
         address l1CrossDomainMessengerImpl;
@@ -1230,9 +1595,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.8.0
+    /// @custom:semver 1.13.0
     function version() public pure virtual returns (string memory) {
-        return "1.8.0";
+        return "1.13.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1240,6 +1605,8 @@ contract OPContractsManager is ISemver {
     OPContractsManagerDeployer public immutable opcmDeployer;
 
     OPContractsManagerUpgrader public immutable opcmUpgrader;
+
+    OPContractsManagerInteropMigrator public immutable opcmInteropMigrator;
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     ISuperchainConfig public immutable superchainConfig;
@@ -1319,6 +1686,7 @@ contract OPContractsManager is ISemver {
         OPContractsManagerGameTypeAdder _opcmGameTypeAdder,
         OPContractsManagerDeployer _opcmDeployer,
         OPContractsManagerUpgrader _opcmUpgrader,
+        OPContractsManagerInteropMigrator _opcmInteropMigrator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -1330,9 +1698,11 @@ contract OPContractsManager is ISemver {
         _opcmDeployer.assertValidContractAddress(address(_opcmGameTypeAdder));
         _opcmDeployer.assertValidContractAddress(address(_opcmDeployer));
         _opcmDeployer.assertValidContractAddress(address(_opcmUpgrader));
+        _opcmDeployer.assertValidContractAddress(address(_opcmInteropMigrator));
         opcmGameTypeAdder = _opcmGameTypeAdder;
         opcmDeployer = _opcmDeployer;
         opcmUpgrader = _opcmUpgrader;
+        opcmInteropMigrator = _opcmInteropMigrator;
         superchainConfig = _superchainConfig;
         protocolVersions = _protocolVersions;
         superchainProxyAdmin = _superchainProxyAdmin;
@@ -1382,6 +1752,14 @@ contract OPContractsManager is ISemver {
         );
 
         _performDelegateCall(address(opcmGameTypeAdder), data);
+    }
+
+    /// @notice Migrates the Optimism contracts to the latest version. This is a stub for now.
+    function migrate(OPContractsManagerInteropMigrator.MigrateInput calldata _input) external virtual {
+        if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
+
+        bytes memory data = abi.encodeCall(OPContractsManagerInteropMigrator.migrate, (_input));
+        _performDelegateCall(address(opcmInteropMigrator), data);
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard

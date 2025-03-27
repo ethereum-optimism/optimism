@@ -30,24 +30,26 @@ func (input *DeployImplementationsInput) InputSet() bool {
 }
 
 type DeployImplementationsOutput struct {
-	Opcm                             common.Address
-	OpcmContractsContainer           common.Address
-	OpcmGameTypeAdder                common.Address
-	OpcmDeployer                     common.Address
-	OpcmUpgrader                     common.Address
-	DelayedWETHImpl                  common.Address
-	OptimismPortalImpl               common.Address
-	PreimageOracleSingleton          common.Address
-	MipsSingleton                    common.Address
-	SystemConfigImpl                 common.Address
-	L1CrossDomainMessengerImpl       common.Address
-	L1ERC721BridgeImpl               common.Address
-	L1StandardBridgeImpl             common.Address
-	OptimismMintableERC20FactoryImpl common.Address
-	DisputeGameFactoryImpl           common.Address
-	AnchorStateRegistryImpl          common.Address
-	SuperchainConfigImpl             common.Address
-	ProtocolVersionsImpl             common.Address
+	Opcm                             common.Address `json:"opcmAddress"`
+	OpcmContractsContainer           common.Address `json:"opcmContractsContainerAddress"`
+	OpcmGameTypeAdder                common.Address `json:"opcmGameTypeAdderAddress"`
+	OpcmDeployer                     common.Address `json:"opcmDeployerAddress"`
+	OpcmUpgrader                     common.Address `json:"opcmUpgraderAddress"`
+	OpcmInteropMigrator              common.Address `json:"opcmInteropMigratorAddress"`
+	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`
+	OptimismPortalImpl               common.Address `json:"optimismPortalImplAddress"`
+	ETHLockboxImpl                   common.Address `json:"ethLockboxImplAddress" evm:"ethLockboxImpl"`
+	PreimageOracleSingleton          common.Address `json:"preimageOracleSingletonAddress"`
+	MipsSingleton                    common.Address `json:"mipsSingletonAddress"`
+	SystemConfigImpl                 common.Address `json:"systemConfigImplAddress"`
+	L1CrossDomainMessengerImpl       common.Address `json:"l1CrossDomainMessengerImplAddress"`
+	L1ERC721BridgeImpl               common.Address `json:"l1ERC721BridgeImplAddress"`
+	L1StandardBridgeImpl             common.Address `json:"l1StandardBridgeImplAddress"`
+	OptimismMintableERC20FactoryImpl common.Address `json:"optimismMintableERC20FactoryImplAddress"`
+	DisputeGameFactoryImpl           common.Address `json:"disputeGameFactoryImplAddress"`
+	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImplAddress"`
+	SuperchainConfigImpl             common.Address `json:"superchainConfigImplAddress"`
+	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
 }
 
 func (output *DeployImplementationsOutput) CheckOutput(input common.Address) error {
@@ -80,9 +82,6 @@ func DeployImplementations(
 	defer cleanupOutput()
 
 	implContract := "DeployImplementations"
-	if input.UseInterop {
-		implContract = "DeployImplementationsInterop"
-	}
 	deployScript, cleanupDeploy, err := script.WithScript[DeployImplementationsScript](host, "DeployImplementations.s.sol", implContract)
 	if err != nil {
 		return output, fmt.Errorf("failed to load %s script: %w", implContract, err)
@@ -90,15 +89,12 @@ func DeployImplementations(
 	defer cleanupDeploy()
 
 	opcmContract := "OPContractsManager"
-	if err := host.RememberOnLabel("OPContractsManager", "OPContractsManager.sol", opcmContract); err != nil {
+	if err := host.RememberOnLabel("OPContractsManager", opcmContract+".sol", opcmContract); err != nil {
 		return output, fmt.Errorf("failed to link OPContractsManager label: %w", err)
 	}
 
 	// So we can see in detail where the SystemConfig interop initializer fails
 	sysConfig := "SystemConfig"
-	if input.UseInterop {
-		sysConfig = "SystemConfigInterop"
-	}
 	if err := host.RememberOnLabel("SystemConfigImpl", sysConfig+".sol", sysConfig); err != nil {
 		return output, fmt.Errorf("failed to link SystemConfig label: %w", err)
 	}

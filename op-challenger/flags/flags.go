@@ -138,6 +138,13 @@ var (
 			EnvVars: envVars,
 		}
 	})
+	DepsetConfigFlag = NewVMFlag("depset-config", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
+		return &cli.StringFlag{
+			Name:    name,
+			Usage:   "Interop dependency set config file " + traceTypeInfo,
+			EnvVars: envVars,
+		}
+	})
 	CannonL2CustomFlag = &cli.BoolFlag{
 		Name: "cannon-l2-custom",
 		Usage: "Notify the op-program host that the L2 chain uses custom config to be loaded via the preimage oracle. " +
@@ -274,6 +281,7 @@ func init() {
 	optionalFlags = append(optionalFlags, PreStatesURLFlag.Flags()...)
 	optionalFlags = append(optionalFlags, RollupConfigFlag.Flags()...)
 	optionalFlags = append(optionalFlags, L2GenesisFlag.Flags()...)
+	optionalFlags = append(optionalFlags, DepsetConfigFlag.Flags()...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
@@ -292,11 +300,6 @@ func checkOutputProviderFlags(ctx *cli.Context) error {
 }
 
 func CheckCannonBaseFlags(ctx *cli.Context) error {
-	if !ctx.IsSet(flags.NetworkFlagName) &&
-		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon)) {
-		return fmt.Errorf("flag %v or %v and %v is required",
-			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeCannon), L2GenesisFlag.EitherFlagName(types.TraceTypeCannon))
-	}
 	if ctx.IsSet(flags.NetworkFlagName) &&
 		(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) || L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon) || ctx.Bool(CannonL2CustomFlag.Name)) {
 		return fmt.Errorf("flag %v can not be used with %v, %v or %v",
@@ -322,6 +325,14 @@ func CheckSuperCannonFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(SupervisorRpcFlag.Name) {
 		return fmt.Errorf("flag %v is required", SupervisorRpcFlag.Name)
 	}
+	if !ctx.IsSet(flags.NetworkFlagName) &&
+		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon) && DepsetConfigFlag.IsSet(ctx, types.TraceTypeCannon)) {
+		return fmt.Errorf("flag %v or %v, %v and %v is required",
+			flags.NetworkFlagName,
+			RollupConfigFlag.EitherFlagName(types.TraceTypeCannon),
+			L2GenesisFlag.EitherFlagName(types.TraceTypeCannon),
+			DepsetConfigFlag.EitherFlagName(types.TraceTypeCannon))
+	}
 	if err := CheckCannonBaseFlags(ctx); err != nil {
 		return err
 	}
@@ -331,6 +342,11 @@ func CheckSuperCannonFlags(ctx *cli.Context) error {
 func CheckCannonFlags(ctx *cli.Context) error {
 	if err := checkOutputProviderFlags(ctx); err != nil {
 		return err
+	}
+	if !ctx.IsSet(flags.NetworkFlagName) &&
+		!(RollupConfigFlag.IsSet(ctx, types.TraceTypeCannon) && L2GenesisFlag.IsSet(ctx, types.TraceTypeCannon)) {
+		return fmt.Errorf("flag %v or %v and %v is required",
+			flags.NetworkFlagName, RollupConfigFlag.EitherFlagName(types.TraceTypeCannon), L2GenesisFlag.EitherFlagName(types.TraceTypeCannon))
 	}
 	if err := CheckCannonBaseFlags(ctx); err != nil {
 		return err
@@ -567,6 +583,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			L2Custom:          ctx.Bool(CannonL2CustomFlag.Name),
 			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, types.TraceTypeCannon),
 			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, types.TraceTypeCannon),
+			DepsetConfigPath:  DepsetConfigFlag.String(ctx, types.TraceTypeCannon),
 			SnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 			InfoFreq:          ctx.Uint(CannonInfoFreqFlag.Name),
 			DebugInfo:         true,
@@ -586,6 +603,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Networks:          networks,
 			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, types.TraceTypeAsterisc),
 			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, types.TraceTypeAsterisc),
+			DepsetConfigPath:  DepsetConfigFlag.String(ctx, types.TraceTypeAsterisc),
 			SnapshotFreq:      ctx.Uint(AsteriscSnapshotFreqFlag.Name),
 			InfoFreq:          ctx.Uint(AsteriscInfoFreqFlag.Name),
 			BinarySnapshots:   true,
@@ -603,6 +621,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			Networks:          networks,
 			RollupConfigPaths: RollupConfigFlag.StringSlice(ctx, types.TraceTypeAsteriscKona),
 			L2GenesisPaths:    L2GenesisFlag.StringSlice(ctx, types.TraceTypeAsteriscKona),
+			DepsetConfigPath:  DepsetConfigFlag.String(ctx, types.TraceTypeAsteriscKona),
 			SnapshotFreq:      ctx.Uint(AsteriscSnapshotFreqFlag.Name),
 			InfoFreq:          ctx.Uint(AsteriscInfoFreqFlag.Name),
 			BinarySnapshots:   true,

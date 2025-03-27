@@ -123,6 +123,11 @@ func (ea *L2EngineAPI) ForcedEmpty() bool {
 	return ea.l2ForceEmpty
 }
 
+// SetForceEmpty changes the way the remainder of the block is being built
+func (ea *L2EngineAPI) SetForceEmpty(v bool) {
+	ea.l2ForceEmpty = v
+}
+
 func (ea *L2EngineAPI) PendingIndices(from common.Address) uint64 {
 	return ea.pendingIndices[from]
 }
@@ -383,6 +388,10 @@ func (ea *L2EngineAPI) NewPayloadV4(ctx context.Context, params *eth.ExecutionPa
 
 	if !ea.config().IsIsthmus(uint64(params.Timestamp)) {
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("newPayloadV4 called pre-isthmus"))
+	}
+
+	if params.WithdrawalsRoot == nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
 	}
 
 	requests := convertRequests(executionRequests)

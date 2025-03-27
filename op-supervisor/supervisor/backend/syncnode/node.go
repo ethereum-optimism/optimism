@@ -202,7 +202,11 @@ func (m *ManagedNode) Start() {
 			case <-m.ctx.Done():
 				m.log.Info("Exiting node syncing")
 				return
-			case ev := <-m.nodeEvents: // nil, indefinitely blocking, if no node-events subscriber is set up.
+			case ev, ok := <-m.nodeEvents: // nil, indefinitely blocking, if no node-events subscriber is set up.
+				if !ok {
+					m.log.Info("Node events channel closed, stopping")
+					return
+				}
 				m.onNodeEvent(ev)
 			}
 		}
@@ -264,16 +268,16 @@ func (m *ManagedNode) onResetEvent(errStr string) {
 func (m *ManagedNode) onUpdateLocalSafeFailed(ev superevents.UpdateLocalSafeFailedEvent) {
 	switch {
 	case errors.Is(ev.Err, types.ErrConflict):
-		m.log.Warn("DB indicated a conflict, checking consistency")
+		m.log.Warn("DB indicated a conflict with this node, checking if node is inconsistent")
 		m.resetIfInconsistent()
 	case errors.Is(ev.Err, types.ErrFuture):
-		m.log.Warn("DB indicated an update is in the future, checking if node is ahead")
+		m.log.Warn("DB indicated this node provided an update from the future, checking if node is ahead")
 		m.resetIfAhead()
 	}
 }
 
-// OnResetReady handles a reset-ready event from the supervisor
-// once the supervisor has determined the reset target by bisecting the search range
+// OnResetReady handles a fully qualified reset command to the node
+// it is called by the resetTracker when the reset is ready to be executed
 func (m *ManagedNode) OnResetReady(lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) {
 	m.log.Info("Reset ready event received",
 		"localUnsafe", lUnsafe,
@@ -407,6 +411,10 @@ func (m *ManagedNode) onReplaceBlock(replacement types.BlockReplacement) {
 		ChainID:     m.chainID,
 		Replacement: replacement,
 	})
+	// if the node replaced a block, both the unsafe and safe are reset to this point
+	m.lastNodeLocalSafe = replacement.Replacement.ID()
+	m.lastNodeLocalUnsafe = replacement.Replacement.ID()
+	m.resetIfInconsistent()
 }
 
 func (m *ManagedNode) Close() error {

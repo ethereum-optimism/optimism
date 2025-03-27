@@ -275,9 +275,15 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query supervisortypes
 	for _, receipt := range receipts {
 		for i, log := range receipt.Logs {
 			if current+uint32(i) == query.LogIdx {
-				msgHash := logToMessageHash(log)
-				if msgHash != query.LogHash {
-					return supervisortypes.BlockSeal{}, fmt.Errorf("payload hash mismatch: %s != %s: %w", msgHash, query.LogHash, supervisortypes.ErrConflict)
+				checksum := supervisortypes.ChecksumArgs{
+					BlockNumber: query.BlockNum,
+					LogIndex:    query.LogIdx,
+					Timestamp:   query.Timestamp,
+					ChainID:     chain,
+					LogHash:     logToLogHash(log),
+				}.Checksum()
+				if checksum != query.Checksum {
+					return supervisortypes.BlockSeal{}, fmt.Errorf("checksum mismatch: %s != %s: %w", checksum, query.Checksum, supervisortypes.ErrConflict)
 				} else if block.Time() != query.Timestamp {
 					return supervisortypes.BlockSeal{}, fmt.Errorf("block timestamp mismatch: %d != %d: %w", block.Time(), query.Timestamp, supervisortypes.ErrConflict)
 				} else {
@@ -294,7 +300,7 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query supervisortypes
 	return supervisortypes.BlockSeal{}, fmt.Errorf("log not found")
 }
 
-func logToMessageHash(l *ethtypes.Log) common.Hash {
+func logToLogHash(l *ethtypes.Log) common.Hash {
 	payloadHash := crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(l))
 	return supervisortypes.PayloadHashToLogHash(payloadHash, l.Address)
 }
@@ -309,8 +315,8 @@ func (d *consolidateCheckDeps) IsLocalUnsafe(chainID eth.ChainID, block eth.Bloc
 	return nil
 }
 
-func (d *consolidateCheckDeps) ParentBlock(chainID eth.ChainID, parentOf eth.BlockID) (parent eth.BlockID, err error) {
-	block, err := d.CanonBlockByNumber(d.oracle, parentOf.Number-1, chainID)
+func (d *consolidateCheckDeps) FindBlockID(chainID eth.ChainID, num uint64) (blockID eth.BlockID, err error) {
+	block, err := d.CanonBlockByNumber(d.oracle, num, chainID)
 	if err != nil {
 		return eth.BlockID{}, err
 	}

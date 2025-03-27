@@ -30,6 +30,8 @@ contract DeployConfig is Script {
     uint256 public l2GenesisFjordTimeOffset;
     uint256 public l2GenesisGraniteTimeOffset;
     uint256 public l2GenesisHoloceneTimeOffset;
+    uint256 public l2GenesisIsthmusTimeOffset;
+    uint256 public l2GenesisJovianTimeOffset;
     uint256 public maxSequencerDrift;
     uint256 public sequencerWindowSize;
     uint256 public channelTimeout;
@@ -59,6 +61,8 @@ contract DeployConfig is Script {
     uint256 public l2GenesisBlockGasLimit;
     uint32 public basefeeScalar;
     uint32 public blobbasefeeScalar;
+    uint32 public operatorFeeScalar;
+    uint64 public operatorFeeConstant;
     bool public enableGovernance;
     uint256 public eip1559Denominator;
     uint256 public eip1559Elasticity;
@@ -107,6 +111,8 @@ contract DeployConfig is Script {
         l2GenesisFjordTimeOffset = _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
         l2GenesisGraniteTimeOffset = _readOr(_json, "$.l2GenesisGraniteTimeOffset", NULL_OFFSET);
         l2GenesisHoloceneTimeOffset = _readOr(_json, "$.l2GenesisHoloceneTimeOffset", NULL_OFFSET);
+        l2GenesisIsthmusTimeOffset = _readOr(_json, "$.l2GenesisIsthmusTimeOffset", NULL_OFFSET);
+        l2GenesisJovianTimeOffset = _readOr(_json, "$.l2GenesisJovianTimeOffset", NULL_OFFSET);
 
         maxSequencerDrift = stdJson.readUint(_json, "$.maxSequencerDrift");
         sequencerWindowSize = stdJson.readUint(_json, "$.sequencerWindowSize");
@@ -137,6 +143,8 @@ contract DeployConfig is Script {
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
         blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
+        operatorFeeScalar = uint32(_readOr(_json, "$.gasPriceOracleOperatorFeeScalar", 0));
+        operatorFeeConstant = uint64(_readOr(_json, "$.gasPriceOracleOperatorFeeConstant", 0));
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");

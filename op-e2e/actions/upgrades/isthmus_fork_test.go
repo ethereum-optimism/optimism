@@ -6,11 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -21,10 +23,19 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var (
+	isthmusL1BlockCodeHash          = common.HexToHash("0x8e3fe7a416d3e5f3b7be74ddd4e7e58e516fa3f80b67c6d930e3cd7297da4a4b")
+	isthmusGasPriceOracleCodeHash   = common.HexToHash("0x4d195a9d7caf9fb6d4beaf80de252c626c853afd5868c4f4f8d19c9d301c2679")
+	isthmusOperatorFeeVaultCodeHash = common.HexToHash("0x57dc55c9c09ca456fa728f253fe7b895d3e6aae0706104935fe87c7721001971")
+)
+
+var zeroHex64 = hexutil.Uint64(0)
 
 func TestIsthmusActivationAtGenesis(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
@@ -69,6 +80,7 @@ func TestIsthmusActivationAtGenesis(gt *testing.T) {
 	require.NoError(t, err)
 	genesisPayload, err := l2Cl.PayloadByNumber(t.Ctx(), 0)
 	require.NoError(t, err)
+	require.NotNil(t, genesisPayload.ExecutionPayload.WithdrawalsRoot)
 	require.Equal(t, genesisPayload.ExecutionPayload.WithdrawalsRoot, genesisBlock.WithdrawalsRoot())
 	require.Equal(t, types.EmptyRequestsHash, *genesisPayload.RequestsHash)
 	got, ok := genesisPayload.CheckBlockHash()
@@ -82,7 +94,6 @@ func TestIsthmusActivationAtGenesis(gt *testing.T) {
 func TestWithdrawlsRootPreCanyonAndIsthmus(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-	genesisBlock := hexutil.Uint64(0)
 	canyonOffset := hexutil.Uint64(2)
 
 	log := testlog.Logger(t, log.LvlDebug)
@@ -90,14 +101,7 @@ func TestWithdrawlsRootPreCanyonAndIsthmus(gt *testing.T) {
 	dp.DeployConfig.L1CancunTimeOffset = &canyonOffset
 
 	// Activate pre-canyon forks at genesis, and schedule Canyon the block after
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &canyonOffset
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
-	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
-	dp.DeployConfig.L2GenesisIsthmusTimeOffset = nil
+	dp.DeployConfig.ActivateForkAtOffset(rollup.Canyon, uint64(canyonOffset))
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
@@ -140,42 +144,32 @@ func TestWithdrawlsRootPreCanyonAndIsthmus(gt *testing.T) {
 func TestWithdrawalsRootBeforeAtAndAfterIsthmus(t *testing.T) {
 	tests := []struct {
 		name              string
-		f                 func(gt *testing.T, withdrawalTx bool, withdrawalTxBlock, totalBlocks int)
 		withdrawalTx      bool
 		withdrawalTxBlock int
 		totalBlocks       int
 	}{
-		{"BeforeIsthmusWithoutWithdrawalTx", testWithdrawlsRootAtIsthmus, false, 0, 1},
-		{"BeforeIsthmusWithWithdrawalTx", testWithdrawlsRootAtIsthmus, true, 1, 1},
-		{"AtIsthmusWithoutWithdrawalTx", testWithdrawlsRootAtIsthmus, false, 0, 2},
-		{"AtIsthmusWithWithdrawalTx", testWithdrawlsRootAtIsthmus, true, 2, 2},
-		{"AfterIsthmusWithoutWithdrawalTx", testWithdrawlsRootAtIsthmus, false, 0, 3},
-		{"AfterIsthmusWithWithdrawalTx", testWithdrawlsRootAtIsthmus, true, 3, 3},
+		{"BeforeIsthmusWithoutWithdrawalTx", false, 0, 1},
+		{"BeforeIsthmusWithWithdrawalTx", true, 1, 1},
+		{"AtIsthmusWithoutWithdrawalTx", false, 0, 2},
+		{"AtIsthmusWithWithdrawalTx", true, 2, 2},
+		{"AfterIsthmusWithoutWithdrawalTx", false, 0, 3},
+		{"AfterIsthmusWithWithdrawalTx", true, 3, 3},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			test.f(t, test.withdrawalTx, test.withdrawalTxBlock, test.totalBlocks)
+			testWithdrawlsRootIsthmus(t, test.withdrawalTx, test.withdrawalTxBlock, test.totalBlocks)
 		})
 	}
 }
 
-func testWithdrawlsRootAtIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlock, totalBlocks int) {
+func testWithdrawlsRootIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlock, totalBlocks int) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-	genesisBlock := hexutil.Uint64(0)
-	isthmusOffset := hexutil.Uint64(2)
+	const isthmusOffset = 2
 
 	log := testlog.Logger(t, log.LvlDebug)
 
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisIsthmusTimeOffset = &isthmusOffset
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = &genesisBlock
+	dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
@@ -195,32 +189,32 @@ func testWithdrawlsRootAtIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxB
 
 		if withdrawalTx && withdrawalTxBlock == i {
 			l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
-			require.Nil(t, err, "binding withdrawer on L2")
+			require.NoError(t, err, "binding withdrawer on L2")
 
 			// Initiate Withdrawal
 			// Bind L2 Withdrawer Contract and invoke the Receive function
 			l2opts, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Alice, new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
-			require.Nil(t, err)
+			require.NoError(t, err)
 			l2opts.Value = big.NewInt(500)
 			tx, err = l2withdrawer.Receive(l2opts)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
-			// include the transaction
-			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+			// force-include the transaction, also in upgrade blocks
+			engine.ActL2IncludeTxIgnoreForcedEmpty(dp.Addresses.Alice)(t)
 		}
 		sequencer.ActL2EndBlock(t)
 
 		if withdrawalTx && withdrawalTxBlock == i {
 			// wait for withdrawal to be included in a block
 			receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(dp.DeployConfig.L2BlockTime)*time.Second)
-			require.Nil(t, err, "withdrawal initiated on L2 sequencer")
+			require.NoError(t, err, "withdrawal initiated on L2 sequencer")
 			require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction had incorrect status")
 		}
 	}
 	rpcCl := engine.RPCClient()
 
 	// we set withdrawals root only at or after isthmus
-	if totalBlocks >= 2 {
+	if totalBlocks >= isthmusOffset {
 		verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
 	}
 }
@@ -228,19 +222,12 @@ func testWithdrawlsRootAtIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxB
 func TestWithdrawlsRootPostIsthmus(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-	genesisBlock := hexutil.Uint64(0)
-	isthmusOffset := hexutil.Uint64(2)
+	const isthmusOffset = 2
 
 	log := testlog.Logger(t, log.LvlDebug)
 
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisIsthmusTimeOffset = &isthmusOffset
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = &genesisBlock
+	dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
+	dp.DeployConfig.L1PragueTimeOffset = &zeroHex64
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
@@ -259,15 +246,15 @@ func TestWithdrawlsRootPostIsthmus(gt *testing.T) {
 	// Bind L2 Withdrawer Contract
 	ethCl := engine.EthClient()
 	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
-	require.Nil(t, err, "binding withdrawer on L2")
+	require.NoError(t, err, "binding withdrawer on L2")
 
 	// Initiate Withdrawal
 	l2opts, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Alice, new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
-	require.Nil(t, err)
+	require.NoError(t, err)
 	l2opts.Value = big.NewInt(500)
 
 	tx, err := l2withdrawer.Receive(l2opts)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// build blocks until Isthmus activates
 	sequencer.ActL2StartBlock(t)
@@ -280,7 +267,7 @@ func TestWithdrawlsRootPostIsthmus(gt *testing.T) {
 
 	// wait for withdrawal to be included in a block
 	receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(dp.DeployConfig.L2BlockTime)*time.Second)
-	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
+	require.NoError(t, err, "withdrawal initiated on L2 sequencer")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction had incorrect status")
 
 	verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
@@ -300,7 +287,7 @@ func verifyIsthmusHeaderWithdrawalsRoot(gt *testing.T, rpcCl client.RPC, header 
 	getStorageRoot := func(rpcCl client.RPC, ctx context.Context, address common.Address, blockTag string) common.Hash {
 		var getProofResponse *eth.AccountResult
 		err := rpcCl.CallContext(ctx, &getProofResponse, "eth_getProof", address, []common.Hash{}, blockTag)
-		assert.Nil(gt, err)
+		assert.NoError(gt, err)
 		assert.NotNil(gt, getProofResponse)
 		return getProofResponse.StorageHash
 	}
@@ -313,20 +300,25 @@ func verifyIsthmusHeaderWithdrawalsRoot(gt *testing.T, rpcCl client.RPC, header 
 	}
 }
 
+func checkContractVersion(gt *testing.T, client *ethclient.Client, addr common.Address, expectedVersion string) {
+	isemver, err := bindings.NewISemver(addr, client)
+	require.NoError(gt, err)
+
+	version, err := isemver.Version(nil)
+	require.NoError(gt, err)
+
+	require.Equal(gt, expectedVersion, version)
+}
+
 func TestIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-	isthmusOffset := hexutil.Uint64(4)
+	const isthmusOffset = 2
 
-	log := testlog.Logger(t, log.LevelDebug)
+	log := testlog.Logger(t, log.LvlDebug)
 
-	zero := hexutil.Uint64(0)
-
-	// Activate all forks at genesis, and schedule Isthmus the block after
-	dp.DeployConfig.L2GenesisHoloceneTimeOffset = &zero
-	dp.DeployConfig.L2GenesisIsthmusTimeOffset = &isthmusOffset
-	dp.DeployConfig.L1PragueTimeOffset = &zero
-	// New forks have to be added here...
+	dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
+	dp.DeployConfig.L1PragueTimeOffset = &zeroHex64
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
@@ -341,6 +333,16 @@ func TestIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
+	// Get gas price from oracle
+	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, ethCl)
+	require.NoError(t, err)
+
+	// Get current implementations addresses (by slot) for L1Block + GasPriceOracle
+	initialL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, nil)
+	require.NoError(t, err)
+	initialGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, nil)
+	require.NoError(t, err)
+
 	// Build to the isthmus block
 	sequencer.ActBuildL2ToIsthmus(t)
 
@@ -353,14 +355,47 @@ func TestIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 
 	// L1Block: 1 set-L1-info + 1 deploy
 	// See [derive.IsthmusNetworkUpgradeTransactions]
-	require.Equal(t, 2, len(transactions))
+	require.Equal(t, 9, len(transactions))
 
-	// Contract deployment transaction
-	txn := transactions[1]
-	receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
+	// All transactions are successful
+	for i := 1; i < 9; i++ {
+		txn := transactions[i]
+		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
+		require.NoError(t, err)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
+	}
+
+	expectedL1BlockAddress := crypto.CreateAddress(derive.L1BlockIsthmusDeployerAddress, 0)
+
+	// L1 Block Proxy is updated
+	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
 	require.NoError(t, err)
-	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "block hashes deployment tx must pass")
-	require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
+	require.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
+	require.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "Gas L1 Block address should have changed")
+	verifyCodeHashMatches(t, ethCl, expectedL1BlockAddress, isthmusL1BlockCodeHash)
+
+	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleIsthmusDeployerAddress, 0)
+
+	// Gas Price Oracle Proxy is updated
+	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number())
+	require.NoError(t, err)
+	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
+	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
+	verifyCodeHashMatches(t, ethCl, expectedGasPriceOracleAddress, isthmusGasPriceOracleCodeHash)
+
+	// Check that Isthmus was activated
+	isIsthmus, err := gasPriceOracle.IsIsthmus(nil)
+	require.NoError(t, err)
+	require.True(t, isIsthmus)
+
+	expectedOperatorFeeVaultAddress := crypto.CreateAddress(derive.OperatorFeeVaultDeployerAddress, 0)
+
+	// Operator Fee vault is updated
+	updatedOperatorFeeVaultAddress, err := ethCl.StorageAt(context.Background(), predeploys.OperatorFeeVaultAddr, genesis.ImplementationSlot, latestBlock.Number())
+	require.NoError(t, err)
+	require.Equal(t, expectedOperatorFeeVaultAddress, common.BytesToAddress(updatedOperatorFeeVaultAddress))
+	verifyCodeHashMatches(t, ethCl, expectedOperatorFeeVaultAddress, isthmusOperatorFeeVaultCodeHash)
 
 	// EIP-2935 contract is deployed
 	expectedBlockHashAddress := crypto.CreateAddress(predeploys.EIP2935ContractDeployer, 0)
@@ -377,6 +412,11 @@ func TestIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedHash, common.BytesToHash(rootValue), msg)
 	}
+
+	// Check contract versions
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedL1BlockAddress), "1.6.0")
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedGasPriceOracleAddress), "1.4.0")
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedOperatorFeeVaultAddress), "1.0.0")
 
 	// Legacy check:
 	// > The first block is an exception in upgrade-networks,

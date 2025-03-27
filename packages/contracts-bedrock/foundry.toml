@@ -12,6 +12,7 @@ snapshots = 'notarealpath' # workaround for foundry#9477
 
 optimizer = true
 optimizer_runs = 999999
+use_literal_content = true
 
 # IMPORTANT:
 # When adding any new compiler profiles or compilation restrictions, you must
@@ -24,10 +25,9 @@ additional_compiler_profiles = [
 compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 5000 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
   { paths = "src/L1/StandardValidator.sol", optimizer_runs = 5000 },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 }
 ]
 
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
@@ -62,6 +62,7 @@ fs_permissions = [
   { access='read', path='./kout-deployment' },
   { access='read', path='./test/fixtures' },
   { access='read', path='./lib/superchain-registry/superchain/configs/' },
+  { access='read', path='./lib/superchain-registry/validation/standard/' },
 ]
 
 # 5159 error code is selfdestruct error code
@@ -140,6 +141,7 @@ compilation_restrictions = [
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/StandardValidator.sol", optimizer_runs = 0 },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },
 ]
 
 ################################################################

@@ -8,7 +8,6 @@ import (
 )
 
 type Proposal struct {
-	Version eth.Bytes32
 	// Root is the proposal hash
 	Root common.Hash
 	// SequenceNum identifies the position in the overall state transition.

@@ -19,7 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -266,10 +266,6 @@ func TestMixedDepositValidity(t *testing.T) {
 	}
 }
 
-func TestMixedWithdrawalValidity_L2OO(t *testing.T) {
-	testMixedWithdrawalValidity(t, config.AllocTypeL2OO)
-}
-
 func TestMixedWithdrawalValidity_Standard(t *testing.T) {
 	testMixedWithdrawalValidity(t, config.AllocTypeStandard)
 }
@@ -355,7 +351,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			// Create a test account state for our transactor.
 			transactor := &TestAccountState{
 				Account: &TestAccount{
-					HDPath: e2eutils.DefaultMnemonicConfig.Alice,
+					HDPath: secrets.DefaultMnemonicConfig.Alice,
 					Key:    cfg.Secrets.Alice,
 					L1Opts: nil,
 					L2Opts: nil,
@@ -448,6 +444,12 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			proofCl := gethclient.New(rpcClient)
 			receiptCl := ethclient.NewClient(rpcClient)
 			blockCl := ethclient.NewClient(rpcClient)
+
+			// Mine an empty block so that the timestamp is updated. Otherwise,
+			// proveWithdrawalTransaction gas estimation may fail because the current timestamp is
+			// the same as the dispute game creation timestamp.
+			err = wait.ForNextBlock(ctx, l1Client)
+			require.NoError(t, err)
 
 			// Now create the withdrawal
 			params, err := helpers.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, tx.Hash(), header, l2OutputOracle, disputeGameFactory, optimismPortal2, cfg.AllocType)
@@ -575,7 +577,20 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 					require.NoError(t, err)
 				}
 
+				// Do a large deposit into the OptimismPortal so there's a balance to withdraw
+				depositAmount := big.NewInt(1_000_000_000_000)
+				transactor.Account.L1Opts.Value = depositAmount
+				tx, err := depositContract.DepositTransaction(transactor.Account.L1Opts, fromAddr, depositAmount, 120_000, false, nil)
+				require.NoError(t, err)
+				receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
+				require.NoError(t, err)
+				require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+
+				// Increase the expected nonce
+				transactor.ExpectedL1Nonce++
+
 				// Finalize withdrawal
+				transactor.Account.L1Opts.Value = big.NewInt(0)
 				_, err = depositContract.FinalizeWithdrawalTransaction(
 					transactor.Account.L1Opts,
 					withdrawalTransaction,

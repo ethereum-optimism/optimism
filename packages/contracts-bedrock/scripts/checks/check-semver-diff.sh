@@ -56,7 +56,7 @@ changed_contracts=$(jq -r '
                 .key as $key
                 | .value != $upstream[$key]
             )
-        ) | map(.key);
+        ) | map(.key | split(":")[0]);
     changes[]
 ' "$temp_dir/local_semver_lock.json" "$temp_dir/upstream_semver_lock.json")
 

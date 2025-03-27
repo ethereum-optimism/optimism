@@ -149,7 +149,7 @@ func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
 			ep.rollupClient.ExpectOutputAtBlock(
 				42,
 				&eth.OutputResponse{
-					Version:  supportedL2OutputVersion,
+					Version:  eth.OutputVersionV0,
 					BlockRef: eth.L2BlockRef{Number: 42},
 					Status: &eth.SyncStatus{
 						CurrentL1:   eth.L1BlockRef{Hash: common.Hash{}},

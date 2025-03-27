@@ -48,6 +48,7 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
@@ -71,6 +72,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -106,9 +108,9 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 		opt(sco)
 	}
 
-	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
-	require.NoError(t, err)
+	secrets := secrets.DefaultSecrets
 	deployConfig := config.DeployConfig(sco.AllocType)
+	require.Nil(t, deployConfig.L2GenesisJovianTimeOffset, "jovian not supported yet")
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
 	e2eutils.ApplyDeployConfigForks(deployConfig)
 	require.NoError(t, deployConfig.Check(testlog.Logger(t, log.LevelInfo)),
@@ -198,6 +200,7 @@ func RegolithSystemConfig(t *testing.T, regolithTimeOffset *hexutil.Uint64, opts
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	cfg.DeployConfig.L2GenesisHoloceneTimeOffset = nil
 	cfg.DeployConfig.L2GenesisIsthmusTimeOffset = nil
+	cfg.DeployConfig.L2GenesisJovianTimeOffset = nil
 	// ADD NEW FORKS HERE!
 	return cfg
 }
@@ -247,6 +250,12 @@ func IsthmusSystemConfig(t *testing.T, isthmusTimeOffset *hexutil.Uint64, opts .
 	return cfg
 }
 
+func JovianSystemConfig(t *testing.T, jovianTimeOffset *hexutil.Uint64, opts ...SystemConfigOpt) SystemConfig {
+	cfg := IsthmusSystemConfig(t, &genesisTime, opts...)
+	cfg.DeployConfig.L2GenesisJovianTimeOffset = jovianTimeOffset
+	return cfg
+}
+
 func writeDefaultJWT(t testing.TB) string {
 	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
@@ -262,7 +271,7 @@ type DepositContractConfig struct {
 }
 
 type SystemConfig struct {
-	Secrets                *e2eutils.Secrets
+	Secrets                *secrets.Secrets
 	L1InfoPredeployAddress common.Address
 
 	DeployConfig  *genesis.DeployConfig
@@ -576,6 +585,9 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		c = sys.TimeTravelClock
 	}
 
+	// sanity-check the deploy config
+	require.Nil(t, cfg.DeployConfig.L2GenesisJovianTimeOffset, "Jovian is not supported in op-e2e tests yet")
+
 	if err := cfg.DeployConfig.Check(testlog.Logger(t, log.LevelInfo)); err != nil {
 		return nil, err
 	}
@@ -610,7 +622,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
 	l2Allocs := config.L2Allocs(cfg.AllocType, allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +683,9 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			FjordTime:               cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			GraniteTime:             cfg.DeployConfig.GraniteTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			HoloceneTime:            cfg.DeployConfig.HoloceneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			PectraBlobScheduleTime:  cfg.DeployConfig.PectraBlobScheduleTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			IsthmusTime:             cfg.DeployConfig.IsthmusTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			JovianTime:              cfg.DeployConfig.JovianTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			InteropTime:             cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
 			AltDAConfig:             rollupAltDAConfig,
@@ -833,7 +847,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			c.P2P = p
 
 			if c.Driver.SequencerEnabled && c.P2PSigner == nil {
-				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
+				c.P2PSigner = &p2p.PreparedSigner{Signer: opsigner.NewLocalSigner(cfg.Secrets.SequencerP2P)}
 			}
 		}
 

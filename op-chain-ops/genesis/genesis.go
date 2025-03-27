@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -21,7 +22,7 @@ const defaultGasLimit = 30_000_000
 var HoloceneExtraData = eip1559.EncodeHoloceneExtraData(250, 6)
 
 // NewL2Genesis will create a new L2 genesis
-func NewL2Genesis(config *DeployConfig, l1StartHeader *types.Header) (*core.Genesis, error) {
+func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Genesis, error) {
 	if config.L2ChainID == 0 {
 		return nil, errors.New("must define L2 ChainID")
 	}
@@ -70,6 +71,7 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *types.Header) (*core.Gene
 		GraniteTime:             config.GraniteTime(l1StartTime),
 		HoloceneTime:            config.HoloceneTime(l1StartTime),
 		IsthmusTime:             config.IsthmusTime(l1StartTime),
+		JovianTime:              config.JovianTime(l1StartTime),
 		PragueTime:              config.IsthmusTime(l1StartTime),
 		InteropTime:             config.InteropTime(l1StartTime),
 		Optimism: &params.OptimismConfig{

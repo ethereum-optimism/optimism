@@ -17,7 +17,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -25,11 +25,11 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 import {
     DeployImplementationsInput,
     DeployImplementations,
-    DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/deploy/DeployImplementations.s.sol";
 
@@ -88,7 +88,8 @@ contract DeployImplementationsOutput_Test is Test {
 
     function test_set_succeeds() public {
         IOPContractsManager opcm = IOPContractsManager(address(makeAddr("opcm")));
-        IOptimismPortal2 optimismPortalImpl = IOptimismPortal2(payable(makeAddr("optimismPortalImpl")));
+        IOptimismPortal optimismPortalImpl = IOptimismPortal(payable(makeAddr("optimismPortalImpl")));
+        IETHLockbox ethLockboxImpl = IETHLockbox(payable(makeAddr("ethLockboxImpl")));
         IDelayedWETH delayedWETHImpl = IDelayedWETH(payable(makeAddr("delayedWETHImpl")));
         IPreimageOracle preimageOracleSingleton = IPreimageOracle(makeAddr("preimageOracleSingleton"));
         IMIPS mipsSingleton = IMIPS(makeAddr("mipsSingleton"));
@@ -104,6 +105,7 @@ contract DeployImplementationsOutput_Test is Test {
 
         vm.etch(address(opcm), hex"01");
         vm.etch(address(optimismPortalImpl), hex"01");
+        vm.etch(address(ethLockboxImpl), hex"01");
         vm.etch(address(delayedWETHImpl), hex"01");
         vm.etch(address(preimageOracleSingleton), hex"01");
         vm.etch(address(mipsSingleton), hex"01");
@@ -116,6 +118,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(anchorStateRegistryImpl), hex"01");
         dio.set(dio.opcm.selector, address(opcm));
         dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
+        dio.set(dio.ethLockboxImpl.selector, address(ethLockboxImpl));
         dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
         dio.set(dio.preimageOracleSingleton.selector, address(preimageOracleSingleton));
         dio.set(dio.mipsSingleton.selector, address(mipsSingleton));
@@ -139,6 +142,7 @@ contract DeployImplementationsOutput_Test is Test {
         assertEq(address(optimismMintableERC20FactoryImpl), address(dio.optimismMintableERC20FactoryImpl()), "900");
         assertEq(address(disputeGameFactoryImpl), address(dio.disputeGameFactoryImpl()), "950");
         assertEq(address(anchorStateRegistryImpl), address(dio.anchorStateRegistryImpl()), "960");
+        assertEq(address(ethLockboxImpl), address(dio.ethLockboxImpl()), "1000");
     }
 
     function test_getters_whenNotSet_reverts() public {
@@ -146,6 +150,9 @@ contract DeployImplementationsOutput_Test is Test {
 
         vm.expectRevert(expectedErr);
         dio.optimismPortalImpl();
+
+        vm.expectRevert(expectedErr);
+        dio.ethLockboxImpl();
 
         vm.expectRevert(expectedErr);
         dio.delayedWETHImpl();
@@ -185,6 +192,10 @@ contract DeployImplementationsOutput_Test is Test {
         dio.set(dio.optimismPortalImpl.selector, emptyAddr);
         vm.expectRevert(expectedErr);
         dio.optimismPortalImpl();
+
+        dio.set(dio.ethLockboxImpl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dio.ethLockboxImpl();
 
         dio.set(dio.delayedWETHImpl.selector, emptyAddr);
         vm.expectRevert(expectedErr);
@@ -247,7 +258,6 @@ contract DeployImplementations_Test is Test {
 
     // By deploying the `DeployImplementations` contract with this virtual function, we provide a
     // hook that child contracts can override to return a different implementation of the contract.
-    // This lets us test e.g. the `DeployImplementationsInterop` contract without duplicating test code.
     function createDeployImplementationsContract() internal virtual returns (DeployImplementations) {
         return new DeployImplementations();
     }
@@ -284,11 +294,12 @@ contract DeployImplementations_Test is Test {
         deployImplementations.deployL1StandardBridgeImpl(dio);
         deployImplementations.deployOptimismMintableERC20FactoryImpl(dio);
         deployImplementations.deployOptimismPortalImpl(dii, dio);
+        deployImplementations.deployETHLockboxImpl(dio);
         deployImplementations.deployDelayedWETHImpl(dii, dio);
         deployImplementations.deployPreimageOracleSingleton(dii, dio);
         deployImplementations.deployMipsSingleton(dii, dio);
         deployImplementations.deployDisputeGameFactoryImpl(dio);
-        deployImplementations.deployAnchorStateRegistryImpl(dio);
+        deployImplementations.deployAnchorStateRegistryImpl(dii, dio);
         deployImplementations.deployOPContractsManager(dii, dio);
 
         // Store the original addresses.
@@ -298,6 +309,7 @@ contract DeployImplementations_Test is Test {
         address l1StandardBridgeImpl = address(dio.l1StandardBridgeImpl());
         address optimismMintableERC20FactoryImpl = address(dio.optimismMintableERC20FactoryImpl());
         address optimismPortalImpl = address(dio.optimismPortalImpl());
+        address ethLockboxImpl = address(dio.ethLockboxImpl());
         address delayedWETHImpl = address(dio.delayedWETHImpl());
         address preimageOracleSingleton = address(dio.preimageOracleSingleton());
         address mipsSingleton = address(dio.mipsSingleton());
@@ -312,11 +324,12 @@ contract DeployImplementations_Test is Test {
         deployImplementations.deployL1StandardBridgeImpl(dio);
         deployImplementations.deployOptimismMintableERC20FactoryImpl(dio);
         deployImplementations.deployOptimismPortalImpl(dii, dio);
+        deployImplementations.deployETHLockboxImpl(dio);
         deployImplementations.deployDelayedWETHImpl(dii, dio);
         deployImplementations.deployPreimageOracleSingleton(dii, dio);
         deployImplementations.deployMipsSingleton(dii, dio);
         deployImplementations.deployDisputeGameFactoryImpl(dio);
-        deployImplementations.deployAnchorStateRegistryImpl(dio);
+        deployImplementations.deployAnchorStateRegistryImpl(dii, dio);
         deployImplementations.deployOPContractsManager(dii, dio);
 
         // Assert that the addresses did not change.
@@ -332,6 +345,7 @@ contract DeployImplementations_Test is Test {
         assertEq(disputeGameFactoryImpl, address(dio.disputeGameFactoryImpl()), "1000");
         assertEq(anchorStateRegistryImpl, address(dio.anchorStateRegistryImpl()), "1100");
         assertEq(opcm, address(dio.opcm()), "1200");
+        assertEq(ethLockboxImpl, address(dio.ethLockboxImpl()), "1300");
     }
 
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
@@ -441,11 +455,5 @@ contract DeployImplementations_Test is Test {
         vm.chainId(Chains.Sepolia);
         vm.expectRevert("DeployImplementations: Only Mips64 should be deployed on Mainnet or Sepolia");
         deployImplementations.run(dii, dio);
-    }
-}
-
-contract DeployImplementationsInterop_Test is DeployImplementations_Test {
-    function createDeployImplementationsContract() internal override returns (DeployImplementations) {
-        return new DeployImplementationsInterop();
     }
 }

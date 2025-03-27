@@ -52,10 +52,6 @@ func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
 	return Upgrade(host, upgradeInput)
 }
 
-func (u *Upgrader) SupportsVersion(version string) bool {
-	return version == "2.0.0"
-}
-
 func (u *Upgrader) ArtifactsURL() string {
 	return "tag://" + standard.ContractsV200Tag
 }

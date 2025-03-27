@@ -152,7 +152,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 			if err != nil {
 				return fmt.Errorf("failed to dial supervisor RPC client (%v): %w", url, err)
 			}
-			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc))
+			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc), ps.Metrics)
 			clients = append(clients, cl)
 		}
 		ps.ProposalSource = source.NewSupervisorProposalSource(ps.Log, clients...)
@@ -361,4 +361,11 @@ var _ cliapp.Lifecycle = (*ProposerService)(nil)
 // to start/stop/restart the L2Output-submission work, for use in testing.
 func (ps *ProposerService) Driver() rpc.ProposerDriver {
 	return ps.driver
+}
+
+func (ps *ProposerService) HTTPEndpoint() string {
+	if ps.rpcServer == nil {
+		return ""
+	}
+	return "http://" + ps.rpcServer.Endpoint()
 }

@@ -5,12 +5,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // State contains the data needed to recreate the deployment
@@ -74,8 +75,10 @@ type ImplementationsDeployment struct {
 	OpcmGameTypeAdderAddress                common.Address `json:"opcmGameTypeAdderAddress"`
 	OpcmDeployerAddress                     common.Address `json:"opcmDeployerAddress"`
 	OpcmUpgraderAddress                     common.Address `json:"opcmUpgraderAddress"`
+	OpcmInteropMigratorAddress              common.Address `json:"opcmInteropMigratorAddress"`
 	DelayedWETHImplAddress                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImplAddress               common.Address `json:"optimismPortalImplAddress"`
+	ETHLockboxImplAddress                   common.Address `json:"ethLockboxImplAddress"`
 	PreimageOracleSingletonAddress          common.Address `json:"preimageOracleSingletonAddress"`
 	MipsSingletonAddress                    common.Address `json:"mipsSingletonAddress"`
 	SystemConfigImplAddress                 common.Address `json:"systemConfigImplAddress"`
@@ -106,6 +109,7 @@ type ChainState struct {
 	L1StandardBridgeProxyAddress              common.Address               `json:"l1StandardBridgeProxyAddress"`
 	L1CrossDomainMessengerProxyAddress        common.Address               `json:"l1CrossDomainMessengerProxyAddress"`
 	OptimismPortalProxyAddress                common.Address               `json:"optimismPortalProxyAddress"`
+	ETHLockboxProxyAddress                    common.Address               `json:"ethLockboxProxyAddress"`
 	DisputeGameFactoryProxyAddress            common.Address               `json:"disputeGameFactoryProxyAddress"`
 	AnchorStateRegistryProxyAddress           common.Address               `json:"anchorStateRegistryProxyAddress"`
 	FaultDisputeGameAddress                   common.Address               `json:"faultDisputeGameAddress"`
@@ -118,5 +122,34 @@ type ChainState struct {
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 
-	StartBlock *types.Header `json:"startBlock"`
+	StartBlock *L1BlockRefJSON `json:"startBlock"`
+}
+
+type L1BlockRefJSON struct {
+	Hash       common.Hash    `json:"hash"`
+	ParentHash common.Hash    `json:"parentHash"`
+	Number     hexutil.Uint64 `json:"number"`
+	Time       hexutil.Uint64 `json:"timestamp"`
+}
+
+func (b *L1BlockRefJSON) ToBlockRef() *eth.BlockRef {
+	return &eth.BlockRef{
+		Hash:       b.Hash,
+		Number:     uint64(b.Number),
+		ParentHash: b.ParentHash,
+		Time:       uint64(b.Time),
+	}
+}
+
+func BlockRefJsonFromBlockRef(br *eth.BlockRef) *L1BlockRefJSON {
+	return &L1BlockRefJSON{
+		Hash:       br.Hash,
+		Number:     hexutil.Uint64(br.Number),
+		ParentHash: br.ParentHash,
+		Time:       hexutil.Uint64(br.Time),
+	}
+}
+
+func BlockRefJsonFromHeader(h *types.Header) *L1BlockRefJSON {
+	return BlockRefJsonFromBlockRef(eth.BlockRefFromHeader(h))
 }

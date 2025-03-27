@@ -61,7 +61,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	l1Block := l1Genesis.ToBlock()
 	allocsMode := e2eutils.GetL2AllocsMode(cfg.DeployConfig, l1Block.Time())
 	l2Allocs := config.L2Allocs(config.AllocTypeStandard, allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -89,7 +89,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	require.NoError(t, err)
 
 	// Finally create the engine client
-	rollupCfg, err := cfg.DeployConfig.RollupConfig(l1Block.Header(), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
+	rollupCfg, err := cfg.DeployConfig.RollupConfig(eth.BlockRefFromHeader(l1Block.Header()), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
 	require.NoError(t, err)
 	rollupCfg.Genesis = rollupGenesis
 	l2Engine, err := sources.NewEngineClient(

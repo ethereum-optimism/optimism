@@ -187,6 +187,7 @@ type Metricer interface {
 
 	caching.Metrics
 	contractMetrics.ContractMetricer
+	opmetrics.RPCClientMetricer
 }
 
 // Metrics implementation must implement RegistryMetricer to allow the metrics server to work.
@@ -199,6 +200,7 @@ type Metrics struct {
 
 	*opmetrics.CacheMetrics
 	*contractMetrics.ContractMetrics
+	*opmetrics.RPCClientMetrics
 
 	monitorDuration prometheus.Histogram
 
@@ -246,9 +248,9 @@ func NewMetrics() *Metrics {
 		registry: registry,
 		factory:  factory,
 
-		CacheMetrics:    opmetrics.NewCacheMetrics(factory, Namespace, "provider_cache", "Provider cache"),
-		ContractMetrics: contractMetrics.MakeContractMetrics(Namespace, factory),
-
+		CacheMetrics:     opmetrics.NewCacheMetrics(factory, Namespace, "provider_cache", "Provider cache"),
+		ContractMetrics:  contractMetrics.MakeContractMetrics(Namespace, factory),
+		RPCClientMetrics: &opmetrics.RPCClientMetrics{},
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
 			Name:      "info",

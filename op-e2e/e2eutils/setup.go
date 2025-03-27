@@ -6,6 +6,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -36,9 +37,9 @@ func WriteDefaultJWT(t TestingBase) string {
 // DeployParams bundles the deployment parameters to generate further testing inputs with.
 type DeployParams struct {
 	DeployConfig   *genesis.DeployConfig
-	MnemonicConfig *MnemonicConfig
-	Secrets        *Secrets
-	Addresses      *Addresses
+	MnemonicConfig *secrets.MnemonicConfig
+	Secrets        *secrets.Secrets
+	Addresses      *secrets.Addresses
 	AllocType      config.AllocType
 }
 
@@ -53,9 +54,8 @@ type TestParams struct {
 }
 
 func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
-	mnemonicCfg := DefaultMnemonicConfig
-	secrets, err := mnemonicCfg.Secrets()
-	require.NoError(t, err)
+	mnemonicCfg := secrets.DefaultMnemonicConfig
+	secrets := secrets.DefaultSecrets
 	addresses := secrets.Addresses()
 
 	deployConfig := config.DeployConfig(tp.AllocType)
@@ -156,7 +156,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	allocsMode := GetL2AllocsMode(deployConf, l1Block.Time())
 	l2Allocs := config.L2Allocs(deployParams.AllocType, allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block.Header())
+	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
@@ -208,7 +208,9 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		GraniteTime:            deployConf.GraniteTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		HoloceneTime:           deployConf.HoloceneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		PectraBlobScheduleTime: deployConf.PectraBlobScheduleTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		IsthmusTime:            deployConf.IsthmusTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		JovianTime:             deployConf.JovianTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		AltDAConfig:            pcfg,
 		ChainOpConfig: &params.OptimismConfig{
@@ -239,7 +241,8 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 }
 
 func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
-	isIsthmus := os.Getenv("OP_E2E_USE_ISTHMUS") == "true"
+	isJovian := os.Getenv("OP_E2E_USE_JOVIAN") == "true"
+	isIsthmus := isJovian || os.Getenv("OP_E2E_USE_ISTHMUS") == "true"
 	isHolocene := isIsthmus || os.Getenv("OP_E2E_USE_HOLOCENE") == "true"
 	isGranite := isHolocene || os.Getenv("OP_E2E_USE_GRANITE") == "true"
 	isFjord := isGranite || os.Getenv("OP_E2E_USE_FJORD") == "true"
@@ -262,6 +265,9 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	}
 	if isIsthmus {
 		deployConfig.L2GenesisIsthmusTimeOffset = new(hexutil.Uint64)
+	}
+	if isJovian {
+		deployConfig.L2GenesisJovianTimeOffset = new(hexutil.Uint64)
 	}
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)

@@ -30,6 +30,7 @@ var (
 
 type L1OriginSelectorIface interface {
 	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
+	SetRecoverMode(bool)
 }
 
 type Metrics interface {
@@ -84,6 +85,8 @@ type Sequencer struct {
 	spec      *rollup.ChainSpec
 
 	maxSafeLag atomic.Uint64
+
+	recoverMode atomic.Bool
 
 	// active identifies whether the sequencer is running.
 	// This is an atomic value, so it can be read without locking the whole sequencer.
@@ -488,9 +491,13 @@ func (d *Sequencer) startBuildingBlock() {
 		return
 	}
 
+	recoverMode := d.recoverMode.Load()
+
 	// Figure out which L1 origin block we're going to be building on top of.
 	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head)
 	if err != nil {
+		d.nextAction = d.timeNow().Add(time.Second)
+		d.nextActionOK = d.active.Load()
 		d.log.Error("Error finding next L1 Origin", "err", err)
 		d.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: err})
 		return
@@ -543,9 +550,26 @@ func (d *Sequencer) startBuildingBlock() {
 		d.log.Info("Sequencing Fjord upgrade block")
 	}
 
-	// For the Granite activation block we shouldn't include any sequencer transactions.
+	// For the Granite activation block we can include sequencer transactions.
 	if d.rollupCfg.IsGraniteActivationBlock(uint64(attrs.Timestamp)) {
 		d.log.Info("Sequencing Granite upgrade block")
+	}
+
+	// For the Isthmus activation block we shouldn't include any sequencer transactions.
+	if d.rollupCfg.IsIsthmusActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+		d.log.Info("Sequencing Isthmus upgrade block")
+	}
+
+	// For the Interop activation block we must not include any sequencer transactions.
+	if d.rollupCfg.IsInteropActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+		d.log.Info("Sequencing Interop upgrade block")
+	}
+
+	if recoverMode {
+		attrs.NoTxPool = true
+		d.log.Warn("Sequencing temporarily without user transactions, in recover mode")
 	}
 
 	d.log.Debug("prepared attributes for new block",
@@ -727,6 +751,11 @@ func (d *Sequencer) OverrideLeader(ctx context.Context) error {
 
 func (d *Sequencer) ConductorEnabled(ctx context.Context) bool {
 	return d.conductor.Enabled(ctx)
+}
+
+func (d *Sequencer) SetRecoverMode(mode bool) {
+	d.l1OriginSelector.SetRecoverMode(mode)
+	d.recoverMode.Store(mode)
 }
 
 func (d *Sequencer) Close() {

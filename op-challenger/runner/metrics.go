@@ -18,6 +18,7 @@ type Metrics struct {
 	factory  opmetrics.Factory
 	*contractMetrics.ContractMetrics
 	*metrics.VmMetrics
+	*opmetrics.RPCClientMetrics
 
 	up                  prometheus.Gauge
 	vmLastExecutionTime *prometheus.GaugeVec
@@ -42,8 +43,9 @@ func NewMetrics(runConfigs []RunConfig) *Metrics {
 		registry: registry,
 		factory:  factory,
 
-		ContractMetrics: contractMetrics.MakeContractMetrics(Namespace, factory),
-		VmMetrics:       metrics.NewVmMetrics(Namespace, factory),
+		ContractMetrics:  contractMetrics.MakeContractMetrics(Namespace, factory),
+		VmMetrics:        metrics.NewVmMetrics(Namespace, factory),
+		RPCClientMetrics: &opmetrics.RPCClientMetrics{},
 
 		up: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: Namespace,

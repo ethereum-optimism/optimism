@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path"
 
@@ -13,15 +14,19 @@ import (
 )
 
 const (
-	EnvVarPrefix       = "DEPLOYER"
-	L1RPCURLFlagName   = "l1-rpc-url"
-	CacheDirFlagName   = "cache-dir"
-	L1ChainIDFlagName  = "l1-chain-id"
-	L2ChainIDsFlagName = "l2-chain-ids"
-	WorkdirFlagName    = "workdir"
-	OutdirFlagName     = "outdir"
-	PrivateKeyFlagName = "private-key"
-	IntentTypeFlagName = "intent-type"
+	EnvVarPrefix             = "DEPLOYER"
+	L1RPCURLFlagName         = "l1-rpc-url"
+	CacheDirFlagName         = "cache-dir"
+	L1ChainIDFlagName        = "l1-chain-id"
+	ArtifactsLocatorFlagName = "artifacts-locator"
+	L2ChainIDsFlagName       = "l2-chain-ids"
+	WorkdirFlagName          = "workdir"
+	OutdirFlagName           = "outdir"
+	PrivateKeyFlagName       = "private-key"
+	IntentTypeFlagName       = "intent-type"
+	EtherscanAPIKeyFlagName  = "etherscan-api-key"
+	InputFileFlagName        = "input-file"
+	ContractNameFlagName     = "contract-name"
 )
 
 type DeploymentTarget string
@@ -48,31 +53,36 @@ func NewDeploymentTarget(s string) (DeploymentTarget, error) {
 	}
 }
 
-var homeDir string
-
-func init() {
-	var err error
-	homeDir, err = os.UserHomeDir()
+func GetDefaultCacheDir() string {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		panic(fmt.Sprintf("failed to get home directory: %s", err))
+		fallbackDir := ".op-deployer/cache"
+		log.Printf("error getting user home directory: %v, using fallback directory: %s\n", err, fallbackDir)
+		return fallbackDir
 	}
+	return path.Join(homeDir, ".op-deployer/cache")
 }
 
 var (
 	L1RPCURLFlag = &cli.StringFlag{
 		Name: L1RPCURLFlagName,
 		Usage: "RPC URL for the L1 chain. Must be set for live chains. " +
-			"Can be blank for chains deploying to local allocs files.",
+			"Must be blank for chains deploying to local allocs files.",
 		EnvVars: []string{
 			"L1_RPC_URL",
 		},
+	}
+	ArtifactsLocatorFlag = &cli.StringFlag{
+		Name:    ArtifactsLocatorFlagName,
+		Usage:   "Locator for artifacts.",
+		EnvVars: PrefixEnvVar("ARTIFACTS_LOCATOR"),
 	}
 	CacheDirFlag = &cli.StringFlag{
 		Name: CacheDirFlagName,
 		Usage: "Cache directory. " +
 			"If set, the deployer will attempt to cache downloaded artifacts in the specified directory.",
 		EnvVars: PrefixEnvVar("CACHE_DIR"),
-		Value:   path.Join(homeDir, ".op-deployer/cache"),
+		Value:   GetDefaultCacheDir(),
 	}
 	L1ChainIDFlag = &cli.Uint64Flag{
 		Name:    L1ChainIDFlagName,
@@ -117,6 +127,22 @@ var (
 			"intent-config-type",
 		},
 	}
+	EtherscanAPIKeyFlag = &cli.StringFlag{
+		Name:     EtherscanAPIKeyFlagName,
+		Usage:    "etherscan API key for contract verification.",
+		EnvVars:  PrefixEnvVar("ETHERSCAN_API_KEY"),
+		Required: true,
+	}
+	InputFileFlag = &cli.StringFlag{
+		Name:    InputFileFlagName,
+		Usage:   "filepath of input file for command",
+		EnvVars: PrefixEnvVar("INPUT_FILE"),
+	}
+	ContractNameFlag = &cli.StringFlag{
+		Name:    ContractNameFlagName,
+		Usage:   "contract name (matching a field within a contract bundle struct)",
+		EnvVars: PrefixEnvVar("CONTRACT_NAME"),
+	}
 )
 
 var GlobalFlags = append([]cli.Flag{CacheDirFlag}, oplog.CLIFlags(EnvVarPrefix)...)
@@ -139,6 +165,14 @@ var UpgradeFlags = []cli.Flag{
 	L1RPCURLFlag,
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
+}
+
+var VerifyFlags = []cli.Flag{
+	L1RPCURLFlag,
+	ArtifactsLocatorFlag,
+	EtherscanAPIKeyFlag,
+	InputFileFlag,
+	ContractNameFlag,
 }
 
 func PrefixEnvVar(name string) []string {

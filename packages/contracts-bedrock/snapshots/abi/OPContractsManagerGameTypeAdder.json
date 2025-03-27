@@ -176,6 +176,26 @@
             "internalType": "address",
             "name": "permissionlessDisputeGame2",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame2",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame2",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.Blueprints",
@@ -242,6 +262,11 @@
           {
             "internalType": "address",
             "name": "optimismPortalImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ethLockboxImpl",
             "type": "address"
           },
           {
@@ -398,6 +423,11 @@
   {
     "inputs": [],
     "name": "NotABlueprint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManager_InvalidGameType",
     "type": "error"
   },
   {

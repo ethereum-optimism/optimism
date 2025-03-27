@@ -45,7 +45,7 @@ go run ./op-wheel/cmd engine --help
 
 ```bash
 # from op-wheel dir:
-make op-wheel
+just op-wheel
 ./bin/op-wheel --help
 ```
 

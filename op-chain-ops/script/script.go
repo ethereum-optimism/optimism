@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
 	"github.com/holiman/uint256"
@@ -73,7 +74,9 @@ type Host struct {
 	log      log.Logger
 	af       *foundry.ArtifactsFS
 	chainCfg *params.ChainConfig
-	env      *vm.EVM
+	env      EVM
+
+	evmRevertErr error
 
 	state     *forking.ForkableState
 	baseState *state.StateDB
@@ -224,6 +227,7 @@ func NewHost(
 		FjordTime:    nil,
 		GraniteTime:  nil,
 		HoloceneTime: nil,
+		JovianTime:   nil,
 		InteropTime:  nil,
 		Optimism:     nil,
 	}
@@ -291,7 +295,7 @@ func NewHost(
 		CallerOverride:      h.handleCaller,
 	}
 
-	h.env = vm.NewEVM(blockContext, h.state, h.chainCfg, vmCfg)
+	h.env = WrapEVM(vm.NewEVM(blockContext, h.state, h.chainCfg, vmCfg))
 	h.env.SetTxContext(txContext)
 
 	return h
@@ -338,15 +342,45 @@ func (h *Host) EnableCheats() error {
 
 // prelude is a helper function to prepare the Host for a new call/create on the EVM environment.
 func (h *Host) prelude(from common.Address, to *common.Address) {
-	rules := h.chainCfg.Rules(h.env.Context.BlockNumber, true, h.env.Context.Time)
+	evmC := h.env.Context()
+	rules := h.chainCfg.Rules(evmC.BlockNumber, true, evmC.Time)
 	activePrecompiles := vm.ActivePrecompiles(rules)
-	h.env.StateDB.Prepare(rules, from, h.env.Context.Coinbase, to, activePrecompiles, nil)
+	h.env.StateDB().Prepare(rules, from, evmC.Coinbase, to, activePrecompiles, nil)
 }
 
 // Call calls a contract in the EVM. The state changes persist.
 func (h *Host) Call(from common.Address, to common.Address, input []byte, gas uint64, value *uint256.Int) (returnData []byte, leftOverGas uint64, err error) {
 	h.prelude(from, &to)
-	return h.env.Call(vm.AccountRef(from), to, input, gas, value)
+
+	defer func() {
+		if r := recover(); r != nil {
+			// Cast to a string to check the error message. If it's not a string it's
+			// an unexpected panic and we should re-raise it.
+			rStr, ok := r.(string)
+			if !ok || !strings.Contains(strings.ToLower(rStr), "revision id 1") {
+				panic(r)
+			}
+
+			if h.evmRevertErr != nil {
+				err = h.evmRevertErr
+			} else {
+				err = errors.New("execution reverted, check logs")
+			}
+		}
+
+		h.evmRevertErr = nil
+	}()
+
+	returnData, leftOverGas, err = h.env.Call(from, to, input, gas, value)
+
+	// replace the returned error with the inner EVM error (if one exists)
+	// h.evmRevertErr will contain expected reverts (e.g. those from proxies)
+	// so we only replace the error if the call itself returns an error
+	if err != nil && h.evmRevertErr != nil {
+		err = h.evmRevertErr
+	}
+
+	return returnData, leftOverGas, err
 }
 
 // LoadContract loads the bytecode of a contract, and deploys it with regular CREATE.
@@ -386,7 +420,7 @@ func (h *Host) RememberArtifact(addr common.Address, artifact *foundry.Artifact,
 // This create function helps deploy contracts quickly for scripting etc.
 func (h *Host) Create(from common.Address, initCode []byte) (common.Address, error) {
 	h.prelude(from, nil)
-	ret, addr, _, err := h.env.Create(vm.AccountRef(from),
+	ret, addr, _, err := h.env.Create(from,
 		initCode, DefaultFoundryGasLimit, uint256.NewInt(0))
 	if err != nil {
 		retStr := fmt.Sprintf("%x", ret)
@@ -486,6 +520,7 @@ func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Addre
 	if len(h.callStack) == 0 {
 		return
 	}
+
 	parentCallFrame := h.callStack[len(h.callStack)-1]
 	if parentCallFrame.Prank == nil {
 		return
@@ -533,14 +568,35 @@ func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, rever
 	if reverted {
 		h.LogCallStack()
 		if msg, revertInspectErr := abi.UnpackRevert(output); revertInspectErr == nil {
+			h.handleRevertErr(addr, err, msg, output)
 			h.log.Warn("Revert", "addr", addr, "label", h.labels[addr], "err", err, "revertMsg", msg, "depth", depth)
 		} else {
+			h.handleRevertErr(addr, err, "", output)
 			h.log.Warn("Revert", "addr", addr, "label", h.labels[addr], "err", err, "revertData", hexutil.Bytes(output), "depth", depth)
 		}
 	}
 
 	h.callStack[len(h.callStack)-1].GasUsed += gasUsed
 	h.unwindCallstack(depth)
+}
+
+// handleRevertErr bubbles up error messages from within the EVM to callers. This makes it more obvious what went wrong
+// by putting the root causes of reverts in error messages, rather than buried in logs.
+func (h *Host) handleRevertErr(addr common.Address, err error, revertMsg string, revertData []byte) {
+	// if we have an actual revert message, use that
+	if revertMsg != "" {
+		h.evmRevertErr = fmt.Errorf("execution reverted at %s with message: %s", addr, revertMsg)
+		return
+	}
+
+	// otherwise, see if we have a custom error. custom errors revert with a 4-byte error selector
+	if len(revertData) == 4 {
+		h.evmRevertErr = fmt.Errorf("execution reverted at %s with error selector: 0x%x", addr, revertData)
+		return
+	}
+
+	// otherwise, set the underlying error
+	h.evmRevertErr = fmt.Errorf("execution reverted at address %s: %w", addr, err)
 }
 
 // onFault is a trace-hook, catches things more generic than regular EVM reverts.
@@ -580,7 +636,7 @@ func (h *Host) unwindCallstack(depth int) {
 				// While going back to the parent, restore the tx.origin.
 				// It will later be re-applied on sub-calls if the prank persists (if Repeat == true).
 				if parentCallFrame.Prank.Origin != nil {
-					h.env.TxContext.Origin = parentCallFrame.Prank.PrevOrigin
+					h.env.TxContext().Origin = parentCallFrame.Prank.PrevOrigin
 				}
 				if !parentCallFrame.Prank.Repeat {
 					parentCallFrame.Prank = nil
@@ -701,7 +757,7 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 	baseState := h.baseState
 	// We have to commit the existing state to the trie,
 	// for all the state-changes to be captured by the trie iterator.
-	root, err := baseState.Commit(h.env.Context.BlockNumber.Uint64(), true, false)
+	root, err := baseState.Commit(h.env.Context().BlockNumber.Uint64(), true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit state: %w", err)
 	}
@@ -761,11 +817,11 @@ func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
 }
 
 func (h *Host) SetTxOrigin(addr common.Address) {
-	h.env.TxContext.Origin = addr
+	h.env.TxContext().Origin = addr
 }
 
 func (h *Host) TxOrigin() common.Address {
-	return h.env.TxContext.Origin
+	return h.env.TxContext().Origin
 }
 
 // ScriptBackendFn is a convenience method for scripts to attach to the Host.
@@ -773,7 +829,7 @@ func (h *Host) TxOrigin() common.Address {
 // to call the destination script.
 func (h *Host) ScriptBackendFn(to common.Address) CallBackendFn {
 	return func(data []byte) ([]byte, error) {
-		ret, _, err := h.Call(h.env.TxContext.Origin, to, data, DefaultFoundryGasLimit, uint256.NewInt(0))
+		ret, _, err := h.Call(h.env.TxContext().Origin, to, data, DefaultFoundryGasLimit, uint256.NewInt(0))
 		return ret, err
 	}
 }
@@ -781,7 +837,7 @@ func (h *Host) ScriptBackendFn(to common.Address) CallBackendFn {
 // EnforceMaxCodeSize configures the EVM to enforce (if true), or not enforce (if false),
 // the maximum contract bytecode size.
 func (h *Host) EnforceMaxCodeSize(v bool) {
-	h.env.Config.NoMaxCodeSize = !v
+	h.env.Config().NoMaxCodeSize = !v
 }
 
 // LogCallStack is a convenience method for debugging,
@@ -790,9 +846,6 @@ func (h *Host) LogCallStack() {
 	for _, cf := range h.callStack {
 		callsite := ""
 		srcMap, ok := h.srcMaps[cf.Ctx.Address()]
-		if !ok && cf.Ctx.Contract.CodeAddr != nil { // if delegate-call, we might know the implementation code.
-			srcMap, ok = h.srcMaps[*cf.Ctx.Contract.CodeAddr]
-		}
 		if ok {
 			callsite = srcMap.FormattedInfo(cf.LastPC)
 			if callsite == "unknown:0:0" && len(cf.LastJumps) > 0 {

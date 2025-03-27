@@ -1,15 +1,8 @@
 # Getting Started
 
 Running a Kurtosis Devnet has the following prerequisites:
-- Kurtosis must be installed
+- Kurtosis must be installed. This is automatically handled by `mise`, same as with other dev tools in this repository
 - Docker Desktop must be installed and running
-
-Platform specific installation instructions for Kurtosis may be found [in Kurtosis documentation](https://docs.kurtosis.com/install/), alternatively Mac, Windows and Linux binaries can be found [here](https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts).
-For Mac users, the following command should suffice:
-```
-brew install kurtosis-tech/tap/kurtosis-cli
-```
-Check your Kurtosis version with `kurtosis version`. The current ideal version for these devnets is `1.4.3`.
 
 Docker Desktop may be substituted by an alternative like Orbstack if you have that installed.
 
@@ -156,3 +149,22 @@ Beyond deployment, we can interact with enclaves normally.
 
 In particular, cleaning up a devnet can be achieved using
 `kurtosis rm FOO-devnet` and the likes.
+
+## Troubleshooting
+
+In some cases, a newer kurtosis client might not be able to handle an
+older kurtosis engine. This typically happens if the kurtosis
+command-line managed by mise gets updated while some enclaves are
+already running.
+
+To help recover, you can kill the old engine with:
+
+```shell
+docker rm -f $(docker ps -aqf "name=kurtosis-*")
+```
+
+Potentially you'll also need to cleanup dangling docker networks:
+
+```shell
+docker network rm -f $(docker network ls -qf "name=kt-*")
+```

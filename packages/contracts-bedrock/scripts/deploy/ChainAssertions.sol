@@ -7,7 +7,6 @@ import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
-import { ISystemConfigInterop } from "interfaces/L1/ISystemConfigInterop.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
@@ -22,7 +21,7 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { ProtocolVersion, IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
@@ -32,6 +31,7 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -91,7 +91,6 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger, "CHECK-SCFG-160");
             require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge, "CHECK-SCFG-170");
             require(config.l1StandardBridge() == _contracts.L1StandardBridge, "CHECK-SCFG-180");
-            require(config.disputeGameFactory() == _contracts.DisputeGameFactory, "CHECK-SCFG-190");
             require(config.optimismPortal() == _contracts.OptimismPortal, "CHECK-SCFG-200");
             require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory, "CHECK-SCFG-210");
         } else {
@@ -116,35 +115,8 @@ library ChainAssertions {
             require(config.l1CrossDomainMessenger() == address(0), "CHECK-SCFG-380");
             require(config.l1ERC721Bridge() == address(0), "CHECK-SCFG-390");
             require(config.l1StandardBridge() == address(0), "CHECK-SCFG-400");
-            require(config.disputeGameFactory() == address(0), "CHECK-SCFG-410");
             require(config.optimismPortal() == address(0), "CHECK-SCFG-420");
             require(config.optimismMintableERC20Factory() == address(0), "CHECK-SCFG-430");
-        }
-    }
-
-    /// @notice Asserts that the SystemConfigInterop is setup correctly
-    function checkSystemConfigInterop(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        ISystemConfigInterop config = ISystemConfigInterop(_contracts.SystemConfig);
-        console.log(
-            "Running chain assertions on the SystemConfigInterop %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(config)
-        );
-
-        checkSystemConfig(_contracts, _cfg, _isProxy);
-        if (_isProxy) {
-            // TODO: this is not being set in the deployment, nor is a config value.
-            // Update this when it has an entry in hardhat.json
-            require(config.dependencyManager() == address(0), "CHECK-SCFGI-10");
-        } else {
-            require(config.dependencyManager() == address(0), "CHECK-SCFGI-20");
         }
     }
 
@@ -367,7 +339,7 @@ library ChainAssertions {
         internal
         view
     {
-        IOptimismPortal2 portal = IOptimismPortal2(payable(_contracts.OptimismPortal));
+        IOptimismPortal portal = IOptimismPortal(payable(_contracts.OptimismPortal));
         console.log(
             "Running chain assertions on the OptimismPortal2 %s at %s",
             _isProxy ? "proxy" : "implementation",
@@ -385,20 +357,52 @@ library ChainAssertions {
 
         if (_isProxy) {
             require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory, "CHECK-OP2-20");
+            require(address(portal.anchorStateRegistry()) == _contracts.AnchorStateRegistry, "CHECK-OP2-25");
             require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
             require(portal.guardian() == guardian, "CHECK-OP2-40");
             require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig), "CHECK-OP2-50");
             require(portal.paused() == ISuperchainConfig(_contracts.SuperchainConfig).paused(), "CHECK-OP2-60");
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
+            require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
         } else {
-            require(address(portal.disputeGameFactory()) == address(0), "CHECK-OP2-80");
+            require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
             require(address(portal.systemConfig()) == address(0), "CHECK-OP2-90");
             require(address(portal.superchainConfig()) == address(0), "CHECK-OP2-100");
             require(portal.l2Sender() == address(0), "CHECK-OP2-110");
+            require(address(portal.ethLockbox()) == address(0), "CHECK-OP2-120");
         }
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
-        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-120");
+        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-130");
+    }
+
+    /// @notice Asserts that the ETHLockbox is setup correctly
+    function checkETHLockbox(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
+        IETHLockbox ethLockbox = IETHLockbox(_contracts.ETHLockbox);
+        ISuperchainConfig superchainConfig = ISuperchainConfig(_contracts.SuperchainConfig);
+
+        console.log(
+            "Running chain assertions on the ETHLockbox %s at %s",
+            _isProxy ? "proxy" : "implementation",
+            address(ethLockbox)
+        );
+
+        require(address(ethLockbox) != address(0), "CHECK-ELB-10");
+
+        // Check that the contract is initialized
+        DeployUtils.assertInitialized({ _contractAddress: address(ethLockbox), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+
+        if (_isProxy) {
+            require(ethLockbox.superchainConfig() == superchainConfig, "CHECK-ELB-20");
+            require(ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))), "CHECK-ELB-30");
+            require(ethLockbox.proxyAdminOwner() == _cfg.finalSystemOwner(), "CHECK-ELB-40");
+        } else {
+            require(address(ethLockbox.superchainConfig()) == address(0), "CHECK-ELB-50");
+            require(
+                ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == false,
+                "CHECK-ELB-60"
+            );
+        }
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly

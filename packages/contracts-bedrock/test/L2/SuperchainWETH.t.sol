@@ -19,24 +19,21 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 /// @title SuperchainWETH_Test
 /// @notice Contract for testing the SuperchainWETH contract.
 contract SuperchainWETH_Test is CommonTest {
-    /// @notice Emitted when a transfer is made.
     event Transfer(address indexed src, address indexed dst, uint256 wad);
 
-    /// @notice Emitted when a deposit is made.
     event Deposit(address indexed dst, uint256 wad);
 
-    /// @notice Emitted when a withdrawal is made.
     event Withdrawal(address indexed src, uint256 wad);
 
-    /// @notice Emitted when a crosschain transfer mints tokens.
     event CrosschainMint(address indexed to, uint256 amount, address indexed sender);
 
-    /// @notice Emitted when a crosschain transfer burns tokens.
     event CrosschainBurn(address indexed from, uint256 amount, address indexed sender);
 
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
+
+    event Approval(address indexed src, address indexed guy, uint256 wad);
 
     address internal constant ZERO_ADDRESS = address(0);
 
@@ -294,6 +291,36 @@ contract SuperchainWETH_Test is CommonTest {
 
         // Assert
         assertEq(_allowance, _wad);
+    }
+
+    /// @notice Tests that the `approve` function reverts when the spender is Permit2 and the allowance is not infinite.
+    function testFuzz_approve_permit2NonInfiniteAllowance_reverts(uint256 _wad) public {
+        vm.assume(_wad != type(uint256).max);
+        vm.expectRevert(ISuperchainWETH.Permit2AllowanceIsFixedAtInfinity.selector);
+        superchainWeth.approve(Preinstalls.Permit2, _wad);
+    }
+
+    /// @notice Tests that the `approve` function succeeds when the spender is Permit2 and the allowance is infinite.
+    function testFuzz_approve_permit2InfiniteAllowance_succeeds(address _src) public {
+        vm.expectEmit(address(superchainWeth));
+        emit Approval(_src, Preinstalls.Permit2, type(uint256).max);
+
+        vm.prank(_src);
+        superchainWeth.approve(Preinstalls.Permit2, type(uint256).max);
+        assertEq(superchainWeth.allowance(_src, Preinstalls.Permit2), type(uint256).max);
+    }
+
+    /// @notice Tests that the `approve` function succeeds correctly updating the allowance.
+    function testFuzz_approve_succeeds(address _src, address _guy, uint256 _wad) public {
+        if (_guy == Preinstalls.Permit2) _wad = type(uint256).max;
+
+        vm.expectEmit(address(superchainWeth));
+        emit Approval(_src, _guy, _wad);
+
+        vm.prank(_src);
+        superchainWeth.approve(_guy, _wad);
+
+        assertEq(superchainWeth.allowance(_src, _guy), _wad);
     }
 
     /// @notice Tests that `transferFrom` works when the caller (spender) is Permit2, without any explicit approval.

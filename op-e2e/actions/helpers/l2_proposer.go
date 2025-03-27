@@ -198,31 +198,11 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 // will be created so pending must be used.
 func estimateGasPending(ctx context.Context, ec *ethclient.Client, msg ethereum.CallMsg) (uint64, error) {
 	var hex hexutil.Uint64
-	err := ec.Client().CallContext(ctx, &hex, "eth_estimateGas", toCallArg(msg), "pending")
+	err := ec.Client().CallContext(ctx, &hex, "eth_estimateGas", sources.ToCallArg(msg), "pending")
 	if err != nil {
 		return 0, err
 	}
 	return uint64(hex), nil
-}
-
-func toCallArg(msg ethereum.CallMsg) interface{} {
-	arg := map[string]interface{}{
-		"from": msg.From,
-		"to":   msg.To,
-	}
-	if len(msg.Data) > 0 {
-		arg["data"] = hexutil.Bytes(msg.Data)
-	}
-	if msg.Value != nil {
-		arg["value"] = (*hexutil.Big)(msg.Value)
-	}
-	if msg.Gas != 0 {
-		arg["gas"] = hexutil.Uint64(msg.Gas)
-	}
-	if msg.GasPrice != nil {
-		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
-	}
-	return arg
 }
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (source.Proposal, bool, error) {

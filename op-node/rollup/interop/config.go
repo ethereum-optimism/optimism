@@ -54,6 +54,6 @@ func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *roll
 		if err != nil {
 			return nil, fmt.Errorf("failed to create supervisor RPC: %w", err)
 		}
-		return standard.NewStandardMode(logger, sources.NewSupervisorClient(cl)), nil
+		return standard.NewStandardMode(logger, sources.NewSupervisorClient(cl, nil)), nil
 	}
 }

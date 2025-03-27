@@ -1,6 +1,7 @@
 package state
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -29,6 +30,9 @@ var (
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
 	upgradeSchedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
 	if intent.UseInterop {
+		if upgradeSchedule.L2GenesisIsthmusTimeOffset == nil {
+			return genesis.DeployConfig{}, errors.New("expecting isthmus fork to be enabled for interop deployments")
+		}
 		upgradeSchedule.UseInterop = true
 	}
 
@@ -67,8 +71,10 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				GovernanceTokenOwner:  common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad"),
 			},
 			GasPriceOracleDeployConfig: genesis.GasPriceOracleDeployConfig{
-				GasPriceOracleBaseFeeScalar:     1368,
-				GasPriceOracleBlobBaseFeeScalar: 810949,
+				GasPriceOracleBaseFeeScalar:       1368,
+				GasPriceOracleBlobBaseFeeScalar:   810949,
+				GasPriceOracleOperatorFeeScalar:   chainIntent.OperatorFeeScalar,
+				GasPriceOracleOperatorFeeConstant: chainIntent.OperatorFeeConstant,
 			},
 			EIP1559DeployConfig: genesis.EIP1559DeployConfig{
 				EIP1559Denominator:       chainIntent.Eip1559Denominator,
@@ -122,7 +128,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 			BlockNumber: &num,
 		}
 	} else {
-		startHash := chainState.StartBlock.Hash()
+		startHash := chainState.StartBlock.Hash
 		cfg.L1StartingBlockTag = &genesis.MarshalableRPCBlockNumberOrHash{
 			BlockHash: &startHash,
 		}

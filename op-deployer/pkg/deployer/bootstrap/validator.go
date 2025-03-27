@@ -47,6 +47,7 @@ type ValidatorInput struct {
 	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImpl"`
 	L1ERC721BridgeImpl               common.Address `json:"l1ERC721BridgeImpl"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImpl"`
+	ETHLockboxImpl                   common.Address `json:"ethLockboxImpl" evm:"ethLockboxImpl"`
 	SystemConfigImpl                 common.Address `json:"systemConfigImpl"`
 	OptimismMintableERC20FactoryImpl common.Address `json:"optimismMintableERC20FactoryImpl"`
 	L1CrossDomainMessengerImpl       common.Address `json:"l1CrossDomainMessengerImpl"`
@@ -55,6 +56,7 @@ type ValidatorInput struct {
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImpl"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImpl"`
 	MIPSImpl                         common.Address `json:"mipsImpl" evm:"mipsImpl"`
+	WithdrawalDelaySeconds           uint64         `json:"withdrawalDelaySeconds"`
 }
 
 type ValidatorOutput struct {
@@ -95,7 +97,7 @@ func ValidatorCLI(cliCtx *cli.Context) error {
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
 	outfile := cliCtx.String(OutfileFlagName)
-	artifactsURLStr := cliCtx.String(ArtifactsLocatorFlagName)
+	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	configFile := cliCtx.String(ConfigFileFlag.Name)
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 

@@ -22,7 +22,8 @@ import { Chains } from "scripts/libraries/Chains.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -44,6 +45,7 @@ import { IOptimismSuperchainERC20Factory } from "interfaces/L2/IOptimismSupercha
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
+import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISuperchainWETH } from "interfaces/L2/ISuperchainWETH.sol";
@@ -95,7 +97,8 @@ contract Setup {
     IDelayedWETH delayedWETHPermissionedGameProxy;
 
     // L1 contracts - core
-    IOptimismPortal2 optimismPortal2;
+    IOptimismPortal optimismPortal2;
+    IETHLockbox ethLockbox;
     ISystemConfig systemConfig;
     IL1StandardBridge l1StandardBridge;
     IL1CrossDomainMessenger l1CrossDomainMessenger;
@@ -120,6 +123,7 @@ contract Setup {
     IBaseFeeVault baseFeeVault = IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
     ISequencerFeeVault sequencerFeeVault = ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
     IL1FeeVault l1FeeVault = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT));
+    IOperatorFeeVault operatorFeeVault = IOperatorFeeVault(payable(Predeploys.OPERATOR_FEE_VAULT));
     IGasPriceOracle gasPriceOracle = IGasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
     IL1Block l1Block = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
     IGovernanceToken governanceToken = IGovernanceToken(Predeploys.GOVERNANCE_TOKEN);
@@ -134,6 +138,12 @@ contract Setup {
     /// @notice Indicates whether a test is running against a forked production network.
     function isForkTest() public view returns (bool) {
         return vm.envOr("FORK_TEST", false);
+    }
+
+    /// @notice Indicates whether a test is running against a forked network that is OP.
+    function isOpFork() public view returns (bool) {
+        string memory opChain = vm.envOr("FORK_OP_CHAIN", string("op"));
+        return keccak256(bytes(opChain)) == keccak256(bytes("op"));
     }
 
     /// @dev Deploys either the Deploy.s.sol or Fork.s.sol contract, by fetching the bytecode dynamically using
@@ -191,6 +201,14 @@ contract Setup {
         }
     }
 
+    /// @dev Skips tests when running against a forked production network that is not OP.
+    function skipIfNotOpFork(string memory message) public {
+        if (isForkTest() && !isOpFork()) {
+            vm.skip(true);
+            console.log(string.concat("Skipping non-OP fork test: ", message));
+        }
+    }
+
     /// @dev Skips tests when running against a forked production network using the superchain ops repo.
     function skipIfOpsRepoTest(string memory message) public {
         if (forkLive.useOpsRepo()) {
@@ -227,7 +245,14 @@ contract Setup {
 
         console.log("Setup: completed L1 deployment, registering addresses now");
 
-        optimismPortal2 = IOptimismPortal2(artifacts.mustGetAddress("OptimismPortalProxy"));
+        optimismPortal2 = IOptimismPortal(artifacts.mustGetAddress("OptimismPortalProxy"));
+
+        // Only skip ETHLockbox assignment if we're in a fork test with non-upgraded fork
+        // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
+        if (!isForkTest() || deploy.cfg().useUpgradedFork()) {
+            ethLockbox = IETHLockbox(artifacts.mustGetAddress("ETHLockboxProxy"));
+        }
+
         systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = IL1StandardBridge(artifacts.mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = IL1CrossDomainMessenger(artifacts.mustGetAddress("L1CrossDomainMessengerProxy"));
@@ -286,6 +311,7 @@ contract Setup {
         labelPredeploy(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
         labelPredeploy(Predeploys.BASE_FEE_VAULT);
         labelPredeploy(Predeploys.L1_FEE_VAULT);
+        labelPredeploy(Predeploys.OPERATOR_FEE_VAULT);
         labelPredeploy(Predeploys.L1_BLOCK_ATTRIBUTES);
         labelPredeploy(Predeploys.GAS_PRICE_ORACLE);
         labelPredeploy(Predeploys.LEGACY_MESSAGE_PASSER);

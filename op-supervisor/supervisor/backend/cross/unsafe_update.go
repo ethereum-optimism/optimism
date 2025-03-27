@@ -50,9 +50,6 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 
 	hazards, err := CrossUnsafeHazards(d, logger, chainID, candidate)
 	if err != nil {
-		// TODO(#11693): reorgs can be detected by checking if the error is ErrConflict,
-		// missing data is identified by ErrFuture,
-		// and other errors (e.g. DB issues) are identifier by remaining error kinds.
 		return fmt.Errorf("failed to check for cross-chain hazards: %w", err)
 	}
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 // Libraries
-import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
@@ -21,6 +21,7 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 interface IOPContractsManagerContractsContainer {
     function __constructor__(
@@ -38,16 +39,20 @@ interface IOPContractsManagerGameTypeAdder {
         uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
     );
 
-    function __constructor__(
-        IOPContractsManagerContractsContainer _contractsContainer
-    )
-        external;
+    function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
-    function addGameType(IOPContractsManager.AddGameInput[] memory _gameConfigs, address _superchainConfig)
+    function addGameType(
+        IOPContractsManager.AddGameInput[] memory _gameConfigs,
+        address _superchainConfig
+    )
         external
         returns (IOPContractsManager.AddGameOutput[] memory);
 
-    function updatePrestate(IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs, address _superchainConfig) external;
+    function updatePrestate(
+        IOPContractsManager.OpChainConfig[] memory _prestateUpdateInputs,
+        address _superchainConfig
+    )
+        external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
@@ -55,12 +60,13 @@ interface IOPContractsManagerGameTypeAdder {
 interface IOPContractsManagerDeployer {
     event Deployed(uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput);
 
-    function __constructor__(
-        IOPContractsManagerContractsContainer _contractsContainer
-    )
-        external;
+    function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
-    function deploy(IOPContractsManager.DeployInput memory _input, address _superchainConfig, address _deployer)
+    function deploy(
+        IOPContractsManager.DeployInput memory _input,
+        address _superchainConfig,
+        address _deployer
+    )
         external
         returns (IOPContractsManager.DeployOutput memory);
 
@@ -70,16 +76,39 @@ interface IOPContractsManagerDeployer {
 interface IOPContractsManagerUpgrader {
     event Upgraded(uint256 indexed l2ChainId, address indexed systemConfig, address indexed upgrader);
 
-    function __constructor__(
-        IOPContractsManagerContractsContainer _contractsContainer
-    )
-        external;
+    function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
     function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
 
+interface IOPContractsManagerInteropMigrator {
+    error OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
+    error OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
+    error OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
+
+    struct GameParameters {
+        address proposer;
+        address challenger;
+        uint256 maxGameDepth;
+        uint256 splitDepth;
+        uint256 initBond;
+        Duration clockExtension;
+        Duration maxClockDuration;
+    }
+
+    struct MigrateInput {
+        bool usePermissionlessGame;
+        Proposal startingAnchorRoot;
+        GameParameters gameParameters;
+        IOPContractsManager.OpChainConfig[] opChainConfigs;
+    }
+
+    function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
+
+    function migrate(MigrateInput calldata _input) external;
+}
 
 interface IOPContractsManager {
     // -------- Structs --------
@@ -123,6 +152,7 @@ interface IOPContractsManager {
         IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
         IL1StandardBridge l1StandardBridgeProxy;
         IL1CrossDomainMessenger l1CrossDomainMessengerProxy;
+        IETHLockbox ethLockboxProxy;
         // Fault proof contracts below.
         IOptimismPortal2 optimismPortalProxy;
         IDisputeGameFactory disputeGameFactoryProxy;
@@ -148,6 +178,10 @@ interface IOPContractsManager {
         address permissionedDisputeGame2;
         address permissionlessDisputeGame1;
         address permissionlessDisputeGame2;
+        address superPermissionedDisputeGame1;
+        address superPermissionedDisputeGame2;
+        address superPermissionlessDisputeGame1;
+        address superPermissionlessDisputeGame2;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.
@@ -156,6 +190,7 @@ interface IOPContractsManager {
         address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
         address l1CrossDomainMessengerImpl;
@@ -257,6 +292,7 @@ interface IOPContractsManager {
         IOPContractsManagerGameTypeAdder _opcmGameTypeAdder,
         IOPContractsManagerDeployer _opcmDeployer,
         IOPContractsManagerUpgrader _opcmUpgrader,
+        IOPContractsManagerInteropMigrator _opcmInteropMigrator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -279,6 +315,11 @@ interface IOPContractsManager {
     /// @param _prestateUpdateInputs The new prestate hash to use
     function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) external;
 
+    /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
+    ///         dispute game contracts.
+    /// @param _input The input parameters for the migration.
+    function migrate(IOPContractsManagerInteropMigrator.MigrateInput calldata _input) external;
+
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
     /// configuration's convention. This convention is `versionByte || keccak256(bytes32(chainId))[:19]`,
     /// where || denotes concatenation`, versionByte is 0x00, and chainId is a uint256.
@@ -294,6 +335,8 @@ interface IOPContractsManager {
 
     function opcmGameTypeAdder() external view returns (IOPContractsManagerGameTypeAdder);
 
+    function opcmInteropMigrator() external view returns (IOPContractsManagerInteropMigrator);
+
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);
 
@@ -302,4 +345,28 @@ interface IOPContractsManager {
     function isRC() external view returns (bool);
 
     function setRC(bool _isRC) external;
+}
+
+/// @notice Minimal interface only used for calling `implementations()` method but without retrieving the ETHLockbox
+///         on it, since the OPCM contracts already deployed on mainnet don't have it.
+/// @dev    Only used for testing.
+interface IOPCMImplementationsWithoutLockbox {
+    /// @notice The implementation contracts for the OP Stack, without the newly added ETHLockbox.
+    struct Implementations {
+        address superchainConfigImpl;
+        address protocolVersionsImpl;
+        address l1ERC721BridgeImpl;
+        address optimismPortalImpl;
+        address systemConfigImpl;
+        address optimismMintableERC20FactoryImpl;
+        address l1CrossDomainMessengerImpl;
+        address l1StandardBridgeImpl;
+        address disputeGameFactoryImpl;
+        address anchorStateRegistryImpl;
+        address delayedWETHImpl;
+        address mipsImpl;
+    }
+
+    /// @notice Returns the implementation contracts without the ETHLockbox.
+    function implementations() external view returns (Implementations memory);
 }

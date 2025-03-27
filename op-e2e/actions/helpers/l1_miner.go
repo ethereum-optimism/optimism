@@ -103,7 +103,8 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 
 		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
 			header.BlobGasUsed = new(uint64)
-			header.ExcessBlobGas = new(uint64)
+			excessBlobGas := eip4844.CalcExcessBlobGas(s.l1Cfg.Config, parent, header.Time)
+			header.ExcessBlobGas = &excessBlobGas
 			root := crypto.Keccak256Hash([]byte("fake-beacon-block-root"), header.Number.Bytes())
 			header.ParentBeaconRoot = &root
 
@@ -165,7 +166,7 @@ func (s *L1Miner) ActL1IncludeTxByHash(txHash common.Hash) Action {
 	}
 }
 
-func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
+func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) *types.Receipt {
 	from, err := s.l1Signer.Sender(tx)
 	require.NoError(t, err)
 	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from, "to", tx.To())
@@ -174,7 +175,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 	}
 	if tx.Gas() > uint64(*s.L1GasPool) {
 		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.L1GasPool))
-		return
+		return nil
 	}
 	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.L1Transactions))
 	blockCtx := core.NewEVMBlockContext(s.l1BuildingHeader, s.l1Chain, nil, s.l1Cfg.Config, s.l1BuildingState)
@@ -195,6 +196,7 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 		}
 		*s.l1BuildingHeader.BlobGasUsed += receipt.BlobGasUsed
 	}
+	return receipt
 }
 
 func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {
@@ -206,6 +208,7 @@ func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {
 
 // ActL1EndBlock finishes the new L1 block, and applies it to the chain as unsafe block
 func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
+	t.Helper()
 	if !s.l1Building {
 		t.InvalidAction("cannot end L1 block when not building block")
 		return nil
@@ -220,14 +223,14 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 		withdrawals = make([]*types.Withdrawal, 0)
 	}
 
-	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
-	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
-	if isCancun {
-		parent := s.l1Chain.GetHeaderByHash(s.l1BuildingHeader.ParentHash)
-		excessBlobGas := eip4844.CalcExcessBlobGas(s.l1Cfg.Config, parent, s.l1BuildingHeader.Time)
-		s.l1BuildingHeader.ExcessBlobGas = &excessBlobGas
+	if s.l1Cfg.Config.IsPrague(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
+		// Don't process requests for now.
+		s.l1BuildingHeader.RequestsHash = &types.EmptyRequestsHash
 	}
 
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+
+	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	// Write state changes to db
 	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
 	if err != nil {
@@ -246,12 +249,13 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 	}
 	_, err = s.l1Chain.InsertChain(types.Blocks{block})
 	if err != nil {
-		t.Fatalf("failed to insert block into l1 chain")
+		t.Fatalf("failed to insert block into l1 chain: %v", err)
 	}
 	return block
 }
 
 func (s *L1Miner) ActEmptyBlock(t Testing) *types.Block {
+	t.Helper()
 	s.ActL1StartBlock(12)(t)
 	return s.ActL1EndBlock(t)
 }

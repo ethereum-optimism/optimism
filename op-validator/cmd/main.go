@@ -33,6 +33,7 @@ func main() {
 			Subcommands: []*cli.Command{
 				versionCmd(validations.VersionV180),
 				versionCmd(validations.VersionV200),
+				versionCmd(validations.VersionV300),
 			},
 		},
 	}

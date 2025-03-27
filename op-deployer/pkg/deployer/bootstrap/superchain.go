@@ -87,7 +87,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
-	artifactsURLStr := cliCtx.String(ArtifactsLocatorFlagName)
+	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts URL: %w", err)

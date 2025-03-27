@@ -56,11 +56,10 @@ func RunKonaNative(
 		Server:            konaHostPath,
 	}
 	inputs := utils.LocalGameInputs{
-		L1Head:        fixtureInputs.L1Head,
-		L2Head:        fixtureInputs.L2Head,
-		L2OutputRoot:  fixtureInputs.L2OutputRoot,
-		L2Claim:       fixtureInputs.L2Claim,
-		L2BlockNumber: big.NewInt(int64(fixtureInputs.L2BlockNumber)),
+		L1Head:           fixtureInputs.L1Head,
+		L2Head:           fixtureInputs.L2Head,
+		L2Claim:          fixtureInputs.L2Claim,
+		L2SequenceNumber: big.NewInt(int64(fixtureInputs.L2BlockNumber)),
 	}
 
 	var hostCmd []string
@@ -69,6 +68,7 @@ func RunKonaNative(
 		inputs.AgreedPreState = fixtureInputs.AgreedPrestate
 		hostCmd, err = vm.NewNativeKonaSuperExecutor().OracleCommand(vmCfg, workDir, inputs)
 	} else {
+		inputs.L2OutputRoot = fixtureInputs.L2OutputRoot
 		hostCmd, err = vm.NewNativeKonaExecutor().OracleCommand(vmCfg, workDir, inputs)
 	}
 	require.NoError(t, err)

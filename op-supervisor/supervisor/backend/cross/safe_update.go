@@ -20,7 +20,7 @@ type CrossSafeDeps interface {
 
 	CandidateCrossSafe(chain eth.ChainID) (candidate types.DerivedBlockRefPair, err error)
 	NextSource(chain eth.ChainID, source eth.BlockID) (after eth.BlockRef, err error)
-	PreviousDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error)
+	PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error)
 
 	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
 
@@ -36,8 +36,6 @@ type CrossSafeDeps interface {
 
 func CrossSafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossSafeDeps) error {
 	logger.Debug("Cross-safe update call")
-	// TODO(#11693): establish L1 reorg-lock of scopeDerivedFrom
-	// defer unlock once we are done checking the chain
 	candidate, err := scopedCrossSafeUpdate(logger, chainID, d)
 	if err == nil {
 		// if we made progress, and no errors, then there is no need to bump the L1 scope yet.
@@ -70,7 +68,7 @@ func CrossSafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossSafeDeps) er
 		// TODO: if genesis isn't cross-safe by default, then we can't register something as cross-safe here
 		return fmt.Errorf("failed to identify cross-safe scope to repeat: %w", err)
 	}
-	parent, err := d.PreviousDerived(chainID, currentCrossSafe.Derived.ID())
+	parent, err := d.PreviousCrossDerived(chainID, currentCrossSafe.Derived.ID())
 	if err != nil {
 		return fmt.Errorf("cannot find parent-block of cross-safe: %w", err)
 	}

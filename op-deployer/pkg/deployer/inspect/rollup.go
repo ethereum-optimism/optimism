@@ -22,11 +22,12 @@ func RollupCLI(cliCtx *cli.Context) error {
 	}
 
 	_, rollupConfig, err := GenesisAndRollup(globalState, cfg.ChainID)
-	if rollupConfig.HoloceneTime == nil {
-		rollupConfig.Genesis.SystemConfig.MarshalPreHolocene = true
-	}
 	if err != nil {
 		return fmt.Errorf("failed to generate rollup config: %w", err)
+	}
+
+	if rollupConfig.HoloceneTime == nil {
+		rollupConfig.Genesis.SystemConfig.MarshalPreHolocene = true
 	}
 
 	if err := jsonutil.WriteJSON(rollupConfig, ioutil.ToStdOutOrFileOrNoop(cfg.Outfile, 0o666)); err != nil {

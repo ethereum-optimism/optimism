@@ -1,14 +1,38 @@
 package util
 
 import (
+	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/spf13/afero"
 )
 
-func CopyDir(src string, dst string) error {
-	err := filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
+// CopyDir copies a directory from src to dst using the provided filesystem.
+// If no filesystem is provided, it uses the OS filesystem.
+func CopyDir(src string, dst string, fs afero.Fs) error {
+	if fs == nil {
+		fs = afero.NewOsFs()
+	}
+
+	// First ensure the source exists
+	srcInfo, err := fs.Stat(src)
+	if err != nil {
+		return err
+	}
+	if !srcInfo.IsDir() {
+		return fmt.Errorf("source path %s is not a directory", src)
+	}
+
+	// Create the destination directory
+	err = fs.MkdirAll(dst, srcInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	// Walk through the source directory
+	return afero.Walk(fs, src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -24,17 +48,17 @@ func CopyDir(src string, dst string) error {
 
 		if info.IsDir() {
 			// Create directories with same permissions
-			return os.MkdirAll(dstPath, info.Mode())
+			return fs.MkdirAll(dstPath, info.Mode())
 		}
 
 		// Copy files
-		srcFile, err := os.Open(path)
+		srcFile, err := fs.Open(path)
 		if err != nil {
 			return err
 		}
 		defer srcFile.Close()
 
-		dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+		dstFile, err := fs.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
 		if err != nil {
 			return err
 		}
@@ -43,6 +67,4 @@ func CopyDir(src string, dst string) error {
 		_, err = io.Copy(dstFile, srcFile)
 		return err
 	})
-
-	return err
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -230,4 +231,32 @@ func NewOpProgramCfg(
 	dfault.InteropEnabled = fi.InteropEnabled
 	dfault.DependencySet = fi.DependencySet
 	return dfault
+}
+
+// BatchAndMine batches the current unsafe chain to L1 and mines the L1 block containing the
+// batcher transaction.
+func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
+	t.Helper()
+	env.Batcher.ActSubmitAll(t)
+	env.Miner.ActL1StartBlock(12)(t)
+	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+	env.Miner.ActL1EndBlock(t)
+}
+
+// BatchMineAndSync calls env.BatchAndMine and then has the sequencer derive up to the l1 head.
+// Returns the L2 Safe Block Reference
+func (env *L2FaultProofEnv) BatchMineAndSync(t helpers.Testing) eth.L2BlockRef {
+	t.Helper()
+	id := env.Miner.UnsafeID()
+	env.BatchAndMine(t)
+	env.Sequencer.ActL1HeadSignal(t)
+	env.Sequencer.ActL2PipelineFull(t)
+
+	// Assertions
+
+	syncStatus := env.Sequencer.SyncStatus()
+	require.Equal(t, syncStatus.UnsafeL2.L1Origin, id, "UnsafeL2.L1Origin should equal L1 Unsafe ID before batch submitted")
+	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2, "UnsafeL2 should equal SafeL2")
+
+	return syncStatus.SafeL2
 }
