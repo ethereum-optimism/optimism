@@ -344,7 +344,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 							},
 						},
 					},
-					DepSet: json.RawMessage(`{}`),
+					DepSet: nil,
 				},
 			},
 		},
@@ -369,6 +369,124 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			err:     fmt.Errorf("jwt failed"),
 			wantErr: true,
 		},
+		{
+			name: "with interop feature - depset fetched",
+			spec: &spec.EnclaveSpec{
+				Chains: []spec.ChainSpec{
+					{
+						Name:      "op-kurtosis",
+						NetworkID: "1234",
+					},
+				},
+				Features: spec.FeatureList{spec.FeatureInterop},
+			},
+			inspect: &inspect.InspectData{UserServices: testServices},
+			deploy: &deployer.DeployerData{
+				L1ValidatorWallets: testWallets,
+				State: &deployer.DeployerState{
+					Addresses: deployer.DeploymentAddresses{
+						"0x123": common.HexToAddress("0x123"),
+					},
+				},
+				L1ChainID: "1234",
+			},
+			jwt: testJWTs,
+			want: &KurtosisEnvironment{
+				DevnetEnvironment: descriptors.DevnetEnvironment{
+					L1: &descriptors.Chain{
+						ID:       "1234",
+						Name:     "Ethereum",
+						Services: make(descriptors.ServiceMap),
+						Nodes: []descriptors.Node{
+							{
+								Services: l1Services,
+							},
+						},
+						JWT: testJWTs.L1JWT,
+						Addresses: descriptors.AddressMap{
+							"0x123": common.HexToAddress("0x123"),
+						},
+						Wallets: descriptors.WalletMap{
+							testWallet.Name: {
+								Address:    testWallet.Address,
+								PrivateKey: testWallet.PrivateKey,
+							},
+						},
+					},
+					L2: []*descriptors.L2Chain{
+						{
+							Chain: descriptors.Chain{
+								Name:     "op-kurtosis",
+								ID:       "1234",
+								Services: make(descriptors.ServiceMap),
+								JWT:      testJWTs.L2JWT,
+							},
+						},
+					},
+					Features: spec.FeatureList{spec.FeatureInterop},
+					DepSet:   json.RawMessage(`{}`),
+				},
+			},
+		},
+		{
+			name: "without interop feature - depset not fetched",
+			spec: &spec.EnclaveSpec{
+				Chains: []spec.ChainSpec{
+					{
+						Name:      "op-kurtosis",
+						NetworkID: "1234",
+					},
+				},
+				Features: spec.FeatureList{},
+			},
+			inspect: &inspect.InspectData{UserServices: testServices},
+			deploy: &deployer.DeployerData{
+				L1ValidatorWallets: testWallets,
+				State: &deployer.DeployerState{
+					Addresses: deployer.DeploymentAddresses{
+						"0x123": common.HexToAddress("0x123"),
+					},
+				},
+				L1ChainID: "1234",
+			},
+			jwt: testJWTs,
+			want: &KurtosisEnvironment{
+				DevnetEnvironment: descriptors.DevnetEnvironment{
+					L1: &descriptors.Chain{
+						ID:       "1234",
+						Name:     "Ethereum",
+						Services: make(descriptors.ServiceMap),
+						Nodes: []descriptors.Node{
+							{
+								Services: l1Services,
+							},
+						},
+						JWT: testJWTs.L1JWT,
+						Addresses: descriptors.AddressMap{
+							"0x123": common.HexToAddress("0x123"),
+						},
+						Wallets: descriptors.WalletMap{
+							testWallet.Name: {
+								Address:    testWallet.Address,
+								PrivateKey: testWallet.PrivateKey,
+							},
+						},
+					},
+					L2: []*descriptors.L2Chain{
+						{
+							Chain: descriptors.Chain{
+								Name:     "op-kurtosis",
+								ID:       "1234",
+								Services: make(descriptors.ServiceMap),
+								JWT:      testJWTs.L2JWT,
+							},
+						},
+					},
+					Features: spec.FeatureList{},
+					DepSet:   nil,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -376,6 +494,12 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			// Create a mock Kurtosis context that won't try to connect to a real engine
 			mockCtx := &mockKurtosisContext{
 				enclaveCtx: &fake.EnclaveContext{},
+			}
+
+			// Create depset data based on whether interop is enabled
+			var depsetData json.RawMessage
+			if tt.spec != nil && tt.spec.Features.Contains(spec.FeatureInterop) {
+				depsetData = json.RawMessage(`{}`)
 			}
 
 			deployer, err := NewKurtosisDeployer(
@@ -393,7 +517,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 					err:  tt.err,
 				}),
 				WithKurtosisDepsetExtractor(&fakeDepsetExtractor{
-					data: json.RawMessage(`{}`),
+					data: depsetData,
 					err:  tt.err,
 				}),
 			)

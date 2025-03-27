@@ -3,6 +3,7 @@ package kurtosis
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -152,7 +153,7 @@ func (d *KurtosisDeployer) getWallets(wallets deployer.WalletList) descriptors.W
 }
 
 // GetEnvironmentInfo parses the input spec and inspect output to create KurtosisEnvironment
-func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.EnclaveSpec) (*KurtosisEnvironment, error) {
+func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.EnclaveSpec) (*KurtosisEnvironment, error) {
 	inspectResult, err := d.enclaveInspecter.EnclaveInspect(ctx, d.enclave)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse inspect output: %w", err)
@@ -171,22 +172,25 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	}
 
 	// Get dependency set
-	depsetData, err := d.depsetExtractor.ExtractData(ctx, d.enclave)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract dependency set: %w", err)
+	var depsetData json.RawMessage
+	if s.Features.Contains(spec.FeatureInterop) {
+		depsetData, err = d.depsetExtractor.ExtractData(ctx, d.enclave)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract dependency set: %w", err)
+		}
 	}
 
 	env := &KurtosisEnvironment{
 		DevnetEnvironment: descriptors.DevnetEnvironment{
-			L2:       make([]*descriptors.L2Chain, 0, len(spec.Chains)),
-			Features: spec.Features,
+			L2:       make([]*descriptors.L2Chain, 0, len(s.Chains)),
+			Features: s.Features,
 			DepSet:   depsetData,
 		},
 	}
 
 	// Find L1 endpoint
-	networks := make([]string, len(spec.Chains))
-	for idx, chainSpec := range spec.Chains {
+	networks := make([]string, len(s.Chains))
+	for idx, chainSpec := range s.Chains {
 		networks[idx] = chainSpec.Name
 	}
 	finder := NewServiceFinder(inspectResult.UserServices, WithL2Networks(networks))
@@ -208,7 +212,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, spec *spec.En
 	}
 
 	// Find L2 endpoints
-	for _, chainSpec := range spec.Chains {
+	for _, chainSpec := range s.Chains {
 		nodes, services := finder.FindL2Services(chainSpec.Name)
 
 		chain := &descriptors.L2Chain{
