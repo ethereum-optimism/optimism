@@ -4,19 +4,20 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-program/client/l1"
+	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 )
 
 func TestPreimageLoader_NoPreimage(t *testing.T) {
@@ -78,9 +79,8 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	fieldIndex := uint64(24)
 	elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
-	var point kzg4844.Point
-	new(big.Int).SetUint64(fieldIndex).FillBytes(point[:])
-	kzgProof, claim, err := kzg4844.ComputeProof(&blob, point)
+	zPoint := l1.RootsOfUnity[fieldIndex].Bytes()
+	kzgProof, claim, err := kzg4844.ComputeProof(&blob, zPoint)
 	require.NoError(t, err)
 	elementDataWithLengthPrefix := make([]byte, len(elementData)+lengthPrefixSize)
 	binary.BigEndian.PutUint64(elementDataWithLengthPrefix[:lengthPrefixSize], uint64(len(elementData)))
@@ -88,7 +88,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	keyBuf := make([]byte, 80)
 	copy(keyBuf[:48], commitment[:])
-	binary.BigEndian.PutUint64(keyBuf[72:], fieldIndex)
+	copy(keyBuf[48:], zPoint[:])
 	key := preimage.BlobKey(crypto.Keccak256Hash(keyBuf)).PreimageKey()
 
 	proof := &ProofData{
@@ -154,7 +154,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 		binary.BigEndian.PutUint64(claimWithLength[:lengthPrefixSize], uint64(len(claim)))
 		copy(claimWithLength[lengthPrefixSize:], claim[:])
 
-		expected := types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, fieldIndex, commitment[:], kzgProof[:])
+		expected := types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, zPoint, commitment[:], kzgProof[:])
 		require.Equal(t, expected, actual)
 		require.False(t, actual.IsLocal)
 
@@ -224,7 +224,8 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment gokzg4844.KZGCommitment, 
 	blobKeyBuf := make([]byte, 80)
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		binary.BigEndian.PutUint64(blobKeyBuf[72:], uint64(i))
+		root := l1.RootsOfUnity[i].Bytes()
+		copy(blobKeyBuf[48:], root[:])
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 		err := kv.Put(preimage.Keccak256Key(feKey).PreimageKey(), blobKeyBuf)
 		require.NoError(t, err)
