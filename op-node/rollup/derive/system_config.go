@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -94,6 +95,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		destSysCfg.BatcherAddr = address
+		log.Info("SystemConfig update: batcher address changed", "address", address)
 		return nil
 	case SystemConfigUpdateFeeScalars:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
@@ -115,15 +117,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 		if rollupCfg.IsEcotone(l1Time) {
 			if err := eth.CheckEcotoneL1SystemConfigScalar(scalar); err != nil {
+				log.Warn("SystemConfig update: ignoring invalid fee scalar", "scalar", scalar, "error", err)
 				return nil // ignore invalid scalars, retain the old system-config scalar
 			}
 			// retain the scalar data in encoded form
 			destSysCfg.Scalar = scalar
 			// zero out the overhead, it will not affect the state-transition after Ecotone
 			destSysCfg.Overhead = eth.Bytes32{}
+			log.Info("SystemConfig update: fee scalars changed (Ecotone)", "scalar", scalar)
 		} else {
 			destSysCfg.Overhead = overhead
 			destSysCfg.Scalar = scalar
+			log.Info("SystemConfig update: fee scalars changed", "overhead", overhead, "scalar", scalar)
 		}
 		return nil
 	case SystemConfigUpdateGasLimit:
@@ -141,6 +146,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		destSysCfg.GasLimit = gasLimit
+		log.Info("SystemConfig update: gas limit changed", "gas_limit", gasLimit)
 		return nil
 	case SystemConfigUpdateEIP1559Params:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
@@ -157,6 +163,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		copy(destSysCfg.EIP1559Params[:], params[24:32])
+		log.Info("SystemConfig update: EIP1559 params changed", "params", params)
 		return nil
 	case SystemConfigUpdateOperatorFeeParams:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
@@ -173,8 +180,10 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		destSysCfg.OperatorFeeParams = params
+		log.Info("SystemConfig update: operator fee params changed", "params", params)
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
+		log.Info("SystemConfig update: unsafe block signer changed", "log", ev)
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
 		return nil
 	default:
