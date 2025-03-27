@@ -35,7 +35,7 @@ type wallet struct {
 func newWalletMapFromDescriptorWalletMap(descriptorWalletMap descriptors.WalletMap, chain Chain) (WalletMap, error) {
 	result := WalletMap{}
 	for k, v := range descriptorWalletMap {
-		wallet, err := newWallet(v.PrivateKey, v.Address, chain)
+		wallet, err := NewWallet(v.PrivateKey, v.Address, chain)
 		if err != nil {
 			return nil, err
 		}
@@ -44,7 +44,7 @@ func newWalletMapFromDescriptorWalletMap(descriptorWalletMap descriptors.WalletM
 	return result, nil
 }
 
-func newWallet(pk string, addr types.Address, chain Chain) (*wallet, error) {
+func NewWallet(pk string, addr types.Address, chain Chain) (*wallet, error) {
 	privateKey, err := privateKeyFromString(pk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert private from string: %w", err)

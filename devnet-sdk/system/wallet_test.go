@@ -128,7 +128,7 @@ func TestNewWallet(t *testing.T) {
 	addr := types.Address(common.HexToAddress("0x5678"))
 	chain := &chain{}
 
-	w, err := newWallet(pk, addr, chain)
+	w, err := NewWallet(pk, addr, chain)
 	assert.NoError(t, err)
 
 	// The private key is converted to ECDSA, so we can't compare directly with the input string
