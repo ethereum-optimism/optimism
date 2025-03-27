@@ -11,8 +11,11 @@ import (
 	"path/filepath"
 )
 
+// These constants should be in sync with op-program/chainconfig/chaincfg.go
 const (
-	InteropDepSetName = "depsets.json"
+	InteropDepSetName    = "depsets.json"
+	rollupConfigSuffix   = "-rollup.json"
+	genensisConfigSuffix = "-genesis-l2.json"
 )
 
 // PrestateManifest maps prestate identifiers to their hashes
@@ -106,12 +109,12 @@ func WithChainConfig(chainId string, rollupContent io.Reader, genesisContent io.
 		c.chains = append(c.chains, chainId)
 		c.files = append(c.files,
 			FileInput{
-				Name:    chainId + "-rollup.json",
+				Name:    chainId + rollupConfigSuffix,
 				Content: rollupContent,
 				Type:    "rollup-config",
 			},
 			FileInput{
-				Name:    chainId + "-genesis.json",
+				Name:    chainId + genensisConfigSuffix,
 				Content: genesisContent,
 				Type:    "genesis-config",
 			},
