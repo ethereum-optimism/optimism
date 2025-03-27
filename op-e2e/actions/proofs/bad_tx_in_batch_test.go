@@ -15,7 +15,7 @@ const (
 	NotEnoughBalance
 )
 
-func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
@@ -96,7 +96,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
@@ -182,7 +182,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 }
 
 func Test_ProgramAction_BadTxInBatch(gt *testing.T) {
-	matrix := helpers.NewMatrix[any]()
+	matrix := helpers.NewMatrix[int64]()
 	defer matrix.Run(gt)
 
 	matrix.AddDefaultTestCasesWithName(
