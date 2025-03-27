@@ -352,7 +352,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			// batcher posted the block but with a different transaction, signed by a key that has no balance. This
 			// should cause a reorg in the unsafe chain, and the original block should be reduced to deposits only
 			// if Isthmus is active.
-			require.NotEqual(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
+			require.NotEqual(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation should not lead to the same block")
 
 			reorgedUnsafe := env.Engine.L2Chain().CurrentHeader()
 			require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(reorgedUnsafe), "reorged unsafe block is the same")
