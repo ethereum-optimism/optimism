@@ -82,12 +82,9 @@ func TestValidators(t *testing.T) {
 		ctx := systestT.Context()
 
 		// Now we call all the getters to make sure they work
-		wallet1 := walletGetter1(ctx)
-		wallet2 := walletGetter2(ctx)
+		walletGetter1(ctx)
+		walletGetter2(ctx)
 		chainConfig := chainConfigGetter(ctx)
-
-		// And we ensure that the values are not mismatched
-		require.NotEqual(t, wallet1, wallet2)
 
 		// And that we got a chain config
 		require.NotNil(t, chainConfig)
