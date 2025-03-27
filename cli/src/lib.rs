@@ -41,7 +41,6 @@ use commands::Commands;
 use futures_util::Future;
 use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
-use reth_cli_commands::node::NoArgs;
 use reth_cli_runner::CliRunner;
 use reth_db::DatabaseEnv;
 use reth_node_builder::{NodeBuilder, WithLaunchContext};
@@ -51,7 +50,7 @@ use reth_node_core::{
 };
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::OpExecutorProvider;
-use reth_optimism_node::{OpNetworkPrimitives, OpNode};
+use reth_optimism_node::{args::RollupArgs, OpNetworkPrimitives, OpNode};
 use reth_tracing::FileWorkerGuard;
 use tracing::info;
 
@@ -65,7 +64,8 @@ use reth_node_metrics::recorder::install_prometheus_recorder;
 /// This is the entrypoint to the executable.
 #[derive(Debug, Parser)]
 #[command(author, version = SHORT_VERSION, long_version = LONG_VERSION, about = "Reth", long_about = None)]
-pub struct Cli<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + fmt::Debug = NoArgs> {
+pub struct Cli<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + fmt::Debug = RollupArgs>
+{
     /// The command to run
     #[command(subcommand)]
     pub command: Commands<Spec, Ext>,
