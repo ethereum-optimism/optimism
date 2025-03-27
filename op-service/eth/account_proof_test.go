@@ -130,7 +130,7 @@ func FuzzAccountResult_StorageProof(f *testing.F) {
 		result := makeResult(t)
 		result.StorageProof[0].Key = key
 		result.StorageProof[0].Value = hexutil.Big(*(new(big.Int).SetBytes(value)))
-		require.NotNil(t, result.Verify(goodRoot), "does not verify against bad proof")
+		require.NoError(t, result.Verify(goodRoot), "does not verify against bad proof")
 	})
 }
 
