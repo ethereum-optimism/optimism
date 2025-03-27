@@ -70,15 +70,31 @@ func main() {
 	// Define the flag variables
 	var (
 		prestateHashStr string
+		chainsStr       string
 	)
 
 	// Define and parse the command-line flags
 	flag.StringVar(&prestateHashStr, "prestate-hash", "", "Specify the absolute prestate hash to verify")
+	flag.StringVar(&chainsStr, "chains", "", "List of chains to consider in the report. Comma separated. Default: all chains in the superchain-registry")
 
 	// Parse the command-line arguments
 	flag.Parse()
 	if prestateHashStr == "" {
 		log.Crit("--prestate-hash is required")
+	}
+	chainFilter := func(chainName string) bool {
+		return true
+	}
+	var filteredChainNames []string
+	if chainsStr != "" {
+		chains := make(map[string]bool)
+		for _, chain := range strings.Split(chainsStr, ",") {
+			chains[strings.TrimSpace(chain)] = true
+		}
+		chainFilter = func(chainName string) bool {
+			return chains[chainName]
+		}
+		filteredChainNames = maps.Keys(chains)
 	}
 	prestateHash := common.HexToHash(prestateHashStr)
 	if prestateHash == (common.Hash{}) {
@@ -149,6 +165,9 @@ func main() {
 	var supportedChains []string
 	outdatedChains := make(map[string]OutdatedChain)
 	for _, name := range prestateNames {
+		if !chainFilter(name) {
+			continue
+		}
 		knownChains[name] = true
 		diff, err := checkConfig(name, prestateConfigs, latestConfigs)
 		if err != nil {
@@ -164,8 +183,15 @@ func main() {
 		}
 	}
 
-	var missingChains []string
-	for _, chainName := range latestConfigs.ChainNames() {
+	missingChains := make([]string, 0) // Not null for json serialization
+	expectedChainNames := filteredChainNames
+	if len(expectedChainNames) == 0 {
+		expectedChainNames = latestConfigs.ChainNames()
+	}
+	for _, chainName := range expectedChainNames {
+		if !chainFilter(chainName) {
+			continue
+		}
 		if !knownChains[chainName] {
 			missingChains = append(missingChains, chainName)
 		}
