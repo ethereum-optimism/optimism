@@ -1,14 +1,24 @@
 optimism_package:
+  observability:
+    enabled: true
   chains:
     - participants:
       - el_type: op-geth
-        el_image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101500.0
-        el_builder_image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101500.0
+        el_builder_type: op-reth
+        cl_builder_type: op-node
       network_params:
         network: "kurtosis"
-      additional_services: ["rollup-boost"]
+        fund_dev_accounts: true
+        seconds_per_slot: 2
+        fjord_time_offset: 0
+        granite_time_offset: 0
+        # isthmus_time_offset: 0
+        fund_dev_accounts: true
       mev_params:
-        rollup_boost_image: "flashbots/rollup-boost:0.3rc4"
+        rollup_boost_image: "flashbots/rollup-boost:develop"
+      additional_services: 
+        - rollup-boost
+        - blockscout
 ethereum_package:
   participants:
   - el_type: geth
