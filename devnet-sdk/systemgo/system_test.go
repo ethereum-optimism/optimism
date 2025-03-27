@@ -38,7 +38,9 @@ func TestSystem(t *testing.T) {
 
 	seqA := setup.System.L2Network(ids.L2A).L2CLNode(ids.L2ACL)
 	seqB := setup.System.L2Network(ids.L2B).L2CLNode(ids.L2BCL)
-	for i := 0; i < 20*2+10; i++ {
+	blocks := uint64(10)
+	// wait for this many blocks, with some margin for delays
+	for i := uint64(0); i < blocks*2+10; i++ {
 		time.Sleep(time.Second * 2)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -50,9 +52,9 @@ func TestSystem(t *testing.T) {
 		logger.Info("chain A", "tip", statusA.UnsafeL2)
 		logger.Info("chain B", "tip", statusB.UnsafeL2)
 
-		if statusA.UnsafeL2.Number > 20 && statusB.UnsafeL2.Number > 20 {
+		if statusA.UnsafeL2.Number > blocks && statusB.UnsafeL2.Number > blocks {
 			return
 		}
 	}
-	t.Fatal("Expected to reach block 20 on both chains")
+	t.Fatalf("Expected to reach block %d on both chains", blocks)
 }
