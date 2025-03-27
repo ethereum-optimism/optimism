@@ -6,14 +6,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-program/client/l1"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 const (
@@ -58,7 +59,7 @@ func (l *PreimageLoader) LoadPreimage(proof *ProofData) (*types.PreimageOracleDa
 }
 
 func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOracleData, error) {
-	// The key for a blob field element is a keccak hash of commitment++fieldElementIndex.
+	// The key for a blob field element is a keccak hash of commitment++rootOfUnityAtIndex.
 	// First retrieve the preimage of the key as a keccak hash so we have the commitment and required field element
 	inputsKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
 	source, err := l.makeSource()
