@@ -984,7 +984,7 @@ jobs:
       - run:
           name: Fuzz
           command: |
-            make fuzz
+            just fuzz
           working_directory: "<<parameters.package_name>>"
       - run:
           name: Copy fuzz artifacts
