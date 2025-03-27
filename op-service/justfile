@@ -7,7 +7,7 @@ test: (go_test "./...")
 generate-mocks: (go_generate "./...")
 
 [private]
-service_fuzz_task FUZZ TIME='10s': (go_fuzz FUZZ TIME "./eth")
+service_fuzz_task FUZZ TIME='60s': (go_fuzz FUZZ TIME "./eth")
 
 # Run fuzzing tests
 fuzz:
