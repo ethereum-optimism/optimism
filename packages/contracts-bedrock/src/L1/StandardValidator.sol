@@ -178,7 +178,7 @@ contract StandardValidatorBase {
     {
         ISemver _semver = ISemver(address(_sysCfg));
         _errors = internalRequire(stringEq(_semver.version(), systemConfigVersion()), "SYSCON-10", _errors);
-        _errors = internalRequire(_sysCfg.gasLimit() == uint64(60_000_000), "SYSCON-20", _errors);
+        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(200_000_000), "SYSCON-20", _errors);
         _errors = internalRequire(_sysCfg.scalar() >> 248 == 1, "SYSCON-30", _errors);
         _errors =
             internalRequire(_admin.getProxyImplementation(address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);

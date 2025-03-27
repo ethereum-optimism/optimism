@@ -148,7 +148,7 @@ abstract contract StandardValidatorTest is Test {
 
         // Test invalid gas limit
         _mockValidationCalls();
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(1_000_000)));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(200_000_001)));
         assertEq("SYSCON-20", validate(true));
 
         // Test invalid scalar
