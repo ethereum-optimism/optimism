@@ -126,12 +126,11 @@ func TestAccountResult_MarshalTruncated(t *testing.T) {
 }
 
 func FuzzAccountResult_StorageProof(f *testing.F) {
-	f.Skip() // TODO https://github.com/ethereum-optimism/optimism/issues/15067
 	f.Fuzz(func(t *testing.T, key []byte, value []byte) {
 		result := makeResult(t)
 		result.StorageProof[0].Key = key
 		result.StorageProof[0].Value = hexutil.Big(*(new(big.Int).SetBytes(value)))
-		require.NoError(t, result.Verify(goodRoot), "does not verify against bad proof")
+		require.Error(t, result.Verify(goodRoot), "expected error when trying to verify bad result with good root: key=%v value=%v", key, value)
 	})
 }
 
