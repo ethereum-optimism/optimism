@@ -11,14 +11,6 @@ service_fuzz_task FUZZ TIME='10s': (go_fuzz FUZZ TIME "./eth")
 
 # Run fuzzing tests
 fuzz:
-    printf "%s\n" \
-        "FuzzExecutionPayloadUnmarshal" \
-        "FuzzExecutionPayloadMarshalUnmarshalV1" \
-        "FuzzExecutionPayloadMarshalUnmarshalV2" \
-        "FuzzExecutionPayloadMarshalUnmarshalV3" \
-        "FuzzExecutionPayloadMarshalUnmarshalV4" \
-        "FuzzOBP01" \
-        "FuzzEncodeDecodeBlob" \
-        "FuzzDetectNonBijectivity" \
-        "FuzzEncodeScalar" \
+    go test ./eth/... -list=Fuzz -vet=off \
+    | grep 'Fuzz' \
     | parallel -j {{PARALLEL_JOBS}} {{just_executable()}} service_fuzz_task {}
