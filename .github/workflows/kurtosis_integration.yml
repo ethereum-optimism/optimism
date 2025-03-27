@@ -6,6 +6,9 @@ on:
   # Run nightly at 00:00 UTC
   schedule:
     - cron: '0 0 * * *'
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
