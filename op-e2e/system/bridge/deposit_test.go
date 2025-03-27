@@ -1,12 +1,15 @@
 package bridge
 
 import (
+	"bytes"
 	"context"
 	"math/big"
 	"testing"
 	"time"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
@@ -17,6 +20,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/core/vm/program"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -74,6 +79,127 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	endNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
+	require.NoError(t, err)
+	cancel()
+	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
+}
+
+func TestMintToDelegatedAccount(t *testing.T) {
+	op_e2e.InitParallel(t)
+	cfg := e2esys.DefaultSystemConfig(t)
+	cfg.DeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
+	delete(cfg.Nodes, "verifier")
+	sys, err := cfg.Start(t)
+	require.NoError(t, err, "Error starting up system")
+
+	l1Client := sys.NodeClient("l1")
+	l2Seq := sys.NodeClient("sequencer")
+
+	// first deploy a contract that does nothing
+	store42Program := program.New().Sstore(0x42, 0x42)
+	signer := types.NewIsthmusSigner(cfg.L2ChainIDBig())
+
+	tx := types.MustSignNewTx(cfg.Secrets.Bob, signer, &types.DynamicFeeTx{
+		ChainID:   cfg.L2ChainIDBig(),
+		Nonce:     0,
+		To:        nil,
+		Value:     big.NewInt(0),
+		Gas:       500000,
+		GasFeeCap: big.NewInt(5000000000),
+		GasTipCap: big.NewInt(2),
+		Data:      store42Program.Bytes(),
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	err = l2Seq.SendTransaction(ctx, tx)
+	cancel()
+	require.NoError(t, err, "Failed to send set code transaction")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	_, err = wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
+	cancel()
+	require.NoError(t, err, "Failed to get receipt for set code transaction")
+
+	contractAddr := crypto.CreateAddress(cfg.Secrets.Addresses().Bob, 0)
+
+	// set delegation designation for an account on L2 to new contract
+	auth1, err := types.SignSetCode(cfg.Secrets.Bob, types.SetCodeAuthorization{
+		Address: contractAddr,
+		Nonce:   2,
+	})
+
+	require.NoError(t, err, "Failed to sign set code authorization")
+
+	txdata := &types.SetCodeTx{
+		ChainID:   uint256.MustFromBig(cfg.L2ChainIDBig()),
+		Nonce:     1,
+		To:        cfg.Secrets.Addresses().Bob,
+		Gas:       500000,
+		GasFeeCap: uint256.NewInt(5000000000),
+		GasTipCap: uint256.NewInt(2),
+		AuthList:  []types.SetCodeAuthorization{auth1},
+	}
+
+	tx = types.MustSignNewTx(cfg.Secrets.Bob, signer, txdata)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	err = l2Seq.SendTransaction(ctx, tx)
+	cancel()
+	require.NoError(t, err, "Failed to send set code transaction")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	_, err = wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
+	cancel()
+	require.NoError(t, err, "Failed to get receipt for set code transaction")
+
+	// ensure the delegation was set
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	delegation, err := l2Seq.PendingCodeAt(ctx, cfg.Secrets.Addresses().Bob)
+	if err != nil {
+		t.Fatalf("Failed to get delegation code: %v", err)
+	}
+	cancel()
+	want := types.AddressToDelegation(auth1.Address)
+	if !bytes.Equal(delegation, want) {
+		t.Fatalf("addr1 code incorrect: got %s, want %s", common.Bytes2Hex(delegation), common.Bytes2Hex(want))
+	}
+
+	aliceKey := cfg.Secrets.Alice
+	opts, err := bind.NewKeyedTransactorWithChainID(aliceKey, cfg.L1ChainIDBig())
+	require.NoError(t, err)
+	fromAddr := opts.From
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	startBalance, err := l2Seq.BalanceAt(ctx, cfg.Secrets.Addresses().Bob, nil)
+	cancel()
+	require.NoError(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	startNonce, err := l2Seq.NonceAt(ctx, fromAddr, nil)
+	require.NoError(t, err)
+	cancel()
+
+	// send a deposit to bob with the delegation code
+	toAddr := cfg.Secrets.Addresses().Bob
+	mintAmount := big.NewInt(9_000_000)
+	opts.Value = mintAmount
+	helpers.SendDepositTx(t, cfg, l1Client, l2Seq, opts, func(l2Opts *helpers.DepositTxOpts) {
+		l2Opts.ToAddr = toAddr
+	})
+
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	endBalance, err := wait.ForBalanceChange(ctx, l2Seq, toAddr, startBalance)
+	cancel()
+	require.NoError(t, err)
+
+	// Bob balance should have increased by the mint amount
+	diff := new(big.Int)
+	diff = diff.Sub(endBalance, startBalance)
+	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
+
+	// From nonce should have increased as a result
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	endNonce, err := l2Seq.NonceAt(ctx, fromAddr, nil)
 	require.NoError(t, err)
 	cancel()
 	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
