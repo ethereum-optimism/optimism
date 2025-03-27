@@ -7,6 +7,8 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 `op-service` is a collection of Go utilities to build OP-Stack services with.
 
 ```text
+├── apis            - interfaces for client / server RPC and misc. APIs
+├── bigs            - big-int utils
 ├── cliapp          - Flag and lifecycle handling for a Urfave v2 CLI app.
 ├── client          - RPC and HTTP client utils
 ├── clock           - Clock interface, system clock, tickers, mock/test time utils

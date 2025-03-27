@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -15,6 +16,8 @@ import (
 type RollupClient struct {
 	rpc client.RPC
 }
+
+var _ apis.RollupNodeClient = (*RollupClient)(nil)
 
 func NewRollupClient(rpc client.RPC) *RollupClient {
 	return &RollupClient{rpc}

@@ -1,6 +1,7 @@
 package system2
 
 import (
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -32,8 +33,8 @@ type Supervisor interface {
 	Common
 	ID() SupervisorID
 
-	AdminAPI() sources.SupervisorAdminAPI
-	QueryAPI() sources.SupervisorQueryAPI
+	AdminAPI() apis.SupervisorAdminAPI
+	QueryAPI() apis.SupervisorQueryAPI
 }
 
 type SupervisorConfig struct {
@@ -47,10 +48,7 @@ type rpcSupervisor struct {
 	id SupervisorID
 
 	client client.RPC
-	api    interface {
-		sources.SupervisorQueryAPI
-		sources.SupervisorAdminAPI
-	}
+	api    apis.SupervisorAPI
 }
 
 var _ Supervisor = (*rpcSupervisor)(nil)
@@ -69,10 +67,10 @@ func (r *rpcSupervisor) ID() SupervisorID {
 	return r.id
 }
 
-func (r *rpcSupervisor) AdminAPI() sources.SupervisorAdminAPI {
+func (r *rpcSupervisor) AdminAPI() apis.SupervisorAdminAPI {
 	return r.api
 }
 
-func (r *rpcSupervisor) QueryAPI() sources.SupervisorQueryAPI {
+func (r *rpcSupervisor) QueryAPI() apis.SupervisorQueryAPI {
 	return r.api
 }

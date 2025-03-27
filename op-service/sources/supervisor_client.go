@@ -5,33 +5,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
-
-type SupervisorAdminAPI interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-	AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.Bytes32) error
-}
-
-type SupervisorQueryAPI interface {
-	CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-		minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error
-	CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error)
-	LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
-	CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error)
-	Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
-	FinalizedL1(ctx context.Context) (eth.BlockRef, error)
-	SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error)
-	SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error)
-	AllSafeDerivedAt(ctx context.Context, derivedFrom eth.BlockID) (derived map[eth.ChainID]eth.BlockID, err error)
-}
 
 type SupervisorClient struct {
 	client  client.RPC
@@ -39,8 +22,7 @@ type SupervisorClient struct {
 }
 
 // This type-check keeps the Server API and Client API in sync.
-var _ SupervisorQueryAPI = (*SupervisorClient)(nil)
-var _ SupervisorAdminAPI = (*SupervisorClient)(nil)
+var _ apis.SupervisorAPI = (*SupervisorClient)(nil)
 
 func NewSupervisorClient(client client.RPC, metrics opmetrics.RPCClientMetricer) *SupervisorClient {
 	if metrics == nil {

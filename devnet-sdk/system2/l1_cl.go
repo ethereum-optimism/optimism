@@ -1,6 +1,7 @@
 package system2
 
 import (
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -34,7 +35,7 @@ type L1CLNode interface {
 	Common
 	ID() L1CLNodeID
 
-	BeaconClient() sources.BeaconClient
+	BeaconClient() apis.BeaconClient
 }
 
 type L1CLNodeConfig struct {
@@ -46,7 +47,7 @@ type L1CLNodeConfig struct {
 type rpcL1CLNode struct {
 	commonImpl
 	id     L1CLNodeID
-	client sources.BeaconClient
+	client apis.BeaconClient
 }
 
 var _ L1CLNode = (*rpcL1CLNode)(nil)
@@ -64,6 +65,6 @@ func (r *rpcL1CLNode) ID() L1CLNodeID {
 	return r.id
 }
 
-func (r *rpcL1CLNode) BeaconClient() sources.BeaconClient {
+func (r *rpcL1CLNode) BeaconClient() apis.BeaconClient {
 	return r.client
 }

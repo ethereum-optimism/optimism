@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -46,6 +47,8 @@ type adminAPI struct {
 	*rpc.CommonAdminAPI
 	dr driverClient
 }
+
+var _ apis.OpnodeAdminServer = (*adminAPI)(nil)
 
 func NewAdminAPI(dr driverClient, m metrics.RPCMetricer, log log.Logger) *adminAPI {
 	return &adminAPI{
@@ -119,6 +122,8 @@ type nodeAPI struct {
 	log    log.Logger
 	m      metrics.RPCMetricer
 }
+
+var _ apis.RollupNodeServer = (*nodeAPI)(nil)
 
 func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
