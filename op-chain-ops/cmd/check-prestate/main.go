@@ -45,14 +45,20 @@ type PrestateInfo struct {
 }
 
 type OutdatedChain struct {
-	Name   string `json:"name"`
-	Reason string `json:"reason,omitempty"`
+	Name string `json:"name"`
+	Diff *Diff  `json:"diff,omitempty"`
 }
 
 type CommitInfo struct {
 	Commit  string `json:"commit"`
 	DiffUrl string `json:"diff-url"`
 	DiffCmd string `json:"diff-cmd"`
+}
+
+type Diff struct {
+	Msg      string `json:"message"`
+	Prestate any    `json:"prestate"`
+	Latest   any    `json:"latest"`
 }
 
 func main() {
@@ -128,7 +134,7 @@ func main() {
 	if err != nil {
 		log.Crit("Failed to fetch prestate's superchain registry config zip", "err", err)
 	}
-	prestateConfigs, err := superchain.NewChainConfigReader(prestateConfigData)
+	prestateConfigs, err := superchain.NewChainConfigLoader(prestateConfigData)
 	if err != nil {
 		log.Crit("Failed to parse prestate's superchain registry config zip", "err", err)
 	}
@@ -144,14 +150,14 @@ func main() {
 	outdatedChains := make(map[string]OutdatedChain)
 	for _, name := range prestateNames {
 		knownChains[name] = true
-		msg, err := checkConfig(name, prestateConfigs, latestConfigs)
+		diff, err := checkConfig(name, prestateConfigs, latestConfigs)
 		if err != nil {
 			log.Crit("Failed to check config", "chain", name, "err", err)
 		}
-		if msg != "" {
+		if diff != nil {
 			outdatedChains[name] = OutdatedChain{
-				Name:   name,
-				Reason: msg,
+				Name: name,
+				Diff: diff,
 			}
 		} else {
 			supportedChains = append(supportedChains, name)
@@ -184,68 +190,80 @@ func main() {
 	}
 }
 
-func checkConfig(network string, actual *superchain.ChainConfigLoader, expected *superchain.ChainConfigLoader) (string, error) {
+func checkConfig(network string, actual *superchain.ChainConfigLoader, expected *superchain.ChainConfigLoader) (*Diff, error) {
 	actualChainID, err := actual.ChainIDByName(network)
 	if err != nil {
-		return "", fmt.Errorf("failed to get actual chain ID for %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get actual chain ID for %v: %w", network, err)
 	}
 	expectedChainID, err := expected.ChainIDByName(network)
 	if err != nil {
-		return "", fmt.Errorf("failed to get expected chain ID for %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get expected chain ID for %v: %w", network, err)
 	}
 	if actualChainID != expectedChainID {
-		return fmt.Sprintf("Chain ID mismatch, prestate=%v, latest=%v", actualChainID, expectedChainID), nil
+		return &Diff{
+			Msg:      "Chain ID mismatch",
+			Prestate: actualChainID,
+			Latest:   expectedChainID,
+		}, nil
 	}
 	actualChain, err := actual.GetChain(actualChainID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get actual chain for %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get actual chain for %v: %w", network, err)
 	}
 	expectedChain, err := expected.GetChain(expectedChainID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get expected chain for %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get expected chain for %v: %w", network, err)
 	}
 	actualConfig, err := actualChain.Config()
 	if err != nil {
-		return "", fmt.Errorf("failed to get config for actual chain %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get config for actual chain %v: %w", network, err)
 	}
 	expectedConfig, err := expectedChain.Config()
 	if err != nil {
-		return "", fmt.Errorf("failed to get config for expected chain %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get config for expected chain %v: %w", network, err)
 	}
-	configMsg, err := checkChainConfig(actualConfig, expectedConfig)
+	configDiff, err := checkChainConfig(actualConfig, expectedConfig)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if configMsg != "" {
-		return configMsg, nil
+	if configDiff != nil {
+		return configDiff, nil
 	}
 	actualGenesis, err := actualChain.GenesisData()
 	if err != nil {
-		return "", fmt.Errorf("failed to get genesis for actual chain %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get genesis for actual chain %v: %w", network, err)
 	}
 	expectedGenesis, err := expectedChain.GenesisData()
 	if err != nil {
-		return "", fmt.Errorf("failed to get genesis for expected chain %v: %w", network, err)
+		return nil, fmt.Errorf("failed to get genesis for expected chain %v: %w", network, err)
 	}
 	if !bytes.Equal(actualGenesis, expectedGenesis) {
-		return "Genesis mismatch", nil
+		return &Diff{
+			Msg:      "Genesis mismatch",
+			Prestate: string(actualGenesis),
+			Latest:   string(expectedGenesis),
+		}, nil
 	}
-	return "", nil
+	return nil, nil
 }
 
-func checkChainConfig(actual *superchain.ChainConfig, expected *superchain.ChainConfig) (string, error) {
+func checkChainConfig(actual *superchain.ChainConfig, expected *superchain.ChainConfig) (*Diff, error) {
 	actualStr, err := toml.Marshal(actual)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal actual chain config: %w", err)
+		return nil, fmt.Errorf("failed to marshal actual chain config: %w", err)
 	}
 	expectedStr, err := toml.Marshal(expected)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal expected chain config: %w", err)
+		return nil, fmt.Errorf("failed to marshal expected chain config: %w", err)
 	}
 	if !bytes.Equal(actualStr, expectedStr) {
-		return "Chain config mismatch", nil
+		return &Diff{
+			Msg:      "Chain config mismatch",
+			Prestate: actual,
+			Latest:   expected,
+		}, nil
 	}
-	return "", nil
+	return nil, nil
 }
 
 // latestSuperchainConfigs loads the latest config from the superchain-registry main branch using the
@@ -282,7 +300,7 @@ func latestSuperchainConfigs() (*superchain.ChainConfigLoader, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read generated superchain-configs.zip: %w", err)
 	}
-	return superchain.NewChainConfigReader(configBytes)
+	return superchain.NewChainConfigLoader(configBytes)
 }
 
 func commitInfo(repository string, commit string, mainBranch string, dir string) CommitInfo {
