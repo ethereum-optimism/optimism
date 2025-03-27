@@ -35,6 +35,7 @@ reth-optimism-consensus = { workspace = true, optional = true }
 reth-optimism-evm = { workspace = true, optional = true }
 reth-optimism-node = { workspace = true, optional = true }
 reth-optimism-rpc = { workspace = true, optional = true }
+reth-optimism-cli = { workspace = true, optional = true }
 
 [features]
 default = ["std"]
@@ -75,6 +76,7 @@ full = ["consensus", "evm", "node", "provider", "rpc", "trie"]
 alloy-compat = [
     "reth-optimism-primitives/alloy-compat",
 ]
+cli = ["dep:reth-optimism-cli"]
 consensus = ["dep:reth-consensus", "dep:reth-consensus-common", "dep:reth-optimism-consensus"]
 evm = ["dep:reth-evm", "dep:reth-optimism-evm"]
 node-api = ["dep:reth-node-api"]
