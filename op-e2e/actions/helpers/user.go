@@ -210,6 +210,18 @@ func (s *BasicUser[B]) ActSetTxGasLimit(limit uint64) Action {
 	}
 }
 
+func (s *BasicUser[B]) ActSetGasTipCap(feeCap *big.Int) Action {
+	return func(t Testing) {
+		s.txOpts.GasTipCap = feeCap
+	}
+}
+
+func (s *BasicUser[B]) ActSetGasFeeCap(feeCap *big.Int) Action {
+	return func(t Testing) {
+		s.txOpts.GasFeeCap = feeCap
+	}
+}
+
 func (s *BasicUser[B]) ActRandomTxData(t Testing) {
 	t.Helper()
 	dataLen := s.rng.Intn(128_000)
