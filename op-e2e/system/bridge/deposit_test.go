@@ -84,6 +84,40 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
 }
 
+var (
+	deployPrefixSize = byte(16)
+	deployPrefix     = []byte{
+		// Copy input data after this prefix into memory starting at address 0x00
+		// CODECOPY arg size
+		byte(vm.PUSH1), deployPrefixSize,
+		byte(vm.CODESIZE),
+		byte(vm.SUB),
+		// CODECOPY arg offset
+		byte(vm.PUSH1), deployPrefixSize,
+		// CODECOPY arg destOffset
+		byte(vm.PUSH1), 0x00,
+		byte(vm.CODECOPY),
+
+		// Return code from memory
+		// RETURN arg size
+		byte(vm.PUSH1), deployPrefixSize,
+		byte(vm.CODESIZE),
+		byte(vm.SUB),
+		// RETURN arg offset
+		byte(vm.PUSH1), 0x00,
+		byte(vm.RETURN),
+	}
+	sstoreContract = []byte{
+		// Load first word from call data
+		byte(vm.PUSH1), 0x00,
+		byte(vm.CALLDATALOAD),
+
+		// Store it to slot 0
+		byte(vm.PUSH1), 0x00,
+		byte(vm.SSTORE),
+	}
+)
+
 func TestMintCallToDelegatedAccount(t *testing.T) {
 	// This test:
 	// 1. Deploys a contract on L2 that stores the first word of the call data to storage
@@ -106,39 +140,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 
 	// Simple constructor that is prefixed to the actual contract code
 	// Results in the contract code being returned as the code for the new contract
-	deployPrefixSize := byte(16)
-	deployPrefix := []byte{
-		// Copy input data after this prefix into memory starting at address 0x00
-		// CODECOPY arg size
-		byte(vm.PUSH1), deployPrefixSize,
-		byte(vm.CODESIZE),
-		byte(vm.SUB),
-		// CODECOPY arg offset
-		byte(vm.PUSH1), deployPrefixSize,
-		// CODECOPY arg destOffset
-		byte(vm.PUSH1), 0x00,
-		byte(vm.CODECOPY),
-
-		// Return code from memory
-		// RETURN arg size
-		byte(vm.PUSH1), deployPrefixSize,
-		byte(vm.CODESIZE),
-		byte(vm.SUB),
-		// RETURN arg offset
-		byte(vm.PUSH1), 0x00,
-		byte(vm.RETURN),
-	}
-	// first deploy a contract that stores the first word of the call data to storage
-	storeFirstWordProgram := []byte{
-		// Load first word from call data
-		byte(vm.PUSH1), 0x00,
-		byte(vm.CALLDATALOAD),
-
-		// Store it to slot 0
-		byte(vm.PUSH1), 0x00,
-		byte(vm.SSTORE),
-	}
-	deployStore := append(deployPrefix, storeFirstWordProgram...)
+	deployData := append(deployPrefix, sstoreContract...)
 	signer := types.NewIsthmusSigner(cfg.L2ChainIDBig())
 
 	tx := types.MustSignNewTx(cfg.Secrets.Alice, signer, &types.DynamicFeeTx{
@@ -149,7 +151,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 		Gas:       500000,
 		GasFeeCap: big.NewInt(5000000000),
 		GasTipCap: big.NewInt(2),
-		Data:      deployStore,
+		Data:      deployData,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -170,8 +172,8 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	code, err := l2Seq.PendingCodeAt(ctx, contractAddr)
 	cancel()
 	require.NoError(t, err, "Failed to get code at contract address")
-	if !bytes.Equal(code, storeFirstWordProgram) {
-		t.Fatalf("Code at contract address is incorrect: got %s, want %s", common.Bytes2Hex(code), common.Bytes2Hex(storeFirstWordProgram))
+	if !bytes.Equal(code, sstoreContract) {
+		t.Fatalf("Code at contract address is incorrect: got %s, want %s", common.Bytes2Hex(code), common.Bytes2Hex(sstoreContract))
 	}
 
 	// set delegation designation for an account on L2 to new contract
@@ -286,41 +288,6 @@ func TestDepositTxCreateContract(t *testing.T) {
 
 	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
 	require.NoError(t, err)
-
-	// Simple constructor that is prefixed to the actual contract code
-	// Results in the contract code being returned as the code for the new contract
-	deployPrefixSize := byte(16)
-	deployPrefix := []byte{
-		// Copy input data after this prefix into memory starting at address 0x00
-		// CODECOPY arg size
-		byte(vm.PUSH1), deployPrefixSize,
-		byte(vm.CODESIZE),
-		byte(vm.SUB),
-		// CODECOPY arg offset
-		byte(vm.PUSH1), deployPrefixSize,
-		// CODECOPY arg destOffset
-		byte(vm.PUSH1), 0x00,
-		byte(vm.CODECOPY),
-
-		// Return code from memory
-		// RETURN arg size
-		byte(vm.PUSH1), deployPrefixSize,
-		byte(vm.CODESIZE),
-		byte(vm.SUB),
-		// RETURN arg offset
-		byte(vm.PUSH1), 0x00,
-		byte(vm.RETURN),
-	}
-	// Stores the first word from call data code to storage slot 0
-	sstoreContract := []byte{
-		// Load first word from call data
-		byte(vm.PUSH1), 0x00,
-		byte(vm.CALLDATALOAD),
-
-		// Store it to slot 0
-		byte(vm.PUSH1), 0x00,
-		byte(vm.SSTORE),
-	}
 
 	deployData := append(deployPrefix, sstoreContract...)
 
