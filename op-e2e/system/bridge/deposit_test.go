@@ -3,7 +3,6 @@ package bridge
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -125,7 +124,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	// 3. Sends a deposit tx (using the L1 bridge) to the L2 account with the delegation code
 	// 4. Ensures the deposit properly calls the contract and stores the first word of the call data to storage
 	// 5. Ensures the deposit sender's nonce is incremented on L2
-	// 6. Ensures the deposit sender's balance is incremented on L2
+	// 6. Ensures the deposit recipient's balance is incremented on L2
 
 	op_e2e.InitParallel(t)
 	cfg := e2esys.DefaultSystemConfig(t)
@@ -137,6 +136,9 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 
 	l1Client := sys.NodeClient("l1")
 	l2Seq := sys.NodeClient("sequencer")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// Simple constructor that is prefixed to the actual contract code
 	// Results in the contract code being returned as the code for the new contract
@@ -154,27 +156,25 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 		Data:      deployData,
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	err = l2Seq.SendTransaction(ctx, tx)
-	cancel()
 	require.NoError(t, err, "Failed to send set code transaction")
 
-	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
-	r, err := wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
-	cancel()
+	_, err = wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
 	require.NoError(t, err, "Failed to get receipt for set code transaction")
 
 	contractAddr := crypto.CreateAddress(cfg.Secrets.Addresses().Alice, 0)
-	fmt.Println(r.Status, r.ContractAddress, contractAddr)
 
 	// validate codeat
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	code, err := l2Seq.PendingCodeAt(ctx, contractAddr)
-	cancel()
 	require.NoError(t, err, "Failed to get code at contract address")
 	if !bytes.Equal(code, sstoreContract) {
 		t.Fatalf("Code at contract address is incorrect: got %s, want %s", common.Bytes2Hex(code), common.Bytes2Hex(sstoreContract))
 	}
+
+	// validate slot 0 is empty
+	slot0, err := l2Seq.StorageAt(ctx, contractAddr, common.Hash{0x00}, nil)
+	require.NoError(t, err, "Failed to get storage at slot 0")
+	require.Equal(t, make([]byte, 32), slot0, "Slot 0 should be empty")
 
 	// set delegation designation for an account on L2 to new contract
 	auth1, err := types.SignSetCode(cfg.Secrets.Bob, types.SetCodeAuthorization{
@@ -184,6 +184,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 
 	require.NoError(t, err, "Failed to sign set code authorization")
 
+	// Set slot0 to 0x01 first
 	txdata := &types.SetCodeTx{
 		ChainID:   uint256.MustFromBig(cfg.L2ChainIDBig()),
 		Nonce:     0,
@@ -192,37 +193,27 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 		GasFeeCap: uint256.NewInt(5000000000),
 		GasTipCap: uint256.NewInt(2),
 		AuthList:  []types.SetCodeAuthorization{auth1},
-		Data:      []byte{1},
+		Data:      []byte{0x01},
 	}
 
 	tx = types.MustSignNewTx(cfg.Secrets.Bob, signer, txdata)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	err = l2Seq.SendTransaction(ctx, tx)
-	cancel()
 	require.NoError(t, err, "Failed to send set code transaction")
 
-	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	_, err = wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
-	cancel()
 	require.NoError(t, err, "Failed to get receipt for set code transaction")
 
 	// ensure the delegation was set
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	delegation, err := l2Seq.CodeAt(ctx, cfg.Secrets.Addresses().Bob, nil)
-	if err != nil {
-		t.Fatalf("Failed to get delegation code: %v", err)
-	}
-	cancel()
+	require.NoError(t, err, "Failed to get delegation code")
 	want := types.AddressToDelegation(auth1.Address)
 	if !bytes.Equal(delegation, want) {
 		t.Fatalf("addr1 code incorrect: got %s, want %s", common.Bytes2Hex(delegation), common.Bytes2Hex(want))
 	}
 
 	// ensure the code was executed correctly
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	slot0, err := l2Seq.StorageAt(ctx, cfg.Secrets.Addresses().Bob, common.Hash{0x00}, nil)
-	cancel()
+	slot0, err = l2Seq.StorageAt(ctx, cfg.Secrets.Addresses().Bob, common.Hash{0x00}, nil)
 	require.NoError(t, err, "Failed to get storage at slot 0")
 	require.Equal(t, byte(0x01), slot0[0], "The first word of the call data should be stored in slot 0")
 
@@ -231,17 +222,13 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	require.NoError(t, err)
 	fromAddr := opts.From
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	startBalance, err := l2Seq.BalanceAt(ctx, cfg.Secrets.Addresses().Bob, nil)
-	cancel()
 	require.NoError(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	startNonce, err := l2Seq.NonceAt(ctx, fromAddr, nil)
 	require.NoError(t, err)
-	cancel()
 
-	// send a deposit to bob with the delegation code
+	// send a deposit to bob with the delegation code and setting slot 0 to 0x42
 	toAddr := cfg.Secrets.Addresses().Bob
 	mintAmount := big.NewInt(9_000_000)
 	opts.Value = mintAmount
@@ -250,9 +237,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 		l2Opts.Data = []byte{0x42}
 	})
 
-	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	endBalance, err := wait.ForBalanceChange(ctx, l2Seq, toAddr, startBalance)
-	cancel()
 	require.NoError(t, err)
 
 	// Bob balance should have increased by the mint amount
@@ -261,17 +246,13 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
 	// Bob slot 0 should be 0x42
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	slot0, err = l2Seq.StorageAt(ctx, cfg.Secrets.Addresses().Bob, common.Hash{0x00}, nil)
-	cancel()
 	require.NoError(t, err, "Failed to get storage at slot 0")
 	require.Equal(t, byte(0x42), slot0[0], "The first word of the call data should be stored in slot 0")
 
 	// From nonce should have increased as a result
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	endNonce, err := l2Seq.NonceAt(ctx, fromAddr, nil)
 	require.NoError(t, err)
-	cancel()
 	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
 }
 
