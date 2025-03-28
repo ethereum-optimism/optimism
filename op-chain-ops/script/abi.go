@@ -121,6 +121,21 @@ func matchArguments(args abi.Arguments, goTypes ...reflect.Type) error {
 	return nil
 }
 
+// matchMethod ensures that a method ABI matches the provided GO input & output types
+func matchMethod(method abi.Method, inputGoTypes []reflect.Type, outputGoTypes []reflect.Type) error {
+	err := matchArguments(method.Inputs, inputGoTypes...)
+	if err != nil {
+		return fmt.Errorf("method %s does not have matching inputs: %w", method.RawName, err)
+	}
+
+	err = matchArguments(method.Outputs, outputGoTypes...)
+	if err != nil {
+		return fmt.Errorf("method %s does not have matching outputs: %w", method.RawName, err)
+	}
+
+	return nil
+}
+
 func abiTypeErr(abiType abi.Type, goType reflect.Type) error {
 	return fmt.Errorf("ABI type %s (represented by %s) is not assignable to Go type %s", abiType, abiType.GetType(), goType)
 }

@@ -245,3 +245,72 @@ func TestMatchArguments(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchMethod(t *testing.T) {
+	type matchMethodTest struct {
+		abiMethod     abi.Method
+		goInputTypes  []reflect.Type
+		goOutputTypes []reflect.Type
+		err           string
+	}
+
+	matchMethodTests := []matchMethodTest{
+		{
+			abiMethod:     abi.NewMethod("Run", "run", abi.Function, "", false, false, abi.Arguments{}, abi.Arguments{}),
+			goInputTypes:  []reflect.Type{},
+			goOutputTypes: []reflect.Type{},
+			err:           ``,
+		},
+		{
+			abiMethod: abi.NewMethod("Run", "run", abi.Function, "", false, false, abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("uint256", "", []abi.ArgumentMarshaling{})),
+				},
+			}, abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("string", "", []abi.ArgumentMarshaling{})),
+				},
+			}),
+			goInputTypes:  []reflect.Type{reflect.TypeOf(new(big.Int))},
+			goOutputTypes: []reflect.Type{reflect.TypeOf(*new(string))},
+			err:           ``,
+		},
+		{
+			abiMethod:     abi.NewMethod("Run", "run", abi.Function, "", false, false, abi.Arguments{}, abi.Arguments{}),
+			goInputTypes:  []reflect.Type{reflect.TypeOf(new(big.Int))},
+			goOutputTypes: []reflect.Type{},
+			err:           `method run does not have matching inputs: ABI arguments don't match Go types: ABI has 0 arguments, Go has 1`,
+		},
+		{
+			abiMethod:     abi.NewMethod("Run", "run", abi.Function, "", false, false, abi.Arguments{}, abi.Arguments{}),
+			goInputTypes:  []reflect.Type{},
+			goOutputTypes: []reflect.Type{reflect.TypeOf(new(big.Int))},
+			err:           `method run does not have matching outputs: ABI arguments don't match Go types: ABI has 0 arguments, Go has 1`,
+		},
+		{
+			abiMethod: abi.NewMethod("Run", "run", abi.Function, "", false, false, abi.Arguments{}, abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("uint256", "", []abi.ArgumentMarshaling{})),
+				},
+			}),
+			goInputTypes:  []reflect.Type{},
+			goOutputTypes: []reflect.Type{reflect.TypeOf(*new(string))},
+			err:           `method run does not have matching outputs: ABI argument  at index 0 doesn't match Go type: ABI type uint256 (represented by *big.Int) is not assignable to Go type string`,
+		},
+	}
+
+	for _, test := range matchMethodTests {
+		t.Run(fmt.Sprintf("%v <-> (%v) -> (%v)", test.abiMethod, test.goInputTypes, test.goOutputTypes), func(t *testing.T) {
+			err := matchMethod(test.abiMethod, test.goInputTypes, test.goOutputTypes)
+
+			if test.err == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, test.err)
+			}
+		})
+	}
+}
