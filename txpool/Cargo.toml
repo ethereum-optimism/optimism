@@ -18,6 +18,7 @@ alloy-eips.workspace = true
 alloy-primitives.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-rpc-client = { workspace = true, features = ["reqwest", "default"] }
+alloy-json-rpc.workspace = true
 
 # reth
 reth-chainspec.workspace = true

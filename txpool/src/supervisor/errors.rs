@@ -116,7 +116,17 @@ pub enum InteropTxValidatorError {
 
 impl InteropTxValidatorError {
     /// Returns a new instance of [`RpcClientError`](Self::RpcClientError) variant.
-    pub fn client(err: impl error::Error + Send + Sync + 'static) -> Self {
+    pub fn client<E>(err: alloy_json_rpc::RpcError<E>) -> Self
+    where
+        E: error::Error + Send + Sync + 'static,
+    {
+        let err_msg = err.to_string();
+
+        // Trying to parse the InvalidInboxEntry
+        if let Some(invalid_entry) = InvalidInboxEntry::parse_err_msg(&err_msg) {
+            return Self::InvalidInboxEntry(invalid_entry);
+        }
+
         Self::RpcClientError(Box::new(err))
     }
 
@@ -129,6 +139,7 @@ impl InteropTxValidatorError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_json_rpc::{ErrorPayload, RpcError};
 
     const MIN_SAFETY_CROSS_UNSAFE_ERROR: &str = "message {0x4200000000000000000000000000000000000023 4 1 1728507701 901} (safety level: unsafe) does not meet the minimum safety cross-unsafe";
     const MIN_SAFETY_UNSAFE_ERROR: &str = "message {0x4200000000000000000000000000000000000023 1091637521 4369 0 901} (safety level: invalid) does not meet the minimum safety unsafe";
@@ -169,5 +180,27 @@ mod tests {
         ));
 
         assert!(InvalidInboxEntry::parse_err_msg(RANDOM_ERROR).is_none());
+    }
+
+    #[test]
+    fn test_client_error_parsing() {
+        let err =
+            ErrorPayload { code: 0, message: MIN_SAFETY_CROSS_UNSAFE_ERROR.into(), data: None };
+        let rpc_err = RpcError::<InvalidInboxEntry>::ErrorResp(err);
+        let error = InteropTxValidatorError::client(rpc_err);
+
+        assert!(matches!(
+            error,
+            InteropTxValidatorError::InvalidInboxEntry(InvalidInboxEntry::MinimumSafety {
+                expected: SafetyLevel::CrossUnsafe,
+                got: SafetyLevel::Unsafe
+            })
+        ));
+
+        // Testing with Unknown message
+        let err = ErrorPayload { code: 0, message: "unknown error".into(), data: None };
+        let rpc_err = RpcError::<InvalidInboxEntry>::ErrorResp(err);
+        let error = InteropTxValidatorError::client(rpc_err);
+        assert!(matches!(error, InteropTxValidatorError::RpcClientError(_)));
     }
 }
