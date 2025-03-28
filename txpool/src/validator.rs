@@ -13,7 +13,7 @@ use reth_optimism_forks::OpHardforks;
 use reth_primitives_traits::{
     transaction::error::InvalidTransactionError, Block, BlockBody, GotExpected, SealedBlock,
 };
-use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
+use reth_storage_api::{BlockReaderIdExt, StateProvider, StateProviderFactory};
 use reth_transaction_pool::{
     error::InvalidPoolTransactionError, EthPoolTransaction, EthTransactionValidator,
     TransactionOrigin, TransactionValidationOutcome, TransactionValidator,
@@ -166,12 +166,32 @@ where
     ///
     /// See also [`TransactionValidator::validate_transaction`]
     ///
-    /// This behaves the same as [`EthTransactionValidator::validate_one`], but in addition, ensures
-    /// that the account has enough balance to cover the L1 gas cost.
+    /// This behaves the same as [`OpTransactionValidator::validate_one_with_state`], but creates
+    /// a new state provider internally.
     pub async fn validate_one(
         &self,
         origin: TransactionOrigin,
         transaction: Tx,
+    ) -> TransactionValidationOutcome<Tx> {
+        self.validate_one_with_state(origin, transaction, &mut None).await
+    }
+
+    /// Validates a single transaction with a provided state provider.
+    ///
+    /// This allows reusing the same state provider across multiple transaction validations.
+    ///
+    /// See also [`TransactionValidator::validate_transaction`]
+    ///
+    /// This behaves the same as [`EthTransactionValidator::validate_one_with_state`], but in
+    /// addition applies OP validity checks:
+    /// - ensures tx is not eip4844
+    /// - ensures cross chain transactions are valid wrt locally configured safety level
+    /// - ensures that the account has enough balance to cover the L1 gas cost
+    pub async fn validate_one_with_state(
+        &self,
+        origin: TransactionOrigin,
+        transaction: Tx,
+        state: &mut Option<Box<dyn StateProvider>>,
     ) -> TransactionValidationOutcome<Tx> {
         if transaction.is_eip4844() {
             return TransactionValidationOutcome::Invalid(
@@ -200,7 +220,7 @@ where
             _ => {}
         }
 
-        let outcome = self.inner.validate_one(origin, transaction);
+        let outcome = self.inner.validate_one_with_state(origin, transaction, state);
 
         self.apply_op_checks(outcome)
     }
