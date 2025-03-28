@@ -541,11 +541,10 @@ func TestInteropTxTest(t *testing.T) {
 		{"initAndExecMultipleMsg", initAndExecMultipleMsg(l2ChainNums, walletGetters)},
 		{"execSameMsgTwice", execSameMsgTwice(l2ChainNums, walletGetters)},
 		{"randomDirectedGraph", randomDirectedGraph(l2ChainNums, walletGetters)},
-
-		// failure case
 		{"execMsgDifferentTopicCount", execMsgDifferentTopicCount(l2ChainNums, walletGetters)},
 		{"execMsgOpagueData", execMsgOpagueData(l2ChainNums, walletGetters)},
 		{"execMsgDifferEventIndexInSingleTx", execMsgDifferEventIndexInSingleTx(l2ChainNums, walletGetters)},
+		// failure case
 		{"executeMessageInvalidAttributes", executeMessageInvalidAttributes(l2ChainNums, walletGetters)},
 	}
 
