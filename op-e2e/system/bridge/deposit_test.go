@@ -121,7 +121,7 @@ var (
 func TestMintCallToDelegatedAccount(t *testing.T) {
 	// This test:
 	// 1. Deploys a contract on L2 that stores the first word of the call data to storage
-	// 2. Sets the delegation designation for an account on L2 to the new contract
+	// 2. Sets the delegation designation for an account on L2 to the new contract with nonzero calldata and ensures this is set in the contract
 	// 3. Sends a deposit tx (using the L1 bridge) to the L2 account with the delegation code
 	// 4. Ensures the deposit properly calls the contract and stores the first word of the call data to storage
 	// 5. Ensures the deposit sender's nonce is incremented on L2
