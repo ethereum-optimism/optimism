@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
@@ -47,25 +46,15 @@ func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletG
 		ctx := t.Context()
 
 		chain := sys.L2s()[chainIdx]
+		gethCl, err := chain.Nodes()[0].GethClient()
+		require.NoError(t, err)
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		logger.Info("Started test")
 
 		user := walletGetter(ctx)
 
-		clients := make([]*ethclient.Client, len(chain.Nodes()))
-		for _, node := range chain.Nodes() {
-			client, err := node.GethClient()
-			require.NoError(t, err)
-			clients = append(clients, client)
-		}
-		// We use a multiclient where feasible to automatically check for consistency
-		// between the nodes.
-		multiClient := systest.NewMultiClient(clients)
-
-		// MultiClient does not yet support all RPC methods, and so we single one out to use
-		// for now:
-		gethCl := clients[0]
+		defer systest.RequireNoChainFork(t, chain, logger)()
 
 		rpcCl, err := client.NewRPC(ctx, logger, chain.Nodes()[0].RPCURL())
 		require.NoError(t, err)
@@ -74,7 +63,7 @@ func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletG
 		require.NoError(t, err)
 
 		// Determine pre-state
-		preBlock, err := multiClient.BlockByNumber(ctx, nil)
+		preBlock, err := gethCl.BlockByNumber(ctx, nil)
 		require.NoError(t, err)
 		logger.Info("Got pre-state block", "hash", preBlock.Hash(), "number", preBlock.Number())
 
