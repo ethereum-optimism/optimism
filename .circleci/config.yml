@@ -1815,10 +1815,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-      - op-program-compat:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
+      # TODO(#356) - Need to regenerate data used in op-program-compat and then reenable this test
+      #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
+#      - op-program-compat:
+#          context:
+#            - circleci-repo-readonly-authenticated-github-token
+#            - discord
       - bedrock-go-tests:
           requires:
             - go-lint
