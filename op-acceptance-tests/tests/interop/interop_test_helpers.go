@@ -187,8 +187,8 @@ func InitiateRandomMessages(ctx context.Context, opt txplan.Option, rng *rand.Ra
 	return tx, receipt, nil
 }
 
-// ValidateEveryMessages batches every message and validates them via a single multicall
-func ValidateEveryMessages(ctx context.Context, opt txplan.Option, dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
+// ValidateEveryMessage batches every message and validates them via a single multicall
+func ValidateEveryMessage(ctx context.Context, opt txplan.Option, dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
 	// Intent to validate message
 	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opt)
 	tx.Content.DependOn(&dependOn.Result)

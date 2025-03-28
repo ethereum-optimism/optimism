@@ -494,7 +494,7 @@ func randomDirectedGraph(
 			go func(ch <-chan *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], rng *rand.Rand) {
 				defer wg.Done()
 				for dependsOn := range ch {
-					tx, receipt, err := ValidateEveryMessages(ctx, subOpt, dependsOn)
+					tx, receipt, err := ValidateEveryMessage(ctx, subOpt, dependsOn)
 					require.NoError(t, err)
 					logger.Info("validate messages included", "blockNumber", receipt.BlockNumber, "block", receipt.BlockHash)
 					logger.Info("message dependency",
