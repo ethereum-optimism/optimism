@@ -84,7 +84,15 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
 }
 
-func TestMintToDelegatedAccount(t *testing.T) {
+func TestMintCallToDelegatedAccount(t *testing.T) {
+	// This test:
+	// 1. Deploys a contract on L2 that stores the first word of the call data to storage
+	// 2. Sets the delegation designation for an account on L2 to the new contract
+	// 3. Sends a deposit to the account with the delegation code
+	// 4. Ensures the deposit properly calls the contract and stores the first word of the call data to storage
+	// 5. Ensures the deposit sender's nonce is incremented on L2
+	// 6. Ensures the deposit sender's balance is incremented on L2
+
 	op_e2e.InitParallel(t)
 	cfg := e2esys.DefaultSystemConfig(t)
 	cfg.DeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
@@ -249,7 +257,7 @@ func TestMintToDelegatedAccount(t *testing.T) {
 	diff = diff.Sub(endBalance, startBalance)
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
-	// Bob slot 0 should not be 0x42
+	// Bob slot 0 should be 0x42
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	slot0, err = l2Seq.StorageAt(ctx, cfg.Secrets.Addresses().Bob, common.Hash{0x00}, nil)
 	cancel()
