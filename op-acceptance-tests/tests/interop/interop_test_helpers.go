@@ -93,7 +93,7 @@ func DeployEventLogger(ctx context.Context, wallet system.WalletV2, logger log.L
 		return common.Address{}, err
 	}
 	eventLoggerAddress := res.ContractAddress
-	logger.Info("Deployed EventLogger", "chainID", deployTx.ChainID.Value().String(), "address", eventLoggerAddress)
+	logger.Info("Deployed EventLogger", "chainID", deployTx.ChainID.Value(), "address", eventLoggerAddress)
 	return eventLoggerAddress, err
 }
 
@@ -135,11 +135,16 @@ func FundWalletFromFaucet(ctx context.Context, logger log.Logger, sys system.Int
 	if len(sys.L2s()) < chainIdx {
 		return nil, fmt.Errorf("invalid chain idx: %d", chainIdx)
 	}
+	chain := sys.L2s()[chainIdx]
+	if len(chain.Nodes()) == 0 {
+		return nil, fmt.Errorf("no node available at chain: %s", chain.ID())
+	}
+	node := chain.Nodes()[0]
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
 		return nil, err
 	}
-	wallet, err := system.NewWalletV2(ctx, sys.L2s()[chainIdx].Nodes()[0].RPCURL(), privateKey, nil, logger)
+	wallet, err := system.NewWalletV2(ctx, node.RPCURL(), privateKey, nil, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +155,7 @@ func FundWalletFromFaucet(ctx context.Context, logger log.Logger, sys system.Int
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("funded", "address", to.Hex(), "chainID", sys.L2s()[chainIdx].ID())
+	logger.Info("Funded", "address", to, "chainID", chain.ID())
 	return opt, nil
 }
 
