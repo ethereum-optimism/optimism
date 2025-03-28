@@ -34,7 +34,7 @@ type FetchChainInfoOutput struct {
 type ChainConfig struct {
 	Addresses        Addresses        `json:"addresses"`
 	Roles            Roles            `json:"roles"`
-	FaultProofStatus FaultProofStatus `json:"fault_proofs"`
+	FaultProofStatus FaultProofStatus `json:"faultProofs" toml:"fault_Proofs"`
 }
 
 func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {

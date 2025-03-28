@@ -16,13 +16,13 @@ type FetchChainInfoInput struct {
 type FormattedFetchChainInfoOutput struct {
 	Addresses        Addresses        `toml:"addresses" json:"addresses"`
 	Roles            Roles            `toml:"roles" json:"roles"`
-	FaultProofStatus FaultProofStatus `toml:"fault_proofs" json:"fault_proofs"`
+	FaultProofStatus FaultProofStatus `toml:"fault_proofs" json:"faultProofs"`
 }
 
 type FaultProofStatus struct {
 	Permissioned      bool   `toml:"permissioned" json:"permissioned"`
 	Permissionless    bool   `toml:"permissionless" json:"permissionless"`
-	RespectedGameType uint32 `toml:"respected_game_type" json:"respected_game_type"`
+	RespectedGameType uint32 `toml:"respected_game_type" json:"respectedGameType"`
 }
 
 func FetchChainInfo(h *script.Host, input FetchChainInfoInput) (FetchChainInfoOutput, error) {
