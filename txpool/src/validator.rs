@@ -181,18 +181,24 @@ where
         }
 
         // Interop cross tx validation
-        if let Some(Err(err)) = self.is_valid_cross_tx(&transaction).await {
-            let err = match err {
-                InvalidCrossTx::CrossChainTxPreInterop => {
-                    InvalidTransactionError::TxTypeNotSupported.into()
-                }
-                err => InvalidPoolTransactionError::Other(Box::new(err)),
-            };
-            return TransactionValidationOutcome::Invalid(transaction, err)
+        match self.is_valid_cross_tx(&transaction).await {
+            Some(Err(err)) => {
+                let err = match err {
+                    InvalidCrossTx::CrossChainTxPreInterop => {
+                        InvalidTransactionError::TxTypeNotSupported.into()
+                    }
+                    err => InvalidPoolTransactionError::Other(Box::new(err)),
+                };
+                return TransactionValidationOutcome::Invalid(transaction, err)
+            }
+            Some(Ok(_)) => {
+                // valid interop tx
+                transaction.set_interop(TransactionInterop {
+                    timeout: self.block_timestamp() + TRANSACTION_VALIDITY_WINDOW_SECS,
+                });
+            }
+            _ => {}
         }
-        transaction.set_interop(TransactionInterop {
-            timeout: self.block_timestamp() + TRANSACTION_VALIDITY_WINDOW_SECS,
-        });
 
         let outcome = self.inner.validate_one(origin, transaction);
 
