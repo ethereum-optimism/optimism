@@ -157,7 +157,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 	})
 
 	err = l2Seq.SendTransaction(ctx, tx)
-	require.NoError(t, err, "Failed to send set code transaction")
+	require.NoError(t, err, "Failed to send contract deployment transaction")
 
 	_, err = wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
 	require.NoError(t, err, "Failed to get receipt for set code transaction")
