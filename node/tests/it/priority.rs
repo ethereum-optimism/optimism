@@ -10,7 +10,7 @@ use reth_db::test_utils::create_test_rw_db_with_path;
 use reth_e2e_test_utils::{
     node::NodeTestContext, transaction::TransactionTestContext, wallet::Wallet,
 };
-use reth_node_api::{FullNodeTypes, NodeTypesWithEngine};
+use reth_node_api::{FullNodeTypes, NodeTypes};
 use reth_node_builder::{
     components::{BasicPayloadServiceBuilder, ComponentsBuilder},
     EngineNodeLauncher, NodeBuilder, NodeConfig,
@@ -100,7 +100,7 @@ fn build_components<Node>(
 >
 where
     Node: FullNodeTypes<
-        Types: NodeTypesWithEngine<
+        Types: NodeTypes<
             Payload = OpEngineTypes,
             ChainSpec = OpChainSpec,
             Primitives = OpPrimitives,
