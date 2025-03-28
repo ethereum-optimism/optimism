@@ -189,6 +189,12 @@ func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, outputRoo
 	}
 }
 
+// ChallengeToPreimageLoad challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
+// It does this by:
+// 1. Identifying the first state transition that loads a global preimage
+// 2. Descending the execution game tree to reach the step that loads the preimage
+// 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
+// This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
 func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
 	// Identifying the first state transition that loads a global preimage
 	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
@@ -197,11 +203,10 @@ func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootCl
 	g.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, challengerKey, targetTraceIndex, preimageCheck, preloadPreimage)
 }
 
-// ChallengeToPreimageLoad challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
+// ChallengeToPreimageLoadAtTarget challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
 // It does this by:
-// 1. Identifying the first state transition that loads a global preimage
-// 2. Descending the execution game tree to reach the step that loads the preimage
-// 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
+// 1. Descending the execution game tree to reach the target step that loads the preimage
+// 2. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
 func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, targetTraceIndex uint64, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
 	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
