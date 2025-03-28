@@ -4,15 +4,47 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"math/big"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 )
+
+// RequireNoChainFork checks that the L2 chain has not forked now, and returns a
+// function that check again (to be called at the end of the test).
+func RequireNoChainFork(t T, chain system.L2Chain, logger log.Logger) func() {
+	ctx := t.Context()
+
+	clients := make([]*ethclient.Client, len(chain.Nodes()))
+	for _, node := range chain.Nodes() {
+		client, err := node.GethClient()
+		require.NoError(t, err)
+		clients = append(clients, client)
+	}
+	// We use a multiclient where feasible to automatically check for consistency
+	// between the nodes.
+	l2MultiClient := NewMultiClient(clients)
+
+	// Setup chain fork detection
+	logger.Info("Setting up chain fork detection")
+	l2StartHeader, err := l2MultiClient.HeaderByNumber(ctx, nil)
+	require.NoError(t, err)
+	logger.Debug("Got L2 head block", "number", l2StartHeader.Number)
+	return func() {
+		l2EndHeader, err := l2MultiClient.HeaderByNumber(ctx, nil)
+		require.NoError(t, err)
+		require.True(t, l2EndHeader.Number.Cmp(l2StartHeader.Number) > 0, "L2 chain should have progressed")
+		logger.Debug("Got L2 end block", "number", l2EndHeader.Number)
+	}
+}
 
 // MultiClient is a simple client that checks hash consistency between underlying clients
 type MultiClient struct {
