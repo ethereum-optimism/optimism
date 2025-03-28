@@ -130,7 +130,10 @@ func FuzzAccountResult_StorageProof(f *testing.F) {
 		result := makeResult(t)
 		result.StorageProof[0].Key = key
 		result.StorageProof[0].Value = hexutil.Big(*(new(big.Int).SetBytes(value)))
-		require.Error(t, result.Verify(goodRoot), "expected error when trying to verify bad result with good root: key=%v value=%v", key, value)
+		err := result.Verify(goodRoot)
+		if err == nil {
+			require.Zero(t, result.StorageProof[0].Value.ToInt().Cmp(common.Big0), "if a bad result verifies with good root, the value must be zero: key=%v value=%v", key, value)
+		}
 	})
 }
 
