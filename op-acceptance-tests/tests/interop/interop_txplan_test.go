@@ -2,7 +2,6 @@ package interop
 
 import (
 	"context"
-	"math/rand"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -18,8 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -545,11 +542,10 @@ func TestInteropTxTest(t *testing.T) {
 		{"execSameMsgTwice", execSameMsgTwice(l2ChainNums, walletGetters)},
 		{"randomDirectedGraph", randomDirectedGraph(l2ChainNums, walletGetters)},
 
+		// failure case
 		{"execMsgDifferentTopicCount", execMsgDifferentTopicCount(l2ChainNums, walletGetters)},
 		{"execMsgOpagueData", execMsgOpagueData(l2ChainNums, walletGetters)},
 		{"execMsgDifferEventIndexInSingleTx", execMsgDifferEventIndexInSingleTx(l2ChainNums, walletGetters)},
-
-		// failure case
 		{"executeMessageInvalidAttributes", executeMessageInvalidAttributes(l2ChainNums, walletGetters)},
 	}
 
