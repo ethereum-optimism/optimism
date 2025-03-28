@@ -3,6 +3,7 @@ package bridge
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/core/vm/program"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -95,11 +95,44 @@ func TestMintToDelegatedAccount(t *testing.T) {
 	l1Client := sys.NodeClient("l1")
 	l2Seq := sys.NodeClient("sequencer")
 
-	// first deploy a contract that does nothing
-	store42Program := program.New().Sstore(0x42, 0x42)
+	// Simple constructor that is prefixed to the actual contract code
+	// Results in the contract code being returned as the code for the new contract
+	deployPrefixSize := byte(16)
+	deployPrefix := []byte{
+		// Copy input data after this prefix into memory starting at address 0x00
+		// CODECOPY arg size
+		byte(vm.PUSH1), deployPrefixSize,
+		byte(vm.CODESIZE),
+		byte(vm.SUB),
+		// CODECOPY arg offset
+		byte(vm.PUSH1), deployPrefixSize,
+		// CODECOPY arg destOffset
+		byte(vm.PUSH1), 0x00,
+		byte(vm.CODECOPY),
+
+		// Return code from memory
+		// RETURN arg size
+		byte(vm.PUSH1), deployPrefixSize,
+		byte(vm.CODESIZE),
+		byte(vm.SUB),
+		// RETURN arg offset
+		byte(vm.PUSH1), 0x00,
+		byte(vm.RETURN),
+	}
+	// first deploy a contract that stores the first word of the call data to storage
+	storeFirstWordProgram := []byte{
+		// Load first word from call data
+		byte(vm.PUSH1), 0x00,
+		byte(vm.CALLDATALOAD),
+
+		// Store it to slot 0
+		byte(vm.PUSH1), 0x00,
+		byte(vm.SSTORE),
+	}
+	deployStore := append(deployPrefix, storeFirstWordProgram...)
 	signer := types.NewIsthmusSigner(cfg.L2ChainIDBig())
 
-	tx := types.MustSignNewTx(cfg.Secrets.Bob, signer, &types.DynamicFeeTx{
+	tx := types.MustSignNewTx(cfg.Secrets.Alice, signer, &types.DynamicFeeTx{
 		ChainID:   cfg.L2ChainIDBig(),
 		Nonce:     0,
 		To:        nil,
@@ -107,7 +140,7 @@ func TestMintToDelegatedAccount(t *testing.T) {
 		Gas:       500000,
 		GasFeeCap: big.NewInt(5000000000),
 		GasTipCap: big.NewInt(2),
-		Data:      store42Program.Bytes(),
+		Data:      deployStore,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -116,28 +149,39 @@ func TestMintToDelegatedAccount(t *testing.T) {
 	require.NoError(t, err, "Failed to send set code transaction")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
-	_, err = wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
+	r, err := wait.ForReceipt(ctx, l2Seq, tx.Hash(), 1)
 	cancel()
 	require.NoError(t, err, "Failed to get receipt for set code transaction")
 
-	contractAddr := crypto.CreateAddress(cfg.Secrets.Addresses().Bob, 0)
+	contractAddr := crypto.CreateAddress(cfg.Secrets.Addresses().Alice, 0)
+	fmt.Println(r.Status, r.ContractAddress, contractAddr)
+
+	// validate codeat
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	code, err := l2Seq.PendingCodeAt(ctx, contractAddr)
+	cancel()
+	require.NoError(t, err, "Failed to get code at contract address")
+	if !bytes.Equal(code, storeFirstWordProgram) {
+		t.Fatalf("Code at contract address is incorrect: got %s, want %s", common.Bytes2Hex(code), common.Bytes2Hex(storeFirstWordProgram))
+	}
 
 	// set delegation designation for an account on L2 to new contract
 	auth1, err := types.SignSetCode(cfg.Secrets.Bob, types.SetCodeAuthorization{
 		Address: contractAddr,
-		Nonce:   2,
+		Nonce:   1,
 	})
 
 	require.NoError(t, err, "Failed to sign set code authorization")
 
 	txdata := &types.SetCodeTx{
 		ChainID:   uint256.MustFromBig(cfg.L2ChainIDBig()),
-		Nonce:     1,
+		Nonce:     0,
 		To:        cfg.Secrets.Addresses().Bob,
 		Gas:       500000,
 		GasFeeCap: uint256.NewInt(5000000000),
 		GasTipCap: uint256.NewInt(2),
 		AuthList:  []types.SetCodeAuthorization{auth1},
+		Data:      []byte{1},
 	}
 
 	tx = types.MustSignNewTx(cfg.Secrets.Bob, signer, txdata)
@@ -154,7 +198,7 @@ func TestMintToDelegatedAccount(t *testing.T) {
 
 	// ensure the delegation was set
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	delegation, err := l2Seq.PendingCodeAt(ctx, cfg.Secrets.Addresses().Bob)
+	delegation, err := l2Seq.CodeAt(ctx, cfg.Secrets.Addresses().Bob, nil)
 	if err != nil {
 		t.Fatalf("Failed to get delegation code: %v", err)
 	}
@@ -163,6 +207,13 @@ func TestMintToDelegatedAccount(t *testing.T) {
 	if !bytes.Equal(delegation, want) {
 		t.Fatalf("addr1 code incorrect: got %s, want %s", common.Bytes2Hex(delegation), common.Bytes2Hex(want))
 	}
+
+	// ensure the code was executed correctly
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	slot0, err := l2Seq.StorageAt(ctx, cfg.Secrets.Addresses().Bob, common.Hash{0x00}, nil)
+	cancel()
+	require.NoError(t, err, "Failed to get storage at slot 0")
+	require.Equal(t, byte(0x01), slot0[0], "The first word of the call data should be stored in slot 0")
 
 	aliceKey := cfg.Secrets.Alice
 	opts, err := bind.NewKeyedTransactorWithChainID(aliceKey, cfg.L1ChainIDBig())
@@ -185,6 +236,7 @@ func TestMintToDelegatedAccount(t *testing.T) {
 	opts.Value = mintAmount
 	helpers.SendDepositTx(t, cfg, l1Client, l2Seq, opts, func(l2Opts *helpers.DepositTxOpts) {
 		l2Opts.ToAddr = toAddr
+		l2Opts.Data = []byte{0x42}
 	})
 
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
@@ -196,6 +248,13 @@ func TestMintToDelegatedAccount(t *testing.T) {
 	diff := new(big.Int)
 	diff = diff.Sub(endBalance, startBalance)
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
+
+	// Bob slot 0 should not be 0x42
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	slot0, err = l2Seq.StorageAt(ctx, cfg.Secrets.Addresses().Bob, common.Hash{0x00}, nil)
+	cancel()
+	require.NoError(t, err, "Failed to get storage at slot 0")
+	require.Equal(t, byte(0x42), slot0[0], "The first word of the call data should be stored in slot 0")
 
 	// From nonce should have increased as a result
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
