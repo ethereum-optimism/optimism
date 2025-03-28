@@ -284,14 +284,15 @@ func execMsgDifferEventIndexInSingleTx(
 type invalidAttributeType string
 
 const (
-	randomOrigin        invalidAttributeType = "randomOrigin"
-	randomBlockNumber   invalidAttributeType = "randomBlockNumber"
-	randomLogIndex      invalidAttributeType = "randomLogIndex"
-	randomTimestamp     invalidAttributeType = "randomTimestamp"
-	randomChainID       invalidAttributeType = "randomChainID"
-	mismatchedLogIndex  invalidAttributeType = "mismatchedLogIndex"
-	mismatchedTimestamp invalidAttributeType = "mismatchedTimestamp"
-	msgNotPresent       invalidAttributeType = "msgNotPresent"
+	randomOrigin                     invalidAttributeType = "randomOrigin"
+	randomBlockNumber                invalidAttributeType = "randomBlockNumber"
+	randomLogIndex                   invalidAttributeType = "randomLogIndex"
+	randomTimestamp                  invalidAttributeType = "randomTimestamp"
+	randomChainID                    invalidAttributeType = "randomChainID"
+	mismatchedLogIndex               invalidAttributeType = "mismatchedLogIndex"
+	mismatchedTimestamp              invalidAttributeType = "mismatchedTimestamp"
+	msgNotPresent                    invalidAttributeType = "msgNotPresent"
+	logIndexGreaterOrEqualToEventCnt invalidAttributeType = "logIndexGreaterOrEqualToEventCnt"
 )
 
 // executeIndexedFault builds on top of txintent.ExecuteIndexed to inject a fault for the identifier of message
@@ -325,7 +326,7 @@ func executeIndexedFault(
 			case randomChainID:
 				newMsg.Identifier.ChainID = eth.ChainIDFromBytes32([32]byte(testutils.RandomData(rng, 32)))
 			case mismatchedLogIndex:
-				// valid msg within block, but mismatchging event index
+				// valid msg within block, but mismatching event index
 				newMsg.Identifier.LogIndex += 1
 			case mismatchedTimestamp:
 				// within time window, but mismatching block
@@ -335,6 +336,11 @@ func executeIndexedFault(
 				// use destination chain ID because initiating message is not present in dest chain
 				destChainID := sys.L2s()[1].ID().Uint64()
 				newMsg.Identifier.ChainID = eth.ChainID{destChainID}
+			case logIndexGreaterOrEqualToEventCnt:
+				// execute implied-conflict message: point to event-index >= number of logs
+				// number of logs == number of entries
+				// so set the invalid logindex to number of entries
+				newMsg.Identifier.LogIndex = uint32(len(events.Value().Entries))
 			default:
 				panic("invalid type")
 			}
@@ -380,7 +386,7 @@ func executeMessageInvalidAttributes(
 			// test for every attributes to be faulty for upper bound tests
 			{randomOrigin, randomBlockNumber, randomLogIndex, randomTimestamp, randomChainID},
 			// test for non-random invalid attributes
-			{mismatchedLogIndex}, {mismatchedTimestamp}, {msgNotPresent},
+			{mismatchedLogIndex}, {mismatchedTimestamp}, {msgNotPresent}, {logIndexGreaterOrEqualToEventCnt},
 		}
 		for _, faults := range faultsLists {
 			logger.Info("attempt to validate message with invalid attribute", "faults", faults)
