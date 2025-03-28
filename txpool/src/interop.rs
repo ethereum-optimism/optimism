@@ -32,4 +32,9 @@ impl TransactionInterop {
     pub fn is_valid(&self, timestamp: u64) -> bool {
         timestamp < self.timeout
     }
+
+    /// Checks if transaction needs revalidation based on offset
+    pub fn is_stale(&self, timestamp: u64, offset: u64) -> bool {
+        timestamp + offset > self.timeout
+    }
 }

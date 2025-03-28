@@ -621,17 +621,29 @@ where
             );
             debug!(target: "reth::cli", "Spawned txpool maintenance task");
 
+            // spawn the Op txpool maintenance task
+            let chain_events = ctx.provider().canonical_state_stream();
+            ctx.task_executor().spawn_critical(
+                "Op txpool interop maintenance task",
+                reth_optimism_txpool::maintain::maintain_transaction_pool_interop_future(
+                    pool.clone(),
+                    chain_events,
+                    supervisor_client,
+                ),
+            );
+            debug!(target: "reth::cli", "Spawned Op interop txpool maintenance task");
+
             if self.enable_tx_conditional {
                 // spawn the Op txpool maintenance task
                 let chain_events = ctx.provider().canonical_state_stream();
                 ctx.task_executor().spawn_critical(
-                    "Op txpool maintenance task",
-                    reth_optimism_txpool::maintain::maintain_transaction_pool_future(
+                    "Op txpool conditional maintenance task",
+                    reth_optimism_txpool::maintain::maintain_transaction_pool_conditional_future(
                         pool,
                         chain_events,
                     ),
                 );
-                debug!(target: "reth::cli", "Spawned Op txpool maintenance task");
+                debug!(target: "reth::cli", "Spawned Op conditional txpool maintenance task");
             }
         }
 
