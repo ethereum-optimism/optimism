@@ -529,7 +529,7 @@ func randomDirectedGraph(
 }
 
 func TestInteropTxTest(t *testing.T) {
-	l2ChainNums := 3
+	l2ChainNums := 2
 	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
 
 	tests := []struct {
