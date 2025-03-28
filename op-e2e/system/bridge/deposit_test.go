@@ -95,6 +95,7 @@ func TestMintCallToDelegatedAccount(t *testing.T) {
 
 	op_e2e.InitParallel(t)
 	cfg := e2esys.DefaultSystemConfig(t)
+	cfg.DeployConfig = cfg.DeployConfig.Copy()
 	cfg.DeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
 	delete(cfg.Nodes, "verifier")
 	sys, err := cfg.Start(t)
