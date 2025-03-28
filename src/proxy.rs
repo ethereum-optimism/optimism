@@ -1,25 +1,15 @@
-use crate::auth_layer::secret_to_bearer_header;
-use crate::metrics::ServerMetrics;
+use crate::HealthLayer;
+use crate::client::http::HttpClient;
+use crate::health::HealthService;
 use crate::server::PayloadSource;
 use alloy_rpc_types_engine::JwtSecret;
-use flate2::read::GzDecoder;
-use http::header::AUTHORIZATION;
-use http::response::Parts;
-use http::{StatusCode, Uri};
-use http_body_util::BodyExt;
-use hyper_rustls::HttpsConnector;
-use hyper_util::client::legacy::Client;
-use hyper_util::client::legacy::connect::HttpConnector;
-use hyper_util::rt::TokioExecutor;
+use http::Uri;
 use jsonrpsee::core::{BoxError, http_helpers};
 use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
-use std::io::Read;
-use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
-use tracing::{debug, error, info, warn};
+use tracing::info;
 
 const MULTIPLEX_METHODS: [&str; 4] = [
     "engine_",
@@ -38,69 +28,65 @@ const FORWARD_REQUESTS: [&str; 6] = [
 
 #[derive(Debug, Clone)]
 pub struct ProxyLayer {
-    l2_auth_uri: Uri,
+    l2_auth_rpc: Uri,
     l2_auth_secret: JwtSecret,
-    builder_auth_uri: Uri,
+    builder_auth_rpc: Uri,
     builder_auth_secret: JwtSecret,
-    metrics: Option<Arc<ServerMetrics>>,
 }
 
 impl ProxyLayer {
     pub fn new(
-        l2_auth_uri: Uri,
+        l2_auth_rpc: Uri,
         l2_auth_secret: JwtSecret,
-        builder_auth_uri: Uri,
+        builder_auth_rpc: Uri,
         builder_auth_secret: JwtSecret,
-        metrics: Option<Arc<ServerMetrics>>,
     ) -> Self {
         ProxyLayer {
-            l2_auth_uri,
+            l2_auth_rpc,
             l2_auth_secret,
-            builder_auth_uri,
+            builder_auth_rpc,
             builder_auth_secret,
-            metrics,
         }
     }
 }
 
 impl<S> Layer<S> for ProxyLayer {
-    type Service = ProxyService<S>;
+    type Service = HealthService<ProxyService<S>>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        let connector = hyper_rustls::HttpsConnectorBuilder::new()
-            .with_native_roots()
-            .expect("no native root CA certificates found")
-            .https_or_http()
-            .enable_http1()
-            .enable_http2()
-            .build();
+        let l2_client = HttpClient::new(
+            self.l2_auth_rpc.clone(),
+            self.l2_auth_secret.clone(),
+            PayloadSource::L2,
+        );
 
-        ProxyService {
+        let builder_client = HttpClient::new(
+            self.builder_auth_rpc.clone(),
+            self.builder_auth_secret.clone(),
+            PayloadSource::Builder,
+        );
+
+        let proxy = ProxyService {
             inner,
-            client: Client::builder(TokioExecutor::new()).build(connector),
-            l2_auth_uri: self.l2_auth_uri.clone(),
-            l2_auth_secret: self.l2_auth_secret,
-            builder_auth_uri: self.builder_auth_uri.clone(),
-            builder_auth_secret: self.builder_auth_secret,
-            metrics: self.metrics.clone(),
-        }
+            l2_client,
+            builder_client,
+        };
+
+        HealthLayer.layer(proxy)
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProxyService<S> {
     inner: S,
-    client: Client<HttpsConnector<HttpConnector>, HttpBody>,
-    l2_auth_uri: Uri,
-    l2_auth_secret: JwtSecret,
-    builder_auth_uri: Uri,
-    builder_auth_secret: JwtSecret,
-    metrics: Option<Arc<ServerMetrics>>,
+    l2_client: HttpClient,
+    builder_client: HttpClient,
 }
 
+// Consider using `RpcServiceT` when https://github.com/paritytech/jsonrpsee/pull/1521 is merged
 impl<S> Service<HttpRequest<HttpBody>> for ProxyService<S>
 where
-    S: Service<HttpRequest<HttpBody>, Response = HttpResponse> + Send + Clone + 'static,
+    S: Service<HttpRequest<HttpBody>, Response = HttpResponse> + Send + Sync + Clone + 'static,
     S::Response: 'static,
     S::Error: Into<BoxError> + 'static,
     S::Future: Send + 'static,
@@ -115,23 +101,16 @@ where
     }
 
     fn call(&mut self, req: HttpRequest<HttpBody>) -> Self::Future {
-        if req.uri().path() == "/healthz" {
-            return Box::pin(async { Ok(Self::Response::new(HttpBody::from("OK"))) });
-        }
-
-        let client = self.client.clone();
-        let mut inner = self.inner.clone();
-        let builder_uri = self.builder_auth_uri.clone();
-        let builder_secret = self.builder_auth_secret;
-        let l2_uri = self.l2_auth_uri.clone();
-        let l2_secret = self.l2_auth_secret;
-        let metrics = self.metrics.clone();
-
         #[derive(serde::Deserialize, Debug)]
         struct RpcRequest<'a> {
             #[serde(borrow)]
             method: &'a str,
         }
+
+        // See https://github.com/tower-rs/tower/blob/abb375d08cf0ba34c1fe76f66f1aba3dc4341013/tower-service/src/lib.rs#L276
+        // for an explanation of this pattern
+        let mut service = self.clone();
+        service.inner = std::mem::replace(&mut self.inner, service.inner);
 
         let fut = async move {
             let (parts, body) = req.into_parts();
@@ -144,238 +123,29 @@ where
 
             if MULTIPLEX_METHODS.iter().any(|&m| method.starts_with(m)) {
                 if FORWARD_REQUESTS.contains(&method.as_str()) {
-                    let builder_client = client.clone();
                     let builder_req =
                         HttpRequest::from_parts(parts.clone(), HttpBody::from(body_bytes.clone()));
                     let builder_method = method.clone();
-                    let builder_metrics = metrics.clone();
+                    let mut builder_client = service.builder_client.clone();
                     tokio::spawn(async move {
-                        let _ = forward_request(
-                            builder_client,
-                            builder_req,
-                            builder_method,
-                            builder_uri,
-                            builder_secret,
-                            builder_metrics,
-                            PayloadSource::Builder,
-                        )
-                        .await;
+                        let _ = builder_client.forward(builder_req, builder_method).await;
                     });
 
                     let l2_req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
                     info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
-                    forward_request(
-                        client,
-                        l2_req,
-                        method,
-                        l2_uri,
-                        l2_secret,
-                        metrics,
-                        PayloadSource::L2,
-                    )
-                    .await
+                    service.l2_client.forward(l2_req, method).await
                 } else {
                     let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
                     info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
-                    inner.call(req).await.map_err(|e| e.into())
+                    service.inner.call(req).await.map_err(|e| e.into())
                 }
             } else {
                 let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
-                forward_request(
-                    client,
-                    req,
-                    method,
-                    l2_uri,
-                    l2_secret,
-                    metrics,
-                    PayloadSource::L2,
-                )
-                .await
+                service.l2_client.forward(req, method).await
             }
         };
         Box::pin(fut)
     }
-}
-
-/// Forwards an HTTP request to the `authrpc``, attaching the provided JWT authorization.
-async fn forward_request(
-    client: Client<HttpsConnector<HttpConnector>, HttpBody>,
-    mut req: http::Request<HttpBody>,
-    method: String,
-    uri: Uri,
-    auth: JwtSecret,
-    metrics: Option<Arc<ServerMetrics>>,
-    source: PayloadSource,
-) -> Result<http::Response<HttpBody>, BoxError> {
-    let start = Instant::now();
-    *req.uri_mut() = uri.clone();
-    req.headers_mut()
-        .insert(AUTHORIZATION, secret_to_bearer_header(&auth));
-
-    debug!(
-        target: "proxy::forward_request",
-        url = ?uri,
-        ?method,
-        ?req,
-    );
-
-    match client.request(req).await {
-        Ok(resp) => {
-            let (parts, body) = resp.into_parts();
-            let body_bytes = body
-                .collect()
-                .await
-                .map_err(|e| {
-                    error!(
-                        target: "proxy::forward_request",
-                        message = "error collecting body",
-                        error = %e,
-                    );
-                    e
-                })?
-                .to_bytes()
-                .to_vec();
-            let parts_clone = parts.clone();
-            let body_bytes_clone = body_bytes.clone();
-
-            tokio::spawn(async move {
-                let _ = process_response(
-                    parts_clone,
-                    body_bytes_clone,
-                    metrics,
-                    method,
-                    start.elapsed(),
-                    source,
-                )
-                .await;
-            });
-
-            Ok(http::Response::from_parts(
-                parts,
-                HttpBody::from(body_bytes),
-            ))
-        }
-        Err(e) => {
-            error!(
-                target: "proxy::call",
-                message = "error forwarding request",
-                url = ?uri,
-                method = %method,
-                error = %e,
-            );
-            record_metrics(
-                metrics,
-                StatusCode::INTERNAL_SERVER_ERROR.to_string(),
-                None,
-                method,
-                start.elapsed(),
-                source,
-            )
-            .await;
-            Err(e.into())
-        }
-    }
-}
-
-async fn process_response(
-    parts: Parts,
-    body_bytes: Vec<u8>,
-    metrics: Option<Arc<ServerMetrics>>,
-    method: String,
-    duration: Duration,
-    source: PayloadSource,
-) -> Result<(), BoxError> {
-    // Check for GZIP compression
-    let is_gzipped = parts
-        .headers
-        .get(http::header::CONTENT_ENCODING)
-        .is_some_and(|val| val.as_bytes() == b"gzip");
-    let decoded_body = if is_gzipped {
-        // Decompress GZIP content
-        let mut decoder = GzDecoder::new(&body_bytes[..]);
-        let mut decoded = Vec::new();
-        decoder.read_to_end(&mut decoded).map_err(|e| {
-            warn!(
-                target: "proxy::process_response",
-                message = "error decompressing body",
-                error = %e,
-            );
-            e
-        })?;
-        decoded
-    } else {
-        body_bytes
-    };
-
-    // log the decoded body
-    debug!(
-    target: "proxy::forward_request",
-    message = "raw response body",
-        body = %String::from_utf8_lossy(&decoded_body),
-    );
-
-    let rpc_status_code = parse_response_code(&decoded_body);
-    record_metrics(
-        metrics,
-        parts.status.to_string(),
-        rpc_status_code,
-        method,
-        duration,
-        source,
-    )
-    .await;
-
-    Ok(())
-}
-
-async fn record_metrics(
-    metrics: Option<Arc<ServerMetrics>>,
-    http_status_code: String,
-    rpc_status_code: Option<String>,
-    method: String,
-    duration: Duration,
-    source: PayloadSource,
-) {
-    if let Some(metrics) = &metrics {
-        match source {
-            PayloadSource::Builder => {
-                metrics.record_builder_forwarded_call(duration, method.to_string());
-                metrics.increment_builder_rpc_response_count(
-                    http_status_code,
-                    rpc_status_code,
-                    method.to_string(),
-                );
-            }
-            PayloadSource::L2 => {
-                metrics.record_l2_forwarded_call(duration, method.to_string());
-                metrics.increment_l2_rpc_response_count(
-                    http_status_code,
-                    rpc_status_code,
-                    method.to_string(),
-                );
-            }
-        }
-    }
-}
-
-fn parse_response_code(body_bytes: &[u8]) -> Option<String> {
-    #[derive(serde::Deserialize, Debug)]
-    struct RpcResponse {
-        error: Option<JsonRpcError>,
-    }
-
-    #[derive(serde::Deserialize, Debug)]
-    struct JsonRpcError {
-        code: i32,
-    }
-
-    // Safely try to deserialize, return empty string on failure
-    serde_json::from_slice::<RpcResponse>(body_bytes)
-                .map_err(|e| {
-                    warn!(target: "proxy::parse_response_code", message = "error deserializing body", error = %e);
-                })
-                .ok()
-                .and_then(|r| r.error.map(|e| e.code.to_string()))
 }
 
 #[cfg(test)]
@@ -386,7 +156,9 @@ mod tests {
     use alloy_rpc_types_eth::erc4337::TransactionConditional;
     use http_body_util::BodyExt;
     use hyper::service::service_fn;
-    use hyper_util::rt::TokioIo;
+    use hyper_util::client::legacy::Client;
+    use hyper_util::client::legacy::connect::HttpConnector;
+    use hyper_util::rt::{TokioExecutor, TokioIo};
     use jsonrpsee::server::Server;
     use jsonrpsee::{
         RpcModule,
@@ -431,7 +203,7 @@ mod tests {
                 JwtSecret::random(),
                 format!("http://{}:{}", builder.addr.ip(), builder.addr.port()).parse::<Uri>()?,
                 JwtSecret::random(),
-                None,
+                // None,
             ));
 
             let temp_listener = TcpListener::bind("0.0.0.0:0").await?;
@@ -693,7 +465,7 @@ mod tests {
         .parse::<Uri>()
         .unwrap();
 
-        let proxy_layer = ProxyLayer::new(l2_auth_uri.clone(), jwt, l2_auth_uri, jwt, None);
+        let proxy_layer = ProxyLayer::new(l2_auth_uri.clone(), jwt, l2_auth_uri, jwt);
 
         // Create a layered server
         let server = ServerBuilder::default()

@@ -1,4 +1,4 @@
-use crate::client::ExecutionClient;
+use crate::client::rpc::RpcClient;
 use crate::debug_api::DebugServer;
 use alloy_primitives::B256;
 use moka::sync::Cache;
@@ -114,8 +114,8 @@ impl ExecutionMode {
 
 #[derive(Clone)]
 pub struct RollupBoostServer {
-    pub l2_client: Arc<ExecutionClient>,
-    pub builder_client: Arc<ExecutionClient>,
+    pub l2_client: Arc<RpcClient>,
+    pub builder_client: Arc<RpcClient>,
     pub boost_sync: bool,
     pub payload_trace_context: Arc<PayloadTraceContext>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
@@ -123,8 +123,8 @@ pub struct RollupBoostServer {
 
 impl RollupBoostServer {
     pub fn new(
-        l2_client: ExecutionClient,
-        builder_client: ExecutionClient,
+        l2_client: RpcClient,
+        builder_client: RpcClient,
         boost_sync: bool,
         initial_execution_mode: ExecutionMode,
     ) -> Self {
@@ -525,13 +525,12 @@ mod tests {
 
             let l2_auth_rpc = Uri::from_str(&format!("http://{}:{}", HOST, L2_PORT)).unwrap();
             let l2_client =
-                ExecutionClient::new(l2_auth_rpc, jwt_secret, 2000, PayloadSource::L2).unwrap();
+                RpcClient::new(l2_auth_rpc, jwt_secret, 2000, PayloadSource::L2).unwrap();
 
             let builder_auth_rpc =
                 Uri::from_str(&format!("http://{}:{}", HOST, BUILDER_PORT)).unwrap();
             let builder_client =
-                ExecutionClient::new(builder_auth_rpc, jwt_secret, 2000, PayloadSource::Builder)
-                    .unwrap();
+                RpcClient::new(builder_auth_rpc, jwt_secret, 2000, PayloadSource::Builder).unwrap();
 
             let rollup_boost_client = RollupBoostServer::new(
                 l2_client,

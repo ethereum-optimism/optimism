@@ -1,4 +1,4 @@
-use crate::auth_layer::{AuthClientLayer, AuthClientService};
+use crate::client::auth::{AuthClientLayer, AuthClientService};
 use crate::debug_api::DebugClient;
 use crate::server::EngineApiClient;
 use crate::server::PayloadSource;

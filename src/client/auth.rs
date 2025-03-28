@@ -8,7 +8,7 @@ use std::{
 use tower::{Layer, Service};
 
 /// A layer that adds a new JWT token to every request using `AuthClientService`.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AuthClientLayer {
     secret: JwtSecret,
 }
@@ -44,6 +44,7 @@ impl<S> AuthClientService<S> {
 impl<S, B> Service<http::Request<B>> for AuthClientService<S>
 where
     S: Service<http::Request<B>>,
+    B: std::fmt::Debug,
 {
     type Response = S::Response;
     type Error = S::Error;

@@ -23,6 +23,7 @@ reqwest = "0.12.5"
 http = "1.1.0"
 dotenv = "0.15.0"
 tower = "0.4.13"
+tower-http = { version = "0.5.2", features = ["decompression-full"] }
 http-body = "1.0.1"
 http-body-util = "0.1.2"
 hyper = { version = "1.4.1", features = ["full"] }
