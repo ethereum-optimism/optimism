@@ -364,15 +364,19 @@ func executeMessageInvalidAttributes(
 		eventLoggerAddress, err := DeployEventLogger(ctx, wallets[0], logger)
 		require.NoError(t, err)
 
-		// Intent to initiate message(or emit event) on chain A
-		txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](opts[0])
-		randomInitTrigger := RandomInitTrigger(rng, eventLoggerAddress, 3, 10)
-		txA.Content.Set(randomInitTrigger)
+		// Intent to initiate messages(or emit events) on chain A
+		initCalls := []txintent.Call{
+			RandomInitTrigger(rng, eventLoggerAddress, 3, 10),
+			RandomInitTrigger(rng, eventLoggerAddress, 2, 95),
+			RandomInitTrigger(rng, eventLoggerAddress, 1, 50),
+		}
+		txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[0])
+		txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
 
 		// Trigger single event
 		receiptA, err := txA.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)
-		logger.Info("initiate message included", "block", receiptA.BlockHash)
+		logger.Info("initiate messages included", "block", receiptA.BlockHash)
 
 		// construct txplan opts for testing failed validating messages
 		optsForFail := txplan.Combine(
@@ -394,8 +398,9 @@ func executeMessageInvalidAttributes(
 			txB := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsForFail)
 			txB.Content.DependOn(&txA.Result)
 
-			// Single event in tx so index is 0, and also inject faults
-			txB.Content.Fn(executeIndexedFault(constants.CrossL2Inbox, &txA.Result, 0, rng, faults, sys))
+			// Random select event index in tx for injecting faults
+			eventIdx := rng.Intn(len(initCalls))
+			txB.Content.Fn(executeIndexedFault(constants.CrossL2Inbox, &txA.Result, eventIdx, rng, faults, sys))
 
 			// make sure that the transaction is not reverted by CrossL2Inbox...
 			gas, err := txB.PlannedTx.Gas.Eval(ctx)
