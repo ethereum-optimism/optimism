@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 use op_alloy_consensus::TxDeposit;
 use proptest::test_runner::TestRunner;
+use reth_chainspec::ChainSpec;
 use reth_cli_commands::{
     compact_types,
     test_vectors::{
@@ -14,6 +15,7 @@ use reth_cli_commands::{
         tables,
     },
 };
+use std::sync::Arc;
 
 /// Generate test-vectors for different data types.
 #[derive(Debug, Parser)]
@@ -68,5 +70,9 @@ impl Command {
             }
         }
         Ok(())
+    }
+    /// Returns the underlying chain being used to run this command
+    pub fn chain_spec(&self) -> Option<&Arc<ChainSpec>> {
+        None
     }
 }
