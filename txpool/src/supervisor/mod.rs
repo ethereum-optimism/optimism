@@ -9,5 +9,3 @@ mod errors;
 pub use errors::{InteropTxValidatorError, InvalidInboxEntry};
 mod message;
 pub use message::ExecutingDescriptor;
-mod validator;
-pub use validator::is_valid_cross_tx;

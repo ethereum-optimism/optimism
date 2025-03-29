@@ -10,7 +10,7 @@ const MAX_SUPERVISOR_QUERIES: usize = 10;
 use crate::{
     conditional::MaybeConditionalTransaction,
     interop::{MaybeInteropTransaction, TransactionInterop},
-    supervisor::{is_valid_cross_tx, SupervisorClient},
+    supervisor::SupervisorClient,
 };
 use alloy_consensus::{conditional::BlockConditionalAttributes, BlockHeader, Transaction};
 use futures_util::{future::BoxFuture, FutureExt, Stream, StreamExt};
@@ -163,18 +163,18 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                     futures_util::stream::iter(to_revalidate.into_iter().map(|tx| {
                         let supervisor_client = supervisor_client.clone();
                         async move {
-                            let check = is_valid_cross_tx(
-                                tx.transaction.access_list(),
-                                tx.transaction.hash(),
-                                timestamp,
-                                Some(TRANSACTION_VALIDITY_WINDOW),
-                                // We could assume that interop is enabled, because
-                                // tx.transaction.interop() would be set only in
-                                // this case
-                                true,
-                                Some(supervisor_client.as_ref()),
-                            )
-                            .await;
+                            let check = supervisor_client
+                                .is_valid_cross_tx(
+                                    tx.transaction.access_list(),
+                                    tx.transaction.hash(),
+                                    timestamp,
+                                    Some(TRANSACTION_VALIDITY_WINDOW),
+                                    // We could assume that interop is enabled, because
+                                    // tx.transaction.interop() would be set only in
+                                    // this case
+                                    true,
+                                )
+                                .await;
                             (tx.clone(), check)
                         }
                     }))
