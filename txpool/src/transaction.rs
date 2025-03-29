@@ -1,7 +1,4 @@
-use crate::{
-    conditional::MaybeConditionalTransaction,
-    interop::{MaybeInteropTransaction, TransactionInterop},
-};
+use crate::{conditional::MaybeConditionalTransaction, interop::MaybeInteropTransaction};
 use alloy_consensus::{
     transaction::Recovered, BlobTransactionSidecar, BlobTransactionValidationError, Typed2718,
 };
@@ -10,13 +7,18 @@ use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use c_kzg::KzgSettings;
 use core::fmt::Debug;
-use parking_lot::RwLock;
 use reth_optimism_primitives::OpTransactionSigned;
 use reth_primitives_traits::{InMemorySize, SignedTransaction};
 use reth_transaction_pool::{
     EthBlobTransactionSidecar, EthPoolTransaction, EthPooledTransaction, PoolTransaction,
 };
-use std::sync::{Arc, OnceLock};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc, OnceLock,
+};
+
+/// Marker for no-interop transactions
+pub(crate) const NO_INTEROP_TX: u64 = 0;
 
 /// Pool transaction for OP.
 ///
@@ -38,8 +40,8 @@ pub struct OpPooledTransaction<
     /// Optional conditional attached to this transaction.
     conditional: Option<Box<TransactionConditional>>,
 
-    /// Optional interop validation attached to this transaction.
-    interop: Arc<RwLock<Option<TransactionInterop>>>,
+    /// Optional interop deadline attached to this transaction.
+    interop: Arc<AtomicU64>,
 
     /// Cached EIP-2718 encoded bytes of the transaction, lazily computed.
     encoded_2718: OnceLock<Bytes>,
@@ -52,7 +54,7 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
             inner: EthPooledTransaction::new(transaction, encoded_length),
             estimated_tx_compressed_size: Default::default(),
             conditional: None,
-            interop: Arc::new(RwLock::new(None)),
+            interop: Arc::new(AtomicU64::new(NO_INTEROP_TX)),
             _pd: core::marker::PhantomData,
             encoded_2718: Default::default(),
         }
@@ -91,12 +93,16 @@ impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Poo
 }
 
 impl<Cons, Pooled> MaybeInteropTransaction for OpPooledTransaction<Cons, Pooled> {
-    fn set_interop(&self, interop: TransactionInterop) {
-        *self.interop.write() = Some(interop);
+    fn set_interop_deadlone(&self, deadline: u64) {
+        self.interop.store(deadline, Ordering::Relaxed);
     }
 
-    fn interop(&self) -> Option<TransactionInterop> {
-        self.interop.read().clone()
+    fn interop_deadline(&self) -> Option<u64> {
+        let interop = self.interop.load(Ordering::Relaxed);
+        if interop > NO_INTEROP_TX {
+            return Some(interop)
+        }
+        None
     }
 }
 

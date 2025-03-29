@@ -1,8 +1,4 @@
-use crate::{
-    interop::{MaybeInteropTransaction, TransactionInterop},
-    supervisor::SupervisorClient,
-    InvalidCrossTx,
-};
+use crate::{interop::MaybeInteropTransaction, supervisor::SupervisorClient, InvalidCrossTx};
 use alloy_consensus::{BlockHeader, Transaction};
 use alloy_eips::Encodable2718;
 use op_revm::L1BlockInfo;
@@ -213,9 +209,9 @@ where
             }
             Some(Ok(_)) => {
                 // valid interop tx
-                transaction.set_interop(TransactionInterop {
-                    timeout: self.block_timestamp() + TRANSACTION_VALIDITY_WINDOW_SECS,
-                });
+                transaction.set_interop_deadlone(
+                    self.block_timestamp() + TRANSACTION_VALIDITY_WINDOW_SECS,
+                );
             }
             _ => {}
         }
