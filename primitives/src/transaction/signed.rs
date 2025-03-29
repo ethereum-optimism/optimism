@@ -97,10 +97,6 @@ impl SignedTransaction for OpTransactionSigned {
         self.hash.get_or_init(|| self.recalculate_hash())
     }
 
-    fn signature(&self) -> &Signature {
-        &self.signature
-    }
-
     fn recover_signer(&self) -> Result<Address, RecoveryError> {
         // Optimism's Deposit transaction does not have a signature. Directly return the
         // `from` address.
