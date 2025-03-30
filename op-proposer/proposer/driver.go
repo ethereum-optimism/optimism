@@ -212,6 +212,10 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 	return nil
 }
 
+func (l *L2OutputSubmitter) Stopped() bool {
+	return !l.running
+}
+
 // FetchL2OOOutput gets the next output proposal for the L2OO.
 // It queries the L2OO for the earliest next block number that should be proposed.
 // It returns the output to propose, and whether the proposal should be submitted at all.

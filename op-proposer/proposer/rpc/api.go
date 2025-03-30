@@ -13,6 +13,7 @@ import (
 type ProposerDriver interface {
 	StartL2OutputSubmitting() error
 	StopL2OutputSubmitting() error
+	Stopped() bool
 }
 
 type adminAPI struct {
@@ -40,4 +41,8 @@ func (a *adminAPI) StartProposer(_ context.Context) error {
 
 func (a *adminAPI) StopProposer(ctx context.Context) error {
 	return a.b.StopL2OutputSubmitting()
+}
+
+func (a *adminAPI) Stopped() bool {
+	return a.b.Stopped()
 }
