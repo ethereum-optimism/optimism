@@ -250,6 +250,7 @@ func TestBackendCallsMetrics(t *testing.T) {
 type MockMetrics struct {
 	mock.Mock
 	event.NoopMetrics
+	opmetrics.NoopRPCMetrics
 }
 
 var _ Metrics = (*MockMetrics)(nil)
