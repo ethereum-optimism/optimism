@@ -105,8 +105,6 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 		return nil, fmt.Errorf("invalid blob commitment: %w", err)
 	}
 	// Compute the KZG proof for the required field element
-	//var point kzg4844.Point
-	//new(big.Int).SetUint64(requiredFieldElement).FillBytes(point[:])
 	data := kzg4844.Blob(blob)
 	kzgProof, claim, err := kzg4844.ComputeProof(&data, kzg4844.Point(zPoint))
 	if err != nil {
