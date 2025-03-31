@@ -51,7 +51,7 @@ parameters:
 orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
-  slack: circleci/slack@4.10.1
+  slack: circleci/slack@5.1.1
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
   utils: ethereum-optimism/circleci-utils@1.0.13
@@ -1741,6 +1741,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+            - slack
           filters:
             branches:
               only: develop
