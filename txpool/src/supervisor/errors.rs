@@ -43,6 +43,45 @@ pub enum InvalidInboxEntry {
 }
 
 impl InvalidInboxEntry {
+    /// Returns the [`SafetyLevel`] of message, if this is a [`MinimumSafety`](Self::MinimumSafety)
+    /// error.
+    pub fn msg_safety_level(&self) -> Option<SafetyLevel> {
+        match self {
+            Self::MinimumSafety { got, .. } => Some(*got),
+            Self::UnknownChain(_) => None,
+        }
+    }
+
+    /// Returns `true` if message is [`SafetyLevel::Invalid`]
+    pub fn is_msg_invalid(&self) -> bool {
+        matches!(self, Self::MinimumSafety { got: SafetyLevel::Invalid, .. })
+    }
+
+    /// Returns `true` if message is [`SafetyLevel::Unsafe`].
+    pub fn is_msg_unsafe(&self) -> bool {
+        matches!(self, Self::MinimumSafety { got: SafetyLevel::Unsafe, .. })
+    }
+
+    /// Returns `true` if message is [`SafetyLevel::CrossUnsafe`].
+    pub fn is_msg_cross_unsafe(&self) -> bool {
+        matches!(self, Self::MinimumSafety { got: SafetyLevel::CrossUnsafe, .. })
+    }
+
+    /// Returns `true` if message is [`SafetyLevel::LocalSafe`].
+    pub fn is_msg_local_safe(&self) -> bool {
+        matches!(self, Self::MinimumSafety { got: SafetyLevel::LocalSafe, .. })
+    }
+
+    /// Returns `true` if message is [`SafetyLevel::Safe`].
+    pub fn is_msg_safe(&self) -> bool {
+        matches!(self, Self::MinimumSafety { got: SafetyLevel::Safe, .. })
+    }
+
+    /// Returns `true` if message is at least [`SafetyLevel::CrossUnsafe`].
+    pub fn is_msg_at_least_cross_unsafe(&self) -> bool {
+        self.is_msg_cross_unsafe() || self.is_msg_local_safe() || self.is_msg_safe()
+    }
+
     /// Parses error message. Returns `None`, if message is not recognized.
     // todo: match on error code instead of message string once resolved <https://github.com/ethereum-optimism/optimism/issues/14603>
     pub fn parse_err_msg(err_msg: &str) -> Option<Self> {
