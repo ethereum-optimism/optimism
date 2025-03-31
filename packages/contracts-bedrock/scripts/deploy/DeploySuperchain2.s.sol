@@ -55,18 +55,11 @@ contract DeploySuperchain2 is Script {
     // -------- Core Deployment Methods --------
 
     function run(Input memory _input) public returns (Output memory output_) {
+        // Convert the external Input to InternalInput
         InternalInput memory internalInput = toInternalInput(_input);
 
+        // Make sure the inputs are all set
         assertValidInput(internalInput);
-
-        // Notice that we do not do any explicit verification here that inputs are set. This is because
-        // the verification happens elsewhere:
-        //   - Getter methods on the input contract provide sanity checks that values are set, when applicable.
-        //   - The individual methods below that we use to compose the deployment are responsible for handling
-        //     their own verification.
-        // This pattern ensures that other deploy scripts that might compose these contracts and
-        // methods in different ways are still protected from invalid inputs without need to implement
-        // additional verification logic.
 
         // Deploy the proxy admin, with the owner set to the deployer.
         deploySuperchainProxyAdmin(internalInput, output_);
