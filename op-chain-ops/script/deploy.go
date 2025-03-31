@@ -16,8 +16,13 @@ import (
 // ForgeScriptBackend is a minimal interface suitable for deploying & interacting with
 // foundry scripts on chain
 type ForgeScriptBackend interface {
+	// Call sends a transaction with a []byte data to a specified address
 	Call(to common.Address, input []byte) (result []byte, err error)
+
+	// Deploy deploys a contract based on an artifact, attaches metadata and labels the deployment
 	Deploy(artifact *foundry.Artifact, label string) (address common.Address, err error)
+
+	// Destroy wipes the specified address
 	Destroy(address common.Address)
 }
 
@@ -230,7 +235,7 @@ func (s *forgeScriptImpl) Call(input []byte) (output []byte, err error) {
 
 	output, err = s.backend.Call(address, input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call script %s using data %s: %w", s.name, common.Bytes2Hex(input), err)
+		return nil, fmt.Errorf("failed to call script %s using data 0x%s: %w", s.name, common.Bytes2Hex(input), err)
 	}
 
 	return output, nil
@@ -305,7 +310,7 @@ func (d *deployScriptWithOutputImpl[I, O]) Run(input I) (output O, err error) {
 
 	unpacked, err := d.ABI().Unpack(methodName, result)
 	if err != nil {
-		return output, fmt.Errorf("failed to decode output for %s method of script %s using:\n\n%v\n\n: %w", methodName, scriptName, common.Bytes2Hex(result), err)
+		return output, fmt.Errorf("failed to decode output for %s method of script %s using data 0x%s: %w", methodName, scriptName, common.Bytes2Hex(result), err)
 	}
 
 	return *abi.ConvertType(unpacked[0], new(O)).(*O), nil
