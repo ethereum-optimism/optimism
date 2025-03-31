@@ -50,7 +50,7 @@ acceptance-test devnet="simple" gate="holocene":
             --testdir "{{REPO_ROOT}}" \
             --gate {{gate}} \
             --validators ./acceptance-tests.yaml \
-            --log.level info
+            --log.level debug
     else
         echo "Mise not installed, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}

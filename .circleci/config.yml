@@ -1738,6 +1738,7 @@ workflows:
       - op-acceptance-tests:
           devnet: isthmus
           gate: isthmus
+          no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
