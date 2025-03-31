@@ -1,4 +1,4 @@
-package isthmus
+package operatorfee
 
 import (
 	"log/slog"
