@@ -237,6 +237,16 @@ func TestMatchArguments(t *testing.T) {
 					Type: die(abi.NewType("uint256[2]", "", []abi.ArgumentMarshaling{})),
 				},
 			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new([2]*big.Int))},
+			err:     ``,
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("uint256[2]", "", []abi.ArgumentMarshaling{})),
+				},
+			},
 			goTypes: []reflect.Type{reflect.TypeOf(*new([]*big.Int))},
 			err:     `ABI argument  at index 0 doesn't match Go type: ABI type uint256[2] (represented by [2]*big.Int) is not assignable to Go type []*big.Int`,
 		},
