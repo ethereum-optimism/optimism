@@ -6,78 +6,12 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
-
-func TestNewDeployScriptWithoutOutput(t *testing.T) {
-	type ExampleInput struct {
-		FieldA common.Address
-		FieldB common.Address
-	}
-
-	t.Run("should fail if the script does not have a specified method", func(t *testing.T) {
-		script := &mockForgeScript{
-			abi: abi.ABI{
-				Methods: map[string]abi.Method{},
-			},
-		}
-
-		_, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
-		require.EqualError(t, err, "script MockScript does not have a method called run")
-	})
-
-	t.Run("should fail if the specified method does not have exactly one input", func(t *testing.T) {
-		script := &mockForgeScript{
-			abi: abi.ABI{
-				Methods: map[string]abi.Method{
-					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{}, []abi.Argument{}),
-				},
-			},
-		}
-
-		_, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
-		require.EqualError(t, err, "script MockScript does not have a method run that accepts an argument of type script.ExampleInput: ABI arguments don't match Go types: ABI has 0 arguments, Go has 1")
-	})
-
-	t.Run("should fail if the specified method does not have exactly one input whose type matches the input type", func(t *testing.T) {
-		script := &mockForgeScript{
-			abi: abi.ABI{
-				Methods: map[string]abi.Method{
-					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{
-						{
-							Name: "_input",
-							Type: die(abi.NewType("uint256", "", []abi.ArgumentMarshaling{})),
-						},
-					}, []abi.Argument{}),
-				},
-			},
-		}
-
-		_, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
-		require.EqualError(t, err, "script MockScript does not have a method run that accepts an argument of type script.ExampleInput: ABI argument _input at index 0 doesn't match Go type: ABI type uint256 (represented by *big.Int) is not assignable to Go type script.ExampleInput")
-	})
-
-	t.Run("should not fail if the specified method has exactly one input whose type matches the input type", func(t *testing.T) {
-		script := &mockForgeScript{
-			abi: abi.ABI{
-				Methods: map[string]abi.Method{
-					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{
-						{
-							Name: "_input",
-							Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "fieldA", Type: "address"}, {Name: "fieldB", Type: "address"}})),
-						},
-					}, []abi.Argument{}),
-				},
-			},
-		}
-
-		deployScript, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
-		require.NoError(t, err)
-		require.NotNil(t, deployScript)
-	})
-}
 
 func TestForgeScriptImpl(t *testing.T) {
 	t.Run("should return ABI from the artifact", func(t *testing.T) {
@@ -162,6 +96,74 @@ func TestForgeScriptImpl(t *testing.T) {
 			script.Call([]byte{})
 			require.Equal(t, scriptAddress, backend.destroyedAddress)
 		})
+	})
+}
+
+func TestNewDeployScriptWithoutOutput(t *testing.T) {
+	type ExampleInput struct {
+		FieldA common.Address
+		FieldB common.Address
+	}
+
+	t.Run("should fail if the script does not have a specified method", func(t *testing.T) {
+		script := &mockForgeScript{
+			abi: abi.ABI{
+				Methods: map[string]abi.Method{},
+			},
+		}
+
+		_, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
+		require.EqualError(t, err, "script MockScript does not have a method called run")
+	})
+
+	t.Run("should fail if the specified method does not have exactly one input", func(t *testing.T) {
+		script := &mockForgeScript{
+			abi: abi.ABI{
+				Methods: map[string]abi.Method{
+					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{}, []abi.Argument{}),
+				},
+			},
+		}
+
+		_, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
+		require.EqualError(t, err, "script MockScript does not have a method run that accepts an argument of type script.ExampleInput: ABI arguments don't match Go types: ABI has 0 arguments, Go has 1")
+	})
+
+	t.Run("should fail if the specified method does not have exactly one input whose type matches the input type", func(t *testing.T) {
+		script := &mockForgeScript{
+			abi: abi.ABI{
+				Methods: map[string]abi.Method{
+					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{
+						{
+							Name: "_input",
+							Type: die(abi.NewType("uint256", "", []abi.ArgumentMarshaling{})),
+						},
+					}, []abi.Argument{}),
+				},
+			},
+		}
+
+		_, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
+		require.EqualError(t, err, "script MockScript does not have a method run that accepts an argument of type script.ExampleInput: ABI argument _input at index 0 doesn't match Go type: ABI type uint256 (represented by *big.Int) is not assignable to Go type script.ExampleInput")
+	})
+
+	t.Run("should not fail if the specified method has exactly one input whose type matches the input type", func(t *testing.T) {
+		script := &mockForgeScript{
+			abi: abi.ABI{
+				Methods: map[string]abi.Method{
+					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{
+						{
+							Name: "_input",
+							Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "fieldA", Type: "address"}, {Name: "fieldB", Type: "address"}})),
+						},
+					}, []abi.Argument{}),
+				},
+			},
+		}
+
+		deployScript, err := NewDeployScriptWithoutOutput[ExampleInput](script, "run")
+		require.NoError(t, err)
+		require.NotNil(t, deployScript)
 	})
 }
 
@@ -374,6 +376,56 @@ func TestDeployScriptWithOutputImpl(t *testing.T) {
 		require.Equal(t, die(script.abi.Pack("run", input)), script.callData)
 		require.NoError(t, err)
 		require.Equal(t, expectedOutput, output)
+	})
+}
+
+func TestNewForgeScriptFromFile(t *testing.T) {
+	t.Run("should deploy and execute an example script", func(t *testing.T) {
+		type DeployScriptExampleInput struct {
+			InputFieldA common.Address `abi:"fieldA"`
+			InputFieldB common.Address `abi:"fieldB"`
+		}
+
+		type DeployScriptExampleOutput struct {
+			OutputFieldA common.Address `abi:"fieldA"`
+			OutputFieldB common.Address `abi:"fieldB"`
+		}
+
+		// First we'll setup the required dependencies
+		logger, _ := testlog.CaptureLogger(t, log.LevelInfo)
+		af := foundry.OpenArtifactsDir("./testdata/test-artifacts")
+		host := NewHost(logger, af, nil, DefaultContext)
+
+		// We'll use an example script that returns the input data, just mapped to a different struct
+		script, err := NewForgeScriptFromFile(host, "DeployScriptExample.s.sol", "DeployScriptExample")
+		require.NoError(t, err)
+
+		// We wrap the script with a strongly-typed wrapper
+		deploySuperchain, err := NewDeployScriptWithOutput[DeployScriptExampleInput, DeployScriptExampleOutput](script, "run")
+		require.NoError(t, err)
+
+		// Put some input & expected output together
+		input := DeployScriptExampleInput{
+			InputFieldA: common.BigToAddress(big.NewInt(7)),
+			InputFieldB: common.BigToAddress(big.NewInt(6)),
+		}
+		expectedOutput := DeployScriptExampleOutput{
+			OutputFieldA: input.InputFieldA,
+			OutputFieldB: input.InputFieldB,
+		}
+
+		// And make sure that we get what we would expect
+		output, err := deploySuperchain.Run(input)
+		require.NoError(t, err)
+		require.Equal(t, expectedOutput, output)
+
+		// Now we make sure (and this depends on the contract logic) that reverts are handled
+		zeroInput := DeployScriptExampleInput{
+			InputFieldA: common.BigToAddress(big.NewInt(0)),
+			InputFieldB: common.BigToAddress(big.NewInt(0)),
+		}
+		_, err = deploySuperchain.Run(zeroInput)
+		require.ErrorContains(t, err, "failed to call script DeployScriptExample using data 0xfc61915400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000: failed to call backend: execution reverted at")
 	})
 }
 
