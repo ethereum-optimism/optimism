@@ -26,7 +26,7 @@ type HeaderProvider interface {
 
 var _ HeaderProvider = (*ethclient.Client)(nil)
 
-func GetEthClients(chain system.Chain) ([]HeaderProvider, error) {
+func getEthClients(chain system.Chain) ([]HeaderProvider, error) {
 	hps := make([]HeaderProvider, 0, len(chain.Nodes()))
 	for _, n := range chain.Nodes() {
 		gethCl, err := n.GethClient()
@@ -40,7 +40,17 @@ func GetEthClients(chain system.Chain) ([]HeaderProvider, error) {
 
 // RequireNoChainFork checks that the L2 chain has not forked now, and returns a
 // function that check again (to be called at the end of the test).
-func RequireNoChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func() error, error) {
+func RequireNoChainFork(ctx context.Context, chain system.L2Chain, logger log.Logger) (func() error, error) {
+	clients, err := getEthClients(chain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get eth clients: %w", err)
+	}
+	return requireNoChainFork(ctx, clients, logger)
+}
+
+// requireNoChainFork checks that the L2 chain has not forked now, and returns a
+// function that check again (to be called at the end of the test).
+func requireNoChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func() error, error) {
 
 	// We use a multiclient to automatically check for consistency
 	// between the nodes.

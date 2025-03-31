@@ -12,16 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockNode struct {
-	headerProvider HeaderProvider
-}
-
-func (m mockNode) GethClient() (HeaderProvider, error) {
-	return m.headerProvider, nil
-}
-
-var _ GethClientProvider = mockNode{}
-
 type mockGethClient struct {
 	latestBlockNum int
 	headersByNum   map[int]types.Header
@@ -73,15 +63,7 @@ func TestRequireNoChainFork(t *testing.T) {
 	},
 	}
 
-	a := mockNode{headerProvider: &mockA}
-	b := mockNode{headerProvider: &mockB}
-
-	testNodes := []GethClientProvider{
-		a,
-		b,
-	}
-
-	secondCheck, firstErr := RequireNoChainFork(context.Background(), testNodes, testlog.Logger(t, log.LevelDebug))
+	secondCheck, firstErr := RequireNoChainFork(context.Background(), []HeaderProvider{mockA, mockB}, testlog.Logger(t, log.LevelDebug))
 
 	require.NoError(t, firstErr)
 	mockA.latestBlockNum = 1

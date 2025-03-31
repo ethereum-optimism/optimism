@@ -313,7 +313,7 @@ func performOperatorFeeTest(t systest.T, sys system.System, l1FundingWallet syst
 	require.NoError(t, err)
 	l2RethFullClient, err := l2Chain.Nodes()[1].GethClient()
 	require.NoError(t, err)
-	l2MultiClient := systest.NewMultiClient([]*ethclient.Client{l2GethSeqClient, l2RethFullClient})
+	l2MultiClient := systest.NewMultiClient([]systest.HeaderProvider{l2GethSeqClient, l2RethFullClient})
 
 	// Get the genesis config
 	l1ChainID, err := l1GethClient.ChainID(ctx)
