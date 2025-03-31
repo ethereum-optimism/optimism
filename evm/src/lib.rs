@@ -109,8 +109,7 @@ where
         Block = alloy_consensus::Block<R::Transaction>,
     >,
     OpTransaction<TxEnv>: FromRecoveredTx<N::SignedTx>,
-    // Can remove Debug on R once it's added as OpReceiptBuilder constraint
-    R: OpReceiptBuilder<Receipt: DepositReceipt, Transaction: SignedTransaction> + Debug,
+    R: OpReceiptBuilder<Receipt: DepositReceipt, Transaction: SignedTransaction>,
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     type Primitives = N;
