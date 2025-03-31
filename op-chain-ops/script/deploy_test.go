@@ -239,6 +239,57 @@ func TestDeployScriptWithoutOutputImpl(t *testing.T) {
 	})
 }
 
+func TestDeployScriptWithOutputImpl(t *testing.T) {
+	makeDeployScript := func(t *testing.T) (*mockForgeScript, DeployScriptWithOutput[*big.Int, []*big.Int]) {
+		script := &mockForgeScript{
+			abi: abi.ABI{
+				Methods: map[string]abi.Method{
+					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{
+						{
+							Name: "_input",
+							Type: die(abi.NewType("uint256", "", []abi.ArgumentMarshaling{})),
+						},
+					}, []abi.Argument{
+						{
+							Name: "output_",
+							Type: die(abi.NewType("uint256[]", "", []abi.ArgumentMarshaling{})),
+						},
+					}),
+				},
+			},
+		}
+
+		deployScript, err := NewDeployScriptWithOutput[*big.Int, []*big.Int](script, "run")
+		require.NoError(t, err)
+
+		return script, deployScript
+	}
+
+	t.Run("should return an error if script.Call returns an error", func(t *testing.T) {
+		script, deployScript := makeDeployScript(t)
+		script.callError = fmt.Errorf("oh no")
+
+		input := big.NewInt(1)
+		output, err := deployScript.Run(input)
+		require.Equal(t, die(script.abi.Pack("run", input)), script.callData)
+		require.EqualError(t, err, "failed to run run method of script MockScript using:\n\n1\n\n: oh no")
+		require.Nil(t, output)
+	})
+
+	t.Run("should not return an error if script.Call does not return an error", func(t *testing.T) {
+		script, deployScript := makeDeployScript(t)
+
+		expectedOutput := []*big.Int{big.NewInt(1), big.NewInt(2)}
+		script.callResult = die(script.abi.Methods["run"].Outputs.Pack(expectedOutput))
+
+		input := big.NewInt(2)
+		output, err := deployScript.Run(input)
+		require.Equal(t, die(script.abi.Pack("run", input)), script.callData)
+		require.NoError(t, err)
+		require.Equal(t, expectedOutput, output)
+	})
+}
+
 type mockForgeScript struct {
 	abi        abi.ABI
 	callData   []byte
