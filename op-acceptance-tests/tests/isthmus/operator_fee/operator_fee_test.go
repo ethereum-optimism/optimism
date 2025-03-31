@@ -96,7 +96,11 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	require.NoError(t, err)
 
 	// Setup chain fork detection
-	defer systest.CheckForChainFork(t.Context(), l2Chain, logger)
+	secondCheck, err := systest.CheckForChainFork(t.Context(), l2Chain, logger)
+	require.NoError(t, err, "error checking for chain fork")
+	defer func() {
+		require.NoError(t, secondCheck(), "error checking for chain fork")
+	}()
 
 	l2StartHeader, err := l2GethSeqClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
