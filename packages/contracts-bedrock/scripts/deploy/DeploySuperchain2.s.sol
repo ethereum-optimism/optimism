@@ -27,9 +27,11 @@ contract DeploySuperchain2 is Script {
         bytes32 requiredProtocolVersion;
     }
 
-    /// @notice InternalInput is created based on Input by converting the bytes32 protocol versions to ProtocolVersion types
+    /// @notice InternalInput is created based on Input by converting the bytes32 protocol versions to ProtocolVersion
+    /// types
     //
-    // ProtocolVersion type is based on uint256 which conflicts with downstream types (like e.g. ProtocolVersion from op-geth)
+    // ProtocolVersion type is based on uint256 which conflicts with downstream types (like e.g. ProtocolVersion from
+    // op-geth)
     // so to keep the ABI externally compatible, we expose it simply as bytes32
     struct InternalInput {
         // Role inputs.
