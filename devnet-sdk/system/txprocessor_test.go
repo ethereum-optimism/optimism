@@ -27,7 +27,7 @@ func TestTransactionProcessor_Sign(t *testing.T) {
 
 	// Create a wallet with the test key
 	chain := newChain(chainID.String(), WalletMap{}, nil, AddressMap{}, []Node{})
-	wallet, err := newWallet(testKey, testAddr, chain)
+	wallet, err := NewWallet(testKey, testAddr, chain)
 	assert.NoError(t, err)
 
 	processor := &transactionProcessor{
