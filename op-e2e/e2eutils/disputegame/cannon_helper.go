@@ -1,9 +1,11 @@
 package disputegame
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"path/filepath"
@@ -119,6 +121,42 @@ func (g *CannonHelper) WaitForPreimageInOracle(ctx context.Context, data *types.
 	g.require.NoErrorf(err, "Did not find preimage (%v) in oracle", common.Bytes2Hex(data.OracleKey))
 }
 
+// CheckPreimageInOracle verifies that expectedData is stored on-chain in the PreimageOracle
+func (g *CannonHelper) CheckPreimageInOracle(ctx context.Context, data *types.PreimageOracleData, expectedData [32]byte) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	oracle := g.oracle(ctx)
+
+	// Pull preimage data from oracle and verify it matches what we expect from data
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		g.t.Logf("Waiting to get preimage data from oracle for key: (%v)", common.Bytes2Hex(data.OracleKey))
+		globalData, err := oracle.GetGlobalData(ctx, data)
+		if err != nil {
+			return false, err
+		}
+		// Compare retrieved data to expected data
+		if expectedData != [32]byte{} && !bytes.Equal(globalData[:], expectedData[:]) {
+			return false, fmt.Errorf("Expected preimage part: %x\nFound: %x", expectedData, globalData[:])
+		}
+
+		return true, nil
+	})
+	g.require.NoErrorf(err, "Failed to confirm preimage data for key (%v) matches expectation", common.Bytes2Hex(data.OracleKey))
+}
+
+// GetPreimageAtOffset returns a slice of the preimage data (with size prefix) at the specified offset
+// This can be used to determine what preimage part we expect to be stored in the PreimageOracle contract.
+// This only works for some types of preimages, however.  For example, precompile preimages store data that is
+// computed on-chain
+func (g *CannonHelper) GetPreimageAtOffset(data *types.PreimageOracleData) [32]byte {
+	var part [32]byte
+
+	offset := data.OracleOffset
+	copy(part[:], data.GetPreimageWithSize()[offset:])
+
+	return part
+}
+
 func (g *CannonHelper) UploadPreimage(ctx context.Context, data *types.PreimageOracleData) {
 	oracle := g.oracle(ctx)
 	tx, err := oracle.AddGlobalDataTx(data)
@@ -161,12 +199,29 @@ func (g *CannonHelper) CreateStepLargePreimageLoadCheck(ctx context.Context, sen
 	}
 }
 
+// CreateStepPreimageLoadCheck returns a PreimageLoadCheck that generates the expected preimage data and
+// verifies that data for the expected key is stored on-chain (PreimageOracle.preimagePartOk[key][offset] == true).
 func (g *CannonHelper) CreateStepPreimageLoadCheck(ctx context.Context) PreimageLoadCheck {
+	noop := func(_ *types.PreimageOracleData) [32]byte { return [32]byte{} }
+	return g.createStepPreimageLoadCheck(ctx, noop)
+}
+
+// CreateStepPreimageLoadStrictCheck returns a PreimageLoadCheck that generates the expected preimage data and
+// verifies that data for the expected key is stored on-chain (PreimageOracle.preimagePartOk[key][offset] == true).
+// Additionally, it checks that the data stored on-chain (in PreimageOracle.preimageParts) is what we expect.
+func (g *CannonHelper) CreateStepPreimageLoadStrictCheck(ctx context.Context, expectedData func(p *types.PreimageOracleData) [32]byte) PreimageLoadCheck {
+	return g.createStepPreimageLoadCheck(ctx, expectedData)
+}
+
+func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpectedData func(p *types.PreimageOracleData) [32]byte) PreimageLoadCheck {
 	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
 		execDepth := g.splitGame.ExecDepth(ctx)
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
 		g.require.NoError(err)
 		g.WaitForPreimageInOracle(ctx, preimageData)
+
+		expectedData := getExpectedData(preimageData)
+		g.CheckPreimageInOracle(ctx, preimageData, expectedData)
 		return nil
 	}
 }

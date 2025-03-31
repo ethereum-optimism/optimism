@@ -217,6 +217,27 @@ func TestPreimageOracleContract_PreimageDataExists(t *testing.T) {
 	}
 }
 
+func TestPreimageOracleContract_GetGlobalData(t *testing.T) {
+	preimageDataBytes := common.Hex2BytesFixed("0x112233445566778899", 32)
+	var preimageData [32]byte
+	copy(preimageData[:], preimageDataBytes)
+
+	for _, version := range oracleVersions {
+		version := version
+		t.Run(version.version, func(t *testing.T) {
+			stubRpc, oracle := setupPreimageOracleTest(t, version)
+			data := types.NewPreimageOracleData(common.Hash{0xcc}.Bytes(), preimageData[:], 0)
+			stubRpc.SetResponse(oracleAddr, methodPreimageParts, rpcblock.Latest,
+				[]interface{}{common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset))},
+				[]interface{}{preimageData},
+			)
+			actual, err := oracle.GetGlobalData(context.Background(), data)
+			require.NoError(t, err)
+			require.Equal(t, preimageData, actual)
+		})
+	}
+}
+
 func TestPreimageOracleContract_InitLargePreimage(t *testing.T) {
 	for _, version := range oracleVersions {
 		version := version
