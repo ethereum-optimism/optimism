@@ -48,7 +48,8 @@ func DoMain(m *testing.M) {
 	// For the global geth logs,
 	// capture them in the global test logger.
 	// No other tool / test should change the global logger.
-	log.SetDefault(t.Log.New("logger", "global"))
+	// TODO: set log-level filter, reduce noise
+	//log.SetDefault(t.Log.New("logger", "global"))
 
 	initOrchestrator(t, t.Log)
 	code := m.Run()

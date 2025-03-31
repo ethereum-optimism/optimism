@@ -49,6 +49,23 @@ The `Orchestrator` is an intentionally minimalist interface.
 This is implemented by external packages, and available in the `Setup`,
 to provide backend-specific functionality to setup functions.
 
+The orchestrator holds on to its own test-handle and logger.
+These may not be go-test variants, but rather tooling variants,
+when running in tools or as global orchestrator.
+
+The global orchestrator is set up with:
+```go
+func TestMain(m *testing.M) {
+	presets.DoMain(m)
+}
+```
+
+The preferred orchestrator kind is configured with env-var `DEVSTACK_ORCHESTRATOR`:
+- `sysgo` instantiates an in-process Go backend, ready to spawn services on demand.
+- `syskt` instantiates a kurtosis-descriptor based backend,
+  and attaches to a local devnet (selection is configured with kurtosis-devnet env vars).
+
+
 ### `Setup` and `Option`
 
 A `Setup` is a bundle of common inputs (context, logging, testing handle, etc.), and a `System` and `Orchestrator`,
