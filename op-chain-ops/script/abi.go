@@ -80,8 +80,21 @@ func matchTypes(abiType abi.Type, goType reflect.Type) error {
 			//
 			// This is important since ABI encoding and decoding specifically has issues
 			// with misordered fields and can place values in wrong places
-			if field.Name != goField.Name {
-				return fmt.Errorf("%w: ABI field name %s at index %d does not match Go field name %s. Please make sure to match the Go structs with Solidity structs", abiTypeErr(abiType, goType), field.Name, index, goField.Name)
+			//
+			// Here we need to take `abi:` tags into consideration since if present,
+			// they will dictate the ABI <-> Go field mapping instead of the struct names
+			goFieldTagName, ok := goField.Tag.Lookup("abi")
+			if ok {
+				// If the tag is present, we'll match it with the corresponding ABI tuple type name
+				abiFieldRawName := abiType.TupleRawNames[index]
+				if goFieldTagName != abiFieldRawName {
+					return fmt.Errorf("%w: ABI field name %s at index %d does not match Go field name %s. Please make sure to match the Go structs with Solidity structs", abiTypeErr(abiType, goType), field.Name, index, goField.Name)
+				}
+			} else {
+				// If there is no `abi:` tag, we'll match the field names themselves
+				if field.Name != goField.Name {
+					return fmt.Errorf("%w: ABI field name %s at index %d does not match Go field name %s. Please make sure to match the Go structs with Solidity structs", abiTypeErr(abiType, goType), field.Name, index, goField.Name)
+				}
 			}
 
 			// Now we ensure that the types match

@@ -200,11 +200,30 @@ func TestMatchArguments(t *testing.T) {
 			abiArguments: abi.Arguments{
 				{
 					Name: "",
+					Type: die(abi.NewType("uint256[2]", "", []abi.ArgumentMarshaling{})),
+				},
+			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new([2]*big.Int))},
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
 					Type: die(abi.NewType("uint256[]", "", []abi.ArgumentMarshaling{})),
 				},
 			},
 			goTypes: []reflect.Type{},
 			err:     `ABI arguments don't match Go types: ABI has 1 arguments, Go has 0`,
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("uint256[]", "", []abi.ArgumentMarshaling{})),
+				},
+			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new(big.Int))},
+			err:     `ABI argument  at index 0 doesn't match Go type: ABI type uint256[] (represented by []*big.Int) is not assignable to Go type big.Int`,
 		},
 		{
 			abiArguments: abi.Arguments{},
@@ -235,11 +254,70 @@ func TestMatchArguments(t *testing.T) {
 			abiArguments: abi.Arguments{
 				{
 					Name: "",
+					Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "field", Type: "uint256"}, {Name: "otherField", Type: "address"}})),
+				},
+			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new(struct {
+				FieldRenamed      *big.Int       `abi:"field"`
+				OtherFieldRenamed common.Address `abi:"otherField"`
+			}))},
+			err: ``,
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "field", Type: "uint256"}, {Name: "otherField", Type: "address"}})),
+				},
+			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new(struct {
+				Field      *big.Int       `abi:"otherField"`
+				OtherField common.Address `abi:"field"`
+			}))},
+			err: `ABI argument  at index 0 doesn't match Go type: ABI type (uint256,address) (represented by struct { Field *big.Int "json:\"field\""; OtherField common.Address "json:\"otherField\"" }) is not assignable to Go type struct { Field *big.Int "abi:\"otherField\""; OtherField common.Address "abi:\"field\"" }: ABI field name Field at index 0 does not match Go field name Field. Please make sure to match the Go structs with Solidity structs`,
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "field", Type: "address"}})),
+				},
+			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new(uint8))},
+			err:     `ABI argument  at index 0 doesn't match Go type: ABI type (address) (represented by struct { Field common.Address "json:\"field\"" }) is not assignable to Go type uint8`,
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
 					Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "field", Type: "address"}})),
 				},
 			},
 			goTypes: []reflect.Type{reflect.TypeOf(*new(struct{ Field *big.Int }))},
 			err:     `ABI argument  at index 0 doesn't match Go type: ABI type (address) (represented by struct { Field common.Address "json:\"field\"" }) is not assignable to Go type struct { Field *big.Int }: ABI field Field does not match Go field Field: ABI type address (represented by common.Address) is not assignable to Go type *big.Int`,
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "field", Type: "address"}, {Name: "otherField", Type: "uint256"}})),
+				},
+			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new(struct{ Field common.Address }))},
+			err:     `ABI argument  at index 0 doesn't match Go type: ABI type (address,uint256) (represented by struct { Field common.Address "json:\"field\""; OtherField *big.Int "json:\"otherField\"" }) is not assignable to Go type struct { Field common.Address }: the number of struct fields doesn't match: ABI type has 2, Go type has 1`,
+		},
+		{
+			abiArguments: abi.Arguments{
+				{
+					Name: "",
+					Type: die(abi.NewType("tuple", "", []abi.ArgumentMarshaling{{Name: "field", Type: "address"}, {Name: "otherField", Type: "uint256"}})),
+				},
+			},
+			goTypes: []reflect.Type{reflect.TypeOf(*new(struct {
+				OtherField *big.Int
+				Field      common.Address
+			}))},
+			err: `ABI argument  at index 0 doesn't match Go type: ABI type (address,uint256) (represented by struct { Field common.Address "json:\"field\""; OtherField *big.Int "json:\"otherField\"" }) is not assignable to Go type struct { OtherField *big.Int; Field common.Address }: ABI field name Field at index 0 does not match Go field name OtherField. Please make sure to match the Go structs with Solidity structs`,
 		},
 	}
 
