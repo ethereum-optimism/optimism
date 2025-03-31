@@ -1,6 +1,8 @@
 package syskt
 
 import (
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 )
@@ -8,10 +10,27 @@ import (
 type OrchestratorOption func(*Orchestrator)
 
 type Orchestrator struct {
+	t   stack.T
+	log log.Logger
+
 	env *descriptors.DevnetEnvironment
 
 	usePrivatePorts    bool
 	useEagerRPCClients bool
+}
+
+var _ stack.Orchestrator = (*Orchestrator)(nil)
+
+func NewOrchestrator(t stack.T, log log.Logger) *Orchestrator {
+	return &Orchestrator{t: t, log: log}
+}
+
+func (o *Orchestrator) T() stack.T {
+	return o.t
+}
+
+func (o *Orchestrator) Log() log.Logger {
+	return o.log
 }
 
 func isInterop(env *descriptors.DevnetEnvironment) bool {
@@ -40,5 +59,3 @@ func WithEagerRPCClients() OrchestratorOption {
 		orchestrator.useEagerRPCClients = true
 	}
 }
-
-var _ stack.Orchestrator = (*Orchestrator)(nil)

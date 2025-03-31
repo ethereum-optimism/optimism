@@ -5,22 +5,20 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 )
 
-type T interface {
-	stack.T
-	TempDir() string
-	Cleanup(func()) // this orchestrator will shut down its components at the end of the test
-}
-
 type Orchestrator struct {
-	t T
+	t   stack.T
+	log log.Logger
 
 	keys devkeys.Keys
 
@@ -43,8 +41,16 @@ type Orchestrator struct {
 	jwtPathOnce sync.Once
 }
 
-func NewOrchestrator(t T) *Orchestrator {
-	return &Orchestrator{t: t}
+func NewOrchestrator(t stack.T, log log.Logger) *Orchestrator {
+	return &Orchestrator{t: t, log: log}
+}
+
+func (o *Orchestrator) T() stack.T {
+	return o.t
+}
+
+func (o *Orchestrator) Log() log.Logger {
+	return o.log
 }
 
 func (o *Orchestrator) writeDefaultJWT() (jwtPath string, secret [32]byte) {

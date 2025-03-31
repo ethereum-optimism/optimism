@@ -12,6 +12,16 @@ import (
 // It imposes some common things across all orchestrators, but may also haveoptional extensions, that not every type of backend might support.
 type Orchestrator interface {
 
+	// T is the test-handle of the orchestrator.
+	// This may not be a Go-test handle.
+	// Orchestrators may be instantiated by dev-tools or test-package TestMain functions.
+	T() T
+
+	// Log is the logger of the orchestrator.
+	// Use this logger if the output is not relevant to a specific test,
+	// but to the orchestration of the system.
+	Log() log.Logger
+
 	// Example: a gate that wants funds may use the fund-account to send funds to a new account,
 	// if the system doesn't already have a prefunded test account
 	// FundAccount() *ecdsa.PrivateKey
