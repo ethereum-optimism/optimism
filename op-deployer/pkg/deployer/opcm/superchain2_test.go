@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,8 +21,8 @@ func TestDeploySuperchain2(t *testing.T) {
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
 			Paused:                     true,
-			RecommendedProtocolVersion: big.NewInt(2),
-			RequiredProtocolVersion:    big.NewInt(1),
+			RecommendedProtocolVersion: params.ProtocolVersion{1},
+			RequiredProtocolVersion:    params.ProtocolVersion{2},
 		})
 
 		// And do some simple asserts

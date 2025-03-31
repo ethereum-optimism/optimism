@@ -1,19 +1,18 @@
 package opcm
 
 import (
-	"math/big"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 type DeploySuperchain2Input struct {
-	Guardian                   common.Address `toml:"guardian"`
-	ProtocolVersionsOwner      common.Address `toml:"protocolVersionsOwner"`
-	SuperchainProxyAdminOwner  common.Address `toml:"superchainProxyAdminOwner"`
-	Paused                     bool           `toml:"paused"`
-	RecommendedProtocolVersion *big.Int       `toml:"recommendedProtocolVersion"`
-	RequiredProtocolVersion    *big.Int       `toml:"requiredProtocolVersion"`
+	Guardian                   common.Address         `toml:"guardian"`
+	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
+	SuperchainProxyAdminOwner  common.Address         `toml:"superchainProxyAdminOwner"`
+	Paused                     bool                   `toml:"paused"`
+	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
+	RequiredProtocolVersion    params.ProtocolVersion `toml:"requiredProtocolVersion"`
 }
 
 type DeploySuperchain2Output struct {
