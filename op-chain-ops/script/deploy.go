@@ -18,7 +18,7 @@ import (
 type ForgeScriptBackend interface {
 	Call(to common.Address, input []byte) (result []byte, err error)
 	Deploy(artifact *foundry.Artifact, label string) (address common.Address, err error)
-	Destroy(address common.Address) error
+	Destroy(address common.Address)
 }
 
 // ForgeScript is a generic script instance
@@ -186,10 +186,8 @@ func (b *forgeScriptBackendImpl) Deploy(artifact *foundry.Artifact, label string
 }
 
 // Destroy implements ForgeScriptBackend.
-func (b *forgeScriptBackendImpl) Destroy(address common.Address) error {
+func (b *forgeScriptBackendImpl) Destroy(address common.Address) {
 	b.host.Wipe(address)
-
-	return nil
 }
 
 type forgeScriptImpl struct {
