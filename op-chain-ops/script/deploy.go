@@ -276,7 +276,7 @@ func (d *deployScriptWithOutputImpl[I, O]) Run(input I) (output O, err error) {
 
 	result, err := d.deployScriptWithoutOutputImpl.run(input)
 	if err != nil {
-		return output, fmt.Errorf("failed to run %s method of script %s using:\n\n%v\n\n: %w", methodName, scriptName, input, err)
+		return output, err
 	}
 
 	unpacked, err := d.ABI().Unpack(methodName, result)
