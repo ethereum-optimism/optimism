@@ -15,15 +15,15 @@ contract DeploySuperchain2_Test is Test {
     address defaultProtocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address defaultGuardian = makeAddr("defaultGuardian");
     bool defaultPaused = false;
-    ProtocolVersion defaultRequiredProtocolVersion = ProtocolVersion.wrap(1);
-    ProtocolVersion defaultRecommendedProtocolVersion = ProtocolVersion.wrap(2);
+    bytes32 defaultRequiredProtocolVersion = bytes32(uint256(1));
+    bytes32 defaultRecommendedProtocolVersion = bytes32(uint256(2));
 
     function setUp() public {
         deploySuperchain = new DeploySuperchain2();
     }
 
-    function unwrap(ProtocolVersion _pv) internal pure returns (uint256) {
-        return ProtocolVersion.unwrap(_pv);
+    function unwrap(ProtocolVersion _pv) internal pure returns (bytes32) {
+        return bytes32(ProtocolVersion.unwrap(_pv));
     }
 
     function hash(bytes32 _seed, uint256 _i) internal pure returns (bytes32) {
@@ -35,16 +35,16 @@ contract DeploySuperchain2_Test is Test {
         address _protocolVersionsOwner,
         address _guardian,
         bool _paused,
-        ProtocolVersion _recommendedProtocolVersion,
-        ProtocolVersion _requiredProtocolVersion
+        bytes32 _recommendedProtocolVersion,
+        bytes32 _requiredProtocolVersion
     )
         public
     {
         vm.assume(_superchainProxyAdminOwner != address(0));
         vm.assume(_protocolVersionsOwner != address(0));
         vm.assume(_guardian != address(0));
-        vm.assume(unwrap(_recommendedProtocolVersion) != 0);
-        vm.assume(unwrap(_requiredProtocolVersion) != 0);
+        vm.assume(_recommendedProtocolVersion != bytes32(0));
+        vm.assume(_requiredProtocolVersion != bytes32(0));
 
         DeploySuperchain2.Input memory dsi = DeploySuperchain2.Input(
             _guardian,
@@ -63,8 +63,8 @@ contract DeploySuperchain2_Test is Test {
         assertEq(address(dso.protocolVersionsProxy.owner()), _protocolVersionsOwner, "200");
         assertEq(address(dso.superchainConfigProxy.guardian()), _guardian, "300");
         assertEq(dso.superchainConfigProxy.paused(), _paused, "400");
-        assertEq(unwrap(dso.protocolVersionsProxy.required()), unwrap(_requiredProtocolVersion), "500");
-        assertEq(unwrap(dso.protocolVersionsProxy.recommended()), unwrap(_recommendedProtocolVersion), "600");
+        assertEq(unwrap(dso.protocolVersionsProxy.required()), _requiredProtocolVersion, "500");
+        assertEq(unwrap(dso.protocolVersionsProxy.recommended()), _recommendedProtocolVersion, "600");
 
         // Architecture assertions.
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
@@ -98,12 +98,12 @@ contract DeploySuperchain2_Test is Test {
         deploySuperchain.run(input);
 
         input = defaultInput();
-        input.requiredProtocolVersion = ProtocolVersion.wrap(0);
+        input.requiredProtocolVersion = bytes32(0);
         vm.expectRevert("DeploySuperchain: requiredProtocolVersion not set");
         deploySuperchain.run(input);
 
         input = defaultInput();
-        input.recommendedProtocolVersion = ProtocolVersion.wrap(0);
+        input.recommendedProtocolVersion = bytes32(0);
         vm.expectRevert("DeploySuperchain: recommendedProtocolVersion not set");
         deploySuperchain.run(input);
     }

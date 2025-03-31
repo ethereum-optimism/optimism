@@ -23,6 +23,21 @@ contract DeploySuperchain2 is Script {
         address superchainProxyAdminOwner;
         // Other inputs.
         bool paused;
+        bytes32 recommendedProtocolVersion;
+        bytes32 requiredProtocolVersion;
+    }
+
+    /// @notice InternalInput is created based on Input by converting the bytes32 protocol versions to ProtocolVersion types
+    //
+    // ProtocolVersion type is based on uint256 which conflicts with downstream types (like e.g. ProtocolVersion from op-geth)
+    // so to keep the ABI externally compatible, we expose it simply as bytes32
+    struct InternalInput {
+        // Role inputs.
+        address guardian;
+        address protocolVersionsOwner;
+        address superchainProxyAdminOwner;
+        // Other inputs.
+        bool paused;
         ProtocolVersion recommendedProtocolVersion;
         ProtocolVersion requiredProtocolVersion;
     }
@@ -40,7 +55,9 @@ contract DeploySuperchain2 is Script {
     // -------- Core Deployment Methods --------
 
     function run(Input memory _input) public returns (Output memory output_) {
-        assertValidInput(_input);
+        InternalInput memory internalInput = toInternalInput(_input);
+
+        assertValidInput(internalInput);
 
         // Notice that we do not do any explicit verification here that inputs are set. This is because
         // the verification happens elsewhere:
@@ -52,23 +69,23 @@ contract DeploySuperchain2 is Script {
         // additional verification logic.
 
         // Deploy the proxy admin, with the owner set to the deployer.
-        deploySuperchainProxyAdmin(_input, output_);
+        deploySuperchainProxyAdmin(internalInput, output_);
 
         // Deploy and initialize the superchain contracts.
-        deploySuperchainImplementationContracts(_input, output_);
-        deployAndInitializeSuperchainConfig(_input, output_);
-        deployAndInitializeProtocolVersions(_input, output_);
+        deploySuperchainImplementationContracts(internalInput, output_);
+        deployAndInitializeSuperchainConfig(internalInput, output_);
+        deployAndInitializeProtocolVersions(internalInput, output_);
 
         // Transfer ownership of the ProxyAdmin from the deployer to the specified owner.
-        transferProxyAdminOwnership(_input, output_);
+        transferProxyAdminOwnership(internalInput, output_);
 
         // Output assertions, to make sure outputs were assigned correctly.
-        assertValidOutput(_input, output_);
+        assertValidOutput(internalInput, output_);
     }
 
     // -------- Deployment Steps --------
 
-    function deploySuperchainProxyAdmin(Input memory, Output memory _output) internal {
+    function deploySuperchainProxyAdmin(InternalInput memory, Output memory _output) private {
         // Deploy the proxy admin, with the owner set to the deployer.
         // We explicitly specify the deployer as `msg.sender` because for testing we deploy this script from a test
         // contract. If we provide no argument, the foundry default sender would be the broadcaster during test, but the
@@ -85,7 +102,7 @@ contract DeploySuperchain2 is Script {
         _output.superchainProxyAdmin = superchainProxyAdmin;
     }
 
-    function deploySuperchainImplementationContracts(Input memory, Output memory _output) internal {
+    function deploySuperchainImplementationContracts(InternalInput memory, Output memory _output) private {
         // Deploy implementation contracts.
         ISuperchainConfig superchainConfigImpl = ISuperchainConfig(
             DeployUtils.createDeterministic({
@@ -109,9 +126,7 @@ contract DeploySuperchain2 is Script {
         _output.protocolVersionsImpl = protocolVersionsImpl;
     }
 
-    function deployAndInitializeSuperchainConfig(Input memory _input, Output memory _output) internal {
-        assertValidGuardianInput(_input);
-
+    function deployAndInitializeSuperchainConfig(InternalInput memory _input, Output memory _output) private {
         address guardian = _input.guardian;
         bool paused = _input.paused;
 
@@ -138,9 +153,7 @@ contract DeploySuperchain2 is Script {
         _output.superchainConfigProxy = superchainConfigProxy;
     }
 
-    function deployAndInitializeProtocolVersions(Input memory _input, Output memory _output) internal {
-        assertValidProtocolInput(_input);
-
+    function deployAndInitializeProtocolVersions(InternalInput memory _input, Output memory _output) private {
         address protocolVersionsOwner = _input.protocolVersionsOwner;
         ProtocolVersion requiredProtocolVersion = _input.requiredProtocolVersion;
         ProtocolVersion recommendedProtocolVersion = _input.recommendedProtocolVersion;
@@ -171,9 +184,7 @@ contract DeploySuperchain2 is Script {
         _output.protocolVersionsProxy = protocolVersionsProxy;
     }
 
-    function transferProxyAdminOwnership(Input memory _input, Output memory _output) internal {
-        assertValidProxyInput(_input);
-
+    function transferProxyAdminOwnership(InternalInput memory _input, Output memory _output) private {
         address superchainProxyAdminOwner = _input.superchainProxyAdminOwner;
 
         IProxyAdmin superchainProxyAdmin = _output.superchainProxyAdmin;
@@ -183,17 +194,8 @@ contract DeploySuperchain2 is Script {
         superchainProxyAdmin.transferOwnership(superchainProxyAdminOwner);
     }
 
-    function assertValidInput(Input memory _input) internal pure {
-        assertValidGuardianInput(_input);
-        assertValidProxyInput(_input);
-        assertValidProtocolInput(_input);
-    }
-
-    function assertValidGuardianInput(Input memory _input) internal pure {
+    function assertValidInput(InternalInput memory _input) internal pure {
         require(_input.guardian != address(0), "DeploySuperchain: guardian not set");
-    }
-
-    function assertValidProtocolInput(Input memory _input) internal pure {
         require(_input.protocolVersionsOwner != address(0), "DeploySuperchain: protocolVersionsOwner not set");
         require(
             ProtocolVersion.unwrap(_input.requiredProtocolVersion) != 0,
@@ -203,20 +205,17 @@ contract DeploySuperchain2 is Script {
             ProtocolVersion.unwrap(_input.recommendedProtocolVersion) != 0,
             "DeploySuperchain: recommendedProtocolVersion not set"
         );
-    }
-
-    function assertValidProxyInput(Input memory _input) internal pure {
         require(_input.superchainProxyAdminOwner != address(0), "DeploySuperchain: superchainProxyAdminOwner not set");
     }
 
-    function assertValidOutput(Input memory _input, Output memory _output) public {
+    function assertValidOutput(InternalInput memory _input, Output memory _output) public {
         assertValidContractAddresses(_input, _output);
         assertValidSuperchainProxyAdmin(_input, _output);
         assertValidSuperchainConfig(_input, _output);
         assertValidProtocolVersions(_input, _output);
     }
 
-    function assertValidContractAddresses(Input memory, Output memory _output) internal {
+    function assertValidContractAddresses(InternalInput memory, Output memory _output) internal {
         address[] memory addrs = Solarray.addresses(
             address(_output.superchainProxyAdmin),
             address(_output.superchainConfigImpl),
@@ -238,11 +237,11 @@ contract DeploySuperchain2 is Script {
             // sol-style-malformed-require
     }
 
-    function assertValidSuperchainProxyAdmin(Input memory _input, Output memory _output) internal view {
+    function assertValidSuperchainProxyAdmin(InternalInput memory _input, Output memory _output) internal view {
         require(_output.superchainProxyAdmin.owner() == _input.superchainProxyAdminOwner, "SPA-10");
     }
 
-    function assertValidSuperchainConfig(Input memory _input, Output memory _output) internal {
+    function assertValidSuperchainConfig(InternalInput memory _input, Output memory _output) internal {
         // Proxy checks.
         ISuperchainConfig superchainConfig = _output.superchainConfigProxy;
         DeployUtils.assertInitialized({
@@ -270,7 +269,7 @@ contract DeploySuperchain2 is Script {
         require(superchainConfig.paused() == false, "SUPCON-60");
     }
 
-    function assertValidProtocolVersions(Input memory _input, Output memory _output) internal {
+    function assertValidProtocolVersions(InternalInput memory _input, Output memory _output) internal {
         // Proxy checks.
         IProtocolVersions pv = _output.protocolVersionsProxy;
         DeployUtils.assertInitialized({ _contractAddress: address(pv), _isProxy: true, _slot: 0, _offset: 0 });
@@ -293,5 +292,16 @@ contract DeploySuperchain2 is Script {
         require(pv.owner() == address(0), "PV-60");
         require(ProtocolVersion.unwrap(pv.required()) == 0, "PV-70");
         require(ProtocolVersion.unwrap(pv.recommended()) == 0, "PV-80");
+    }
+
+    function toInternalInput(Input memory _input) internal pure returns (InternalInput memory input_) {
+        input_ = InternalInput(
+            _input.guardian,
+            _input.protocolVersionsOwner,
+            _input.superchainProxyAdminOwner,
+            _input.paused,
+            ProtocolVersion.wrap(uint256(_input.recommendedProtocolVersion)),
+            ProtocolVersion.wrap(uint256(_input.requiredProtocolVersion))
+        );
     }
 }
