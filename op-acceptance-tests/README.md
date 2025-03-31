@@ -25,7 +25,7 @@ This process helps maintain high-quality standards across all networks in the OP
 
 Dependencies are managed using the repo-wide `mise` config. So ensure you've first run `mise install` at the repo root. If you need to manually modify the version of op-acceptor you wish to run you'll need to do it within the _mise.toml_ file at the repo root.
 
-## Usage
+## CI Usage
 
 The tests can be run using the `just` command runner:
 
@@ -39,6 +39,28 @@ just acceptance-test <devnet> <gate>
 # Run the acceptance tests using a specific version of op-acceptor
 ACCEPTOR_IMAGE=op-acceptor:latest just acceptance-test
 ```
+
+## Development Usage
+
+The above command works great for CI but less well for development because it pessimistically rebuilds kurtosis each time, regardless of whether anything has changed in the underlying Optimism services build.
+We will fix this in the future, but the workaround is to decouple your kurtosis deployment from test running by manually managing each.
+
+1. Deploy kurtosis
+
+   ```
+   cd kurtosis-deploy
+   just isthmus-devnet # or whatever devnet you intend to test
+   # will take ~3-4m to spin up
+   ```
+
+2. Run tests with devnet descriptor env var configuration (instant)
+
+   ```
+   cd ../op-acceptance-tests
+   DEVNET_ENV_URL=kt://isthmus-devnet/devnet-descriptor-0 go test -v ./tests/isthmus/...
+   ```
+
+This should allow you to tweak your test in a tight loop while the test subject remains the same.
 
 ### Configuration
 
