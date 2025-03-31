@@ -398,11 +398,7 @@ func TestNewForgeScriptFromFile(t *testing.T) {
 		host := NewHost(logger, af, nil, DefaultContext)
 
 		// We'll use an example script that returns the input data, just mapped to a different struct
-		script, err := NewForgeScriptFromFile(host, "DeployScriptExample.s.sol", "DeployScriptExample")
-		require.NoError(t, err)
-
-		// We wrap the script with a strongly-typed wrapper
-		deploySuperchain, err := NewDeployScriptWithOutput[DeployScriptExampleInput, DeployScriptExampleOutput](script, "run")
+		deploySuperchain, err := NewDeployScriptWithOutputFromFile[DeployScriptExampleInput, DeployScriptExampleOutput](host, "DeployScriptExample.s.sol", "DeployScriptExample")
 		require.NoError(t, err)
 
 		// Put some input & expected output together

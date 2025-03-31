@@ -94,6 +94,26 @@ func NewForgeScriptFromArtifact(artifact *foundry.Artifact, name string, backend
 	}
 }
 
+// NewDeployScriptWithoutOutputFromFile is a syntactic sugar around NewForgeScriptFromFile and NewDeployScriptWithoutOutput
+func NewDeployScriptWithoutOutputFromFile[I any](host *Host, fileName string, name string) (DeployScriptWithoutOutput[I], error) {
+	script, err := NewForgeScriptFromFile(host, fileName, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewDeployScriptWithoutOutput[I](script, "run")
+}
+
+// NewDeployScriptWithOutputFromFile is a syntactic sugar around NewForgeScriptFromFile and NewDeployScriptWithOutput
+func NewDeployScriptWithOutputFromFile[I any, O any](host *Host, fileName string, name string) (DeployScriptWithOutput[I, O], error) {
+	script, err := NewForgeScriptFromFile(host, fileName, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewDeployScriptWithOutput[I, O](script, "run")
+}
+
 // NewDeployScriptWithoutOutput creates an instance of DeployScriptWithoutOutput[I], a void-returning deploy script
 func NewDeployScriptWithoutOutput[I any](script ForgeScript, methodName string) (DeployScriptWithoutOutput[I], error) {
 	return newDeployScriptWithoutOutput[I](script, methodName)
