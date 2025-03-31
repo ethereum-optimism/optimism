@@ -14,6 +14,7 @@ use crate::{
 };
 use alloy_consensus::{conditional::BlockConditionalAttributes, BlockHeader, Transaction};
 use futures_util::{future::BoxFuture, FutureExt, Stream, StreamExt};
+use metrics::Gauge;
 use reth_chain_state::CanonStateNotification;
 use reth_metrics::{metrics::Counter, Metrics};
 use reth_primitives_traits::NodePrimitives;
@@ -43,6 +44,11 @@ struct MaintainPoolInteropMetrics {
     /// Counter indicating the number of conditional transactions removed from
     /// the pool because of exceeded block attributes.
     removed_tx_interop: Counter,
+    /// Number of interop transactions currently in the pool
+    pooled_interop_transactions: Gauge,
+
+    /// Counter for interop transactions that became stale and need revalidation
+    stale_interop_transactions: Counter,
     // TODO: we also should add metric for (hash, counter) to check number of validation per tx
     // TODO: we should add some timing metric in here to check supervisor congestion
 }
@@ -51,6 +57,15 @@ impl MaintainPoolInteropMetrics {
     #[inline]
     fn inc_removed_tx_interop(&self, count: usize) {
         self.removed_tx_interop.increment(count as u64);
+    }
+    #[inline]
+    fn set_interop_txs_in_pool(&self, count: usize) {
+        self.pooled_interop_transactions.set(count as f64);
+    }
+
+    #[inline]
+    fn inc_stale_tx_interop(&self, count: usize) {
+        self.stale_interop_transactions.increment(count as u64);
     }
 }
 /// Returns a spawnable future for maintaining the state of the conditional txs in the transaction
@@ -145,9 +160,11 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             let timestamp = new.tip().timestamp();
             let mut to_remove = Vec::new();
             let mut to_revalidate = Vec::new();
+            let mut interop_count = 0;
             for tx in &pool.pooled_transactions() {
                 // Only interop txs have this field set
                 if let Some(interop) = tx.transaction.interop_deadline() {
+                    interop_count += 1;
                     if !is_valid_interop(interop, timestamp) {
                         // That means tx didn't revalidated during [`OFFSET_TIME`] time
                         // We could assume that it won't be validated at all and remove it
@@ -158,7 +175,10 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                     }
                 }
             }
+
+            metrics.set_interop_txs_in_pool(interop_count);
             if !to_revalidate.is_empty() {
+                metrics.inc_stale_tx_interop(to_revalidate.len());
                 let checks_stream =
                     futures_util::stream::iter(to_revalidate.into_iter().map(|tx| {
                         let supervisor_client = supervisor_client.clone();
