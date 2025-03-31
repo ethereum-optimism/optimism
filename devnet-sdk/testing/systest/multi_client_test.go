@@ -63,7 +63,7 @@ func TestRequireNoChainFork(t *testing.T) {
 	},
 	}
 
-	secondCheck, firstErr := requireNoChainFork(context.Background(), []HeaderProvider{mockA, mockB}, testlog.Logger(t, log.LevelDebug))
+	secondCheck, firstErr := checkForChainFork(context.Background(), []HeaderProvider{mockA, mockB}, testlog.Logger(t, log.LevelDebug))
 
 	require.NoError(t, firstErr)
 	mockA.latestBlockNum = 1

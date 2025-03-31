@@ -47,12 +47,12 @@ func CheckForChainFork(ctx context.Context, chain system.L2Chain, logger log.Log
 	if err != nil {
 		return nil, fmt.Errorf("failed to get eth clients: %w", err)
 	}
-	return requireNoChainFork(ctx, clients, logger)
+	return checkForChainFork(ctx, clients, logger)
 }
 
-// requireNoChainFork checks that the L2 chain has not forked now, and returns a
+// checkForChainFork checks that the L2 chain has not forked now, and returns a
 // function that check again (to be called at the end of the test).
-func requireNoChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func() error, error) {
+func checkForChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func() error, error) {
 
 	// We use a multiclient to automatically check for consistency
 	// between the nodes.
