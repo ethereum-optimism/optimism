@@ -354,9 +354,9 @@ func ApplyPipeline(
 			fmt.Sprintf("set-start-block-%s", chainID.Hex()),
 			func() error {
 				if opts.DeploymentTarget == DeploymentTargetGenesis {
-					return pipeline.SetStartBlockGenesisStrategy(pEnv, st, chainID)
+					return pipeline.SetStartBlockGenesisStrategy(pEnv, intent, st, chainID)
 				}
-				return pipeline.SetStartBlockLiveStrategy(ctx, pEnv, st, chainID)
+				return pipeline.SetStartBlockLiveStrategy(ctx, intent, pEnv, st, chainID)
 			},
 		})
 	}

@@ -61,6 +61,14 @@ func TestValidateStandardValues(t *testing.T) {
 			},
 			ErrNonStandardValue,
 		},
+		{
+			"SuperchainConfigProxy",
+			func(intent *Intent) {
+				addr := common.HexToAddress("0x9999")
+				intent.SuperchainConfigProxy = &addr
+			},
+			ErrNonStandardValue,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
