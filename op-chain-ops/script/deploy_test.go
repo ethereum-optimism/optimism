@@ -93,7 +93,8 @@ func TestForgeScriptImpl(t *testing.T) {
 			}
 			script := NewForgeScriptFromArtifact(artifact, label, backend)
 
-			script.Call([]byte{})
+			_, err := script.Call([]byte{})
+			require.NoError(t, err)
 			require.Equal(t, scriptAddress, backend.destroyedAddress)
 		})
 	})
