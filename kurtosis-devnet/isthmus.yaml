@@ -1,5 +1,3 @@
-# Non-functional right now, just here for reference
-
 optimism_package:
   chains:
     - participants:
