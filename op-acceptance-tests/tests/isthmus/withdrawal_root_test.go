@@ -54,7 +54,7 @@ func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletG
 
 		user := walletGetter(ctx)
 
-		secondCheck, err := systest.RequireNoChainFork(t.Context(), chain, logger)
+		secondCheck, err := systest.CheckForChainFork(t.Context(), chain, logger)
 		require.NoError(t, err, "error checking for chain fork")
 		defer func() {
 			require.NoError(t, secondCheck(), "error checking for chain fork")

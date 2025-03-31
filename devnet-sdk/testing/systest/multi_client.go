@@ -38,9 +38,11 @@ func getEthClients(chain system.Chain) ([]HeaderProvider, error) {
 	return hps, nil
 }
 
-// RequireNoChainFork checks that the L2 chain has not forked now, and returns a
-// function that check again (to be called at the end of the test).
-func RequireNoChainFork(ctx context.Context, chain system.L2Chain, logger log.Logger) (func() error, error) {
+// CheckForChainFork checks that the L2 chain has not forked now, and returns a
+// function that check again (to be called at the end of the test). An error is
+// returned from this function (and the returned function) if a chain fork has
+// been detected.
+func CheckForChainFork(ctx context.Context, chain system.L2Chain, logger log.Logger) (func() error, error) {
 	clients, err := getEthClients(chain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get eth clients: %w", err)
@@ -70,7 +72,7 @@ func requireNoChainFork(ctx context.Context, clients []HeaderProvider, logger lo
 			return fmt.Errorf("failed to get L2 end block: %w", err)
 		}
 		logger.Debug("Got L2 end block", "number", l2EndHeader.Number)
-		if !(l2EndHeader.Number.Int64() > l2StartHeader.Number.Int64()) {
+		if !(l2EndHeader.Number.Cmp(l2StartHeader.Number) > 0) {
 			return fmt.Errorf("L2 chain has not progressed: start=%s, end=%s", l2StartHeader.Number, l2EndHeader.Number)
 		}
 		return nil
