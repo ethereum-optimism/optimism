@@ -89,57 +89,77 @@ func NewForgeScriptFromArtifact(artifact *foundry.Artifact, name string, backend
 	}
 }
 
+// NewDeployScriptWithoutOutput creates an instance of DeployScriptWithoutOutput[I], a void-returning deploy script
 func NewDeployScriptWithoutOutput[I any](script ForgeScript, methodName string) (DeployScriptWithoutOutput[I], error) {
 	return newDeployScriptWithoutOutput[I](script, methodName)
 }
 
+// NewDeployScriptWithOutput creates an instance of DeployScriptWithoutOutput[I, O], a result-returning deploy script
 func NewDeployScriptWithOutput[I any, O any](script ForgeScript, methodName string) (DeployScriptWithOutput[I, O], error) {
 	return newDeployScriptWithOutput[I, O](script, methodName)
 }
 
+// newDeployScriptWithoutOutput creates an instance of deployScriptWithoutOutputImpl[I]
+//
+// It is used internally to maximize code reuse:
+// - its return value is returned from NewDeployScriptWithoutOutput (but returned as an interface, not leaking the implementation details)
+// - its return values is used internally in newDeployScriptWithOutput that relies on the implementation details
 func newDeployScriptWithoutOutput[I any](script ForgeScript, methodName string) (*deployScriptWithoutOutputImpl[I], error) {
 	// Just to keep things DRY a bit
 	scriptName := script.Name()
 
+	// Make sure the method exists on the ABI
 	method, ok := script.ABI().Methods[methodName]
 	if !ok {
 		return nil, fmt.Errorf("script %s does not have a method called %s", scriptName, methodName)
 	}
 
+	// Now make sure the ABI has exactly one argument of the correct type
 	inputType := reflect.TypeOf(*new(I))
 	err := matchArguments(method.Inputs, inputType)
 	if err != nil {
 		return nil, fmt.Errorf("script %s does not have a method %s that accepts an argument of type %v: %w", scriptName, methodName, inputType, err)
 	}
 
+	// Then after all that we're good to create the script
 	return &deployScriptWithoutOutputImpl[I]{
 		script: script,
 		method: method,
 	}, nil
 }
 
+// newDeployScriptWithOutput creates an instance of deployScriptWithOutputImpl[I, O]
+//
+// Although we don't need to reuse it similar to newDeployScriptWithoutOutput, it is nice to keep things symmetrical and predictable
+// so its pattern copies the one of newDeployScriptWithoutOutput
 func newDeployScriptWithOutput[I any, O any](script ForgeScript, methodName string) (*deployScriptWithOutputImpl[I, O], error) {
+	// First validate the input by creating an instance of deployScriptWithoutOutputImpl[I]
 	deployScriptWithoutOutputImpl, err := newDeployScriptWithoutOutput[I](script, methodName)
 	if err != nil {
 		return nil, err
 	}
 
+	// Now make sure the return value matches the ABI
 	outputType := reflect.TypeOf(*new(O))
 	err = matchArguments(deployScriptWithoutOutputImpl.method.Outputs, outputType)
 	if err != nil {
 		return nil, fmt.Errorf("script %s does not have a method %s that returns an argument of type %v: %w", script.Name(), methodName, outputType, err)
 	}
 
+	// Then after all that we're good to create the script
 	return &deployScriptWithOutputImpl[I, O]{
 		deployScriptWithoutOutputImpl: *deployScriptWithoutOutputImpl,
 	}, nil
 }
 
+// forgeScriptBackendImpl implements ForgeScriptBackend and encapsulates low-level deployment logic for scripts
+//
+// Its main purpose is to simplify testing and clearly separate the Host from the deploy scripts
 type forgeScriptBackendImpl struct {
 	host *Host
 }
 
-// Call implements ForgeScriptBackend.
+// Call sends a transaction to a contract
 func (b *forgeScriptBackendImpl) Call(to common.Address, input []byte) (result []byte, err error) {
 	result, _, err = b.host.Call(b.host.env.TxContext().Origin, to, input, DefaultFoundryGasLimit, uint256.NewInt(0))
 	if err != nil {
@@ -149,6 +169,10 @@ func (b *forgeScriptBackendImpl) Call(to common.Address, input []byte) (result [
 	return result, nil
 }
 
+// Deploy deploys a contract specified by a foundry artifact
+//
+// It will name the contract using the provided label and save the contract source maps
+// for ease of debugging
 func (b *forgeScriptBackendImpl) Deploy(artifact *foundry.Artifact, label string) (address common.Address, err error) {
 	deployer := addresses.ScriptDeployer
 	deployNonce := b.host.state.GetNonce(deployer)
@@ -185,7 +209,7 @@ func (b *forgeScriptBackendImpl) Deploy(artifact *foundry.Artifact, label string
 	return address, nil
 }
 
-// Destroy implements ForgeScriptBackend.
+// Destroy will wipe an address
 func (b *forgeScriptBackendImpl) Destroy(address common.Address) {
 	b.host.Wipe(address)
 }
