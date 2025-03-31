@@ -4,6 +4,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -42,6 +43,6 @@ func (r *rpcELNode) ChainID() eth.ChainID {
 	return r.chainID
 }
 
-func (r *rpcELNode) EthClient() stack.EthClient {
+func (r *rpcELNode) EthClient() apis.EthClient {
 	return r.ethClient
 }
