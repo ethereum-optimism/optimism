@@ -48,7 +48,7 @@ We will fix this in the future, but the workaround is to decouple your kurtosis 
 1. Deploy kurtosis
 
    ```
-   cd kurtosis-deploy
+   cd kurtosis-devnet
    just isthmus-devnet # or whatever devnet you intend to test
    # will take ~3-4m to spin up
    ```
