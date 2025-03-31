@@ -171,7 +171,6 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 	queryFn func(HeaderProvider, *big.Int) (interface{}, *big.Int, common.Hash, error),
 ) (interface{}, error) {
 	// Get from primary client
-	// print whether mc.clients[0] is nil
 	primaryItem, blockNum, primaryHash, err := queryFn(mc.clients[0], number)
 	if err != nil {
 		return nil, err
