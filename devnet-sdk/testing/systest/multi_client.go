@@ -9,15 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-type GethClientProvider interface {
-	GethClient() (HeaderProvider, error)
-}
 
 type HeaderProvider interface {
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
@@ -26,17 +24,23 @@ type HeaderProvider interface {
 	Close()
 }
 
+var _ HeaderProvider = (*ethclient.Client)(nil)
+
+func GetEthClients(chain system.Chain) ([]HeaderProvider, error) {
+	hps := make([]HeaderProvider, 0, len(chain.Nodes()))
+	for _, n := range chain.Nodes() {
+		gethCl, err := n.GethClient()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get geth client: %w", err)
+		}
+		hps = append(hps, gethCl)
+	}
+	return hps, nil
+}
+
 // RequireNoChainFork checks that the L2 chain has not forked now, and returns a
 // function that check again (to be called at the end of the test).
-func RequireNoChainFork(ctx context.Context, nodes []GethClientProvider, logger log.Logger) (func() error, error) {
-	clients := make([]HeaderProvider, 0, len(nodes))
-	for _, node := range nodes {
-		client, err := node.GethClient()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get Geth client: %w", err)
-		}
-		clients = append(clients, client)
-	}
+func RequireNoChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func() error, error) {
 
 	// We use a multiclient to automatically check for consistency
 	// between the nodes.
