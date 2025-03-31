@@ -13,12 +13,9 @@ workspace = true
 [dependencies]
 # reth
 reth-chainspec.workspace = true
-reth-db = { workspace = true, features = ["op"] }
 reth-engine-local = { workspace = true, features = ["op"] }
 reth-primitives-traits.workspace = true
 reth-payload-builder.workspace = true
-reth-payload-util.workspace = true
-reth-payload-validator.workspace = true
 reth-consensus.workspace = true
 reth-node-api.workspace = true
 reth-node-builder.workspace = true
@@ -27,7 +24,6 @@ reth-provider.workspace = true
 reth-transaction-pool.workspace = true
 reth-network.workspace = true
 reth-evm.workspace = true
-reth-revm = { workspace = true, features = ["std"] }
 reth-trie-db.workspace = true
 reth-rpc-server-types.workspace = true
 reth-rpc-eth-api.workspace = true
@@ -53,7 +49,6 @@ revm = { workspace = true, features = ["secp256k1", "blst", "c-kzg"] }
 op-revm.workspace = true
 
 # ethereum
-alloy-eips.workspace = true
 alloy-primitives.workspace = true
 op-alloy-consensus.workspace = true
 op-alloy-rpc-types-engine.workspace = true
@@ -66,28 +61,29 @@ clap.workspace = true
 serde.workspace = true
 eyre.workspace = true
 
-# rpc
-serde_json.workspace = true
-
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }
 alloy-genesis = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 reth-optimism-node = { workspace = true, features = ["test-utils"] }
-reth-db.workspace = true
+reth-db = { workspace = true, features = ["op"] }
 reth-node-core.workspace = true
 reth-node-builder = { workspace = true, features = ["test-utils"] }
 reth-provider = { workspace = true, features = ["test-utils"] }
-reth-revm = { workspace = true, features = ["test-utils"] }
 reth-tasks.workspace = true
+reth-payload-util.workspace = true
+reth-payload-validator.workspace = true
+reth-revm = { workspace = true, features = ["std"] }
 
 alloy-primitives.workspace = true
 op-alloy-consensus.workspace = true
 alloy-network.workspace = true
 alloy-consensus.workspace = true
 futures.workspace = true
+alloy-eips.workspace = true
 
 [features]
 default = ["reth-codec"]
@@ -105,6 +101,7 @@ test-utils = [
     "reth-e2e-test-utils",
     "alloy-genesis",
     "tokio",
+    "serde_json",
     "reth-node-builder/test-utils",
     "reth-chainspec/test-utils",
     "reth-consensus/test-utils",

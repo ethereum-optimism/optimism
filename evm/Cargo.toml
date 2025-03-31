@@ -13,13 +13,10 @@ workspace = true
 [dependencies]
 # Reth
 reth-chainspec.workspace = true
-reth-ethereum-forks.workspace = true
 reth-evm = { workspace = true, features = ["op"] }
 reth-primitives-traits.workspace = true
 reth-execution-errors.workspace = true
 reth-execution-types.workspace = true
-reth-consensus.workspace = true
-reth-consensus-common.workspace = true
 
 # ethereum
 alloy-eips.workspace = true
@@ -40,8 +37,6 @@ revm.workspace = true
 op-revm.workspace = true
 
 # misc
-derive_more.workspace = true
-tracing.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
@@ -55,7 +50,6 @@ reth-optimism-primitives = { workspace = true, features = ["arbitrary"] }
 [features]
 default = ["std"]
 std = [
-    "reth-consensus/std",
     "reth-revm/std",
     "alloy-consensus/std",
     "alloy-eips/std",
@@ -64,14 +58,11 @@ std = [
     "reth-primitives-traits/std",
     "revm/std",
     "reth-optimism-primitives/std",
-    "reth-ethereum-forks/std",
-    "derive_more/std",
     "reth-optimism-forks/std",
     "thiserror/std",
     "op-alloy-consensus/std",
     "reth-chainspec/std",
     "reth-optimism-consensus/std",
-    "reth-consensus-common/std",
     "reth-optimism-chainspec/std",
     "reth-execution-errors/std",
     "reth-execution-types/std",
@@ -79,6 +70,5 @@ std = [
     "alloy-op-evm/std",
     "op-revm/std",
     "reth-evm/std",
-    "tracing/std",
 ]
 portable = ["reth-revm/portable"]
