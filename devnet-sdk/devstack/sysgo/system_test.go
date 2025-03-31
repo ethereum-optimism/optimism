@@ -16,8 +16,8 @@ import (
 
 func TestSystem(t *testing.T) {
 	ids, opt := DefaultInteropSystem(ContractPaths{
-		FoundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
-		SourceMap:        "../../packages/contracts-bedrock",
+		FoundryArtifacts: "../../../packages/contracts-bedrock/forge-artifacts",
+		SourceMap:        "../../../packages/contracts-bedrock",
 	})
 	logger := testlog.Logger(t, log.LevelInfo)
 	orch := &Orchestrator{

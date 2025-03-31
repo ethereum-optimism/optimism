@@ -42,7 +42,7 @@ func TestExample1(t *testing.T) {
 	t.Fatalf("Expected to reach block %d on both chains", blocks)
 }
 
-// TODO: adjust sysgo / syskt to be graceful
+// TODO(#15138): adjust sysgo / syskt to be graceful
 //  when things already exist
 //  (just set the shim with existing orchestrator-managed service)
 //func TestExample2(t *testing.T) {
