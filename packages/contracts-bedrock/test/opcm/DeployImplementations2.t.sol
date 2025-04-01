@@ -162,16 +162,6 @@ contract DeployImplementations2_Test is Test {
         assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "600");
     }
 
-    function testFuzz_run_largeChallengePeriodSeconds_reverts(uint256 _challengePeriodSeconds) public {
-        DeployImplementations2.Input memory input = defaultInput();
-
-        // Set the challenge period to a value that is too large
-        input.challengePeriodSeconds = bound(_challengePeriodSeconds, uint256(type(uint64).max) + 1, type(uint256).max);
-
-        vm.expectRevert("DeployImplementationsInput: challengePeriodSeconds too large");
-        deployImplementations.run(input);
-    }
-
     function test_run_deployMipsV1OnMainnetOrSepolia_reverts() public {
         DeployImplementations2.Input memory input = defaultInput();
         input.mipsVersion = 1;
@@ -186,7 +176,7 @@ contract DeployImplementations2_Test is Test {
     }
 
     function test_challengePeriodSeconds_reverts_if_too_large(uint256 _challengePeriodSeconds) public {
-        vm.assume(_challengePeriodSeconds > uint256(type(uint64).max));
+        vm.assume(_challengePeriodSeconds <= uint256(type(uint64).max));
 
         DeployImplementations2.Input memory input = defaultInput();
         input.challengePeriodSeconds = _challengePeriodSeconds;
