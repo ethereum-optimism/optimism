@@ -8,7 +8,7 @@ import (
 )
 
 // NewClientRegistry creates a new Registry that uses the provided client
-func NewClientRegistry(c *ethclient.Client) interfaces.ContractsRegistry {
+func NewClientRegistry(c HeaderProvider) interfaces.ContractsRegistry {
 	return &client.ClientRegistry{Client: c}
 }
 
