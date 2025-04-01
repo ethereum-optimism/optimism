@@ -251,7 +251,7 @@ func (d *forgeScriptImpl) ABI() abi.ABI {
 	return d.artifact.ABI
 }
 
-// deployScriptWithoutOutputImpl[I] implements DdeployScriptWithoutOutput[I]
+// deployScriptWithoutOutputImpl[I] implements DeployScriptWithoutOutput[I]
 type deployScriptWithoutOutputImpl[I any] struct {
 	script ForgeScript
 	method abi.Method
