@@ -7,21 +7,17 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Supervisor struct {
 	common
 
-	log log.Logger
-
 	supervisor stack.Supervisor
 }
 
-func newSupervisor(c common, log log.Logger, supervisor stack.Supervisor) *Supervisor {
+func newSupervisor(c common, supervisor stack.Supervisor) *Supervisor {
 	return &Supervisor{
 		common:     c,
-		log:        log,
 		supervisor: supervisor,
 	}
 }
