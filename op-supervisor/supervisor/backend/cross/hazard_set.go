@@ -178,7 +178,7 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 					})
 				}
 			} else {
-				return fmt.Errorf("executing message %s in %s breaks timestamp invariant", msg, candidate)
+				return fmt.Errorf("executing message %s in %s breaks timestamp invariant: %w", msg, candidate, types.ErrConflict)
 			}
 		}
 	}
