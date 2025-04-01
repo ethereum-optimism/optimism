@@ -262,7 +262,7 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 		preimageLoadCheck := game.CreateStepPreimageLoadStrictCheck(ctx, getExpectedData)
 		// We need the honest challenger to step-defend the STF from A -> B such that A loads the preimage
 		// The ChallengeToPreimageLoadAtTarget method will induce a step-defend on odd numbered trace index from the honest challenger.
-		step := game.FindOddStepForPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageOptConfig)
+		step := game.MaybeFindOddStepForPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageOptConfig)
 		game.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, step, preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
