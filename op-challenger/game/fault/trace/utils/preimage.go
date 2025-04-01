@@ -122,6 +122,10 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 	}
 
 	claimWithLength := lengthPrefixed(claim[:])
+	if !bytes.Equal(proof.OracleValue, claimWithLength) {
+		return nil, fmt.Errorf("calculated claim does not match expectation. calculated: %v | expected: %v", proof.OracleValue, proof.OracleValue)
+	}
+
 	return types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, zPoint, commitment, kzgProof[:]), nil
 }
 
