@@ -206,6 +206,7 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 		// If Isthmus hard fork has activated, we can get the messagePasserStorageRoot directly from the header
 		// instead of having to compute it from the contract storage trie.
 		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())
+		s.log.Info("Retrieving messagePasserStorageRoot from block header")
 	} else {
 		s.log.Warn("Bypassing block header, retrieving messagePasserStorageRoot from state")
 		proof, err := s.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
