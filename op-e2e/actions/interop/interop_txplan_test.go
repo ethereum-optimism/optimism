@@ -150,6 +150,7 @@ func DeployEventLogger(t helpers.Testing, opts txplan.Option) common.Address {
 	eventLoggerAddress := receipt.ContractAddress
 	return eventLoggerAddress
 }
+
 func TestInitAndExecMsg(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	rng := rand.New(rand.NewSource(1234))
