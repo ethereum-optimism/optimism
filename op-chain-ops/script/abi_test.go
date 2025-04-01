@@ -1,7 +1,6 @@
 package script
 
 import (
-	_ "embed"
 	"fmt"
 	"math/big"
 	"reflect"
