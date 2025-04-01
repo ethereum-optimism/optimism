@@ -190,7 +190,7 @@ func newChainFromDescriptor(d *descriptors.Chain) (*chain, error) {
 	nodes := newNodesFromDescriptor(d)
 	c := newChain(d.ID, nil, d.Config, AddressMap(d.Addresses), nodes) // Create chain first
 
-	wallets, err := newWalletMapFromDescriptorWalletMap(d.Wallets, c)
+	wallets, err := NewWalletMapFromDescriptorWalletMap(d.Wallets, c)
 	if err != nil {
 		return nil, err
 	}
@@ -216,13 +216,13 @@ func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
 	nodes := newNodesFromDescriptor(&d.Chain)
 	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses), nodes) // Create chain first
 
-	l2Wallets, err := newWalletMapFromDescriptorWalletMap(d.Wallets, c)
+	l2Wallets, err := NewWalletMapFromDescriptorWalletMap(d.Wallets, c)
 	if err != nil {
 		return nil, err
 	}
 	c.wallets = l2Wallets
 
-	l1Wallets, err := newWalletMapFromDescriptorWalletMap(d.L1Wallets, c)
+	l1Wallets, err := NewWalletMapFromDescriptorWalletMap(d.L1Wallets, c)
 	if err != nil {
 		return nil, err
 	}
