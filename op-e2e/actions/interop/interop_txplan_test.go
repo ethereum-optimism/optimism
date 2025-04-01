@@ -278,12 +278,7 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	// BUT we intentionally break the timestamp invariant
 	require.Greater(t, includedA.Time, includedB.Time)
 
-	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
-	assertHeads(t, actors.ChainB, 2, 0, 0, 0)
-
-	blockToBeReorged, err := actors.ChainB.SequencerEngine.SourceClient(t, 10).BlockRefByLabel(t.Ctx(), "latest")
-	require.NoError(t, err)
-	require.Equal(t, uint64(2), blockToBeReorged.Number)
+	assertHeads(t, actors.ChainB, 1, 0, 0, 0)
 
 	actors.ChainB.Batcher.ActSubmitAll(t)
 	actors.L1Miner.ActL1StartBlock(12)(t)
@@ -299,16 +294,30 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	t.Log("awaiting node to sync")
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 
-	require.Equal(t, uint64(2), actors.ChainB.Sequencer.SyncStatus().LocalSafeL2.Number)
+	reorgedOutBlock := actors.ChainB.Sequencer.SyncStatus().LocalSafeL2
+	require.Equal(t, uint64(1), reorgedOutBlock.Number)
 
 	t.Log("Expecting supervisor to sync and catch local-safe dependency issue")
 	actors.ChainB.Sequencer.SyncSupervisor(t)
 	actors.Supervisor.ProcessFull(t)
 
-	assertHeads(t, actors.ChainB, 2, 2, 0, 0)
+	assertHeads(t, actors.ChainB, 1, 1, 0, 0)
 
 	// check supervisor head, expect it to be rewound
 	localUnsafe, err := actors.Supervisor.LocalUnsafe(t.Ctx(), actors.ChainB.ChainID)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), localUnsafe.Number, "unsafe chain needs to be rewound")
+
+	// Make the op-node do the processing to build the replacement
+	t.Log("Expecting op-node to build replacement block")
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+
+	// Make sure the replaced block has different blockhash
+	replacedBlock := actors.ChainB.Sequencer.SyncStatus().LocalSafeL2
+	require.NotEqual(t, reorgedOutBlock.Hash, replacedBlock.Hash)
+
+	// but reached block number as 1
+	assertHeads(t, actors.ChainB, 1, 1, 1, 1)
 }
