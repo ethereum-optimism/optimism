@@ -6,7 +6,7 @@ ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-ac
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test simple holocene
+    @just acceptance-test simple base
 
 holocene:
     @just acceptance-test simple holocene

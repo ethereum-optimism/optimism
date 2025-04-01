@@ -2232,7 +2232,7 @@ workflows:
           # Acceptance Testing params
           name: kurtosis-simple
           devnet: simple
-          gate: sanitychecks
+          gate: base
 
           # CircleCI params
           no_output_timeout: 60m
