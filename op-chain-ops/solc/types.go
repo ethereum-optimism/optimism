@@ -203,7 +203,7 @@ type AstNode struct {
 	// Literal specific
 	HexValue string      `json:"hexValue,omitempty"`
 	Kind     string      `json:"kind,omitempty"`
-	Value    ValueStruct `json:"value,omitempty"`
+	Value    interface{} `json:"value,omitempty"`
 
 	// Other fields
 	ModifierName    *Expression  `json:"modifierName,omitempty"`
@@ -216,11 +216,6 @@ type AstNode struct {
 	FalseExpression *AstNode     `json:"falseExpression,omitempty"`
 	Operator        string       `json:"operator,omitempty"`
 	Statements      *[]AstNode   `json:"statements,omitempty"`
-}
-
-type ValueStruct struct {
-	Kind  string      `json:"kind,omitempty"`
-	Value interface{} `json:"value,omitempty"`
 }
 
 type Clauses struct {

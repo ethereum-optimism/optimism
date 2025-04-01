@@ -333,15 +333,28 @@ func TestUpgradesContract(t *testing.T) {
 			expectedOutput := false
 			for _, astNode := range node.Nodes {
 				if astNode.NodeType == "FunctionDefinition" && astNode.Name == "upgrade" {
+					if upgradeAst.NodeType != "" {
+						t.Fatalf("Expected only one upgrade function")
+					}
 					upgradeAst = astNode
 				}
+
 				if astNode.NodeType == "VariableDeclaration" &&
 					astNode.Name == "EXPECTED_OUTPUT" &&
-					astNode.Mutability == "constant" &&
-					astNode.Value.Kind == "bool" {
-					if astNode.Value.Value == "true" {
+					astNode.Mutability == "constant" {
+
+					value, ok := astNode.Value.(map[string]interface{})
+					if !ok {
+						t.Fatalf("Expected value to be a map: %v", astNode.Value)
+					}
+
+					if value["kind"] != "bool" {
+						continue
+					}
+
+					if value["value"] == "true" {
 						expectedOutput = true
-					} else if astNode.Value.Value == "false" {
+					} else if value["value"] == "false" {
 						expectedOutput = false
 					} else {
 						t.Fatalf("Expected output is not a boolean: %s", astNode.Value)
