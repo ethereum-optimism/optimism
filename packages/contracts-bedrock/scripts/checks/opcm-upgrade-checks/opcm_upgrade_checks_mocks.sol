@@ -66,11 +66,11 @@ contract WithinDoWhileLoop {
 contract WithinTrueBlockOfIfStatement {
     bool constant EXPECTED_OUTPUT = true;
 
-    function upgrade(uint256 a) external {
-        if (a < 10) {
+    function upgrade(uint256 _a) external {
+        if (_a < 10) {
             UPGRADE_CONTRACT.upgrade();
         } else {
-            revert("Not allowed");
+            revert();
         }
     }
 }
@@ -78,9 +78,9 @@ contract WithinTrueBlockOfIfStatement {
 contract WithinFalseBlockOfIfStatement {
     bool constant EXPECTED_OUTPUT = true;
 
-    function upgrade(uint256 a) external {
-        if (a < 10) {
-            revert("Not allowed");
+    function upgrade(uint256 _a) external {
+        if (_a < 10) {
+            revert();
         } else {
             UPGRADE_CONTRACT.upgrade();
         }
@@ -90,13 +90,13 @@ contract WithinFalseBlockOfIfStatement {
 contract WithinElseIfBlockOfIfStatement {
     bool constant EXPECTED_OUTPUT = true;
 
-    function upgrade(uint256 a) external {
-        if (a < 10) {
-            revert("Not allowed");
-        } else if (a < 20) {
+    function upgrade(uint256 _a) external {
+        if (_a < 10) {
+            revert();
+        } else if (_a < 20) {
             UPGRADE_CONTRACT.upgrade();
         } else {
-            revert("Not allowed");
+            revert();
         }
     }
 }
@@ -104,16 +104,20 @@ contract WithinElseIfBlockOfIfStatement {
 contract WithinTrueBlockOfTernaryStatement {
     bool constant EXPECTED_OUTPUT = true;
 
-    function upgrade(uint256 a) external {
-        a < 10 ? UPGRADE_CONTRACT.upgrade() : revert("Not allowed");
+    function mock() external { }
+
+    function upgrade(uint256 _a) external {
+        _a < 10 ? UPGRADE_CONTRACT.upgrade() : this.mock();
     }
 }
 
 contract WithinFalseBlockOfTernaryStatement {
     bool constant EXPECTED_OUTPUT = true;
 
-    function upgrade(uint256 a) external {
-        a < 10 ? revert("Not allowed") : UPGRADE_CONTRACT.upgrade();
+    function mock() external { }
+
+    function upgrade(uint256 _a) external {
+        _a < 10 ? this.mock() : UPGRADE_CONTRACT.upgrade();
     }
 }
 
@@ -121,27 +125,30 @@ contract WithTryStatement {
     bool constant EXPECTED_OUTPUT = true;
 
     function upgrade() external {
-        try UPGRADE_CONTRACT.upgrade() {} catch {}
+        try UPGRADE_CONTRACT.upgrade() { } catch { }
     }
 }
 
 contract WithinTryBlockOfTryCatchStatement {
     bool constant EXPECTED_OUTPUT = true;
 
-    function mock() external {}
+    function mock() external { }
+
     function upgrade() external {
         try this.mock() {
             UPGRADE_CONTRACT.upgrade();
-        } catch {}
+        } catch { }
     }
 }
 
 contract WithinCatchBlockOfTryCatchStatement {
     bool constant EXPECTED_OUTPUT = true;
 
-    function mock() external {}
+    function mock() external { }
+
     function upgrade() external {
-        try this.mock() {} catch {
+        try this.mock() { }
+        catch {
             UPGRADE_CONTRACT.upgrade();
         }
     }
