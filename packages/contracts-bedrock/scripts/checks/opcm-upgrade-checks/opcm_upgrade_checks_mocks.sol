@@ -7,24 +7,35 @@ interface IUpgradeable {
     function upgrade() external;
 }
 
+contract WithNoExternalUpgradeFunction {
+    bool constant EXPECTED_OUTPUT = false;
+
+    function aaa() external {
+        UPGRADE_CONTRACT.upgrade();
+    }
+}
+
 contract WithinTopLevelFunction {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade() external {
         UPGRADE_CONTRACT.upgrade();
     }
 }
 
 contract WithinBlockStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade() external {
         {
             UPGRADE_CONTRACT.upgrade();
         }
     }
-    function aaa() external {
-
-    }
 }
 
 contract WithinForLoop {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade() external {
         for (uint256 i = 0; i < 10; i++) {
             UPGRADE_CONTRACT.upgrade();
@@ -33,6 +44,8 @@ contract WithinForLoop {
 }
 
 contract WithinWhileLoop {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade() external {
         while (true) {
             UPGRADE_CONTRACT.upgrade();
@@ -41,6 +54,8 @@ contract WithinWhileLoop {
 }
 
 contract WithinDoWhileLoop {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade() external {
         do {
             UPGRADE_CONTRACT.upgrade();
@@ -49,6 +64,8 @@ contract WithinDoWhileLoop {
 }
 
 contract WithinTrueBlockOfIfStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade(uint256 a) external {
         if (a < 10) {
             UPGRADE_CONTRACT.upgrade();
@@ -59,6 +76,8 @@ contract WithinTrueBlockOfIfStatement {
 }
 
 contract WithinFalseBlockOfIfStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade(uint256 a) external {
         if (a < 10) {
             revert("Not allowed");
@@ -69,6 +88,8 @@ contract WithinFalseBlockOfIfStatement {
 }
 
 contract WithinElseIfBlockOfIfStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade(uint256 a) external {
         if (a < 10) {
             revert("Not allowed");
@@ -81,24 +102,32 @@ contract WithinElseIfBlockOfIfStatement {
 }
 
 contract WithinTrueBlockOfTernaryStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade(uint256 a) external {
         a < 10 ? UPGRADE_CONTRACT.upgrade() : revert("Not allowed");
     }
 }
 
 contract WithinFalseBlockOfTernaryStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade(uint256 a) external {
         a < 10 ? revert("Not allowed") : UPGRADE_CONTRACT.upgrade();
     }
 }
 
 contract WithTryStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function upgrade() external {
         try UPGRADE_CONTRACT.upgrade() {} catch {}
     }
 }
 
 contract WithinTryBlockOfTryCatchStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function mock() external {}
     function upgrade() external {
         try this.mock() {
@@ -108,6 +137,8 @@ contract WithinTryBlockOfTryCatchStatement {
 }
 
 contract WithinCatchBlockOfTryCatchStatement {
+    bool constant EXPECTED_OUTPUT = true;
+
     function mock() external {}
     function upgrade() external {
         try this.mock() {} catch {

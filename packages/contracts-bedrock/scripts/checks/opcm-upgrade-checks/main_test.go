@@ -325,22 +325,27 @@ func TestUpgradesContract(t *testing.T) {
 		expectedOutput bool
 	}
 
-	tests := []test{
-		{
-			"With NO external upgrade function call",
-			[]solc.AstNode{},
-			"contract RandomToBeUpgradedContract",
-			false,
-		},
-	}
+	tests := []test{}
 
 	for _, node := range artifact.Ast.Nodes {
 		if node.NodeType == "ContractDefinition" && node.Name != "IUpgradeable" {
 			upgradeAst := solc.AstNode{}
+			expectedOutput := false
 			for _, astNode := range node.Nodes {
 				if astNode.NodeType == "FunctionDefinition" && astNode.Name == "upgrade" {
 					upgradeAst = astNode
-					break
+				}
+				if astNode.NodeType == "VariableDeclaration" &&
+					astNode.Name == "EXPECTED_OUTPUT" &&
+					astNode.Mutability == "constant" &&
+					astNode.Value.Kind == "bool" {
+					if astNode.Value.Value == "true" {
+						expectedOutput = true
+					} else if astNode.Value.Value == "false" {
+						expectedOutput = false
+					} else {
+						t.Fatalf("Expected output is not a boolean: %s", astNode.Value)
+					}
 				}
 			}
 
@@ -349,7 +354,7 @@ func TestUpgradesContract(t *testing.T) {
 				upgradeAst     []solc.AstNode
 				typeName       string
 				expectedOutput bool
-			}{node.Name, []solc.AstNode{upgradeAst}, "contract IUpgradeable", true})
+			}{node.Name, []solc.AstNode{upgradeAst}, "contract IUpgradeable", expectedOutput})
 		}
 	}
 
