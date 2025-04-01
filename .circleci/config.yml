@@ -1739,7 +1739,6 @@ workflows:
           devnet: isthmus
           gate: isthmus
           no_output_timeout: 60m
-          resource_class: ethereum-optimism/latitude-1
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
