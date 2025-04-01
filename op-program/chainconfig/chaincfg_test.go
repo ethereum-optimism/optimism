@@ -55,7 +55,7 @@ func TestGetCustomDependencySetConfig(t *testing.T) {
 }
 
 func TestGetCustomDependencySetConfig_MissingConfig(t *testing.T) {
-	_, err := dependencySetByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigFS)
+	_, err := dependencySetByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigEmptyFS)
 	require.ErrorIs(t, err, ErrMissingChainConfig)
 }
 
