@@ -78,9 +78,9 @@ func withRawSpanBatchMod(mod func(*RawSpanBatch) *RawSpanBatch) SpanChannelOutOp
 	}
 }
 
-func TestWithOriginBitsMod(mod func(*big.Int) *big.Int) SpanChannelOutOption {
+func TestWithContractCreationBitsMod(mod func(*big.Int) *big.Int) SpanChannelOutOption {
 	return withRawSpanBatchMod(func(rsb *RawSpanBatch) *RawSpanBatch {
-		rsb.originBits = mod(rsb.originBits)
+		rsb.txs.contractCreationBits = mod(rsb.txs.contractCreationBits)
 		return rsb
 	})
 }
