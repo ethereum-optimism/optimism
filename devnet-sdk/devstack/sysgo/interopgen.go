@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"os"
+	"slices"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -64,13 +65,16 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 			L2s:              []interopgen.InteropDevL2Recipe{},
 			GenesisTimestamp: genesisTime,
 		}
+		var ids []eth.ChainID
 		for _, l2 := range l2IDs {
 			setup.Require.True(l2.ChainID.ToBig().IsInt64(), "interop gen uses small chain IDs")
 			recipe.L2s = append(recipe.L2s, interopgen.InteropDevL2Recipe{
 				ChainID:   l2.ChainID.ToBig().Uint64(),
 				BlockTime: 2,
 			})
+			ids = append(ids, l2.ChainID)
 		}
+		eth.SortChainID(ids)
 
 		worldCfg, err := recipe.Build(orch.keys)
 		setup.Require.NoError(err)
@@ -119,10 +123,9 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 		depSetContents := make(map[eth.ChainID]*depset.StaticConfigDependency)
 		for _, l2Out := range worldOutput.L2s {
 			chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-			index, err := chainID.ToUInt32()
-			setup.Require.NoError(err)
+			chainIndex := supervisortypes.ChainIndex(100 + slices.Index(ids, chainID))
 			depSetContents[chainID] = &depset.StaticConfigDependency{
-				ChainIndex:     supervisortypes.ChainIndex(index),
+				ChainIndex:     chainIndex,
 				ActivationTime: 0,
 				HistoryMinTime: 0,
 			}

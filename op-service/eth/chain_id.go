@@ -2,8 +2,8 @@ package eth
 
 import (
 	"fmt"
-	"math"
 	"math/big"
+	"sort"
 
 	"github.com/holiman/uint256"
 )
@@ -31,24 +31,25 @@ func ParseDecimalChainID(chainID string) (ChainID, error) {
 	return ChainID(*v), nil
 }
 
+// String encodes the chainID in decimal form.
 func (id ChainID) String() string {
 	return ((*uint256.Int)(&id)).Dec()
 }
 
-func (id ChainID) ToUInt32() (uint32, error) {
-	v := (*uint256.Int)(&id)
-	if !v.IsUint64() {
-		return 0, fmt.Errorf("ChainID too large for uint32: %v", id)
-	}
-	v64 := v.Uint64()
-	if v64 > math.MaxUint32 {
-		return 0, fmt.Errorf("ChainID too large for uint32: %v", id)
-	}
-	return uint32(v64), nil
-}
-
 func (id ChainID) Bytes32() [32]byte {
 	return (*uint256.Int)(&id).Bytes32()
+}
+
+// IsUint64 reports if the chainID fits in 64 bits
+func (id ChainID) IsUint64() bool {
+	return (*uint256.Int)(&id).IsUint64()
+}
+
+// Uint64 is a convenience function, to turn the chainID into 64 bits.
+// Not all chain IDs fit in 64 bits. This should be used only for compatibility with
+// legacy tools / libs that do not use the full 32 byte chainID type.
+func (id ChainID) Uint64() (v uint64, ok bool) {
+	return (*uint256.Int)(&id).Uint64(), id.IsUint64()
 }
 
 // EvilChainIDToUInt64 converts a ChainID to a uint64 and panic's if the ChainID is too large for a UInt64
@@ -67,10 +68,12 @@ func (id *ChainID) ToBig() *big.Int {
 	return (*uint256.Int)(id).ToBig()
 }
 
+// MarshalText marshals into the decimal representation of the chainID
 func (id ChainID) MarshalText() ([]byte, error) {
 	return []byte(id.String()), nil
 }
 
+// UnmarshalText can unmarshal both a hexadecimal (must have 0x prefix) or decimal chainID
 func (id *ChainID) UnmarshalText(data []byte) error {
 	var x uint256.Int
 	err := x.UnmarshalText(data)
@@ -83,4 +86,11 @@ func (id *ChainID) UnmarshalText(data []byte) error {
 
 func (id ChainID) Cmp(other ChainID) int {
 	return (*uint256.Int)(&id).Cmp((*uint256.Int)(&other))
+}
+
+// SortChainID sorts chain IDs in ascending order, in-place.
+func SortChainID(ids []ChainID) {
+	sort.Slice(ids, func(i, j int) bool {
+		return ids[i].Cmp(ids[j]) < 0
+	})
 }
