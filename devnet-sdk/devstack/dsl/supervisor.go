@@ -18,6 +18,14 @@ type Supervisor struct {
 	supervisor stack.Supervisor
 }
 
+func newSupervisor(c common, log log.Logger, supervisor stack.Supervisor) *Supervisor {
+	return &Supervisor{
+		common:     c,
+		log:        log,
+		supervisor: supervisor,
+	}
+}
+
 type VerifySyncStatusConfig struct {
 	AllUnsafeHeadsAdvance uint64
 }
