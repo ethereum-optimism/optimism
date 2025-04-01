@@ -9,9 +9,9 @@ import (
 
 // TestExample1 starts an interop chain and verifies that the local unsafe head advances.
 func TestExample1(t *testing.T) {
-	preset := presets.NewSimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 
-	preset.Supervisor.VerifySyncStatus(dsl.WithAllLocalUnsafeHeadsAdvancedBy(10))
+	sys.Supervisor.VerifySyncStatus(dsl.WithAllLocalUnsafeHeadsAdvancedBy(10))
 }
 
 // TODO(#15138): adjust sysgo / syskt to be graceful
