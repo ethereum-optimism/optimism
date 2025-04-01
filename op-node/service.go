@@ -89,9 +89,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Beacon:        NewBeaconEndpointConfig(ctx),
 		InteropConfig: NewSupervisorEndpointConfig(ctx),
 		RPC: node.RPCConfig{
-			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
-			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
-			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
+			ListenAddr: ctx.String(flags.RPCListenAddr.Name),
+			ListenPort: ctx.Int(flags.RPCListenPort.Name),
 		},
 		Metrics: node.MetricsConfig{
 			Enabled:    ctx.Bool(flags.MetricsEnabledFlag.Name),
@@ -117,6 +116,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		AltDA: altda.ReadCLIConfig(ctx),
 
 		IgnoreMissingPectraBlobSchedule: ctx.Bool(flags.IgnoreMissingPectraBlobSchedule.Name),
+		MessagePasserRootFromState:      ctx.Bool(flags.MessagePasserRootFromState.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

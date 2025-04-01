@@ -26,6 +26,8 @@ type L2ClientConfig struct {
 	L1ConfigsCacheSize   int
 
 	RollupCfg *rollup.Config
+
+	MessagePasserRootFromState bool
 }
 
 func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig {
@@ -75,6 +77,8 @@ type L2Client struct {
 	// cache SystemConfig by L2 hash
 	// common.Hash -> eth.SystemConfig
 	systemConfigsCache *caching.LRUCache[common.Hash, eth.SystemConfig]
+
+	messagePasserRootFromState bool
 }
 
 var _ apis.L2EthExtendedClient = (*L2Client)(nil)
@@ -89,10 +93,11 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	}
 
 	return &L2Client{
-		EthClient:          ethClient,
-		rollupCfg:          config.RollupCfg,
-		l2BlockRefsCache:   caching.NewLRUCache[common.Hash, eth.L2BlockRef](metrics, "blockrefs", config.L2BlockRefsCacheSize),
-		systemConfigsCache: caching.NewLRUCache[common.Hash, eth.SystemConfig](metrics, "systemconfigs", config.L1ConfigsCacheSize),
+		EthClient:                  ethClient,
+		rollupCfg:                  config.RollupCfg,
+		l2BlockRefsCache:           caching.NewLRUCache[common.Hash, eth.L2BlockRef](metrics, "blockrefs", config.L2BlockRefsCacheSize),
+		systemConfigsCache:         caching.NewLRUCache[common.Hash, eth.SystemConfig](metrics, "systemconfigs", config.L1ConfigsCacheSize),
+		messagePasserRootFromState: config.MessagePasserRootFromState,
 	}, nil
 }
 
@@ -197,7 +202,7 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 
 	blockHash := block.Hash()
 	var messagePasserStorageRoot eth.Bytes32
-	if s.rollupCfg.IsIsthmus(block.Time()) {
+	if s.rollupCfg.IsIsthmus(block.Time()) && !s.messagePasserRootFromState {
 		// If Isthmus hard fork has activated, we can get the messagePasserStorageRoot directly from the header
 		// instead of having to compute it from the contract storage trie.
 		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())

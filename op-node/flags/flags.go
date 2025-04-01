@@ -141,6 +141,13 @@ var (
 		EnvVars:  prefixEnvVars("RPC_ADMIN_STATE"),
 		Category: OperationsCategory,
 	}
+	MessagePasserRootFromState = &cli.BoolFlag{
+		Name:     "message-passer-root-from-state",
+		Usage:    "Read message passer storage root from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior.",
+		Required: false,
+		EnvVars:  prefixEnvVars("MESSAGE_PASSER_ROOT_FROM_STATE"),
+		Category: OperationsCategory,
+	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:     "l1.trustrpc",
 		Usage:    "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
@@ -451,6 +458,7 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
+	MessagePasserRootFromState,
 	RPCListenAddr,
 	RPCListenPort,
 	L1TrustRPC,
