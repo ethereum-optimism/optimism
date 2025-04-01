@@ -219,12 +219,14 @@ func (b *forgeScriptBackendImpl) Destroy(address common.Address) {
 	b.host.Wipe(address)
 }
 
+// forgeScriptImpl is an implementation of ForgeScript
 type forgeScriptImpl struct {
 	artifact *foundry.Artifact
 	backend  ForgeScriptBackend
 	name     string
 }
 
+// Call deploys the script contract, sends transaction payload and destroys the contract
 func (s *forgeScriptImpl) Call(input []byte) (output []byte, err error) {
 	address, err := s.backend.Deploy(s.artifact, s.name)
 	if err != nil {
@@ -249,26 +251,30 @@ func (d *forgeScriptImpl) ABI() abi.ABI {
 	return d.artifact.ABI
 }
 
+// deployScriptWithoutOutputImpl[I] implements DdeployScriptWithoutOutput[I]
 type deployScriptWithoutOutputImpl[I any] struct {
 	script ForgeScript
 	method abi.Method
 }
 
-// ABI implements DeployScriptWithOutput.
+// ABI implements ForgeScript.
 func (d *deployScriptWithoutOutputImpl[I]) ABI() abi.ABI {
 	return d.script.ABI()
 }
 
-// Call implements DeployScriptWithOutput.
+// Call implements ForgeScript.
 func (d *deployScriptWithoutOutputImpl[I]) Call(input []byte) (result []byte, err error) {
 	return d.script.Call(input)
 }
 
-// Name implements DeployScriptWithOutput.
+// Name implements ForgeScript.
 func (d *deployScriptWithoutOutputImpl[I]) Name() string {
 	return d.script.Name()
 }
 
+// run is a helper function that encodes the input (that represents arguments to an ABI method) and returns the raw result
+//
+// It exists so that deployScriptWithoutOutputImpl and deployScriptWithOutputImpl can share the input encoding logic
 func (d *deployScriptWithoutOutputImpl[I]) run(input I) (result []byte, err error) {
 	// Just to keep things DRY a tiny bit
 	scriptName := d.Name()
@@ -287,14 +293,19 @@ func (d *deployScriptWithoutOutputImpl[I]) run(input I) (result []byte, err erro
 	return result, nil
 }
 
-type deployScriptWithOutputImpl[I any, O any] struct {
-	deployScriptWithoutOutputImpl[I]
-}
-
+// Run implements DeployScriptWithoutOutput[I].
 func (d *deployScriptWithoutOutputImpl[I]) Run(input I) (err error) {
 	_, err = d.run(input)
 
 	return err
+}
+
+// deployScriptWithOutputImpl[I, O] implements DeployScriptWithOutput[I, O]
+//
+// It embeds deployScriptWithoutOutputImpl[I] to be able to reuse the run method
+// and not have to worry about input encoding
+type deployScriptWithOutputImpl[I any, O any] struct {
+	deployScriptWithoutOutputImpl[I]
 }
 
 // Run implements DeployScriptWithOutput.
@@ -303,15 +314,18 @@ func (d *deployScriptWithOutputImpl[I, O]) Run(input I) (output O, err error) {
 	scriptName := d.Name()
 	methodName := d.method.RawName
 
+	// We use the run to get the raw output of the contract call
 	result, err := d.deployScriptWithoutOutputImpl.run(input)
 	if err != nil {
 		return output, err
 	}
 
+	// We then decode the raw output to an anonymous struct
 	unpacked, err := d.ABI().Unpack(methodName, result)
 	if err != nil {
 		return output, fmt.Errorf("failed to decode output for %s method of script %s using data 0x%s: %w", methodName, scriptName, common.Bytes2Hex(result), err)
 	}
 
+	// And finally we convert the anonymous struct into our typed output
 	return *abi.ConvertType(unpacked[0], new(O)).(*O), nil
 }
