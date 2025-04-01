@@ -32,7 +32,7 @@ type System struct {
 
 func (s *System) Supervisor(id stack.SupervisorID) *Supervisor {
 	super := s.sys.Supervisor(id)
-	return newSupervisor(s.common, s.log.New("component", "supervisor"), super)
+	return newSupervisor(s.common, s.log.New("id", id), super)
 }
 
 func Hydrate(t stack.T, setup *stack.Setup) *System {
