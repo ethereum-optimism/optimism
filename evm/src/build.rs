@@ -3,7 +3,7 @@ use alloy_consensus::{
     constants::EMPTY_WITHDRAWALS, proofs, Block, BlockBody, Header, TxReceipt,
     EMPTY_OMMER_ROOT_HASH,
 };
-use alloy_eips::merge::BEACON_NONCE;
+use alloy_eips::{eip7685::EMPTY_REQUESTS_HASH, merge::BEACON_NONCE};
 use alloy_evm::block::BlockExecutorFactory;
 use alloy_op_evm::OpBlockExecutionCtx;
 use alloy_primitives::logs_bloom;
@@ -67,7 +67,12 @@ where
             calculate_receipt_root_no_memo_optimism(receipts, &self.chain_spec, timestamp);
         let logs_bloom = logs_bloom(receipts.iter().flat_map(|r| r.logs()));
 
+        let mut requests_hash = None;
+
         let withdrawals_root = if self.chain_spec.is_isthmus_active_at_timestamp(timestamp) {
+            // always empty requests hash post isthmus
+            requests_hash = Some(EMPTY_REQUESTS_HASH);
+
             // withdrawals root field in block header is used for storage root of L2 predeploy
             // `l2tol1-message-passer`
             Some(
@@ -108,7 +113,7 @@ where
             parent_beacon_block_root: ctx.parent_beacon_block_root,
             blob_gas_used,
             excess_blob_gas,
-            requests_hash: None,
+            requests_hash,
         };
 
         Ok(Block::new(
