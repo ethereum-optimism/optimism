@@ -188,7 +188,6 @@ func (b *forgeScriptBackendImpl) Deploy(artifact *foundry.Artifact, label string
 	// Label the address using the contract name
 	b.host.Label(address, label)
 
-	// TODO Check that we can run other scripts if we only enable cheatcodes for this address
 	b.host.AllowCheatcodes(address)    // before constructor execution, give our script cheatcode access
 	b.host.state.MakeExcluded(address) // scripts are persistent across forks
 
