@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
+	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -312,68 +313,49 @@ func TestGetNumberOfUpgradeFunctions(t *testing.T) {
 }
 
 func TestUpgradesContract(t *testing.T) {
-	tests := []struct {
+	artifact, err := common.ReadForgeArtifact("../../../forge-artifacts/opcm_upgrade_checks_mocks.sol/IUpgradeable.json")
+	if err != nil {
+		t.Fatalf("Failed to load artifact: %v", err)
+	}
+
+	type test struct {
 		name           string
-		node           []solc.AstNode
+		upgradeAst     []solc.AstNode
 		typeName       string
 		expectedOutput bool
-	}{
+	}
+
+	tests := []test{
 		{
-			name: "With a top level external upgrade function call",
-			node: []solc.AstNode{
-				{
-					NodeType: "ExpressionStatement",
-					Expression: &solc.Expression{
-						Expression: &solc.Expression{
-							MemberName: "upgrade",
-							Expression: &solc.Expression{
-								TypeDescriptions: &solc.AstTypeDescriptions{
-									TypeString: "contract RandomToBeUpgradedContract",
-								},
-							},
-						},
-					},
-				},
-			},
-			typeName:       "contract RandomToBeUpgradedContract",
-			expectedOutput: true,
+			"With NO external upgrade function call",
+			[]solc.AstNode{},
+			"contract RandomToBeUpgradedContract",
+			false,
 		},
-		{
-			name: "With an external upgrade function call within a block",
-			node: []solc.AstNode{
-				{
-					NodeType: "Block",
-					Statements: &[]solc.AstNode{
-						{
-							NodeType: "ExpressionStatement",
-							Expression: &solc.Expression{
-								Expression: &solc.Expression{
-									MemberName: "upgrade",
-									Expression: &solc.Expression{
-										TypeDescriptions: &solc.AstTypeDescriptions{
-											TypeString: "contract RandomToBeUpgradedContract",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			typeName:       "contract RandomToBeUpgradedContract",
-			expectedOutput: true,
-		},
-		{
-			name:           "With NO external upgrade function call",
-			node:           []solc.AstNode{},
-			typeName:       "contract RandomToBeUpgradedContract",
-			expectedOutput: false,
-		},
+	}
+
+	for _, node := range artifact.Ast.Nodes {
+		if node.NodeType == "ContractDefinition" && node.Name != "IUpgradeable" {
+			upgradeAst := solc.AstNode{}
+			for _, astNode := range node.Nodes {
+				if astNode.NodeType == "FunctionDefinition" && astNode.Name == "upgrade" {
+					upgradeAst = astNode
+					break
+				}
+			}
+
+			tests = append(tests, struct {
+				name           string
+				upgradeAst     []solc.AstNode
+				typeName       string
+				expectedOutput bool
+			}{node.Name, []solc.AstNode{upgradeAst}, "contract IUpgradeable", true})
+		}
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output := upgradesContract(test.node, test.typeName)
+			output := upgradesContract(test.upgradeAst, test.typeName)
 			assert.Equal(t, test.expectedOutput, output)
 		})
 	}

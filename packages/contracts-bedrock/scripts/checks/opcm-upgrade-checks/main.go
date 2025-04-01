@@ -92,7 +92,7 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string) bool {
 			}
 		}
 
-		// For if/else-if/else statements
+		// For if / else-if / else statements
 		if node.TrueBody != nil {
 			found := upgradesContract([]solc.AstNode{*node.TrueBody}, typeName)
 			if found {
