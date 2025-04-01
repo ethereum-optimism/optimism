@@ -61,17 +61,17 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 		panic(err.Error())
 	}
 	rawSpanBatch := RawSpanBatch{
-		SpanBatchPrefix: SpanBatchPrefix{
-			RelTimestamp:  uint64(rng.Uint32()),
-			L1OriginNum:   rng.Uint64(),
-			ParentCheck:   [20]byte(testutils.RandomData(rng, 20)),
-			L1OriginCheck: [20]byte(testutils.RandomData(rng, 20)),
+		spanBatchPrefix: spanBatchPrefix{
+			relTimestamp:  uint64(rng.Uint32()),
+			l1OriginNum:   rng.Uint64(),
+			parentCheck:   [20]byte(testutils.RandomData(rng, 20)),
+			l1OriginCheck: [20]byte(testutils.RandomData(rng, 20)),
 		},
-		SpanBatchPayload: SpanBatchPayload{
-			BlockCount:    blockCount,
-			OriginBits:    originBits,
-			BlockTxCounts: blockTxCounts,
-			Txs:           spanBatchTxs,
+		spanBatchPayload: spanBatchPayload{
+			blockCount:    blockCount,
+			originBits:    originBits,
+			blockTxCounts: blockTxCounts,
+			txs:           spanBatchTxs,
 		},
 	}
 	return &rawSpanBatch
@@ -112,8 +112,8 @@ func mockL1Origin(rng *rand.Rand, rawSpanBatch *RawSpanBatch, singularBatches []
 
 	l1Origins := []eth.L1BlockRef{safeHeadOrigin}
 	originBitSum := uint64(0)
-	for i := 0; i < int(rawSpanBatch.BlockCount); i++ {
-		if rawSpanBatch.OriginBits.Bit(i) == 1 {
+	for i := 0; i < int(rawSpanBatch.blockCount); i++ {
+		if rawSpanBatch.originBits.Bit(i) == 1 {
 			l1Origin := testutils.NextRandomRef(rng, l1Origins[originBitSum])
 			originBitSum++
 			l1Origin.Hash = singularBatches[i].EpochHash

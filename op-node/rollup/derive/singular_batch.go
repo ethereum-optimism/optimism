@@ -61,13 +61,13 @@ func (b *SingularBatch) Epoch() eth.BlockID {
 	return eth.BlockID{Hash: b.EpochHash, Number: uint64(b.EpochNum)}
 }
 
-// Encode writes the byte encoding of SingularBatch to Writer stream
-func (b *SingularBatch) Encode(w io.Writer) error {
+// encode writes the byte encoding of SingularBatch to Writer stream
+func (b *SingularBatch) encode(w io.Writer) error {
 	return rlp.Encode(w, b)
 }
 
-// Decode reads the byte encoding of SingularBatch from Reader stream
-func (b *SingularBatch) Decode(r *bytes.Reader) error {
+// decode reads the byte encoding of SingularBatch from Reader stream
+func (b *SingularBatch) decode(r *bytes.Reader) error {
 	return rlp.Decode(r, b)
 }
 

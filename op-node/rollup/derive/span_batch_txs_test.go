@@ -25,12 +25,12 @@ func TestSpanBatchTxsContractCreationBits(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	contractCreationBits := rawSpanBatch.Txs.ContractCreationBits
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	contractCreationBits := rawSpanBatch.txs.contractCreationBits
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.ContractCreationBits = contractCreationBits
-	sbt.TotalBlockTxCount = totalBlockTxCount
+	var sbt spanBatchTxs
+	sbt.contractCreationBits = contractCreationBits
+	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
 	err := sbt.encodeContractCreationBits(&buf)
@@ -44,13 +44,13 @@ func TestSpanBatchTxsContractCreationBits(t *testing.T) {
 	require.Equal(t, buf.Len(), int(contractCreationBitBufferLen))
 
 	result := buf.Bytes()
-	sbt.ContractCreationBits = nil
+	sbt.contractCreationBits = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeContractCreationBits(r)
 	require.NoError(t, err)
 
-	require.Equal(t, contractCreationBits, sbt.ContractCreationBits)
+	require.Equal(t, contractCreationBits, sbt.contractCreationBits)
 }
 
 func TestSpanBatchTxsContractCreationCount(t *testing.T) {
@@ -59,21 +59,21 @@ func TestSpanBatchTxsContractCreationCount(t *testing.T) {
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 
-	contractCreationBits := rawSpanBatch.Txs.ContractCreationBits
-	contractCreationCount, err := rawSpanBatch.Txs.contractCreationCount()
+	contractCreationBits := rawSpanBatch.txs.contractCreationBits
+	contractCreationCount, err := rawSpanBatch.txs.contractCreationCount()
 	require.NoError(t, err)
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.ContractCreationBits = contractCreationBits
-	sbt.TotalBlockTxCount = totalBlockTxCount
+	var sbt spanBatchTxs
+	sbt.contractCreationBits = contractCreationBits
+	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
 	err = sbt.encodeContractCreationBits(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
-	sbt.ContractCreationBits = nil
+	sbt.contractCreationBits = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeContractCreationBits(r)
@@ -90,12 +90,12 @@ func TestSpanBatchTxsYParityBits(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	yParityBits := rawSpanBatch.Txs.YParityBits
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	yParityBits := rawSpanBatch.txs.yParityBits
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.YParityBits = yParityBits
-	sbt.TotalBlockTxCount = totalBlockTxCount
+	var sbt spanBatchTxs
+	sbt.yParityBits = yParityBits
+	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
 	err := sbt.encodeYParityBits(&buf)
@@ -109,13 +109,13 @@ func TestSpanBatchTxsYParityBits(t *testing.T) {
 	require.Equal(t, buf.Len(), int(yParityBitBufferLen))
 
 	result := buf.Bytes()
-	sbt.YParityBits = nil
+	sbt.yParityBits = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeYParityBits(r)
 	require.NoError(t, err)
 
-	require.Equal(t, yParityBits, sbt.YParityBits)
+	require.Equal(t, yParityBits, sbt.yParityBits)
 }
 
 func TestSpanBatchTxsProtectedBits(t *testing.T) {
@@ -123,14 +123,14 @@ func TestSpanBatchTxsProtectedBits(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	protectedBits := rawSpanBatch.Txs.ProtectedBits
-	txTypes := rawSpanBatch.Txs.txTypes
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
-	totalLegacyTxCount := rawSpanBatch.Txs.totalLegacyTxCount
+	protectedBits := rawSpanBatch.txs.protectedBits
+	txTypes := rawSpanBatch.txs.txTypes
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
+	totalLegacyTxCount := rawSpanBatch.txs.totalLegacyTxCount
 
-	var sbt SpanBatchTxs
-	sbt.ProtectedBits = protectedBits
-	sbt.TotalBlockTxCount = totalBlockTxCount
+	var sbt spanBatchTxs
+	sbt.protectedBits = protectedBits
+	sbt.totalBlockTxCount = totalBlockTxCount
 	sbt.txTypes = txTypes
 	sbt.totalLegacyTxCount = totalLegacyTxCount
 
@@ -147,13 +147,13 @@ func TestSpanBatchTxsProtectedBits(t *testing.T) {
 	require.Equal(t, buf.Len(), int(protectedBitBufferLen))
 
 	result := buf.Bytes()
-	sbt.ProtectedBits = nil
+	sbt.protectedBits = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeProtectedBits(r)
 	require.NoError(t, err)
 
-	require.Equal(t, protectedBits, sbt.ProtectedBits)
+	require.Equal(t, protectedBits, sbt.protectedBits)
 }
 
 func TestSpanBatchTxsTxSigs(t *testing.T) {
@@ -161,12 +161,12 @@ func TestSpanBatchTxsTxSigs(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	txSigs := rawSpanBatch.Txs.TxSigs
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	txSigs := rawSpanBatch.txs.txSigs
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.TotalBlockTxCount = totalBlockTxCount
-	sbt.TxSigs = txSigs
+	var sbt spanBatchTxs
+	sbt.totalBlockTxCount = totalBlockTxCount
+	sbt.txSigs = txSigs
 
 	var buf bytes.Buffer
 	err := sbt.encodeTxSigsRS(&buf)
@@ -176,7 +176,7 @@ func TestSpanBatchTxsTxSigs(t *testing.T) {
 	require.Equal(t, buf.Len(), 64*int(totalBlockTxCount))
 
 	result := buf.Bytes()
-	sbt.TxSigs = nil
+	sbt.txSigs = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeTxSigsRS(r)
@@ -184,8 +184,8 @@ func TestSpanBatchTxsTxSigs(t *testing.T) {
 
 	// v field is not set
 	for i := 0; i < int(totalBlockTxCount); i++ {
-		require.Equal(t, txSigs[i].r, sbt.TxSigs[i].r)
-		require.Equal(t, txSigs[i].s, sbt.TxSigs[i].s)
+		require.Equal(t, txSigs[i].r, sbt.txSigs[i].r)
+		require.Equal(t, txSigs[i].s, sbt.txSigs[i].s)
 	}
 }
 
@@ -194,25 +194,25 @@ func TestSpanBatchTxsTxNonces(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	txNonces := rawSpanBatch.Txs.TxNonces
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	txNonces := rawSpanBatch.txs.txNonces
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.TotalBlockTxCount = totalBlockTxCount
-	sbt.TxNonces = txNonces
+	var sbt spanBatchTxs
+	sbt.totalBlockTxCount = totalBlockTxCount
+	sbt.txNonces = txNonces
 
 	var buf bytes.Buffer
 	err := sbt.encodeTxNonces(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
-	sbt.TxNonces = nil
+	sbt.txNonces = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeTxNonces(r)
 	require.NoError(t, err)
 
-	require.Equal(t, txNonces, sbt.TxNonces)
+	require.Equal(t, txNonces, sbt.txNonces)
 }
 
 func TestSpanBatchTxsTxGases(t *testing.T) {
@@ -220,25 +220,25 @@ func TestSpanBatchTxsTxGases(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	txGases := rawSpanBatch.Txs.TxGases
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	txGases := rawSpanBatch.txs.txGases
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.TotalBlockTxCount = totalBlockTxCount
-	sbt.TxGases = txGases
+	var sbt spanBatchTxs
+	sbt.totalBlockTxCount = totalBlockTxCount
+	sbt.txGases = txGases
 
 	var buf bytes.Buffer
 	err := sbt.encodeTxGases(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
-	sbt.TxGases = nil
+	sbt.txGases = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeTxGases(r)
 	require.NoError(t, err)
 
-	require.Equal(t, txGases, sbt.TxGases)
+	require.Equal(t, txGases, sbt.txGases)
 }
 
 func TestSpanBatchTxsTxTos(t *testing.T) {
@@ -246,15 +246,15 @@ func TestSpanBatchTxsTxTos(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	txTos := rawSpanBatch.Txs.TxTos
-	contractCreationBits := rawSpanBatch.Txs.ContractCreationBits
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	txTos := rawSpanBatch.txs.txTos
+	contractCreationBits := rawSpanBatch.txs.contractCreationBits
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.TxTos = txTos
+	var sbt spanBatchTxs
+	sbt.txTos = txTos
 	// creation bits and block tx count must be se to decode tos
-	sbt.ContractCreationBits = contractCreationBits
-	sbt.TotalBlockTxCount = totalBlockTxCount
+	sbt.contractCreationBits = contractCreationBits
+	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
 	err := sbt.encodeTxTos(&buf)
@@ -264,13 +264,13 @@ func TestSpanBatchTxsTxTos(t *testing.T) {
 	require.Equal(t, buf.Len(), 20*len(txTos))
 
 	result := buf.Bytes()
-	sbt.TxTos = nil
+	sbt.txTos = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeTxTos(r)
 	require.NoError(t, err)
 
-	require.Equal(t, txTos, sbt.TxTos)
+	require.Equal(t, txTos, sbt.txTos)
 }
 
 func TestSpanBatchTxsTxDatas(t *testing.T) {
@@ -278,30 +278,31 @@ func TestSpanBatchTxsTxDatas(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	txDatas := rawSpanBatch.Txs.TxDatas
-	txTypes := rawSpanBatch.Txs.txTypes
-	totalBlockTxCount := rawSpanBatch.Txs.TotalBlockTxCount
+	txDatas := rawSpanBatch.txs.txDatas
+	txTypes := rawSpanBatch.txs.txTypes
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
-	var sbt SpanBatchTxs
-	sbt.TotalBlockTxCount = totalBlockTxCount
+	var sbt spanBatchTxs
+	sbt.totalBlockTxCount = totalBlockTxCount
 
-	sbt.TxDatas = txDatas
+	sbt.txDatas = txDatas
 
 	var buf bytes.Buffer
 	err := sbt.encodeTxDatas(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
-	sbt.TxDatas = nil
+	sbt.txDatas = nil
 	sbt.txTypes = nil
 
 	r := bytes.NewReader(result)
 	err = sbt.decodeTxDatas(r)
 	require.NoError(t, err)
 
-	require.Equal(t, txDatas, sbt.TxDatas)
+	require.Equal(t, txDatas, sbt.txDatas)
 	require.Equal(t, txTypes, sbt.txTypes)
 }
+
 func TestSpanBatchTxsAddTxs(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x1234))
 	chainID := big.NewInt(rng.Int63n(1000))
@@ -345,7 +346,7 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			var spanBatchTxs SpanBatchTxs
+			var spanBatchTxs spanBatchTxs
 			var txTypes []int
 			var txSigs []spanBatchSignature
 			var originalVs []uint64
@@ -376,16 +377,16 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 				yParityBits.SetBit(yParityBits, idx, yParityBit)
 			}
 
-			spanBatchTxs.YParityBits = yParityBits
-			spanBatchTxs.TxSigs = txSigs
+			spanBatchTxs.yParityBits = yParityBits
+			spanBatchTxs.txSigs = txSigs
 			spanBatchTxs.txTypes = txTypes
-			spanBatchTxs.ProtectedBits = protectedBits
+			spanBatchTxs.protectedBits = protectedBits
 			// recover txSig.v
 			err := spanBatchTxs.recoverV(chainID)
 			require.NoError(t, err)
 
 			var recoveredVs []uint64
-			for _, txSig := range spanBatchTxs.TxSigs {
+			for _, txSig := range spanBatchTxs.txSigs {
 				recoveredVs = append(recoveredVs, txSig.v)
 			}
 			require.Equal(t, originalVs, recoveredVs, "recovered v mismatch")
@@ -399,8 +400,8 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-		sbt := rawSpanBatch.Txs
-		totalBlockTxCount := sbt.TotalBlockTxCount
+		sbt := rawSpanBatch.txs
+		totalBlockTxCount := sbt.totalBlockTxCount
 
 		var buf bytes.Buffer
 		err := sbt.encode(&buf)
@@ -409,8 +410,8 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 		result := buf.Bytes()
 		r := bytes.NewReader(result)
 
-		var sbt2 SpanBatchTxs
-		sbt2.TotalBlockTxCount = totalBlockTxCount
+		var sbt2 spanBatchTxs
+		sbt2.totalBlockTxCount = totalBlockTxCount
 		err = sbt2.decode(r)
 		require.NoError(t, err)
 
@@ -461,12 +462,12 @@ func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x321))
 	chainID := big.NewInt(rng.Int63n(1000))
 
-	var sbt SpanBatchTxs
+	var sbt spanBatchTxs
 
 	sbt.txTypes = []int{types.DepositTxType}
-	sbt.TxSigs = []spanBatchSignature{{v: 0, r: nil, s: nil}}
-	sbt.YParityBits = new(big.Int)
-	sbt.ProtectedBits = new(big.Int)
+	sbt.txSigs = []spanBatchSignature{{v: 0, r: nil, s: nil}}
+	sbt.yParityBits = new(big.Int)
+	sbt.protectedBits = new(big.Int)
 
 	err := sbt.recoverV(chainID)
 	require.ErrorContains(t, err, "invalid tx type")
@@ -499,7 +500,7 @@ func TestSpanBatchTxsFullTxNotEnoughTxTos(t *testing.T) {
 			require.NoError(t, err)
 
 			// drop single to field
-			sbt.TxTos = sbt.TxTos[:len(sbt.TxTos)-2]
+			sbt.txTos = sbt.txTos[:len(sbt.txTos)-2]
 
 			_, err = sbt.fullTxs(chainID)
 			require.EqualError(t, err, "tx to not enough")
@@ -508,8 +509,8 @@ func TestSpanBatchTxsFullTxNotEnoughTxTos(t *testing.T) {
 }
 
 func TestSpanBatchTxsMaxContractCreationBitsLength(t *testing.T) {
-	var sbt SpanBatchTxs
-	sbt.TotalBlockTxCount = 0xFFFFFFFFFFFFFFFF
+	var sbt spanBatchTxs
+	sbt.totalBlockTxCount = 0xFFFFFFFFFFFFFFFF
 
 	r := bytes.NewReader([]byte{})
 	err := sbt.decodeContractCreationBits(r)
@@ -518,7 +519,7 @@ func TestSpanBatchTxsMaxContractCreationBitsLength(t *testing.T) {
 
 func TestSpanBatchTxsMaxYParityBitsLength(t *testing.T) {
 	var sb RawSpanBatch
-	sb.BlockCount = 0xFFFFFFFFFFFFFFFF
+	sb.blockCount = 0xFFFFFFFFFFFFFFFF
 
 	r := bytes.NewReader([]byte{})
 	err := sb.decodeOriginBits(r)
@@ -527,10 +528,10 @@ func TestSpanBatchTxsMaxYParityBitsLength(t *testing.T) {
 
 func TestSpanBatchTxsMaxProtectedBitsLength(t *testing.T) {
 	var sb RawSpanBatch
-	sb.Txs = &SpanBatchTxs{}
-	sb.Txs.totalLegacyTxCount = 0xFFFFFFFFFFFFFFFF
+	sb.txs = &spanBatchTxs{}
+	sb.txs.totalLegacyTxCount = 0xFFFFFFFFFFFFFFFF
 
 	r := bytes.NewReader([]byte{})
-	err := sb.Txs.decodeProtectedBits(r)
+	err := sb.txs.decodeProtectedBits(r)
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }

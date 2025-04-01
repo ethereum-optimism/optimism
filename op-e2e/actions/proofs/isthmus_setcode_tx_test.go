@@ -2,11 +2,9 @@ package proofs_test
 
 import (
 	"bytes"
-	"io"
 	"math/big"
-	"testing"
-
 	"math/rand"
+	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -207,19 +205,6 @@ func Test_ProgramAction_SetCodeTxWithContractCreationBitSet(gt *testing.T) {
 	matrix.Run(gt)
 }
 
-type spanBatchWithContractCreationBits struct {
-	derive.RawSpanBatch
-	overrideContractCreationBits *big.Int
-}
-
-func (b *spanBatchWithContractCreationBits) Encode(w io.Writer) error {
-	batchCpy := *b
-	batchTxsCpy := *b.Txs
-	batchCpy.Txs = &batchTxsCpy
-	batchCpy.Txs.ContractCreationBits = b.overrideContractCreationBits
-	return batchCpy.RawSpanBatch.Encode(w)
-}
-
 func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	var (
 		aa = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
@@ -281,16 +266,12 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 			return block.WithBody(types.Body{Transactions: append(block.Transactions(), tx, tx2)})
 		}),
 		actionsHelpers.WithChannelModifier(
-			derive.WithBatchDataOptions(
-				derive.WithBatchTypeOverride(func(batchData *derive.RawSpanBatch) derive.InnerBatchData {
-					// ensure contract bits are originally set to 0b10
-					require.Equal(t, big.NewInt(0b10), batchData.SpanBatchPayload.Txs.ContractCreationBits, "expected contract creation bits to be 0b10")
-
-					return &spanBatchWithContractCreationBits{
-						RawSpanBatch:                 *batchData,
-						overrideContractCreationBits: big.NewInt(0b01),
-					}
-				}))),
+			derive.TestWithOriginBitsMod(func(ob *big.Int) *big.Int {
+				// ensure contract bits are originally set to 0b10
+				require.Equal(t, big.NewInt(0b10), ob, "expected contract creation bits to be 0b10")
+				// flip bits
+				return big.NewInt(0b01)
+			})),
 	)
 	batcher.ActL2ChannelClose(t)
 

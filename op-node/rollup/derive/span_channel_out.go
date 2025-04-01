@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -44,8 +45,11 @@ type SpanChannelOut struct {
 	// to seal full span batches (that have reached the max block count) in the rlp slices.
 	sealedRLPBytes int
 
-	chainSpec        *rollup.ChainSpec
-	batchDataOptions []BatchDataOption
+	chainSpec *rollup.ChainSpec
+
+	// for testing purposes, this can be overridden to modify the raw span batch
+	// before rlp encoding.
+	rawSpanBatchRLPEncoder func(*RawSpanBatch) rlp.Encoder
 }
 
 func (co *SpanChannelOut) ID() ChannelID {
@@ -65,10 +69,20 @@ func WithMaxBlocksPerSpanBatch(maxBlock int) SpanChannelOutOption {
 	}
 }
 
-func WithBatchDataOptions(options ...BatchDataOption) SpanChannelOutOption {
+func withRawSpanBatchMod(mod func(*RawSpanBatch) *RawSpanBatch) SpanChannelOutOption {
 	return func(co *SpanChannelOut) {
-		co.batchDataOptions = options
+		co.rawSpanBatchRLPEncoder = func(rsb *RawSpanBatch) rlp.Encoder {
+			cpy := *rsb // create at least a shallow copy...
+			return NewBatchData(mod(&cpy))
+		}
 	}
+}
+
+func TestWithOriginBitsMod(mod func(*big.Int) *big.Int) SpanChannelOutOption {
+	return withRawSpanBatchMod(func(rsb *RawSpanBatch) *RawSpanBatch {
+		rsb.originBits = mod(rsb.originBits)
+		return rsb
+	})
 }
 
 func NewSpanChannelOut(targetOutputSize uint64, compressionAlgo CompressionAlgo, chainSpec *rollup.ChainSpec, opts ...SpanChannelOutOption) (*SpanChannelOut, error) {
@@ -79,6 +93,11 @@ func NewSpanChannelOut(targetOutputSize uint64, compressionAlgo CompressionAlgo,
 		rlp:       [2]*bytes.Buffer{{}, {}},
 		target:    targetOutputSize,
 		chainSpec: chainSpec,
+
+		// default rlp encoder for raw span batches
+		rawSpanBatchRLPEncoder: func(rsb *RawSpanBatch) rlp.Encoder {
+			return NewBatchData(rsb)
+		},
 	}
 	var err error
 	if err = c.setRandomID(); err != nil {
@@ -175,7 +194,7 @@ func (co *SpanChannelOut) addSingularBatch(batch *SingularBatch, seqNum uint64) 
 	co.swapRLP()
 	active := co.activeRLP()
 	active.Truncate(co.sealedRLPBytes)
-	if err = rlp.Encode(active, NewBatchData(rawSpanBatch, co.batchDataOptions...)); err != nil {
+	if err = rlp.Encode(active, co.rawSpanBatchRLPEncoder(rawSpanBatch)); err != nil {
 		return fmt.Errorf("failed to encode RawSpanBatch into bytes: %w", err)
 	}
 
