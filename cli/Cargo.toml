@@ -41,7 +41,7 @@ reth-node-events.workspace = true
 reth-optimism-evm.workspace = true
 reth-cli.workspace = true
 reth-cli-runner.workspace = true
-reth-node-builder.workspace = true
+reth-node-builder = { workspace = true, features = ["op"] }
 reth-tracing.workspace = true
 
 # eth
