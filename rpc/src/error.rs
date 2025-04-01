@@ -1,6 +1,7 @@
 //! RPC errors specific to OP.
 
 use alloy_rpc_types_eth::{error::EthRpcErrorCode, BlockError};
+use alloy_transport::{RpcError, TransportErrorKind};
 use jsonrpsee_types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
 use op_revm::{OpHaltReason, OpTransactionError};
 use reth_optimism_evm::OpBlockExecutionError;
@@ -136,9 +137,9 @@ impl From<TxConditionalErr> for jsonrpsee_types::error::ErrorObject<'static> {
 /// Error type when interacting with the Sequencer
 #[derive(Debug, thiserror::Error)]
 pub enum SequencerClientError {
-    /// Wrapper around an [`reqwest::Error`].
+    /// Wrapper around an [`RpcError<TransportErrorKind>`].
     #[error(transparent)]
-    HttpError(#[from] reqwest::Error),
+    HttpError(#[from] RpcError<TransportErrorKind>),
     /// Thrown when serializing transaction to forward to sequencer
     #[error("invalid sequencer transaction")]
     InvalidSequencerTransaction,
