@@ -7,7 +7,6 @@ import (
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -23,9 +22,9 @@ type adminAPI struct {
 
 var _ apis.BatcherAdminServer = (*adminAPI)(nil)
 
-func NewAdminAPI(dr BatcherDriver, m metrics.RPCMetricer, log log.Logger) *adminAPI {
+func NewAdminAPI(dr BatcherDriver, log log.Logger) *adminAPI {
 	return &adminAPI{
-		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
+		CommonAdminAPI: rpc.NewCommonAdminAPI(log),
 		b:              dr,
 	}
 }

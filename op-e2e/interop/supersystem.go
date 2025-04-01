@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -296,15 +297,22 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		L1RPC:       s.l1.UserRPC().RPC(),
 		Datadir:     path.Join(s.t.TempDir(), "supervisor"),
 	}
+
+	var ids []eth.ChainID
+	for _, l2Out := range s.worldOutput.L2s {
+		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		ids = append(ids, chainID)
+	}
+	eth.SortChainID(ids)
+
 	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
 
 	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
 	for _, l2Out := range s.worldOutput.L2s {
 		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-		index, err := chainID.ToUInt32()
-		require.NoError(s.t, err)
+		chainIndex := supervisortypes.ChainIndex(100 + slices.Index(ids, chainID))
 		depSet[chainID] = &depset.StaticConfigDependency{
-			ChainIndex:     supervisortypes.ChainIndex(index),
+			ChainIndex:     chainIndex,
 			ActivationTime: 0,
 			HistoryMinTime: 0,
 		}
@@ -336,7 +344,7 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 	}
 	cl, err := client.NewRPC(context.Background(), s.logger, s.supervisor.RPC())
 	require.NoError(s.t, err, "failed to dial supervisor RPC")
-	superClient := sources.NewSupervisorClient(cl, nil)
+	superClient := sources.NewSupervisorClient(cl)
 	s.superClient = superClient
 	return superClient
 }

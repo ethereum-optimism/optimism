@@ -240,7 +240,7 @@ func NewSupervisor(t helpers.Testing, logger log.Logger, depSet depset.Dependenc
 	rpcServer := helpers.NewSimpleRPCServer()
 	supervisor.RegisterRPCs(logger, svCfg, rpcServer, b, metrics.NoopMetrics)
 	rpcServer.Start(t)
-	supervisorClient := sources.NewSupervisorClient(rpcServer.Connect(t), nil)
+	supervisorClient := sources.NewSupervisorClient(rpcServer.Connect(t))
 	return &SupervisorActor{
 		exec:             evExec,
 		backend:          b,

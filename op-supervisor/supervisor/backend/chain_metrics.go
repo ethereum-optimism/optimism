@@ -3,6 +3,7 @@ package backend
 import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 )
@@ -17,6 +18,7 @@ type Metrics interface {
 	RecordDBEntryCount(chainID eth.ChainID, kind string, count int64)
 	RecordDBSearchEntriesRead(chainID eth.ChainID, count int64)
 
+	opmetrics.RPCMetricer
 	event.Metrics
 }
 
