@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch/script"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
@@ -46,7 +47,7 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 			return fmt.Errorf("failed to marshal output: %w", err)
 		}
 
-		err = os.WriteFile(outputFile, jsonData, 0644)
+		err = os.WriteFile(outputFile, jsonData, 0o644)
 		if err != nil {
 			return fmt.Errorf("failed to write output to file: %w", err)
 		}
@@ -54,6 +55,22 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 		fetcher.lgr.Info("completed fetching chain info", "outputFile", outputFile)
 		return nil
 	}
+}
+
+type Fetcher struct {
+	L1RPCURL              string
+	SystemConfigProxy     common.Address
+	L1StandardBridgeProxy common.Address
+	lgr                   log.Logger
+}
+
+func NewFetcher(lgr log.Logger, l1RPCURL string, systemConfigProxy, l1StandardBridge common.Address) (*Fetcher, error) {
+	return &Fetcher{
+		L1RPCURL:              l1RPCURL,
+		SystemConfigProxy:     systemConfigProxy,
+		L1StandardBridgeProxy: l1StandardBridge,
+		lgr:                   lgr,
+	}, nil
 }
 
 func (f *Fetcher) FetchChainInfo(ctx context.Context) (script.FetchChainInfoOutput, error) {
