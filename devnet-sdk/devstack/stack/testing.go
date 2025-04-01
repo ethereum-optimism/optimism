@@ -62,7 +62,7 @@ func (t *ToolingT) TempDir() string {
 		t.Errorf("failed to create temp dir: %v", err)
 		t.FailNow()
 	}
-	require.NotEmpty(t, tempDir, "sanity check temp-dir is not empty")
+	require.NotEmpty(t, tempDir, "sanity check temp-dir path is not empty")
 	require.NotEqual(t, "/", tempDir, "sanity-check temp-dir is not root")
 	t.Cleanup(func() {
 		if err := os.RemoveAll(tempDir); err != nil {
