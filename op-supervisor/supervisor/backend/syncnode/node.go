@@ -156,6 +156,8 @@ func (m *ManagedNode) SubscribeToNodeEvents() {
 			if prevErr != nil {
 				// This is the RPC runtime error, not the setup error we have logging for below.
 				m.log.Error("RPC subscription failed, restarting now", "err", prevErr)
+				// When the subscription fails, the channel may have been immediately closed
+				m.nodeEvents = make(chan *types.ManagedEvent, 10)
 			}
 			sub, err := m.Node.SubscribeEvents(ctx, m.nodeEvents)
 			if err != nil {
