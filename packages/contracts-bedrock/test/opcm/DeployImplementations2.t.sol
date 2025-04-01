@@ -10,23 +10,10 @@ import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
-import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
-import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
-import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.sol";
 
@@ -73,7 +60,9 @@ contract DeployImplementations2_Test is Test {
         assertEq(address(output1.l1CrossDomainMessengerImpl), address(output2.l1CrossDomainMessengerImpl), "200");
         assertEq(address(output1.l1ERC721BridgeImpl), address(output2.l1ERC721BridgeImpl), "300");
         assertEq(address(output1.l1StandardBridgeImpl), address(output2.l1StandardBridgeImpl), "400");
-        assertEq(address(output1.optimismMintableERC20FactoryImpl), address(output2.optimismMintableERC20FactoryImpl), "500");
+        assertEq(
+            address(output1.optimismMintableERC20FactoryImpl), address(output2.optimismMintableERC20FactoryImpl), "500"
+        );
         assertEq(address(output1.optimismPortalImpl), address(output2.optimismPortalImpl), "600");
         assertEq(address(output1.delayedWETHImpl), address(output2.delayedWETHImpl), "700");
         assertEq(address(output1.preimageOracleSingleton), address(output2.preimageOracleSingleton), "800");
