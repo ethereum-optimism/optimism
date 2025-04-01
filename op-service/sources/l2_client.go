@@ -207,6 +207,7 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 		// instead of having to compute it from the contract storage trie.
 		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())
 	} else {
+		s.log.Warn("Bypassing block header, retrieving messagePasserStorageRoot from state")
 		proof, err := s.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get contract proof at block %s: %w", blockHash, err)
