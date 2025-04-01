@@ -151,7 +151,7 @@ func DeployEventLogger(t helpers.Testing, opts txplan.Option) common.Address {
 	return eventLoggerAddress
 }
 
-func TestInitAndExecMsg(gt *testing.T) {
+func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
