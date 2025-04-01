@@ -80,6 +80,10 @@ func (f *FakeL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bl
 	return f.l1OriginFn(l2Head)
 }
 
+func (f *FakeL1OriginSelector) SetRecoverMode(bool) {
+	// noop
+}
+
 var _ L1OriginSelectorIface = (*FakeL1OriginSelector)(nil)
 
 type BasicSequencerStateListener struct {

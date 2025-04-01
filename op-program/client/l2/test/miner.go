@@ -63,8 +63,7 @@ func NewMiner(t *testing.T, logger log.Logger, isthmusTime uint64) (*Miner, *cor
 		NoPruning:   true,
 	}
 	nodeCfg := &node.Config{
-		Name:    "l2-geth",
-		DataDir: t.TempDir(),
+		Name: "l2-geth",
 	}
 	n, err := node.New(nodeCfg)
 	require.NoError(t, err)

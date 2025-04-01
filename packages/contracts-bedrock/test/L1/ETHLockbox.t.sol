@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Constants } from "src/libraries/Constants.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Interfaces
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
@@ -491,38 +492,62 @@ contract ETHLockboxTest is CommonTest {
     }
 
     /// @notice Tests the `migrateLiquidity` function succeeds
-    function testFuzz_migrateLiquidity_succeeds(uint256 _balance, address _lockbox) public {
-        _balance = bound(_balance, 0, type(uint256).max - address(ethLockbox).balance);
-
+    function testFuzz_migrateLiquidity_succeeds(
+        uint256 _originLockboxBalance,
+        uint256 _destinationLockboxBalance
+    )
+        public
+    {
         // Since on the fork the `_lockbox` fuzzed address doesn't exist, we skip the test
         if (isForkTest()) vm.skip(true);
-        assumeNotForgeAddress(_lockbox);
-        vm.assume(address(_lockbox) != address(ethLockbox));
 
-        // Mock on the lockbox that will receive the migration for it to succeed
+        // Bound balances to avoid overflow
+        _originLockboxBalance = bound(_originLockboxBalance, 0, type(uint256).max - address(ethLockbox).balance);
+        _destinationLockboxBalance = bound(_destinationLockboxBalance, 0, type(uint256).max - _originLockboxBalance);
+
+        // Deploy a new Proxy for the destination lockbox
+        address destinationLockbox = address(new Proxy(address(proxyAdmin)));
+
+        // Get the ETHLockbox implementation of the origin `ethLockbox` proxy
+        vm.prank(address(proxyAdmin));
+        address implementation = Proxy(payable(address(ethLockbox))).implementation();
+
+        // Upgrade the destination lockbox proxy to the `ETHLockbox` implementation
+        vm.prank(address(proxyAdmin));
+        Proxy(payable(destinationLockbox)).upgradeTo(implementation);
+
+        // Authorize the origin lockbox on the destination lockbox
+        vm.prank(proxyAdminOwner);
+        IETHLockbox(destinationLockbox).authorizeLockbox(ethLockbox);
+
+        // Mock the calls for checks on the destination lockbox so it can receive the migration
         vm.mockCall(
-            address(_lockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+            address(destinationLockbox),
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
+            abi.encode(proxyAdminOwner)
         );
-        vm.mockCall(address(_lockbox), abi.encodeCall(IETHLockbox.authorizedLockboxes, (ethLockbox)), abi.encode(true));
-        vm.mockCall(address(_lockbox), abi.encodeCall(IETHLockbox.receiveLiquidity, ()), abi.encode(true));
+        vm.mockCall(
+            address(destinationLockbox), abi.encodeCall(IETHLockbox.authorizedLockboxes, (ethLockbox)), abi.encode(true)
+        );
 
-        // Deal the balance to the lockbox
-        deal(address(_lockbox), _balance);
+        // Deal the balance to both lockboxes
+        deal(address(ethLockbox), _originLockboxBalance);
+        deal(address(destinationLockbox), _destinationLockboxBalance);
 
         // Get balances before the migration
-        uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
-        uint256 newLockboxBalanceBefore = address(_lockbox).balance;
+        uint256 originLockboxBalanceBefore = address(ethLockbox).balance;
+        uint256 destLockboxBalanceBefore = address(destinationLockbox).balance;
 
         // Expect the `LiquidityMigrated` event to be emitted
         vm.expectEmit(address(ethLockbox));
-        emit LiquidityMigrated(IETHLockbox(_lockbox), ethLockboxBalanceBefore);
+        emit LiquidityMigrated(IETHLockbox(destinationLockbox), originLockboxBalanceBefore);
 
         // Call the `migrateLiquidity` function with the lockbox
         vm.prank(proxyAdminOwner);
-        ethLockbox.migrateLiquidity(IETHLockbox(_lockbox));
+        ethLockbox.migrateLiquidity(IETHLockbox(destinationLockbox));
 
         // Assert the liquidity was migrated
         assertEq(address(ethLockbox).balance, 0);
-        assertEq(address(_lockbox).balance, newLockboxBalanceBefore + ethLockboxBalanceBefore);
+        assertEq(address(destinationLockbox).balance, destLockboxBalanceBefore + originLockboxBalanceBefore);
     }
 }

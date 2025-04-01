@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -75,6 +76,8 @@ type L2Client struct {
 	// common.Hash -> eth.SystemConfig
 	systemConfigsCache *caching.LRUCache[common.Hash, eth.SystemConfig]
 }
+
+var _ apis.L2EthExtendedClient = (*L2Client)(nil)
 
 // NewL2Client constructs a new L2Client instance. The L2Client is a thin wrapper around the EthClient with added functions
 // for fetching and caching eth.L2BlockRef values. This includes fetching an L2BlockRef by block number, label, or hash.

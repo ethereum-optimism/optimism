@@ -1,4 +1,4 @@
-package e2eutils
+package secrets
 
 import (
 	"crypto/ecdsa"
@@ -29,6 +29,17 @@ var DefaultMnemonicConfig = &MnemonicConfig{
 	Bob:          "m/44'/60'/0'/0/7",
 	Mallory:      "m/44'/60'/0'/0/8",
 	SysCfgOwner:  "m/44'/60'/0'/0/9",
+}
+
+// DefaultSecrets is the precomputed secrets for the default mnemonic.
+var DefaultSecrets *Secrets
+
+func init() {
+	var err error
+	DefaultSecrets, err = DefaultMnemonicConfig.Secrets()
+	if err != nil {
+		panic(fmt.Sprintf("invalid DefaultMnemonicConfig: %v", err))
+	}
 }
 
 // MnemonicConfig configures the private keys for the hive testnet.

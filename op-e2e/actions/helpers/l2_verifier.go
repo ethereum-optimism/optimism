@@ -283,6 +283,10 @@ func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) 
 	return false, nil
 }
 
+func (s *l2VerifierBackend) SetRecoverMode(ctx context.Context, mode bool) error {
+	return errors.New("recover mode unsupported")
+}
+
 func (s *L2Verifier) DerivationMetricsTracer() *testutils.TestDerivationMetrics {
 	return s.derivationMetrics
 }

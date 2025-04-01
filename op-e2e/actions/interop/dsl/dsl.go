@@ -233,18 +233,16 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	// Process updates on each chain and verify the cross-safe head advanced
 	for _, chain := range opts.Chains {
 		chain.Sequencer.ActL2PipelineFull(d.t)
-		status := chain.Sequencer.SyncStatus()
-		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance safe head", chain.ChainID)
-
 		chain.Sequencer.SyncSupervisor(d.t)
 	}
-
-	// Re-run in case there was an invalid block that was replaced so it can now be considered safe
-	// TODO: Should this just loop until the cross safe heads stop updating or is once enough?
 	d.Actors.Supervisor.ProcessFull(d.t)
-	// Process updates on each chain and verify the cross-safe head advanced
+	// Re-run in case there was an invalid block that was replaced so it can now be considered safe
 	for _, chain := range opts.Chains {
 		chain.Sequencer.ActL2PipelineFull(d.t)
+		chain.Sequencer.SyncSupervisor(d.t)
+	}
+	d.Actors.Supervisor.ProcessFull(d.t)
+	for _, chain := range opts.Chains {
 		status := chain.Sequencer.SyncStatus()
 		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance safe head", chain.ChainID)
 	}

@@ -105,6 +105,14 @@ verify-sepolia-fjord: op-program-host op-program-client
 
 verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesis
 
+analyze-op-program-client: analyze-op-program-client-cannon-singlethreaded-32 analyze-op-program-client-cannon-multithreaded-64
+
+analyze-op-program-client-cannon-singlethreaded-32:
+	./scripts/run-static-analysis.sh cannon-singlethreaded-32 ./compatibility-test/baseline-cannon-singlethreaded-32.json
+
+analyze-op-program-client-cannon-multithreaded-64:
+	./scripts/run-static-analysis.sh cannon-multithreaded-64 ./compatibility-test/baseline-cannon-multithreaded-64.json
+
 .PHONY: \
 	op-program \
 	op-program-host \
@@ -122,4 +130,7 @@ verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesi
 	capture-chain-test-data \
 	run-goerli-verify \
 	run-sepolia-verify \
-	run-compat
+	run-compat \
+	analyze-op-program-client \
+	analyze-op-program-client-cannon-singlethreaded-32 \
+	analyze-op-program-client-cannon-multithreaded-64

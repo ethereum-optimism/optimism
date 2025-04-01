@@ -214,8 +214,12 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 	return NewOutputCannonGameHelper(h.T, h.Client, h.Opts, h.PrivKey, game, h.FactoryAddr, createdEvent.DisputeProxy, provider, h.System)
 }
 
-func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, timestamp uint64, rootClaim common.Hash, opts ...GameOpt) *SuperCannonGameHelper {
-	return h.startSuperCannonGameOfType(ctx, timestamp, rootClaim, superCannonGameType, opts...)
+func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, rootClaim common.Hash, opts ...GameOpt) *SuperCannonGameHelper {
+	// Can't create a game at L1 genesis!
+	require.NoError(h.T, wait.ForBlock(ctx, h.Client, 1))
+	b, err := h.Client.BlockByNumber(ctx, nil)
+	require.NoError(h.T, err)
+	return h.startSuperCannonGameOfType(ctx, b.Time(), rootClaim, superCannonGameType, opts...)
 }
 
 func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {

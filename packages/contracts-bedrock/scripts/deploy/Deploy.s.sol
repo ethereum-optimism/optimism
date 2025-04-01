@@ -125,26 +125,6 @@ contract Deploy is Deployer {
         });
     }
 
-    /// @notice Returns the impl addresses, not reverting if any are unset.
-    function _impls() internal view returns (Types.ContractSet memory impls_) {
-        impls_ = Types.ContractSet({
-            L1CrossDomainMessenger: artifacts.getAddress("L1CrossDomainMessengerImpl"),
-            L1StandardBridge: artifacts.getAddress("L1StandardBridgeImpl"),
-            L2OutputOracle: artifacts.getAddress("L2OutputOracleImpl"),
-            DisputeGameFactory: artifacts.getAddress("DisputeGameFactoryImpl"),
-            DelayedWETH: artifacts.getAddress("DelayedWETHImpl"),
-            PermissionedDelayedWETH: artifacts.getAddress("PermissionedDelayedWETHImpl"),
-            AnchorStateRegistry: artifacts.getAddress("AnchorStateRegistryImpl"),
-            OptimismMintableERC20Factory: artifacts.getAddress("OptimismMintableERC20FactoryImpl"),
-            OptimismPortal: artifacts.getAddress("OptimismPortal2Impl"),
-            ETHLockbox: artifacts.getAddress("ETHLockboxImpl"),
-            SystemConfig: artifacts.getAddress("SystemConfigImpl"),
-            L1ERC721Bridge: artifacts.getAddress("L1ERC721BridgeImpl"),
-            ProtocolVersions: artifacts.getAddress("ProtocolVersionsImpl"),
-            SuperchainConfig: artifacts.getAddress("SuperchainConfigImpl")
-        });
-    }
-
     ////////////////////////////////////////////////////////////////
     //                    SetUp and Run                           //
     ////////////////////////////////////////////////////////////////

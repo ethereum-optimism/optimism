@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"testing"
 
-	devnetsdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
@@ -27,8 +26,8 @@ func TestTransactionProcessor_Sign(t *testing.T) {
 	client := new(mockEthClient)
 
 	// Create a wallet with the test key
-	chain := newChain(chainID.String(), "http://localhost:8545", nil, nil, map[string]devnetsdktypes.Address{})
-	wallet, err := newWallet(testKey, testAddr, chain)
+	chain := newChain(chainID.String(), WalletMap{}, nil, AddressMap{}, []Node{})
+	wallet, err := NewWallet(testKey, testAddr, chain)
 	assert.NoError(t, err)
 
 	processor := &transactionProcessor{
@@ -207,9 +206,10 @@ type mockTransaction struct {
 	from common.Address
 }
 
-func (m *mockTransaction) Hash() common.Hash    { return common.Hash{} }
-func (m *mockTransaction) From() common.Address { return m.from }
-func (m *mockTransaction) To() *common.Address  { return nil }
-func (m *mockTransaction) Value() *big.Int      { return nil }
-func (m *mockTransaction) Data() []byte         { return nil }
-func (m *mockTransaction) Type() uint8          { return 0 }
+func (m *mockTransaction) Hash() common.Hash            { return common.Hash{} }
+func (m *mockTransaction) From() common.Address         { return m.from }
+func (m *mockTransaction) To() *common.Address          { return nil }
+func (m *mockTransaction) Value() *big.Int              { return nil }
+func (m *mockTransaction) Data() []byte                 { return nil }
+func (m *mockTransaction) AccessList() types.AccessList { return nil }
+func (m *mockTransaction) Type() uint8                  { return 0 }

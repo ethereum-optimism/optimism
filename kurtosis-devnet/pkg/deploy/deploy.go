@@ -40,7 +40,7 @@ type Deployer struct {
 	engineManager  EngineManager
 	templateFile   string
 	dataFile       string
-	newEnclaveFS   func(ctx context.Context, enclave string) (*ktfs.EnclaveFS, error)
+	newEnclaveFS   func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error)
 }
 
 func WithKurtosisDeployer(ktDeployer DeployerFunc) DeployerOption {
@@ -97,7 +97,7 @@ func WithEnclave(enclave string) DeployerOption {
 	}
 }
 
-func WithNewEnclaveFSFunc(newEnclaveFS func(ctx context.Context, enclave string) (*ktfs.EnclaveFS, error)) DeployerOption {
+func WithNewEnclaveFSFunc(newEnclaveFS func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error)) DeployerOption {
 	return func(d *Deployer) {
 		d.newEnclaveFS = newEnclaveFS
 	}

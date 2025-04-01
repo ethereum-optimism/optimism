@@ -225,7 +225,7 @@ contract FFIInterface {
         external
         returns (bytes32, bytes memory, bytes memory, bytes[] memory)
     {
-        string[] memory cmds = new string[](6);
+        string[] memory cmds = new string[](3);
         cmds[0] = "./scripts/go-ffi/go-ffi";
         cmds[1] = "trie";
         cmds[2] = variant;

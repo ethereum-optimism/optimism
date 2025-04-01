@@ -92,7 +92,46 @@ us to validate that the upgrades work as expected in CI prior to deploying them 
 To run fork tests, run `just test-upgrade`. You will need to set `ETH_RPC_URL` to an archival mainnet node.
 
 When multiple upgrades are in flight at the same time, the fork tests stack upgrades on top of one another. Since the
-tip of `develop` must contain the implementation for the latest upgrade only, fork tests that run upgrades prior to 
-the latest one must use deployed instances of the OPCM. For example, as of this writing upgrades 13, 14, and 15 are 
-all in flight. Therefore, the fork tests will use deployed versions of the OPCM for upgrades 13 and 14 and whatever 
+tip of `develop` must contain the implementation for the latest upgrade only, fork tests that run upgrades prior to
+the latest one must use deployed instances of the OPCM. For example, as of this writing upgrades 13, 14, and 15 are
+all in flight. Therefore, the fork tests will use deployed versions of the OPCM for upgrades 13 and 14 and whatever
 is on `develop` for upgrade 15. See `OPContractsManager.t.sol` for the implementation of the fork tests.
+
+## Modifying Contracts for Upgrade
+
+When making changes to a contract there are few situations to bear in mind.
+
+### The contract's `initializer()` is updated
+
+Typically a contract's `initializer()` will be modified when a new storage variable is added which
+needs to be set. This may either be done by adding a new argument to the `initializer()`, by
+reading a value from the environment, or by reading a value from another contract.
+
+Whatever the case, a new `upgrade()` method should also be added which uses the same logic to set
+the new storage variable.
+
+In addition, the contract should inherit from `ReinitializableBase` and the `initializer()` and `upgrade()`
+methods should have the `reinitializer(reinitVersion())` modifier.
+
+The OPCM must then use `ProxyAdmin.upgradeAndCall()` to call the `upgrade()` method. Additionally, if the
+input value is not read from the chain, then it will need to be passed in as input. This will
+require a new field to be added to the `OpChainConfig` struct.
+
+### New derivation path events are being added
+
+If a contract emits events which have an impact on the derivation path of a chain (this most often
+occurs when a new `UpdateType` is added to the `SystemConfig.ConfigUpdate()` event), the best
+practice is to:
+
+1. Not emit the new event in the `initialize()` method (and not add an `upgrade()` method)
+1. Have the `op-node` default to some value for that config.
+1. Add a setter function with appropriate auth checks for the new config value.
+
+This pattern has a few benefits. It enables L1 contracts to be upgraded in advance of an L2 hardfork
+which reads these events. Another benefit is that it avoids the need to provide the new config value
+as an input to the `OpChainConfig`, thus helping to keep the interface of the OPCM stable.
+
+### No new storage variables or derivation path events are added
+
+In this case no changes are required to `initialize()`, no new `upgrade()` method is needed, and the
+OPCM can simply use the `ProxyAdmin.upgrade()` method to upgrade the contract.

@@ -16,6 +16,7 @@ import (
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
+	"github.com/spf13/afero"
 )
 
 const FILESERVER_PACKAGE = "fileserver"
@@ -25,16 +26,21 @@ type FileServer struct {
 	enclave  string
 	dryRun   bool
 	deployer DeployerFunc
+	fs       afero.Fs
 }
 
 func (f *FileServer) URL(path ...string) string {
 	return fmt.Sprintf("http://%s/%s", FILESERVER_PACKAGE, strings.Join(path, "/"))
 }
 
-func (f *FileServer) Deploy(ctx context.Context, sourceDir string, stateCh <-chan *fileserverState) error {
+func (f *FileServer) Deploy(ctx context.Context, sourceDir string, stateCh <-chan *fileserverState) (retErr error) {
+	if f.fs == nil {
+		f.fs = afero.NewOsFs()
+	}
+
 	// Check if source directory is empty. If it is, then ie means we don't have
 	// anything to serve, so we might as well not deploy the fileserver.
-	entries, err := os.ReadDir(sourceDir)
+	entries, err := afero.ReadDir(f.fs, sourceDir)
 	if err != nil {
 		return fmt.Errorf("error reading source directory: %w", err)
 	}
@@ -42,17 +48,24 @@ func (f *FileServer) Deploy(ctx context.Context, sourceDir string, stateCh <-cha
 		return nil
 	}
 
-	srcHash, err := calculateDirHash(sourceDir)
+	srcHash, err := calculateDirHashWithFs(sourceDir, f.fs)
 	if err != nil {
 		return fmt.Errorf("error calculating source directory hash: %w", err)
 	}
+
 	// Create a temp dir in the fileserver package
 	baseDir := filepath.Join(f.baseDir, FILESERVER_PACKAGE)
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
+	if err := f.fs.MkdirAll(baseDir, 0755); err != nil {
 		return fmt.Errorf("error creating base directory: %w", err)
 	}
 
-	configHash, err := calculateDirHash(filepath.Join(baseDir, "static_files", "nginx"))
+	// Create the nginx directory structure
+	nginxDir := filepath.Join(baseDir, "static_files", "nginx")
+	if err := f.fs.MkdirAll(nginxDir, 0755); err != nil {
+		return fmt.Errorf("error creating nginx directory: %w", err)
+	}
+
+	configHash, err := calculateDirHashWithFs(nginxDir, f.fs)
 	if err != nil {
 		return fmt.Errorf("error calculating base directory hash: %w", err)
 	}
@@ -67,14 +80,24 @@ func (f *FileServer) Deploy(ctx context.Context, sourceDir string, stateCh <-cha
 	// in order for kurtosis file artifact upload to be idempotent.
 	// (i.e. the file upload and all its downstream dependencies can be SKIPPED on re-runs)
 	tempDir := filepath.Join(baseDir, "upload-content")
-	err = os.Mkdir(tempDir, 0755)
-	if err != nil {
+
+	// Clean up any existing content
+	if err := f.fs.RemoveAll(tempDir); err != nil {
+		return fmt.Errorf("error cleaning up existing directory: %w", err)
+	}
+
+	// Create the directory
+	if err := f.fs.MkdirAll(tempDir, 0755); err != nil {
 		return fmt.Errorf("error creating temporary directory: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := f.fs.RemoveAll(tempDir); err != nil && retErr == nil {
+			retErr = fmt.Errorf("error cleaning up temporary directory: %w", err)
+		}
+	}()
 
 	// Copy build dir contents to tempDir
-	if err := util.CopyDir(sourceDir, tempDir); err != nil {
+	if err := util.CopyDir(sourceDir, tempDir, f.fs); err != nil {
 		return fmt.Errorf("error copying directory: %w", err)
 	}
 
@@ -98,7 +121,7 @@ func (f *FileServer) Deploy(ctx context.Context, sourceDir string, stateCh <-cha
 		return fmt.Errorf("error deploying kurtosis package: %w", err)
 	}
 
-	return nil
+	return
 }
 
 type fileserverState struct {
@@ -107,18 +130,23 @@ type fileserverState struct {
 }
 
 // downloadAndHashArtifact downloads an artifact and calculates its hash
-func downloadAndHashArtifact(ctx context.Context, enclave, artifactName string) (string, error) {
+func downloadAndHashArtifact(ctx context.Context, enclave, artifactName string) (hash string, retErr error) {
 	fs, err := ktfs.NewEnclaveFS(ctx, enclave)
 	if err != nil {
 		return "", fmt.Errorf("failed to create enclave fs: %w", err)
 	}
 
 	// Create temp dir
-	tempDir, err := os.MkdirTemp("", artifactName+"-*")
+	osFs := afero.NewOsFs()
+	tempDir, err := afero.TempDir(osFs, "", artifactName+"-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := osFs.RemoveAll(tempDir); err != nil && retErr == nil {
+			retErr = fmt.Errorf("error cleaning up temporary directory: %w", err)
+		}
+	}()
 
 	// Download artifact
 	artifact, err := fs.GetArtifact(ctx, artifactName)
@@ -127,7 +155,7 @@ func downloadAndHashArtifact(ctx context.Context, enclave, artifactName string) 
 	}
 
 	// Ensure parent directories exist before extracting
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
+	if err := osFs.MkdirAll(tempDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create temp dir structure: %w", err)
 	}
 
@@ -137,12 +165,12 @@ func downloadAndHashArtifact(ctx context.Context, enclave, artifactName string) 
 	}
 
 	// Calculate hash
-	hash, err := calculateDirHash(tempDir)
+	hash, err = calculateDirHash(tempDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to calculate hash: %w", err)
 	}
 
-	return hash, nil
+	return
 }
 
 func (f *FileServer) getState(ctx context.Context) <-chan *fileserverState {
@@ -190,8 +218,14 @@ type entry struct {
 // calculateDirHash returns a SHA256 hash of the directory contents
 // It walks through the directory, hashing file names and contents
 func calculateDirHash(dir string) (string, error) {
+	return calculateDirHashWithFs(dir, afero.NewOsFs())
+}
+
+// calculateDirHashWithFs is like calculateDirHash but accepts a custom filesystem
+func calculateDirHashWithFs(dir string, fs afero.Fs) (string, error) {
 	hash := sha256.New()
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+
+	err := afero.Walk(fs, dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -216,7 +250,7 @@ func calculateDirHash(dir string) (string, error) {
 
 		// If it's a regular file, add its contents to hash
 		if !info.IsDir() {
-			content, err := os.ReadFile(path)
+			content, err := afero.ReadFile(fs, path)
 			if err != nil {
 				return err
 			}

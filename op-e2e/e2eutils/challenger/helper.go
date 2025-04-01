@@ -143,7 +143,7 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Conf
 	for _, l2Genesis := range l2Geneses {
 		genesisBytes, err := json.Marshal(l2Genesis)
 		require.NoError(err, "marshall l2 genesis config")
-		genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
+		genesisFile := filepath.Join(c.Datadir, fmt.Sprintf("l2-genesis-%v.json", l2Genesis.Config.ChainID))
 		require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
 		c.Cannon.L2GenesisPaths = append(c.Cannon.L2GenesisPaths, genesisFile)
 	}
@@ -151,7 +151,7 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Conf
 	for _, rollupCfg := range rollupCfgs {
 		rollupBytes, err := json.Marshal(rollupCfg)
 		require.NoError(err, "marshall rollup config")
-		rollupFile := filepath.Join(c.Datadir, "rollup.json")
+		rollupFile := filepath.Join(c.Datadir, fmt.Sprintf("rollup-%v.json", rollupCfg.L2ChainID))
 		require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
 		c.Cannon.RollupConfigPaths = append(c.Cannon.RollupConfigPaths, rollupFile)
 	}

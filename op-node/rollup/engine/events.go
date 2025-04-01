@@ -405,6 +405,12 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			d.log.Error("failed to decode L2 block ref from payload", "err", err)
 			return true
 		}
+		// Avoid re-processing the same unsafe payload if it has already been processed. Because a FCU event emits the ProcessUnsafePayloadEvent
+		// it is possible to have multiple queueed up ProcessUnsafePayloadEvent for the same L2 block. This becomes an issue when processing
+		// a large number of unsafe payloads at once (like when iterating through the payload queue after the safe head has advanced).
+		if ref.BlockRef().ID() == d.ec.UnsafeL2Head().BlockRef().ID() {
+			return true
+		}
 		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
 			d.log.Info("failed to insert payload", "ref", ref,
 				"txs", len(x.Envelope.ExecutionPayload.Transactions), "err", err)

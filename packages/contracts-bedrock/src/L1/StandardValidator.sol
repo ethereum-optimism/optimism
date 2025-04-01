@@ -29,6 +29,7 @@ contract StandardValidatorBase {
     address public l1PAOMultisig;
     address public mips;
     address public challenger;
+    uint256 public withdrawalDelaySeconds;
 
     // Implementation addresses as state variables
     address public l1ERC721BridgeImpl;
@@ -60,12 +61,14 @@ contract StandardValidatorBase {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     ) {
         superchainConfig = _superchainConfig;
         l1PAOMultisig = _l1PAOMultisig;
         mips = _mips;
         challenger = _challenger;
+        withdrawalDelaySeconds = _withdrawalDelaySeconds;
 
         // Set implementation addresses from struct
         l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
@@ -175,7 +178,7 @@ contract StandardValidatorBase {
     {
         ISemver _semver = ISemver(address(_sysCfg));
         _errors = internalRequire(stringEq(_semver.version(), systemConfigVersion()), "SYSCON-10", _errors);
-        _errors = internalRequire(_sysCfg.gasLimit() == uint64(60_000_000), "SYSCON-20", _errors);
+        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(200_000_000), "SYSCON-20", _errors);
         _errors = internalRequire(_sysCfg.scalar() >> 248 == 1, "SYSCON-30", _errors);
         _errors =
             internalRequire(_admin.getProxyImplementation(address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
@@ -460,7 +463,7 @@ contract StandardValidatorBase {
             _errors
         );
         _errors = internalRequire(_weth.owner() == l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
-        _errors = internalRequire(_weth.delay() == 1 weeks, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
         return _errors;
     }
 
@@ -551,9 +554,17 @@ contract StandardValidatorV180 is StandardValidatorBase {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
+        StandardValidatorBase(
+            _implementations,
+            _superchainConfig,
+            _l1PAOMultisig,
+            _mips,
+            _challenger,
+            _withdrawalDelaySeconds
+        )
     { }
 
     function validate(InputV180 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -582,9 +593,17 @@ contract StandardValidatorV200 is StandardValidatorBase {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
+        StandardValidatorBase(
+            _implementations,
+            _superchainConfig,
+            _l1PAOMultisig,
+            _mips,
+            _challenger,
+            _withdrawalDelaySeconds
+        )
     { }
 
     function validate(InputV200 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -683,9 +702,17 @@ contract StandardValidatorV300 is StandardValidatorBase {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _mips, _challenger)
+        StandardValidatorBase(
+            _implementations,
+            _superchainConfig,
+            _l1PAOMultisig,
+            _mips,
+            _challenger,
+            _withdrawalDelaySeconds
+        )
     { }
 
     function validate(InputV300 memory _input, bool _allowFailure) public view returns (string memory) {

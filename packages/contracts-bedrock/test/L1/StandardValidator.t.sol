@@ -148,7 +148,7 @@ abstract contract StandardValidatorTest is Test {
 
         // Test invalid gas limit
         _mockValidationCalls();
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(1_000_000)));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(200_000_001)));
         assertEq("SYSCON-20", validate(true));
 
         // Test invalid scalar
@@ -953,7 +953,7 @@ abstract contract StandardValidatorTest is Test {
     function _mockDelayedWETH(address _weth) public {
         vm.mockCall(address(_weth), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.0"));
         vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.owner, ()), abi.encode(l1PAOMultisig));
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1 weeks));
+        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1 weeks / 2));
     }
 }
 
@@ -994,7 +994,8 @@ contract StandardValidatorV180_Test is StandardValidatorTest {
             superchainConfig,
             l1PAOMultisig,
             mips,
-            challenger
+            challenger,
+            302400
         );
     }
 
@@ -1006,6 +1007,7 @@ contract StandardValidatorV180_Test is StandardValidatorTest {
 
         vm.createSelectFork(rpcUrl);
 
+        // When OP Mainnet is updated this will need to be updated to the current validator version.
         StandardValidatorV180 mainnetValidator = new StandardValidatorV180(
             StandardValidatorBase.ImplementationsBase({
                 systemConfigImpl: address(0xAB9d6cB7A427c0765163A7f45BB91cAfe5f2D375),
@@ -1022,7 +1024,8 @@ contract StandardValidatorV180_Test is StandardValidatorTest {
             ISuperchainConfig(address(0x95703e0982140D16f8ebA6d158FccEde42f04a4C)),
             address(0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A), // l1PAOMultisig
             address(0x5fE03a12C1236F9C22Cb6479778DDAa4bce6299C), // mips
-            address(0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A) // challenger
+            address(0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A), // challenger
+            604800
         );
 
         StandardValidatorV180.InputV180 memory input = StandardValidatorV180.InputV180({
@@ -1094,7 +1097,8 @@ contract StandardValidatorV200_Test is StandardValidatorTest {
             superchainConfig,
             l1PAOMultisig,
             mips,
-            challenger
+            challenger,
+            302400
         );
     }
 
@@ -1195,7 +1199,8 @@ contract StandardValidatorV300_Test is StandardValidatorTest {
             superchainConfig,
             l1PAOMultisig,
             mips,
-            challenger
+            challenger,
+            302400
         );
     }
 

@@ -77,6 +77,11 @@
         "internalType": "address",
         "name": "_challenger",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_withdrawalDelaySeconds",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -418,6 +423,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdrawalDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ]

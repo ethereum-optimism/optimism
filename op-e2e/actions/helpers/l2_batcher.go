@@ -207,9 +207,8 @@ func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 		s.L2BufferedBlock = syncStatus.SafeL2
 		s.L2ChannelOut = nil
 	}
-	// If it's lagging behind, catch it up.
 	if s.l2SubmittedBlock.Number < syncStatus.SafeL2.Number {
-		s.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", s.l2SubmittedBlock, "safe", syncStatus.SafeL2)
+		s.log.Info("Safe head progressed, batch submission will continue from the new safe head now", "last", s.l2SubmittedBlock, "safe", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
 		s.L2BufferedBlock = syncStatus.SafeL2
 		s.L2ChannelOut = nil

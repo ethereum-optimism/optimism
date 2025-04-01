@@ -15,10 +15,7 @@ type WalletGetter = func(context.Context) system.Wallet
 func walletFundsValidator(chain system.Chain, minFunds types.Balance, userMarker interface{}) systest.PreconditionValidator {
 	constraint := constraints.WithBalance(minFunds)
 	return func(t systest.T, sys system.System) (context.Context, error) {
-		wallets, err := chain.Wallets(t.Context())
-		if err != nil {
-			return nil, err
-		}
+		wallets := chain.Wallets()
 
 		for _, wallet := range wallets {
 			if constraint.CheckWallet(wallet) {

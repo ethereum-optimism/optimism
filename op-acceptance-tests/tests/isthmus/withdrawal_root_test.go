@@ -32,24 +32,21 @@ func TestWithdrawalsRoot(t *testing.T) {
 		chainIdx,
 		types.NewBalance(big.NewInt(1.0*constants.ETH)),
 	)
-	llsysGetter, llsysValidator := validators.AcquireLowLevelSystem()
 	_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Isthmus)
 
 	systest.SystemTest(t,
-		withdrawalRootTestScenario(chainIdx, walletGetter, llsysGetter),
+		withdrawalRootTestScenario(chainIdx, walletGetter),
 		fundsValidator,
-		llsysValidator,
 		forkValidator,
 	)
 }
 
-func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletGetter, llsysGetter validators.LowLevelSystemGetter) systest.SystemTestFunc {
+func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
 		ctx := t.Context()
 
-		llsys := llsysGetter(ctx)
-		chain := llsys.L2s()[chainIdx]
-		gethCl, err := chain.GethClient()
+		chain := sys.L2s()[chainIdx]
+		gethCl, err := chain.Nodes()[0].GethClient()
 		require.NoError(t, err)
 
 		logger := testlog.Logger(t, log.LevelInfo)
@@ -57,8 +54,13 @@ func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletG
 
 		user := walletGetter(ctx)
 
-		// Sad eth clients
-		rpcCl, err := client.NewRPC(ctx, logger, chain.RPCURL())
+		secondCheck, err := systest.CheckForChainFork(t.Context(), chain, logger)
+		require.NoError(t, err, "error checking for chain fork")
+		defer func() {
+			require.NoError(t, secondCheck(), "error checking for chain fork")
+		}()
+
+		rpcCl, err := client.NewRPC(ctx, logger, chain.Nodes()[0].RPCURL())
 		require.NoError(t, err)
 		t.Cleanup(rpcCl.Close)
 		ethCl, err := sources.NewEthClient(rpcCl, logger, nil, sources.DefaultEthClientConfig(10))

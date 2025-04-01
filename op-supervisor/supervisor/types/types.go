@@ -39,6 +39,49 @@ func (ci *ChainIndex) UnmarshalText(data []byte) error {
 	return nil
 }
 
+type Revision uint64
+
+// RevisionAny is used as indicator to ignore the revision during lookups.
+// This is used in the cross-safe queries,
+// where there will only ever be a single derived block per derived block number,
+// but where the revision is still tracked to match the local-safe DB block replacements.
+// We use the max-uint64 value, since this is reserved, and will not be allowed to decode/encode.
+const RevisionAny = ^Revision(0)
+
+func (r Revision) Any() bool {
+	return r == RevisionAny
+}
+
+// Number returns the block-number, where the revision started (i.e. the invalidated/replacement block height)
+func (r Revision) Number() uint64 {
+	return uint64(r) &^ uint64(1<<63)
+}
+
+func (r Revision) String() string {
+	if r.Any() {
+		return "Rev(any)"
+	}
+	return fmt.Sprintf("Rev(%d)", r.Number())
+}
+
+// Cmp returns:
+// 0 if the revision matches any block number
+// 1 if the revision is higher than the given number
+// 0 if the revision is equal than the given number
+// -1 if the revision is lower than the given number
+func (r Revision) Cmp(blockNum uint64) int {
+	if r.Any() {
+		return 0
+	}
+	if r.Number() > blockNum {
+		return 1
+	}
+	if r.Number() == blockNum {
+		return 0
+	}
+	return -1
+}
+
 // ContainsQuery contains all the information needed to check a message
 // against a chain's database, to determine if it is valid (ie all invariants hold).
 type ContainsQuery struct {
@@ -66,15 +109,22 @@ type Message struct {
 	PayloadHash common.Hash `json:"payloadHash"`
 }
 
-func (m *Message) Checksum() MessageChecksum {
-	args := ChecksumArgs{
+func (m *Message) ToCheckSumArgs() ChecksumArgs {
+	return ChecksumArgs{
 		BlockNumber: m.Identifier.BlockNumber,
 		LogIndex:    m.Identifier.LogIndex,
 		Timestamp:   m.Identifier.Timestamp,
 		ChainID:     m.Identifier.ChainID,
 		LogHash:     PayloadHashToLogHash(m.PayloadHash, m.Identifier.Origin),
 	}
-	return args.Checksum()
+}
+
+func (m *Message) Checksum() MessageChecksum {
+	return m.ToCheckSumArgs().Checksum()
+}
+
+func (m *Message) Access() Access {
+	return m.ToCheckSumArgs().Access()
 }
 
 type ChecksumArgs struct {
@@ -398,6 +448,10 @@ func (refs *DerivedBlockRefPair) Seals() DerivedBlockSealPair {
 	}
 }
 
+func (refs DerivedBlockRefPair) String() string {
+	return fmt.Sprintf("refPair(source: %s, derived: %s)", refs.Source, refs.Derived)
+}
+
 // DerivedBlockSealPair is a pair of block seals, where Derived (L2) is derived from Source (L1).
 type DerivedBlockSealPair struct {
 	Source  BlockSeal `json:"source"`
@@ -411,10 +465,18 @@ func (seals *DerivedBlockSealPair) IDs() DerivedIDPair {
 	}
 }
 
+func (seals DerivedBlockSealPair) String() string {
+	return fmt.Sprintf("sealPair(source: %s, derived: %s)", seals.Source, seals.Derived)
+}
+
 // DerivedIDPair is a pair of block IDs, where Derived (L2) is derived from Source (L1).
 type DerivedIDPair struct {
 	Source  eth.BlockID `json:"source"`
 	Derived eth.BlockID `json:"derived"`
+}
+
+func (ids DerivedIDPair) String() string {
+	return fmt.Sprintf("idPair(source: %s, derived: %s)", ids.Source, ids.Derived)
 }
 
 type BlockReplacement struct {

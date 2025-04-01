@@ -1,17 +1,31 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.1")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.6")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test
+    @just acceptance-test simple holocene
+
+holocene:
+    @just acceptance-test simple holocene
+
+isthmus:
+    @just acceptance-test isthmus isthmus
+
+interop:
+    @just acceptance-test interop interop
+
+
+# DEVNET_ENV_URL
 
 # Run acceptance tests with mise-managed binary
-acceptance-test devnet="simple" gate="localnet":
+acceptance-test devnet="simple" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
+
+    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
 
     # Check if mise is installed
     if command -v mise >/dev/null; then
@@ -32,20 +46,22 @@ acceptance-test devnet="simple" gate="localnet":
         echo "Using mise-managed binary: $BINARY_PATH"
 
         # Run the op-acceptor binary
-        "$BINARY_PATH" \
+        DEVNET_ENV_URL="kt://{{devnet}}-devnet" "$BINARY_PATH" \
             --testdir "{{REPO_ROOT}}" \
             --gate {{gate}} \
             --validators ./acceptance-tests.yaml \
-            --log.level info
+            --log.level debug
     else
         echo "Mise not installed, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
     fi
 
 # Run acceptance tests against a devnet using Docker (fallback if needed)
-acceptance-test-docker devnet="simple" gate="localnet":
+acceptance-test-docker devnet="simple" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
+
+    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
 
     # First run the appropriate devnet from the kurtosis-devnet directory if needed.
     # We ignore failures here because if the devnet is already running then this command will fail.
@@ -63,3 +79,7 @@ acceptance-test-docker devnet="simple" gate="localnet":
         --gate {{gate}} \
         --validators /acceptance-tests.yaml \
         --log.level debug
+
+
+clean:
+    kurtosis clean --all

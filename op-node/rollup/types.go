@@ -123,6 +123,10 @@ type Config struct {
 	// Active if IsthmusTime != nil && L2 block timestamp >= *IsthmusTime, inactive otherwise.
 	IsthmusTime *uint64 `json:"isthmus_time,omitempty"`
 
+	// JovianTime sets the activation time of the Jovian network upgrade.
+	// Active if JovianTime != nil && L2 block timestamp >= *JovianTime, inactive otherwise.
+	JovianTime *uint64 `json:"jovian_time,omitempty"`
+
 	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
 	InteropTime *uint64 `json:"interop_time,omitempty"`
@@ -358,6 +362,32 @@ func (cfg *Config) HasOptimismWithdrawalsRoot(timestamp uint64) bool {
 	return cfg.IsIsthmus(timestamp)
 }
 
+// ProbablyMissingPectraBlobSchedule returns whether the chain is likely missing the Pectra blob
+// schedule fix.
+// A chain probably needs the Pectra blob schedule fix if:
+// - its L1 in Holesky or Sepolia, and
+// - its genesis is before the L1's Prague activation.
+func (cfg *Config) ProbablyMissingPectraBlobSchedule() bool {
+	if cfg.PectraBlobScheduleTime != nil {
+		return false
+	}
+
+	var pragueTime uint64
+	if cfg.L1ChainID.Cmp(params.HoleskyChainConfig.ChainID) == 0 {
+		pragueTime = *params.HoleskyChainConfig.PragueTime
+	} else if cfg.L1ChainID.Cmp(params.SepoliaChainConfig.ChainID) == 0 {
+		pragueTime = *params.SepoliaChainConfig.PragueTime
+	} else {
+		// Only Holesky and Sepolia chains may have run into the
+		// Pectra blob schedule bug.
+		return false
+	}
+
+	// Only chains whose genesis was before the L1's prague activation need
+	// the Pectra blob schedule fix.
+	return pragueTime >= cfg.Genesis.L2Time
+}
+
 // validateAltDAConfig checks the two approaches to configuring alt-da mode.
 // If the legacy values are set, they are copied to the new location. If both are set, they are check for consistency.
 func validateAltDAConfig(cfg *Config) error {
@@ -435,6 +465,11 @@ func (c *Config) IsIsthmus(timestamp uint64) bool {
 	return c.IsthmusTime != nil && timestamp >= *c.IsthmusTime
 }
 
+// IsJovian returns true if the Jovian hardfork is active at or past the given timestamp.
+func (c *Config) IsJovian(timestamp uint64) bool {
+	return c.JovianTime != nil && timestamp >= *c.JovianTime
+}
+
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime
@@ -498,6 +533,14 @@ func (c *Config) IsIsthmusActivationBlock(l2BlockTime uint64) bool {
 		!c.IsIsthmus(l2BlockTime-c.BlockTime)
 }
 
+// IsJovianActivationBlock returns whether the specified block is the first block subject to the
+// Jovian upgrade.
+func (c *Config) IsJovianActivationBlock(l2BlockTime uint64) bool {
+	return c.IsJovian(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsJovian(l2BlockTime-c.BlockTime)
+}
+
 func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 	return c.IsInterop(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
@@ -520,6 +563,9 @@ func (c *Config) ActivateAtGenesis(hardfork ForkName) {
 	switch hardfork {
 	case Interop:
 		c.InteropTime = new(uint64)
+		fallthrough
+	case Jovian:
+		c.JovianTime = new(uint64)
 		fallthrough
 	case Isthmus:
 		c.IsthmusTime = new(uint64)
@@ -725,6 +771,7 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 		callback("Pectra Blob Schedule", "pectra_blob_schedule_time", c.PectraBlobScheduleTime)
 	}
 	callback("Isthmus", "isthmus_time", c.IsthmusTime)
+	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Interop", "interop_time", c.InteropTime)
 }
 

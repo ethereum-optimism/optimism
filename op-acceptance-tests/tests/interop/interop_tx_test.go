@@ -19,16 +19,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter, sourceChainIdx, destChainIdx uint64, sourceWalletGetter, destWalletGetter validators.WalletGetter) systest.InteropSystemTestFunc {
+func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGetter, destWalletGetter validators.WalletGetter) systest.InteropSystemTestFunc {
 	return func(t systest.T, sys system.InteropSystem) {
 		ctx := t.Context()
-		llsys := lowLevelSystemGetter(ctx)
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		logger = logger.With("test", "TestMessagePassing", "devnet", sys.Identifier())
 
 		chainA := sys.L2s()[sourceChainIdx]
-		chainB := llsys.L2s()[destChainIdx]
+		chainB := sys.L2s()[destChainIdx]
 
 		logger.Info("chain info", "sourceChain", chainA.ID(), "destChain", chainB.ID())
 
@@ -55,7 +54,7 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 
 		// Build sentMessage for message execution
 		blockNumber := initReceipt.BlockNumber()
-		blockA, err := chainA.Node().BlockByNumber(ctx, blockNumber)
+		blockA, err := chainA.Nodes()[0].BlockByNumber(ctx, blockNumber)
 		require.NoError(t, err)
 		blockTimeA := big.NewInt(int64(blockA.Time()))
 		logger.Info("Initiate message was included at", "timestamp", blockTimeA.String())
@@ -88,13 +87,13 @@ func messagePassingScenario(lowLevelSystemGetter validators.LowLevelSystemGetter
 		logger.Info("Execute message", "txHash", execTxHash.Hex())
 
 		blockNumberB := execReceipt.BlockNumber()
-		blockB, err := chainB.Node().BlockByNumber(ctx, blockNumberB)
+		blockB, err := chainB.Nodes()[0].BlockByNumber(ctx, blockNumberB)
 		require.NoError(t, err)
 		blockTimeB := big.NewInt(int64(blockB.Time()))
 		logger.Info("Execute message was included at", "timestamp", blockTimeB.String())
 
 		// Validation that message has passed and got executed successfully
-		gethClient, err := chainB.GethClient()
+		gethClient, err := chainB.Nodes()[0].GethClient()
 		require.NoError(t, err)
 
 		trace, err := wait.DebugTraceTx(ctx, gethClient, execTxHash)
@@ -122,12 +121,10 @@ func TestMessagePassing(t *testing.T) {
 	destChainIdx := uint64(1)
 	sourceWalletGetter, sourcefundsValidator := validators.AcquireL2WalletWithFunds(sourceChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
 	destWalletGetter, destfundsValiator := validators.AcquireL2WalletWithFunds(destChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
-	lowLevelSystemGetter, lowLevelSystemValidator := validators.AcquireLowLevelSystem()
 
 	systest.InteropSystemTest(t,
-		messagePassingScenario(lowLevelSystemGetter, sourceChainIdx, destChainIdx, sourceWalletGetter, destWalletGetter),
+		messagePassingScenario(sourceChainIdx, destChainIdx, sourceWalletGetter, destWalletGetter),
 		sourcefundsValidator,
 		destfundsValiator,
-		lowLevelSystemValidator,
 	)
 }

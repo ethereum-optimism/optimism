@@ -132,14 +132,14 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, ve
 			elapsed = gameState.ChessClock(claim.Clock.Timestamp, parentClaim)
 		}
 		var countered string
-		if !resolved[i] {
+		if claim.CounteredBy != (common.Address{}) {
+			countered = "❌ " + claim.CounteredBy.Hex()
+		} else if !resolved[i] {
 			clock := gameState.ChessClock(now, claim)
 			resolvableAt := now.Add(maxClockDuration - clock).Format(time.DateTime)
 			countered = fmt.Sprintf("⏱️  %v", resolvableAt)
 		} else if claim.IsRoot() && metadata.L2BlockNumberChallenged {
 			countered = "❌ " + metadata.L2BlockNumberChallenger.Hex()
-		} else if claim.CounteredBy != (common.Address{}) {
-			countered = "❌ " + claim.CounteredBy.Hex()
 		} else {
 			countered = "✅"
 		}

@@ -11,11 +11,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/empty"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -30,7 +31,8 @@ var (
 	_ system.Wallet = (*mockFailingWallet)(nil)
 
 	// Ensure mockFailingChain implements Chain
-	_ system.Chain = (*mockFailingChain)(nil)
+	_ system.Chain   = (*mockFailingChain)(nil)
+	_ system.L2Chain = (*mockFailingL2Chain)(nil)
 )
 
 // mockFailingTx implements types.WriteInvocation[any] that always fails
@@ -137,50 +139,88 @@ func (r *mockContractsRegistry) SuperchainWETH(address types.Address) (interface
 // mockFailingChain implements system.Chain with a failing SendETH
 type mockFailingChain struct {
 	id      types.ChainID
-	reg     interfaces.ContractsRegistry
-	wallets []system.Wallet
+	wallets system.WalletMap
+	nodes   []system.Node
 }
 
 var _ system.Chain = (*mockFailingChain)(nil)
 
-func newMockFailingChain(id types.ChainID, wallets []system.Wallet) *mockFailingChain {
+func newMockFailingL1Chain(id types.ChainID, wallets system.WalletMap, nodes []system.Node) *mockFailingChain {
 	return &mockFailingChain{
 		id:      id,
-		reg:     &mockContractsRegistry{},
 		wallets: wallets,
+		nodes:   nodes,
 	}
 }
 
-func (m *mockFailingChain) Node() system.Node                  { return nil }
-func (m *mockFailingChain) RPCURL() string                     { return "mock://failing" }
-func (m *mockFailingChain) Client() (*ethclient.Client, error) { return ethclient.Dial(m.RPCURL()) }
-func (m *mockFailingChain) ID() types.ChainID                  { return m.id }
-func (m *mockFailingChain) Wallets(ctx context.Context) ([]system.Wallet, error) {
-	return m.wallets, nil
-}
-func (m *mockFailingChain) ContractsRegistry() interfaces.ContractsRegistry { return m.reg }
-func (m *mockFailingChain) GasPrice(ctx context.Context) (*big.Int, error) {
-	return big.NewInt(1), nil
-}
-func (m *mockFailingChain) GasLimit(ctx context.Context, tx system.TransactionData) (uint64, error) {
-	return 1000000, nil
-}
-func (m *mockFailingChain) PendingNonceAt(ctx context.Context, address common.Address) (uint64, error) {
-	return 0, nil
-}
-func (m *mockFailingChain) SupportsEIP(ctx context.Context, eip uint64) bool {
-	return true
+func (m *mockFailingChain) Nodes() []system.Node { return m.nodes }
+func (m *mockFailingChain) ID() types.ChainID    { return m.id }
+func (m *mockFailingChain) Wallets() system.WalletMap {
+	return m.wallets
 }
 func (m *mockFailingChain) Config() (*params.ChainConfig, error) {
 	return nil, fmt.Errorf("not implemented")
 }
-func (m *mockFailingChain) Addresses() descriptors.AddressMap {
+func (m *mockFailingChain) Addresses() system.AddressMap {
 	return map[string]common.Address{}
+}
+
+var _ system.Node = (*mockFailingNode)(nil)
+
+type mockFailingNode struct {
+	reg interfaces.ContractsRegistry
+}
+
+func (m *mockFailingNode) Client() (*sources.EthClient, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (m *mockFailingNode) GasPrice(ctx context.Context) (*big.Int, error) {
+	return big.NewInt(1), nil
+}
+func (m *mockFailingNode) GasLimit(ctx context.Context, tx system.TransactionData) (uint64, error) {
+	return 1000000, nil
+}
+func (m *mockFailingNode) PendingNonceAt(ctx context.Context, address common.Address) (uint64, error) {
+	return 0, nil
+}
+func (m *mockFailingNode) SupportsEIP(ctx context.Context, eip uint64) bool {
+	return true
+}
+func (m *mockFailingNode) RPCURL() string                                  { return "mock://failing" }
+func (m *mockFailingNode) ContractsRegistry() interfaces.ContractsRegistry { return m.reg }
+func (m *mockFailingNode) GethClient() (*ethclient.Client, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (m *mockFailingNode) BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// mockFailingChain implements system.Chain with a failing SendETH
+type mockFailingL2Chain struct {
+	mockFailingChain
+}
+
+func newMockFailingL2Chain(id types.ChainID, wallets system.WalletMap, nodes []system.Node) *mockFailingL2Chain {
+	return &mockFailingL2Chain{
+		mockFailingChain: mockFailingChain{
+			id:      id,
+			wallets: wallets,
+			nodes:   nodes,
+		},
+	}
+}
+
+func (m *mockFailingL2Chain) L1Addresses() system.AddressMap {
+	return map[string]common.Address{}
+}
+func (m *mockFailingL2Chain) L1Wallets() system.WalletMap {
+	return map[string]system.Wallet{}
 }
 
 // mockFailingSystem implements system.System
 type mockFailingSystem struct {
-	chain system.Chain
+	l1Chain system.Chain
+	l2Chain system.L2Chain
 }
 
 func (m *mockFailingSystem) Identifier() string {
@@ -188,11 +228,11 @@ func (m *mockFailingSystem) Identifier() string {
 }
 
 func (m *mockFailingSystem) L1() system.Chain {
-	return nil // We don't need L1 for this test
+	return m.l1Chain
 }
 
-func (m *mockFailingSystem) L2s() []system.Chain {
-	return []system.Chain{m.chain}
+func (m *mockFailingSystem) L2s() []system.L2Chain {
+	return []system.L2Chain{m.l2Chain}
 }
 
 func (m *mockFailingSystem) Close() error {

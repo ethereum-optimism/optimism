@@ -23,4 +23,6 @@ interface ICrossL2Inbox {
     function version() external view returns (string memory);
 
     function validateMessage(Identifier calldata _id, bytes32 _msgHash) external;
+
+    function calculateChecksum(Identifier memory _id, bytes32 _msgHash) external pure returns (bytes32 checksum_);
 }

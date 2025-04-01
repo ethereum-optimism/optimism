@@ -74,9 +74,9 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     mapping(IETHLockbox => bool) public authorizedLockboxes;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
+    /// @custom:semver 1.0.1
     function version() public view virtual returns (string memory) {
-        return "1.0.0";
+        return "1.0.1";
     }
 
     /// @notice Constructs the ETHLockbox contract.
@@ -194,10 +194,11 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
         if (!_sameProxyAdminOwner(address(_lockbox))) revert ETHLockbox_DifferentProxyAdminOwner();
 
         // Receive the liquidity.
-        IETHLockbox(_lockbox).receiveLiquidity{ value: address(this).balance }();
+        uint256 balance = address(this).balance;
+        IETHLockbox(_lockbox).receiveLiquidity{ value: balance }();
 
         // Emit the event.
-        emit LiquidityMigrated(_lockbox, address(this).balance);
+        emit LiquidityMigrated(_lockbox, balance);
     }
 
     /// @notice Authorizes a portal to lock and unlock ETH.

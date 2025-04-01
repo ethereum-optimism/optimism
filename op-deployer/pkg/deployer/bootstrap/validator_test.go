@@ -71,6 +71,7 @@ func testValidator(t *testing.T, forkRPCURL string, loc *artifacts.Locator, rele
 		AnchorStateRegistryImpl:          common.Address{'A'},
 		DelayedWETHImpl:                  common.Address{'B'},
 		MIPSImpl:                         common.Address{'D'},
+		WithdrawalDelaySeconds:           302400,
 	}
 
 	out, err := Validator(ctx, ValidatorConfig{

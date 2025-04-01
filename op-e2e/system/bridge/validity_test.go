@@ -19,7 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -351,7 +351,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			// Create a test account state for our transactor.
 			transactor := &TestAccountState{
 				Account: &TestAccount{
-					HDPath: e2eutils.DefaultMnemonicConfig.Alice,
+					HDPath: secrets.DefaultMnemonicConfig.Alice,
 					Key:    cfg.Secrets.Alice,
 					L1Opts: nil,
 					L2Opts: nil,

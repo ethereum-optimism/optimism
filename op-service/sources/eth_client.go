@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
@@ -101,6 +102,9 @@ func (c *EthClientConfig) Check() error {
 	if c.PayloadsCacheSize < 0 {
 		return fmt.Errorf("invalid payloads cache size: %d", c.PayloadsCacheSize)
 	}
+	if c.BlockRefsCacheSize < 0 {
+		return fmt.Errorf("invalid blockrefs cache size: %d", c.BlockRefsCacheSize)
+	}
 	if c.MaxConcurrentRequests < 1 {
 		return fmt.Errorf("expected at least 1 concurrent request, but max is %d", c.MaxConcurrentRequests)
 	}
@@ -141,6 +145,8 @@ type EthClient struct {
 	// common.Hash -> eth.BlockRef
 	blockRefsCache *caching.LRUCache[common.Hash, eth.BlockRef]
 }
+
+var _ apis.EthClient = (*EthClient)(nil)
 
 // NewEthClient returns an [EthClient], wrapping an RPC with bindings to fetch ethereum data with added error logging,
 // metric tracking, and caching. The [EthClient] uses a [LimitRPC] wrapper to limit the number of concurrent RPC requests.
@@ -343,8 +349,8 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	return info, receipts, nil
 }
 
-// FetchReceipt returns a receipt associated with transaction.
-func (s *EthClient) FetchReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+// TransactionReceipt returns a receipt associated with transaction.
+func (s *EthClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	var r *types.Receipt
 	err := s.client.CallContext(ctx, &r, "eth_getTransactionReceipt", txHash)
 	if err == nil && r == nil {
@@ -488,6 +494,9 @@ func ToCallArg(msg ethereum.CallMsg) interface{} {
 	}
 	if msg.GasPrice != nil {
 		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
+	}
+	if msg.AccessList != nil {
+		arg["accessList"] = msg.AccessList
 	}
 	return arg
 }

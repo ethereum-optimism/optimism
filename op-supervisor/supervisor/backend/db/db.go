@@ -57,28 +57,37 @@ type DerivationStorage interface {
 	Last() (pair types.DerivedBlockSealPair, err error)
 
 	// mapping from source<>derived
-	DerivedToFirstSource(derived eth.BlockID) (source types.BlockSeal, err error)
+	DerivedToFirstSource(derived eth.BlockID, revision types.Revision) (source types.BlockSeal, err error)
 	SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, err error)
 
 	// traversal
-	Next(pair types.DerivedIDPair) (next types.DerivedBlockSealPair, err error)
 	NextSource(source eth.BlockID) (nextSource types.BlockSeal, err error)
-	NextDerived(derived eth.BlockID) (next types.DerivedBlockSealPair, err error)
+
+	Candidate(afterSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error)
+
 	PreviousSource(source eth.BlockID) (prevSource types.BlockSeal, err error)
-	PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal, err error)
+
+	// Warning: only safe to use on cross-DB
+	PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error)
 
 	// type-specific
 	Invalidated() (pair types.DerivedBlockSealPair, err error)
-	ContainsDerived(derived eth.BlockID) error
+	ContainsDerived(derived eth.BlockID, revision types.Revision) error
+
+	// DerivedToRevision is only safe to use on the cross-safe DB.
+	DerivedToRevision(derived eth.BlockID) (types.Revision, error)
+
+	LastRevision() (revision types.Revision, err error)
+	SourceToRevision(source eth.BlockID) (types.Revision, error)
 
 	// writing
-	AddDerived(source eth.BlockRef, derived eth.BlockRef) error
-	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (types.DerivedBlockSealPair, error)
+	AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error
+	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, err error)
 
-	// rewining
+	// rewinding
 	RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error
 	RewindToScope(scope eth.BlockID) error
-	RewindToFirstDerived(v eth.BlockID) error
+	RewindToFirstDerived(v eth.BlockID, revision types.Revision) error
 }
 
 var _ DerivationStorage = (*fromda.DB)(nil)

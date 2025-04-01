@@ -71,6 +71,7 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 		GraniteTime:             config.GraniteTime(l1StartTime),
 		HoloceneTime:            config.HoloceneTime(l1StartTime),
 		IsthmusTime:             config.IsthmusTime(l1StartTime),
+		JovianTime:              config.JovianTime(l1StartTime),
 		PragueTime:              config.IsthmusTime(l1StartTime),
 		InteropTime:             config.InteropTime(l1StartTime),
 		Optimism: &params.OptimismConfig{

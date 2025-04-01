@@ -176,7 +176,7 @@ func (s *Service) initSupervisorClient(ctx context.Context, cfg *config.Config) 
 	if err != nil {
 		return fmt.Errorf("failed to dial supervisor client: %w", err)
 	}
-	s.supervisorClient = sources.NewSupervisorClient(rpcclient.NewBaseRPCClient(rpcClient))
+	s.supervisorClient = sources.NewSupervisorClient(rpcclient.NewBaseRPCClient(rpcClient), s.metrics)
 	return nil
 }
 
