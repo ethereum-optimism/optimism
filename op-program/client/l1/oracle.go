@@ -135,9 +135,14 @@ func (p *PreimageOracle) Precompile(address common.Address, input []byte, requir
 	return result[1:], result[0] == 1
 }
 
-var RootsOfUnity [4096]fr.Element
+var RootsOfUnity *[4096]fr.Element
 
-func init() {
+// generateRootsOfUnity generates the 4096th roots of unity used in EIP-4844 as predefined evaluation points.
+// To compute the field element at index i in a blob, the blob polynomial is evaluated at the ith root of unity.
+// Based on go-kzg-4844: https://github.com/crate-crypto/go-kzg-4844/blob/8bcf6163d3987313a3194595cf1f33fd45d7301a/internal/kzg/domain.go#L44-L98
+func generateRootsOfUnity() *[4096]fr.Element {
+	rootsOfUnity := new([4096]fr.Element)
+
 	const maxOrderRoot uint64 = 32
 	var rootOfUnity fr.Element
 	_, err := rootOfUnity.SetString("10238227357739495823651030575849232062558860180284477541189508159991286009131")
@@ -155,7 +160,7 @@ func init() {
 	// Compute all relevant roots of unity, i.e. the multiplicative subgroup of size x.
 	current := fr.One()
 	for i := uint64(0); i < 4096; i++ {
-		RootsOfUnity[i] = current
+		rootsOfUnity[i] = current
 		current.Mul(&current, &generator)
 	}
 	shiftCorrection := uint64(64 - bits.TrailingZeros64(4096))
@@ -164,7 +169,13 @@ func init() {
 		// Find index irev, such that i and irev get swapped
 		irev := bits.Reverse64(i) >> shiftCorrection
 		if irev > i {
-			RootsOfUnity[i], RootsOfUnity[irev] = RootsOfUnity[irev], RootsOfUnity[i]
+			rootsOfUnity[i], rootsOfUnity[irev] = rootsOfUnity[irev], rootsOfUnity[i]
 		}
 	}
+
+	return rootsOfUnity
+}
+
+func init() {
+	RootsOfUnity = generateRootsOfUnity()
 }
