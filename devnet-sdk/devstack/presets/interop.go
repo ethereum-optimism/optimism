@@ -10,9 +10,7 @@ import (
 
 type SimpleInterop struct {
 	Log        log.Logger
-	System     *dsl.System
-	Supervisor stack.Supervisor
-	// Nodes / handles from DSL package go here
+	Supervisor *dsl.Supervisor
 }
 
 func NewSimpleInterop(t stack.T, opts ...stack.Option) *SimpleInterop {
@@ -25,17 +23,12 @@ func NewSimpleInterop(t stack.T, opts ...stack.Option) *SimpleInterop {
 		opt(setup)
 	}
 
-	ids, opt := sysgo.DefaultInteropSystem(sysgo.ContractPaths{
-		FoundryArtifacts: "../../../packages/contracts-bedrock/forge-artifacts",
-		SourceMap:        "../../../packages/contracts-bedrock",
-	})
+	ids, opt := sysgo.DefaultInteropSystem(contractPaths())
 	opt(setup)
 
-	super := setup.System.Supervisor(ids.Supervisor)
-
+	sys := dsl.Hydrate(t, setup)
 	return &SimpleInterop{
 		Log:        setup.Log,
-		System:     dsl.Hydrate(setup.System),
-		Supervisor: super,
+		Supervisor: sys.Supervisor(ids.Supervisor),
 	}
 }
