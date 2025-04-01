@@ -213,7 +213,7 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	require.NoError(t, err)
 
 	// initating messages time <= executing message time
-	require.LessOrEqual(t, includedA.Time, includedB.Time)
+	require.Equal(t, includedA.Time, includedB.Time)
 
 	assertHeads(t, actors.ChainB, 2, 0, 1, 0)
 
