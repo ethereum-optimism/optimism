@@ -76,11 +76,6 @@ impl<Client, Tx> OpTransactionValidator<Client, Tx> {
         self.block_info.timestamp.load(Ordering::Relaxed)
     }
 
-    /// Returns the current block number.
-    fn block_number(&self) -> u64 {
-        self.block_info.number.load(Ordering::Relaxed)
-    }
-
     /// Whether to ensure that the transaction's sender has enough balance to also cover the L1 gas
     /// fee.
     pub fn require_l1_data_gas_fee(self, require_l1_data_gas_fee: bool) -> Self {
@@ -262,7 +257,6 @@ where
             let cost_addition = match l1_block_info.l1_tx_data_fee(
                 self.chain_spec(),
                 self.block_timestamp(),
-                self.block_number(),
                 &encoded,
                 false,
             ) {
