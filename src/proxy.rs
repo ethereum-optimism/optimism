@@ -1,5 +1,5 @@
-use crate::HealthLayer;
 use crate::client::http::HttpClient;
+use crate::health::HealthLayer;
 use crate::health::HealthService;
 use crate::server::PayloadSource;
 use alloy_rpc_types_engine::JwtSecret;
@@ -56,13 +56,13 @@ impl<S> Layer<S> for ProxyLayer {
     fn layer(&self, inner: S) -> Self::Service {
         let l2_client = HttpClient::new(
             self.l2_auth_rpc.clone(),
-            self.l2_auth_secret.clone(),
+            self.l2_auth_secret,
             PayloadSource::L2,
         );
 
         let builder_client = HttpClient::new(
             self.builder_auth_rpc.clone(),
-            self.builder_auth_secret.clone(),
+            self.builder_auth_secret,
             PayloadSource::Builder,
         );
 

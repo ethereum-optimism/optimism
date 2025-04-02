@@ -5,12 +5,9 @@ edition = "2024"
 
 [dependencies]
 op-alloy-rpc-types-engine = "0.11.1"
-op-alloy-rpc-types = "0.11.1"
-op-alloy-rpc-jsonrpsee = { version = "0.11.1", features = ["client"] }
 alloy-rpc-types-engine = "0.12.5"
-alloy-rpc-types-eth = "0.12.5"
+alloy-eips = { version = "0.12.5", features = ["serde"], optional = true }
 alloy-primitives = { version = "0.8.10", features = ["rand"] }
-alloy-eips = { version = "0.12.5", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1.4"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter", "json"] }
@@ -19,12 +16,10 @@ thiserror = "2.0.12"
 clap = { version = "4", features = ["derive", "env"] }
 jsonrpsee = { version = "0.24", features = ["server", "http-client", "macros"] }
 moka = { version = "0.12.10", features = ["sync"] }
-reqwest = "0.12.5"
 http = "1.1.0"
 dotenv = "0.15.0"
 tower = "0.4.13"
 tower-http = { version = "0.5.2", features = ["decompression-full"] }
-http-body = "1.0.1"
 http-body-util = "0.1.2"
 hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
@@ -32,7 +27,6 @@ hyper-rustls = { version = "0.27.0", features = ["ring"] }
 rustls = { version = "0.23.23", features = ["ring"] }
 serde_json = "1.0.96"
 opentelemetry = { version = "0.28.0", features = ["trace"] }
-opentelemetry-http = "0.28.0"
 opentelemetry-otlp = { version = "0.28.0", features = [
     "http-proto",
     "http-json",
@@ -42,23 +36,20 @@ opentelemetry-otlp = { version = "0.28.0", features = [
 ] }
 opentelemetry_sdk = { version = "0.28.0", features = ["rt-tokio"] }
 tracing-opentelemetry = "0.29.0"
-flate2 = "1.0.35"
 futures = "0.3.31"
-metrics-derive = "0.1"
 metrics = "0.24.0"
 metrics-exporter-prometheus = "0.16.0"
-metrics-process = "2.3.1"
 metrics-util = "0.19.0"
 eyre = "0.6.12"
 paste = "1.0.15"
 
 # dev dependencies for integration tests
-time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
-futures-util = "0.3.31"
-lazy_static = "1.5.0"
 parking_lot = "0.12.3"
+time = { version = "0.3.36", features = ["macros", "formatting", "parsing"], optional = true }
+lazy_static = {version = "1.5.0", optional = true }
 
 [dev-dependencies]
+alloy-rpc-types-eth = "0.12.5"
 anyhow = "1.0"
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
@@ -69,4 +60,15 @@ reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "v1.3.
 ctor = "0.4.1"
 
 [features]
-integration = []
+integration = [
+    "dep:lazy_static",
+    "dep:time",
+    "dep:alloy-eips"
+]
+
+[[bin]]
+name = "rollup-boost"
+path = "src/bin/main.rs"
+
+[lib]
+path = "src/lib.rs"

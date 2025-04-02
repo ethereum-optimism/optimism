@@ -1,133 +1,19 @@
 #![allow(clippy::complexity)]
-use crate::client::rpc::{BuilderArgs, L2ClientArgs, RpcClient};
-use ::tracing::{Level, info};
-use clap::{Parser, Subcommand, arg};
-use debug_api::DebugClient;
-use health::HealthLayer;
-use metrics::init_metrics;
+use ::tracing::info;
+use clap::Parser;
+use rollup_boost::{
+    Args, Commands, DebugClient, DebugCommands, PayloadSource, ProxyLayer, RollupBoostServer,
+    RpcClient, init_metrics, init_tracing,
+};
 use std::net::SocketAddr;
-use tracing::init_tracing;
 
 use alloy_rpc_types_engine::JwtSecret;
 use dotenv::dotenv;
 use eyre::bail;
 use jsonrpsee::RpcModule;
 use jsonrpsee::server::Server;
-use proxy::ProxyLayer;
-use server::{ExecutionMode, PayloadSource, RollupBoostServer};
 
 use tokio::signal::unix::{SignalKind, signal as unix_signal};
-
-mod client;
-mod debug_api;
-mod health;
-#[cfg(all(feature = "integration", test))]
-mod integration;
-mod metrics;
-mod proxy;
-mod server;
-mod tracing;
-
-#[derive(Parser, Debug)]
-#[clap(author, version, about)]
-struct Args {
-    #[command(subcommand)]
-    command: Option<Commands>,
-
-    #[clap(flatten)]
-    builder: BuilderArgs,
-
-    #[clap(flatten)]
-    l2_client: L2ClientArgs,
-
-    /// Disable using the proposer to sync the builder node
-    #[arg(long, env, default_value = "false")]
-    no_boost_sync: bool,
-
-    /// Host to run the server on
-    #[arg(long, env, default_value = "0.0.0.0")]
-    rpc_host: String,
-
-    /// Port to run the server on
-    #[arg(long, env, default_value = "8081")]
-    rpc_port: u16,
-
-    // Enable tracing
-    #[arg(long, env, default_value = "false")]
-    tracing: bool,
-
-    // Enable Prometheus metrics
-    #[arg(long, env, default_value = "false")]
-    metrics: bool,
-
-    /// Host to run the metrics server on
-    #[arg(long, env, default_value = "0.0.0.0")]
-    metrics_host: String,
-
-    /// Port to run the metrics server on
-    #[arg(long, env, default_value = "9090")]
-    metrics_port: u16,
-
-    /// OTLP endpoint
-    #[arg(long, env, default_value = "http://localhost:4317")]
-    otlp_endpoint: String,
-
-    /// Log level
-    #[arg(long, env, default_value = "info")]
-    log_level: Level,
-
-    /// Log format
-    #[arg(long, env, default_value = "text")]
-    log_format: LogFormat,
-
-    /// Host to run the debug server on
-    #[arg(long, env, default_value = "127.0.0.1")]
-    debug_host: String,
-
-    /// Debug server port
-    #[arg(long, env, default_value = "5555")]
-    debug_server_port: u16,
-
-    /// Execution mode to start rollup boost with
-    #[arg(long, env, default_value = "enabled")]
-    execution_mode: ExecutionMode,
-}
-
-#[derive(Clone, Debug)]
-enum LogFormat {
-    Json,
-    Text,
-}
-
-impl std::str::FromStr for LogFormat {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "json" => Ok(LogFormat::Json),
-            "text" => Ok(LogFormat::Text),
-            _ => Err("Invalid log format".into()),
-        }
-    }
-}
-
-#[derive(Subcommand, Debug)]
-enum Commands {
-    /// Debug commands
-    Debug {
-        #[command(subcommand)]
-        command: DebugCommands,
-    },
-}
-
-#[derive(Subcommand, Debug)]
-enum DebugCommands {
-    /// Set the execution mode
-    SetExecutionMode { execution_mode: ExecutionMode },
-
-    /// Get the execution mode
-    ExecutionMode {},
-}
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {

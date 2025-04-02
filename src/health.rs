@@ -12,7 +12,7 @@ use tower::{Layer, Service, util::Either};
 
 /// A [`Layer`] that filters out /healthz requests and responds with a 200 OK.
 #[derive(Clone, Debug)]
-pub(crate) struct HealthLayer;
+pub struct HealthLayer;
 
 impl<S> Layer<S> for HealthLayer {
     type Service = HealthService<S>;

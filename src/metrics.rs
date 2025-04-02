@@ -6,8 +6,6 @@ use metrics_util::layers::{PrefixLayer, Stack};
 use tokio::net::TcpListener;
 use tracing::{error, info};
 
-use crate::Args;
-
 use http::StatusCode;
 use hyper::service::service_fn;
 use hyper::{Request, Response, server::conn::http1};
@@ -15,7 +13,9 @@ use hyper_util::rt::TokioIo;
 use jsonrpsee::http_client::HttpBody;
 use metrics_exporter_prometheus::PrometheusHandle;
 
-pub(crate) fn init_metrics(args: &Args) -> Result<()> {
+use crate::cli::Args;
+
+pub fn init_metrics(args: &Args) -> Result<()> {
     if args.metrics {
         let recorder = PrometheusBuilder::new().build_recorder();
         let handle = recorder.handle();

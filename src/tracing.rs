@@ -11,7 +11,7 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::layer::SubscriberExt;
 
-use crate::{Args, LogFormat};
+use crate::cli::{Args, LogFormat};
 
 /// Span attribute keys that should be recorded as metric labels.
 ///
@@ -51,13 +51,10 @@ impl SpanProcessor for MetricsSpanProcessor {
                     attr.value.as_str().to_string(),
                 )
             })
-            .chain(
-                [
-                    ("span_kind".to_string(), format!("{:?}", span.span_kind)),
-                    ("status".to_string(), status.into()),
-                ]
-                .into_iter(),
-            )
+            .chain([
+                ("span_kind".to_string(), format!("{:?}", span.span_kind)),
+                ("status".to_string(), status.into()),
+            ])
             .collect::<Vec<_>>();
 
         histogram!(format!("{}_duration", span.name), &labels).record(duration);
@@ -72,7 +69,7 @@ impl SpanProcessor for MetricsSpanProcessor {
     }
 }
 
-pub(crate) fn init_tracing(args: &Args) -> eyre::Result<()> {
+pub fn init_tracing(args: &Args) -> eyre::Result<()> {
     // Be cautious with snake_case and kebab-case here
     let filter_name = "rollup_boost".to_string();
 

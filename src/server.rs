@@ -274,7 +274,7 @@ impl EngineApiServer for RollupBoostServer {
             let builder_client = self.builder_client.clone();
             tokio::spawn(async move {
                 let _ = builder_client
-                    .fork_choice_updated_v3(fork_choice_state.clone(), payload_attributes.clone())
+                    .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
                     .await;
             });
         } else {

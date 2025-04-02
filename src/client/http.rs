@@ -16,14 +16,14 @@ use tracing::{debug, error, instrument};
 use super::auth::{AuthClientLayer, AuthClientService};
 
 #[derive(Clone, Debug)]
-pub(crate) struct HttpClient {
+pub struct HttpClient {
     client: Decompression<AuthClientService<Client<HttpsConnector<HttpConnector>, HttpBody>>>,
     url: Uri,
     target: PayloadSource,
 }
 
 impl HttpClient {
-    pub(crate) fn new(url: Uri, secret: JwtSecret, target: PayloadSource) -> Self {
+    pub fn new(url: Uri, secret: JwtSecret, target: PayloadSource) -> Self {
         let connector = hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()
             .expect("no native root CA certificates found")

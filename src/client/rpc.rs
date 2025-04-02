@@ -23,7 +23,7 @@ const INTERNAL_ERROR: i32 = 13;
 pub(crate) type ClientResult<T> = Result<T, RpcClientError>;
 
 #[derive(Error, Debug)]
-pub(crate) enum RpcClientError {
+pub enum RpcClientError {
     #[error(transparent)]
     Jsonrpsee(#[from] jsonrpsee::core::client::Error),
     #[error("Invalid payload: {0}")]
@@ -89,7 +89,7 @@ impl From<RpcClientError> for ErrorObjectOwned {
 /// - **Engine API** calls are faciliated via the `auth_client` (requires JWT authentication).
 ///
 #[derive(Clone)]
-pub(crate) struct RpcClient {
+pub struct RpcClient {
     /// Handles requests to the authenticated Engine API (requires JWT authentication)
     auth_client: HttpClient<AuthClientService<HttpBackend>>,
     /// Uri of the RPC server for authenticated Engine API calls
