@@ -86,6 +86,7 @@ interface ISystemConfig {
     function unsafeBlockSigner() external view returns (address addr_);
     function upgrade(uint256 _l2ChainId) external;
     function version() external pure returns (string memory);
+    function paused() external view returns (bool);
 
     function __constructor__() external;
 }

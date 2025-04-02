@@ -11,13 +11,19 @@ interface ISuperchainConfig {
     event Paused(string identifier);
     event Unpaused();
 
+    error OnlyGuardian();
+    error PauseAlreadyUsed();
+
     function GUARDIAN_SLOT() external view returns (bytes32);
-    function PAUSED_SLOT() external view returns (bytes32);
+    function PAUSE_EXPIRY_SLOT() external view returns (bytes32);
     function guardian() external view returns (address guardian_);
-    function initialize(address _guardian, bool _paused) external;
-    function pause(string memory _identifier) external;
-    function paused() external view returns (bool paused_);
-    function unpause() external;
+    function initialize(address _guardian, uint256 _pauseExpiry) external;
+    function pause(address _identifier) external;
+    function unpause(address _identifier) external;
+    function pausable(address _identifier) external view returns (bool);
+    function paused(address _identifier) external view returns (bool);
+    function expiration(address _identifier) external view returns (uint256);
+    function reset(address _identifier) external;
     function version() external view returns (string memory);
 
     function __constructor__() external;

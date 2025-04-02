@@ -102,7 +102,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return superchainConfig.paused();
+        return superchainConfig.paused(address(this));
     }
 
     /// @notice Authorizes a portal to lock and unlock ETH.
