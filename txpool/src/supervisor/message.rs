@@ -21,10 +21,11 @@
 #[derive(Default, Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExecutingDescriptor {
     /// The timestamp used to enforce timestamp [invariant](https://github.com/ethereum-optimism/specs/blob/main/specs/interop/derivation.md#invariants)
+    #[serde(with = "alloy_serde::quantity")]
     timestamp: u64,
     /// The timeout that requests verification to still hold at `timestamp+timeout`
     /// (message expiry may drop previously valid messages).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", with = "alloy_serde::quantity::opt")]
     timeout: Option<u64>,
 }
 
