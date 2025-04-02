@@ -51,15 +51,3 @@ type DeployImplementations2Script script.DeployScriptWithOutput[DeployImplementa
 func NewDeployImplementationsScript(host *script.Host) (DeployImplementations2Script, error) {
 	return script.NewDeployScriptWithOutputFromFile[DeployImplementations2Input, DeployImplementations2Output](host, "DeployImplementations2.s.sol", "DeployImplementations2")
 }
-
-// DeploySuperchain2 exists for backwards compatibility and migration period
-//
-// Eventually the script loading and validation should occur before any scripts are run to avoid errors being thrown in the middle of the deployment
-func DeployImplementations2(host *script.Host, input DeployImplementations2Input) (output DeployImplementations2Output, err error) {
-	script, err := NewDeployImplementationsScript(host)
-	if err != nil {
-		return output, err
-	}
-
-	return script.Run(input)
-}
