@@ -1,4 +1,4 @@
-package syskt
+package sysext
 
 import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"

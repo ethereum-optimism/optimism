@@ -4,10 +4,11 @@
 
 ### Packages
 
+- `devtest`: `T` (test-scope) and `P` (package-scope) test handles.
 - `stack`: interfaces, IDs, common typing, core building blocks.
 - `shim`: implementations to turn RPC clients / config objects into objects fitting the `stack`.
 - `sysgo`: backend, hydrates a `stack.System` with `shim` objects that link to in-process Go services.
-- `syskt`: backend, hydrates a `stack.System` with `shim` objects that link to Kurtosis-managed services.
+- `sysext`: backend, hydrates a `stack.System` with `shim` objects that link to a devnet-descriptor, like Kurtosis-managed services.
 - `presets`: provides options that:
   - configure an orchestrator (e.g. validate contents or add new contents)
   - hydrate DSL test setups (e.g. turn a test handle in system with DSL utils)

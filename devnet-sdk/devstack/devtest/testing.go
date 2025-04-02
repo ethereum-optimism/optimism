@@ -144,8 +144,8 @@ func (t *testingT) _TestOnly() {
 
 var _ T = (*testingT)(nil)
 
-// NewT wraps around a test-logger and turns it into a T for devstack testing.
-func NewT(t *testing.T) T {
+// SerialT wraps around a test-logger and turns it into a T for devstack testing.
+func SerialT(t *testing.T) T {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	logger := testlog.Logger(t, log.LevelInfo)
@@ -155,5 +155,12 @@ func NewT(t *testing.T) T {
 		ctx:    ctx,
 	}
 	out.req = require.New(out)
+	return out
+}
+
+// ParallelT creates a T interface with parallel testing enabled by default
+func ParallelT(t *testing.T) T {
+	out := SerialT(t)
+	out.Parallel()
 	return out
 }

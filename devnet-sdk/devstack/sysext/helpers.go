@@ -1,4 +1,4 @@
-package syskt
+package sysext
 
 import (
 	"crypto/ecdsa"

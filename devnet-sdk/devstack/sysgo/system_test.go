@@ -35,7 +35,7 @@ func TestSystem(gt *testing.T) {
 	gt.Run("testA", func(gt *testing.T) {
 		gt.Parallel()
 
-		t := devtest.NewT(gt)
+		t := devtest.SerialT(gt)
 		system := shim.NewSystem(t)
 		orch.Hydrate(system)
 
@@ -45,7 +45,7 @@ func TestSystem(gt *testing.T) {
 	gt.Run("testB", func(gt *testing.T) {
 		gt.Parallel()
 
-		t := devtest.NewT(gt)
+		t := devtest.SerialT(gt)
 		system := shim.NewSystem(t)
 		orch.Hydrate(system)
 

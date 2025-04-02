@@ -9,8 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysext"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/syskt"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -71,7 +71,7 @@ func initOrchestrator(p devtest.P, opts ...stack.Option) {
 	case "sysgo":
 		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
 	case "syskt":
-		lockedOrchestrator.Value = syskt.NewOrchestrator(p)
+		lockedOrchestrator.Value = sysext.NewOrchestrator(p)
 	default:
 		p.Logger().Crit("Unknown devstack backend", "kind", kind)
 	}
