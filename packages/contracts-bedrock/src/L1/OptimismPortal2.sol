@@ -252,12 +252,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Initializer.
     /// @param _systemConfig Address of the SystemConfig.
-    /// @param _superchainConfig Address of the SuperchainConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Contract of the ETHLockbox.
     function initialize(
         ISystemConfig _systemConfig,
-        ISuperchainConfig _superchainConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox
     )
@@ -265,7 +263,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         reinitializer(initVersion())
     {
         systemConfig = _systemConfig;
-        superchainConfig = _superchainConfig;
+        superchainConfig = _systemConfig.superchainConfig();
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
 
@@ -297,7 +295,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return superchainConfig.paused();
+        return systemConfig.paused();
     }
 
     /// @notice Getter for the proof maturity delay.

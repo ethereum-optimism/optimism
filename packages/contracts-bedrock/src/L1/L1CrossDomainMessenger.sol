@@ -9,7 +9,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @custom:proxied true
@@ -18,8 +18,8 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @notice Contract of the SuperchainConfig.
-    ISuperchainConfig public superchainConfig;
+    /// @notice Contract of the SystemConfig.
+    ISystemConfig public systemConfig;
 
     /// @notice Contract of the OptimismPortal.
     /// @custom:network-specific
@@ -40,10 +40,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @notice Initializes the contract.
-    /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
+    /// @param _systemConfig Contract of the SystemConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
-    function initialize(ISuperchainConfig _superchainConfig, IOptimismPortal _portal) external initializer {
-        superchainConfig = _superchainConfig;
+    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external initializer {
+        systemConfig = _systemConfig;
         portal = _portal;
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
@@ -79,6 +79,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function paused() public view override returns (bool) {
-        return superchainConfig.paused();
+        return systemConfig.paused();
     }
 }

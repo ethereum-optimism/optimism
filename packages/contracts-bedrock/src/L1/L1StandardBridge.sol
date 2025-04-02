@@ -10,7 +10,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @custom:proxied true
 /// @title L1StandardBridge
@@ -77,8 +77,8 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @custom:semver 2.3.0
     string public constant version = "2.3.0";
 
-    /// @notice Address of the SuperchainConfig contract.
-    ISuperchainConfig public superchainConfig;
+    /// @notice Address of the SystemConfig contract.
+    ISystemConfig public systemConfig;
 
     /// @custom:legacy
     /// @custom:spacer systemConfig
@@ -92,9 +92,9 @@ contract L1StandardBridge is StandardBridge, ISemver {
 
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
-    /// @param _superchainConfig Contract for the SuperchainConfig on this network.
-    function initialize(ICrossDomainMessenger _messenger, ISuperchainConfig _superchainConfig) external initializer {
-        superchainConfig = _superchainConfig;
+    /// @param _systemConfig Contract for the SystemConfig on this network.
+    function initialize(ICrossDomainMessenger _messenger, ISystemConfig _systemConfig) external initializer {
+        systemConfig = _systemConfig;
         __StandardBridge_init({
             _messenger: _messenger,
             _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
@@ -103,7 +103,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
 
     /// @inheritdoc StandardBridge
     function paused() public view override returns (bool) {
-        return superchainConfig.paused();
+        return systemConfig.paused();
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.

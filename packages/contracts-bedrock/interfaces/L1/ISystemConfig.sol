@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface ISystemConfig {
     enum UpdateType {
@@ -87,6 +88,7 @@ interface ISystemConfig {
     function upgrade(uint256 _l2ChainId) external;
     function version() external pure returns (string memory);
     function paused() external view returns (bool);
+    function superchainConfig() external view returns (ISuperchainConfig);
 
     function __constructor__() external;
 }

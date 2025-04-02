@@ -469,7 +469,8 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         _resourceConfig = _config;
     }
 
-    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this chain's ETHLockbox.
+    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this
+    /// chain's ETHLockbox.
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
         IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
