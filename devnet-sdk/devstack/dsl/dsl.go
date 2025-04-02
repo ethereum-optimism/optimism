@@ -47,13 +47,13 @@ func (s *System) Supervisor(id stack.SupervisorID) *Supervisor {
 	return newSupervisor(commonWithLog(s.common, s.log.New("id", id)), super)
 }
 
-func Hydrate(t stack.T, setup *stack.Setup) *System {
+func Hydrate(setup *stack.Setup) *System {
 	return &System{
 		common: common{
 			ctx:     setup.Ctx,
 			log:     setup.Log,
-			t:       t,
-			require: require.New(t),
+			t:       setup.T,
+			require: setup.Require,
 		},
 		log: setup.Log,
 		sys: setup.System,

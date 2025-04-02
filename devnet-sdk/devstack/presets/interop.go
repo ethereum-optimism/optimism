@@ -26,7 +26,7 @@ func NewSimpleInterop(t stack.T, opts ...stack.Option) *SimpleInterop {
 	ids, opt := sysgo.DefaultInteropSystem(contractPaths())
 	opt(setup)
 
-	sys := dsl.Hydrate(t, setup)
+	sys := dsl.Hydrate(setup)
 	return &SimpleInterop{
 		Log:        setup.Log,
 		Supervisor: sys.Supervisor(ids.Supervisor),
