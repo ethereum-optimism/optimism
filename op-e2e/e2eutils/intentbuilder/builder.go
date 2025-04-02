@@ -2,14 +2,17 @@ package intentbuilder
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type SuperchainID string
@@ -68,15 +71,8 @@ type L2FeesConfigurator interface {
 }
 
 type L2HardforkConfigurator interface {
-	WithRegolithTimeOffset(*int)
-	WithCanyonTimeOffset(*int)
-	WithDeltaTimeOffset(*int)
-	WithEcotoneTimeOffset(*int)
-	WithFjordTimeOffset(*int)
-	WithGraniteTimeOffset(*int)
-	WithHoloceneTimeOffset(*int)
-	WithIsthmusTimeOffset(*int)
-	WithInteropTimeOffset(*int)
+	WithForkAtGenesis(fork rollup.ForkName)
+	WithForkAtOffset(fork rollup.ForkName, offset *uint64)
 }
 
 type Builder interface {
@@ -86,15 +82,15 @@ type Builder interface {
 	Build() (*state.Intent, error)
 }
 
-func WithDevkeyVaults(dk devkeys.Keys, configurator L2Configurator) {
-	addrFor := addrProvider(dk, configurator.ChainID())
+func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
+	addrFor := addrProvider(t, dk, configurator.ChainID())
 	configurator.WithBaseFeeVaultRecipient(addrFor(devkeys.BaseFeeVaultRecipientRole))
 	configurator.WithSequencerFeeVaultRecipient(addrFor(devkeys.SequencerFeeVaultRecipientRole))
 	configurator.WithL1FeeVaultRecipient(addrFor(devkeys.L1FeeVaultRecipientRole))
 }
 
-func WithDevkeyRoles(dk devkeys.Keys, configurator L2Configurator) {
-	addrFor := addrProvider(dk, configurator.ChainID())
+func WithDevkeyRoles(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
+	addrFor := addrProvider(t, dk, configurator.ChainID())
 	configurator.WithL1ProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
 	configurator.WithL2ProxyAdminOwner(addrFor(devkeys.L2ProxyAdminOwnerRole))
 	configurator.WithSystemConfigOwner(addrFor(devkeys.SystemConfigOwner))
@@ -105,18 +101,17 @@ func WithDevkeyRoles(dk devkeys.Keys, configurator L2Configurator) {
 }
 
 // addrProvider returns a function that generates addresses for a specific devkeys.Keys and chainID
-func addrProvider(dk devkeys.Keys, chainID eth.ChainID) func(role devkeys.Role) common.Address {
+func addrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID) func(role devkeys.Role) common.Address {
 	return func(role devkeys.Role) common.Address {
 		key := role.Key(chainID.ToBig())
 		addr, err := dk.Address(key)
-		if err != nil {
-			panic(fmt.Errorf("failed to generate devkey address: %w", err))
-		}
+		require.NoError(t, err, "failed to get address for role %s", role)
 		return addr
 	}
 }
 
 type intentBuilder struct {
+	t                require.TestingT
 	l1StartBlockHash *common.Hash
 	intent           *state.Intent
 }
@@ -152,9 +147,7 @@ func (b *intentBuilder) WithL2(l2ChainID eth.ChainID) (Builder, L2Configurator) 
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {
-	if err := b.intent.Check(); err != nil {
-		return nil, fmt.Errorf("invalid intent: %w", err)
-	}
+	require.NoError(b.t, b.intent.Check(), "invalid intent")
 	return b.intent, nil
 }
 
@@ -201,6 +194,7 @@ func (c *l1Configurator) WithStartTimestamp(timestamp uint64) L1Configurator {
 }
 
 type l2Configurator struct {
+	t          require.TestingT
 	builder    *intentBuilder
 	chainIndex int
 }
@@ -285,101 +279,32 @@ func (c *l2Configurator) WithOperatorFeeConstant(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].OperatorFeeConstant = value
 }
 
-func (c *l2Configurator) WithRegolithTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Regolith", offset)
-}
-
-func (c *l2Configurator) WithCanyonTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Canyon", offset)
-}
-
-func (c *l2Configurator) WithDeltaTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Delta", offset)
-}
-
-func (c *l2Configurator) WithEcotoneTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Ecotone", offset)
-}
-
-func (c *l2Configurator) WithFjordTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Fjord", offset)
-}
-
-func (c *l2Configurator) WithGraniteTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Granite", offset)
-}
-
-func (c *l2Configurator) WithHoloceneTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Holocene", offset)
-}
-
-func (c *l2Configurator) WithIsthmusTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Isthmus", offset)
-}
-
-func (c *l2Configurator) WithInteropTimeOffset(offset *int) {
-	c.setHardforkTimeOffsets("Interop", offset)
-}
-
-// setHardforkTimeOffsets sets the time offsets for all hardforks up to and including the specified one.
-func (c *l2Configurator) setHardforkTimeOffsets(hardfork string, offset *int) {
-	if offset == nil {
-		panic("don't use nil offsets when setting hardforks, instead set the latest hardfork directly")
-	}
-
-	if c.builder.intent.Chains[c.chainIndex].DeployOverrides == nil {
-		c.builder.intent.Chains[c.chainIndex].DeployOverrides = make(map[string]any)
-	}
-
-	// Define hardforks in order of precedence
-	hardforks := []string{
-		"Regolith",
-		"Canyon",
-		"Delta",
-		"Ecotone",
-		"Fjord",
-		"Granite",
-		"Holocene",
-		"Isthmus",
-		"Interop",
-	}
-
-	currentIndex := slices.Index(hardforks, hardfork)
-	if currentIndex == -1 {
-		panic(fmt.Sprintf("invalid hardfork name: %s", hardfork))
-	}
-
-	for i, hf := range hardforks {
-		key := fmt.Sprintf("l2Genesis%sTimeOffset", hf)
-		forkTime, forkSet := c.builder.intent.Chains[c.chainIndex].DeployOverrides[key]
-		forkSet = forkSet && forkTime != nil
-
-		if i < currentIndex {
-			if forkSet {
-				forkTimeInt, ok := forkTime.(int)
-				if !ok {
-					panic(fmt.Sprintf("invalid value type for %s: %T", key, forkTimeInt))
-				}
-
-				if forkTimeInt > *offset {
-					panic(fmt.Sprintf("value for previous hardfork %s is greater than the new offset: %d > %d", key, forkTimeInt, *offset))
-				}
-			} else {
-				c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = *offset
-			}
-		} else if i == currentIndex {
-			c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = *offset
-		} else {
-			if forkSet {
-				forkTimeInt, ok := forkTime.(int)
-				if !ok {
-					panic(fmt.Sprintf("invalid value type for %s: %T", key, forkTimeInt))
-				}
-
-				if forkTimeInt < *offset {
-					panic(fmt.Sprintf("value for subsequent hardfork %s is less than the new offset: %d < %d", key, forkTimeInt, *offset))
-				}
-			}
+func (c *l2Configurator) WithForkAtGenesis(fork rollup.ForkName) {
+	var future bool
+	for _, refFork := range rollup.AllForks {
+		if refFork == rollup.Bedrock {
+			continue
 		}
+
+		if future {
+			c.WithForkAtOffset(refFork, nil)
+		} else {
+			c.WithForkAtOffset(refFork, new(uint64))
+		}
+
+		if refFork == fork {
+			future = true
+		}
+	}
+}
+
+func (c *l2Configurator) WithForkAtOffset(fork rollup.ForkName, offset *uint64) {
+	require.True(c.t, rollup.IsValidFork(fork))
+	key := fmt.Sprintf("l2Genesis%sTimeOffset", cases.Title(language.English).String(string(fork)))
+
+	if offset == nil {
+		delete(c.builder.intent.Chains[c.chainIndex].DeployOverrides, key)
+	} else {
+		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = offset
 	}
 }

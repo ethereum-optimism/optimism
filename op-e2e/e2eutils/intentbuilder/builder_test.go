@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+
 	"net/url"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -21,7 +23,8 @@ func TestBuilder(t *testing.T) {
 	// Configure Superchain
 	builder, superchainConfig := builder.WithSuperchain()
 	require.NotNil(t, superchainConfig)
-	superchainConfig.WithSuperchainConfig(common.HexToAddress("0x9999"))
+	superchainConfigProxyAddr := common.HexToAddress("0x9999")
+	superchainConfig.WithSuperchainConfigProxy(superchainConfigProxyAddr)
 	superchainConfig.WithProxyAdminOwner(common.HexToAddress("0xaaaa"))
 	superchainConfig.WithGuardian(common.HexToAddress("0xbbbb"))
 	superchainConfig.WithProtocolVersionsOwner(common.HexToAddress("0xcccc"))
@@ -77,24 +80,9 @@ func TestBuilder(t *testing.T) {
 	l2Config.WithOperatorFeeConstant(200)
 
 	// Test L2HardforkConfigurator methods
-	regolithOffset := 1000
-	canyonOffset := 2000
-	deltaOffset := 3000
-	ecotoneOffset := 4000
-	fjordOffset := 5000
-	graniteOffset := 6000
-	holoceneOffset := 7000
-	isthmusOffset := 8000
-	interopOffset := 9000
-	l2Config.WithRegolithTimeOffset(&regolithOffset)
-	l2Config.WithCanyonTimeOffset(&canyonOffset)
-	l2Config.WithDeltaTimeOffset(&deltaOffset)
-	l2Config.WithEcotoneTimeOffset(&ecotoneOffset)
-	l2Config.WithFjordTimeOffset(&fjordOffset)
-	l2Config.WithGraniteTimeOffset(&graniteOffset)
-	l2Config.WithHoloceneTimeOffset(&holoceneOffset)
-	l2Config.WithIsthmusTimeOffset(&isthmusOffset)
-	l2Config.WithInteropTimeOffset(&interopOffset)
+	isthmusOffset := uint64(8000)
+	l2Config.WithForkAtGenesis(rollup.Holocene)
+	l2Config.WithForkAtOffset(rollup.Isthmus, &isthmusOffset)
 
 	// Build the intent
 	intent, err := builder.Build()
@@ -106,7 +94,7 @@ func TestBuilder(t *testing.T) {
 	expectedIntent := &state.Intent{
 		ConfigType:            state.IntentTypeCustom,
 		L1ChainID:             1,
-		SuperchainConfigProxy: common.HexToAddress("0x9999"),
+		SuperchainConfigProxy: &superchainConfigProxyAddr,
 		SuperchainRoles: &state.SuperchainRoles{
 			ProxyAdminOwner:       common.HexToAddress("0xaaaa"),
 			Guardian:              common.HexToAddress("0xbbbb"),
@@ -147,15 +135,14 @@ func TestBuilder(t *testing.T) {
 				OperatorFeeConstant:      200,
 				DeployOverrides: map[string]any{
 					"l2BlockTime":                 uint64(2),
-					"l2GenesisRegolithTimeOffset": regolithOffset,
-					"l2GenesisCanyonTimeOffset":   canyonOffset,
-					"l2GenesisDeltaTimeOffset":    deltaOffset,
-					"l2GenesisEcotoneTimeOffset":  ecotoneOffset,
-					"l2GenesisFjordTimeOffset":    fjordOffset,
-					"l2GenesisGraniteTimeOffset":  graniteOffset,
-					"l2GenesisHoloceneTimeOffset": holoceneOffset,
+					"l2GenesisRegolithTimeOffset": 0,
+					"l2GenesisCanyonTimeOffset":   0,
+					"l2GenesisDeltaTimeOffset":    0,
+					"l2GenesisEcotoneTimeOffset":  0,
+					"l2GenesisFjordTimeOffset":    0,
+					"l2GenesisGraniteTimeOffset":  0,
+					"l2GenesisHoloceneTimeOffset": 0,
 					"l2GenesisIsthmusTimeOffset":  isthmusOffset,
-					"l2GenesisInteropTimeOffset":  interopOffset,
 				},
 			},
 		},
