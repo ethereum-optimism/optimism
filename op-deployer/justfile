@@ -1,6 +1,12 @@
 build:
     go build -o bin/op-deployer cmd/op-deployer/main.go
 
+build-contracts:
+    just ../packages/contracts-bedrock/forge-build
+
+test args='./...': build-contracts
+    go test -v {{args}}
+
 download-artifacts checksum outfile:
     curl -o {{outfile}} -L https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-{{checksum}}.tar.gz
 
