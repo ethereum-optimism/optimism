@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeploySuperchain2(t *testing.T) {
+func TestNewDeploySuperchainScript(t *testing.T) {
 	t.Run("should not fail with current version of DeploySuperchain2 contract", func(t *testing.T) {
 		// First we grab a test host
 		host1 := createTestHost(t)
