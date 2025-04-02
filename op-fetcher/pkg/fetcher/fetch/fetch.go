@@ -74,7 +74,7 @@ func NewFetcher(lgr log.Logger, l1RPCURL string, systemConfigProxy, l1StandardBr
 }
 
 func (f *Fetcher) FetchChainInfo(ctx context.Context) (script.FetchChainInfoOutput, error) {
-	f.lgr.Info("initializing fetcher", "systemConfigProxy", f.SystemConfigProxy, "l1StandardBridgeProxy", f.L1StandardBridgeProxy)
+	f.lgr.Info("initializing fetcher", "systemConfigProxy", f.SystemConfigProxy)
 
 	l1RPC, err := rpc.Dial(f.L1RPCURL)
 	if err != nil {
