@@ -1183,13 +1183,34 @@ jobs:
           command: go test -v ./... || true # ignore failures; we're just compiling the tests
       # Run the actual acceptance tests with optimized settings
       - run:
-          name: Run acceptance tests
+          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
           no_output_timeout: 60m
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
           command: just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+      - run:
+          name: Print results (summary)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/summary.log" || true
+          when: always
+      - run:
+          name: Print results (failures)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/failed/*.log" || true
+          when: on_fail
+      - run:
+          name: Print results (all)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/all.log" || true
+          when: always
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
