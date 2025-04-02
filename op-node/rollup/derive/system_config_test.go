@@ -9,9 +9,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 var (
@@ -238,8 +240,9 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			config := eth.SystemConfig{}
 			rollupCfg := rollup.Config{EcotoneTime: test.ecotoneTime}
+			logger := testlog.Logger(t, log.LevelInfo)
 
-			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), &rollupCfg, test.l1Time)
+			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), &rollupCfg, test.l1Time, logger)
 			if test.err {
 				require.Error(t, err)
 			} else {
