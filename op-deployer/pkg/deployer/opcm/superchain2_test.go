@@ -13,10 +13,10 @@ import (
 func TestDeploySuperchain2(t *testing.T) {
 	t.Run("should not fail with current version of DeploySuperchain2 contract", func(t *testing.T) {
 		// First we grab a test host
-		host := createTestHost(t)
+		host1 := createTestHost(t)
 
 		// Then we deploy
-		output, err := opcm.DeploySuperchain2(host, opcm.DeploySuperchain2Input{
+		output, err := opcm.DeploySuperchain2(host1, opcm.DeploySuperchain2Input{
 			Guardian:                   common.BigToAddress(big.NewInt(1)),
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
@@ -30,7 +30,11 @@ func TestDeploySuperchain2(t *testing.T) {
 		require.NotNil(t, output)
 
 		// Now we run the old deployer
-		deprecatedOutput, err := opcm.DeploySuperchain(host, opcm.DeploySuperchainInput{
+		//
+		// We run it on a fresh host so that the deployer nonces are the same
+		// which in turn means we should get identical output
+		host2 := createTestHost(t)
+		deprecatedOutput, err := opcm.DeploySuperchain(host2, opcm.DeploySuperchainInput{
 			Guardian:                   common.BigToAddress(big.NewInt(1)),
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
@@ -43,11 +47,18 @@ func TestDeploySuperchain2(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, deprecatedOutput)
 
-		// And make sure that the basics match
+		// Now make sure the addresses are the same
 		require.Equal(t, deprecatedOutput.ProtocolVersionsImpl, output.ProtocolVersionsImpl)
 		require.Equal(t, deprecatedOutput.SuperchainConfigImpl, output.SuperchainConfigImpl)
-		require.Equal(t, host.GetCode(deprecatedOutput.SuperchainConfigProxy), host.GetCode(output.SuperchainConfigProxy))
-		require.Equal(t, host.GetCode(deprecatedOutput.ProtocolVersionsProxy), host.GetCode(output.ProtocolVersionsProxy))
-		require.Equal(t, host.GetCode(deprecatedOutput.SuperchainProxyAdmin), host.GetCode(output.SuperchainProxyAdmin))
+		require.Equal(t, deprecatedOutput.ProtocolVersionsProxy, output.ProtocolVersionsProxy)
+		require.Equal(t, deprecatedOutput.SuperchainConfigProxy, output.SuperchainConfigProxy)
+		require.Equal(t, deprecatedOutput.SuperchainProxyAdmin, output.SuperchainProxyAdmin)
+
+		// And just to be super sure we also compare the code deployed to the addresses
+		require.Equal(t, host2.GetCode(deprecatedOutput.ProtocolVersionsImpl), host1.GetCode(output.ProtocolVersionsImpl))
+		require.Equal(t, host2.GetCode(deprecatedOutput.SuperchainConfigImpl), host1.GetCode(output.SuperchainConfigImpl))
+		require.Equal(t, host2.GetCode(deprecatedOutput.SuperchainConfigProxy), host1.GetCode(output.SuperchainConfigProxy))
+		require.Equal(t, host2.GetCode(deprecatedOutput.ProtocolVersionsProxy), host1.GetCode(output.ProtocolVersionsProxy))
+		require.Equal(t, host2.GetCode(deprecatedOutput.SuperchainProxyAdmin), host1.GetCode(output.SuperchainProxyAdmin))
 	})
 }
