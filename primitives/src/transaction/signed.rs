@@ -11,7 +11,7 @@ use alloy_eips::{
     eip2930::AccessList,
     eip7702::SignedAuthorization,
 };
-use alloy_evm::FromRecoveredTx;
+use alloy_evm::{FromRecoveredTx, FromTxWithEncoded};
 use alloy_primitives::{
     keccak256, Address, Bytes, PrimitiveSignature as Signature, TxHash, TxKind, Uint, B256,
 };
@@ -313,6 +313,50 @@ impl FromRecoveredTx<OpTransactionSigned> for op_revm::OpTransaction<TxEnv> {
                 Default::default()
             },
         }
+    }
+}
+
+impl FromTxWithEncoded<OpTransactionSigned> for op_revm::OpTransaction<TxEnv> {
+    fn from_encoded_tx(tx: &OpTransactionSigned, caller: Address, encoded: Bytes) -> Self {
+        let base = match &tx.transaction {
+            OpTypedTransaction::Legacy(tx) => TxEnv::from_recovered_tx(tx, caller),
+            OpTypedTransaction::Eip1559(tx) => TxEnv::from_recovered_tx(tx, caller),
+            OpTypedTransaction::Eip2930(tx) => TxEnv::from_recovered_tx(tx, caller),
+            OpTypedTransaction::Eip7702(tx) => TxEnv::from_recovered_tx(tx, caller),
+            OpTypedTransaction::Deposit(tx) => {
+                let TxDeposit {
+                    to,
+                    value,
+                    gas_limit,
+                    input,
+                    source_hash: _,
+                    from: _,
+                    mint: _,
+                    is_system_transaction: _,
+                } = tx;
+                TxEnv {
+                    tx_type: tx.ty(),
+                    caller,
+                    gas_limit: *gas_limit,
+                    kind: *to,
+                    value: *value,
+                    data: input.clone(),
+                    ..Default::default()
+                }
+            }
+        };
+
+        let deposit = if let OpTypedTransaction::Deposit(tx) = &tx.transaction {
+            DepositTransactionParts {
+                source_hash: tx.source_hash,
+                mint: tx.mint,
+                is_system_transaction: tx.is_system_transaction,
+            }
+        } else {
+            Default::default()
+        };
+
+        Self { base, enveloped_tx: Some(encoded), deposit }
     }
 }
 
