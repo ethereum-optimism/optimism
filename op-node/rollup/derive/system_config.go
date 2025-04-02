@@ -33,7 +33,7 @@ var (
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
-func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Time uint64) error {
+func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Time uint64, logger log.Logger) error {
 	var result error
 	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
@@ -41,7 +41,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 		}
 		for j, log := range rec.Logs {
 			if log.Address == cfg.L1SystemConfigAddress && len(log.Topics) > 0 && log.Topics[0] == ConfigUpdateEventABIHash {
-				if err := ProcessSystemConfigUpdateLogEvent(sysCfg, log, cfg, l1Time); err != nil {
+				if err := ProcessSystemConfigUpdateLogEvent(sysCfg, log, cfg, l1Time, logger); err != nil {
 					result = multierror.Append(result, fmt.Errorf("malformatted L1 system sysCfg log in receipt %d, log %d: %w", i, j, err))
 				}
 			}
@@ -59,7 +59,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 //	    UpdateType indexed updateType,
 //	    bytes data
 //	);
-func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log, rollupCfg *rollup.Config, l1Time uint64) error {
+func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log, rollupCfg *rollup.Config, l1Time uint64, logger log.Logger) error {
 	if len(ev.Topics) != 3 {
 		return fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got %d", len(ev.Topics))
 	}
@@ -95,7 +95,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		destSysCfg.BatcherAddr = address
-		log.Info("SystemConfig update: batcher address changed", "address", address)
+		logger.Info("SystemConfig update: batcher address changed", "address", address)
 		return nil
 	case SystemConfigUpdateFeeScalars:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
@@ -117,18 +117,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 		if rollupCfg.IsEcotone(l1Time) {
 			if err := eth.CheckEcotoneL1SystemConfigScalar(scalar); err != nil {
-				log.Warn("SystemConfig update: ignoring invalid fee scalar", "scalar", scalar, "error", err)
+				logger.Warn("SystemConfig update: ignoring invalid fee scalar", "scalar", scalar, "error", err)
 				return nil // ignore invalid scalars, retain the old system-config scalar
 			}
 			// retain the scalar data in encoded form
 			destSysCfg.Scalar = scalar
 			// zero out the overhead, it will not affect the state-transition after Ecotone
 			destSysCfg.Overhead = eth.Bytes32{}
-			log.Info("SystemConfig update: fee scalars changed (Ecotone)", "scalar", scalar)
+			logger.Info("SystemConfig update: fee scalars changed (Ecotone)", "scalar", scalar)
 		} else {
 			destSysCfg.Overhead = overhead
 			destSysCfg.Scalar = scalar
-			log.Info("SystemConfig update: fee scalars changed", "overhead", overhead, "scalar", scalar)
+			logger.Info("SystemConfig update: fee scalars changed", "overhead", overhead, "scalar", scalar)
 		}
 		return nil
 	case SystemConfigUpdateGasLimit:
@@ -146,7 +146,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		destSysCfg.GasLimit = gasLimit
-		log.Info("SystemConfig update: gas limit changed", "gas_limit", gasLimit)
+		logger.Info("SystemConfig update: gas limit changed", "gas_limit", gasLimit)
 		return nil
 	case SystemConfigUpdateEIP1559Params:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
@@ -163,7 +163,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		copy(destSysCfg.EIP1559Params[:], params[24:32])
-		log.Info("SystemConfig update: EIP1559 params changed", "params", params)
+		logger.Info("SystemConfig update: EIP1559 params changed", "params", params)
 		return nil
 	case SystemConfigUpdateOperatorFeeParams:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
@@ -180,10 +180,10 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		destSysCfg.OperatorFeeParams = params
-		log.Info("SystemConfig update: operator fee params changed", "params", params)
+		logger.Info("SystemConfig update: operator fee params changed", "params", params)
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
-		log.Info("SystemConfig update: unsafe block signer changed", "log", ev)
+		logger.Info("SystemConfig update: unsafe block signer changed", "log", ev)
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
 		return nil
 	default:
