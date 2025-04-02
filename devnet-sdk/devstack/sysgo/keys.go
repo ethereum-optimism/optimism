@@ -6,10 +6,11 @@ import (
 )
 
 func WithMnemonicKeys(mnemonic string) stack.Option {
-	return func(setup *stack.Setup) {
-		orch := setup.Orchestrator.(*Orchestrator)
+	return func(o stack.Orchestrator) {
+		orch := o.(*Orchestrator)
+		require := o.P().Require()
 		hd, err := devkeys.NewMnemonicDevKeys(mnemonic)
-		setup.Require.NoError(err)
+		require.NoError(err)
 		orch.keys = hd
 	}
 }

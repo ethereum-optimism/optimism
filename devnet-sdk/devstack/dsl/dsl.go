@@ -4,9 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 )
 
 const defaultTimeout = 30 * time.Second
@@ -20,7 +23,7 @@ type common struct {
 	// log is the component-specific logger instance.
 	log log.Logger
 	// T is a minimal test interface for panic-checks / assertions.
-	t stack.T
+	t devtest.T
 	// Require is a helper around the above T, ready to assert against.
 	require *require.Assertions
 }
@@ -47,16 +50,16 @@ func (s *System) Supervisor(id stack.SupervisorID) *Supervisor {
 	return newSupervisor(commonWithLog(s.common, s.log.New("id", id)), super)
 }
 
-func Hydrate(setup *stack.Setup) *System {
+func Hydrate(t devtest.T, sys stack.System) *System {
 	return &System{
 		common: common{
-			ctx:     setup.Ctx,
-			log:     setup.Log,
-			t:       setup.T,
-			require: setup.Require,
+			ctx:     t.Ctx(),
+			log:     t.Logger(),
+			t:       t,
+			require: t.Require(),
 		},
-		log: setup.Log,
-		sys: setup.System,
+		log: t.Logger(),
+		sys: sys,
 	}
 }
 

@@ -21,28 +21,46 @@ import (
 )
 
 type L2Proposer struct {
+	id      stack.L2ProposerID
 	service *ps.ProposerService
 	userRPC string
 }
 
+func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
+	require := system.T().Require()
+	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), p.userRPC, client.WithLazyDial())
+	require.NoError(err)
+	system.T().Cleanup(rpcCl.Close)
+
+	bFrontend := shim.NewL2Proposer(shim.L2ProposerConfig{
+		CommonConfig: shim.NewCommonConfig(system.T()),
+		ID:           p.id,
+		Client:       rpcCl,
+	})
+	l2ID := system.L2NetworkID(p.id.ChainID)
+	l2Net := system.L2Network(l2ID)
+	l2Net.(stack.ExtensibleL2Network).AddL2Proposer(bFrontend)
+}
+
 func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) stack.Option {
-	return func(setup *stack.Setup) {
-		orch := setup.Orchestrator.(*Orchestrator)
-		setup.Require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
+	return func(o stack.Orchestrator) {
+		orch := o.(*Orchestrator)
+		require := o.P().Require()
+		require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
 
 		proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID.ToBig()))
-		setup.Require.NoError(err)
+		require.NoError(err)
 
-		logger := setup.Log.New("id", proposerID)
+		logger := o.P().Logger().New("id", proposerID)
 		logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
-		setup.Require.True(ok)
+		require.True(ok)
 
-		l2ID := setup.System.L2NetworkID(proposerID.ChainID)
-		l2Net := setup.System.L2Network(l2ID).(stack.ExtensibleL2Network)
-		disputeGameFactoryAddr := l2Net.Deployment().DisputeGameFactoryProxyAddr()
+		l2Net, ok := orch.l2Nets.Get(proposerID.ChainID)
+		require.True(ok)
+		disputeGameFactoryAddr := l2Net.deployment.DisputeGameFactoryProxyAddr()
 
 		proposerCLIConfig := &ps.CLIConfig{
 			L1EthRpc:          l1EL.userRPC,
@@ -64,24 +82,24 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 			WaitNodeSync:                 false,
 		}
 
-		if l2Net.ChainConfig().InteropTime != nil {
-			setup.Require.NotNil(supervisorID, "need supervisor to connect to in interop")
+		if l2Net.genesis.Config.InteropTime != nil {
+			require.NotNil(supervisorID, "need supervisor to connect to in interop")
 			supervisorNode, ok := orch.supervisors.Get(*supervisorID)
-			setup.Require.True(ok)
+			require.True(ok)
 			proposerCLIConfig.SupervisorRpcs = []string{supervisorNode.userRPC}
 		} else {
-			setup.Require.NotNil(*l2CLID, "need L2 CL to connect to pre-interop")
+			require.NotNil(*l2CLID, "need L2 CL to connect to pre-interop")
 			l2CL, ok := orch.l2CLs.Get(*l2CLID)
-			setup.Require.True(ok)
+			require.True(ok)
 			proposerCLIConfig.RollupRpc = l2CL.rpc
 		}
 
 		proposer, err := ps.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, logger)
-		setup.Require.NoError(err)
+		require.NoError(err)
 
-		setup.Require.NoError(proposer.Start(setup.Ctx))
-		orch.t.Cleanup(func() {
-			ctx, cancel := context.WithCancel(setup.Ctx)
+		require.NoError(proposer.Start(o.P().Ctx()))
+		orch.p.Cleanup(func() {
+			ctx, cancel := context.WithCancel(context.Background())
 			cancel() // force-quit
 			logger.Info("Closing proposer")
 			_ = proposer.Stop(ctx)
@@ -89,19 +107,10 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 		})
 
 		p := &L2Proposer{
+			id:      proposerID,
 			service: proposer,
 			userRPC: proposer.HTTPEndpoint(),
 		}
 		orch.proposers.Set(proposerID, p)
-
-		rpcCl, err := client.NewRPC(setup.Ctx, setup.Log, p.userRPC, client.WithLazyDial())
-		setup.Require.NoError(err)
-
-		bFrontend := shim.NewL2Proposer(shim.L2ProposerConfig{
-			CommonConfig: shim.CommonConfigFromSetup(setup),
-			ID:           proposerID,
-			Client:       rpcCl,
-		})
-		l2Net.AddL2Proposer(bFrontend)
 	}
 }

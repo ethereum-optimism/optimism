@@ -14,7 +14,7 @@ type L2NetworkConfig struct {
 	ID           stack.L2NetworkID
 	RollupConfig *rollup.Config
 	Deployment   stack.L2Deployment
-	Keys         stack.L2Keys
+	Keys         stack.Keys
 
 	Superchain stack.Superchain
 	L1         stack.L1Network
@@ -27,7 +27,7 @@ type presetL2Network struct {
 
 	rollupCfg  *rollup.Config
 	deployment stack.L2Deployment
-	keys       stack.L2Keys
+	keys       stack.Keys
 
 	superchain stack.Superchain
 	l1         stack.L1Network
@@ -75,7 +75,7 @@ func (p *presetL2Network) Deployment() stack.L2Deployment {
 	return p.deployment
 }
 
-func (p *presetL2Network) Keys() stack.L2Keys {
+func (p *presetL2Network) Keys() stack.Keys {
 	p.require().NotNil(p.keys, "l2 chain %s must have keys", p.ID())
 	return p.keys
 }

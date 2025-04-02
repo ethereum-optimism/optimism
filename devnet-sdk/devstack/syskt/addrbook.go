@@ -1,9 +1,11 @@
 package syskt
 
 import (
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 )
 
 const (
@@ -19,11 +21,11 @@ type l1AddressBook struct {
 	superchainConfig common.Address
 }
 
-func newL1AddressBook(setup *stack.Setup, addresses descriptors.AddressMap) *l1AddressBook {
+func newL1AddressBook(t devtest.T, addresses descriptors.AddressMap) *l1AddressBook {
 	protocolVersions, ok := addresses[ProtocolVersionsAddressName]
-	setup.Require.True(ok)
+	t.Require().True(ok)
 	superchainConfig, ok := addresses[SuperchainConfigAddressName]
-	setup.Require.True(ok)
+	t.Require().True(ok)
 
 	book := &l1AddressBook{
 		protocolVersions: protocolVersions,
@@ -48,11 +50,11 @@ type l2AddressBook struct {
 	disputeGameFactory common.Address
 }
 
-func newL2AddressBook(setup *stack.Setup, l1Addresses descriptors.AddressMap) *l2AddressBook {
+func newL2AddressBook(t devtest.T, l1Addresses descriptors.AddressMap) *l2AddressBook {
 	systemConfig, ok := l1Addresses[SystemConfigAddressName]
-	setup.Require.True(ok)
+	t.Require().True(ok)
 	disputeGameFactory, ok := l1Addresses[DisputeGameFactoryName]
-	setup.Require.True(ok)
+	t.Require().True(ok)
 
 	return &l2AddressBook{
 		systemConfig:       systemConfig,

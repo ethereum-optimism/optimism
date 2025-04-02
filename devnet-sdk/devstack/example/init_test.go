@@ -6,7 +6,10 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/presets"
 )
 
-// TestMain ensures the orchestrator is setup correctly for this package.
+var SimpleInterop presets.TestSetup[*presets.SimpleInterop]
+
+// TestMain creates the test-setups against the shared backend
 func TestMain(m *testing.M) {
-	presets.DoMain(m)
+	// Other setups may be added here, hydrated from the same orchestrator
+	presets.DoMain(m, presets.NewSimpleInterop(&SimpleInterop))
 }

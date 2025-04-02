@@ -1,17 +1,15 @@
 package syskt
 
 import (
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 )
 
 type OrchestratorOption func(*Orchestrator)
 
 type Orchestrator struct {
-	t   stack.T
-	log log.Logger
+	p devtest.P
 
 	env *descriptors.DevnetEnvironment
 
@@ -21,16 +19,22 @@ type Orchestrator struct {
 
 var _ stack.Orchestrator = (*Orchestrator)(nil)
 
-func NewOrchestrator(t stack.T, log log.Logger) *Orchestrator {
-	return &Orchestrator{t: t, log: log}
+func NewOrchestrator(p devtest.P) *Orchestrator {
+	return &Orchestrator{p: p}
 }
 
-func (o *Orchestrator) T() stack.T {
-	return o.t
+func (o *Orchestrator) P() devtest.P {
+	return o.p
 }
 
-func (o *Orchestrator) Log() log.Logger {
-	return o.log
+func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
+	o.hydrateL1(sys)
+	o.hydrateSuperchain(sys)
+	o.hydrateClusterMaybe(sys)
+	o.hydrateSupervisorMaybe(sys)
+	for _, l2Net := range o.env.L2 {
+		o.hydrateL2(l2Net, sys)
+	}
 }
 
 func isInterop(env *descriptors.DevnetEnvironment) bool {

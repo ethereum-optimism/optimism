@@ -1,6 +1,8 @@
 package syskt
 
 import (
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -8,138 +10,178 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func WithL2(idx int, id stack.L2NetworkID, nodeIDs []DefaultSystemExtL2NodeIDs, l1ID stack.L1NetworkID) stack.Option {
-	return func(setup *stack.Setup) {
-		commonConfig := shim.CommonConfigFromSetup(setup)
-		orchestrator := getOrchestrator(setup)
-		env := orchestrator.env
-		net := env.L2[idx]
-
-		l1 := setup.System.L1Network(l1ID)
-		l1ChainID := l1.ChainID()
-		l2ID := eth.ChainIDFromBig(net.Config.ChainID)
-
-		cfg := shim.L2NetworkConfig{
-			NetworkConfig: shim.NetworkConfig{
-				CommonConfig: commonConfig,
-				ChainConfig:  net.Config,
-			},
-			ID: id,
-			RollupConfig: &rollup.Config{
-				L1ChainID: l1ChainID.ToBig(),
-				L2ChainID: l2ID.ToBig(),
-			},
-			Deployment: newL2AddressBook(setup, net.L1Addresses),
-			Keys:       defineSystemKeys(setup),
-			Superchain: setup.System.Superchain(stack.SuperchainID(env.Name)),
-			L1:         l1,
-		}
-		if orchestrator.isInterop() {
-			cfg.Cluster = setup.System.Cluster(stack.ClusterID(env.Name))
-		}
-
-		l2 := shim.NewL2Network(cfg)
-
-		for idx, node := range net.Nodes {
-			ids := nodeIDs[idx]
-
-			elRPC, err := findProtocolService(setup, ELServiceName, RPCProtocol, node.Services)
-			setup.Require.NoError(err)
-			elClient := rpcClient(setup, elRPC)
-			l2.AddL2ELNode(shim.NewL2ELNode(shim.L2ELNodeConfig{
-				ELNodeConfig: shim.ELNodeConfig{
-					CommonConfig: commonConfig,
-					Client:       elClient,
-					ChainID:      l2ID,
-				},
-				ID: ids.EL,
-			}))
-
-			clRPC, err := findProtocolService(setup, CLServiceName, HTTPProtocol, node.Services)
-			setup.Require.NoError(err)
-			clClient := rpcClient(setup, clRPC)
-			l2.AddL2CLNode(shim.NewL2CLNode(shim.L2CLNodeConfig{
-				ID:           ids.CL,
-				CommonConfig: commonConfig,
-				Client:       clClient,
-			}))
-		}
-
-		for name, wallet := range net.Wallets {
-			priv, err := decodePrivateKey(wallet.PrivateKey)
-			setup.Require.NoError(err)
-			l2.AddUser(shim.NewUser(shim.UserConfig{
-				CommonConfig: commonConfig,
-				ID:           stack.UserID{Key: name, ChainID: l2ID},
-				Priv:         priv,
-				EL:           l2.L2ELNode(l2.L2ELNodes()[0]),
-			}))
-		}
-
-		setup.System.AddL2Network(l2)
+func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
+	return stack.L2NetworkID{
+		Key:     net.ID,
+		ChainID: eth.ChainIDFromBig(net.Config.ChainID),
 	}
 }
 
-func WithBatcher(idx int, l2ID stack.L2NetworkID, id stack.L2BatcherID) stack.Option {
-	return func(setup *stack.Setup) {
-		commonConfig := shim.CommonConfigFromSetup(setup)
-		env := getOrchestrator(setup).env
-		net := env.L2[idx]
+func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.ExtensibleSystem) {
+	require := o.P().Require()
 
-		l2 := setup.System.L2Network(l2ID)
+	commonConfig := shim.NewCommonConfig(system.T())
 
-		batcherRPC, err := findProtocolService(setup, "batcher", HTTPProtocol, net.Services)
-		setup.Require.NoError(err)
-		l2.(stack.ExtensibleL2Network).AddL2Batcher(shim.NewL2Batcher(shim.L2BatcherConfig{
+	env := o.env
+	l2ID := getL2ID(net)
+
+	l1ID := system.L1NetworkID(eth.ChainIDFromBig(env.L1.Config.ChainID))
+	l1 := system.L1Network(l1ID)
+
+	cfg := shim.L2NetworkConfig{
+		NetworkConfig: shim.NetworkConfig{
 			CommonConfig: commonConfig,
-			ID:           id,
-			Client:       rpcClient(setup, batcherRPC),
+			ChainConfig:  net.Config,
+		},
+		ID: l2ID,
+		RollupConfig: &rollup.Config{
+			L1ChainID: l1ID.ChainID.ToBig(),
+			L2ChainID: l2ID.ChainID.ToBig(),
+			// TODO this rollup config should be loaded from kurtosis artifacts
+		},
+		Deployment: newL2AddressBook(system.T(), net.L1Addresses),
+		Keys:       o.defineSystemKeys(system.T()),
+		Superchain: system.Superchain(stack.SuperchainID(env.Name)),
+		L1:         l1,
+	}
+	if o.isInterop() {
+		cfg.Cluster = system.Cluster(stack.ClusterID(env.Name))
+	}
+
+	l2 := shim.NewL2Network(cfg)
+
+	for _, node := range net.Nodes {
+		o.hydrateL2ELCL(&node, l2)
+	}
+	o.hydrateBatcherMaybe(net, l2)
+	o.hydrateProposerMaybe(net, l2)
+	o.hydrateChallengerMaybe(net, l2)
+
+	for name, wallet := range net.Wallets {
+		priv, err := decodePrivateKey(wallet.PrivateKey)
+		require.NoError(err)
+		l2.AddUser(shim.NewUser(shim.UserConfig{
+			CommonConfig: commonConfig,
+			ID:           stack.UserID{Key: name, ChainID: l2ID.ChainID},
+			Priv:         priv,
+			EL:           l2.L2ELNode(l2.L2ELNodes()[0]),
 		}))
 	}
+
+	system.AddL2Network(l2)
 }
 
-func WithProposer(idx int, l2ID stack.L2NetworkID, id stack.L2ProposerID) stack.Option {
-	return func(setup *stack.Setup) {
-		commonConfig := shim.CommonConfigFromSetup(setup)
-		env := getOrchestrator(setup).env
-		net := env.L2[idx]
+func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := l2Net.ID()
 
-		l2 := setup.System.L2Network(l2ID)
+	elService, ok := node.Services[ELServiceName]
+	require.True(ok, "need L2 EL service for chain", l2ID)
+	elRPC, err := o.findProtocolService(&elService, RPCProtocol)
+	require.NoError(err)
+	elClient := o.rpcClient(l2Net.T(), elRPC)
+	l2Net.AddL2ELNode(shim.NewL2ELNode(shim.L2ELNodeConfig{
+		ELNodeConfig: shim.ELNodeConfig{
+			CommonConfig: shim.NewCommonConfig(l2Net.T()),
+			Client:       elClient,
+			ChainID:      l2ID.ChainID,
+		},
+		ID: stack.L2ELNodeID{
+			Key:     elService.Name,
+			ChainID: l2ID.ChainID,
+		},
+	}))
 
-		proposerRPC, err := findProtocolService(setup, "proposer", HTTPProtocol, net.Services)
-		setup.Require.NoError(err)
-		l2.(stack.ExtensibleL2Network).AddL2Proposer(shim.NewL2Proposer(shim.L2ProposerConfig{
-			CommonConfig: commonConfig,
-			ID:           id,
-			Client:       rpcClient(setup, proposerRPC),
-		}))
+	clService, ok := node.Services[CLServiceName]
+	require.True(ok, "need L2 CL service for chain", l2ID)
+
+	// it's an RPC, but 'http' in kurtosis descriptor
+	clRPC, err := o.findProtocolService(&clService, HTTPProtocol)
+	require.NoError(err)
+	clClient := o.rpcClient(l2Net.T(), clRPC)
+	l2Net.AddL2CLNode(shim.NewL2CLNode(shim.L2CLNodeConfig{
+		ID: stack.L2CLNodeID{
+			Key:     clService.Name,
+			ChainID: l2ID.ChainID,
+		},
+		CommonConfig: shim.NewCommonConfig(l2Net.T()),
+		Client:       clClient,
+	}))
+}
+
+func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := getL2ID(net)
+	require.Equal(l2ID, l2Net.ID(), "must match L2 chain descriptor and target L2 net")
+
+	batcherService, ok := net.Services["batcher"]
+	if !ok {
+		l2Net.Logger().Warn("L2 net is missing a batcher service")
+		return
 	}
+
+	batcherRPC, err := o.findProtocolService(&batcherService, HTTPProtocol)
+	require.NoError(err)
+
+	l2Net.AddL2Batcher(shim.NewL2Batcher(shim.L2BatcherConfig{
+		CommonConfig: shim.NewCommonConfig(l2Net.T()),
+		ID: stack.L2BatcherID{
+			Key:     batcherService.Name,
+			ChainID: l2ID.ChainID,
+		},
+		Client: o.rpcClient(l2Net.T(), batcherRPC),
+	}))
 }
 
-func WithChallenger(idx int, l2ID stack.L2NetworkID, id stack.L2ChallengerID) stack.Option {
-	return func(setup *stack.Setup) {
-		commonConfig := shim.CommonConfigFromSetup(setup)
-		env := getOrchestrator(setup).env
-		net := env.L2[idx]
+func (o *Orchestrator) hydrateProposerMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := getL2ID(net)
+	require.Equal(l2ID, l2Net.ID(), "must match L2 chain descriptor and target L2 net")
 
-		l2 := setup.System.L2Network(l2ID)
-
-		_, err := findProtocolService(setup, "challenger", MetricsProtocol, net.Services)
-		setup.Require.NoError(err)
-		l2.(stack.ExtensibleL2Network).AddL2Challenger(shim.NewL2Challenger(shim.L2ChallengerConfig{
-			CommonConfig: commonConfig,
-			ID:           id,
-		}))
+	proposerService, ok := net.Services["proposer"]
+	if !ok {
+		l2Net.Logger().Warn("L2 net is missing a proposer service")
+		return
 	}
+
+	// it's an RPC, but 'http' in kurtosis descriptor
+	proposerRPC, err := o.findProtocolService(&proposerService, HTTPProtocol)
+	require.NoError(err)
+
+	l2Net.AddL2Proposer(shim.NewL2Proposer(shim.L2ProposerConfig{
+		CommonConfig: shim.NewCommonConfig(l2Net.T()),
+		ID: stack.L2ProposerID{
+			Key:     proposerService.Name,
+			ChainID: l2ID.ChainID,
+		},
+		Client: o.rpcClient(l2Net.T(), proposerRPC),
+	}))
 }
 
-func defineSystemKeys(setup *stack.Setup) stack.L2Keys {
+func (o *Orchestrator) hydrateChallengerMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := getL2ID(net)
+	require.Equal(l2ID, l2Net.ID(), "must match L2 chain descriptor and target L2 net")
+
+	challengerService, ok := net.Services["challenger"]
+	if !ok {
+		l2Net.Logger().Warn("L2 net is missing a challenger service")
+		return
+	}
+
+	l2Net.AddL2Challenger(shim.NewL2Challenger(shim.L2ChallengerConfig{
+		CommonConfig: shim.NewCommonConfig(l2Net.T()),
+		ID: stack.L2ChallengerID{
+			Key:     challengerService.Name,
+			ChainID: l2ID.ChainID,
+		},
+	}))
+}
+
+func (o *Orchestrator) defineSystemKeys(t devtest.T) stack.Keys {
 	// TODO(#15040): get actual mnemonic from Kurtosis
 	keys, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	setup.Require.NoError(err)
+	t.Require().NoError(err)
 
-	return &keyring{
-		keys:  keys,
-		setup: setup,
-	}
+	return shim.NewKeyring(keys, t.Require())
 }

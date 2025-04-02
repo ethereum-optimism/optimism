@@ -1,6 +1,7 @@
 package shim
 
 import (
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
@@ -37,9 +38,9 @@ type presetSystem struct {
 var _ stack.ExtensibleSystem = (*presetSystem)(nil)
 
 // NewSystem creates a new empty System
-func NewSystem(cfg SystemConfig) stack.ExtensibleSystem {
+func NewSystem(t devtest.T) stack.ExtensibleSystem {
 	return &presetSystem{
-		commonImpl: newCommon(cfg.CommonConfig),
+		commonImpl: newCommon(NewCommonConfig(t)),
 	}
 }
 

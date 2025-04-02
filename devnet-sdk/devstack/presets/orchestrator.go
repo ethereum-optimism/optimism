@@ -1,22 +1,18 @@
 package presets
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/syskt"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 // lockedOrchestrator is the global variable that stores
@@ -27,7 +23,7 @@ var lockedOrchestrator locks.RWValue[stack.Orchestrator]
 
 // DoMain runs the pre- and post-processing of tests,
 // to setup the default global orchestrator and global logger.
-func DoMain(m *testing.M) {
+func DoMain(m *testing.M, opts ...stack.Option) {
 	defer func() {
 		if x := recover(); x != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
@@ -43,7 +39,10 @@ func DoMain(m *testing.M) {
 		Pid:    false,
 	})
 
-	t := stack.NewToolingT("Main", logger)
+	p := devtest.NewP(logger)
+	defer p.Close()
+
+	p.Require().NotEmpty(opts, "Expecting orchestrator options")
 
 	// For the global geth logs,
 	// capture them in the global test logger.
@@ -51,13 +50,13 @@ func DoMain(m *testing.M) {
 	// TODO(#15139): set log-level filter, reduce noise
 	//log.SetDefault(t.Log.New("logger", "global"))
 
-	initOrchestrator(t, t.Log)
+	initOrchestrator(p, opts...)
+
 	code := m.Run()
-	t.RunCleanup()
 	os.Exit(code)
 }
 
-func initOrchestrator(t stack.T, logger log.Logger) {
+func initOrchestrator(p devtest.P, opts ...stack.Option) {
 	lockedOrchestrator.Lock()
 	defer lockedOrchestrator.Unlock()
 	if lockedOrchestrator.Value != nil {
@@ -65,16 +64,19 @@ func initOrchestrator(t stack.T, logger log.Logger) {
 	}
 	kind, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR")
 	if !ok {
-		logger.Warn("Selecting sysgo as default devstack orchestrator")
+		p.Logger().Warn("Selecting sysgo as default devstack orchestrator")
 		kind = "sysgo"
 	}
 	switch kind {
 	case "sysgo":
-		lockedOrchestrator.Value = sysgo.NewOrchestrator(t, logger)
+		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
 	case "syskt":
-		lockedOrchestrator.Value = syskt.NewOrchestrator(t, logger)
+		lockedOrchestrator.Value = syskt.NewOrchestrator(p)
 	default:
-		logger.Crit("Unknown devstack backend", "kind", kind)
+		p.Logger().Crit("Unknown devstack backend", "kind", kind)
+	}
+	for _, opt := range opts {
+		opt(lockedOrchestrator.Value)
 	}
 }
 
@@ -97,56 +99,4 @@ Add a TestMain to your test package init the orchestrator:
 `)
 	}
 	return out
-}
-
-// WithGlobalOrchestrator attaches the main global Orchestrator() to the setup.
-func WithGlobalOrchestrator() stack.Option {
-	return func(setup *stack.Setup) {
-		setup.Require.Nil(setup.Orchestrator, "cannot change existing orchestrator of setup")
-		setup.Orchestrator = Orchestrator()
-	}
-}
-
-// WithTestLogger attaches a test-logger
-func WithTestLogger() stack.Option {
-	return func(setup *stack.Setup) {
-		setup.Require.Nil(setup.Log, "must not already have a logger")
-		setup.Log = testlog.Logger(setup.T, log.LevelInfo)
-	}
-}
-
-// WithEmptySystem attaches an empty system, for other options to add components to
-func WithEmptySystem() stack.Option {
-	return func(setup *stack.Setup) {
-		setup.Require.Nil(setup.System, "must not already have a system")
-		setup.Require.NotNil(setup.Log, "need logger")
-		setup.System = shim.NewSystem(shim.SystemConfig{
-			CommonConfig: shim.CommonConfig{
-				Log: setup.Log,
-				T:   setup.T,
-			},
-		})
-	}
-}
-
-// NewSetup creates a new empty Setup with nil system and nil orchestrator.
-// The orchestrator can be configured with an option.
-func NewSetup(t stack.T, opts ...stack.Option) *stack.Setup {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	// Create a test-setup, unique to the test
-	setup := &stack.Setup{
-		Ctx:          ctx,
-		Log:          nil,
-		T:            t,
-		Require:      require.New(t),
-		System:       nil,
-		Orchestrator: nil,
-	}
-	// apply any initial options to the system
-	for _, opt := range opts {
-		opt(setup)
-	}
-	return setup
 }

@@ -21,35 +21,50 @@ import (
 )
 
 type L2CLNode struct {
+	id     stack.L2CLNodeID
 	opNode *opnode.Opnode
 	rpc    string
 }
 
+func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
+	require := system.T().Require()
+	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.rpc, client.WithLazyDial())
+	require.NoError(err)
+	system.T().Cleanup(rpcCl.Close)
+
+	sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
+		CommonConfig: shim.NewCommonConfig(system.T()),
+		ID:           n.id,
+		Client:       rpcCl,
+	})
+	l2ID := system.L2NetworkID(n.id.ChainID)
+	l2Net := system.L2Network(l2ID)
+	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
+}
+
 func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option {
-	return func(setup *stack.Setup) {
-		orch := setup.Orchestrator.(*Orchestrator)
+	return func(o stack.Orchestrator) {
+		orch := o.(*Orchestrator)
+		require := o.P().Require()
 
-		l2ID := setup.System.L2NetworkID(l2CLID.ChainID)
-		sysL2 := setup.System.L2Network(l2ID).(stack.ExtensibleL2Network)
-
-		l2Net, ok := orch.l2Nets.Get(l2ID)
-		setup.Require.True(ok, "l2 network required")
+		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID)
+		require.True(ok, "l2 network required")
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
-		setup.Require.True(ok, "l1 EL node required")
+		require.True(ok, "l1 EL node required")
 
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
-		setup.Require.True(ok, "l1 CL node required")
+		require.True(ok, "l1 CL node required")
 
 		l2EL, ok := orch.l2ELs.Get(l2ELID)
-		setup.Require.True(ok, "l2 EL node required")
+		require.True(ok, "l2 EL node required")
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
 		var p2pSigner *p2p.PreparedSigner
 		if isSequencer {
 			p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID.ToBig()))
-			setup.Require.NoError(err, "need p2p key for sequencer")
+			require.NoError(err, "need p2p key for sequencer")
 			p2pSigner = &p2p.PreparedSigner{Signer: opsigner.NewLocalSigner(p2pKey)}
 		}
 
@@ -107,12 +122,12 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			AltDA:                           altda.CLIConfig{},
 			IgnoreMissingPectraBlobSchedule: false,
 		}
-		logger := setup.Log.New("service", "op-node", "id", l2CLID)
+		logger := o.P().Logger().New("service", "op-node", "id", l2CLID)
 		opNode, err := opnode.NewOpnode(logger, nodeCfg, func(err error) {
-			setup.Require.NoError(err, "op-node critical error")
+			require.NoError(err, "op-node critical error")
 		})
-		setup.Require.NoError(err, "op-node failed to start")
-		orch.t.Cleanup(func() {
+		require.NoError(err, "op-node failed to start")
+		orch.p.Cleanup(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel() // force-quit
 			logger.Info("Closing op-node")
@@ -121,19 +136,10 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 		})
 
 		l2CLNode := &L2CLNode{
+			id:     l2CLID,
 			opNode: opNode,
 			rpc:    opNode.UserRPC().RPC(),
 		}
-		setup.Require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
-
-		rollupClient, err := client.NewRPC(setup.Ctx, logger, l2CLNode.rpc, client.WithLazyDial())
-		setup.Require.NoError(err)
-
-		sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
-			CommonConfig: shim.CommonConfigFromSetup(setup),
-			ID:           l2CLID,
-			Client:       rollupClient,
-		})
-		sysL2.AddL2CLNode(sysL2CL)
+		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
 	}
 }
