@@ -313,6 +313,10 @@ func TestGetNumberOfUpgradeFunctions(t *testing.T) {
 }
 
 func TestUpgradesContract(t *testing.T) {
+	// To add tests for this, create a contract with one or a combination of solidity statements and an optional upgrade function call within it to a contract type of IUpgradeable.
+	// Then create a constant bool variable EXPECTED_OUTPUT and set it to true if the upgrade function call is expected to be found and false otherwise.
+	// See opcm_upgrade_checks_mocks.sol for already existing mock contracts used for testing.
+
 	artifact, err := common.ReadForgeArtifact("../../../forge-artifacts/opcm_upgrade_checks_mocks.sol/IUpgradeable.json")
 	if err != nil {
 		t.Fatalf("Failed to load artifact: %v", err)
