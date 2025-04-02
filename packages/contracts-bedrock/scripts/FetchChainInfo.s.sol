@@ -23,6 +23,7 @@ interface IFetcher {
     function respectedGameType() external view returns (GameType);
     function anchorStateRegistry() external view returns (address);
     function L2_ORACLE() external view returns (address);
+    function l2Oracle() external view returns (address);
     function vm() external view returns (address);
     function oracle() external view returns (address);
     function challenger() external view returns (address);
@@ -274,7 +275,7 @@ contract FetchChainInfo is Script {
     function run(FetchChainInfoInput _fi, FetchChainInfoOutput _fo) public {
         _processSystemConfig(_fi, _fo);
         _processMessengerAndPortal(_fi, _fo);
-        _processDisputeGameFactory(_fo);
+        _processFaultProofs(_fo);
     }
 
     function _processSystemConfig(FetchChainInfoInput _fi, FetchChainInfoOutput _fo) internal {
@@ -323,36 +324,38 @@ contract FetchChainInfo is Script {
         _fo.set(_fo.superchainConfig.selector, superchainConfig);
     }
 
-    function _processDisputeGameFactory(FetchChainInfoOutput _fo) internal {
-        // default to uint32.max
-        _fo.set(_fo.respectedGameType.selector, GameType.wrap(type(uint32).max));
-
+    function _processFaultProofs(FetchChainInfoOutput _fo) internal {
         address systemConfigProxy = _fo.systemConfigProxy();
         address optimismPortalProxy = _fo.optimismPortalProxy();
-        address disputeGameFactoryProxy = _getDisputeGameFactoryProxy(systemConfigProxy);
 
-        if (disputeGameFactoryProxy != address(0)) {
-            // Permissioned fault proofs installed
-            _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
-            _fo.set(_fo.permissioned.selector, true);
-            try IFetcher(optimismPortalProxy).respectedGameType() returns (GameType gameType_) {
-                _fo.set(_fo.respectedGameType.selector, gameType_);
+        try IFetcher(optimismPortalProxy).respectedGameType() returns (GameType gameType_) {
+            _fo.set(_fo.respectedGameType.selector, gameType_);
+        } catch {
+            // default respectedGameType to uint32.max since 0 == CANNON
+            _fo.set(_fo.respectedGameType.selector, GameType.wrap(type(uint32).max));
+            address l2OutputOracleProxy;
+            try IFetcher(optimismPortalProxy).l2Oracle() returns (address l2Oracle_) {
+                l2OutputOracleProxy = l2Oracle_;
             } catch {
-                // ignore if OptimismPortalProxy does not have respectedGameType() function
+                l2OutputOracleProxy = IFetcher(optimismPortalProxy).L2_ORACLE();
             }
+            _fo.set(_fo.l2OutputOracleProxy.selector, l2OutputOracleProxy);
 
-            address faultDisputeGame = _getFaultDisputeGame(disputeGameFactoryProxy);
-            if (faultDisputeGame != address(0)) {
-                // Permissionless fault proofs installed
-                _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
-                _fo.set(_fo.permissionless.selector, true);
+            address proposer = IFetcher(l2OutputOracleProxy).PROPOSER();
+            _fo.set(_fo.proposer.selector, proposer);
 
-                address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);
-                _fo.set(_fo.delayedWETHPermissionlessGameProxy.selector, delayedWETHPermissionlessGameProxy);
-            }
+            // no fault proofs installed so we're done
+            return;
+        }
+
+        address disputeGameFactoryProxy = _getDisputeGameFactoryProxy(systemConfigProxy);
+        if (disputeGameFactoryProxy != address(0)) {
+            _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
 
             address permissionedDisputeGame = _getPermissionedDisputeGame(disputeGameFactoryProxy);
             if (permissionedDisputeGame != address(0)) {
+                // permissioned fault proofs installed
+                _fo.set(_fo.permissioned.selector, true);
                 _fo.set(_fo.permissionedDisputeGame.selector, permissionedDisputeGame);
 
                 address challenger = IFetcher(permissionedDisputeGame).challenger();
@@ -373,8 +376,18 @@ contract FetchChainInfo is Script {
                 address preimageOracle = IFetcher(mips).oracle();
                 _fo.set(_fo.preimageOracle.selector, preimageOracle);
             }
+
+            address faultDisputeGame = _getFaultDisputeGame(disputeGameFactoryProxy);
+            if (faultDisputeGame != address(0)) {
+                // permissionless fault proofs installed
+                _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
+                _fo.set(_fo.permissionless.selector, true);
+
+                address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);
+                _fo.set(_fo.delayedWETHPermissionlessGameProxy.selector, delayedWETHPermissionlessGameProxy);
+            }
         } else {
-            // Some older chains have L2OutputOracle instead of DisputeGameFactory.
+            // some older chains have L2OutputOracle instead of DisputeGameFactory.
             address l2OutputOracleProxy = IFetcher(optimismPortalProxy).L2_ORACLE();
             _fo.set(_fo.l2OutputOracleProxy.selector, l2OutputOracleProxy);
             address proposer = IFetcher(l2OutputOracleProxy).PROPOSER();

@@ -265,11 +265,10 @@ contract FetchChainInfoTest is Test {
         LegacyMockContract(payable(ctx.optimismPortal)).set_GUARDIAN(TEST_GUARDIAN);
         LegacyMockContract(payable(ctx.l2OutputOracle)).set_PROPOSER(TEST_PROPOSER);
 
-        _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
-
-        // Mock a system config without disputeGameFactory (force L2_ORACLE path)
-        vm.mockCall(
-            ctx.systemConfigProxy, abi.encodeCall(LegacyMockContract.disputeGameFactory, ()), abi.encode(address(0))
+        vm.mockCallRevert(
+            ctx.optimismPortal,
+            abi.encodeWithSelector(bytes4(keccak256("respectedGameType()"))),
+            "Function does not exist"
         );
 
         fetchChainInfo = new FetchChainInfo();
@@ -281,6 +280,11 @@ contract FetchChainInfoTest is Test {
 
         assertFalse(ctx.output.permissioned(), "Permissioned proofs should be disabled");
         assertFalse(ctx.output.permissionless(), "Permissionless proofs should be disabled");
+        assertEq(
+            uint256(LibGameType.raw(ctx.output.respectedGameType())),
+            uint256(type(uint32).max),
+            "respectedGameType should be set to uint32.max"
+        );
     }
 
     function test_modernPermissioned_succeeds() public {
@@ -288,12 +292,27 @@ contract FetchChainInfoTest is Test {
 
         ctx.disputeGameFactory = address(new DisputeGameFactoryMock());
         ctx.superchainConfig = address(new ModernMockContract());
+        ctx.permissionedGame = address(new PermissionedDisputeGameMock());
+        ctx.mips = address(new OracleMock());
+        ctx.preimageOracle = address(new ModernMockContract());
+        ctx.anchorStateRegistry = address(new ModernMockContract());
 
         ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
         ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
         ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
         ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
         ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
+
+        ModernMockContract(payable(ctx.optimismPortal)).set_respectedGameType(GameTypes.PERMISSIONED_CANNON);
+        OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
+        DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(
+            GameTypes.PERMISSIONED_CANNON, ctx.permissionedGame
+        );
+
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_challenger(TEST_CHALLENGER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_proposer(TEST_PROPOSER);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_vm(ctx.mips);
+        PermissionedDisputeGameMock(payable(ctx.permissionedGame)).set_anchorStateRegistry(ctx.anchorStateRegistry);
 
         _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
 
@@ -303,10 +322,14 @@ contract FetchChainInfoTest is Test {
         assertEq(ctx.output.systemConfigProxy(), ctx.systemConfigProxy, "SystemConfig should match");
         assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
         assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
+        assertEq(ctx.output.permissionedDisputeGame(), ctx.permissionedGame, "PermissionedDisputeGame should match");
+        assertTrue(
+            LibGameType.raw(ctx.output.respectedGameType()) == LibGameType.raw(GameTypes.PERMISSIONED_CANNON),
+            "respectedGameType should be CANNON"
+        );
 
         assertTrue(ctx.output.permissioned(), "Permissioned proofs should be enabled");
         assertFalse(ctx.output.permissionless(), "Permissionless proofs should be disabled");
-        assertTrue(LibGameType.raw(ctx.output.respectedGameType()) == LibGameType.raw(GameTypes.CANNON));
     }
 
     function test_modernPermissionless_succeeds() public {
