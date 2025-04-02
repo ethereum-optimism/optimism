@@ -27,7 +27,6 @@ func main() {
 	// Create a new array of string paths and only add the file to
 	// the array if it's not in the global excludedFiles array.
 	var excludedFiles = []string{
-		"OPPrestateUpdater.sol",
 		"OPContractsManager.sol",
 	}
 	includedFiles := filterFilesAndDeriveArtifactPath(fileNames, excludedFiles)

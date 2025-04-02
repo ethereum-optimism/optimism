@@ -317,7 +317,7 @@ func TestUpgradesContract(t *testing.T) {
 	// Then create a constant bool variable EXPECTED_OUTPUT and set it to true if the upgrade function call is expected to be found and false otherwise.
 	// See opcm_upgrade_checks_mocks.sol for already existing mock contracts used for testing.
 
-	artifact, err := common.ReadForgeArtifact("../../../forge-artifacts/opcm_upgrade_checks_mocks.sol/IUpgradeable.json")
+	artifact, err := common.ReadForgeArtifact("../../../forge-artifacts/OPCMUpgradeChecksMocks.sol/IUpgradeable.json")
 	if err != nil {
 		t.Fatalf("Failed to load artifact: %v", err)
 	}
