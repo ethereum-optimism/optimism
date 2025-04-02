@@ -14,8 +14,8 @@ import (
 
 // createTestHost is a helper function for testing deploy script wrappers
 func createTestHost(t *testing.T) *script.Host {
-    t.Helper()
-    
+	t.Helper()
+
 	// Create a logger
 	logger, _ := testlog.CaptureLogger(t, log.LevelInfo)
 
