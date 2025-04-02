@@ -3,7 +3,7 @@ optimism_package:
     - participants:
       - el_type: op-geth
         el_image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101503.2-rc.3"
-        el_log_level: "debug"
+        el_log_level: ""
         el_extra_env_vars: {}
         el_extra_labels: {}
         el_extra_params: []
@@ -15,8 +15,8 @@ optimism_package:
         el_max_mem: 0
         cl_type: op-node
         cl_image: {{ localDockerImage "op-node" }}
-        cl_log_level: "debug"
-        cl_extra_env_vars: {"OP_NODE_MESSAGE_PASSER_ROOT_FROM_STATE": "true"}
+        cl_log_level: ""
+        cl_extra_env_vars: {}
         cl_extra_labels: {}
         cl_extra_params: []
         cl_tolerations: []
@@ -90,7 +90,7 @@ optimism_package:
     l2_artifacts_locator: {{ localContractArtifacts "l2" }}
     global_deploy_overrides:
       faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate }}
-  global_log_level: "debug"
+  global_log_level: "info"
   global_node_selectors: {}
   global_tolerations: []
   persistent: false
