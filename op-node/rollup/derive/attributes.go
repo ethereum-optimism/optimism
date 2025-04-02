@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -28,6 +29,7 @@ type FetchingAttributesBuilder struct {
 	rollupCfg *rollup.Config
 	l1        L1ReceiptsFetcher
 	l2        SystemConfigL2Fetcher
+	log       log.Logger
 	// whether to skip the L1 origin timestamp check - only for testing purposes
 	testSkipL1OriginCheck bool
 }
@@ -37,7 +39,13 @@ func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1 L1ReceiptsFetcher
 		rollupCfg: rollupCfg,
 		l1:        l1,
 		l2:        l2,
+		log:       log.New(),
 	}
+}
+
+// SetLogger sets the logger for the attributes builder
+func (ba *FetchingAttributesBuilder) SetLogger(logger log.Logger) {
+	ba.log = logger
 }
 
 // TestSkipL1OriginCheck skips the L1 origin timestamp check for testing purposes.
@@ -81,7 +89,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
 		// apply sysCfg changes
-		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg, info.Time()); err != nil {
+		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg, info.Time(), ba.log); err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 sysCfg updates: %w", err))
 		}
 
