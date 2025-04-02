@@ -47,6 +47,9 @@ parameters:
   contracts_coverage_dispatch:
     type: boolean
     default: false
+  acceptance_tests_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -55,6 +58,7 @@ orbs:
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
   utils: ethereum-optimism/circleci-utils@1.0.13
+  docker: circleci/docker@2.8.2
 
 commands:
   gcp-oidc-authenticate:
@@ -1133,26 +1137,41 @@ jobs:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
         default: ""
-      resource_class:
-        description: Machine resource class
-        type: string
-        default: xlarge
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
     machine: true
-    resource_class: <<parameters.resource_class>>
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise
-      - attach_workspace:
-          at: "."
+      - run:
+          name: Setup Kurtosis
+          command: |
+            echo "Setting up Kurtosis..."
+
+            # Print Kurtosis version
+            echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+            kurtosis version
+
+            # Start Kurtosis engine
+            echo "Starting Kurtosis engine..."
+            kurtosis engine start || true
+
+            # Clean old instances
+            echo "Cleaning old instances..."
+            kurtosis clean -a || true
+
+            # Check engine status
+            kurtosis engine status || true
+
+            echo "Kurtosis setup complete"
       # Restore cached Go modules
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
             - go-mod-v1-
-      # Download dependencies first
+      # Download Go dependencies
       - run:
           name: Download Go dependencies
           working_directory: op-acceptance-tests
@@ -1166,7 +1185,7 @@ jobs:
       - run:
           name: Run acceptance tests
           working_directory: op-acceptance-tests
-          no_output_timeout: <<parameters.no_output_timeout>>
+          no_output_timeout: 60m
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
@@ -1735,17 +1754,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-      - op-acceptance-tests:
-          devnet: isthmus
-          gate: isthmus
-          no_output_timeout: 60m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-            - slack
-          filters:
-            branches:
-              only: develop
       - op-program-compat:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2158,3 +2166,36 @@ workflows:
           context:
             - circleci-repo-optimism
             - discord
+
+  acceptance-tests:
+    when:
+      or:
+        - equal: ["develop", <<pipeline.git.branch>>]
+        - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+    jobs:
+      # KURTOSIS (Simple)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-simple
+          devnet: simple
+          gate: sanitychecks
+
+          # CircleCI params
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+            - slack
+      # KURTOSIS (Isthmus)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-isthmus
+          devnet: isthmus
+          gate: isthmus
+
+          # CircleCI params
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+            - slack
