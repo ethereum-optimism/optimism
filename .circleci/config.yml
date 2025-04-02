@@ -1677,9 +1677,10 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-          context: circleci-repo-readonly-authenticated-github-token
       - diff-fetcher-forge-artifacts:
-          context: circleci-repo-readonly-authenticated-github-token
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
