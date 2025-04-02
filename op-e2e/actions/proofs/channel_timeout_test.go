@@ -102,7 +102,7 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.EqualValues(t, NumL2Blocks, l2SafeHead.Number.Uint64())
 
 	// Run the FPP on L2 block # NumL2Blocks/2.
-	env.RunFaultProofProgram(t, NumL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, NumL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.TestCfg[any]) {
@@ -210,7 +210,7 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	require.EqualValues(t, NumL2Blocks, l2SafeHead.Number.Uint64())
 
 	// Run the FPP on L2 block # NumL2Blocks/2.
-	env.RunFaultProofProgram(t, NumL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, NumL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_ChannelTimeout(gt *testing.T) {

@@ -45,7 +45,7 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
 
 	// Run the FPP on one of the auto-derived blocks.
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // Runs a that proves a block in a chain where the batcher opens a channel, the sequence window expires, and then the
@@ -125,7 +125,7 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
 
 	// Run the FPP on one of the auto-derived blocks.
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64()/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {

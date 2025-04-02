@@ -39,7 +39,7 @@ func runSafeHeadTraceExtensionTest(gt *testing.T, testCfg *helpers.TestCfg[any])
 	// Set claimed L2 block number to be past the actual safe head (still using the safe head output as the claim)
 	params := []helpers.FixtureInputParam{helpers.WithL2BlockNumber(l2SafeHead.Number.Uint64() + 1)}
 	params = append(params, testCfg.InputParams...)
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, params...)
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, params...)
 }
 
 // Test_ProgramAction_SafeHeadTraceExtension checks that op-program correctly handles the trace extension case where

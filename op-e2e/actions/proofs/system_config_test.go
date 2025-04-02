@@ -96,7 +96,7 @@ func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg
 	require.False(t, env.Sd.RollupCfg.IsIsthmus(sequencer.SyncStatus().SafeL2.Time))
 
 	requireL1InfoParams(safeL2, 0, 0)
-	env.RunFaultProofProgram(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 
 	sequencer.ActBuildL2ToIsthmus(t)
 	sequencer.ActL2EmptyBlock(t) // one more to have Isthmus L1 info deposit
@@ -105,7 +105,7 @@ func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg
 
 	// Assert that operator fee params are zero since they were set before Isthmus activated.
 	requireL1InfoParams(safeL2, 0, 0)
-	env.RunFaultProofProgram(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 
 	// modify both to ensure we test with different parameters
 	testOperatorFeeScalar *= 2
@@ -121,5 +121,5 @@ func testSystemConfigEarlyIsthmusUpgrade(gt *testing.T, testCfg *helpers.TestCfg
 	safeL2 = env.BatchMineAndSync(t)
 
 	requireL1InfoParams(safeL2, testOperatorFeeScalar, testOperatorFeeConstant)
-	env.RunFaultProofProgram(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, safeL2.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
