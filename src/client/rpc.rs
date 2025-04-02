@@ -215,7 +215,7 @@ impl RpcClient {
     }
 }
 
-/// Generates Clap argument structs with a prefix to create a unique namespace when specifing RPC client config via the CLI.
+/// Generates Clap argument structs with a prefix to create a unique namespace when specifying RPC client config via the CLI.
 macro_rules! define_rpc_args {
     ($(($name:ident, $prefix:ident)),*) => {
         $(

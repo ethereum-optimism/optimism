@@ -1,6 +1,6 @@
 # Running Rollup Boost
 
-Rollup boost acts as a proxy between the proposer its execution engine. It is stateless and can be run with a regular sequencer setup or in a high availability setup with `op-conductor`.
+Rollup boost acts as a proxy between the proposer and its execution engine. It is stateless and can be run with a regular sequencer setup or in a high availability setup with `op-conductor`.
 
 ![rollup-boost-architecture](../assets/rollup-boost-architecture.png)
 
@@ -14,7 +14,7 @@ To configure rollup-boost, set the l2 url to the url of the proposer auth rpc en
 cargo run -- --l2-url http://localhost:8551 --builder-url http://localhost:8546
 ```
 
-To set up a builder, you can use [`op-rbuilder`](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder) with an op-node instance and have rollup-boost point to the builder auth rpc endpoint. It is recommended that boost sync is enabled on rollup-boost to sync the builder with the proposer op-node to removed the p2p networking overhead. In testing, this reduces latency significantly from around 200-300 milliseconds to just 3-4 milliseconds in local environments.
+To set up a builder, you can use [`op-rbuilder`](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder) with an op-node instance and have rollup-boost point to the builder auth rpc endpoint. It is recommended that boost sync is enabled on rollup-boost to sync the builder with the proposer op-node to remove the p2p networking overhead. In testing, this reduces latency significantly from around 200-300 milliseconds to just 3-4 milliseconds in local environments.
 
 Depending on the block time of the rollup, you can set the `builder_timeout` flag for failsafe guarantees such that rollup-boost will not wait too long for a builder to respond. The default timeout is 200ms, with the assumption that the builder will be geographically close to the proposer. There is also a `l2_timeout` flag which is set to 2000ms by default, which is the timeout for the local execution engine to respond to the proposer.
 
@@ -50,7 +50,7 @@ All spans create duration histogram metrics with the name "{span_name}_duration"
 - get_payload_v3_duration
 - new_payload_v3_duration
 
-Additionally, execution engines such as op-rbuilder has rpc metrics exposed to check if `engine_getPayloadV3` requests have been received. To check if the builder blocks are landing on-chain, the builder can be configured to include a builder transaction in the block, which is captured as part of the builder metrics. To see more details about obserability in the op-builder, you can check op-rbuilder's [README](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder).
+Additionally, execution engines such as op-rbuilder has rpc metrics exposed to check if `engine_getPayloadV3` requests have been received. To check if the builder blocks are landing on-chain, the builder can be configured to include a builder transaction in the block, which is captured as part of the builder metrics. To see more details about observability in the op-builder, you can check op-rbuilder's [README](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder).
 
 ### Tracing
 
@@ -58,7 +58,7 @@ Tracing is enabled by setting the `--tracing` flag. This will start exporting tr
 
 Traces use the payload id to track the block building lifecycle. A distributed tracing system such as [Jaeger](https://www.jaegertracing.io/) can be used to visualize when the proposer triggers block building via `engine_forkchoiceUpdatedV3` and retrieve the block with `engine_getPayloadV3`.
 
-## Toubleshooting Builder Responses
+## Troubleshooting Builder Responses
 
 ### Invalid Builder Payloads
 
