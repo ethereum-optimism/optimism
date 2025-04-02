@@ -30,6 +30,10 @@ contract BaseMockContract {
     receive() external payable { }
 }
 
+interface IRespectedGameType {
+    function respectedGameType() external view returns (GameType);
+}
+
 // Legacy style contracts (e.g., L2OutputOracle era)
 contract LegacyMockContract is BaseMockContract {
     address public GUARDIAN;
@@ -266,9 +270,7 @@ contract FetchChainInfoTest is Test {
         LegacyMockContract(payable(ctx.l2OutputOracle)).set_PROPOSER(TEST_PROPOSER);
 
         vm.mockCallRevert(
-            ctx.optimismPortal,
-            abi.encodeWithSelector(bytes4(keccak256("respectedGameType()"))),
-            "Function does not exist"
+            ctx.optimismPortal, abi.encodeCall(IRespectedGameType.respectedGameType, ()), "Function does not exist"
         );
 
         fetchChainInfo = new FetchChainInfo();
