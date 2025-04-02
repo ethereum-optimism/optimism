@@ -324,27 +324,28 @@ contract FetchChainInfo is Script {
     }
 
     function _processDisputeGameFactory(FetchChainInfoOutput _fo) internal {
+        // default to uint32.max
+        _fo.set(_fo.respectedGameType.selector, GameType.wrap(type(uint32).max));
+
         address systemConfigProxy = _fo.systemConfigProxy();
         address optimismPortalProxy = _fo.optimismPortalProxy();
-
         address disputeGameFactoryProxy = _getDisputeGameFactoryProxy(systemConfigProxy);
+
         if (disputeGameFactoryProxy != address(0)) {
-            // Permissioned fault proofs enabled
+            // Permissioned fault proofs installed
             _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
             _fo.set(_fo.permissioned.selector, true);
+            try IFetcher(optimismPortalProxy).respectedGameType() returns (GameType gameType_) {
+                _fo.set(_fo.respectedGameType.selector, gameType_);
+            } catch {
+                // ignore if OptimismPortalProxy does not have respectedGameType() function
+            }
 
             address faultDisputeGame = _getFaultDisputeGame(disputeGameFactoryProxy);
             if (faultDisputeGame != address(0)) {
-                // Permissionless fault proofs enabled
+                // Permissionless fault proofs installed
                 _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
                 _fo.set(_fo.permissionless.selector, true);
-
-                try IFetcher(optimismPortalProxy).respectedGameType() returns (GameType gameType_) {
-                    _fo.set(_fo.respectedGameType.selector, gameType_);
-                } catch {
-                    // In case OptimismPortalProxy does not have respectedGameType() function
-                    _fo.set(_fo.respectedGameType.selector, GameTypes.CANNON);
-                }
 
                 address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);
                 _fo.set(_fo.delayedWETHPermissionlessGameProxy.selector, delayedWETHPermissionlessGameProxy);
