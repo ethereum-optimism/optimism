@@ -1,5 +1,4 @@
 use crate::supervisor::{InteropTxValidatorError, InvalidInboxEntry};
-use op_alloy_consensus::interop::SafetyLevel;
 use reth_transaction_pool::error::PoolTransactionError;
 use std::any::Any;
 
@@ -20,14 +19,14 @@ impl PoolTransactionError for InvalidCrossTx {
             Self::ValidationError(err) => {
                 match err {
                     InteropTxValidatorError::InvalidInboxEntry(err) => match err {
-                        // This transaction could become valid after a while
-                        InvalidInboxEntry::MinimumSafety { got, .. } => match got {
-                            // This transaction will never become valid
-                            SafetyLevel::Invalid => true,
-                            // This transaction will become valid when origin chain progress
-                            _ => false,
-                        },
-                        // This tx will not become valid unless supervisor is reconfigured
+                        // This transaction could have been valid earlier. `SafetyLevel::Invalid`
+                        // may be returned if tx has been invalidated as a result of reorg caused
+                        // by network congestion (not peer's fault). Any other `SafetyLevel` may
+                        // become valid when origin chain progresses, but is not safe enough to
+                        // match local minimum safety level (also not peer's fault).
+                        InvalidInboxEntry::MinimumSafety { .. } => false,
+                        // This tx will not become valid unless supervisor is reconfigured, down
+                        // score peer
                         InvalidInboxEntry::UnknownChain(_) => true,
                     },
                     // Rpc error or supervisor haven't responded in time
