@@ -39,10 +39,6 @@ contract DeployImplementations2_Test is Test {
         deployImplementations = new DeployImplementations2();
     }
 
-    function hash(bytes32 _seed, uint256 _i) internal pure returns (bytes32) {
-        return keccak256(abi.encode(_seed, _i));
-    }
-
     function test_deployImplementation_succeeds() public {
         DeployImplementations2.Input memory input = defaultInput();
         DeployImplementations2.Output memory output = deployImplementations.run(input);
