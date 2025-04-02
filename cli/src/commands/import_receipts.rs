@@ -1,8 +1,7 @@
 //! Command that imports OP mainnet receipts from Bedrock datadir, exported via
 //! <https://github.com/testinprod-io/op-geth/pull/1>.
 
-use std::path::{Path, PathBuf};
-
+use crate::receipt_file_codec::OpGethReceiptFileCodec;
 use clap::Parser;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::common::{AccessRights, CliNodeTypes, Environment, EnvironmentArgs};
@@ -24,9 +23,11 @@ use reth_provider::{
 };
 use reth_stages::{StageCheckpoint, StageId};
 use reth_static_file_types::StaticFileSegment;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tracing::{debug, info, trace, warn};
-
-use crate::receipt_file_codec::OpGethReceiptFileCodec;
 
 /// Initializes the database with the genesis block.
 #[derive(Debug, Parser)]
@@ -77,6 +78,13 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportReceiptsOpCommand<C> {
             },
         )
         .await
+    }
+}
+
+impl<C: ChainSpecParser> ImportReceiptsOpCommand<C> {
+    /// Returns the underlying chain being used to run this command
+    pub fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+        Some(&self.env.chain)
     }
 }
 

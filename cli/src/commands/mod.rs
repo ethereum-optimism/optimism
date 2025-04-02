@@ -2,13 +2,14 @@ use crate::chainspec::OpChainSpecParser;
 use clap::Subcommand;
 use import::ImportOpCommand;
 use import_receipts::ImportReceiptsOpCommand;
+use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::{
     config_cmd, db, dump_genesis, init_cmd,
     node::{self, NoArgs},
     p2p, prune, recover, stage,
 };
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 pub mod import;
 pub mod import_receipts;
@@ -61,4 +62,30 @@ pub enum Commands<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + f
     #[cfg(feature = "dev")]
     #[command(name = "test-vectors")]
     TestVectors(test_vectors::Command),
+}
+
+impl<
+        C: ChainSpecParser<ChainSpec: EthChainSpec + Hardforks + EthereumHardforks>,
+        Ext: clap::Args + fmt::Debug,
+    > Commands<C, Ext>
+{
+    /// Returns the underlying chain being used for commands
+    pub fn chain_spec(&self) -> Option<&Arc<C::ChainSpec>> {
+        match self {
+            Self::Node(cmd) => cmd.chain_spec(),
+            Self::Init(cmd) => cmd.chain_spec(),
+            Self::InitState(cmd) => cmd.chain_spec(),
+            Self::DumpGenesis(cmd) => cmd.chain_spec(),
+            Self::Db(cmd) => cmd.chain_spec(),
+            Self::Stage(cmd) => cmd.chain_spec(),
+            Self::P2P(cmd) => cmd.chain_spec(),
+            Self::Config(_) => None,
+            Self::Recover(cmd) => cmd.chain_spec(),
+            Self::Prune(cmd) => cmd.chain_spec(),
+            Self::ImportOp(cmd) => cmd.chain_spec(),
+            Self::ImportReceiptsOp(cmd) => cmd.chain_spec(),
+            #[cfg(feature = "dev")]
+            Self::TestVectors(_) => None,
+        }
+    }
 }

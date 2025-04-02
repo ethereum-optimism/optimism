@@ -39,7 +39,6 @@ use chainspec::OpChainSpecParser;
 use clap::{command, value_parser, Parser};
 use commands::Commands;
 use futures_util::Future;
-use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_runner::CliRunner;
 use reth_db::DatabaseEnv;
@@ -69,19 +68,6 @@ pub struct Cli<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + fmt:
     /// The command to run
     #[command(subcommand)]
     pub command: Commands<Spec, Ext>,
-
-    /// The chain this node is running.
-    ///
-    /// Possible values are either a built-in chain or the path to a chain specification file.
-    #[arg(
-        long,
-        value_name = "CHAIN_OR_PATH",
-        long_help = Spec::help_message(),
-        default_value = Spec::SUPPORTED_CHAINS[0],
-        value_parser = Spec::parser(),
-        global = true,
-    )]
-    pub chain: Arc<Spec::ChainSpec>,
 
     /// Add a new instance of a node.
     ///
@@ -144,9 +130,11 @@ where
         Fut: Future<Output = eyre::Result<()>>,
     {
         // add network name to logs dir
-        self.logs.log_file_directory =
-            self.logs.log_file_directory.join(self.chain.chain().to_string());
-
+        // Add network name if available to the logs dir
+        if let Some(chain_spec) = self.command.chain_spec() {
+            self.logs.log_file_directory =
+                self.logs.log_file_directory.join(chain_spec.chain.to_string());
+        }
         let _guard = self.init_tracing()?;
         info!(target: "reth::cli", "Initialized tracing, debug log directory: {}", self.logs.log_file_directory);
 
@@ -201,10 +189,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::chainspec::OpChainSpecParser;
+    use crate::{chainspec::OpChainSpecParser, commands::Commands, Cli};
     use clap::Parser;
     use reth_cli_commands::{node::NoArgs, NodeCommand};
-    use reth_optimism_chainspec::OP_DEV;
+    use reth_optimism_chainspec::{BASE_MAINNET, OP_DEV};
+    use reth_optimism_node::args::RollupArgs;
 
     #[test]
     fn parse_dev() {
@@ -222,5 +211,50 @@ mod test {
         assert!(cmd.network.discovery.disable_discovery);
 
         assert!(cmd.dev.dev);
+    }
+
+    #[test]
+    fn parse_node() {
+        let cmd = Cli::<OpChainSpecParser, RollupArgs>::parse_from([
+            "op-reth",
+            "node",
+            "--chain",
+            "base",
+            "--datadir",
+            "/mnt/datadirs/base",
+            "--instance",
+            "2",
+            "--http",
+            "--http.addr",
+            "0.0.0.0",
+            "--ws",
+            "--ws.addr",
+            "0.0.0.0",
+            "--http.api",
+            "admin,debug,eth,net,trace,txpool,web3,rpc,reth,ots",
+            "--rollup.sequencer-http",
+            "https://mainnet-sequencer.base.org",
+            "--rpc-max-tracing-requests",
+            "1000000",
+            "--rpc.gascap",
+            "18446744073709551615",
+            "--rpc.max-connections",
+            "429496729",
+            "--rpc.max-logs-per-response",
+            "0",
+            "--rpc.max-subscriptions-per-connection",
+            "10000",
+            "--metrics",
+            "9003",
+            "--log.file.max-size",
+            "100",
+        ]);
+
+        match cmd.command {
+            Commands::Node(command) => {
+                assert_eq!(command.chain.as_ref(), BASE_MAINNET.as_ref());
+            }
+            _ => panic!("unexpected command"),
+        }
     }
 }
