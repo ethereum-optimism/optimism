@@ -172,6 +172,22 @@ func WithL1Head(head common.Hash) FixtureInputParam {
 	}
 }
 
+// RunFaultProofProgram runs the fault proof program for each state transition from genesis up to the provided l2 block num.
+func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
+	if finalL2BlockNum == 0 {
+		// This is a supported edge case.
+	}
+	l2ClaimBlockNum := uint64(0)
+	for l2ClaimBlockNum <= finalL2BlockNum {
+		defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
+		combinedParams := []FixtureInputParam{defaultParam}
+		combinedParams = append(combinedParams, fixtureInputParams...)
+		RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
+		l2ClaimBlockNum++
+	}
+}
+
+// RunFaultProofProgram runs the fault proof program for a single state transition, from the provided l2 block num - 1 to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 	combinedParams := []FixtureInputParam{defaultParam}
