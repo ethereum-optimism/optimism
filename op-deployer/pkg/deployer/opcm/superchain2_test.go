@@ -15,8 +15,14 @@ func TestDeploySuperchain2(t *testing.T) {
 		// First we grab a test host
 		host1 := createTestHost(t)
 
+		// Then we load the script
+		//
+		// This would raise an error if the Go types didn't match the ABI
+		deploySuperchain, err := opcm.NewDeploySuperchainScript(host1)
+		require.NoError(t, err)
+
 		// Then we deploy
-		output, err := opcm.DeploySuperchain2(host1, opcm.DeploySuperchain2Input{
+		output, err := deploySuperchain.Run(opcm.DeploySuperchain2Input{
 			Guardian:                   common.BigToAddress(big.NewInt(1)),
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
