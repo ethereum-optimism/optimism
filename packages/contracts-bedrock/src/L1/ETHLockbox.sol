@@ -13,7 +13,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 /// @custom:proxied true
 /// @title ETHLockbox
 /// @notice Manages ETH liquidity locking and unlocking for authorized OptimismPortals, enabling unified ETH liquidity
@@ -64,6 +64,9 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @param amount The amount of ETH received.
     event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
+    /// @notice The address of the SystemConfig contract.
+    ISystemConfig public systemConfig;
+
     /// @notice The address of the SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
 
@@ -85,16 +88,17 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     }
 
     /// @notice Initializer.
-    /// @param _superchainConfig The address of the SuperchainConfig contract.
+    /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _portals The addresses of the portals to authorize.
     function initialize(
-        ISuperchainConfig _superchainConfig,
+        ISystemConfig _systemConfig,
         IOptimismPortal[] calldata _portals
     )
         external
         initializer
     {
-        superchainConfig = ISuperchainConfig(_superchainConfig);
+        systemConfig = _systemConfig;
+        superchainConfig = systemConfig.superchainConfig();
         for (uint256 i; i < _portals.length; i++) {
             _authorizePortal(_portals[i]);
         }
@@ -102,7 +106,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return (superchainConfig.paused(address(this)) || superchainConfig.paused(address(0)));
+        return systemConfig.paused();
     }
 
     /// @notice Authorizes a portal to lock and unlock ETH.
