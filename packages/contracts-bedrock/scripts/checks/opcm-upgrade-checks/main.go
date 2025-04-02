@@ -12,6 +12,7 @@ import (
 )
 
 var opcmArtifactPath = "forge-artifacts/OPContractsManager.sol/OPContractsManagerUpgrader.json"
+var opcmAst *solc.ForgeArtifact
 var opcmUpgradeFunctionSelector = "ff2dd5a1"
 
 func main() {
@@ -30,6 +31,13 @@ func main() {
 		"OPContractsManager.sol",
 	}
 	includedFiles := filterFilesAndDeriveArtifactPath(fileNames, excludedFiles)
+
+	// Get OPCM's AST.
+	opcmAst, err = common.ReadForgeArtifact(opcmArtifactPath)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
 	// Process.
 	if _, err := common.ProcessFilesGlob(
@@ -54,18 +62,12 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		return nil, nil
 	}
 
-	// Get OPCM's AST.
-	opcmAst, err := common.ReadForgeArtifact(opcmArtifactPath)
-	if err != nil {
-		return nil, []error{err}
-	}
-
 	// Get the AST of OPCM's upgrade function.
 	opcmUpgradeAst := getOpcmUpgradeFunctionAst(opcmAst)
 
 	// Check that there is a call to contract.upgrade.
 	contractName := strings.Split(filepath.Base(artifactPath), ".")[0]
-	typeName := "contract " + contractName
+	typeName := "contract I" + contractName
 	if !upgradesContract(opcmUpgradeAst.Body.Statements, typeName) {
 		return nil, []error{fmt.Errorf("OPCM upgrade function does not call %v.upgrade", contractName)}
 	}
