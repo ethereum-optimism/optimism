@@ -23,7 +23,9 @@ func NewSimpleInterop(t stack.T, opts ...stack.Option) *SimpleInterop {
 		opt(setup)
 	}
 
-	ids, opt := sysgo.DefaultInteropSystem(contractPaths())
+	contracts, err := contractPaths()
+	setup.Require.NoError(err, "could not get contract paths")
+	ids, opt := sysgo.DefaultInteropSystem(contracts)
 	opt(setup)
 
 	sys := dsl.Hydrate(setup)
