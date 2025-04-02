@@ -111,7 +111,7 @@ func (l1t *L1TraversalManaged) ProvideNextL1(ctx context.Context, nextL1 eth.L1B
 		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s (parent: %s) for L1 sysCfg update: %w",
 			nextL1, nextL1.ParentID(), err))
 	}
-	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg, nextL1.Time); err != nil {
+	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg, nextL1.Time, l1t.log); err != nil {
 		// the sysCfg changes should always be formatted correctly.
 		return NewCriticalError(fmt.Errorf("failed to update L1 sysCfg with receipts from block %s: %w", nextL1, err))
 	}
