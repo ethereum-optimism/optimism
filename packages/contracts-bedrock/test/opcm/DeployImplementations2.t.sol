@@ -34,8 +34,10 @@ contract DeployImplementations2_Test is Test {
     address upgradeController = makeAddr("upgradeController");
 
     function setUp() public virtual {
+        // We'll need to store some code on these two addresses so that the deployment script checks pass
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
+
         deployImplementations = new DeployImplementations2();
     }
 
