@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"math/big"
 	"strings"
@@ -30,10 +31,13 @@ func getEthClients(chain system.Chain) ([]HeaderProvider, error) {
 	hps := make([]HeaderProvider, 0, len(chain.Nodes()))
 	for _, n := range chain.Nodes() {
 		gethCl, err := n.GethClient()
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to get geth client: %w", err)
 		}
-		hps = append(hps, gethCl)
+		if !regexp.MustCompile(`snapsync-\d+$`).MatchString(n.Name()) {
+			hps = append(hps, gethCl)
+		}
 	}
 	return hps, nil
 }

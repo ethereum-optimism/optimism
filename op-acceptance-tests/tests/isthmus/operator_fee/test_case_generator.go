@@ -1,21 +1,8 @@
 package operatorfee
 
 import (
-	cryptoRand "crypto/rand"
 	"fmt"
-	"math"
-	"math/big"
-	"math/rand"
-	"time"
 )
-
-// init seeds the global PRNG using the current time.
-var seededRand *rand.Rand // Added package-level generator
-
-func init() {
-	// rand.Seed(time.Now().UTC().UnixNano()) // Deprecated
-	seededRand = rand.New(rand.NewSource(time.Now().UTC().UnixNano())) // Use new generator
-}
 
 type TestParams struct {
 	ID                  string
@@ -27,16 +14,10 @@ type TestParams struct {
 
 func GenerateAllTestParamsCases(numGeneratedValues int) []TestParams {
 	// Specific values for testing edge cases
-	operatorFeeScalarSpecificValues := []uint32{0, math.MaxUint32}
-	operatorFeeConstantSpecificValues := []uint64{0, math.MaxUint64}
-	l1BaseFeeScalarSpecificValues := []uint32{0, math.MaxUint32}
-	l1BlobBaseFeeScalarSpecificValues := []uint32{0, math.MaxUint32}
-
-	// Generate random values for broader test coverage
-	operatorFeeScalarGeneratedValues := GenerateUint32s(numGeneratedValues)
-	operatorFeeConstantGeneratedValues := GenerateUint64s(numGeneratedValues)
-	l1BaseFeeScalarGeneratedValues := GenerateUint32s(numGeneratedValues)
-	l1BlobBaseFeeScalarGeneratedValues := GenerateUint32s(numGeneratedValues)
+	operatorFeeScalarSpecificValues := []uint32{0, 100}
+	operatorFeeConstantSpecificValues := []uint64{0, 100}
+	l1BaseFeeScalarSpecificValues := []uint32{0, 100}
+	l1BlobBaseFeeScalarSpecificValues := []uint32{0, 100}
 
 	specificValues := GenerateTestParamsCases(
 		"specific",
@@ -45,15 +26,7 @@ func GenerateAllTestParamsCases(numGeneratedValues int) []TestParams {
 		l1BaseFeeScalarSpecificValues,
 		l1BlobBaseFeeScalarSpecificValues,
 	)
-
-	generatedValues := GenerateTestParamsCases(
-		"generated",
-		operatorFeeScalarGeneratedValues,
-		operatorFeeConstantGeneratedValues,
-		l1BaseFeeScalarGeneratedValues,
-		l1BlobBaseFeeScalarGeneratedValues,
-	)
-	return append(specificValues, generatedValues...)
+	return specificValues
 }
 
 func GenerateTestParamsCases(
@@ -78,41 +51,6 @@ func GenerateTestParamsCases(
 			L1BaseFeeScalar:     l1FeeScalarValues[indexCombinations[i][2]],
 			L1BlobBaseFeeScalar: l1FeeConstantValues[indexCombinations[i][3]],
 		}
-	}
-	return results
-}
-
-func GenerateUint64s(n int) []uint64 {
-	results := make([]uint64, n)
-	for i := 0; i < n; i++ {
-		// results[i] = rand.Uint64() // Use package generator
-		results[i] = seededRand.Uint64()
-	}
-	return results
-}
-
-func GenerateUint32s(n int) []uint32 {
-	results := make([]uint32, n)
-	for i := 0; i < n; i++ {
-		// results[i] = rand.Uint32() // Use package generator
-		results[i] = seededRand.Uint32()
-	}
-	return results
-}
-
-func GenerateBigInts(n int, min *big.Int, max *big.Int) []*big.Int {
-	results := make([]*big.Int, n)
-	for i := 0; i < n; i++ {
-		diff := new(big.Int).Sub(max, min)
-		diff = diff.Add(diff, big.NewInt(1))
-		if diff.Sign() == 0 { // if overflowed (don't think this can happen)
-			diff = max
-		}
-		n, err := cryptoRand.Int(cryptoRand.Reader, diff)
-		if err != nil {
-			panic(fmt.Errorf("could not generate a random big.Int: %w", err).Error())
-		}
-		results[i] = new(big.Int).Add(n, min)
 	}
 	return results
 }

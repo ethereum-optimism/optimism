@@ -137,7 +137,7 @@ func UpdateL1FeeParams(systemConfig *bindings.SystemConfig, systemConfigAddress 
 	}
 
 	// suggest gas tip cap based on header
-	gasTipCap := big.NewInt(1_000_000_000)
+	gasTipCap := big.NewInt(1)
 
 	gasFeeCap := new(big.Int).Add(
 		gasTipCap,

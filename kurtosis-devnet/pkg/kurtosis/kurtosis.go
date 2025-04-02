@@ -203,6 +203,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 			JWT:       jwtData.L1JWT,
 			Addresses: descriptors.AddressMap(deployerData.State.Addresses),
 			Wallets:   d.getWallets(deployerData.L1ValidatorWallets),
+			Config:    deployerData.L1ChainConfig,
 		}
 		if deployerData.State != nil {
 			chain.Addresses = descriptors.AddressMap(deployerData.State.Addresses)

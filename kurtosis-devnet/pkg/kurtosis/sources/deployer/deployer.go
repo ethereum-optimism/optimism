@@ -69,9 +69,10 @@ type WalletList []*Wallet
 type WalletMap map[string]*Wallet
 
 type DeployerData struct {
-	L1ValidatorWallets WalletList     `json:"wallets"`
-	State              *DeployerState `json:"state"`
-	L1ChainID          string         `json:"l1_chain_id"`
+	L1ValidatorWallets WalletList          `json:"wallets"`
+	State              *DeployerState      `json:"state"`
+	L1ChainID          string              `json:"l1_chain_id"`
+	L1ChainConfig      *params.ChainConfig `json:"l1_chain_config"`
 }
 
 type Deployer struct {
@@ -367,15 +368,16 @@ func (d *Deployer) ExtractData(ctx context.Context) (*DeployerData, error) {
 		return nil, err
 	}
 
-	l1ChainID, err := d.getL1ChainID(l1GenesisArtifact)
+	l1ChainConfig, err := d.getConfig(l1GenesisArtifact)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DeployerData{
-		L1ChainID:          l1ChainID,
+		L1ChainID:          l1ChainConfig.ChainID.String(),
 		State:              state,
 		L1ValidatorWallets: l1ValidatorWallets,
+		L1ChainConfig:      l1ChainConfig,
 	}, nil
 }
 

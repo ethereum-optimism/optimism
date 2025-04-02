@@ -194,6 +194,9 @@ func (m *mockFailingNode) GethClient() (*ethclient.Client, error) {
 func (m *mockFailingNode) BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+func (m *mockFailingNode) Name() string {
+	return "mock"
+}
 
 // mockFailingChain implements system.Chain with a failing SendETH
 type mockFailingL2Chain struct {

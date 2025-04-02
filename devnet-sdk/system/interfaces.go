@@ -46,6 +46,7 @@ type L2Chain interface {
 }
 
 type Node interface {
+	Name() string
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)

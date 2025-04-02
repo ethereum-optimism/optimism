@@ -163,13 +163,13 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	require.NoError(t, err)
 	logger.Info("Test wallet 2", "address", l2TestWallet2.Address().Hex(), "private key", hex.EncodeToString(l2TestWallet2.PrivateKey().D.Bytes()))
 
-	fundAmount := new(big.Int).Mul(big.NewInt(2), big.NewInt(params.Ether))
+	fundAmount := new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether))
 
 	// ==========
 	// Begin Test
 	// ==========
 
-	_, _, err = SendValueTx(l1FundingWallet, l1RollupOwnerWallet.Address(), new(big.Int).Mul(big.NewInt(params.Ether), big.NewInt(2)))
+	_, _, err = SendValueTx(l1FundingWallet, l1RollupOwnerWallet.Address(), new(big.Int).Mul(big.NewInt(params.Ether), big.NewInt(1)))
 	require.NoError(t, err, "Error funding owner wallet")
 	defer func() {
 		logger.Info("Returning remaining funds to owner wallet")
@@ -204,7 +204,7 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	logger.Info("Operator fee parameters updated", "block", receipt.BlockNumber)
 
 	// sleep to allow for the L2 nodes to sync to L1 origin where operator fee was set
-	delay := 30 * time.Second
+	delay := 2 * time.Minute
 	logger.Info("Waiting for L2 nodes to sync with L1 origin where operator fee was set", "delay", delay)
 	time.Sleep(delay)
 

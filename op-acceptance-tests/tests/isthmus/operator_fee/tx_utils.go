@@ -18,7 +18,7 @@ import (
 )
 
 var returnRemainingFundsGasFeeCap = big.NewInt(500_000_000_000)
-var returnRemainingFundsGasTipCap = big.NewInt(100_000_000_000)
+var returnRemainingFundsGasTipCap = big.NewInt(1)
 
 func SendValueTx(wallet system.WalletV2, to common.Address, value *big.Int) (tx *gethTypes.Transaction, receipt *gethTypes.Receipt, err error) {
 	opts := isthmus.DefaultTxOpts(wallet)
