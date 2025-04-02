@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
 	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch"
-
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/urfave/cli/v2"
 )
@@ -27,7 +24,7 @@ func main() {
 	app.Version = VersionWithMeta
 	app.Name = "op-fetcher"
 	app.Usage = "tool to fetch OP Chain config info from onchain"
-	app.Flags = cliapp.ProtectFlags(deployer.GlobalFlags)
+	app.Flags = cliapp.ProtectFlags(fetch.GlobalFlags)
 	app.Commands = []*cli.Command{
 		{
 			Name:   "fetch",
