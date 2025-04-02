@@ -2,6 +2,7 @@ package proofs_test
 
 import (
 	"bytes"
+	"math/big"
 	"math/rand"
 	"testing"
 
@@ -13,19 +14,21 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func Test_ProgramAction_SetCodeTx(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
-	defer matrix.Run(gt)
 
 	matrix.AddDefaultTestCases(
 		nil,
 		helpers.LatestForkOnly,
 		runSetCodeTxTypeTest,
 	)
+
+	matrix.Run(gt)
 }
 
 func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
@@ -166,10 +169,10 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	rng := rand.New(rand.NewSource(0))
 	setcodetx := testutils.RandomSetCodeTx(rng, types.NewPragueSigner(env.Sd.RollupCfg.L2ChainID))
 	batcher.ActL2BatchBuffer(t)
-	batcher.ActL2BatchBuffer(t, func(block *types.Block) *types.Block {
+	batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
 		// inject user tx into upgrade batch
 		return block.WithBody(types.Body{Transactions: append(block.Transactions(), setcodetx)})
-	})
+	}))
 	batcher.ActL2ChannelClose(t)
 	batcher.ActL2BatchSubmit(t)
 	miner.ActL1StartBlock(12)(t)
@@ -186,6 +189,109 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	recs := env.Logs.FindLogs(testlog.NewMessageFilter("sequencers may not embed any SetCode transactions before Isthmus"))
 	require.Len(t, recs, 1)
+
+	env.RunFaultProofProgram(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+}
+
+func Test_ProgramAction_SetCodeTxWithContractCreationBitSet(gt *testing.T) {
+	matrix := helpers.NewMatrix[any]()
+
+	matrix.AddDefaultTestCases(
+		nil,
+		helpers.LatestForkOnly,
+		runSetCodeTxTypeWithContractCreationBitSetTest,
+	)
+
+	matrix.Run(gt)
+}
+
+func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+	var (
+		aa = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
+		bb = common.HexToAddress("0x000000000000000000000000000000000000bbbb")
+	)
+
+	t := actionsHelpers.NewDefaultTesting(gt)
+
+	// hardcoded because it's not available until after we need it
+	bobAddr := common.HexToAddress("0x14dC79964da2C08b23698B3D3cc7Ca32193d9955")
+
+	// Create 2 contracts, (1) writes 42 to slot 42, (2) calls (1)
+	store42Program := program.New().Sstore(0x42, 0x42)
+	callBobProgram := program.New().Call(nil, bobAddr, 1, 0, 0, 0, 0)
+
+	alloc := *actionsHelpers.DefaultAlloc
+	alloc.L2Alloc = make(map[common.Address]types.Account)
+	alloc.L2Alloc[aa] = types.Account{
+		Code: store42Program.Bytes(),
+	}
+	alloc.L2Alloc[bb] = types.Account{
+		Code: callBobProgram.Bytes(),
+	}
+
+	testCfg.Allocs = &alloc
+
+	tp := helpers.NewTestParams()
+	cfg := helpers.NewBatcherCfg()
+	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, cfg)
+	sequencer := env.Sequencer
+	miner := env.Miner
+	batcher := env.Batcher
+	chainID := env.Sequencer.RollupCfg.L2ChainID
+
+	require.Equal(gt, env.Bob.Address(), bobAddr)
+	u1 := sequencer.L2Unsafe()
+
+	sequencer.ActL2EmptyBlock(t) // we'll inject the setcode tx in this block's batch
+
+	signer := types.NewIsthmusSigner(chainID)
+
+	rng := rand.New(rand.NewSource(0))
+	tx := testutils.RandomSetCodeTx(rng, signer)
+
+	txdata2 := &types.DynamicFeeTx{
+		ChainID:   chainID,
+		Nonce:     1,
+		To:        nil,
+		Gas:       500000,
+		GasFeeCap: big.NewInt(5000000000),
+		GasTipCap: big.NewInt(2),
+	}
+	tx2 := types.MustSignNewTx(env.Alice.L2.Secret(), signer, txdata2)
+
+	batcher.ActL2BatchBuffer(
+		t,
+		actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
+			// inject user tx into upgrade batch
+			return block.WithBody(types.Body{Transactions: append(block.Transactions(), tx, tx2)})
+		}),
+		actionsHelpers.WithChannelModifier(
+			derive.TestWithContractCreationBitsMod(func(ob *big.Int) *big.Int {
+				// ensure contract bits are originally set to 0b10
+				require.Equal(t, big.NewInt(0b10), ob, "expected contract creation bits to be 0b10")
+				// flip bits
+				return big.NewInt(0b01)
+			})),
+	)
+	batcher.ActL2ChannelClose(t)
+
+	batcher.ActL2BatchSubmit(t)
+
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+	miner.ActL1EndBlock(t)
+
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+
+	l2safe := sequencer.L2Safe()
+	s2block := env.Engine.L2Chain().GetBlockByHash(l2safe.Hash)
+	require.Len(t, s2block.Transactions(), 0, "safe head should not contain either tx")
+	require.Equal(t, u1, l2safe, "expected last block to be reorgd out due to setcode tx")
+
+	// find a log with the error message as an attr
+	recs := env.Logs.FindLogs(testlog.NewErrContainsFilter("to address is required for SetCodeTx"))
+	require.GreaterOrEqual(t, len(recs), 1)
 
 	env.RunFaultProofProgram(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }

@@ -467,6 +467,13 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup)
 	}
 
+	// First wait for all DA requests to finish to prevent new transactions being queued
+	if err := daGroup.Wait(); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			l.Log.Error("error waiting for DA requests to complete", "err", err)
+		}
+	}
+
 	// We _must_ wait for all senders on receiptsCh to finish before we can close it.
 	if err := txQueue.Wait(); err != nil {
 		if !errors.Is(err, context.Canceled) {
@@ -536,9 +543,9 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 }
 
 // throttlingLoop monitors the backlog in bytes we need to make available, and appropriately enables or disables
-// throttling of incoming data prevent the backlog from growing too large. By looping & calling the miner API setter
-// continuously, we ensure the engine currently in use is always going to be reset to the proper throttling settings
-// even in the event of sequencer failover.
+// throttling of incoming data to prevent the backlog from growing too large. We ensure the engine currently in use
+// is always going to be reset to the proper throttling settings (even in the event of sequencer failover) by
+// binding to the ActiveSeqChanged channel as well as the pendingBytesUpdated channel.
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop")

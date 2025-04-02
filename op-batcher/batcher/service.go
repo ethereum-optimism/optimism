@@ -260,6 +260,10 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 
+	if bs.UseAltDA && cc.UseBlobs {
+		return fmt.Errorf("cannot use data availability type blobs or auto with Alt-DA")
+	}
+
 	if bs.UseAltDA && cc.MaxFrameSize > altda.MaxInputSize {
 		return fmt.Errorf("max frame size %d exceeds altDA max input size %d", cc.MaxFrameSize, altda.MaxInputSize)
 	}
@@ -381,9 +385,10 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPC.ListenPort,
 		bs.Version,
 		oprpc.WithLogger(bs.Log),
+		oprpc.WithRPCRecorder(bs.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPC.EnableAdmin {
-		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Metrics, bs.Log)
+		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		server.AddAPI(bs.TxManager.API())
 		bs.Log.Info("Admin RPC enabled")

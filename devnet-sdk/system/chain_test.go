@@ -136,7 +136,7 @@ func TestL2ChainFromDescriptor(t *testing.T) {
 func TestChainWallet(t *testing.T) {
 	testAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 
-	wallet, err := newWallet("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", testAddr, nil)
+	wallet, err := NewWallet("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", testAddr, nil)
 	assert.Nil(t, err)
 
 	l1Chain := newChain("1", WalletMap{"user1": wallet}, nil, map[string]common.Address{}, []Node{})

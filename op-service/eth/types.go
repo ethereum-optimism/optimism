@@ -234,7 +234,6 @@ type (
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
 	ExecutionPayload      *ExecutionPayload `json:"executionPayload"`
-	RequestsHash          *common.Hash      `json:"requestsHash,omitempty"`
 }
 
 func (env *ExecutionPayloadEnvelope) ID() BlockID {
@@ -332,12 +331,12 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 		BlobGasUsed:      (*uint64)(payload.BlobGasUsed),
 		ExcessBlobGas:    (*uint64)(payload.ExcessBlobGas),
 		ParentBeaconRoot: envelope.ParentBeaconBlockRoot,
-		RequestsHash:     envelope.RequestsHash,
 	}
 
-	if payload.WithdrawalsRoot != nil {
+	if payload.WithdrawalsRoot != nil { // Isthmus
 		header.WithdrawalsHash = payload.WithdrawalsRoot
-	} else if payload.Withdrawals != nil {
+		header.RequestsHash = &types.EmptyRequestsHash
+	} else if payload.Withdrawals != nil { // Canyon
 		withdrawalHash := types.DeriveSha(*payload.Withdrawals, hasher)
 		header.WithdrawalsHash = &withdrawalHash
 	}
@@ -402,7 +401,6 @@ func BlockAsPayloadEnv(bl *types.Block, config *params.ChainConfig) (*ExecutionP
 	return &ExecutionPayloadEnvelope{
 		ExecutionPayload:      payload,
 		ParentBeaconBlockRoot: bl.BeaconRoot(),
-		RequestsHash:          bl.RequestsHash(),
 	}, nil
 }
 
@@ -650,7 +648,6 @@ func DecodeOperatorFeeParams(scalar [32]byte) OperatorFeeParams {
 
 // EncodeOperatorFeeParams encodes the OperatorFeeParams into a 32-byte value
 func EncodeOperatorFeeParams(params OperatorFeeParams) (scalar [32]byte) {
-
 	binary.BigEndian.PutUint32(scalar[20:24], params.Scalar)
 	binary.BigEndian.PutUint64(scalar[24:32], params.Constant)
 	return

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -52,7 +53,7 @@ type ManagedMode struct {
 	jwtSecret eth.Bytes32
 }
 
-func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source) *ManagedMode {
+func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *ManagedMode {
 	out := &ManagedMode{
 		log:       log,
 		cfg:       cfg,
@@ -65,7 +66,9 @@ func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, j
 	out.srv = rpc.NewServer(addr, port, "v0.0.0",
 		rpc.WithWebsocketEnabled(),
 		rpc.WithLogger(log),
-		rpc.WithJWTSecret(jwtSecret[:]))
+		rpc.WithJWTSecret(jwtSecret[:]),
+		rpc.WithRPCRecorder(m.NewRecorder("interop_managed")),
+	)
 	out.srv.AddAPI(gethrpc.API{
 		Namespace:     "interop",
 		Service:       &InteropAPI{backend: out},

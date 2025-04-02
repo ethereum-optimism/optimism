@@ -240,7 +240,7 @@ func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Conf
 	}
 	// the config has some sync sources (RPC connections) to attach to the chain-processors
 	for _, srcSetup := range setups {
-		src, err := srcSetup.Setup(ctx, su.logger)
+		src, err := srcSetup.Setup(ctx, su.logger, su.m)
 		if err != nil {
 			return fmt.Errorf("failed to set up sync source: %w", err)
 		}
@@ -405,7 +405,7 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret
 		JWTSecret: jwtSecret,
 		Endpoint:  rpc,
 	}
-	src, err := setupSrc.Setup(ctx, su.logger)
+	src, err := setupSrc.Setup(ctx, su.logger, su.m)
 	if err != nil {
 		return fmt.Errorf("failed to set up sync source from RPC: %w", err)
 	}

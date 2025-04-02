@@ -1,6 +1,10 @@
 package metrics
 
-type NoopMetricsImpl struct{}
+import opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+
+type NoopMetricsImpl struct {
+	opmetrics.NoopRPCMetrics
+}
 
 var NoopMetrics Metricer = new(NoopMetricsImpl)
 

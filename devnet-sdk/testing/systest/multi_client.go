@@ -4,25 +4,90 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"math/big"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 )
+
+type HeaderProvider interface {
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
+	Close()
+}
+
+var _ HeaderProvider = (*ethclient.Client)(nil)
+
+func getEthClients(chain system.Chain) ([]HeaderProvider, error) {
+	hps := make([]HeaderProvider, 0, len(chain.Nodes()))
+	for _, n := range chain.Nodes() {
+		gethCl, err := n.GethClient()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get geth client: %w", err)
+		}
+		hps = append(hps, gethCl)
+	}
+	return hps, nil
+}
+
+// CheckForChainFork checks that the L2 chain has not forked now, and returns a
+// function that check again (to be called at the end of the test). An error is
+// returned from this function (and the returned function) if a chain fork has
+// been detected.
+func CheckForChainFork(ctx context.Context, chain system.L2Chain, logger log.Logger) (func() error, error) {
+	clients, err := getEthClients(chain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get eth clients: %w", err)
+	}
+	return checkForChainFork(ctx, clients, logger)
+}
+
+// checkForChainFork checks that the L2 chain has not forked now, and returns a
+// function that check again (to be called at the end of the test).
+func checkForChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func() error, error) {
+
+	// We use a multiclient to automatically check for consistency
+	// between the nodes.
+	l2MultiClient := NewMultiClient(clients)
+
+	// Setup chain fork detection
+	logger.Info("Running first chain fork detection check")
+	l2StartHeader, err := l2MultiClient.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get L2 start block: %w", err)
+	}
+	logger.Debug("Got L2 head block", "number", l2StartHeader.Number)
+	return func() error {
+		logger.Info("Running second chain fork detection check")
+		l2EndHeader, err := l2MultiClient.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get L2 end block: %w", err)
+		}
+		logger.Debug("Got L2 end block", "number", l2EndHeader.Number)
+		if !(l2EndHeader.Number.Cmp(l2StartHeader.Number) > 0) {
+			return fmt.Errorf("L2 chain has not progressed: start=%s, end=%s", l2StartHeader.Number, l2EndHeader.Number)
+		}
+		return nil
+	}, nil
+}
 
 // MultiClient is a simple client that checks hash consistency between underlying clients
 type MultiClient struct {
-	clients    []*ethclient.Client
+	clients    []HeaderProvider
 	maxRetries int
 	retryDelay time.Duration
 }
 
 // NewMultiClient creates a new MultiClient with the specified underlying clients
-func NewMultiClient(clients []*ethclient.Client) *MultiClient {
+func NewMultiClient(clients []HeaderProvider) *MultiClient {
 	return &MultiClient{
 		clients:    clients,
 		maxRetries: 3,
@@ -49,7 +114,7 @@ func (mc *MultiClient) BlockByNumber(ctx context.Context, number *big.Int) (*typ
 	}
 
 	// Define the query function
-	queryFn := func(client *ethclient.Client, num *big.Int) (interface{}, *big.Int, common.Hash, error) {
+	queryFn := func(client HeaderProvider, num *big.Int) (interface{}, *big.Int, common.Hash, error) {
 		block, err := client.BlockByNumber(ctx, num)
 		if err != nil {
 			return nil, nil, common.Hash{}, fmt.Errorf("failed to get block: %w", err)
@@ -81,7 +146,7 @@ func (mc *MultiClient) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 	}
 
 	// Define the query function
-	queryFn := func(client *ethclient.Client, num *big.Int) (interface{}, *big.Int, common.Hash, error) {
+	queryFn := func(client HeaderProvider, num *big.Int) (interface{}, *big.Int, common.Hash, error) {
 		header, err := client.HeaderByNumber(ctx, num)
 		if err != nil {
 			return nil, nil, common.Hash{}, fmt.Errorf("failed to get header for block number %v: %w", num, err)
@@ -105,7 +170,7 @@ func (mc *MultiClient) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 func (mc *MultiClient) fetchWithConsistencyCheck(
 	ctx context.Context,
 	number *big.Int,
-	queryFn func(*ethclient.Client, *big.Int) (interface{}, *big.Int, common.Hash, error),
+	queryFn func(HeaderProvider, *big.Int) (interface{}, *big.Int, common.Hash, error),
 ) (interface{}, error) {
 	// Get from primary client
 	primaryItem, blockNum, primaryHash, err := queryFn(mc.clients[0], number)
@@ -114,7 +179,7 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 	}
 
 	// Create a hash-only getter for followers
-	getFollowerHash := func(client *ethclient.Client, num *big.Int) (common.Hash, error) {
+	getFollowerHash := func(client HeaderProvider, num *big.Int) (common.Hash, error) {
 		_, _, hash, err := queryFn(client, num)
 		return hash, err
 	}
@@ -154,7 +219,7 @@ func (mc *MultiClient) verifyFollowersWithRetry(
 	ctx context.Context,
 	blockNum *big.Int,
 	primaryHash common.Hash,
-	getHash func(*ethclient.Client, *big.Int) (common.Hash, error),
+	getHash func(HeaderProvider, *big.Int) (common.Hash, error),
 ) (mismatches, error) {
 	var result mismatches
 

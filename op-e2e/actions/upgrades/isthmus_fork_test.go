@@ -82,7 +82,6 @@ func TestIsthmusActivationAtGenesis(gt *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, genesisPayload.ExecutionPayload.WithdrawalsRoot)
 	require.Equal(t, genesisPayload.ExecutionPayload.WithdrawalsRoot, genesisBlock.WithdrawalsRoot())
-	require.Equal(t, types.EmptyRequestsHash, *genesisPayload.RequestsHash)
 	got, ok := genesisPayload.CheckBlockHash()
 	require.Equal(t, got, reproduced.Hash())
 	require.True(t, ok, "CheckBlockHash must pass")

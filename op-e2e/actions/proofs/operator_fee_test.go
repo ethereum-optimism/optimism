@@ -254,7 +254,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 
 			// Instruct the batcher to submit a faulty channel, with Alice's tx re-signed by a new private key.
 			// This key will have 0 balance.
-			env.Batcher.ActL2BatchBuffer(t, func(block *types.Block) *types.Block {
+			env.Batcher.ActL2BatchBuffer(t, actionsHelpers.WithBlockModifier(func(block *types.Block) *types.Block {
 				txs := block.Transactions()
 
 				// Skip over any L2 blocks that don't contain user-space txs.
@@ -271,7 +271,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 				// Replace Alice's tx with the re-signed one.
 				txs[1] = newSignedTx
 				return block
-			})
+			}))
 			env.Batcher.ActL2ChannelClose(t)
 			env.Batcher.ActL2BatchSubmit(t)
 

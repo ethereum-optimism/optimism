@@ -152,7 +152,8 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 			if err != nil {
 				return fmt.Errorf("failed to dial supervisor RPC client (%v): %w", url, err)
 			}
-			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc), ps.Metrics)
+			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc,
+				client.WithRPCRecorder(ps.Metrics.NewRecorder("supervisor"))))
 			clients = append(clients, cl)
 		}
 		ps.ProposalSource = source.NewSupervisorProposalSource(ps.Log, clients...)
@@ -264,9 +265,10 @@ func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPCConfig.ListenPort,
 		ps.Version,
 		oprpc.WithLogger(ps.Log),
+		oprpc.WithRPCRecorder(ps.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPCConfig.EnableAdmin {
-		adminAPI := rpc.NewAdminAPI(ps.driver, ps.Metrics, ps.Log)
+		adminAPI := rpc.NewAdminAPI(ps.driver, ps.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		server.AddAPI(ps.TxManager.API())
 		ps.Log.Info("Admin RPC enabled")

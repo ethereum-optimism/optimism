@@ -1,14 +1,17 @@
 package eth
 
 import (
+	"bytes"
 	"encoding/json"
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-service/bigs"
 )
 
 // Example account result taken from the Goerli SystemConfig proxy:
@@ -126,11 +129,34 @@ func TestAccountResult_MarshalTruncated(t *testing.T) {
 }
 
 func FuzzAccountResult_StorageProof(f *testing.F) {
+	// from the makeResult function, the known proof:
+	knownValidkey := common.HexToHash("0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08")
+	knownValidValue := common.FromHex("0x715b7219d986641df9efd9c7ef01218d528e19ec")
+	f.Add(knownValidkey[:], knownValidValue[:])
 	f.Fuzz(func(t *testing.T, key []byte, value []byte) {
 		result := makeResult(t)
 		result.StorageProof[0].Key = key
 		result.StorageProof[0].Value = hexutil.Big(*(new(big.Int).SetBytes(value)))
-		require.NotNil(t, result.Verify(goodRoot), "does not verify against bad proof")
+		err := result.Verify(goodRoot)
+		if bytes.Equal(key, knownValidkey[:]) {
+			if bytes.Equal(value, knownValidValue) {
+				require.NoError(t, err, "known key/value pair must pass")
+			} else {
+				require.Errorf(t, err, "other values for known key must fail, but got 0x%x", value)
+			}
+		} else {
+			if bigs.IsZero(result.StorageProof[0].Value.ToInt()) {
+				// When there's a valid trie, and we proof exclusion (i.e. non-existent key turns into a 0 value),
+				// then `trie.VerifyProof` will simply not error when given the valid storage-proof that
+				// shows some valid adjacent path that implies the exclusion of the actual value at the queried key path.
+				if err != nil {
+					// missing proof nodes can happen, exclusion proofs by showing the known value won't always be deep enough
+					require.ErrorContains(t, err, "missing")
+				}
+			} else {
+				require.Errorf(t, err, "random other key/value pairs (key=0x%x value=0x%x) should not verify", key, value)
+			}
+		}
 	})
 }
 

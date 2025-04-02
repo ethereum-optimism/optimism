@@ -11,8 +11,11 @@ import (
 	"path/filepath"
 )
 
+// These constants should be in sync with op-program/chainconfig/chaincfg.go
 const (
-	InteropDepSetName = "depsets.json"
+	InteropDepSetName    = "depsets.json"
+	rollupConfigSuffix   = "-rollup.json"
+	genensisConfigSuffix = "-genesis-l2.json"
 )
 
 // PrestateManifest maps prestate identifiers to their hashes
@@ -60,30 +63,34 @@ func WithInteropDepSet(content io.Reader) PrestateBuilderOption {
 	}
 }
 
-type dependency struct {
+type Dependency struct {
 	ChainIndex     uint32 `json:"chainIndex"`
 	ActivationTime uint64 `json:"activationTime"`
 	HistoryMinTime uint64 `json:"historyMinTime"`
 }
 
-type dependencySet struct {
-	Dependencies map[string]dependency `json:"dependencies"`
+type DependencySet struct {
+	Dependencies map[string]Dependency `json:"dependencies"`
 }
 
-func generateInteropDepSet(chains []string) ([]byte, error) {
-	deps := dependencySet{
-		Dependencies: make(map[string]dependency),
+func RenderInteropDepSet(chains []string) DependencySet {
+	deps := DependencySet{
+		Dependencies: make(map[string]Dependency),
 	}
 
 	for i, chain := range chains {
-		deps.Dependencies[chain] = dependency{
+		deps.Dependencies[chain] = Dependency{
 			ChainIndex:     uint32(i),
 			ActivationTime: 0,
 			HistoryMinTime: 0,
 		}
 	}
 
-	json, err := json.Marshal(deps)
+	return deps
+}
+
+func generateInteropDepSet(chains []string) ([]byte, error) {
+	json, err := json.Marshal(RenderInteropDepSet(chains))
 	if err != nil {
 		return nil, err
 	}
@@ -102,12 +109,12 @@ func WithChainConfig(chainId string, rollupContent io.Reader, genesisContent io.
 		c.chains = append(c.chains, chainId)
 		c.files = append(c.files,
 			FileInput{
-				Name:    chainId + "-rollup.json",
+				Name:    chainId + rollupConfigSuffix,
 				Content: rollupContent,
 				Type:    "rollup-config",
 			},
 			FileInput{
-				Name:    chainId + "-genesis.json",
+				Name:    chainId + genensisConfigSuffix,
 				Content: genesisContent,
 				Type:    "genesis-config",
 			},

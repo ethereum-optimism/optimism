@@ -133,11 +133,10 @@ func createExecutionPayload(w types.Withdrawals, withdrawalsRoot *common.Hash, e
 	}
 }
 
-func createEnvelope(h *common.Hash, w types.Withdrawals, withdrawalsRoot *common.Hash, excessGas, gasUsed *uint64, requestsHash *common.Hash) *eth.ExecutionPayloadEnvelope {
+func createEnvelope(h *common.Hash, w types.Withdrawals, withdrawalsRoot *common.Hash, excessGas, gasUsed *uint64) *eth.ExecutionPayloadEnvelope {
 	return &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload:      createExecutionPayload(w, withdrawalsRoot, excessGas, gasUsed),
 		ParentBeaconBlockRoot: h,
-		RequestsHash:          requestsHash,
 	}
 }
 
@@ -192,12 +191,11 @@ func TestBlockValidator(t *testing.T) {
 		result    pubsub.ValidationResult
 		payload   *eth.ExecutionPayloadEnvelope
 	}{
-		{"V3RejectNonZeroExcessGas", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &one, &zero, nil)},
-		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &one, nil)},
-		{"V3Valid", v3Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero, nil)},
-		{"V4Valid", v4Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &withdrawalsRoot, &zero, &zero, &types.EmptyRequestsHash)},
-		{"V4RejectNoWithdrawalRoot", v4Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero, &types.EmptyRequestsHash)},
-		{"V4RejectNoRequestsHash", v4Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &common.Hash{}, &zero, &zero, nil)},
+		{"V3RejectNonZeroExcessGas", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &one, &zero)},
+		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &one)},
+		{"V3Valid", v3Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero)},
+		{"V4Valid", v4Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &withdrawalsRoot, &zero, &zero)},
+		{"V4RejectNoWithdrawalRoot", v4Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero)},
 	}
 
 	for _, tt := range envelopeTests {

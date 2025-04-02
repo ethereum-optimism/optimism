@@ -102,6 +102,9 @@ func (c *EthClientConfig) Check() error {
 	if c.PayloadsCacheSize < 0 {
 		return fmt.Errorf("invalid payloads cache size: %d", c.PayloadsCacheSize)
 	}
+	if c.BlockRefsCacheSize < 0 {
+		return fmt.Errorf("invalid blockrefs cache size: %d", c.BlockRefsCacheSize)
+	}
 	if c.MaxConcurrentRequests < 1 {
 		return fmt.Errorf("expected at least 1 concurrent request, but max is %d", c.MaxConcurrentRequests)
 	}
