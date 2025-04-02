@@ -37,9 +37,9 @@ func (mockGethClient) Close() {}
 
 var _ HeaderProvider = mockGethClient{}
 
-func TestRequireNoChainFork(t *testing.T) {
+func TestCheckForChainFork(t *testing.T) {
 
-	mockA := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
+	leader := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
 		0: {
 			Number: big.NewInt(0),
 			TxHash: common.HexToHash("0x0"),
@@ -51,23 +51,39 @@ func TestRequireNoChainFork(t *testing.T) {
 	},
 	}
 
-	mockB := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
+	followerA := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
 		0: {
 			Number: big.NewInt(0),
 			TxHash: common.HexToHash("0x0"), // in sync with mockA at this block
 		},
 		1: {
 			Number: big.NewInt(1),
-			TxHash: common.HexToHash("0xb"), // forks off from mockA at this block
+			TxHash: common.HexToHash("0xb"), // forks off from leader at this block
 		},
 	},
 	}
 
-	secondCheck, firstErr := checkForChainFork(context.Background(), []HeaderProvider{mockA, mockB}, testlog.Logger(t, log.LevelDebug))
+	followerB := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
+		0: {
+			Number: big.NewInt(0),
+			TxHash: common.HexToHash("0x0"), // forks off from leader at this block
+		},
+		1: {
+			Number: big.NewInt(1),
+			TxHash: common.HexToHash("0xb"), // forks off from leader at this block
+		},
+	},
+	}
 
+	// First scenario is that the leader and follower are in sync initially, but then split:
+	secondCheck, firstErr := checkForChainFork(context.Background(), []HeaderProvider{leader, followerA}, testlog.Logger(t, log.LevelDebug))
 	require.NoError(t, firstErr)
-	mockA.latestBlockNum = 1
-	mockB.latestBlockNum = 1
-
+	leader.latestBlockNum = 1    // advance the chain head
+	followerA.latestBlockNum = 1 // advance the chain head
 	require.Error(t, secondCheck(), "expected chain split error")
+
+	// Second scenario is that the leader and follower are forked immediately:
+	_, firstErr = checkForChainFork(context.Background(), []HeaderProvider{leader, followerB}, testlog.Logger(t, log.LevelDebug))
+	require.Error(t, firstErr, "expected chain split error")
+
 }
