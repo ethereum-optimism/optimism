@@ -97,9 +97,10 @@ contract ExecutingMessageEmittedTest is CommonTest {
         );
 
         // Mock `crossDomainMessageContext` call for it to succeed
+        // encode call
         vm.mockCall(
             address(MESSENGER),
-            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageContext.selector),
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageContext, ()),
             abi.encode(SUPERCHAIN_TOKEN_BRIDGE, _id.chainId)
         );
 
