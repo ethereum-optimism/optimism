@@ -1538,7 +1538,7 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - check-changed:
-          patterns: contracts-bedrock/packages
+          patterns: packages/contracts-bedrock
       - install-contracts-dependencies
       - run:
           name: Build contracts
