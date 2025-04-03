@@ -1,164 +1,199 @@
 package operatorfee
 
 import (
-	"context"
+	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/lmittmann/w3"
-	"github.com/stretchr/testify/require"
 )
 
-func UpdateOperatorFeeParams(t systest.T, l1ChainID *big.Int, client *ethclient.Client, systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, wallet system.Wallet, operatorFeeConstant uint64, operatorFeeScalar uint32, logger log.Logger) (*gethTypes.Transaction, *gethTypes.Receipt) {
-	ctx := t.Context()
-	logger.Info("Updating operator fee params",
-		"constant", operatorFeeConstant,
-		"scalar", operatorFeeScalar)
+// DefaultFeeUpdateOptions creates the standard options for fee update transactions
+func DefaultFeeUpdateOptions(wallet system.WalletV2, destAddress common.Address) txplan.Option {
+	return txplan.Combine(
+		txplan.WithPrivateKey(wallet.PrivateKey()),
+		txplan.WithChainID(wallet.Client()),
+		txplan.WithAgainstLatestBlock(wallet.Client()),
+		txplan.WithTo(&destAddress),
+		txplan.WithValue(big.NewInt(0)),
+		txplan.WithPendingNonce(wallet.Client()),
+		txplan.WithEstimator(wallet.Client(), true),
+		txplan.WithRetryInclusion(wallet.Client(), 10, retry.Fixed(3*time.Second)),
+		txplan.WithTransactionSubmitter(wallet.Client()),
+		txplan.WithBlockInclusionInfo(wallet.Client()),
+	)
+}
 
-	nonce, err := client.PendingNonceAt(ctx, wallet.Address())
-	require.NoError(t, err)
-	logger.Debug("Using nonce",
-		"nonce", nonce,
-		"wallet", wallet.Address().Hex())
+// CheckOperatorFeeParamValues checks if the operator fee parameters in the SystemConfig contract match the expected values at a specific block.
+func CheckOperatorFeeParamValues(systemConfig *bindings.SystemConfig, blockNumber *big.Int, expectedOperatorFeeConstant uint64, expectedOperatorFeeScalar uint32) error {
+	operatorFeeConstant, err := systemConfig.OperatorFeeConstant(&bind.CallOpts{BlockNumber: blockNumber})
+	if err != nil {
+		return fmt.Errorf("failed to get operator fee constant: %w", err)
+	}
+	if operatorFeeConstant != expectedOperatorFeeConstant {
+		return fmt.Errorf("operator fee constant mismatch: got %d, expected %d", operatorFeeConstant, expectedOperatorFeeConstant)
+	}
 
+	operatorFeeScalar, err := systemConfig.OperatorFeeScalar(&bind.CallOpts{BlockNumber: blockNumber})
+	if err != nil {
+		return fmt.Errorf("failed to get operator fee scalar: %w", err)
+	}
+	if operatorFeeScalar != expectedOperatorFeeScalar {
+		return fmt.Errorf("operator fee scalar mismatch: got %d, expected %d", operatorFeeScalar, expectedOperatorFeeScalar)
+	}
+	return nil
+}
+
+// UpdateOperatorFeeParams updates the operator fee parameters in the SystemConfig contract.
+// It constructs and sends a transaction using txplan and returns the signed transaction, the receipt, or an error.
+func UpdateOperatorFeeParams(systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, wallet system.WalletV2, operatorFeeConstant uint64, operatorFeeScalar uint32) (receipt *gethTypes.Receipt, err error) {
 	// Construct call input
-	logger.Debug("Constructing function call to setOperatorFeeScalars")
 	funcSetOperatorFeeScalars := w3.MustNewFunc(`setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant)`, "")
 	args, err := funcSetOperatorFeeScalars.EncodeArgs(
 		operatorFeeScalar,
 		operatorFeeConstant,
 	)
-	require.NoError(t, err)
-
-	// Calculate gas parameters
-	gasLimit, gasTipCap, gasFeeCap, err := CalculateGasParams(ctx, client, wallet.Address(), systemConfigAddress, big.NewInt(0), args)
 	if err != nil {
-		logger.Warn("Error calculating gas parameters", "error", err)
+		return nil, fmt.Errorf("failed to encode arguments for setOperatorFeeScalars: %w", err)
 	}
 
-	tx := gethTypes.NewTx(&gethTypes.DynamicFeeTx{
-		To:        &systemConfigAddress,
-		Gas:       gasLimit,
-		GasFeeCap: gasFeeCap,
-		GasTipCap: gasTipCap,
-		Nonce:     nonce,
-		Value:     big.NewInt(0),
-		Data:      args,
-	})
-	signer := gethTypes.NewLondonSigner(l1ChainID)
-	signedTx, err := gethTypes.SignTx(tx, signer, wallet.PrivateKey())
-	require.NoError(t, err)
-	logger.Debug("Transaction signed", "hash", signedTx.Hash().Hex())
+	// Create a transaction using txplan
+	ptx := txplan.NewPlannedTx(
+		DefaultFeeUpdateOptions(wallet, systemConfigAddress),
+		txplan.WithData(args),
+	)
 
-	logger.Info("Sending transaction to the network")
-	err = client.SendTransaction(context.Background(), signedTx)
-	require.NoError(t, err)
+	// Execute the transaction and wait for inclusion
+	receipt, err = ptx.Included.Eval(wallet.Ctx())
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute transaction or wait for inclusion: %w", err)
+	}
+	if receipt == nil {
+		// This should theoretically not happen if Eval returns nil error, but check defensively
+		return nil, errors.New("transaction included but receipt is unexpectedly nil")
+	}
+	if receipt.Status != gethTypes.ReceiptStatusSuccessful {
+		// Include Tx Hash in error for easier debugging
+		return nil, fmt.Errorf("transaction failed with status %d (tx: %s)", receipt.Status, receipt.TxHash.Hex())
+	}
 
-	// Wait for transaction receipt with timeout
-	logger.Info("Waiting for transaction confirmation")
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-	receipt, err := waitForTransaction(ctx, client, signedTx.Hash())
-	require.NoError(t, err, "Failed to wait for transaction receipt")
-	require.NotNil(t, receipt)
-	require.Equal(t, gethTypes.ReceiptStatusSuccessful, receipt.Status)
-	logger.Info("Transaction confirmed",
-		"block", receipt.BlockNumber,
-		"gasUsed", receipt.GasUsed)
+	// Verify the operator fee scalars were set correctly in the contract
+	err = CheckOperatorFeeParamValues(systemConfig, receipt.BlockNumber, operatorFeeConstant, operatorFeeScalar)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify operator fee param values after tx confirmation: %w", err)
+	}
 
-	// Verify the operator fee scalars were set correctly
-	RequireOperatorFeeParamValues(t, systemConfig, receipt.BlockNumber, operatorFeeConstant, operatorFeeScalar)
-
-	return tx, receipt
+	return receipt, nil
 }
 
-func RequireOperatorFeeParamValues(t systest.T, systemConfig *bindings.SystemConfig, blockNumber *big.Int, expectedOperatorFeeConstant uint64, expectedOperatorFeeScalar uint32) {
-	operatorFeeConstant, err := systemConfig.OperatorFeeConstant(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, operatorFeeConstant, expectedOperatorFeeConstant, "operator fee constant should match expectations")
-
-	operatorFeeScalar, err := systemConfig.OperatorFeeScalar(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, operatorFeeScalar, expectedOperatorFeeScalar, "operator fee scalar should match expectations")
-}
-
-func RequireL1FeeParamValues(t systest.T, systemConfig *bindings.SystemConfig, blockNumber *big.Int, expectedL1BaseFeeScalar uint32, expectedL1BlobBaseFeeScalar uint32) {
-	l1BaseFeeScalar, err := systemConfig.BasefeeScalar(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, l1BaseFeeScalar, expectedL1BaseFeeScalar, "l1 base fee scalar should match expectations")
-
-	blobBaseFeeScalar, err := systemConfig.BlobbasefeeScalar(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, blobBaseFeeScalar, expectedL1BlobBaseFeeScalar, "l1 blob base fee scalar should match expectations")
-}
-
-func UpdateL1FeeParams(t systest.T, l1ChainID *big.Int, client *ethclient.Client, systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, wallet system.Wallet, l1BaseFeeScalar uint32, l1BlobBaseFeeScalar uint32, logger log.Logger) (*gethTypes.Transaction, *gethTypes.Receipt) {
-	ctx := t.Context()
-	logger.Info("Updating L1 fee params",
-		"base fee scalar", l1BaseFeeScalar,
-		"blob base fee scalar", l1BlobBaseFeeScalar)
-
-	nonce, err := client.PendingNonceAt(ctx, wallet.Address())
-	require.NoError(t, err)
-	logger.Debug("Using nonce",
-		"nonce", nonce,
-		"wallet", wallet.Address().Hex())
-
+func UpdateL1FeeParams(systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, wallet system.WalletV2, l1BaseFeeScalar uint32, l1BlobBaseFeeScalar uint32) (receipt *gethTypes.Receipt, err error) {
 	// Construct call input
-	logger.Debug("Constructing function call to setGasConfigEcotone")
 	funcSetGasConfigEcotone := w3.MustNewFunc(`setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar)`, "")
 	args, err := funcSetGasConfigEcotone.EncodeArgs(
 		l1BaseFeeScalar,
 		l1BlobBaseFeeScalar,
 	)
-	require.NoError(t, err)
-
-	// Calculate gas parameters
-	gasLimit, gasTipCap, gasFeeCap, err := CalculateGasParams(ctx, client, wallet.Address(), systemConfigAddress, big.NewInt(0), args)
 	if err != nil {
-		logger.Warn("Error calculating gas parameters", "error", err)
+		return nil, fmt.Errorf("failed to encode arguments for setGasConfigEcotone: %w", err)
 	}
 
+	// Get the current nonce for the wallet
+	nonce, err := wallet.Client().PendingNonceAt(wallet.Ctx(), wallet.Address())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get chain ID
+	chainID, err := wallet.Client().ChainID(wallet.Ctx())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	// Estimate gas
+	gasLimit, err := wallet.Client().EstimateGas(wallet.Ctx(), ethereum.CallMsg{
+		From:  wallet.Address(),
+		To:    &systemConfigAddress,
+		Data:  args,
+		Value: big.NewInt(0),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to estimate gas: %w", err)
+	}
+	// Add a buffer to the gas limit
+	gasLimit = uint64(float64(gasLimit) * 1.2)
+
+	header, err := wallet.GethClient().HeaderByNumber(wallet.Ctx(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest header: %w", err)
+	}
+
+	// suggest gas tip cap based on header
+	gasTipCap := big.NewInt(1_000_000_000)
+
+	gasFeeCap := new(big.Int).Add(
+		gasTipCap,
+		new(big.Int).Mul(header.BaseFee, big.NewInt(2)),
+	)
+
+	// Create the transaction
 	tx := gethTypes.NewTx(&gethTypes.DynamicFeeTx{
-		To:        &systemConfigAddress,
-		Gas:       gasLimit,
-		GasFeeCap: gasFeeCap,
-		GasTipCap: gasTipCap,
+		ChainID:   chainID,
 		Nonce:     nonce,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Gas:       gasLimit,
+		To:        &systemConfigAddress,
 		Value:     big.NewInt(0),
 		Data:      args,
 	})
-	signer := gethTypes.NewLondonSigner(l1ChainID)
-	signedTx, err := gethTypes.SignTx(tx, signer, wallet.PrivateKey())
-	require.NoError(t, err)
-	logger.Debug("Transaction signed", "hash", signedTx.Hash().Hex())
 
-	logger.Info("Sending transaction to the network")
-	err = client.SendTransaction(context.Background(), signedTx)
-	require.NoError(t, err)
+	// Sign the transaction
+	signedTx, err := gethTypes.SignTx(tx, gethTypes.LatestSignerForChainID(chainID), wallet.PrivateKey())
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
 
-	// Wait for transaction receipt with timeout
-	logger.Info("Waiting for transaction confirmation")
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-	receipt, err := waitForTransaction(ctx, client, signedTx.Hash())
-	require.NoError(t, err, "Failed to wait for transaction receipt")
-	require.NotNil(t, receipt)
-	require.Equal(t, gethTypes.ReceiptStatusSuccessful, receipt.Status)
-	logger.Info("Transaction confirmed",
-		"block", receipt.BlockNumber,
-		"gasUsed", receipt.GasUsed)
+	// Send the transaction
+	err = wallet.Client().SendTransaction(wallet.Ctx(), signedTx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send transaction: %w", err)
+	}
 
-	// Verify the operator fee scalars were set correctly
-	RequireL1FeeParamValues(t, systemConfig, receipt.BlockNumber, l1BaseFeeScalar, l1BlobBaseFeeScalar)
+	// Wait for transaction to be mined
+	receipt, err = bind.WaitMined(wallet.Ctx(), wallet.GethClient(), signedTx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for transaction to be mined: %w", err)
+	}
 
-	return tx, receipt
+	if receipt.Status != gethTypes.ReceiptStatusSuccessful {
+		return nil, fmt.Errorf("transaction failed with status %d (tx: %s)", receipt.Status, receipt.TxHash.Hex())
+	}
+
+	// Verify the L1 fee parameters were set correctly
+	l1BaseFeeScalarActual, err := systemConfig.BasefeeScalar(&bind.CallOpts{BlockNumber: receipt.BlockNumber})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get l1 base fee scalar: %w", err)
+	}
+	if l1BaseFeeScalarActual != l1BaseFeeScalar {
+		return nil, fmt.Errorf("l1 base fee scalar mismatch: got %d, expected %d", l1BaseFeeScalarActual, l1BaseFeeScalar)
+	}
+
+	blobBaseFeeScalar, err := systemConfig.BlobbasefeeScalar(&bind.CallOpts{BlockNumber: receipt.BlockNumber})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get l1 blob base fee scalar: %w", err)
+	}
+	if blobBaseFeeScalar != l1BlobBaseFeeScalar {
+		return nil, fmt.Errorf("l1 blob base fee scalar mismatch: got %d, expected %d", blobBaseFeeScalar, l1BlobBaseFeeScalar)
+	}
+
+	return receipt, nil
 }

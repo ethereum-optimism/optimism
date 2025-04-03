@@ -116,6 +116,18 @@ func WithGasLimit(limit uint64) Option {
 	}
 }
 
+func WithGasFeeCap(feeCap *big.Int) Option {
+	return func(tx *PlannedTx) {
+		tx.GasFeeCap.Set(feeCap)
+	}
+}
+
+func WithGasTipCap(tipCap *big.Int) Option {
+	return func(tx *PlannedTx) {
+		tx.GasTipCap.Set(tipCap)
+	}
+}
+
 func WithPrivateKey(priv *ecdsa.PrivateKey) Option {
 	return func(tx *PlannedTx) {
 		tx.Priv.Set(priv)

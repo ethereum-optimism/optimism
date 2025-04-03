@@ -40,7 +40,7 @@ func chainForkTestScenario(chainIdx uint64) systest.SystemTestFunc {
 		time.Sleep(numCyclesToWait * 2 * time.Second)
 
 		// Check for a chain fork again
-		err = laterCheck()
+		err = laterCheck(false)
 		require.NoError(t, err, "second chain fork check failed")
 		t.Log("Chain fork check passed")
 

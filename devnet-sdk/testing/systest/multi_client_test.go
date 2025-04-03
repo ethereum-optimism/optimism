@@ -80,7 +80,7 @@ func TestCheckForChainFork(t *testing.T) {
 	require.NoError(t, firstErr)
 	leader.latestBlockNum = 1    // advance the chain head
 	followerA.latestBlockNum = 1 // advance the chain head
-	require.Error(t, secondCheck(), "expected chain split error")
+	require.Error(t, secondCheck(false), "expected chain split error")
 
 	// Second scenario is that the leader and follower are forked immediately:
 	_, firstErr = checkForChainFork(context.Background(), []HeaderProvider{leader, followerB}, testlog.Logger(t, log.LevelDebug))

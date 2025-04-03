@@ -77,7 +77,9 @@ type Wallet interface {
 // WalletV2 is a temporary interface for integrating txplan and txintent
 type WalletV2 interface {
 	PrivateKey() *ecdsa.PrivateKey
+	Address() common.Address
 	Client() *sources.EthClient
+	GethClient() *ethclient.Client
 	Ctx() context.Context
 }
 

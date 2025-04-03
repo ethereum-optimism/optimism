@@ -42,7 +42,7 @@ func getEthClients(chain system.Chain) ([]HeaderProvider, error) {
 // function that check again (to be called at the end of the test). An error is
 // returned from this function (and the returned function) if a chain fork has
 // been detected.
-func CheckForChainFork(ctx context.Context, chain system.L2Chain, logger log.Logger) (func() error, error) {
+func CheckForChainFork(ctx context.Context, chain system.L2Chain, logger log.Logger) (func(bool) error, error) {
 	clients, err := getEthClients(chain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get eth clients: %w", err)
@@ -52,7 +52,7 @@ func CheckForChainFork(ctx context.Context, chain system.L2Chain, logger log.Log
 
 // checkForChainFork checks that the L2 chain has not forked now, and returns a
 // function that check again (to be called at the end of the test).
-func checkForChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func() error, error) {
+func checkForChainFork(ctx context.Context, clients []HeaderProvider, logger log.Logger) (func(bool) error, error) {
 
 	// We use a multiclient to automatically check for consistency
 	// between the nodes.
@@ -65,15 +65,19 @@ func checkForChainFork(ctx context.Context, clients []HeaderProvider, logger log
 		return nil, fmt.Errorf("failed to get L2 start block: %w", err)
 	}
 	logger.Debug("Got L2 head block", "number", l2StartHeader.Number)
-	return func() error {
+	return func(failed bool) error {
 		logger.Info("Running second chain fork detection check")
 		l2EndHeader, err := l2MultiClient.HeaderByNumber(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get L2 end block: %w", err)
 		}
 		logger.Debug("Got L2 end block", "number", l2EndHeader.Number)
-		if !(l2EndHeader.Number.Cmp(l2StartHeader.Number) > 0) {
-			return fmt.Errorf("L2 chain has not progressed: start=%s, end=%s", l2StartHeader.Number, l2EndHeader.Number)
+		if l2EndHeader.Number.Cmp(l2StartHeader.Number) <= 0 {
+			if !failed {
+				return fmt.Errorf("L2 chain has not progressed: start=%s, end=%s", l2StartHeader.Number, l2EndHeader.Number)
+			} else {
+				logger.Debug("L2 chain has not progressed, but the test failed so we will not clobber that error with this one")
+			}
 		}
 		return nil
 	}, nil
