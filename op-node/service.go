@@ -89,8 +89,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Beacon:        NewBeaconEndpointConfig(ctx),
 		InteropConfig: NewSupervisorEndpointConfig(ctx),
 		RPC: node.RPCConfig{
-			ListenAddr: ctx.String(flags.RPCListenAddr.Name),
-			ListenPort: ctx.Int(flags.RPCListenPort.Name),
+			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
+			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
+			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
 		},
 		Metrics: node.MetricsConfig{
 			Enabled:    ctx.Bool(flags.MetricsEnabledFlag.Name),
