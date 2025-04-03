@@ -26,9 +26,7 @@ contract DeployAsterisc2_Test is Test {
         DeployAsterisc2.Output memory output = deployAsterisc.run(_input);
 
         DeployUtils.assertValidContractAddress(address(output.asteriscSingleton));
-
-        IPreimageOracle preimageOracle = output.asteriscSingleton.oracle();
-        require(preimageOracle == _input.preimageOracle, "100");
+        assertEq(address(output.asteriscSingleton.oracle()), address(_input.preimageOracle), "100");
     }
 
     function test_run_nullInput_reverts() public {
