@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import { Test } from "forge-std/Test.sol";
 
-
 // Interfaces
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
@@ -42,9 +41,6 @@ contract DeployAlphabetVM2_Test is Test {
     }
 
     function defaultInput() private view returns (DeployAlphabetVM2.Input memory input_) {
-        input_ = DeployAlphabetVM2.Input(
-            absolutePrestate,
-            preimageOracle
-        );
+        input_ = DeployAlphabetVM2.Input(absolutePrestate, preimageOracle);
     }
 }
