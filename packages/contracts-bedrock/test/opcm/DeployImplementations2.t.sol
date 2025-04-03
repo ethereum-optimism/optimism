@@ -173,7 +173,7 @@ contract DeployImplementations2_Test is Test {
         deployImplementations.run(input);
     }
 
-    function test_challengePeriodSeconds_reverts_if_too_large(uint256 _challengePeriodSeconds) public {
+    function test_challengePeriodSeconds_valueTooLarge_reverts(uint256 _challengePeriodSeconds) public {
         vm.assume(_challengePeriodSeconds > uint256(type(uint64).max));
 
         DeployImplementations2.Input memory input = defaultInput();
