@@ -36,7 +36,7 @@ use reth_optimism_chainspec::OpChainSpec;
 use std::{ffi::OsString, fmt, sync::Arc};
 
 use chainspec::OpChainSpecParser;
-use clap::{command, value_parser, Parser};
+use clap::{command, Parser};
 use commands::Commands;
 use futures_util::Future;
 use reth_cli::chainspec::ChainSpecParser;
@@ -68,22 +68,6 @@ pub struct Cli<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + fmt:
     /// The command to run
     #[command(subcommand)]
     pub command: Commands<Spec, Ext>,
-
-    /// Add a new instance of a node.
-    ///
-    /// Configures the ports of the node to avoid conflicts with the defaults.
-    /// This is useful for running multiple nodes on the same machine.
-    ///
-    /// Max number of instances is 200. It is chosen in a way so that it's not possible to have
-    /// port numbers that conflict with each other.
-    ///
-    /// Changes to the following port numbers:
-    /// - `DISCOVERY_PORT`: default + `instance` - 1
-    /// - `AUTH_PORT`: default + `instance` * 100 - 100
-    /// - `HTTP_RPC_PORT`: default - `instance` + 1
-    /// - `WS_RPC_PORT`: default + `instance` * 2 - 2
-    #[arg(long, value_name = "INSTANCE", global = true, default_value_t = 1, value_parser = value_parser!(u16).range(..=200))]
-    pub instance: u16,
 
     /// The logging configuration for the CLI.
     #[command(flatten)]
