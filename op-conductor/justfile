@@ -19,5 +19,10 @@ clean:
 # Run tests
 test: (go_test "./...")
 
+MOCKERY_VERSION := "v3.2.4"
 # Generate mocks
-generate-mocks: (go_generate "./...")
+generate-mocks:
+  @if ! mockery; then \
+    echo "mock generation failed, please ensure mockery version {{MOCKERY_VERSION}} is installed"; \
+    echo "go install github.com/vektra/mockery/v3@{{MOCKERY_VERSION}}"; \
+  fi
