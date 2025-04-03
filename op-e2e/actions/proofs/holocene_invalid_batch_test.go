@@ -239,7 +239,7 @@ func Test_ProgramAction_HoloceneInvalidBatch(gt *testing.T) {
 		t.Log("Safe head progressed as expected", "l2SafeHeadNumber", l2SafeHead.Number)
 
 		if safeHeadNumber := l2SafeHead.Number; safeHeadNumber > 0 {
-			env.RunFaultProofProgramFromGenesis(t, safeHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
+			env.RunFaultProofProgram(t, safeHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
 		}
 	}
 
