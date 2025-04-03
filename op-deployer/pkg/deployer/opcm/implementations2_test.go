@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeployImplementations2(t *testing.T) {
+func TestNewDeployImplementationsScript(t *testing.T) {
 	deployDependencies := func(host *script.Host) (proxyAdminAddress common.Address, proxyAddress common.Address, protocolVersionsAddress common.Address) {
 		proxyAdminArtifact, err := host.Artifacts().ReadArtifact("ProxyAdmin.sol", "ProxyAdmin")
 		require.NoError(t, err)
