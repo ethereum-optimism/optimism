@@ -18,8 +18,6 @@ interop:
     @just acceptance-test interop interop
 
 
-# DEVNET_ENV_URL
-
 # Run acceptance tests with mise-managed binary
 acceptance-test devnet="simple" gate="holocene":
     #!/usr/bin/env bash
