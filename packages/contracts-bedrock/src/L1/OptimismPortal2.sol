@@ -21,7 +21,6 @@ import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -70,9 +69,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:spacer paused
     /// @notice Spacer for backwards compatibility.
     bool private spacer_53_0_1;
-
-    /// @notice Address of the SuperchainConfig contract.
-    ISuperchainConfig public superchainConfig;
 
     /// @custom:legacy
     /// @custom:spacer l2Oracle
@@ -263,7 +259,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         reinitializer(initVersion())
     {
         systemConfig = _systemConfig;
-        superchainConfig = _systemConfig.superchainConfig();
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
 
@@ -311,7 +306,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
     function guardian() public view returns (address) {
-        return superchainConfig.guardian();
+        return systemConfig.superchainConfig().guardian();
     }
 
     /// @custom:legacy

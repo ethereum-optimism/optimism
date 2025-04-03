@@ -6,7 +6,6 @@ import { GameType } from "src/dispute/lib/LibUDT.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -80,7 +79,6 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function guardian() external view returns (address);
     function initialize(
         ISystemConfig _systemConfig,
-        ISuperchainConfig _superchainConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox
     )
@@ -118,7 +116,6 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         returns (IDisputeGame disputeGameProxy, uint64 timestamp);
     function respectedGameType() external view returns (GameType);
     function respectedGameTypeUpdatedAt() external view returns (uint64);
-    function superchainConfig() external view returns (ISuperchainConfig);
     function superRootsActive() external view returns (bool);
     function systemConfig() external view returns (ISystemConfig);
     function upgrade(

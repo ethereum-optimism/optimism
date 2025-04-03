@@ -4,9 +4,6 @@ pragma solidity 0.8.15;
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-// Libraries
-import { Storage } from "src/libraries/Storage.sol";
-
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
@@ -23,10 +20,10 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice The address of the guardian, which can pause withdrawals from the System.
     ///         It can only be modified by an upgrade.
-    bytes32 public constant GUARDIAN_SLOT = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
+    address public guardian;
 
     /// @notice The duration after which a pause expires
-    bytes32 public constant PAUSE_EXPIRY_SLOT = bytes32(uint256(keccak256("superchainConfig.pauseExpiry")) - 1);
+    uint256 public pauseExpiry;
 
     /// @notice Mapping of pause identifiers to their pause timestamps
     mapping(address => uint256) public pauseTimestamps;
@@ -66,18 +63,13 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _pauseExpiry Duration in seconds after which a pause expires.
     function initialize(address _guardian, uint256 _pauseExpiry) external initializer {
         _setGuardian(_guardian);
-        Storage.setUint(PAUSE_EXPIRY_SLOT, _pauseExpiry);
-    }
-
-    /// @notice Getter for the guardian address.
-    function guardian() public view returns (address guardian_) {
-        guardian_ = Storage.getAddress(GUARDIAN_SLOT);
+        pauseExpiry = _pauseExpiry;
     }
 
     /// @notice Pauses the system for a specific identifier.
     /// @param _identifier The address identifier for the pause.
     function pause(address _identifier) external {
-        if (msg.sender != guardian()) {
+        if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
         if (pausableFlags[_identifier]) {
@@ -92,7 +84,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Unpauses the system for a specific identifier.
     /// @param _identifier The address identifier to unpause.
     function unpause(address _identifier) external {
-        if (msg.sender != guardian()) {
+        if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
 
@@ -115,8 +107,7 @@ contract SuperchainConfig is Initializable, ISemver {
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return false;
 
-        uint256 expiry = Storage.getUint(PAUSE_EXPIRY_SLOT);
-        return block.timestamp < timestamp + expiry;
+        return block.timestamp < timestamp + pauseExpiry;
     }
 
     /// @notice Gets the expiration timestamp for a specific pause identifier.
@@ -126,14 +117,13 @@ contract SuperchainConfig is Initializable, ISemver {
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return 0;
 
-        uint256 expiry = Storage.getUint(PAUSE_EXPIRY_SLOT);
-        return timestamp + expiry;
+        return timestamp + pauseExpiry;
     }
 
     /// @notice Resets the pause mechanism for a specific identifier.
     /// @param _identifier The address identifier to reset.
     function reset(address _identifier) external {
-        if (msg.sender != guardian()) {
+        if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
         pausableFlags[_identifier] = false;
@@ -143,7 +133,7 @@ contract SuperchainConfig is Initializable, ISemver {
     ///         will be required to change the guardian.
     /// @param _guardian The new guardian address.
     function _setGuardian(address _guardian) internal {
-        Storage.setAddress(GUARDIAN_SLOT, _guardian);
+        guardian = _guardian;
         emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
     }
 }
