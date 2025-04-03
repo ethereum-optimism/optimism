@@ -47,7 +47,7 @@ type DeployImplementations2Output struct {
 
 type DeployImplementations2Script script.DeployScriptWithOutput[DeployImplementations2Input, DeployImplementations2Output]
 
-// NewDeploySuperchainScript loads and validates the DeploySuperchain2 script contract
+// NewDeployImplementationsScript loads and validates the DeploySuperchain2 script contract
 func NewDeployImplementationsScript(host *script.Host) (DeployImplementations2Script, error) {
 	return script.NewDeployScriptWithOutputFromFile[DeployImplementations2Input, DeployImplementations2Output](host, "DeployImplementations2.s.sol", "DeployImplementations2")
 }
