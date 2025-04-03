@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -20,10 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrInvalidBlockReplacement = errors.New("invalid block replacement error")
-	ErrNotFound                = errors.New("not found")
-)
+var ErrInvalidBlockReplacement = errors.New("invalid block replacement error")
 
 // ReceiptsToExecutingMessages returns the executing messages in the receipts indexed by their position in the log.
 func ReceiptsToExecutingMessages(depset depset.ChainIndexFromID, receipts ethtypes.Receipts) (map[uint32]*supervisortypes.ExecutingMessage, uint32, error) {
@@ -357,7 +355,7 @@ func (d *consolidateCheckDeps) DependencySet() depset.DependencySet {
 func (d *consolidateCheckDeps) CanonBlockByNumber(oracle l2.Oracle, blockNum uint64, chainID eth.ChainID) (*ethtypes.Block, error) {
 	head := d.canonBlocks[chainID].GetHeaderByNumber(blockNum)
 	if head == nil {
-		return nil, fmt.Errorf("head not found for chain %v: %w", chainID, ErrNotFound)
+		return nil, fmt.Errorf("head not found for chain %v: %w", chainID, ethereum.NotFound)
 	}
 	return d.oracle.BlockByHash(head.Hash(), chainID), nil
 }

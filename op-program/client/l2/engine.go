@@ -11,6 +11,7 @@ import (
 	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -18,7 +19,6 @@ import (
 )
 
 var (
-	ErrNotFound              = errors.New("not found")
 	ErrInvalidHeader         = errors.New("invalid header")
 	ErrUnsupportedAPIVersion = errors.New("unsupported api version")
 	ErrUnknownLabel          = errors.New("unknown label")
@@ -49,7 +49,7 @@ func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engine
 func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (common.Hash, eth.Bytes32, error) {
 	outBlock := o.backend.GetHeaderByNumber(l2ClaimBlockNum)
 	if outBlock == nil {
-		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("%w: failed to get L2 block at %d", ErrNotFound, l2ClaimBlockNum)
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("%w: failed to get L2 block at %d", ethereum.NotFound, l2ClaimBlockNum)
 	}
 	output, err := o.l2OutputAtHeader(outBlock)
 	if err != nil {
@@ -62,7 +62,7 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (common.Hash, eth.By
 func (o *OracleEngine) L2OutputAtBlockHash(blockHash common.Hash) (*eth.OutputV0, error) {
 	header := o.backend.GetHeaderByHash(blockHash)
 	if header == nil {
-		return nil, fmt.Errorf("%w: failed to get L2 block at %s", ErrNotFound, blockHash)
+		return nil, fmt.Errorf("%w: failed to get L2 block at %s", ethereum.NotFound, blockHash)
 	}
 	return o.l2OutputAtHeader(header)
 }
@@ -155,7 +155,7 @@ func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	block := o.backend.GetBlockByHash(hash)
 	if block == nil {
-		return nil, ErrNotFound
+		return nil, ethereum.NotFound
 	}
 	return eth.BlockAsPayloadEnv(block, o.backend.Config())
 }
@@ -163,7 +163,7 @@ func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*et
 func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayloadEnvelope, error) {
 	hash := o.backend.GetCanonicalHash(n)
 	if hash == (common.Hash{}) {
-		return nil, ErrNotFound
+		return nil, ethereum.NotFound
 	}
 	return o.PayloadByHash(ctx, hash)
 }
@@ -181,11 +181,11 @@ func (o *OracleEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 		return eth.L2BlockRef{}, fmt.Errorf("%w: label: %v", ErrUnknownLabel, label)
 	}
 	if header == nil {
-		return eth.L2BlockRef{}, ErrNotFound
+		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 	block := o.backend.GetBlockByHash(header.Hash())
 	if block == nil {
-		return eth.L2BlockRef{}, ErrNotFound
+		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 	return derive.L2BlockToBlockRef(o.rollupCfg, block)
 }
@@ -193,7 +193,7 @@ func (o *OracleEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 func (o *OracleEngine) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
 	block := o.backend.GetBlockByHash(l2Hash)
 	if block == nil {
-		return eth.L2BlockRef{}, ErrNotFound
+		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 	return derive.L2BlockToBlockRef(o.rollupCfg, block)
 }
@@ -201,7 +201,7 @@ func (o *OracleEngine) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash)
 func (o *OracleEngine) L2BlockRefByNumber(ctx context.Context, n uint64) (eth.L2BlockRef, error) {
 	hash := o.backend.GetCanonicalHash(n)
 	if hash == (common.Hash{}) {
-		return eth.L2BlockRef{}, ErrNotFound
+		return eth.L2BlockRef{}, ethereum.NotFound
 	}
 	return o.L2BlockRefByHash(ctx, hash)
 }
