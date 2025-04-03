@@ -1,6 +1,6 @@
 use crate::client::rpc::RpcClient;
 use crate::debug_api::DebugServer;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, Bytes};
 use moka::sync::Cache;
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
@@ -14,7 +14,10 @@ use jsonrpsee::RpcModule;
 use jsonrpsee::core::{RegisterMethodError, RpcResult, async_trait};
 use jsonrpsee::types::ErrorObject;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
-use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
+use op_alloy_rpc_types_engine::{
+    OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
+    OpPayloadAttributes,
+};
 use serde::{Deserialize, Serialize};
 
 use tracing::{debug, info, instrument};
@@ -211,6 +214,21 @@ pub trait EngineApi {
         versioned_hashes: Vec<B256>,
         parent_beacon_block_root: B256,
     ) -> RpcResult<PayloadStatus>;
+
+    #[method(name = "getPayloadV4")]
+    async fn get_payload_v4(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV4>;
+
+    #[method(name = "newPayloadV4")]
+    async fn new_payload_v4(
+        &self,
+        payload: OpExecutionPayloadV4,
+        versioned_hashes: Vec<B256>,
+        parent_beacon_block_root: B256,
+        execution_requests: Vec<Bytes>,
+    ) -> RpcResult<PayloadStatus>;
 }
 
 #[async_trait]
@@ -299,7 +317,225 @@ impl EngineApiServer for RollupBoostServer {
     ) -> RpcResult<OpExecutionPayloadEnvelopeV3> {
         info!("received get_payload_v3");
 
-        let l2_client_future = self.l2_client.get_payload_v3(payload_id);
+        match self.get_payload(payload_id, Version::V3).await? {
+            OpExecutionPayloadEnvelope::V3(v3) => Ok(v3),
+            OpExecutionPayloadEnvelope::V4(_) => Err(ErrorObject::owned(
+                INVALID_REQUEST_CODE,
+                "Payload version 4 not supported",
+                None::<String>,
+            )),
+        }
+    }
+
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
+        )
+    )]
+    async fn new_payload_v3(
+        &self,
+        payload: ExecutionPayloadV3,
+        versioned_hashes: Vec<B256>,
+        parent_beacon_block_root: B256,
+    ) -> RpcResult<PayloadStatus> {
+        info!("received new_payload_v3");
+
+        self.new_payload(NewPayload::V3(NewPayloadV3 {
+            payload,
+            versioned_hashes,
+            parent_beacon_block_root,
+        }))
+        .await
+    }
+
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
+            %payload_id,
+            payload_source
+        )
+    )]
+    async fn get_payload_v4(
+        &self,
+        payload_id: PayloadId,
+    ) -> RpcResult<OpExecutionPayloadEnvelopeV4> {
+        info!("received get_payload_v4");
+
+        match self.get_payload(payload_id, Version::V4).await? {
+            OpExecutionPayloadEnvelope::V4(v4) => Ok(v4),
+            OpExecutionPayloadEnvelope::V3(_) => Err(ErrorObject::owned(
+                INVALID_REQUEST_CODE,
+                "Payload version 4 not supported",
+                None::<String>,
+            )),
+        }
+    }
+
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Server,
+        )
+    )]
+    async fn new_payload_v4(
+        &self,
+        payload: OpExecutionPayloadV4,
+        versioned_hashes: Vec<B256>,
+        parent_beacon_block_root: B256,
+        execution_requests: Vec<Bytes>,
+    ) -> RpcResult<PayloadStatus> {
+        info!("received new_payload_v4");
+
+        self.new_payload(NewPayload::V4(NewPayloadV4 {
+            payload,
+            versioned_hashes,
+            parent_beacon_block_root,
+            execution_requests,
+        }))
+        .await
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum OpExecutionPayloadEnvelope {
+    V3(OpExecutionPayloadEnvelopeV3),
+    V4(OpExecutionPayloadEnvelopeV4),
+}
+
+impl OpExecutionPayloadEnvelope {
+    pub fn version(&self) -> Version {
+        match self {
+            OpExecutionPayloadEnvelope::V3(_) => Version::V3,
+            OpExecutionPayloadEnvelope::V4(_) => Version::V4,
+        }
+    }
+}
+
+impl From<OpExecutionPayloadEnvelope> for ExecutionPayload {
+    fn from(envelope: OpExecutionPayloadEnvelope) -> Self {
+        match envelope {
+            OpExecutionPayloadEnvelope::V3(v3) => ExecutionPayload::from(v3.execution_payload),
+            OpExecutionPayloadEnvelope::V4(v4) => {
+                ExecutionPayload::from(v4.execution_payload.payload_inner)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NewPayloadV3 {
+    pub payload: ExecutionPayloadV3,
+    pub versioned_hashes: Vec<B256>,
+    pub parent_beacon_block_root: B256,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewPayloadV4 {
+    pub payload: OpExecutionPayloadV4,
+    pub versioned_hashes: Vec<B256>,
+    pub parent_beacon_block_root: B256,
+    pub execution_requests: Vec<Bytes>,
+}
+
+#[derive(Debug, Clone)]
+pub enum NewPayload {
+    V3(NewPayloadV3),
+    V4(NewPayloadV4),
+}
+
+impl NewPayload {
+    pub fn version(&self) -> Version {
+        match self {
+            NewPayload::V3(_) => Version::V3,
+            NewPayload::V4(_) => Version::V4,
+        }
+    }
+}
+
+impl From<OpExecutionPayloadEnvelope> for NewPayload {
+    fn from(envelope: OpExecutionPayloadEnvelope) -> Self {
+        match envelope {
+            OpExecutionPayloadEnvelope::V3(v3) => NewPayload::V3(NewPayloadV3 {
+                payload: v3.execution_payload,
+                versioned_hashes: vec![],
+                parent_beacon_block_root: v3.parent_beacon_block_root,
+            }),
+            OpExecutionPayloadEnvelope::V4(v4) => NewPayload::V4(NewPayloadV4 {
+                payload: v4.execution_payload,
+                versioned_hashes: vec![],
+                parent_beacon_block_root: v4.parent_beacon_block_root,
+                execution_requests: v4.execution_requests,
+            }),
+        }
+    }
+}
+
+impl From<NewPayload> for ExecutionPayload {
+    fn from(new_payload: NewPayload) -> Self {
+        match new_payload {
+            NewPayload::V3(v3) => ExecutionPayload::from(v3.payload),
+            NewPayload::V4(v4) => ExecutionPayload::from(v4.payload.payload_inner),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Version {
+    V3,
+    V4,
+}
+
+impl Version {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Version::V3 => "v3",
+            Version::V4 => "v4",
+        }
+    }
+}
+
+impl RollupBoostServer {
+    async fn new_payload(&self, new_payload: NewPayload) -> RpcResult<PayloadStatus> {
+        let execution_payload = ExecutionPayload::from(new_payload.clone());
+        let block_hash = execution_payload.block_hash();
+        let parent_hash = execution_payload.parent_hash();
+        info!(message = "received new_payload", "block_hash" = %block_hash, "version" = new_payload.version().as_str());
+
+        // async call to builder to sync the builder node
+        let execution_mode = self.execution_mode();
+        if self.boost_sync && !execution_mode.is_disabled() {
+            if let Some(causes) = self
+                .payload_trace_context
+                .trace_ids_from_parent_hash(&parent_hash)
+            {
+                causes.iter().for_each(|cause| {
+                    tracing::Span::current().follows_from(cause);
+                });
+            }
+
+            self.payload_trace_context
+                .remove_by_parent_hash(&parent_hash);
+
+            let builder = self.builder_client.clone();
+            let new_payload_clone = new_payload.clone();
+            tokio::spawn(async move {
+                let _ = builder.new_payload(new_payload_clone).await;
+            });
+        }
+        Ok(self.l2_client.new_payload(new_payload).await?)
+    }
+
+    async fn get_payload(
+        &self,
+        payload_id: PayloadId,
+        version: Version,
+    ) -> RpcResult<OpExecutionPayloadEnvelope> {
+        let l2_client_future = self.l2_client.get_payload(payload_id, version);
         let builder_client_future = Box::pin(async move {
             let execution_mode = self.execution_mode();
             if !execution_mode.is_get_payload_enabled() {
@@ -319,23 +555,19 @@ impl EngineApiServer for RollupBoostServer {
 
             if !self.payload_trace_context.has_attributes(&payload_id) {
                 // block builder won't build a block without attributes
-                info!(message = "no attributes found, skipping get_payload_v3 call to builder");
+                info!(message = "no attributes found, skipping get_payload call to builder");
                 return Ok(None);
             }
 
             let builder = self.builder_client.clone();
-            let payload = builder.get_payload_v3(payload_id).await?;
+            let payload = builder.get_payload(payload_id, version).await?;
 
             // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
             // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
             // If validation fails, return the local block since that one has already been validated.
             let _ = self
                 .l2_client
-                .new_payload_v3(
-                    payload.execution_payload.clone(),
-                    vec![],
-                    payload.parent_beacon_block_root,
-                )
+                .new_payload(NewPayload::from(payload.clone()))
                 .await?;
 
             Ok(Some(payload))
@@ -350,7 +582,7 @@ impl EngineApiServer for RollupBoostServer {
 
         tracing::Span::current().record("payload_source", context.to_string());
 
-        let inner_payload = ExecutionPayload::from(payload.clone().execution_payload);
+        let inner_payload = ExecutionPayload::from(payload.clone());
         let block_hash = inner_payload.block_hash();
         let block_number = inner_payload.block_number();
 
@@ -365,58 +597,6 @@ impl EngineApiServer for RollupBoostServer {
             %payload_id,
         );
         Ok(payload)
-    }
-
-    #[instrument(
-        skip_all,
-        err,
-        fields(
-            otel.kind = ?SpanKind::Server,
-        )
-    )]
-    async fn new_payload_v3(
-        &self,
-        payload: ExecutionPayloadV3,
-        versioned_hashes: Vec<B256>,
-        parent_beacon_block_root: B256,
-    ) -> RpcResult<PayloadStatus> {
-        info!("received new_payload_v3");
-        let execution_payload = ExecutionPayload::from(payload.clone());
-        let block_hash = execution_payload.block_hash();
-        let parent_hash = execution_payload.parent_hash();
-        info!(message = "received new_payload_v3", "block_hash" = %block_hash);
-        // async call to builder to sync the builder node
-        let execution_mode = self.execution_mode();
-        if self.boost_sync && !execution_mode.is_disabled() {
-            if let Some(causes) = self
-                .payload_trace_context
-                .trace_ids_from_parent_hash(&parent_hash)
-            {
-                causes.iter().for_each(|cause| {
-                    tracing::Span::current().follows_from(cause);
-                });
-            }
-
-            self.payload_trace_context
-                .remove_by_parent_hash(&parent_hash);
-
-            let builder = self.builder_client.clone();
-            let builder_payload = payload.clone();
-            let builder_versioned_hashes = versioned_hashes.clone();
-            tokio::spawn(async move {
-                let _ = builder
-                    .new_payload_v3(
-                        builder_payload,
-                        builder_versioned_hashes,
-                        parent_beacon_block_root,
-                    )
-                    .await;
-            });
-        }
-        Ok(self
-            .l2_client
-            .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
-            .await?)
     }
 }
 

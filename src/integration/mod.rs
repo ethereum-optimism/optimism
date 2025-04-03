@@ -1,18 +1,21 @@
 use crate::client::auth::{AuthClientLayer, AuthClientService};
 use crate::debug_api::DebugClient;
-use crate::server::EngineApiClient;
-use crate::server::PayloadSource;
+use crate::server::{EngineApiClient, OpExecutionPayloadEnvelope, Version};
+use crate::server::{NewPayload, PayloadSource};
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::B256;
-use alloy_rpc_types_engine::JwtSecret;
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{B256, Bytes, TxKind, U256, address, hex};
+use alloy_rpc_types_engine::{ExecutionPayload, JwtSecret};
 use alloy_rpc_types_engine::{
-    ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId,
-    PayloadStatus, PayloadStatusEnum,
+    ForkchoiceState, ForkchoiceUpdated, PayloadAttributes, PayloadId, PayloadStatus,
+    PayloadStatusEnum,
 };
+use bytes::BytesMut;
 use jsonrpsee::http_client::{HttpClient, transport::HttpBackend};
 use jsonrpsee::proc_macros::rpc;
 use lazy_static::lazy_static;
-use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
+use op_alloy_consensus::TxDeposit;
+use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use proxy::{DynHandlerFn, start_proxy_server};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -469,6 +472,7 @@ pub struct EngineApi {
     pub engine_api_client: HttpClient<AuthClientService<HttpBackend>>,
 }
 
+// TODO: Use client/rpc.rs instead
 impl EngineApi {
     pub fn new(url: &str, secret: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let secret_layer = AuthClientLayer::new(JwtSecret::from_str(secret)?);
@@ -483,26 +487,39 @@ impl EngineApi {
         })
     }
 
-    pub async fn get_payload_v3(
+    pub async fn get_payload(
         &self,
+        version: Version,
         payload_id: PayloadId,
-    ) -> eyre::Result<OpExecutionPayloadEnvelopeV3> {
-        Ok(EngineApiClient::get_payload_v3(&self.engine_api_client, payload_id).await?)
+    ) -> eyre::Result<OpExecutionPayloadEnvelope> {
+        match version {
+            Version::V3 => Ok(OpExecutionPayloadEnvelope::V3(
+                EngineApiClient::get_payload_v3(&self.engine_api_client, payload_id).await?,
+            )),
+            Version::V4 => Ok(OpExecutionPayloadEnvelope::V4(
+                EngineApiClient::get_payload_v4(&self.engine_api_client, payload_id).await?,
+            )),
+        }
     }
 
-    pub async fn new_payload(
-        &self,
-        payload: ExecutionPayloadV3,
-        versioned_hashes: Vec<B256>,
-        parent_beacon_block_root: B256,
-    ) -> eyre::Result<PayloadStatus> {
-        Ok(EngineApiClient::new_payload_v3(
-            &self.engine_api_client,
-            payload,
-            versioned_hashes,
-            parent_beacon_block_root,
-        )
-        .await?)
+    pub async fn new_payload(&self, payload: NewPayload) -> eyre::Result<PayloadStatus> {
+        match payload {
+            NewPayload::V3(new_payload) => Ok(EngineApiClient::new_payload_v3(
+                &self.engine_api_client,
+                new_payload.payload,
+                new_payload.versioned_hashes,
+                new_payload.parent_beacon_block_root,
+            )
+            .await?),
+            NewPayload::V4(new_payload) => Ok(EngineApiClient::new_payload_v4(
+                &self.engine_api_client,
+                new_payload.payload,
+                new_payload.versioned_hashes,
+                new_payload.parent_beacon_block_root,
+                new_payload.execution_requests,
+            )
+            .await?),
+        }
     }
 
     pub async fn update_forkchoice(
@@ -686,6 +703,7 @@ pub struct SimpleBlockGenerator {
     engine_api: EngineApi,
     latest_hash: B256,
     timestamp: u64,
+    version: Version,
 }
 
 impl SimpleBlockGenerator {
@@ -695,6 +713,7 @@ impl SimpleBlockGenerator {
             engine_api,
             latest_hash: B256::ZERO, // temporary value
             timestamp: 0,            // temporary value
+            version: Version::V3,
         }
     }
 
@@ -711,6 +730,14 @@ impl SimpleBlockGenerator {
         &mut self,
         empty_blocks: bool,
     ) -> eyre::Result<(B256, PayloadSource)> {
+        let txns = match self.version {
+            Version::V4 => {
+                let tx = create_deposit_tx();
+                Some(vec![tx])
+            }
+            _ => None,
+        };
+
         // Submit forkchoice update with payload attributes for the next block
         let result = self
             .engine_api
@@ -725,7 +752,7 @@ impl SimpleBlockGenerator {
                         prev_randao: B256::ZERO,
                         suggested_fee_recipient: Default::default(),
                     },
-                    transactions: None,
+                    transactions: txns,
                     no_tx_pool: Some(empty_blocks),
                     gas_limit: Some(10000000000),
                     eip_1559_params: None,
@@ -739,23 +766,23 @@ impl SimpleBlockGenerator {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
-        let payload = self.engine_api.get_payload_v3(payload_id).await?;
+        let payload = self
+            .engine_api
+            .get_payload(self.version, payload_id)
+            .await?;
 
         // Submit the new payload to the node
         let validation_status = self
             .engine_api
-            .new_payload(payload.execution_payload.clone(), vec![], B256::ZERO)
+            .new_payload(NewPayload::from(payload.clone()))
             .await?;
 
         if validation_status.status != PayloadStatusEnum::Valid {
             return Err(eyre::eyre!("Invalid payload status"));
         }
 
-        let new_block_hash = payload
-            .execution_payload
-            .payload_inner
-            .payload_inner
-            .block_hash;
+        let execution_payload = ExecutionPayload::from(payload);
+        let new_block_hash = execution_payload.block_hash();
 
         // Update the chain's head
         self.engine_api
@@ -764,11 +791,7 @@ impl SimpleBlockGenerator {
 
         // Update internal state
         self.latest_hash = new_block_hash;
-        self.timestamp = payload
-            .execution_payload
-            .payload_inner
-            .payload_inner
-            .timestamp;
+        self.timestamp = execution_payload.timestamp();
 
         // Check who built the block in the rollup-boost logs
         let block_creator = self
@@ -825,4 +848,26 @@ impl BlockBuilderCreatorValidator {
 
         Ok(None)
     }
+}
+
+fn create_deposit_tx() -> Bytes {
+    const ISTHMUS_DATA: &[u8] = &hex!(
+        "098999be00000558000c5fc500000000000000030000000067a9f765000000000000002900000000000000000000000000000000000000000000000000000000006a6d09000000000000000000000000000000000000000000000000000000000000000172fcc8e8886636bdbe96ba0e4baab67ea7e7811633f52b52e8cf7a5123213b6f000000000000000000000000d3f2c5afb2d76f5579f326b0cd7da5f5a4126c3500004e2000000000000001f4"
+    );
+
+    let deposit_tx = TxDeposit {
+        source_hash: B256::default(),
+        from: address!("DeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001"),
+        to: TxKind::Call(address!("4200000000000000000000000000000000000015")),
+        mint: None,
+        value: U256::default(),
+        gas_limit: 210000,
+        is_system_transaction: true,
+        input: ISTHMUS_DATA.into(),
+    };
+
+    let mut buffer_without_header = BytesMut::new();
+    deposit_tx.encode_2718(&mut buffer_without_header);
+
+    buffer_without_header.to_vec().into()
 }

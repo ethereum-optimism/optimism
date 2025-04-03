@@ -132,7 +132,7 @@ where
                     });
 
                     let l2_req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
-                    info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
+                    info!(target: "proxy::call", message = "forward request to rollup-boost server", ?method);
                     service.l2_client.forward(l2_req, method).await
                 } else {
                     let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));

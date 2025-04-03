@@ -842,7 +842,7 @@
     "canyonTime": 0,
     "chainId": 901,
     "constantinopleBlock": 0,
-    "depositContractAddress": "0x0000000000000000000000000000000000000000",
+    "depositContractAddress": "0x4242424242424242424242424242424242424242",
     "ecotoneTime": 0,
     "eip150Block": 0,
     "eip155Block": 0,
@@ -855,6 +855,23 @@
     "londonBlock": 0,
     "mergeNetsplitBlock": 0,
     "muirGlacierBlock": 0,
+    "blobSchedule": {
+      "cancun": {
+        "target": 3,
+        "max": 6,
+        "baseFeeUpdateFraction": 3338477
+      },
+      "prague": {
+        "target": 6,
+        "max": 9,
+        "baseFeeUpdateFraction": 5007716
+      },
+      "osaka": {
+        "target": 9,
+        "max": 12,
+        "baseFeeUpdateFraction": 5007716
+      }
+    },
     "optimism": {
       "eip1559Denominator": 50,
       "eip1559DenominatorCanyon": 250,

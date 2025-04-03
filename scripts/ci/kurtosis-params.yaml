@@ -5,6 +5,7 @@ optimism_package:
     - participants:
       - el_type: op-geth
         el_builder_type: op-reth
+        el_builder_image: "ghcr.io/paradigmxyz/op-reth:nightly"
         cl_builder_type: op-node
       network_params:
         network: "kurtosis"
@@ -12,7 +13,7 @@ optimism_package:
         seconds_per_slot: 2
         fjord_time_offset: 0
         granite_time_offset: 0
-        # isthmus_time_offset: 0
+        isthmus_time_offset: 5
         fund_dev_accounts: true
       mev_params:
         rollup_boost_image: "flashbots/rollup-boost:develop"

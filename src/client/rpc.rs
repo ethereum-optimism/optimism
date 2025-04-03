@@ -1,6 +1,8 @@
 use crate::client::auth::{AuthClientLayer, AuthClientService};
-use crate::server::{EngineApiClient, PayloadSource};
-use alloy_primitives::B256;
+use crate::server::{
+    EngineApiClient, NewPayload, OpExecutionPayloadEnvelope, PayloadSource, Version,
+};
+use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret,
     PayloadId, PayloadStatus,
@@ -10,7 +12,10 @@ use http::Uri;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::types::ErrorObjectOwned;
-use op_alloy_rpc_types_engine::{OpExecutionPayloadEnvelopeV3, OpPayloadAttributes};
+use op_alloy_rpc_types_engine::{
+    OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
+    OpPayloadAttributes,
+};
 use opentelemetry::trace::SpanKind;
 use paste::paste;
 use std::path::PathBuf;
@@ -212,6 +217,106 @@ impl RpcClient {
         }
 
         Ok(res)
+    }
+
+    #[instrument(
+        skip(self),
+        err,
+        fields(
+            otel.kind = ?SpanKind::Client,
+            target = self.payload_source.to_string(),
+            url = %self.auth_rpc,
+            %payload_id,
+        )
+    )]
+    pub async fn get_payload_v4(
+        &self,
+        payload_id: PayloadId,
+    ) -> ClientResult<OpExecutionPayloadEnvelopeV4> {
+        info!("Sending get_payload_v4 to {}", self.payload_source);
+        Ok(self
+            .auth_client
+            .get_payload_v4(payload_id)
+            .await
+            .set_code()?)
+    }
+
+    pub async fn get_payload(
+        &self,
+        payload_id: PayloadId,
+        version: Version,
+    ) -> ClientResult<OpExecutionPayloadEnvelope> {
+        match version {
+            Version::V3 => Ok(OpExecutionPayloadEnvelope::V3(
+                self.get_payload_v3(payload_id).await.set_code()?,
+            )),
+            Version::V4 => Ok(OpExecutionPayloadEnvelope::V4(
+                self.get_payload_v4(payload_id).await.set_code()?,
+            )),
+        }
+    }
+
+    #[instrument(
+        skip_all,
+        err,
+        fields(
+            otel.kind = ?SpanKind::Client,
+            target = self.payload_source.to_string(),
+            url = %self.auth_rpc,
+            block_hash,
+            code,
+        )
+    )]
+    async fn new_payload_v4(
+        &self,
+        payload: OpExecutionPayloadV4,
+        versioned_hashes: Vec<B256>,
+        parent_beacon_block_root: B256,
+        execution_requests: Vec<Bytes>,
+    ) -> ClientResult<PayloadStatus> {
+        info!("Sending new_payload_v4 to {}", self.payload_source);
+        let execution_payload = ExecutionPayload::from(payload.payload_inner.clone());
+        let block_hash = execution_payload.block_hash();
+        tracing::Span::current().record("block_hash", block_hash.to_string());
+
+        let res = self
+            .auth_client
+            .new_payload_v4(
+                payload,
+                versioned_hashes,
+                parent_beacon_block_root,
+                execution_requests,
+            )
+            .await
+            .set_code()?;
+
+        if res.is_invalid() {
+            return Err(RpcClientError::InvalidPayload(res.status.to_string()).set_code());
+        }
+
+        Ok(res)
+    }
+
+    pub async fn new_payload(&self, new_payload: NewPayload) -> ClientResult<PayloadStatus> {
+        match new_payload {
+            NewPayload::V3(new_payload) => {
+                self.new_payload_v3(
+                    new_payload.payload,
+                    new_payload.versioned_hashes,
+                    new_payload.parent_beacon_block_root,
+                )
+                .await
+            }
+            NewPayload::V4(new_payload) => {
+                self.new_payload_v4(
+                    new_payload.payload,
+                    new_payload.versioned_hashes,
+                    new_payload.parent_beacon_block_root,
+                    new_payload.execution_requests,
+                )
+                .await
+            }
+        }
     }
 }
 
