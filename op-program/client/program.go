@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var errInvalidConfig = errors.New("invalid config")
 
 type Config struct {
 	SkipValidation bool
@@ -67,7 +70,7 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 		return interop.RunInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, !cfg.SkipValidation)
 	}
 	if cfg.DB == nil {
-		return errors.New("db config is required")
+		return fmt.Errorf("%w: db config is required", errInvalidConfig)
 	}
 	bootInfo := boot.NewBootstrapClient(pClient).BootInfo()
 	derivationOptions := tasks.DerivationOptions{StoreBlockData: cfg.StoreBlockData}

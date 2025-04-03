@@ -102,7 +102,7 @@ func TestL2BlockRefByLabel(t *testing.T) {
 	}
 	t.Run("UnknownLabel", func(t *testing.T) {
 		_, err := engine.L2BlockRefByLabel(ctx, "nope")
-		require.ErrorContains(t, err, "unknown label")
+		require.ErrorIs(t, err, ErrUnknownLabel)
 	})
 }
 

@@ -18,7 +18,10 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var ErrMissingChainConfig = errors.New("missing chain config")
+var (
+	ErrMissingChainConfig = errors.New("missing chain config")
+	errChainNotFound      = errors.New("chain not found")
+)
 
 // OPSepoliaChainConfig loads the op-sepolia chain config. This is intended for tests that need an arbitrary, valid chain config.
 func OPSepoliaChainConfig() *params.ChainConfig {
@@ -104,7 +107,7 @@ func chainConfigByChainID(chainID eth.ChainID, customChainFS embed.FS) (*params.
 func mustLoadChainConfig(name string) *params.ChainConfig {
 	chainCfg := chaincfg.ChainByName(name)
 	if chainCfg == nil {
-		panic(fmt.Errorf("unknown chain config %q", name))
+		panic(fmt.Errorf("%w: unknown chain config %q", errChainNotFound, name))
 	}
 	cfg, err := ChainConfigByChainID(eth.ChainIDFromUInt64(chainCfg.ChainID))
 	if err != nil {
@@ -140,5 +143,5 @@ func dependencySetByChainID(chainID eth.ChainID, customChainFS embed.FS) (depset
 			return depSet, nil
 		}
 	}
-	return nil, fmt.Errorf("no dependency set config includes chain ID: %v", chainID)
+	return nil, fmt.Errorf("%w: no dependency set config includes chain ID: %v", errChainNotFound, chainID)
 }

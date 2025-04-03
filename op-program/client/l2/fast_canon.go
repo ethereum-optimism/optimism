@@ -127,7 +127,7 @@ func (o *FastCanonicalBlockHeaderOracle) getHistoricalBlockHash(head *types.Head
 		panic(fmt.Errorf("failed to get history block hash: %w", err))
 	}
 	if len(ret) != 32 {
-		panic(fmt.Errorf("invalid history storage result. got %d bytes, expected %d bytes", len(ret), common.HashLength))
+		panic(fmt.Sprintf("invalid history storage result. got %d bytes, expected %d bytes", len(ret), common.HashLength))
 	}
 	hash := common.Hash(ret)
 	if hash == (common.Hash{}) {
@@ -136,7 +136,7 @@ func (o *FastCanonicalBlockHeaderOracle) getHistoricalBlockHash(head *types.Head
 	}
 	header := o.blockByHashFn(hash)
 	if header == nil {
-		panic(fmt.Errorf("failed to get history block header for %v", n))
+		panic(fmt.Sprintf("failed to get history block header for %v", n))
 	}
 	return header
 }

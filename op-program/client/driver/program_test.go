@@ -16,6 +16,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
+var (
+	errTestReset = errors.New("reset test err")
+	errTestTemp  = errors.New("temp test err")
+	errTestCrit  = errors.New("crit test err")
+)
+
 func TestProgramDeriver(t *testing.T) {
 	newProgram := func(t *testing.T, target uint64) (*ProgramDeriver, *testutils.MockEmitter) {
 		m := &testutils.MockEmitter{}
@@ -115,7 +121,7 @@ func TestProgramDeriver(t *testing.T) {
 	// on inconsistent chain data: stop with error
 	t.Run("reset event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(rollup.ResetEvent{Err: errors.New("reset test err")})
+		p.OnEvent(rollup.ResetEvent{Err: errTestReset})
 		m.AssertExpectations(t)
 		require.True(t, p.closing)
 		require.Error(t, p.resultError)
@@ -123,7 +129,7 @@ func TestProgramDeriver(t *testing.T) {
 	// on L1 temporary error: stop with error
 	t.Run("L1 temporary error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(rollup.L1TemporaryErrorEvent{Err: errors.New("temp test err")})
+		p.OnEvent(rollup.L1TemporaryErrorEvent{Err: errTestTemp})
 		m.AssertExpectations(t)
 		require.True(t, p.closing)
 		require.Error(t, p.resultError)
@@ -132,7 +138,7 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("engine temp error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
-		p.OnEvent(rollup.EngineTemporaryErrorEvent{Err: errors.New("temp test err")})
+		p.OnEvent(rollup.EngineTemporaryErrorEvent{Err: errTestTemp})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -140,7 +146,7 @@ func TestProgramDeriver(t *testing.T) {
 	// on critical error: stop
 	t.Run("critical error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(rollup.ResetEvent{Err: errors.New("crit test err")})
+		p.OnEvent(rollup.ResetEvent{Err: errTestCrit})
 		m.AssertExpectations(t)
 		require.True(t, p.closing)
 		require.Error(t, p.resultError)

@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -18,6 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+var errNotFound = errors.New("not found")
 
 type L2Source interface {
 	L2OutputRoot(uint64) (common.Hash, eth.Bytes32, error)
@@ -91,7 +94,7 @@ func loadOutputRoot(l2ClaimBlockNum uint64, head eth.L2BlockRef, src L2Source) (
 func storeBlockData(derivedBlockHash common.Hash, db l2.KeyValueStore, backend engineapi.CachingEngineBackend) error {
 	block := backend.GetBlockByHash(derivedBlockHash)
 	if block == nil {
-		return fmt.Errorf("derived block %v is missing", derivedBlockHash)
+		return fmt.Errorf("%w: derived block %v is missing", errNotFound, derivedBlockHash)
 	}
 	headerRLP, err := rlp.EncodeToBytes(block.Header())
 	if err != nil {
@@ -111,7 +114,7 @@ func storeBlockData(derivedBlockHash common.Hash, db l2.KeyValueStore, backend e
 	}
 	receipts := backend.GetReceiptsByBlockHash(block.Hash())
 	if receipts == nil {
-		return fmt.Errorf("receipts for block %v are missing", block.Hash())
+		return fmt.Errorf("%w: receipts for block %v are missing", errNotFound, block.Hash())
 	}
 	opaqueReceipts, err := eth.EncodeReceipts(receipts)
 	if err != nil {

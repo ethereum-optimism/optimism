@@ -17,7 +17,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound              = errors.New("not found")
+	ErrInvalidHeader         = errors.New("invalid header")
+	ErrUnsupportedAPIVersion = errors.New("unsupported api version")
+	ErrUnknownLabel          = errors.New("unknown label")
+)
 
 type OracleEngine struct {
 	api    *engineapi.L2EngineAPI
@@ -44,7 +49,7 @@ func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engine
 func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (common.Hash, eth.Bytes32, error) {
 	outBlock := o.backend.GetHeaderByNumber(l2ClaimBlockNum)
 	if outBlock == nil {
-		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("failed to get L2 block at %d", l2ClaimBlockNum)
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("%w: failed to get L2 block at %d", ErrNotFound, l2ClaimBlockNum)
 	}
 	output, err := o.l2OutputAtHeader(outBlock)
 	if err != nil {
@@ -57,7 +62,7 @@ func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (common.Hash, eth.By
 func (o *OracleEngine) L2OutputAtBlockHash(blockHash common.Hash) (*eth.OutputV0, error) {
 	header := o.backend.GetHeaderByHash(blockHash)
 	if header == nil {
-		return nil, fmt.Errorf("failed to get L2 block at %s", blockHash)
+		return nil, fmt.Errorf("%w: failed to get L2 block at %s", ErrNotFound, blockHash)
 	}
 	return o.l2OutputAtHeader(header)
 }
@@ -69,7 +74,7 @@ func (o *OracleEngine) l2OutputAtHeader(header *types.Header) (*eth.OutputV0, er
 	// withdrawalRoot which is the storage root for the L2ToL1MessagePasser contract
 	if o.rollupCfg.IsIsthmus(header.Time) {
 		if header.WithdrawalsHash == nil {
-			return nil, fmt.Errorf("unexpected nil withdrawalsHash in isthmus header for block %v", blockHash)
+			return nil, fmt.Errorf("%w: unexpected nil withdrawalsHash in isthmus header for block %v", ErrInvalidHeader, blockHash)
 		}
 		storageRoot = *header.WithdrawalsHash
 	} else {
@@ -106,7 +111,7 @@ func (o *OracleEngine) GetPayload(ctx context.Context, payloadInfo eth.PayloadIn
 	case eth.GetPayloadV2:
 		res, err = o.api.GetPayloadV2(ctx, payloadInfo.ID)
 	default:
-		return nil, fmt.Errorf("unsupported GetPayload version: %s", method)
+		return nil, fmt.Errorf("%w: GetPayload method: %s", ErrUnsupportedAPIVersion, method)
 	}
 	if err != nil {
 		return nil, err
@@ -130,7 +135,7 @@ func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.Forkchoi
 	case eth.FCUV1:
 		return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
 	default:
-		return nil, fmt.Errorf("unsupported ForkchoiceUpdated version: %s", method)
+		return nil, fmt.Errorf("%w: ForkchoiceUpdated version: %s", ErrUnsupportedAPIVersion, method)
 	}
 }
 
@@ -143,7 +148,7 @@ func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 	case eth.NewPayloadV2:
 		return o.api.NewPayloadV2(ctx, payload)
 	default:
-		return nil, fmt.Errorf("unsupported NewPayload version: %s", method)
+		return nil, fmt.Errorf("%w: NewPayload version: %s", ErrUnsupportedAPIVersion, method)
 	}
 }
 
@@ -173,7 +178,7 @@ func (o *OracleEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 	case eth.Finalized:
 		header = o.backend.CurrentFinalBlock()
 	default:
-		return eth.L2BlockRef{}, fmt.Errorf("unknown label: %v", label)
+		return eth.L2BlockRef{}, fmt.Errorf("%w: label: %v", ErrUnknownLabel, label)
 	}
 	if header == nil {
 		return eth.L2BlockRef{}, ErrNotFound
