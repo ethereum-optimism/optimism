@@ -28,37 +28,7 @@ func TestSuperCannonGame(t *testing.T) {
 	ctx := context.Background()
 	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
 	game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
-	game.LogGameData(ctx)
-
-	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
-	correctTrace := game.CreateHonestActor(ctx, disputegame.WithPrivKey(malloryKey(t)), func(c *disputegame.HonestActorConfig) {
-		c.ChallengerOpts = append(c.ChallengerOpts, challenger.WithDepset(t, sys.DependencySet()))
-	})
-	game.LogGameData(ctx)
-
-	invalidRoot := game.RootClaim(ctx)
-	honestCounter := invalidRoot.WaitForCounterClaim(ctx)
-	game.ChallengeClaim(ctx, honestCounter, func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-		// ordered top to bottom
-		switch {
-		case parent.IsOutputRoot(ctx):
-			parent.RequireCorrectOutputRoot(ctx)
-			return parent.Attack(ctx, common.Hash{0x01, 0xaa})
-		case parent.IsBottomGameRoot(ctx):
-			return parent.Attack(ctx, common.Hash{0x01, 0xaa})
-		default:
-			return parent.Defend(ctx, common.Hash{0x01, 0xaa})
-		}
-	}, func(idx int64) {
-		correctTrace.StepFails(ctx, idx, false)
-		correctTrace.StepFails(ctx, idx, true)
-	})
-
-	game.LogGameData(ctx)
-
-	sys.AdvanceL1Time(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, sys.L1GethClient()))
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
+	testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 }
 
 func TestSuperCannonGame_HonestCallsSteps(t *testing.T) {

@@ -241,7 +241,7 @@ func (h *FactoryHelper) StartSuperCannonGame(ctx context.Context, rootClaim comm
 
 func (h *FactoryHelper) startSuperCannonGameOfType(ctx context.Context, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
 	cfg := NewGameCfg(opts...)
-	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "OutputCannonGameHelper")
+	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "CannonGameHelper")
 	rootProvider := h.System.SupervisorClient()
 
 	extraData := h.CreateSuperGameExtraData(ctx, rootProvider, timestamp, cfg)

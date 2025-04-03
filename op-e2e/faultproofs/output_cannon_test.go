@@ -29,56 +29,15 @@ func TestOutputCannonGame_Multithreaded(t *testing.T) {
 func testOutputCannonGame(t *testing.T, allocType config.AllocType) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 4, common.Hash{0x01})
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-	game.LogGameData(ctx)
-
-	// Challenger should post an output root to counter claims down to the leaf level of the top game
-	claim := game.RootClaim(ctx)
-	for claim.IsOutputRoot(ctx) && !claim.IsOutputRootLeaf(ctx) {
-		if claim.AgreesWithOutputRoot() {
-			// If the latest claim agrees with the output root, expect the honest challenger to counter it
-			claim = claim.WaitForCounterClaim(ctx)
-			game.LogGameData(ctx)
-			claim.RequireCorrectOutputRoot(ctx)
-		} else {
-			// Otherwise we should counter
-			claim = claim.Attack(ctx, common.Hash{0xaa})
-			game.LogGameData(ctx)
-		}
-	}
-
-	// Wait for the challenger to post the first claim in the cannon trace
-	claim = claim.WaitForCounterClaim(ctx)
-	game.LogGameData(ctx)
-
-	// Attack the root of the cannon trace subgame
-	claim = claim.Attack(ctx, common.Hash{0x00, 0xcc})
-	for !claim.IsMaxDepth(ctx) {
-		if claim.AgreesWithOutputRoot() {
-			// If the latest claim supports the output root, wait for the honest challenger to respond
-			claim = claim.WaitForCounterClaim(ctx)
-			game.LogGameData(ctx)
-		} else {
-			// Otherwise we need to counter the honest claim
-			claim = claim.Defend(ctx, common.Hash{0x00, 0xdd})
-			game.LogGameData(ctx)
-		}
-	}
-	// Challenger should be able to call step and counter the leaf claim.
-	claim.WaitForCountered(ctx)
-	game.LogGameData(ctx)
-
-	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonGame(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestOutputCannon_ChallengeAllZeroClaim_Standard(t *testing.T) {
