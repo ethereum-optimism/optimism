@@ -141,11 +141,11 @@ var (
 		EnvVars:  prefixEnvVars("RPC_ADMIN_STATE"),
 		Category: OperationsCategory,
 	}
-	MessagePasserRootFromState = &cli.BoolFlag{
-		Name:     "message-passer-root-from-state",
-		Usage:    "Read message passer storage root from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior.",
+	FetchWithdrawalRootFromState = &cli.BoolFlag{
+		Name:     "fetch-withdrawal-root-from-state",
+		Usage:    "Read withdrawaL_storage_root (akak message passer storage root) from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior, requires an archive EL client.",
 		Required: false,
-		EnvVars:  prefixEnvVars("MESSAGE_PASSER_ROOT_FROM_STATE"),
+		EnvVars:  prefixEnvVars("FETCH_WITHDRAWAL_ROOT_FROM_STATE"),
 		Category: OperationsCategory,
 	}
 	L1TrustRPC = &cli.BoolFlag{
@@ -458,7 +458,7 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
-	MessagePasserRootFromState,
+	FetchWithdrawalRootFromState,
 	RPCListenAddr,
 	RPCListenPort,
 	L1TrustRPC,

@@ -117,7 +117,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		AltDA: altda.ReadCLIConfig(ctx),
 
 		IgnoreMissingPectraBlobSchedule: ctx.Bool(flags.IgnoreMissingPectraBlobSchedule.Name),
-		MessagePasserRootFromState:      ctx.Bool(flags.MessagePasserRootFromState.Name),
+		FetchWithdrawalRootFromState:    ctx.Bool(flags.FetchWithdrawalRootFromState.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

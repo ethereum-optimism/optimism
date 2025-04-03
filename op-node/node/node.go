@@ -389,7 +389,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
 
-	rpcCfg.MessagePasserRootFromState = cfg.MessagePasserRootFromState
+	rpcCfg.FetchWithdrawalRootFromState = cfg.FetchWithdrawalRootFromState
 
 	n.l2Source, err = sources.NewEngineClient(rpcClient, n.log, n.metrics.L2SourceCache, rpcCfg)
 	if err != nil {
