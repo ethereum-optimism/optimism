@@ -39,14 +39,17 @@ func (ts *txSubmitter) SendTransaction(ctx context.Context, tx *types.Transactio
 }
 
 type receiptGetter struct {
-	t     helpers.Testing
-	chain *dsl.Chain
-	sc    *sources.EthClient
+	t             helpers.Testing
+	chain         *dsl.Chain
+	sc            *sources.EthClient
+	keepBlockOpen bool
 }
 
 func (rg *receiptGetter) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
-	// close l2 block before fetching actual receipt
-	rg.chain.Sequencer.ActL2EndBlock(rg.t)
+	if !rg.keepBlockOpen {
+		// close l2 block before fetching actual receipt
+		rg.chain.Sequencer.ActL2EndBlock(rg.t)
+	}
 	return rg.sc.TransactionReceipt(ctx, txHash)
 }
 
@@ -134,6 +137,23 @@ func DefaultTxOpts(t helpers.Testing, user *userWithKeys, chain *dsl.Chain) txpl
 		txplan.WithChainID(sc),
 		txplan.WithAgainstLatestBlock(sc),
 		txplan.WithPendingNonce(sc),
+		txplan.WithEstimator(sc, false),
+		txplan.WithTransactionSubmitter(submitter),
+		txplan.WithAssumedInclusion(getter),
+		txplan.WithBlockInclusionInfo(sc),
+	)
+}
+
+func DefaultTxOptsWithoutBlockSeal(t helpers.Testing, user *userWithKeys, chain *dsl.Chain, nonce uint64) txplan.Option {
+	sc := chain.SequencerEngine.SourceClient(t, 10)
+	getter := &receiptGetter{t: t, chain: chain, sc: sc, keepBlockOpen: true}
+	submitter := &txSubmitter{t: t, chain: chain, from: user.address}
+	return txplan.Combine(
+		txplan.WithPrivateKey(user.secret),
+		txplan.WithChainID(sc),
+		txplan.WithAgainstLatestBlock(sc),
+		// nonce must be manually set since pending nonce may be incorrect
+		txplan.WithNonce(nonce),
 		txplan.WithEstimator(sc, false),
 		txplan.WithTransactionSubmitter(submitter),
 		txplan.WithAssumedInclusion(getter),
@@ -321,4 +341,137 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 
 	// but reached block number as 1
 	assertHeads(t, actors.ChainB, 1, 1, 1, 1)
+}
+
+// TestExecMsgDifferTxIndex tests below scenario:
+// Execute message that links with initiating message with: first, random or last tx of a block.
+func TestExecMsgDifferTxIndex(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+
+	// only unsafe head of each chain progresses in this code block
+	var targetNum uint64
+	{
+		alice := setupUser(t, is, actors.ChainA, 0)
+		bob := setupUser(t, is, actors.ChainB, 0)
+
+		optsA := DefaultTxOpts(t, alice, actors.ChainA)
+		optsB := DefaultTxOpts(t, bob, actors.ChainB)
+		actors.ChainA.Sequencer.ActL2StartBlock(t)
+		// chain A progressed single unsafe block
+		eventLoggerAddress := DeployEventLogger(t, optsA)
+
+		// attempt to include multiple txs in a single L2 block
+		actors.ChainA.Sequencer.ActL2StartBlock(t)
+		// start with nonce as 1 because alice deployed the EventLogger
+
+		nonce := uint64(1)
+		txCount := 3 + rng.Intn(15)
+		initTxs := []*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]{}
+		for range txCount {
+			opts := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, nonce)
+
+			// Intent to initiate message(or emit event) on chain A
+			tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](opts)
+			initTxs = append(initTxs, tx)
+			randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddress, 3, 10)
+			tx.Content.Set(randomInitTrigger)
+
+			// Trigger single event
+			_, err := tx.PlannedTx.Submitted.Eval(t.Ctx())
+			require.NoError(t, err)
+
+			nonce += 1
+		}
+		actors.ChainA.Sequencer.ActL2EndBlock(t)
+
+		// fetch receipts since all txs are included in the block and sealed
+		for _, tx := range initTxs {
+			includedBlock, err := tx.PlannedTx.IncludedBlock.Eval(t.Ctx())
+			require.NoError(t, err)
+			// all txCount txs are included at same block
+			require.Equal(t, uint64(2), includedBlock.Number)
+		}
+		assertHeads(t, actors.ChainA, 2, 0, 0, 0)
+
+		// advance chain B for satisfying the timestamp invariant
+		actors.ChainB.Sequencer.ActL2EmptyBlock(t)
+		assertHeads(t, actors.ChainB, 1, 0, 0, 0)
+
+		// first, random or last tx of a single L2 block.
+		indexes := []int{0, 1 + rng.Intn(txCount-1), txCount - 1}
+		for blockNumDelta, index := range indexes {
+			actors.ChainB.Sequencer.ActL2StartBlock(t)
+
+			initTx := initTxs[index]
+			execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB)
+
+			// Single event in every tx so index is always 0
+			execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initTx.Result, 0))
+			execTx.Content.DependOn(&initTx.Result)
+
+			includedBlock, err := execTx.PlannedTx.IncludedBlock.Eval(t.Ctx())
+			require.NoError(t, err)
+
+			require.Equal(t, uint64(2+blockNumDelta), includedBlock.Number)
+		}
+		targetNum = uint64(1 + len(indexes))
+		// each block containes single executing message
+		assertHeads(t, actors.ChainB, targetNum, 0, 0, 0)
+	}
+	// store unsafe head of chain B to compare after consolidation
+	chainBUnsafeHead := actors.ChainB.Sequencer.SyncStatus().UnsafeL2
+	require.Equal(t, targetNum, chainBUnsafeHead.Number)
+	require.Equal(t, uint64(4), targetNum)
+
+	// Batch L2 blocks of chain A, B and submit to L1 to ensure safe head advances without a reorg.
+	// Checking cross-unsafe consolidation is sufficient for sanity check but lets add safe check as well.
+	actors.ChainA.Batcher.ActSubmitAll(t)
+	actors.ChainB.Batcher.ActSubmitAll(t)
+	actors.L1Miner.ActL1StartBlock(12)(t)
+	actors.L1Miner.ActL1IncludeTx(actors.ChainA.BatcherAddr)(t)
+	actors.L1Miner.ActL1IncludeTx(actors.ChainB.BatcherAddr)(t)
+	actors.L1Miner.ActL1EndBlock(t)
+
+	actors.Supervisor.SignalLatestL1(t)
+
+	t.Log("awaiting L1-exhaust event")
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, actors.ChainA, 2, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 4, 0, 0, 0)
+
+	t.Log("awaiting supervisor to provide L1 data")
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	assertHeads(t, actors.ChainA, 2, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 4, 0, 0, 0)
+
+	t.Log("awaiting node to sync: unsafe to local0safe")
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, actors.ChainA, 2, 2, 0, 0)
+	assertHeads(t, actors.ChainB, 4, 4, 0, 0)
+
+	t.Log("expecting supervisor to sync")
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	assertHeads(t, actors.ChainA, 2, 2, 0, 0)
+	assertHeads(t, actors.ChainB, 4, 4, 0, 0)
+
+	t.Log("supervisor promotes cross-unsafe and safe")
+	actors.Supervisor.ProcessFull(t)
+
+	t.Log("awaiting nodes to sync: local-safe to safe")
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, actors.ChainA, 2, 2, 2, 2)
+	assertHeads(t, actors.ChainB, 4, 4, 4, 4)
+
+	// unsafe head of chain B consolidated to safe
+	require.Equal(t, chainBUnsafeHead, actors.ChainB.Sequencer.SyncStatus().UnsafeL2)
+	require.Equal(t, chainBUnsafeHead, actors.ChainB.Sequencer.SyncStatus().SafeL2)
 }

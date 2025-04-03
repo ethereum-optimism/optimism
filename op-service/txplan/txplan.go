@@ -92,6 +92,12 @@ func WithData(data []byte) Option {
 	}
 }
 
+func WithNonce(nonce uint64) Option {
+	return func(tx *PlannedTx) {
+		tx.Nonce.Set(nonce)
+	}
+}
+
 func WithAccessList(al types.AccessList) Option {
 	return func(tx *PlannedTx) {
 		tx.AccessList.Set(al)
