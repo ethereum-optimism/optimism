@@ -419,7 +419,7 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 			require.Equal(t, uint64(2+blockNumDelta), includedBlock.Number)
 		}
 		targetNum = uint64(1 + len(indexes))
-		// each block containes single executing message
+		// each block contains single executing message
 		assertHeads(t, actors.ChainB, targetNum, 0, 0, 0)
 	}
 	// store unsafe head of chain B to compare after consolidation
