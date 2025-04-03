@@ -471,7 +471,8 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 	assertHeads(t, actors.ChainA, 2, 2, 2, 2)
 	assertHeads(t, actors.ChainB, 4, 4, 4, 4)
 
-	// unsafe head of chain B consolidated to safe
+	// unsafe head of chain B did not get updated
 	require.Equal(t, chainBUnsafeHead, actors.ChainB.Sequencer.SyncStatus().UnsafeL2)
+	// unsafe head of chain B consolidated to safe
 	require.Equal(t, chainBUnsafeHead, actors.ChainB.Sequencer.SyncStatus().SafeL2)
 }
