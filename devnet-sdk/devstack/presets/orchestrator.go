@@ -21,38 +21,42 @@ import (
 // unless explicitly told otherwise using a WithOrchestrator option.
 var lockedOrchestrator locks.RWValue[stack.Orchestrator]
 
-// DoMain runs the pre- and post-processing of tests,
+// DoMain runs M with the pre- and post-processing of tests,
 // to setup the default global orchestrator and global logger.
+// This will os.Exit(code) and not return.
 func DoMain(m *testing.M, opts ...stack.Option) {
-	defer func() {
-		if x := recover(); x != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
-			os.Exit(1)
-		}
+	// nest the function, so we can defer-recover and defer-cleanup, before os.Exit
+	code := func() (errCode int) {
+		defer func() {
+			if x := recover(); x != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
+				errCode = 1
+			}
+		}()
+
+		// This may be tuned with env or CLI flags in the future, to customize test output
+		logger := oplog.NewLogger(os.Stdout, oplog.CLIConfig{
+			Level:  log.LevelInfo,
+			Color:  true,
+			Format: oplog.FormatTerminal,
+			Pid:    false,
+		})
+		p := devtest.NewP(logger)
+		defer p.Close()
+
+		p.Require().NotEmpty(opts, "Expecting orchestrator options")
+
+		// For the global geth logs,
+		// capture them in the global test logger.
+		// No other tool / test should change the global logger.
+		// TODO(#15139): set log-level filter, reduce noise
+		//log.SetDefault(t.Log.New("logger", "global"))
+
+		initOrchestrator(p, opts...)
+
+		errCode = m.Run()
+		return
 	}()
-
-	// This may be tuned with env or CLI flags in the future, to customize test output
-	logger := oplog.NewLogger(os.Stdout, oplog.CLIConfig{
-		Level:  log.LevelInfo,
-		Color:  true,
-		Format: oplog.FormatTerminal,
-		Pid:    false,
-	})
-
-	p := devtest.NewP(logger)
-	defer p.Close()
-
-	p.Require().NotEmpty(opts, "Expecting orchestrator options")
-
-	// For the global geth logs,
-	// capture them in the global test logger.
-	// No other tool / test should change the global logger.
-	// TODO(#15139): set log-level filter, reduce noise
-	//log.SetDefault(t.Log.New("logger", "global"))
-
-	initOrchestrator(p, opts...)
-
-	code := m.Run()
 	os.Exit(code)
 }
 
