@@ -28,8 +28,8 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Mapping of pause identifiers to their pause timestamps
     mapping(address => uint256) public pauseTimestamps;
 
-    /// @notice Mapping of pause identifiers to their pausable flags (false = ready to pause, true = used/unavailable)
-    mapping(address => bool) public pausableFlags;
+    /// @notice Mapping of pause identifiers to their used status (false = ready to pause, true = used/unavailable)
+    mapping(address => bool) public pauseUsed;
 
     /// @notice Emitted when the pause is triggered.
     /// @param identifier A string helping to identify provenance of the pause transaction.
@@ -72,12 +72,12 @@ contract SuperchainConfig is Initializable, ISemver {
         if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
-        if (pausableFlags[_identifier]) {
+        if (pauseUsed[_identifier]) {
             revert PauseAlreadyUsed();
         }
 
         pauseTimestamps[_identifier] = block.timestamp;
-        pausableFlags[_identifier] = true;
+        pauseUsed[_identifier] = true;
         emit Paused(string(abi.encodePacked(_identifier)));
     }
 
@@ -89,7 +89,7 @@ contract SuperchainConfig is Initializable, ISemver {
         }
 
         pauseTimestamps[_identifier] = 0;
-        pausableFlags[_identifier] = false;
+        pauseUsed[_identifier] = false;
         emit Unpaused();
     }
 
@@ -97,7 +97,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _identifier The address identifier to check.
     /// @return True if the system can be paused for this identifier.
     function pausable(address _identifier) external view returns (bool) {
-        return !pausableFlags[_identifier];
+        return !pauseUsed[_identifier];
     }
 
     /// @notice Checks if the system is currently paused for a specific identifier.
@@ -126,7 +126,7 @@ contract SuperchainConfig is Initializable, ISemver {
         if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
-        pausableFlags[_identifier] = false;
+        pauseUsed[_identifier] = false;
     }
 
     /// @notice Sets the guardian address. This is only callable during initialization, so an upgrade
