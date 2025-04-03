@@ -70,11 +70,6 @@
       },
       {
         "internalType": "address",
-        "name": "_mips",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "_challenger",
         "type": "address"
       },
@@ -267,19 +262,6 @@
       }
     ],
     "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "mips",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

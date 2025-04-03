@@ -50,9 +50,6 @@ contract DeployStandardValidatorInput is BaseDeployIO {
         } else if (_sel == this.l1PAOMultisig.selector) {
             require(_value != address(0), "DeployStandardValidator: l1PAOMultisig cannot be empty");
             _l1PAOMultisig = _value;
-        } else if (_sel == this.mips.selector) {
-            require(_value != address(0), "DeployStandardValidator: mips cannot be empty");
-            _mips = _value;
         } else if (_sel == this.challenger.selector) {
             require(_value != address(0), "DeployStandardValidator: challenger cannot be empty");
             _challenger = _value;
@@ -127,11 +124,6 @@ contract DeployStandardValidatorInput is BaseDeployIO {
     function l1PAOMultisig() public view returns (address) {
         require(_l1PAOMultisig != address(0), "DeployStandardValidator: l1PAOMultisig not set");
         return _l1PAOMultisig;
-    }
-
-    function mips() public view returns (address) {
-        require(_mips != address(0), "DeployStandardValidator: mips not set");
-        return _mips;
     }
 
     function challenger() public view returns (address) {
@@ -280,7 +272,6 @@ contract DeployStandardValidator is Script {
                         getImplementations(_si),
                         _si.superchainConfig(),
                         _si.l1PAOMultisig(),
-                        _si.mips(),
                         _si.challenger(),
                         _si.withdrawalDelaySeconds()
                     )
@@ -303,7 +294,6 @@ contract DeployStandardValidator is Script {
                         getImplementations(_si),
                         _si.superchainConfig(),
                         _si.l1PAOMultisig(),
-                        _si.mips(),
                         _si.challenger(),
                         _si.withdrawalDelaySeconds()
                     )
@@ -326,7 +316,6 @@ contract DeployStandardValidator is Script {
                         getImplementations(_si),
                         _si.superchainConfig(),
                         _si.l1PAOMultisig(),
-                        _si.mips(),
                         _si.challenger(),
                         _si.withdrawalDelaySeconds()
                     )
@@ -358,7 +347,6 @@ contract DeployStandardValidator is Script {
         IStandardValidatorV180 v180 = IStandardValidatorV180(_validator);
         require(address(v180.superchainConfig()) == address(_si.superchainConfig()), "SV180-10");
         require(v180.l1PAOMultisig() == _si.l1PAOMultisig(), "SV180-20");
-        require(v180.mips() == _si.mips(), "SV180-30");
         require(v180.challenger() == _si.challenger(), "SV180-40");
         require(v180.withdrawalDelaySeconds() == _si.withdrawalDelaySeconds(), "SV180-50");
     }
@@ -367,7 +355,6 @@ contract DeployStandardValidator is Script {
         IStandardValidatorV200 v200 = IStandardValidatorV200(_validator);
         require(address(v200.superchainConfig()) == address(_si.superchainConfig()), "SV200-10");
         require(v200.l1PAOMultisig() == _si.l1PAOMultisig(), "SV200-20");
-        require(v200.mips() == _si.mips(), "SV200-30");
         require(v200.challenger() == _si.challenger(), "SV200-40");
         require(v200.withdrawalDelaySeconds() == _si.withdrawalDelaySeconds(), "SV200-50");
     }

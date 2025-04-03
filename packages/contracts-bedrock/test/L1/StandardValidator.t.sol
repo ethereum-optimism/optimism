@@ -679,11 +679,6 @@ abstract contract StandardValidatorTest is Test {
         );
         vm.mockCall(
             address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(mips))),
-            abi.encode(validator.mipsImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(permissionedASR))),
             abi.encode(validator.anchorStateRegistryImpl())
         );
@@ -987,13 +982,12 @@ contract StandardValidatorV180_Test is StandardValidatorTest {
                 l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
                 optimismMintableERC20FactoryImpl: makeAddr("optimismMintableERC20FactoryImpl"),
                 disputeGameFactoryImpl: makeAddr("disputeGameFactoryImpl"),
-                mipsImpl: makeAddr("mipsImpl"),
+                mipsImpl: makeAddr("mips"),
                 anchorStateRegistryImpl: makeAddr("anchorStateRegistryImpl"),
                 delayedWETHImpl: makeAddr("delayedWETHImpl")
             }),
             superchainConfig,
             l1PAOMultisig,
-            mips,
             challenger,
             302400
         );
@@ -1081,13 +1075,12 @@ contract StandardValidatorV200_Test is StandardValidatorTest {
                 l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
                 optimismMintableERC20FactoryImpl: makeAddr("optimismMintableERC20FactoryImpl"),
                 disputeGameFactoryImpl: makeAddr("disputeGameFactoryImpl"),
-                mipsImpl: makeAddr("mipsImpl"),
+                mipsImpl: makeAddr("mips"),
                 anchorStateRegistryImpl: makeAddr("anchorStateRegistryImpl"),
                 delayedWETHImpl: makeAddr("delayedWETHImpl")
             }),
             superchainConfig,
             l1PAOMultisig,
-            mips,
             challenger,
             302400
         );
@@ -1183,13 +1176,12 @@ contract StandardValidatorV300_Test is StandardValidatorTest {
                 l1ERC721BridgeImpl: makeAddr("l1ERC721BridgeImpl"),
                 optimismMintableERC20FactoryImpl: makeAddr("optimismMintableERC20FactoryImpl"),
                 disputeGameFactoryImpl: makeAddr("disputeGameFactoryImpl"),
-                mipsImpl: makeAddr("mipsImpl"),
+                mipsImpl: makeAddr("mips"),
                 anchorStateRegistryImpl: makeAddr("anchorStateRegistryImpl"),
                 delayedWETHImpl: makeAddr("delayedWETHImpl")
             }),
             superchainConfig,
             l1PAOMultisig,
-            mips,
             challenger,
             302400
         );

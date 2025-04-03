@@ -27,7 +27,6 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 contract StandardValidatorBase {
     ISuperchainConfig public superchainConfig;
     address public l1PAOMultisig;
-    address public mips;
     address public challenger;
     uint256 public withdrawalDelaySeconds;
 
@@ -60,13 +59,11 @@ contract StandardValidatorBase {
         ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
-        address _mips,
         address _challenger,
         uint256 _withdrawalDelaySeconds
     ) {
         superchainConfig = _superchainConfig;
         l1PAOMultisig = _l1PAOMultisig;
-        mips = _mips;
         challenger = _challenger;
         withdrawalDelaySeconds = _withdrawalDelaySeconds;
 
@@ -407,7 +404,7 @@ contract StandardValidatorBase {
         view
         returns (string memory)
     {
-        bool validGameVM = address(_game.vm()) == address(mips);
+        bool validGameVM = address(_game.vm()) == address(mipsImpl);
 
         _errors = internalRequire(
             stringEq(_game.version(), permissionedDisputeGameVersion()), string.concat(_errorPrefix, "-20"), _errors
@@ -553,7 +550,6 @@ contract StandardValidatorV180 is StandardValidatorBase {
         ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
-        address _mips,
         address _challenger,
         uint256 _withdrawalDelaySeconds
     )
@@ -561,7 +557,6 @@ contract StandardValidatorV180 is StandardValidatorBase {
             _implementations,
             _superchainConfig,
             _l1PAOMultisig,
-            _mips,
             _challenger,
             _withdrawalDelaySeconds
         )
@@ -592,7 +587,6 @@ contract StandardValidatorV200 is StandardValidatorBase {
         ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
-        address _mips,
         address _challenger,
         uint256 _withdrawalDelaySeconds
     )
@@ -600,7 +594,6 @@ contract StandardValidatorV200 is StandardValidatorBase {
             _implementations,
             _superchainConfig,
             _l1PAOMultisig,
-            _mips,
             _challenger,
             _withdrawalDelaySeconds
         )
@@ -701,7 +694,6 @@ contract StandardValidatorV300 is StandardValidatorBase {
         ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
-        address _mips,
         address _challenger,
         uint256 _withdrawalDelaySeconds
     )
@@ -709,7 +701,6 @@ contract StandardValidatorV300 is StandardValidatorBase {
             _implementations,
             _superchainConfig,
             _l1PAOMultisig,
-            _mips,
             _challenger,
             _withdrawalDelaySeconds
         )
