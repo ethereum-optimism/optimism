@@ -24,10 +24,9 @@ type L2ClientConfig struct {
 
 	L2BlockRefsCacheSize int
 	L1ConfigsCacheSize   int
+	MessagePasserRootFromState bool
 
 	RollupCfg *rollup.Config
-
-	MessagePasserRootFromState bool
 }
 
 func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig {
