@@ -158,12 +158,15 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 
 	// Get the canonical L1 block at our local head's height
 	canonicalL1, err := r.l1Node.L1BlockRefByNumber(context.Background(), localSafeL1.Number)
-	if err != nil && !errors.Is(err, ethereum.NotFound) {
-		return fmt.Errorf("failed to get canonical L1 block at height %d: %w", localSafeL1.Number, err)
-	}
-
-	// If we're still on the canonical chain, nothing to do
-	if canonicalL1.Hash == localSafeL1.Hash {
+	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			// If the block is not found, we need to rewind to find common ancestor
+			r.log.Debug("canonical L1 block not found, need to find common ancestor", "chain", chainID, "height", localSafeL1.Number)
+		} else {
+			return fmt.Errorf("failed to get canonical L1 block at height %d: %w", localSafeL1.Number, err)
+		}
+	} else if canonicalL1.Hash == localSafeL1.Hash {
+		// If we're still on the canonical chain, nothing to do
 		return nil
 	}
 
