@@ -47,8 +47,8 @@ op-program-client-mips64-interop:
 op-program-client-riscv:
 	env GO111MODULE=on GOOS=linux GOARCH=riscv64 go build -v -gcflags="all=-d=softfloat" -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-riscv.elf ./client/cmd/main.go
 
-check-custom-chains:
-	env GO111MODULE=on go run ./host/cmd configs check-custom-chains
+check-custom-chains: op-program-host
+	./bin/op-program configs check-custom-chains
 
 reproducible-prestate: check-custom-chains
 	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../

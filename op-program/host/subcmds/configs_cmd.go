@@ -1,6 +1,7 @@
 package subcmds
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -151,7 +152,7 @@ func CheckCustomChains(ctx *cli.Context) error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("errors checking custom chains: %w", errors.Join(errs))
+		return fmt.Errorf("errors checking custom chains: %w", errors.Join(errs...))
 	}
 	return nil
 }
