@@ -36,7 +36,12 @@ func AcquireL2WalletWithFunds(chainIndex uint64, minFunds types.Balance) (Wallet
 				return nil, fmt.Errorf("chain index %d out of range, only %d L2 chains available", chainIndex, len(sys.L2s()))
 			}
 			chain := sys.L2s()[chainIndex]
-			return walletFundsValidator(chain, minFunds, walletMarker)(t, sys)
+			validator := walletFundsValidator(chain, minFunds, walletMarker)
+			ctx, err := validator(t, sys)
+			if err != nil {
+				return ctx, fmt.Errorf("failed to acquire l2 wallet: %w", err)
+			}
+			return ctx, nil
 		}
 }
 
@@ -46,6 +51,11 @@ func AcquireL1WalletWithFunds(minFunds types.Balance) (WalletGetter, systest.Pre
 			return ctx.Value(walletMarker).(system.Wallet)
 		}, func(t systest.T, sys system.System) (context.Context, error) {
 			chain := sys.L1()
-			return walletFundsValidator(chain, minFunds, walletMarker)(t, sys)
+			validator := walletFundsValidator(chain, minFunds, walletMarker)
+			ctx, err := validator(t, sys)
+			if err != nil {
+				return ctx, fmt.Errorf("failed to acquire l1 wallet: %w", err)
+			}
+			return ctx, nil
 		}
 }
