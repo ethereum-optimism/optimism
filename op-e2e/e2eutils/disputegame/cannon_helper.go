@@ -237,20 +237,59 @@ func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpec
 	}
 }
 
+type FindPreimageStepConfig struct {
+	allowEvenFallback  bool
+	skipNPreimageLoads int
+}
+
+type FindPreimageStepOpt func(cfg *FindPreimageStepConfig)
+
+func AllowEvenFallback() FindPreimageStepOpt {
+	return func(config *FindPreimageStepConfig) {
+		config.allowEvenFallback = true
+	}
+}
+
+func SkipNPreimageLoads(n int) FindPreimageStepOpt {
+	return func(config *FindPreimageStepConfig) {
+		config.skipNPreimageLoads = n
+	}
+}
+
 // FindOddStepForPreimageLoad attempts to find an odd step that matches the PreimageOptConfig.
 // If no such step is found, falls back to an even step if allowEvenFallback is true, otherwise fails.
-func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, poConfig utils.PreimageOptConfig, allowEvenFallback bool) uint64 {
+func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, poConfig utils.PreimageOptConfig, opts ...FindPreimageStepOpt) uint64 {
+	config := &FindPreimageStepConfig{}
+	for _, opt := range opts {
+		opt(config)
+	}
+
 	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
+
+	var preimageOpt utils.PreimageOpt
 	var lastStep uint64 = 0
+	// First, if requested, skip some number of preimage loads
+	for i := 0; i < config.skipNPreimageLoads; i++ {
+		preimageOpt = poConfig.PreimageLoad()
+		g.t.Logf("Skipping preimage load %v: %#v", i, poConfig)
+		step, err := provider.FindStep(ctx, lastStep, preimageOpt)
+		g.require.NoError(err)
+
+		lastStep = step
+		poConfig.AfterStep = step + 1
+	}
+
+	lastSkippedStep := lastStep
 	for {
-		preimageOpt := poConfig.PreimageLoad()
+		preimageOpt = poConfig.PreimageLoad()
 		g.t.Logf("Finding step with preimage load config %#v", poConfig)
 		step, err := provider.FindStep(ctx, lastStep, preimageOpt)
 		if errors.Is(err, io.EOF) {
 			// Unlikely to happen if many preimage loads of the target type occur
 			// Can cause flakes if the target preimage type is not used often
-			if allowEvenFallback && lastStep > 0 {
-				// If we have a non-zero last step, it must be even, otherwise we would have returned the odd step
+			if config.allowEvenFallback && lastStep > lastSkippedStep {
+				// If we have advanced the last step past the last skipped step, then the lastStep must be even.
+				// Otherwise, the last step was odd and we should have returned it.
 				g.t.Log("Unable to find odd step that matches the specified preimage load - falling back to an even step")
 				return lastStep
 			} else {

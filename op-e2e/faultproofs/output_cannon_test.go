@@ -236,7 +236,7 @@ func TestOutputCannonStepWithPreimage_Multithreaded(t *testing.T) {
 
 func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	testPreimageStep := func(t *testing.T, preimageOptConfig utils.PreimageOptConfig, preloadPreimage bool, allowEvenStepFallback bool) {
+	testPreimageStep := func(t *testing.T, preimageOptConfig utils.PreimageOptConfig, preloadPreimage bool, opts ...disputegame.FindPreimageStepOpt) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
@@ -262,7 +262,7 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 		preimageLoadCheck := game.CreateStepPreimageLoadStrictCheck(ctx, getExpectedData)
 		// We need the honest challenger to step-defend the STF from A -> B such that A loads the preimage
 		// The ChallengeToPreimageLoadAtTarget method will induce a step-defend on odd numbered trace index from the honest challenger.
-		step := game.FindOddStepForPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageOptConfig, allowEvenStepFallback)
+		step := game.FindOddStepForPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageOptConfig, opts...)
 		game.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, step, preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
@@ -270,28 +270,36 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 
 	t.Run("non-existing preimage-keccak", func(t *testing.T) {
 		conf := utils.PreimageOptConfigForType(oppreimage.Keccak256KeyType)
-		testPreimageStep(t, conf, false, false)
+		testPreimageStep(t, conf, false)
 	})
 	t.Run("non-existing preimage-sha256", func(t *testing.T) {
-		// Sha256 preimages are relatively rare, so allow fallback to even step to avoid flakes
 		conf := utils.PreimageOptConfigForType(oppreimage.Sha256KeyType)
-		testPreimageStep(t, conf, false, true)
+		// Sha256 preimages are relatively rare, so allow fallback to even step to avoid flakes
+		testPreimageStep(t, conf, false, disputegame.AllowEvenFallback())
 	})
 
 	// Include non-zero offset to induce a load of the part of the preimage after the length prefix
 	blobOffsets := []uint32{0, 8, 16, 24, 32}
+	skipCounts := []int{0, 1, 2, 11}
 	for _, offset := range blobOffsets {
-		t.Run("non-existing preimage-blob-"+strconv.Itoa(int(offset)), func(t *testing.T) {
-			conf := utils.PreimageOptConfigForType(oppreimage.BlobKeyType)
-			conf.Offset = offset
-			testPreimageStep(t, conf, false, false)
-		})
+		for _, skip := range skipCounts {
+			testName := fmt.Sprintf("non-existing preimage-blob-%v skip-%v", strconv.Itoa(int(offset)), skip)
+			t.Run(testName, func(t *testing.T) {
+				conf := utils.PreimageOptConfigForType(oppreimage.BlobKeyType)
+				conf.Offset = offset
+
+				// In order to target non-zero blob field indices, skip some preimage load steps.
+				// Because field elements are retrieved sequentially, this should ensure we advance to
+				// a field element at an index >= skip
+				testPreimageStep(t, conf, false, disputegame.SkipNPreimageLoads(skip))
+			})
+		}
 	}
 
 	// Only test pre-existing images with one type to save runtime
 	t.Run("preimage already exists", func(t *testing.T) {
 		conf := utils.PreimageOptConfigForType(oppreimage.Keccak256KeyType)
-		testPreimageStep(t, conf, true, false)
+		testPreimageStep(t, conf, true)
 	})
 }
 
