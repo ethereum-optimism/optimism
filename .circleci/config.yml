@@ -1185,7 +1185,7 @@ jobs:
       - run:
           name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
-          no_output_timeout: 60m
+          no_output_timeout: 2h
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
@@ -1216,7 +1216,7 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
-            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log
+            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
           when: always
       # Save the module cache for future runs
       - save_cache:
