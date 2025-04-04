@@ -476,3 +476,146 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 	// unsafe head of chain B consolidated to safe
 	require.Equal(t, chainBUnsafeHead, actors.ChainB.Sequencer.SyncStatus().SafeL2)
 }
+
+// TestExpiredMessage tests below scenario:
+// Execute message with current timestamp > the lower-bound expiry timestamp.
+func TestExpiredMessage(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+
+	expiryTime := uint64(6)
+	is := dsl.SetupInterop(t, dsl.SetMessageExpiryTime(expiryTime))
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+
+	alice := setupUser(t, is, actors.ChainA, 0)
+	bob := setupUser(t, is, actors.ChainB, 0)
+
+	optsA := DefaultTxOpts(t, alice, actors.ChainA)
+	optsB := DefaultTxOpts(t, bob, actors.ChainB)
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	// chain A progressed single unsafe block
+	eventLoggerAddress := DeployEventLogger(t, optsA)
+
+	// Intent to initiate message(or emit event) on chain A
+	txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsA)
+	randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddress, 3, 10)
+	txA.Content.Set(randomInitTrigger)
+
+	// Trigger single event
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	_, err := txA.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(t, err)
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, actors.ChainA, 2, 0, 0, 0)
+
+	// make supervisor know chainA's unsafe blocks
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+
+	// advance chain B to reach expiry
+	targetNumblocksUntilExpiry := expiryTime / actors.ChainA.RollupCfg.BlockTime
+	for range 2 + targetNumblocksUntilExpiry {
+		actors.ChainB.Sequencer.ActL2EmptyBlock(t)
+	}
+	assertHeads(t, actors.ChainB, 2+targetNumblocksUntilExpiry, 0, 0, 0)
+
+	// check that chain B unsafe head reached tip of expiry
+	require.Equal(t, actors.ChainA.Sequencer.SyncStatus().UnsafeL2.Time+expiryTime, actors.ChainB.Sequencer.SyncStatus().UnsafeL2.Time)
+
+	// Intent to validate message on chain B
+	txB := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB)
+	txB.Content.DependOn(&txA.Result)
+
+	// Single event in tx so index is 0
+	txB.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &txA.Result, 0))
+
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	_, err = txB.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(t, err)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	expiredMsgBlockNum := 2 + targetNumblocksUntilExpiry + 1
+	assertHeads(t, actors.ChainB, expiredMsgBlockNum, 0, 0, 0)
+
+	includedA, err := txA.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+	includedB, err := txB.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+
+	// initating messages time + expiryTime >= executing message time
+	// BUT we intentionally break the message expiry invariant
+	require.Greater(t, includedB.Time, includedA.Time+expiryTime)
+
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+
+	assertHeads(t, actors.ChainA, 2, 0, 2, 0)
+	// cross unsafe did not advance for chain B
+	assertHeads(t, actors.ChainB, expiredMsgBlockNum, 0, expiredMsgBlockNum-1, 0)
+
+	// check chain B and and supervisor view of chain B is consistent
+	reorgedOutBlock := actors.ChainB.Sequencer.SyncStatus().UnsafeL2
+	require.Equal(t, expiredMsgBlockNum, reorgedOutBlock.Number)
+	localUnsafe, err := actors.Supervisor.LocalUnsafe(t.Ctx(), actors.ChainB.ChainID)
+
+	require.NoError(t, err)
+	require.Equal(t, reorgedOutBlock.ID(), localUnsafe)
+
+	// now try to advance safe heads
+	actors.ChainA.Batcher.ActSubmitAll(t)
+	actors.ChainB.Batcher.ActSubmitAll(t)
+	actors.L1Miner.ActL1StartBlock(12)(t)
+	actors.L1Miner.ActL1IncludeTx(actors.ChainA.BatcherAddr)(t)
+	actors.L1Miner.ActL1IncludeTx(actors.ChainB.BatcherAddr)(t)
+	actors.L1Miner.ActL1EndBlock(t)
+
+	actors.Supervisor.SignalLatestL1(t)
+
+	t.Log("awaiting L1-exhaust event")
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, actors.ChainA, 2, 0, 2, 0)
+	assertHeads(t, actors.ChainB, expiredMsgBlockNum, 0, expiredMsgBlockNum-1, 0)
+
+	t.Log("awaiting supervisor to provide L1 data")
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	assertHeads(t, actors.ChainA, 2, 0, 2, 0)
+	assertHeads(t, actors.ChainB, expiredMsgBlockNum, 0, expiredMsgBlockNum-1, 0)
+
+	t.Log("awaiting node to sync: unsafe to local-safe")
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, actors.ChainA, 2, 2, 2, 0)
+	assertHeads(t, actors.ChainB, expiredMsgBlockNum, expiredMsgBlockNum, expiredMsgBlockNum-1, 0)
+
+	t.Log("expecting supervisor to sync")
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	assertHeads(t, actors.ChainA, 2, 2, 2, 0)
+	assertHeads(t, actors.ChainB, expiredMsgBlockNum, expiredMsgBlockNum, expiredMsgBlockNum-1, 0)
+
+	t.Log("supervisor promotes cross-unsafe and safe")
+	actors.Supervisor.ProcessFull(t)
+
+	// check supervisor head, expect it to be rewound
+	localUnsafe, err = actors.Supervisor.LocalUnsafe(t.Ctx(), actors.ChainB.ChainID)
+	require.NoError(t, err)
+	require.Equal(t, expiredMsgBlockNum-1, localUnsafe.Number, "unsafe chain needs to be rewound")
+
+	t.Log("awaiting nodes to sync: local-safe to safe")
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, actors.ChainA, 2, 2, 2, 2)
+	assertHeads(t, actors.ChainB, expiredMsgBlockNum, expiredMsgBlockNum, expiredMsgBlockNum, expiredMsgBlockNum)
+
+	// Make sure the replaced block has different blockhash
+	replacedBlock := actors.ChainB.Sequencer.SyncStatus().LocalSafeL2
+	require.NotEqual(t, reorgedOutBlock.Hash, replacedBlock.Hash)
+	require.Equal(t, reorgedOutBlock.Number, replacedBlock.Number)
+	require.Equal(t, expiredMsgBlockNum, replacedBlock.Number)
+}
