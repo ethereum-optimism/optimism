@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
@@ -15,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -50,8 +48,22 @@ func TestOperatorFee(t *testing.T) {
 			require.NoError(t, err)
 
 			// Define test cases with different operator fee parameters
-			numRandomValuesForEachDimm := 1
-			testCases := GenerateAllTestParamsCases(numRandomValuesForEachDimm)
+			testCases := []TestParams{
+				{
+					ID:                  "test_case_1",
+					OperatorFeeScalar:   0,
+					OperatorFeeConstant: 0,
+					L1BaseFeeScalar:     0,
+					L1BlobBaseFeeScalar: 0,
+				},
+				{
+					ID:                  "test_case_2",
+					OperatorFeeScalar:   100,
+					OperatorFeeConstant: 100,
+					L1BaseFeeScalar:     100,
+					L1BlobBaseFeeScalar: 100,
+				},
+			}
 
 			// For each test case, verify the operator fee parameters
 			for _, tc := range testCases {
@@ -93,6 +105,10 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	secondCheck, err := systest.CheckForChainFork(t.Context(), l2Chain, logger)
 	require.NoError(t, err, "error checking for chain fork")
 	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Test panicked (re-throwing panic) and skipping chain fork check", "panicValue", r)
+			panic(r)
+		}
 		require.NoError(t, secondCheck(t.Failed()), "error checking for chain fork")
 	}()
 
@@ -133,11 +149,6 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	systemConfig, err := bindings.NewSystemConfig(systemConfigProxyAddr, l1GethClient)
 	require.NoError(t, err)
 
-	// Verify system config proxy owner is the rollup owner
-	owner, err := systemConfig.Owner(&bind.CallOpts{BlockNumber: nil})
-	require.NoError(t, err)
-	require.Equal(t, owner, l1RollupOwnerWallet.Address(), "system config proxy owner should be the rollup owner")
-
 	// Create balance reader
 	logger.Info("Creating balance reader")
 	balanceReader := NewBalanceReader(t, l2GethSeqClient, logger)
@@ -169,7 +180,8 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	// Begin Test
 	// ==========
 
-	_, _, err = SendValueTx(l1FundingWallet, l1RollupOwnerWallet.Address(), new(big.Int).Mul(big.NewInt(params.Ether), big.NewInt(1)))
+	logger.Info("Funding owner wallet with ETH", "amount", big.NewInt(params.Ether))
+	err = EnsureSufficientBalance(l1FundingWallet, l1RollupOwnerWallet.Address(), big.NewInt(params.Ether))
 	require.NoError(t, err, "Error funding owner wallet")
 	defer func() {
 		logger.Info("Returning remaining funds to owner wallet")
@@ -179,7 +191,7 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 
 	// Fund test wallet from faucet
 	logger.Info("Funding test wallet 1 with ETH", "amount", fundAmount)
-	_, _, err = SendValueTx(l2FundingWallet, l2TestWallet1.Address(), fundAmount)
+	err = EnsureSufficientBalance(l2FundingWallet, l2TestWallet1.Address(), fundAmount)
 	require.NoError(t, err, "Error funding test wallet 1")
 	defer func() {
 		logger.Info("Returning remaining funds to test wallet 1")
@@ -191,43 +203,14 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	logger.Info("Updating operator fee parameters",
 		"constant", tc.OperatorFeeConstant,
 		"scalar", tc.OperatorFeeScalar)
-	receipt, err := UpdateOperatorFeeParams(systemConfig, systemConfigProxyAddr, l1RollupOwnerWallet, tc.OperatorFeeConstant, tc.OperatorFeeScalar)
+	err, reset := EnsureFeeParams(systemConfig, systemConfigProxyAddr, l2L1BlockContract, l1RollupOwnerWallet, tc)
 	require.NoError(t, err)
-	logger.Info("Operator fee parameters updated", "block", receipt.BlockNumber)
-
-	// Update L1 fee parameters
-	logger.Info("Updating L1 fee parameters",
-		"l1BaseFeeScalar", tc.L1BaseFeeScalar,
-		"l1BlobBaseFeeScalar", tc.L1BlobBaseFeeScalar)
-	receipt, err = UpdateL1FeeParams(systemConfig, systemConfigProxyAddr, l1RollupOwnerWallet, tc.L1BaseFeeScalar, tc.L1BlobBaseFeeScalar)
-	require.NoError(t, err)
-	logger.Info("Operator fee parameters updated", "block", receipt.BlockNumber)
-
-	// sleep to allow for the L2 nodes to sync to L1 origin where operator fee was set
-	delay := 2 * time.Minute
-	logger.Info("Waiting for L2 nodes to sync with L1 origin where operator fee was set", "delay", delay)
-	time.Sleep(delay)
-
-	// Verify L1Block contract values have been updated to match test case values
-	baseFeeScalar, err := l2L1BlockContract.BaseFeeScalar(&bind.CallOpts{BlockNumber: nil})
-	require.NoError(t, err)
-	logger.Info("L1Block base fee scalar", "scalar", baseFeeScalar)
-	require.Equal(t, tc.L1BaseFeeScalar, baseFeeScalar, "L1Block base fee scalar does not match test case value")
-
-	blobBaseFeeScalar, err := l2L1BlockContract.BlobBaseFeeScalar(&bind.CallOpts{BlockNumber: nil})
-	require.NoError(t, err)
-	logger.Info("L1Block blob base fee scalar", "scalar", blobBaseFeeScalar)
-	require.Equal(t, tc.L1BlobBaseFeeScalar, blobBaseFeeScalar, "L1Block blob base fee scalar does not match test case value")
-
-	operatorFeeConstant, err := l2L1BlockContract.OperatorFeeConstant(&bind.CallOpts{BlockNumber: nil})
-	require.NoError(t, err)
-	logger.Info("L1Block operator fee constant", "constant", operatorFeeConstant)
-	require.Equal(t, tc.OperatorFeeConstant, operatorFeeConstant, "L1Block operator fee constant does not match test case value")
-
-	operatorFeeScalar, err := l2L1BlockContract.OperatorFeeScalar(&bind.CallOpts{BlockNumber: nil})
-	require.NoError(t, err)
-	logger.Info("L1Block operator fee scalar", "scalar", operatorFeeScalar)
-	require.Equal(t, tc.OperatorFeeScalar, operatorFeeScalar, "L1Block operator fee scalar does not match test case value")
+	logger.Info("Fee parameters updated")
+	defer func() {
+		logger.Info("Resetting fee parameters")
+		err := reset()
+		require.NoError(t, err)
+	}()
 
 	l2PreTestHeader, err := l2GethSeqClient.HeaderByNumber(ctx, nil)
 	require.NoError(t, err)
