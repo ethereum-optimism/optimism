@@ -146,6 +146,12 @@ func WithEth(value *big.Int) Option {
 	}
 }
 
+func WithUnsigned(tx types.TxData) Option {
+	return func(ptx *PlannedTx) {
+		ptx.Unsigned.Set(tx)
+	}
+}
+
 type Estimator interface {
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 }
