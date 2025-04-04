@@ -1211,6 +1211,13 @@ jobs:
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/all.log" || true
           when: always
+      - run:
+          name: Generate JUnit XML test report for CircleCI
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            gotestsum --junitfile results/results.xml --raw-command cat $(LOG_DIR)/raw_go_events.log
+          when: always
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
