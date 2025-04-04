@@ -1216,7 +1216,7 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
-            gotestsum --junitfile results/results.xml --raw-command cat $(LOG_DIR)/raw_go_events.log
+            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log
           when: always
       # Save the module cache for future runs
       - save_cache:
