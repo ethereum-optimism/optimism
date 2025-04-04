@@ -450,7 +450,7 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 	assertHeads(t, actors.ChainA, 2, 0, 0, 0)
 	assertHeads(t, actors.ChainB, 4, 0, 0, 0)
 
-	t.Log("awaiting node to sync: unsafe to local0safe")
+	t.Log("awaiting node to sync: unsafe to local-safe")
 	actors.ChainA.Sequencer.ActL2PipelineFull(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	assertHeads(t, actors.ChainA, 2, 2, 0, 0)
