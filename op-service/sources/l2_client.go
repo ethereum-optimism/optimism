@@ -202,13 +202,13 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 	blockHash := block.Hash()
 	var messagePasserStorageRoot eth.Bytes32
 	if s.rollupCfg.IsIsthmus(block.Time()) && !s.fetchWithdrawalRootFromState {
-		s.log.Debug("Retrieving messagePasserStorageRoot from block header")
-		// If Isthmus hard fork has activated, we can get the messagePasserStorageRoot directly from the header
+		s.log.Debug("Retrieving withdrawal root from block header")
+		// If Isthmus hard fork has activated, we can get the withdrawal root directly from the header
 		// instead of having to compute it from the contract storage trie.
 		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())
 
 	} else {
-		s.log.Debug("Bypassing block header, retrieving messagePasserStorageRoot from state")
+		s.log.Debug("Bypassing block header, retrieving withdrawal root from state")
 		proof, err := s.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get contract proof at block %s: %w", blockHash, err)
