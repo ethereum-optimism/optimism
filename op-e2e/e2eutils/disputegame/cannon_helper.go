@@ -241,26 +241,27 @@ func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpec
 // If no such step is found, falls back to an even step if allowEvenFallback is true, otherwise fails.
 func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, poConfig utils.PreimageOptConfig, allowEvenFallback bool) uint64 {
 	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
-	var evenStep uint64
+	var lastStep uint64 = 0
 	for {
 		preimageOpt := poConfig.PreimageLoad()
 		g.t.Logf("Finding step with preimage load config %#v", poConfig)
-		step, err := provider.FindStep(ctx, 0, preimageOpt)
+		step, err := provider.FindStep(ctx, lastStep, preimageOpt)
 		if errors.Is(err, io.EOF) {
 			// Unlikely to happen if many preimage loads of the target type occur
 			// Can cause flakes if the target preimage type is not used often
-			if allowEvenFallback {
+			if allowEvenFallback && lastStep > 0 {
+				// If we have a non-zero last step, it must be even, otherwise we would have returned the odd step
 				g.t.Log("Unable to find odd step that matches the specified preimage load - falling back to an even step")
-				return evenStep
+				return lastStep
 			} else {
-				g.t.Fatalf("Trace does not contain an odd step that matching the specified preimage load")
+				g.t.Fatalf("Trace does not contain an odd step that matches the specified preimage load")
 			}
 		}
 		g.require.NoError(err, "Find step failed")
 		if step%2 == 1 {
 			return step
 		}
-		evenStep = step
+		lastStep = step
 		poConfig.AfterStep = step + 1
 	}
 }
