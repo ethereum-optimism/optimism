@@ -117,12 +117,19 @@ func SetBlockTimeForChainB(blockTime uint64) setupOption {
 	}
 }
 
+func SetMessageExpiryTime(expiryTime uint64) setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		recipe.ExpiryTime = expiryTime
+	}
+}
+
 // SetupInterop creates an InteropSetup to instantiate actors on, with 2 L2 chains.
 func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
 		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
 		GenesisTimestamp: uint64(time.Now().Unix() + 3),
+		ExpiryTime:       messageExpiryTime,
 	}
 	for _, opt := range opts {
 		opt(&recipe)
@@ -150,7 +157,7 @@ func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 		Log:        logger,
 		Deployment: worldDeployment,
 		Out:        worldOutput,
-		DepSet:     worldToDepSet(t, worldOutput),
+		DepSet:     RecipeToDepSet(t, &recipe),
 		Keys:       hdWallet,
 		T:          t,
 	}
@@ -206,17 +213,17 @@ func (sa *SupervisorActor) Rewind(chain eth.ChainID, block eth.BlockID) error {
 	return sa.backend.Rewind(chain, block)
 }
 
-// worldToDepSet converts a set of chain configs into a dependency-set for the supervisor.
-func worldToDepSet(t helpers.Testing, worldOutput *interopgen.WorldOutput) *depset.StaticConfigDependencySet {
+// RecipeToDepSet converts a recipe into a dependency-set for the supervisor.
+func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *depset.StaticConfigDependencySet {
 	depSetCfg := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for _, out := range worldOutput.L2s {
-		depSetCfg[eth.ChainIDFromBig(out.Genesis.Config.ChainID)] = &depset.StaticConfigDependency{
-			ChainIndex:     types.ChainIndex(out.Genesis.Config.ChainID.Uint64()),
+	for _, out := range recipe.L2s {
+		depSetCfg[eth.ChainIDFromUInt64(out.ChainID)] = &depset.StaticConfigDependency{
+			ChainIndex:     types.ChainIndex(out.ChainID),
 			ActivationTime: 0,
 			HistoryMinTime: 0,
 		}
 	}
-	depSet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(depSetCfg, messageExpiryTime)
+	depSet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(depSetCfg, recipe.ExpiryTime)
 	require.NoError(t, err)
 	return depSet
 }
