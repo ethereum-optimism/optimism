@@ -143,7 +143,7 @@ var (
 	}
 	FetchWithdrawalRootFromState = &cli.BoolFlag{
 		Name:     "fetch-withdrawal-root-from-state",
-		Usage:    "Read withdrawaL_storage_root (akak message passer storage root) from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior, requires an archive EL client.",
+		Usage:    "Read withdrawal_storage_root (aka message passer storage root) from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior, requires an archive EL client.",
 		Required: false,
 		EnvVars:  prefixEnvVars("FETCH_WITHDRAWAL_ROOT_FROM_STATE"),
 		Category: OperationsCategory,
