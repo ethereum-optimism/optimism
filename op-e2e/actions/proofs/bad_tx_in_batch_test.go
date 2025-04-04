@@ -178,7 +178,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, uint64(2), l2SafeHead.Number.Uint64())
 
-	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64()-1, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_BadTxInBatch(gt *testing.T) {
