@@ -553,13 +553,7 @@ contract StandardValidatorV180 is StandardValidatorBase {
         address _challenger,
         uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(
-            _implementations,
-            _superchainConfig,
-            _l1PAOMultisig,
-            _challenger,
-            _withdrawalDelaySeconds
-        )
+        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _challenger, _withdrawalDelaySeconds)
     { }
 
     function validate(InputV180 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -590,13 +584,7 @@ contract StandardValidatorV200 is StandardValidatorBase {
         address _challenger,
         uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(
-            _implementations,
-            _superchainConfig,
-            _l1PAOMultisig,
-            _challenger,
-            _withdrawalDelaySeconds
-        )
+        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _challenger, _withdrawalDelaySeconds)
     { }
 
     function validate(InputV200 memory _input, bool _allowFailure) public view returns (string memory) {
@@ -697,13 +685,7 @@ contract StandardValidatorV300 is StandardValidatorBase {
         address _challenger,
         uint256 _withdrawalDelaySeconds
     )
-        StandardValidatorBase(
-            _implementations,
-            _superchainConfig,
-            _l1PAOMultisig,
-            _challenger,
-            _withdrawalDelaySeconds
-        )
+        StandardValidatorBase(_implementations, _superchainConfig, _l1PAOMultisig, _challenger, _withdrawalDelaySeconds)
     { }
 
     function validate(InputV300 memory _input, bool _allowFailure) public view returns (string memory) {
