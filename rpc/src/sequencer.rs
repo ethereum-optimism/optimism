@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use alloy_json_rpc::RpcSend;
-use alloy_primitives::hex;
+use alloy_json_rpc::{RpcRecv, RpcSend};
+use alloy_primitives::{hex, B256};
 use alloy_rpc_client::{ClientBuilder, RpcClient as Client};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use alloy_transport_http::Http;
@@ -48,35 +48,38 @@ impl SequencerClient {
     }
 
     /// Sends a [`alloy_rpc_client::RpcCall`] request to the sequencer endpoint.
-    async fn send_rpc_call<Params: RpcSend>(
+    async fn send_rpc_call<Params: RpcSend, Resp: RpcRecv>(
         &self,
         method: &str,
         params: Params,
-    ) -> Result<(), SequencerClientError> {
-        self.http_client().request::<Params, ()>(method.to_string(), params).await.inspect_err(
-            |err| {
+    ) -> Result<Resp, SequencerClientError> {
+        let resp = self
+            .http_client()
+            .request::<Params, Resp>(method.to_string(), params)
+            .await
+            .inspect_err(|err| {
                 warn!(
                     target: "rpc::sequencer",
                     %err,
                     "HTTP request to sequencer failed",
                 );
-            },
-        )?;
-        Ok(())
+            })?;
+        Ok(resp)
     }
 
     /// Forwards a transaction to the sequencer endpoint.
-    pub async fn forward_raw_transaction(&self, tx: &[u8]) -> Result<(), SequencerClientError> {
+    pub async fn forward_raw_transaction(&self, tx: &[u8]) -> Result<B256, SequencerClientError> {
         let rlp_hex = hex::encode_prefixed(tx);
-        self.send_rpc_call("eth_sendRawTransaction", (rlp_hex,)).await.inspect_err(|err| {
-            warn!(
-                target: "rpc::eth",
-                %err,
-                "Failed to forward transaction to sequencer",
-            );
-        })?;
+        let tx_hash =
+            self.send_rpc_call("eth_sendRawTransaction", (rlp_hex,)).await.inspect_err(|err| {
+                warn!(
+                    target: "rpc::eth",
+                    %err,
+                    "Failed to forward transaction to sequencer",
+                );
+            })?;
 
-        Ok(())
+        Ok(tx_hash)
     }
 
     /// Forwards a transaction conditional to the sequencer endpoint.
@@ -84,9 +87,10 @@ impl SequencerClient {
         &self,
         tx: &[u8],
         condition: TransactionConditional,
-    ) -> Result<(), SequencerClientError> {
+    ) -> Result<B256, SequencerClientError> {
         let rlp_hex = hex::encode_prefixed(tx);
-        self.send_rpc_call("eth_sendRawTransactionConditional", (rlp_hex, condition))
+        let tx_hash = self
+            .send_rpc_call("eth_sendRawTransactionConditional", (rlp_hex, condition))
             .await
             .inspect_err(|err| {
                 warn!(
@@ -95,7 +99,7 @@ impl SequencerClient {
                     "Failed to forward transaction conditional for sequencer",
                 );
             })?;
-        Ok(())
+        Ok(tx_hash)
     }
 }
 
