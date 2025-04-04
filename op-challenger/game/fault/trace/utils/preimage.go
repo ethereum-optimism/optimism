@@ -116,8 +116,6 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 
 	err = kzg4844.VerifyProof(kzg4844.Commitment(commitment), zPoint, claim, kzgProof)
 	if err != nil {
-		fmt.Printf("failed to verify proof: %v. commitment %x point %x claim %x kzgProof %x\n",
-			err, commitment, zPoint, claim, kzgProof)
 		return nil, fmt.Errorf("failed to verify proof: %w", err)
 	}
 
