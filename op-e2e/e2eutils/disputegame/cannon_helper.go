@@ -127,6 +127,9 @@ func (g *CannonHelper) CheckPreimageInOracle(ctx context.Context, data *types.Pr
 	defer cancel()
 	oracle := g.oracle(ctx)
 
+	// Make sure data for this key and offset has been set before attempting to retrieve the data
+	g.WaitForPreimageInOracle(ctx, data)
+
 	// Pull preimage data from oracle and verify it matches our expectation
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		g.t.Logf("Waiting to get preimage data from oracle for key: (%v)", common.Bytes2Hex(data.OracleKey))
@@ -134,11 +137,7 @@ func (g *CannonHelper) CheckPreimageInOracle(ctx context.Context, data *types.Pr
 		if err != nil {
 			return false, err
 		}
-		if globalData == [32]byte{} && expectedData != [32]byte{} {
-			// If the retrieved data is empty (and we are not expecting an empty value),
-			// the data may not have been pushed up to the oracle yet, keep waiting
-			return false, nil
-		}
+
 		// Compare retrieved data to expected data
 		if !bytes.Equal(globalData[:], expectedData[:]) {
 			return false, fmt.Errorf("Expected preimage part: %x\nFound: %x", expectedData, globalData[:])
