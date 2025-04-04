@@ -127,15 +127,20 @@ func (g *CannonHelper) CheckPreimageInOracle(ctx context.Context, data *types.Pr
 	defer cancel()
 	oracle := g.oracle(ctx)
 
-	// Pull preimage data from oracle and verify it matches what we expect from data
+	// Pull preimage data from oracle and verify it matches our expectation
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		g.t.Logf("Waiting to get preimage data from oracle for key: (%v)", common.Bytes2Hex(data.OracleKey))
 		globalData, err := oracle.GetGlobalData(ctx, data)
 		if err != nil {
 			return false, err
 		}
+		if globalData == [32]byte{} && expectedData != [32]byte{} {
+			// If the retrieved data is empty (and we are not expecting an empty value),
+			// the data may not have been pushed up to the oracle yet, keep waiting
+			return false, nil
+		}
 		// Compare retrieved data to expected data
-		if expectedData != [32]byte{} && !bytes.Equal(globalData[:], expectedData[:]) {
+		if !bytes.Equal(globalData[:], expectedData[:]) {
 			return false, fmt.Errorf("Expected preimage part: %x\nFound: %x", expectedData, globalData[:])
 		}
 
@@ -218,10 +223,17 @@ func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpec
 		execDepth := g.splitGame.ExecDepth(ctx)
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
 		g.require.NoError(err)
+
+		// Check that preimagePartOk[preimageData.OracleKey][preimageData.OracleOffset] == true
 		g.WaitForPreimageInOracle(ctx, preimageData)
 
+		// If we have a non-zero expectation, check that the expected data is actually in the oracle
+		// Specifically, check that preimageParts[preimageData.OracleKey][preimageData.OracleOffset] == expectedDta
 		expectedData := getExpectedData(preimageData)
-		g.CheckPreimageInOracle(ctx, preimageData, expectedData)
+		if expectedData != [32]byte{} {
+			g.CheckPreimageInOracle(ctx, preimageData, expectedData)
+		}
+
 		return nil
 	}
 }
