@@ -34,8 +34,6 @@ func testOutputCannonGame(t *testing.T, allocType config.AllocType) {
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 4, common.Hash{0x01})
-	game.LogGameData(ctx)
-
 	arena := createOutputGameArena(t, sys, game)
 	testCannonGame(t, ctx, arena, &game.SplitGameHelper)
 }
@@ -52,29 +50,13 @@ func testOutputCannonChallengeAllZeroClaim(t *testing.T, allocType config.AllocT
 	// The dishonest actor always posts claims with all zeros.
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 3, common.Hash{})
-	game.LogGameData(ctx)
-
-	claim := game.DisputeLastBlock(ctx)
-	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-	game.DefendClaim(ctx, claim, func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-		if parent.IsBottomGameRoot(ctx) {
-			return parent.Attack(ctx, common.Hash{})
-		}
-		return parent.Defend(ctx, common.Hash{})
-	})
-
-	game.LogGameData(ctx)
-
-	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
-	game.LogGameData(ctx)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonChallengeAllZeroClaim(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestOutputCannon_PublishCannonRootClaim_Standard(t *testing.T) {
@@ -184,34 +166,13 @@ func testOutputCannonDefendStep(t *testing.T, allocType config.AllocType) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
-	require.NotNil(t, game)
-	outputRootClaim := game.DisputeLastBlock(ctx)
-	game.LogGameData(ctx)
-
-	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory))
-
-	maxDepth := game.MaxDepth(ctx)
-	game.DefendClaim(ctx, outputRootClaim, func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-		// Post invalid claims for most steps to get down into the early part of the trace
-		if claim.Depth() < maxDepth-3 {
-			return claim.Attack(ctx, common.Hash{0xaa})
-		} else {
-			// Post our own counter but using the correct hash in low levels to force a defense step
-			return correctTrace.AttackClaim(ctx, claim)
-		}
-	})
-
-	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonDefendStep(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestOutputCannonStepWithLargePreimage_Standard(t *testing.T) {
@@ -476,64 +437,14 @@ func testOutputCannonPoisonedPostState(t *testing.T, allocType config.AllocType)
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-	// Honest first attack at "honest" level
-	claim := correctTrace.AttackClaim(ctx, game.RootClaim(ctx))
-
-	// Honest defense at "dishonest" level
-	claim = correctTrace.DefendClaim(ctx, claim)
-
-	// Dishonest attack at "honest" level - honest move would be to ignore
-	claimToIgnore1 := claim.Attack(ctx, common.Hash{0x03, 0xaa})
-
-	// Honest attack at "dishonest" level - honest move would be to ignore
-	claimToIgnore2 := correctTrace.AttackClaim(ctx, claimToIgnore1)
-	game.LogGameData(ctx)
-
-	// Start the honest challenger
-	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
-
-	// Start dishonest challenger that posts correct claims
-	for {
-		game.LogGameData(ctx)
-		// Wait for the challenger to counter
-		// Note that we need to ignore claimToIgnore1 which already counters this...
-		claim = claim.WaitForCounterClaim(ctx, claimToIgnore1)
-
-		// Respond with our own move
-		if claim.IsBottomGameRoot(ctx) {
-			// Root of the cannon game must have the right VM status code (so it can't be honest).
-			// Note this occurs when there are splitDepth + 4 claims because there are multiple forks in this game.
-			claim = claim.Attack(ctx, common.Hash{0x01})
-		} else {
-			claim = correctTrace.DefendClaim(ctx, claim)
-		}
-
-		// Defender moves last. If we're at max depth, then we're done
-		if claim.IsMaxDepth(ctx) {
-			break
-		}
-	}
-
-	// Wait for the challenger to call step
-	claim.WaitForCountered(ctx)
-	// Verify that the challenger didn't challenge our poisoned claims
-	claimToIgnore1.RequireOnlyCounteredBy(ctx, claimToIgnore2)
-	claimToIgnore2.RequireOnlyCounteredBy(ctx /* nothing */)
-
-	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	game.LogGameData(ctx)
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonPoisonedPostState(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot_Standard(t *testing.T) {
@@ -548,50 +459,14 @@ func testDisputeOutputRootBeyondProposedBlockValidOutputRoot(t *testing.T, alloc
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
-	// Start the honest challenger
-	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
-
-	claim := game.RootClaim(ctx)
-	// Attack the output root
-	claim = correctTrace.AttackClaim(ctx, claim)
-	// Wait for the challenger to respond
-	claim = claim.WaitForCounterClaim(ctx)
-	// Then defend until the split depth to force the game into the extension part of the output root bisection
-	// ie. the output root we wind up disputing is theoretically for a block after block number 1
-	for !claim.IsOutputRootLeaf(ctx) {
-		claim = correctTrace.DefendClaim(ctx, claim)
-		claim = claim.WaitForCounterClaim(ctx)
-	}
-	game.LogGameData(ctx)
-	// At this point we've reached the bottom of the output root bisection and every claim
-	// will have the same, valid, output root. We now need to post a cannon trace root that claims its invalid.
-	claim = claim.Defend(ctx, common.Hash{0x01, 0xaa})
-	// Now defend with the correct trace
-	for {
-		game.LogGameData(ctx)
-		claim = claim.WaitForCounterClaim(ctx)
-		if claim.IsMaxDepth(ctx) {
-			break
-		}
-		claim = correctTrace.DefendClaim(ctx, claim)
-	}
-	// Should not be able to step either attacking or defending
-	correctTrace.StepClaimFails(ctx, claim, true)
-	correctTrace.StepClaimFails(ctx, claim, false)
-
-	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
-	game.LogGameData(ctx)
+	arena := createOutputGameArena(t, sys, game)
+	testDisputeRootBeyondProposedBlockValidOutputRoot(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot_Standard(t *testing.T) {
@@ -606,51 +481,14 @@ func testDisputeOutputRootBeyondProposedBlockInvalidOutputRoot(t *testing.T, all
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-	// Start the honest challenger
-	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
-
-	claim := game.RootClaim(ctx)
-	// Wait for the honest challenger to counter the root
-	claim = claim.WaitForCounterClaim(ctx)
-	// Then defend until the split depth to force the game into the extension part of the output root bisection
-	// ie. the output root we wind up disputing is theoretically for a block after block number 1
-	// The dishonest actor challenges with the correct roots
-	for claim.IsOutputRoot(ctx) {
-		claim = correctTrace.DefendClaim(ctx, claim)
-		claim = claim.WaitForCounterClaim(ctx)
-	}
-	game.LogGameData(ctx)
-	// Now defend with the correct trace
-	for !claim.IsMaxDepth(ctx) {
-		game.LogGameData(ctx)
-		if claim.IsBottomGameRoot(ctx) {
-			claim = correctTrace.AttackClaim(ctx, claim)
-		} else {
-			claim = correctTrace.DefendClaim(ctx, claim)
-		}
-		if !claim.IsMaxDepth(ctx) {
-			// Have to attack the root of the cannon trace
-			claim = claim.WaitForCounterClaim(ctx)
-		}
-	}
-
-	// Wait for our final claim to be countered by the challenger calling step
-	claim.WaitForCountered(ctx)
-
-	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
-	game.LogGameData(ctx)
+	arena := createOutputGameArena(t, sys, game)
+	testDisputeRootBeyondProposedBlockInvalidOutputRoot(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestTestDisputeOutputRoot_ChangeClaimedOutputRoot_Standard(t *testing.T) {
@@ -665,60 +503,14 @@ func testTestDisputeOutputRootChangeClaimedOutputRoot(t *testing.T, allocType co
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 	ctx := context.Background()
-	sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-	// Start the honest challenger
-	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
-
-	claim := game.RootClaim(ctx)
-	// Wait for the honest challenger to counter the root
-	claim = claim.WaitForCounterClaim(ctx)
-
-	// Then attack every claim until the leaf of output root bisection
-	for {
-		claim = claim.Attack(ctx, common.Hash{0xbb})
-		claim = claim.WaitForCounterClaim(ctx)
-		if claim.Depth() == game.SplitDepth(ctx)-1 {
-			// Post the correct output root as the leaf.
-			// This is for block 1 which is what the original output root was for too
-			claim = correctTrace.AttackClaim(ctx, claim)
-			// Challenger should post the first cannon trace
-			claim = claim.WaitForCounterClaim(ctx)
-			break
-		}
-	}
-
-	game.LogGameData(ctx)
-
-	// Now defend with the correct trace
-	for !claim.IsMaxDepth(ctx) {
-		game.LogGameData(ctx)
-		if claim.IsBottomGameRoot(ctx) {
-			claim = correctTrace.AttackClaim(ctx, claim)
-		} else {
-			claim = correctTrace.DefendClaim(ctx, claim)
-		}
-		if !claim.IsMaxDepth(ctx) {
-			// Have to attack the root of the cannon trace
-			claim = claim.WaitForCounterClaim(ctx)
-		}
-	}
-
-	// Wait for our final claim to be countered by the challenger calling step
-	claim.WaitForCountered(ctx)
-
-	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
-	game.LogGameData(ctx)
+	arena := createOutputGameArena(t, sys, game)
+	testDisputeRootChangeClaimedRoot(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestInvalidateUnsafeProposal_Standard(t *testing.T) {

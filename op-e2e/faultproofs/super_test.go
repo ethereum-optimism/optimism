@@ -31,6 +31,54 @@ func TestSuperCannonGame(t *testing.T) {
 	testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 }
 
+func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
+	game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+	testCannonChallengeAllZeroClaim(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+}
+
+func TestSuperCannonDefendStep(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
+	game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+	testCannonDefendStep(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+}
+
+func TestSuperCannonPoisonedPostState(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
+	game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+	testCannonPoisonedPostState(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+}
+
+func TestSuperCannonRootBeyondProposedBlock_ValidRoot(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
+	game := disputeGameFactory.StartSuperCannonGameWithCorrectRoot(ctx)
+	testDisputeRootBeyondProposedBlockValidOutputRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+}
+
+func TestSuperCannonRootBeyondProposedBlock_InvalidRoot(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
+	game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+	testDisputeRootBeyondProposedBlockInvalidOutputRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+}
+
+func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
+	game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+	testDisputeRootChangeClaimedRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+}
+
 func TestSuperCannonGame_HonestCallsSteps(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
