@@ -3,7 +3,7 @@
 /// Helper trait that allows attaching an interop deadline.
 pub trait MaybeInteropTransaction {
     /// Attach an interop deadline
-    fn set_interop_deadlone(&self, deadline: u64);
+    fn set_interop_deadline(&self, deadline: u64);
 
     /// Get attached deadline if any.
     fn interop_deadline(&self) -> Option<u64>;
@@ -13,7 +13,7 @@ pub trait MaybeInteropTransaction {
     where
         Self: Sized,
     {
-        self.set_interop_deadlone(interop);
+        self.set_interop_deadline(interop);
         self
     }
 }

@@ -93,7 +93,7 @@ impl<Cons, Pooled> MaybeConditionalTransaction for OpPooledTransaction<Cons, Poo
 }
 
 impl<Cons, Pooled> MaybeInteropTransaction for OpPooledTransaction<Cons, Pooled> {
-    fn set_interop_deadlone(&self, deadline: u64) {
+    fn set_interop_deadline(&self, deadline: u64) {
         self.interop.store(deadline, Ordering::Relaxed);
     }
 

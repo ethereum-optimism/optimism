@@ -204,7 +204,7 @@ where
             }
             Some(Ok(_)) => {
                 // valid interop tx
-                transaction.set_interop_deadlone(
+                transaction.set_interop_deadline(
                     self.block_timestamp() + TRANSACTION_VALIDITY_WINDOW_SECS,
                 );
             }

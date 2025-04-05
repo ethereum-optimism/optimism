@@ -209,7 +209,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                             to_remove.push(*tx.transaction.hash());
                         }
                     } else {
-                        tx.transaction.set_interop_deadlone(timestamp + TRANSACTION_VALIDITY_WINDOW)
+                        tx.transaction.set_interop_deadline(timestamp + TRANSACTION_VALIDITY_WINDOW)
                     }
                 }
             }
