@@ -22,6 +22,7 @@ reth-node-api = { workspace = true, optional = true }
 reth-consensus = { workspace = true, optional = true }
 reth-consensus-common = { workspace = true, optional = true }
 reth-evm = { workspace = true, optional = true }
+reth-revm = { workspace = true, optional = true }
 reth-rpc = { workspace = true, optional = true }
 reth-rpc-api = { workspace = true, optional = true }
 reth-rpc-eth-types = { workspace = true, optional = true }
@@ -50,6 +51,7 @@ std = [
     "reth-primitives-traits/std",
     "reth-storage-api?/std",
     "reth-evm?/std",
+    "reth-revm?/std",
 ]
 arbitrary = [
     "std",
@@ -64,6 +66,7 @@ test-utils = [
     "reth-consensus?/test-utils",
     "reth-db?/test-utils",
     "reth-evm?/test-utils",
+    "reth-revm?/test-utils",
     "reth-network?/test-utils",
     "reth-optimism-node?/test-utils",
     "reth-primitives-traits/test-utils",
@@ -73,15 +76,31 @@ test-utils = [
 
 full = ["consensus", "evm", "node", "provider", "rpc", "trie"]
 
-alloy-compat = [
-    "reth-optimism-primitives/alloy-compat",
-]
+alloy-compat = ["reth-optimism-primitives/alloy-compat"]
 cli = ["dep:reth-optimism-cli"]
-consensus = ["dep:reth-consensus", "dep:reth-consensus-common", "dep:reth-optimism-consensus"]
-evm = ["dep:reth-evm", "dep:reth-optimism-evm"]
+consensus = [
+    "dep:reth-consensus",
+    "dep:reth-consensus-common",
+    "dep:reth-optimism-consensus",
+]
+evm = ["dep:reth-evm", "dep:reth-optimism-evm", "dep:reth-revm"]
 node-api = ["dep:reth-node-api"]
-node = ["provider", "consensus", "evm", "node-api", "dep:reth-optimism-node", "rpc", "trie"]
-rpc = ["dep:reth-rpc", "dep:reth-rpc-builder", "dep:reth-rpc-api", "dep:reth-rpc-eth-types", "dep:reth-optimism-rpc"]
+node = [
+    "provider",
+    "consensus",
+    "evm",
+    "node-api",
+    "dep:reth-optimism-node",
+    "rpc",
+    "trie",
+]
+rpc = [
+    "dep:reth-rpc",
+    "dep:reth-rpc-builder",
+    "dep:reth-rpc-api",
+    "dep:reth-rpc-eth-types",
+    "dep:reth-optimism-rpc",
+]
 js-tracer = ["rpc", "reth-rpc/js-tracer"]
 network = ["dep:reth-network"]
 provider = ["storage-api", "dep:reth-provider", "dep:reth-db"]
