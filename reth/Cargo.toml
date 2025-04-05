@@ -19,6 +19,7 @@ reth-provider = { workspace = true, optional = true }
 reth-db = { workspace = true, optional = true, features = ["mdbx", "op"] }
 reth-storage-api = { workspace = true, optional = true }
 reth-node-api = { workspace = true, optional = true }
+reth-node-core = { workspace = true, optional = true }
 reth-consensus = { workspace = true, optional = true }
 reth-consensus-common = { workspace = true, optional = true }
 reth-evm = { workspace = true, optional = true }
@@ -27,6 +28,7 @@ reth-rpc = { workspace = true, optional = true }
 reth-rpc-api = { workspace = true, optional = true }
 reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-builder = { workspace = true, optional = true }
+reth-transaction-pool = { workspace = true, optional = true }
 reth-trie = { workspace = true, optional = true }
 
 # reth-op
@@ -59,6 +61,7 @@ arbitrary = [
     "reth-optimism-primitives/arbitrary",
     "reth-primitives-traits/arbitrary",
     "reth-db?/arbitrary",
+    "reth-transaction-pool?/arbitrary",
 ]
 
 test-utils = [
@@ -72,9 +75,10 @@ test-utils = [
     "reth-primitives-traits/test-utils",
     "reth-provider?/test-utils",
     "reth-trie?/test-utils",
+    "reth-transaction-pool?/test-utils",
 ]
 
-full = ["consensus", "evm", "node", "provider", "rpc", "trie"]
+full = ["consensus", "evm", "node", "provider", "rpc", "trie", "pool"]
 
 alloy-compat = ["reth-optimism-primitives/alloy-compat"]
 cli = ["dep:reth-optimism-cli"]
@@ -84,7 +88,7 @@ consensus = [
     "dep:reth-optimism-consensus",
 ]
 evm = ["dep:reth-evm", "dep:reth-optimism-evm", "dep:reth-revm"]
-node-api = ["dep:reth-node-api"]
+node-api = ["dep:reth-node-api", "dep:reth-node-core"]
 node = [
     "provider",
     "consensus",
@@ -104,5 +108,6 @@ rpc = [
 js-tracer = ["rpc", "reth-rpc/js-tracer"]
 network = ["dep:reth-network"]
 provider = ["storage-api", "dep:reth-provider", "dep:reth-db"]
+pool = ["dep:reth-transaction-pool"]
 storage-api = ["dep:reth-storage-api"]
 trie = ["dep:reth-trie"]

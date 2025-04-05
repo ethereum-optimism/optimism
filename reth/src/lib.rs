@@ -24,6 +24,10 @@ pub mod primitives {
 #[cfg(feature = "cli")]
 pub use reth_optimism_cli as cli;
 
+/// Re-exported pool types
+#[cfg(feature = "pool")]
+pub use reth_transaction_pool as pool;
+
 /// Re-exported consensus types
 #[cfg(feature = "consensus")]
 pub mod consensus {
@@ -88,6 +92,8 @@ pub mod storage {
 pub mod node {
     #[doc(inline)]
     pub use reth_node_api as api;
+    #[doc(inline)]
+    pub use reth_node_core as core;
     #[cfg(feature = "node")]
     pub use reth_optimism_node::*;
 }
