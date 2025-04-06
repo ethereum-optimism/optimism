@@ -37,7 +37,6 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IDataAvailabilityChallenge } from "interfaces/L1/IDataAvailabilityChallenge.sol";
-import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -221,9 +220,9 @@ contract Deploy is Deployer {
         dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.superchainProxyAdminOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
-        dsi.set(dsi.paused.selector, false);
-        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.wrap(cfg.requiredProtocolVersion()));
-        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
+        dsi.set(dsi.pauseExpiry.selector, 0);
+        dsi.set(dsi.requiredProtocolVersion.selector, cfg.requiredProtocolVersion());
+        dsi.set(dsi.recommendedProtocolVersion.selector, cfg.recommendedProtocolVersion());
 
         // Run the deployment script.
         ds.run(dsi, dso);
@@ -236,7 +235,7 @@ contract Deploy is Deployer {
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxies();
         ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true, _isPaused: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true, _pauseExpiry: 0 });
 
         // Then replace the ProtocolVersions proxy with the implementation address and run assertions on it.
         contracts.ProtocolVersions = artifacts.mustGetAddress("ProtocolVersionsImpl");
@@ -244,7 +243,7 @@ contract Deploy is Deployer {
 
         // Finally replace the SuperchainConfig proxy with the implementation address and run assertions on it.
         contracts.SuperchainConfig = artifacts.mustGetAddress("SuperchainConfigImpl");
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isPaused: false, _isProxy: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _pauseExpiry: 0, _isProxy: false });
     }
 
     /// @notice Deploy all of the implementations
@@ -267,10 +266,10 @@ contract Deploy is Deployer {
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.protocolVersionsProxy.selector, artifacts.mustGetAddress("ProtocolVersionsProxy"));
 
-        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        dii.set(dii.superchainConfigProxy.selector, address(superchainConfig));
+        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
+        dii.set(dii.systemConfigProxy.selector, address(systemConfig));
 
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig.superchainConfig())));
         dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
 
         // I think this was a bug
@@ -333,7 +332,7 @@ contract Deploy is Deployer {
         console.log("Deploying OP Chain");
 
         // Ensure that the requisite contracts are deployed
-        address superchainConfigProxy = artifacts.mustGetAddress("SuperchainConfigProxy");
+        address systemConfigProxy = artifacts.mustGetAddress("SystemConfigProxy");
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
 
         IOPContractsManager.DeployInput memory deployInput = getDeployInput();
@@ -371,7 +370,7 @@ contract Deploy is Deployer {
         vm.broadcast(msg.sender);
         IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
             _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
+            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISystemConfig(systemConfigProxy)))
         });
 
         setAlphabetFaultGameImplementation();
@@ -499,7 +498,8 @@ contract Deploy is Deployer {
                         optimismPortal: artifacts.mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy")
                     }),
-                    cfg.l2ChainID()
+                    cfg.l2ChainID(),
+                    artifacts.mustGetAddress("SuperchainConfigProxy")
                 )
             )
         });
@@ -945,7 +945,8 @@ contract Deploy is Deployer {
             disputeMaxGameDepth: cfg.faultGameMaxDepth(),
             disputeSplitDepth: cfg.faultGameSplitDepth(),
             disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-            disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
+            disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
+            superchainConfig: address(artifacts.mustGetAddress("SuperchainConfigProxy"))
         });
     }
 

@@ -136,6 +136,11 @@
         "internalType": "bytes",
         "name": "_signature",
         "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
       }
     ],
     "name": "pause",
@@ -278,6 +283,12 @@
         "internalType": "bytes32",
         "name": "nonce",
         "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "identifier",
+        "type": "address"
       }
     ],
     "name": "PauseTriggered",

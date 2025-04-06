@@ -56,7 +56,8 @@ interface ISystemConfig {
         IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
         Addresses memory _addresses,
-        uint256 _l2ChainId
+        uint256 _l2ChainId,
+        address _superchainConfig
     )
         external;
     function initVersion() external view returns (uint8);

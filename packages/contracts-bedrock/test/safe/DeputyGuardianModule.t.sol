@@ -35,11 +35,7 @@ contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
         safeInstance = _setupSafe(keys, 10);
 
         // Set the Safe as the Guardian of the SuperchainConfig
-        vm.store(
-            address(superchainConfig),
-            superchainConfig.GUARDIAN_SLOT(),
-            bytes32(uint256(uint160(address(safeInstance.safe))))
-        );
+        vm.store(address(superchainConfig), bytes32(uint256(0)), bytes32(uint256(uint160(address(safeInstance.safe)))));
 
         deputyGuardian = makeAddr("deputyGuardian");
 
@@ -79,8 +75,8 @@ contract DeputyGuardianModule_Pause_Test is DeputyGuardianModule_TestInit {
         emit Paused("Deputy Guardian");
 
         vm.prank(address(deputyGuardian));
-        deputyGuardianModule.pause();
-        assertEq(superchainConfig.paused(), true);
+        deputyGuardianModule.pause(address(0));
+        assertEq(superchainConfig.paused(address(0)), true);
     }
 }
 
@@ -88,7 +84,7 @@ contract DeputyGuardianModule_Pause_TestFail is DeputyGuardianModule_TestInit {
     /// @dev Tests that `pause` reverts when called by a non deputy guardian.
     function test_pause_notDeputyGuardian_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(IDeputyGuardianModule.DeputyGuardianModule_Unauthorized.selector));
-        deputyGuardianModule.pause();
+        deputyGuardianModule.pause(address(0));
     }
 
     /// @dev Tests that when the call from the Safe reverts, the error message is returned.
@@ -106,7 +102,7 @@ contract DeputyGuardianModule_Pause_TestFail is DeputyGuardianModule_TestInit {
                 "SuperchainConfig: pause() reverted"
             )
         );
-        deputyGuardianModule.pause();
+        deputyGuardianModule.pause(address(0));
     }
 }
 
@@ -115,8 +111,8 @@ contract DeputyGuardianModule_Unpause_Test is DeputyGuardianModule_TestInit {
     function setUp() public override {
         super.setUp();
         vm.prank(address(deputyGuardian));
-        deputyGuardianModule.pause();
-        assertTrue(superchainConfig.paused());
+        deputyGuardianModule.pause(address(0));
+        assertTrue(superchainConfig.paused(address(0)));
     }
 
     /// @dev Tests that `unpause` successfully unpauses when called by the deputy guardian.
@@ -131,8 +127,8 @@ contract DeputyGuardianModule_Unpause_Test is DeputyGuardianModule_TestInit {
         emit Unpaused();
 
         vm.prank(address(deputyGuardian));
-        deputyGuardianModule.unpause();
-        assertFalse(superchainConfig.paused());
+        deputyGuardianModule.unpause(address(0));
+        assertFalse(superchainConfig.paused(address(0)));
     }
 }
 
@@ -142,8 +138,8 @@ contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_T
     /// @dev Tests that `unpause` reverts when called by a non deputy guardian.
     function test_unpause_notDeputyGuardian_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(IDeputyGuardianModule.DeputyGuardianModule_Unauthorized.selector));
-        deputyGuardianModule.unpause();
-        assertTrue(superchainConfig.paused());
+        deputyGuardianModule.unpause(address(0));
+        assertTrue(superchainConfig.paused(address(0)));
     }
 
     /// @dev Tests that when the call from the Safe reverts, the error message is returned.
@@ -161,7 +157,7 @@ contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_T
                 "SuperchainConfig: unpause reverted"
             )
         );
-        deputyGuardianModule.unpause();
+        deputyGuardianModule.unpause(address(0));
     }
 }
 

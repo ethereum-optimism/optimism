@@ -74,7 +74,7 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerDeployer _opcmDeployer,
         OPContractsManagerUpgrader _opcmUpgrader,
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
-        ISuperchainConfig _superchainConfig,
+        ISystemConfig _systemConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
         string memory _l1ContractsRelease,
@@ -85,7 +85,7 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmDeployer,
             _opcmUpgrader,
             _opcmInteropMigrator,
-            _superchainConfig,
+            _systemConfig,
             _protocolVersions,
             _superchainProxyAdmin,
             _l1ContractsRelease,
@@ -159,7 +159,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
             disputeSplitDepth: _doi.disputeSplitDepth(),
             disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration(),
+            superchainConfig: _doi.superchainConfig()
         });
     }
 
@@ -190,13 +191,13 @@ contract OPContractsManager_InternalMethods_Test is Test {
     OPContractsManager_Harness opcmHarness;
 
     function setUp() public {
-        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
+        ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
         address upgradeController = makeAddr("upgradeController");
         OPContractsManager.Blueprints memory emptyBlueprints;
         OPContractsManager.Implementations memory emptyImpls;
-        vm.etch(address(superchainConfigProxy), hex"01");
+        vm.etch(address(systemConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         OPContractsManagerContractsContainer container =
@@ -207,7 +208,7 @@ contract OPContractsManager_InternalMethods_Test is Test {
             _opcmDeployer: new OPContractsManagerDeployer(container),
             _opcmUpgrader: new OPContractsManagerUpgrader(container),
             _opcmInteropMigrator: new OPContractsManagerInteropMigrator(container),
-            _superchainConfig: superchainConfigProxy,
+            _systemConfig: systemConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
             _l1ContractsRelease: "dev",
@@ -865,7 +866,7 @@ contract OPContractsManager_TestInit is Test {
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
 
     function setUp() public virtual {
-        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
+        ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
         bytes32 salt = hex"01";
@@ -946,7 +947,7 @@ contract OPContractsManager_TestInit is Test {
             })
         });
 
-        vm.etch(address(superchainConfigProxy), hex"01");
+        vm.etch(address(systemConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
@@ -1002,7 +1003,7 @@ contract OPContractsManager_TestInit is Test {
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
                             ),
-                            superchainConfigProxy,
+                            systemConfigProxy,
                             protocolVersionsProxy,
                             superchainProxyAdmin,
                             "dev",
@@ -1054,7 +1055,8 @@ contract OPContractsManager_TestInit is Test {
                 disputeMaxGameDepth: 73,
                 disputeSplitDepth: 30,
                 disputeClockExtension: Duration.wrap(10800),
-                disputeMaxClockDuration: Duration.wrap(302400)
+                disputeMaxClockDuration: Duration.wrap(302400),
+                superchainConfig: address(makeAddr("superchainConfig"))
             })
         );
     }
@@ -1675,19 +1677,19 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         );
     }
 
-    /// @notice Tests that the migration function reverts when the SuperchainConfig addresses are mismatched.
-    function test_migrate_mismatchedSuperchainConfig_reverts() public {
+    /// @notice Tests that the migration function reverts when the SystemConfig addresses are mismatched.
+    function test_migrate_mismatchedSystemConfig_reverts() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
         // Mock out the SuperchainConfig addresses to be different.
         vm.mockCall(
             address(chainDeployOutput1.optimismPortalProxy),
-            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
+            abi.encodeCall(IOptimismPortal2.systemConfig, ()),
             abi.encode(address(1234))
         );
         vm.mockCall(
             address(chainDeployOutput2.optimismPortalProxy),
-            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
+            abi.encodeCall(IOptimismPortal2.systemConfig, ()),
             abi.encode(address(5678))
         );
 

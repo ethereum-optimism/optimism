@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 
 interface IAnchorStateRegistry {
@@ -26,7 +26,7 @@ interface IAnchorStateRegistry {
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function initialize(
-        ISuperchainConfig _superchainConfig,
+        ISystemConfig _systemConfig,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
@@ -45,7 +45,7 @@ interface IAnchorStateRegistry {
     function retirementTimestamp() external view returns (uint64);
     function setAnchorState(IDisputeGame _game) external;
     function setRespectedGameType(GameType _gameType) external;
-    function superchainConfig() external view returns (ISuperchainConfig);
+    function systemConfig() external view returns (ISystemConfig);
     function updateRetirementTimestamp() external;
     function version() external view returns (string memory);
 

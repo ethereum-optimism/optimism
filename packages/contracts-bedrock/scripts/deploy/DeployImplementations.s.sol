@@ -51,6 +51,7 @@ contract DeployImplementationsInput is BaseDeployIO {
     string internal _l1ContractsRelease;
 
     // Outputs from DeploySuperchain.s.sol.
+    ISystemConfig internal _systemConfigProxy;
     ISuperchainConfig internal _superchainConfigProxy;
     IProtocolVersions internal _protocolVersionsProxy;
     IProxyAdmin internal _superchainProxyAdmin;
@@ -89,6 +90,7 @@ contract DeployImplementationsInput is BaseDeployIO {
         else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = IProtocolVersions(_addr);
         else if (_sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = IProxyAdmin(_addr);
         else if (_sel == this.upgradeController.selector) _upgradeController = _addr;
+        else if (_sel == this.systemConfigProxy.selector) _systemConfigProxy = ISystemConfig(_addr);
         else revert("DeployImplementationsInput: unknown selector");
     }
 
@@ -138,6 +140,11 @@ contract DeployImplementationsInput is BaseDeployIO {
     function protocolVersionsProxy() public view returns (IProtocolVersions) {
         require(address(_protocolVersionsProxy) != address(0), "DeployImplementationsInput: not set");
         return _protocolVersionsProxy;
+    }
+
+    function systemConfigProxy() public view returns (ISystemConfig) {
+        require(address(_systemConfigProxy) != address(0), "DeployImplementationsInput: not set");
+        return _systemConfigProxy;
     }
 
     function superchainProxyAdmin() public view returns (IProxyAdmin) {
@@ -349,7 +356,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
     function assertValidOpcm(DeployImplementationsInput _dii) internal view {
         IOPContractsManager impl = IOPContractsManager(address(opcm()));
-        require(address(impl.superchainConfig()) == address(_dii.superchainConfigProxy()), "OPCMI-10");
+        require(address(impl.systemConfig()) == address(_dii.superchainConfigProxy()), "OPCMI-10");
         require(address(impl.protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPCMI-20");
         require(impl.upgradeController() == _dii.upgradeController(), "OPCMI-30");
     }
@@ -361,8 +368,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         require(address(portal.anchorStateRegistry()) == address(0), "PORTAL-10");
         require(address(portal.systemConfig()) == address(0), "PORTAL-20");
-        require(address(portal.superchainConfig()) == address(0), "PORTAL-30");
-        require(portal.l2Sender() == address(0), "PORTAL-40");
+        require(portal.l2Sender() == address(0), "PORTAL-30");
 
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
@@ -376,7 +382,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(lockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(address(lockbox.superchainConfig()) == address(0), "ELB-10");
+        require(address(lockbox.systemConfig()) == address(0), "ELB-10");
         require(lockbox.authorizedPortals(optimismPortalImpl()) == false, "ELB-20");
     }
 
@@ -387,7 +393,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         require(delayedWETH.owner() == address(0), "DW-10");
         require(delayedWETH.delay() == _dii.withdrawalDelaySeconds(), "DW-20");
-        require(delayedWETH.config() == ISuperchainConfig(address(0)), "DW-30");
+        require(delayedWETH.systemConfig() == ISystemConfig(address(0)), "DW-30");
     }
 
     function assertValidPreimageOracleSingleton(DeployImplementationsInput _dii) internal view {
@@ -442,7 +448,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(address(messenger.otherMessenger()) == address(0), "L1xDM-20");
         require(address(messenger.PORTAL()) == address(0), "L1xDM-30");
         require(address(messenger.portal()) == address(0), "L1xDM-40");
-        require(address(messenger.superchainConfig()) == address(0), "L1xDM-50");
+        require(address(messenger.systemConfig()) == address(0), "L1xDM-50");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == address(0), "L1xDM-60");
@@ -457,7 +463,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(address(bridge.otherBridge()) == address(0), "L721B-20");
         require(address(bridge.MESSENGER()) == address(0), "L721B-30");
         require(address(bridge.messenger()) == address(0), "L721B-40");
-        require(address(bridge.superchainConfig()) == address(0), "L721B-50");
+        require(address(bridge.systemConfig()) == address(0), "L721B-50");
     }
 
     function assertValidL1StandardBridgeImpl(DeployImplementationsInput) internal view {
@@ -469,7 +475,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(address(bridge.messenger()) == address(0), "L1SB-20");
         require(address(bridge.OTHER_BRIDGE()) == address(0), "L1SB-30");
         require(address(bridge.otherBridge()) == address(0), "L1SB-40");
-        require(address(bridge.superchainConfig()) == address(0), "L1SB-50");
+        require(address(bridge.systemConfig()) == address(0), "L1SB-50");
     }
 
     function assertValidOptimismMintableERC20FactoryImpl(DeployImplementationsInput) internal view {
@@ -597,7 +603,7 @@ contract DeployImplementations is Script {
                     _dio.opcmDeployer(),
                     _dio.opcmUpgrader(),
                     _dio.opcmInteropMigrator(),
-                    _dii.superchainConfigProxy(),
+                    _dii.systemConfigProxy(),
                     _dii.protocolVersionsProxy(),
                     _dii.superchainProxyAdmin(),
                     _l1ContractsRelease,

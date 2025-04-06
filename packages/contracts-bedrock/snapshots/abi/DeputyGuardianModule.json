@@ -52,7 +52,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
     "name": "pause",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -103,7 +109,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",

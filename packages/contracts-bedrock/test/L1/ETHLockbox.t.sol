@@ -45,7 +45,7 @@ contract ETHLockboxTest is CommonTest {
 
     /// @notice Tests the superchain config was correctly set during initialization.
     function test_initialization_succeeds() public view {
-        assertEq(address(ethLockbox.superchainConfig()), address(superchainConfig));
+        assertEq(address(ethLockbox.systemConfig().superchainConfig()), address(superchainConfig));
         assertEq(ethLockbox.authorizedPortals(optimismPortal2), true);
     }
 
@@ -53,7 +53,7 @@ contract ETHLockboxTest is CommonTest {
     function test_initialize_alreadyInitialized_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         IOptimismPortal2[] memory _portals = new IOptimismPortal2[](1);
-        ethLockbox.initialize(superchainConfig, _portals);
+        ethLockbox.initialize(systemConfig, _portals);
     }
 
     /// @notice Tests the proxy admin owner is correctly returned.
@@ -67,7 +67,7 @@ contract ETHLockboxTest is CommonTest {
         assertEq(ethLockbox.paused(), false);
 
         // Mock the superchain config to return true for the paused status
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()), abi.encode(true));
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(true));
 
         // Assert the paused status is true
         assertEq(ethLockbox.paused(), true);
@@ -166,9 +166,10 @@ contract ETHLockboxTest is CommonTest {
 
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // lockbox.
-        vm.mockCall(
-            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
-        );
+        // PEP: Remove comments and fix
+        // vm.mockCall(
+        //     address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+        // );
 
         // Set the portal as an authorized portal if needed
         if (!ethLockbox.authorizedPortals(_portal)) {
@@ -197,7 +198,7 @@ contract ETHLockboxTest is CommonTest {
     /// @notice Tests `unlockETH` reverts when the contract is paused.
     function testFuzz_unlockETH_paused_reverts(address _caller, uint256 _value) public {
         // Mock the superchain config to return true for the paused status
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()), abi.encode(true));
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(true));
 
         // Expect the revert with `Paused` selector
         vm.expectRevert(IETHLockbox.ETHLockbox_Paused.selector);
@@ -284,9 +285,10 @@ contract ETHLockboxTest is CommonTest {
 
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // lockbox.
-        vm.mockCall(
-            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
-        );
+        // PEP: Remove comments and fix
+        // vm.mockCall(
+        //     address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+        // );
 
         // Set the portal as an authorized portal if needed
         if (!ethLockbox.authorizedPortals(_portal)) {
@@ -343,28 +345,6 @@ contract ETHLockboxTest is CommonTest {
         ethLockbox.authorizePortal(_portal);
     }
 
-    /// @notice Tests the authorizePortal function reverts when the portal has a different
-    ///         SuperchainConfig than the one configured in the lockbox.
-    /// @param _portal The portal to authorize.
-    function testFuzz_authorizePortal_differentSuperchainConfig_reverts(IOptimismPortal2 _portal) public {
-        assumeNotForgeAddress(address(_portal));
-
-        // Mock the portal to have the right proxyAdminOwner.
-        vm.mockCall(
-            address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
-        );
-
-        // Mock the portal to have the wrong SuperchainConfig.
-        vm.mockCall(address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(address(0)));
-
-        // Expect the revert with `DifferentSuperchainConfig` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentSuperchainConfig.selector);
-
-        // Call the `authorizePortal` function
-        vm.prank(proxyAdminOwner);
-        ethLockbox.authorizePortal(_portal);
-    }
-
     /// @notice Tests the `authorizeLockbox` function succeeds using the `optimismPortal2` address as the portal.
     function test_authorizePortal_succeeds() public {
         // Calculate the correct storage slot for the mapping value
@@ -398,9 +378,10 @@ contract ETHLockboxTest is CommonTest {
 
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // Lockbox.
-        vm.mockCall(
-            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
-        );
+        // PEP: Remove comments and fix
+        // vm.mockCall(
+        //     address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+        // );
 
         // Expect the `PortalAuthorized` event to be emitted
         vm.expectEmit(address(ethLockbox));

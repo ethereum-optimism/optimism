@@ -29,7 +29,7 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_Init {
     /// @dev Tests that initialization is successful.
     function test_initialize_succeeds() public view {
         assertEq(delayedWeth.owner(), address(this));
-        assertEq(address(delayedWeth.config()), address(superchainConfig));
+        assertEq(address(delayedWeth.systemConfig()), address(systemConfig));
     }
 }
 
@@ -157,7 +157,7 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_Init {
         // Pause the contract.
         address guardian = optimismPortal2.guardian();
         vm.prank(guardian);
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         // Withdraw fails.
         vm.expectRevert("DelayedWETH: contract is paused");
@@ -261,7 +261,7 @@ contract DelayedWETH_WithdrawFrom_Test is DelayedWETH_Init {
         // Pause the contract.
         address guardian = optimismPortal2.guardian();
         vm.prank(guardian);
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         // Withdraw fails.
         vm.expectRevert("DelayedWETH: contract is paused");

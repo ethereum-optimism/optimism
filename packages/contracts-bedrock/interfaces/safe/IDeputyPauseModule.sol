@@ -31,7 +31,7 @@ interface IDeputyPauseModule is ISemver {
 
     event DeputySet(address indexed deputy);
     event DeputyGuardianModuleSet(IDeputyGuardianModule indexed deputyGuardianModule);
-    event PauseTriggered(address indexed deputy, bytes32 nonce);
+    event PauseTriggered(address indexed deputy, bytes32 nonce, address identifier);
     event EIP712DomainChanged();
 
     function version() external view returns (string memory);
@@ -50,7 +50,7 @@ interface IDeputyPauseModule is ISemver {
     function pauseMessageTypehash() external pure returns (bytes32 pauseMessageTypehash_);
     function deputyAuthMessageTypehash() external pure returns (bytes32 deputyAuthMessageTypehash_);
     function usedNonces(bytes32) external view returns (bool);
-    function pause(bytes32 _nonce, bytes memory _signature) external;
+    function pause(bytes32 _nonce, bytes memory _signature, address _identifier) external;
     function setDeputy(address _deputy, bytes memory _deputySignature) external;
     function setDeputyGuardianModule(IDeputyGuardianModule _deputyGuardianModule) external;
     function eip712Domain()

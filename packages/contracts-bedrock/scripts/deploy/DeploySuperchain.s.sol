@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -84,7 +85,7 @@ contract DeploySuperchainInput is BaseDeployIO {
     address internal _superchainProxyAdminOwner;
 
     // Other inputs.
-    bool internal _paused;
+    uint256 internal _pauseExpiry;
     ProtocolVersion internal _recommendedProtocolVersion;
     ProtocolVersion internal _requiredProtocolVersion;
 
@@ -98,16 +99,18 @@ contract DeploySuperchainInput is BaseDeployIO {
         else revert("DeploySuperchainInput: unknown selector");
     }
 
-    function set(bytes4 _sel, bool _value) public {
-        if (_sel == this.paused.selector) _paused = _value;
-        else revert("DeploySuperchainInput: unknown selector");
-    }
-
-    function set(bytes4 _sel, ProtocolVersion _value) public {
-        require(ProtocolVersion.unwrap(_value) != 0, "DeploySuperchainInput: cannot set null protocol version");
-        if (_sel == this.recommendedProtocolVersion.selector) _recommendedProtocolVersion = _value;
-        else if (_sel == this.requiredProtocolVersion.selector) _requiredProtocolVersion = _value;
-        else revert("DeploySuperchainInput: unknown selector");
+    function set(bytes4 _sel, uint256 _value) public {
+        if (_sel == this.recommendedProtocolVersion.selector) {
+            require(_value != 0, "DeploySuperchainInput: cannot set null protocol version");
+            _recommendedProtocolVersion = ProtocolVersion.wrap(_value);
+        } else if (_sel == this.requiredProtocolVersion.selector) {
+            require(_value != 0, "DeploySuperchainInput: cannot set null protocol version");
+            _requiredProtocolVersion = ProtocolVersion.wrap(_value);
+        } else if (_sel == this.pauseExpiry.selector) {
+            _pauseExpiry = _value;
+        } else {
+            revert("DeploySuperchainInput: unknown selector");
+        }
     }
 
     // Each input field is exposed via it's own getter method. Using public storage variables here
@@ -130,8 +133,8 @@ contract DeploySuperchainInput is BaseDeployIO {
         return _guardian;
     }
 
-    function paused() public view returns (bool) {
-        return _paused;
+    function pauseExpiry() public view returns (uint256) {
+        return _pauseExpiry;
     }
 
     function requiredProtocolVersion() public view returns (ProtocolVersion) {
@@ -160,6 +163,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
     IProtocolVersions internal _protocolVersionsProxy;
     ISuperchainConfig internal _superchainConfigImpl;
     ISuperchainConfig internal _superchainConfigProxy;
+    ISystemConfig internal _systemConfigProxy;
     IProxyAdmin internal _superchainProxyAdmin;
 
     // This method lets each field be set individually. The selector of an output's getter method
@@ -171,6 +175,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
         else if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = ISuperchainConfig(_address);
         else if (_sel == this.protocolVersionsImpl.selector) _protocolVersionsImpl = IProtocolVersions(_address);
         else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = IProtocolVersions(_address);
+        else if (_sel == this.systemConfigProxy.selector) _systemConfigProxy = ISystemConfig(_address);
         else revert("DeploySuperchainOutput: unknown selector");
     }
 
@@ -182,7 +187,8 @@ contract DeploySuperchainOutput is BaseDeployIO {
             address(this.superchainConfigImpl()),
             address(this.superchainConfigProxy()),
             address(this.protocolVersionsImpl()),
-            address(this.protocolVersionsProxy())
+            address(this.protocolVersionsProxy()),
+            address(this.systemConfigProxy())
         );
         DeployUtils.assertValidContractAddresses(addrs);
 
@@ -213,6 +219,11 @@ contract DeploySuperchainOutput is BaseDeployIO {
     function superchainConfigProxy() public view returns (ISuperchainConfig) {
         DeployUtils.assertValidContractAddress(address(_superchainConfigProxy));
         return _superchainConfigProxy;
+    }
+
+    function systemConfigProxy() public view returns (ISystemConfig) {
+        DeployUtils.assertValidContractAddress(address(_systemConfigProxy));
+        return _systemConfigProxy;
     }
 
     function protocolVersionsImpl() public view returns (IProtocolVersions) {
@@ -246,7 +257,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
             _offset: 0
         });
         require(superchainConfig.guardian() == _dsi.guardian(), "SUPCON-10");
-        require(superchainConfig.paused() == _dsi.paused(), "SUPCON-20");
+        require(superchainConfig.pauseExpiry() == _dsi.pauseExpiry(), "SUPCON-20");
 
         vm.startPrank(address(0));
         require(
@@ -258,7 +269,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
         // Implementation checks
         superchainConfig = superchainConfigImpl();
         require(superchainConfig.guardian() == address(0), "SUPCON-50");
-        require(superchainConfig.paused() == false, "SUPCON-60");
+        require(superchainConfig.paused(address(0)) == false, "SUPCON-60");
     }
 
     function assertValidProtocolVersions(DeploySuperchainInput _dsi) internal {
@@ -366,7 +377,6 @@ contract DeploySuperchain is Script {
 
     function deployAndInitializeSuperchainConfig(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
         address guardian = _dsi.guardian();
-        bool paused = _dsi.paused();
 
         IProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         ISuperchainConfig superchainConfigImpl = _dso.superchainConfigImpl();
@@ -383,7 +393,7 @@ contract DeploySuperchain is Script {
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(ISuperchainConfig.initialize, (guardian, paused))
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian, 15778800))
         );
         vm.stopBroadcast();
 

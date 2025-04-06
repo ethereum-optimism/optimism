@@ -51,8 +51,8 @@ contract DeputyGuardianModule is ISemver {
     address internal immutable DEPUTY_GUARDIAN;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 4.0.0
+    string public constant version = "4.0.0";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(Safe _safe, ISuperchainConfig _superchainConfig, address _deputyGuardian) {
@@ -89,10 +89,11 @@ contract DeputyGuardianModule is ISemver {
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
     ///      necessary to call `pause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
-    function pause() external {
+    /// @param _identifier The pause identifier.
+    function pause(address _identifier) external {
         _onlyDeputyGuardian();
 
-        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, ("Deputy Guardian"));
+        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.pause, _identifier);
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         if (!success) {
@@ -104,10 +105,11 @@ contract DeputyGuardianModule is ISemver {
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
     ///      necessary to call `unpause()` on the `SuperchainConfig` contract.
     ///      Only the deputy guardian can call this function.
-    function unpause() external {
+    /// @param _identifier The pause identifier.
+    function unpause(address _identifier) external {
         _onlyDeputyGuardian();
 
-        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.unpause, ());
+        bytes memory data = abi.encodeCall(SUPERCHAIN_CONFIG.unpause, _identifier);
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(SUPERCHAIN_CONFIG), 0, data, Enum.Operation.Call);
         if (!success) {

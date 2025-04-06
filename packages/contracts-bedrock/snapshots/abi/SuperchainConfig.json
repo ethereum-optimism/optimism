@@ -5,26 +5,19 @@
     "type": "constructor"
   },
   {
-    "inputs": [],
-    "name": "GUARDIAN_SLOT",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "PAUSED_SLOT",
+    "name": "expiration",
     "outputs": [
       {
-        "internalType": "bytes32",
+        "internalType": "uint256",
         "name": "",
-        "type": "bytes32"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -36,7 +29,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "guardian_",
+        "name": "",
         "type": "address"
       }
     ],
@@ -51,9 +44,9 @@
         "type": "address"
       },
       {
-        "internalType": "bool",
-        "name": "_paused",
-        "type": "bool"
+        "internalType": "uint256",
+        "name": "_pauseExpiry",
+        "type": "uint256"
       }
     ],
     "name": "initialize",
@@ -64,9 +57,28 @@
   {
     "inputs": [
       {
-        "internalType": "string",
+        "internalType": "address",
         "name": "_identifier",
-        "type": "string"
+        "type": "address"
+      }
+    ],
+    "name": "pausable",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
       }
     ],
     "name": "pause",
@@ -76,11 +88,49 @@
   },
   {
     "inputs": [],
-    "name": "paused",
+    "name": "pauseExpiry",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "pauseTimestamps",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "pauseUsed",
     "outputs": [
       {
         "internalType": "bool",
-        "name": "paused_",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -88,7 +138,45 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
+    "name": "reset",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -157,5 +245,15 @@
     "inputs": [],
     "name": "Unpaused",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyGuardian",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PauseAlreadyUsed",
+    "type": "error"
   }
 ]

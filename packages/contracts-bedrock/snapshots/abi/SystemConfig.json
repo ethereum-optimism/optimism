@@ -388,6 +388,11 @@
         "internalType": "uint256",
         "name": "_l2ChainId",
         "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_superchainConfig",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -546,6 +551,19 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -735,6 +753,19 @@
         "internalType": "uint256",
         "name": "startBlock_",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superchainConfig",
+    "outputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

@@ -146,7 +146,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: address(0)
         });
     }
 
@@ -175,7 +176,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: address(0)
         });
         assertEq(systemConfig.startBlock(), block.number);
     }
@@ -205,7 +207,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: address(0)
         });
         assertEq(systemConfig.startBlock(), 1);
     }
@@ -319,7 +322,8 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: address(0)
         });
     }
 }

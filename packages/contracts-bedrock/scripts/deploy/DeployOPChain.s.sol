@@ -10,7 +10,6 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -48,6 +47,7 @@ contract DeployOPChainInput is BaseDeployIO {
     uint32 internal _blobBaseFeeScalar;
     uint256 internal _l2ChainId;
     IOPContractsManager internal _opcm;
+    address internal _superchainConfig;
     string internal _saltMixer;
     uint64 internal _gasLimit;
 
@@ -72,6 +72,7 @@ contract DeployOPChainInput is BaseDeployIO {
         else if (_sel == this.proposer.selector) _proposer = _addr;
         else if (_sel == this.challenger.selector) _challenger = _addr;
         else if (_sel == this.opcm.selector) _opcm = IOPContractsManager(_addr);
+        else if (_sel == this.superchainConfig.selector) _superchainConfig = _addr;
         else revert("DeployOPChainInput: unknown selector");
     }
 
@@ -164,6 +165,11 @@ contract DeployOPChainInput is BaseDeployIO {
         require(_l2ChainId != 0, "DeployOPChainInput: not set");
         require(_l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
         return _l2ChainId;
+    }
+
+    function superchainConfig() public view returns (address) {
+        require(address(_superchainConfig) != address(0), "DeployOPChainInput: superchainConfig not set");
+        return _superchainConfig;
     }
 
     function startingAnchorRoot() public pure returns (bytes memory) {
@@ -385,7 +391,8 @@ contract DeployOPChain is Script {
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
             disputeSplitDepth: _doi.disputeSplitDepth(),
             disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration(),
+            superchainConfig: address(_doi.superchainConfig())
         });
 
         vm.broadcast(msg.sender);
@@ -405,6 +412,7 @@ contract DeployOPChain is Script {
         // vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
         vm.label(address(deployOutput.permissionedDisputeGame), "permissionedDisputeGame");
         vm.label(address(deployOutput.delayedWETHPermissionedGameProxy), "delayedWETHPermissionedGameProxy");
+        vm.label(address(deployOutput.systemConfigProxy), "systemConfigProxy");
         // TODO: Eventually switch from Permissioned to Permissionless.
         // vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
 
@@ -579,7 +587,7 @@ contract DeployOPChain is Script {
 
         require(address(messenger.PORTAL()) == address(_doo.optimismPortalProxy()), "L1xDM-30");
         require(address(messenger.portal()) == address(_doo.optimismPortalProxy()), "L1xDM-40");
-        require(address(messenger.superchainConfig()) == address(_doi.opcm().superchainConfig()), "L1xDM-50");
+        require(address(messenger.systemConfig()) == address(_doi.opcm().systemConfig()), "L1xDM-50");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
@@ -595,7 +603,7 @@ contract DeployOPChain is Script {
         require(address(bridge.messenger()) == address(messenger), "L1SB-20");
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-30");
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-40");
-        require(address(bridge.superchainConfig()) == address(_doi.opcm().superchainConfig()), "L1SB-50");
+        require(address(bridge.systemConfig()) == address(_doi.opcm().systemConfig()), "L1SB-50");
     }
 
     function assertValidOptimismMintableERC20Factory(DeployOPChainInput, DeployOPChainOutput _doo) internal {
@@ -617,19 +625,19 @@ contract DeployOPChain is Script {
 
         require(address(bridge.MESSENGER()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-30");
         require(address(bridge.messenger()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-40");
-        require(address(bridge.superchainConfig()) == address(_doi.opcm().superchainConfig()), "L721B-50");
+        require(address(bridge.systemConfig()) == address(_doi.opcm().systemConfig()), "L721B-50");
     }
 
     function assertValidOptimismPortal(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         IOptimismPortal portal = _doo.optimismPortalProxy();
-        ISuperchainConfig superchainConfig = ISuperchainConfig(address(_doi.opcm().superchainConfig()));
+        ISystemConfig systemConfig = ISystemConfig(address(_doi.opcm().systemConfig()));
 
         require(address(portal.anchorStateRegistry()) == address(_doo.anchorStateRegistryProxy()), "PORTAL-10");
         require(address(portal.disputeGameFactory()) == address(_doo.disputeGameFactoryProxy()), "PORTAL-20");
         require(address(portal.systemConfig()) == address(_doo.systemConfigProxy()), "PORTAL-30");
-        require(address(portal.superchainConfig()) == address(superchainConfig), "PORTAL-40");
-        require(portal.guardian() == superchainConfig.guardian(), "PORTAL-50");
-        require(portal.paused() == superchainConfig.paused(), "PORTAL-60");
+        require(address(portal.systemConfig()) == address(systemConfig), "PORTAL-40");
+        require(portal.guardian() == systemConfig.superchainConfig().guardian(), "PORTAL-50");
+        require(portal.paused() == portal.systemConfig().paused(), "PORTAL-60");
         require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-70");
 
         // This slot is the custom gas token _balance and this check ensures
@@ -644,7 +652,7 @@ contract DeployOPChain is Script {
     function assertValidETHLockbox(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         IETHLockbox lockbox = _doo.ethLockboxProxy();
 
-        require(address(lockbox.superchainConfig()) == address(_doi.opcm().superchainConfig()), "ETHLOCKBOX-10");
+        require(address(lockbox.systemConfig()) == address(_doi.opcm().systemConfig()), "ETHLOCKBOX-10");
         require(lockbox.authorizedPortals(_doo.optimismPortalProxy()), "ETHLOCKBOX-20");
         require(lockbox.proxyAdminOwner() == _doi.opChainProxyAdminOwner(), "ETHLOCKBOX-30");
     }

@@ -87,19 +87,6 @@
   },
   {
     "inputs": [],
-    "name": "config",
-    "outputs": [
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "decimals",
     "outputs": [
       {
@@ -170,8 +157,8 @@
         "type": "address"
       },
       {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_config",
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
         "type": "address"
       }
     ],
@@ -234,6 +221,19 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "systemConfig",
+    "outputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

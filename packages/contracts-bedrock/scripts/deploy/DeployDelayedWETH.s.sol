@@ -14,14 +14,14 @@ import { LibString } from "@solady/utils/LibString.sol";
 // Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 /// @title DeployDelayedWETH
 contract DeployDelayedWETHInput is BaseDeployIO {
     /// Required inputs.
     string internal _release;
     address public _proxyAdmin;
-    ISuperchainConfig public _superchainConfigProxy;
+    ISystemConfig public _systemConfigProxy;
     address public _delayedWethImpl;
     address public _delayedWethOwner;
     uint256 public _delayedWethDelay;
@@ -39,9 +39,9 @@ contract DeployDelayedWETHInput is BaseDeployIO {
         if (_sel == this.proxyAdmin.selector) {
             require(_value != address(0), "DeployDelayedWETH: proxyAdmin cannot be zero address");
             _proxyAdmin = _value;
-        } else if (_sel == this.superchainConfigProxy.selector) {
-            require(_value != address(0), "DeployDelayedWETH: superchainConfigProxy cannot be zero address");
-            _superchainConfigProxy = ISuperchainConfig(_value);
+        } else if (_sel == this.systemConfigProxy.selector) {
+            require(_value != address(0), "DeployDelayedWETH: systemConfigProxy cannot be zero address");
+            _systemConfigProxy = ISystemConfig(_value);
         } else if (_sel == this.delayedWethOwner.selector) {
             require(_value != address(0), "DeployDelayedWETH: delayedWethOwner cannot be zero address");
             _delayedWethOwner = _value;
@@ -71,9 +71,9 @@ contract DeployDelayedWETHInput is BaseDeployIO {
         return _proxyAdmin;
     }
 
-    function superchainConfigProxy() public view returns (ISuperchainConfig) {
-        require(address(_superchainConfigProxy) != address(0), "DeployDisputeGame: superchainConfigProxy not set");
-        return _superchainConfigProxy;
+    function systemConfigProxy() public view returns (ISystemConfig) {
+        require(address(_systemConfigProxy) != address(0), "DeployDisputeGame: systemConfigProxy not set");
+        return _systemConfigProxy;
     }
 
     function delayedWethImpl() public view returns (address) {
@@ -143,7 +143,7 @@ contract DeployDelayedWETHOutput is BaseDeployIO {
         });
         require(delayedWethImpl().owner() == address(0), "DWI-20");
         require(delayedWethImpl().delay() == _dwi.delayedWethDelay(), "DWI-30");
-        require(address(delayedWethImpl().config()) == address(0), "DWI-30");
+        require(address(delayedWethImpl().systemConfig()) == address(0), "DWI-30");
     }
 
     function assertValidDelayedWethProxy(DeployDelayedWETHInput _dwi) internal {
@@ -162,7 +162,7 @@ contract DeployDelayedWETHOutput is BaseDeployIO {
         });
         require(delayedWethProxy().owner() == _dwi.delayedWethOwner(), "DWP-20");
         require(delayedWethProxy().delay() == _dwi.delayedWethDelay(), "DWP-30");
-        require(delayedWethProxy().config() == _dwi.superchainConfigProxy(), "DWP-40");
+        require(delayedWethProxy().systemConfig() == _dwi.systemConfigProxy(), "DWP-40");
     }
 }
 
@@ -212,7 +212,7 @@ contract DeployDelayedWETH is Script {
 
         vm.startBroadcast(msg.sender);
         proxy.upgradeToAndCall(
-            address(impl), abi.encodeCall(impl.initialize, (_dwi.delayedWethOwner(), _dwi.superchainConfigProxy()))
+            address(impl), abi.encodeCall(impl.initialize, (_dwi.delayedWethOwner(), _dwi.systemConfigProxy()))
         );
         proxy.changeAdmin(_dwi.proxyAdmin());
         vm.stopBroadcast();

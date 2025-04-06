@@ -13,7 +13,6 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -64,7 +63,7 @@ interface IOPContractsManagerDeployer {
 
     function deploy(
         IOPContractsManager.DeployInput memory _input,
-        address _superchainConfig,
+        address _systemConfig,
         address _deployer
     )
         external
@@ -141,6 +140,7 @@ interface IOPContractsManager {
         uint256 disputeSplitDepth;
         Duration disputeClockExtension;
         Duration disputeMaxClockDuration;
+        address superchainConfig;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -233,8 +233,8 @@ interface IOPContractsManager {
 
     function version() external pure returns (string memory);
 
-    /// @notice Address of the SuperchainConfig contract shared by all chains.
-    function superchainConfig() external view returns (ISuperchainConfig);
+    /// @notice Address of the SystemConfig contract shared by all chains.
+    function systemConfig() external view returns (ISystemConfig);
 
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     function protocolVersions() external view returns (IProtocolVersions);
@@ -293,7 +293,7 @@ interface IOPContractsManager {
         IOPContractsManagerDeployer _opcmDeployer,
         IOPContractsManagerUpgrader _opcmUpgrader,
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
-        ISuperchainConfig _superchainConfig,
+        ISystemConfig _systemConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
         string memory _l1ContractsRelease,

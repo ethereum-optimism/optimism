@@ -12,7 +12,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
@@ -73,7 +73,7 @@ contract L1ERC721Bridge_Test is CommonTest {
         IL1ERC721Bridge impl = IL1ERC721Bridge(EIP1967Helper.getImplementation(address(l1ERC721Bridge)));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
-        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.systemConfig()), address(0));
 
         // The constructor now uses _disableInitializers, whereas OP Mainnet has the other bridge in storage
         returnIfForkTest("L1ERC721Bridge_Test: impl storage differs on forked network");
@@ -87,7 +87,7 @@ contract L1ERC721Bridge_Test is CommonTest {
         assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
-        assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1ERC721Bridge.systemConfig()), address(superchainConfig));
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
@@ -365,13 +365,13 @@ contract L1ERC721Bridge_Pause_Test is CommonTest {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
     ///      `superchainConfig`.
     function test_paused_succeeds() external view {
-        assertEq(l1ERC721Bridge.paused(), superchainConfig.paused());
+        assertEq(l1ERC721Bridge.paused(), systemConfig.paused());
     }
 
     /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the
     ///      `superchainConfig`.
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()));
+        vm.expectCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()));
         l1ERC721Bridge.paused();
     }
 
@@ -379,13 +379,13 @@ contract L1ERC721Bridge_Pause_Test is CommonTest {
     ///      it's been changed.
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
 
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         assertTrue(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
     }
 }
 
@@ -394,8 +394,8 @@ contract L1ERC721Bridge_Pause_TestFail is CommonTest {
     ///      the calls to the xDomainMessageSender so that it returns the correct value.
     function setUp() public override {
         super.setUp();
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        vm.prank(systemConfig.superchainConfig().guardian());
+        systemConfig.superchainConfig().pause(address(0));
         assertTrue(l1ERC721Bridge.paused());
 
         vm.mockCall(

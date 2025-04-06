@@ -14,9 +14,7 @@ interface ISuperchainConfig {
     error OnlyGuardian();
     error PauseAlreadyUsed();
 
-    function GUARDIAN_SLOT() external view returns (bytes32);
-    function PAUSE_EXPIRY_SLOT() external view returns (bytes32);
-    function guardian() external view returns (address guardian_);
+    function guardian() external view returns (address);
     function initialize(address _guardian, uint256 _pauseExpiry) external;
     function pause(address _identifier) external;
     function unpause(address _identifier) external;
@@ -25,6 +23,9 @@ interface ISuperchainConfig {
     function expiration(address _identifier) external view returns (uint256);
     function reset(address _identifier) external;
     function version() external view returns (string memory);
+    function pauseUsed(address) external view returns (bool);
+    function pauseTimestamps(address) external view returns (uint256);
+    function pauseExpiry() external view returns (uint256);
 
     function __constructor__() external;
 }

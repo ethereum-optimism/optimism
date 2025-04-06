@@ -16,9 +16,9 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 contract L1StandardBridge_Getter_Test is CommonTest {
     /// @dev Test that the accessors return the correct initialized values.
@@ -27,7 +27,7 @@ contract L1StandardBridge_Getter_Test is CommonTest {
         assert(address(l1StandardBridge.OTHER_BRIDGE()) == address(l2StandardBridge));
         assert(address(l1StandardBridge.messenger()) == address(l1CrossDomainMessenger));
         assert(address(l1StandardBridge.MESSENGER()) == address(l1CrossDomainMessenger));
-        assert(l1StandardBridge.superchainConfig() == superchainConfig);
+        assert(l1StandardBridge.systemConfig() == systemConfig);
     }
 }
 
@@ -37,7 +37,7 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1StandardBridge impl = IL1StandardBridge(payable(EIP1967Helper.getImplementation(address(l1StandardBridge))));
-        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.systemConfig()), address(0));
 
         // The constructor now uses _disableInitializers, whereas OP Mainnet has these values in storage
         returnIfForkTest("L1StandardBridge_Initialize_Test: impl storage differs on forked network");
@@ -50,7 +50,7 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
 
     /// @dev Test that the initialize function sets the correct values.
     function test_initialize_succeeds() external view {
-        assertEq(address(l1StandardBridge.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1StandardBridge.systemConfig()), address(systemConfig));
         assertEq(address(l1StandardBridge.MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
@@ -63,13 +63,13 @@ contract L1StandardBridge_Pause_Test is CommonTest {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
     ///      `superchainConfig`.
     function test_paused_succeeds() external view {
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
     }
 
     /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the
     ///      `superchainConfig`.
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()));
+        vm.expectCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()));
         l1StandardBridge.paused();
     }
 
@@ -77,13 +77,13 @@ contract L1StandardBridge_Pause_Test is CommonTest {
     ///      it's been changed.
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
 
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         assertTrue(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
     }
 }
 
@@ -92,8 +92,8 @@ contract L1StandardBridge_Pause_TestFail is CommonTest {
     ///      the calls to the xDomainMessageSender so that it returns the correct value.
     function setUp() public override {
         super.setUp();
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        vm.prank(systemConfig.superchainConfig().guardian());
+        systemConfig.superchainConfig().pause(address(0));
         assertTrue(l1StandardBridge.paused());
 
         vm.deal(address(l1StandardBridge.messenger()), 1 ether);

@@ -57,10 +57,10 @@
   },
   {
     "bytes": "20",
-    "label": "superchainConfig",
+    "label": "systemConfig",
     "offset": 0,
     "slot": "50",
-    "type": "contract ISuperchainConfig"
+    "type": "contract ISystemConfig"
   },
   {
     "bytes": "20",

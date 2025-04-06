@@ -62,7 +62,7 @@ contract DeputyPauseModule is ISemver, EIP712 {
     event DeputyGuardianModuleSet(IDeputyGuardianModule indexed deputyGuardianModule);
 
     /// @notice Event emitted when the pause is triggered.
-    event PauseTriggered(address indexed deputy, bytes32 nonce);
+    event PauseTriggered(address indexed deputy, bytes32 nonce, address identifier);
 
     /// @notice Foundation Safe.
     Safe internal immutable FOUNDATION_SAFE;
@@ -71,7 +71,7 @@ contract DeputyPauseModule is ISemver, EIP712 {
     ISuperchainConfig internal immutable SUPERCHAIN_CONFIG;
 
     /// @notice Typehash for the Pause action.
-    bytes32 internal constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce)");
+    bytes32 internal constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce, address identifier)");
 
     /// @notice Typehash for the DeputyAuth message.
     bytes32 internal constant DEPUTY_AUTH_MESSAGE_TYPEHASH = keccak256("DeputyAuthMessage(address deputy)");
@@ -86,8 +86,8 @@ contract DeputyPauseModule is ISemver, EIP712 {
     mapping(bytes32 => bool) public usedNonces;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 2.0.0-beta.0
+    string public constant version = "2.0.0-beta.0";
 
     /// @param _foundationSafe Address of the Foundation Safe.
     /// @param _deputyGuardianModule Address of the DeputyGuardianModule used by the SC Safe.
@@ -164,9 +164,10 @@ contract DeputyPauseModule is ISemver, EIP712 {
     ///         Front-running this function is completely safe, it'll pause either way.
     /// @param _nonce Signature nonce.
     /// @param _signature ECDSA signature.
-    function pause(bytes32 _nonce, bytes memory _signature) external {
+    /// @param _identifier The identifier to pause in the SuperchainConfig.
+    function pause(bytes32 _nonce, bytes memory _signature, address _identifier) external {
         // Verify the signature.
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(PAUSE_MESSAGE_TYPEHASH, _nonce)));
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(PAUSE_MESSAGE_TYPEHASH, _nonce, _identifier)));
         if (ECDSA.recover(digest, _signature) != deputy) {
             revert DeputyPauseModule_Unauthorized();
         }
@@ -182,7 +183,10 @@ contract DeputyPauseModule is ISemver, EIP712 {
         // Attempt to trigger the call.
         // Will succeed if the DeputyGuardianModule has no code.
         (bool success, bytes memory returnData) = FOUNDATION_SAFE.execTransactionFromModuleReturnData(
-            address(deputyGuardianModule), 0, abi.encodeCall(IDeputyGuardianModule.pause, ()), Enum.Operation.Call
+            address(deputyGuardianModule),
+            0,
+            abi.encodeCall(IDeputyGuardianModule.pause, (_identifier)),
+            Enum.Operation.Call
         );
 
         // If the call fails, revert.
@@ -191,12 +195,12 @@ contract DeputyPauseModule is ISemver, EIP712 {
         }
 
         // Verify that the SuperchainConfig is now paused.
-        if (!SUPERCHAIN_CONFIG.paused()) {
+        if (!SUPERCHAIN_CONFIG.paused(_identifier)) {
             revert DeputyPauseModule_SuperchainNotPaused();
         }
 
         // Emit that the pause was triggered.
-        emit PauseTriggered(deputy, _nonce);
+        emit PauseTriggered(deputy, _nonce, _identifier);
     }
 
     /// @notice Internal function to set the deputy address.

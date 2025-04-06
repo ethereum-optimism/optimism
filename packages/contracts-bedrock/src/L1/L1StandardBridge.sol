@@ -74,8 +74,8 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0
-    string public constant version = "2.3.0";
+    /// @custom:semver 3.0.0
+    string public constant version = "3.0.0";
 
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;

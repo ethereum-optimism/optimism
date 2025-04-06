@@ -6,6 +6,7 @@ import { GameType } from "src/dispute/lib/LibUDT.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -68,6 +69,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function donateETH() external payable;
+    function superchainConfig() external view returns (ISuperchainConfig);
     function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external;
     function finalizeWithdrawalTransactionExternalProof(

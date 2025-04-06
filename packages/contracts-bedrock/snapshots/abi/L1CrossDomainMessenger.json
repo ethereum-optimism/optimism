@@ -219,8 +219,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
         "type": "address"
       },
       {
@@ -368,10 +368,10 @@
   },
   {
     "inputs": [],
-    "name": "superchainConfig",
+    "name": "systemConfig",
     "outputs": [
       {
-        "internalType": "contract ISuperchainConfig",
+        "internalType": "contract ISystemConfig",
         "name": "",
         "type": "address"
       }

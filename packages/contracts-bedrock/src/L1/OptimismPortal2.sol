@@ -25,6 +25,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal2
@@ -69,6 +70,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:spacer paused
     /// @notice Spacer for backwards compatibility.
     bool private spacer_53_0_1;
+
+    /// @notice Address of the SuperchainConfig contract.
+    ISuperchainConfig public superchainConfig;
 
     /// @custom:legacy
     /// @custom:spacer l2Oracle
@@ -235,9 +239,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 4.1.0
+    /// @custom:semver 5.0.0
     function version() public pure virtual returns (string memory) {
-        return "4.1.0";
+        return "5.0.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.

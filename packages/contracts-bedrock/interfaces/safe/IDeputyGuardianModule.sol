@@ -23,8 +23,8 @@ interface IDeputyGuardianModule is ISemver {
     function safe() external view returns (Safe safe_);
     function superchainConfig() external view returns (ISuperchainConfig superchainConfig_);
     function deputyGuardian() external view returns (address deputyGuardian_);
-    function pause() external;
-    function unpause() external;
+    function pause(address _identifier) external;
+    function unpause(address _identifier) external;
     function blacklistDisputeGame(IAnchorStateRegistry _anchorStateRegistry, IDisputeGame _game) external;
     function setRespectedGameType(IAnchorStateRegistry _anchorStateRegistry, GameType _gameType) external;
     function updateRetirementTimestamp(IAnchorStateRegistry _anchorStateRegistry) external;

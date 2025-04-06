@@ -85,8 +85,8 @@
         "type": "tuple[]"
       },
       {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
         "type": "address"
       }
     ],
@@ -343,8 +343,8 @@
         "type": "tuple[]"
       },
       {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
         "type": "address"
       }
     ],

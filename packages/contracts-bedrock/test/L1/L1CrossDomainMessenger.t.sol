@@ -17,6 +17,7 @@ import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 contract Encoding_Harness {
     function encodeCrossDomainMessage(
@@ -56,7 +57,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1CrossDomainMessenger impl = IL1CrossDomainMessenger(addressManager.getAddress("OVM_L1CrossDomainMessenger"));
-        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.systemConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
         assertEq(address(impl.portal()), address(0));
 
@@ -68,7 +69,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
 
     /// @dev Tests that the proxy is initialized correctly.
     function test_initialize_succeeds() external view {
-        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(systemConfig));
         assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
@@ -837,7 +838,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
     ///      successfully by calling the target contract.
     function test_relayMessage_paused_reverts() external {
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
         vm.expectRevert("CrossDomainMessenger: paused");
 
         l1CrossDomainMessenger.relayMessage(
@@ -852,20 +853,20 @@ contract L1CrossDomainMessenger_Test is CommonTest {
 
     /// @dev Tests that the superchain config is called by the messengers paused function
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()));
+        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))));
         l1CrossDomainMessenger.paused();
     }
 
     /// @dev Tests that changing the superchain config paused status changes the return value of the messenger
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1CrossDomainMessenger.paused());
-        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
 
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         assertTrue(l1CrossDomainMessenger.paused());
-        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
     }
 }
 
@@ -901,7 +902,7 @@ contract L1CrossDomainMessenger_ReinitReentryTest is CommonTest {
             vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
 
             // call the initializer function
-            l1CrossDomainMessenger.initialize(ISuperchainConfig(superchainConfig), IOptimismPortal2(optimismPortal2));
+            l1CrossDomainMessenger.initialize(ISystemConfig(systemConfig), IOptimismPortal2(optimismPortal2));
 
             // attempt to re-replay the withdrawal
             vm.expectEmit(address(l1CrossDomainMessenger));

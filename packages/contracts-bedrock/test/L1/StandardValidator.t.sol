@@ -84,7 +84,9 @@ abstract contract StandardValidatorTest is Test {
 
         // Mock superchainConfig calls needed in setup
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.guardian, ()), abi.encode(guardian));
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()), abi.encode(false));
+        vm.mockCall(
+            address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(false)
+        );
 
         // Setup mock contracts for validation
         proxyAdmin = IProxyAdmin(makeAddr("proxyAdmin"));
@@ -125,7 +127,7 @@ abstract contract StandardValidatorTest is Test {
     function test_validate_superchainConfig_succeeds() public {
         // Test invalid paused
         _mockValidationCalls();
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()), abi.encode(true));
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(true));
         assertEq("SPRCFG-10,PORTAL-70", validate(true));
     }
 
@@ -257,11 +259,11 @@ abstract contract StandardValidatorTest is Test {
         );
         assertEq("L1xDM-60", validate(true));
 
-        // Test invalid superchainConfig
+        // Test invalid systemConfig
         _mockValidationCalls();
         vm.mockCall(
             address(l1CrossDomainMessenger),
-            abi.encodeCall(IL1CrossDomainMessenger.superchainConfig, ()),
+            abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()),
             abi.encode(address(0xbad))
         );
         assertEq("L1xDM-70", validate(true));
@@ -320,10 +322,10 @@ abstract contract StandardValidatorTest is Test {
         vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.messenger, ()), abi.encode(address(0xbad)));
         assertEq("L721B-60", validate(true));
 
-        // Test invalid superchainConfig
+        // Test invalid systemConfig
         _mockValidationCalls();
         vm.mockCall(
-            address(l1ERC721Bridge), abi.encodeCall(IL1ERC721Bridge.superchainConfig, ()), abi.encode(address(0xbad))
+            address(l1ERC721Bridge), abi.encodeCall(IL1ERC721Bridge.systemConfig, ()), abi.encode(address(0xbad))
         );
         assertEq("L721B-70", validate(true));
     }
@@ -349,10 +351,10 @@ abstract contract StandardValidatorTest is Test {
         );
         assertEq("PORTAL-40", validate(true));
 
-        // Test invalid superchainConfig
+        // Test invalid systemConfig
         _mockValidationCalls();
         vm.mockCall(
-            address(optimismPortal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(address(0xbad))
+            address(optimismPortal), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(address(0xbad))
         );
         assertEq("PORTAL-50", validate(true));
 
@@ -445,12 +447,10 @@ abstract contract StandardValidatorTest is Test {
         );
         assertEq("L1SB-60", validate(true));
 
-        // Test invalid superchainConfig
+        // Test invalid systemConfig
         _mockValidationCalls();
         vm.mockCall(
-            address(l1StandardBridge),
-            abi.encodeCall(IL1StandardBridge.superchainConfig, ()),
-            abi.encode(address(0xbad))
+            address(l1StandardBridge), abi.encodeCall(IL1StandardBridge.systemConfig, ()), abi.encode(address(0xbad))
         );
         assertEq("L1SB-70", validate(true));
     }
@@ -613,9 +613,9 @@ abstract contract StandardValidatorTest is Test {
     function _mockValidationCalls() internal virtual {
         StandardValidatorBase validator = getValidator();
 
-        // Mock OptimismPortal superchainConfig call
+        // Mock OptimismPortal systemConfig call
         vm.mockCall(
-            address(optimismPortal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
+            address(optimismPortal), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig)
         );
 
         // Mock SystemConfig dependencies
@@ -709,10 +709,8 @@ abstract contract StandardValidatorTest is Test {
         );
 
         // Mock AnchorStateRegistry
-        _mockAnchorStateRegistry(
-            permissionedASR, disputeGameFactory, address(superchainConfig), GameTypes.PERMISSIONED_CANNON
-        );
-        _mockAnchorStateRegistry(permissionlessASR, disputeGameFactory, address(superchainConfig), GameTypes.CANNON);
+        _mockAnchorStateRegistry(permissionedASR, disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+        _mockAnchorStateRegistry(permissionlessASR, disputeGameFactory, GameTypes.CANNON);
 
         // Mock resource config
         IResourceMetering.ResourceConfig memory config = IResourceMetering.ResourceConfig({
@@ -789,8 +787,8 @@ abstract contract StandardValidatorTest is Test {
         );
         vm.mockCall(
             address(l1CrossDomainMessenger),
-            abi.encodeCall(IL1CrossDomainMessenger.superchainConfig, ()),
-            abi.encode(superchainConfig)
+            abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()),
+            abi.encode(systemConfig)
         );
 
         // Mock OptimismPortal
@@ -804,15 +802,14 @@ abstract contract StandardValidatorTest is Test {
             address(optimismPortal), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig)
         );
         vm.mockCall(
-            address(optimismPortal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
-        );
-        vm.mockCall(
             address(optimismPortal),
             abi.encodeCall(IOptimismPortal2.guardian, ()),
             abi.encode(superchainConfig.guardian())
         );
         vm.mockCall(
-            address(optimismPortal), abi.encodeCall(IOptimismPortal2.paused, ()), abi.encode(superchainConfig.paused())
+            address(optimismPortal),
+            abi.encodeCall(IOptimismPortal2.paused, ()),
+            abi.encode(superchainConfig.paused(address(0)))
         );
         vm.mockCall(
             address(optimismPortal),
@@ -824,7 +821,9 @@ abstract contract StandardValidatorTest is Test {
         vm.mockCall(
             address(superchainConfig), abi.encodeCall(ISuperchainConfig.guardian, ()), abi.encode(makeAddr("guardian"))
         );
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()), abi.encode(false));
+        vm.mockCall(
+            address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(false)
+        );
 
         // Mock L1StandardBridge
         vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.1.0"));
@@ -845,9 +844,7 @@ abstract contract StandardValidatorTest is Test {
             abi.encode(Predeploys.L2_STANDARD_BRIDGE)
         );
         vm.mockCall(
-            address(l1StandardBridge),
-            abi.encodeCall(IL1StandardBridge.superchainConfig, ()),
-            abi.encode(superchainConfig)
+            address(l1StandardBridge), abi.encodeCall(IL1StandardBridge.systemConfig, ()), abi.encode(systemConfig)
         );
 
         // Mock L1ERC721Bridge
@@ -868,9 +865,7 @@ abstract contract StandardValidatorTest is Test {
         vm.mockCall(
             address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.messenger, ()), abi.encode(l1CrossDomainMessenger)
         );
-        vm.mockCall(
-            address(l1ERC721Bridge), abi.encodeCall(IL1ERC721Bridge.superchainConfig, ()), abi.encode(superchainConfig)
-        );
+        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(IL1ERC721Bridge.systemConfig, ()), abi.encode(systemConfig));
 
         // Mock OptimismMintableERC20Factory
         vm.mockCall(address(optimismMintableERC20Factory), abi.encodeCall(ISemver.version, ()), abi.encode("1.9.0"));
@@ -889,14 +884,7 @@ abstract contract StandardValidatorTest is Test {
         _mockDelayedWETH(permissionlessDelayedWETH);
     }
 
-    function _mockAnchorStateRegistry(
-        address _asr,
-        address _disputeGameFactory,
-        address _superchainConfig,
-        GameType _gameType
-    )
-        internal
-    {
+    function _mockAnchorStateRegistry(address _asr, address _disputeGameFactory, GameType _gameType) internal {
         vm.mockCall(address(_asr), abi.encodeCall(ISemver.version, ()), abi.encode("2.0.0"));
         vm.mockCall(
             address(_asr), abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(_disputeGameFactory)
@@ -906,9 +894,7 @@ abstract contract StandardValidatorTest is Test {
             abi.encodeCall(IAnchorStateRegistry.anchors, (_gameType)),
             abi.encode(Hash.wrap(0xdead000000000000000000000000000000000000000000000000000000000000), 0)
         );
-        vm.mockCall(
-            address(_asr), abi.encodeCall(IAnchorStateRegistry.superchainConfig, ()), abi.encode(_superchainConfig)
-        );
+        vm.mockCall(address(_asr), abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(systemConfig));
     }
 
     function _mockDisputeGame(

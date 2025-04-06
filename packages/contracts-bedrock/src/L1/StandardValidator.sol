@@ -157,7 +157,7 @@ contract StandardValidatorBase {
     }
 
     function assertValidSuperchainConfig(string memory _errors) internal view returns (string memory) {
-        _errors = internalRequire(!superchainConfig.paused(), "SPRCFG-10", _errors);
+        _errors = internalRequire(!superchainConfig.paused(address(0)), "SPRCFG-10", _errors);
         return _errors;
     }
 
@@ -218,8 +218,9 @@ contract StandardValidatorBase {
         );
         _errors = internalRequire(address(_messenger.PORTAL()) == address(_portal), "L1xDM-50", _errors);
         _errors = internalRequire(address(_messenger.portal()) == address(_portal), "L1xDM-60", _errors);
-        _errors =
-            internalRequire(address(_messenger.superchainConfig()) == address(superchainConfig), "L1xDM-70", _errors);
+        _errors = internalRequire(
+            address(_messenger.systemConfig().superchainConfig()) == address(superchainConfig), "L1xDM-70", _errors
+        );
         return _errors;
     }
 
@@ -243,7 +244,9 @@ contract StandardValidatorBase {
         _errors = internalRequire(address(_bridge.messenger()) == address(_messenger), "L1SB-40", _errors);
         _errors = internalRequire(address(_bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-50", _errors);
         _errors = internalRequire(address(_bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-60", _errors);
-        _errors = internalRequire(address(_bridge.superchainConfig()) == address(superchainConfig), "L1SB-70", _errors);
+        _errors = internalRequire(
+            address(_bridge.systemConfig().superchainConfig()) == address(superchainConfig), "L1SB-70", _errors
+        );
         return _errors;
     }
 
@@ -288,7 +291,9 @@ contract StandardValidatorBase {
         _errors = internalRequire(address(_bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "L721B-40", _errors);
         _errors = internalRequire(address(_bridge.MESSENGER()) == address(_l1XDM), "L721B-50", _errors);
         _errors = internalRequire(address(_bridge.messenger()) == address(_l1XDM), "L721B-60", _errors);
-        _errors = internalRequire(address(_bridge.superchainConfig()) == address(superchainConfig), "L721B-70", _errors);
+        _errors = internalRequire(
+            address(_bridge.systemConfig().superchainConfig()) == address(superchainConfig), "L721B-70", _errors
+        );
         return _errors;
     }
 
@@ -309,10 +314,11 @@ contract StandardValidatorBase {
         IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
-        _errors =
-            internalRequire(address(_portal.superchainConfig()) == address(superchainConfig), "PORTAL-50", _errors);
+        _errors = internalRequire(
+            address(_portal.systemConfig().superchainConfig()) == address(superchainConfig), "PORTAL-50", _errors
+        );
         _errors = internalRequire(_portal.guardian() == superchainConfig.guardian(), "PORTAL-60", _errors);
-        _errors = internalRequire(_portal.paused() == superchainConfig.paused(), "PORTAL-70", _errors);
+        _errors = internalRequire(_portal.paused() == superchainConfig.paused(address(0)), "PORTAL-70", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
         return _errors;
     }
@@ -492,7 +498,9 @@ contract StandardValidatorBase {
         bytes32 expectedRoot = 0xdead000000000000000000000000000000000000000000000000000000000000;
         _errors = internalRequire(Hash.unwrap(actualRoot) == expectedRoot, string.concat(_errorPrefix, "-40"), _errors);
         _errors = internalRequire(
-            address(_asr.superchainConfig()) == address(superchainConfig), string.concat(_errorPrefix, "-50"), _errors
+            address(_asr.systemConfig().superchainConfig()) == address(superchainConfig),
+            string.concat(_errorPrefix, "-50"),
+            _errors
         );
         return _errors;
     }

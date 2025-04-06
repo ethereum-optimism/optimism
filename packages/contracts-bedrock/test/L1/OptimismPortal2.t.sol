@@ -55,7 +55,7 @@ contract OptimismPortal2_Test is CommonTest {
         IOptimismPortal opImpl = IOptimismPortal(payable(EIP1967Helper.getImplementation(address(optimismPortal2))));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
-        assertEq(address(opImpl.superchainConfig()), address(0));
+        assertEq(address(opImpl.systemConfig().superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), address(0));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.ethLockbox()), address(0));
@@ -67,7 +67,7 @@ contract OptimismPortal2_Test is CommonTest {
     function test_initialize_succeeds() external virtual {
         assertEq(address(optimismPortal2.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(optimismPortal2.disputeGameFactory()), address(disputeGameFactory));
-        assertEq(address(optimismPortal2.superchainConfig()), address(superchainConfig));
+        assertEq(address(optimismPortal2.systemConfig().superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal2.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal2.paused(), false);
         assertEq(address(optimismPortal2.systemConfig()), address(systemConfig));
@@ -118,10 +118,10 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(optimismPortal2.paused(), false);
 
         vm.expectEmit(address(superchainConfig));
-        emit Paused("identifier");
+        emit Paused(string(abi.encodePacked(address(0))));
 
         vm.prank(guardian);
-        superchainConfig.pause("identifier");
+        systemConfig.superchainConfig().pause(address(0));
 
         assertEq(optimismPortal2.paused(), true);
     }
@@ -133,7 +133,7 @@ contract OptimismPortal2_Test is CommonTest {
         assertTrue(optimismPortal2.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can pause");
         vm.prank(alice);
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         assertEq(optimismPortal2.paused(), false);
     }
@@ -144,13 +144,13 @@ contract OptimismPortal2_Test is CommonTest {
         address guardian = optimismPortal2.guardian();
 
         vm.prank(guardian);
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
         assertEq(optimismPortal2.paused(), true);
 
         vm.expectEmit(address(superchainConfig));
         emit Unpaused();
         vm.prank(guardian);
-        superchainConfig.unpause();
+        superchainConfig.unpause(address(0));
 
         assertEq(optimismPortal2.paused(), false);
     }
@@ -160,13 +160,13 @@ contract OptimismPortal2_Test is CommonTest {
         address guardian = optimismPortal2.guardian();
 
         vm.prank(guardian);
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
         assertEq(optimismPortal2.paused(), true);
 
         assertTrue(optimismPortal2.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can unpause");
         vm.prank(alice);
-        superchainConfig.unpause();
+        superchainConfig.unpause(address(0));
 
         assertEq(optimismPortal2.paused(), true);
     }
@@ -641,7 +641,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
         vm.prank(optimismPortal2.guardian());
-        superchainConfig.pause("identifier");
+        systemConfig.superchainConfig().pause(address(0));
 
         vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
         optimismPortal2.proveWithdrawalTransaction({
@@ -1336,7 +1336,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
         vm.prank(optimismPortal2.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
