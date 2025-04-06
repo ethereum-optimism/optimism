@@ -2230,9 +2230,12 @@ workflows:
 
   acceptance-tests:
     when:
-      or:
-        - equal: ["develop", <<pipeline.git.branch>>]
-        - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+      and:
+        - or:
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+        - not:
+            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
     jobs:
       # KURTOSIS (Simple)
       - op-acceptance-tests:
