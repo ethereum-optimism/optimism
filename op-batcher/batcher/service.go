@@ -457,7 +457,6 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	}
 
 	if bs.rpcServer != nil {
-		// TODO(7685): the op-service RPC server is not built on top of op-service httputil Server, and has poor shutdown
 		if err := bs.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}
