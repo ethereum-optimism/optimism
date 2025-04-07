@@ -1735,11 +1735,15 @@ workflows:
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - go-lint:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -1910,6 +1914,8 @@ workflows:
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs: ./packages/contracts-bedrock/lib
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   go-release-deployer:
     jobs:
@@ -1999,6 +2005,8 @@ workflows:
             - op-supervisor-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # Standard (xlarge) AMD-only docker images go here
       - docker-build:
           matrix:
@@ -2026,8 +2034,11 @@ workflows:
               only: /^op-program\/v.*/
             branches:
               ignore: /.*/
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - publish-cannon-prestates:
           context:
+            - circleci-repo-readonly-authenticated-github-token
             - slack
             - oplabs-network-optimism-io-bucket
           requires:
@@ -2109,6 +2120,7 @@ workflows:
           context:
             - slack
             - oplabs-network-optimism-io-bucket
+            - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - cannon-prestate
@@ -2206,6 +2218,8 @@ workflows:
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   scheduled-preimage-reproducibility:
     when:
