@@ -232,7 +232,7 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	includedB, err := txB.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
 
-	// initating messages time <= executing message time
+	// initiating messages time <= executing message time
 	require.Equal(t, includedA.Time, includedB.Time)
 
 	assertHeads(t, actors.ChainB, 2, 0, 1, 0)
@@ -295,7 +295,7 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	includedB, err := txB.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
 
-	// initating messages time <= executing message time
+	// initiating messages time <= executing message time
 	// BUT we intentionally break the timestamp invariant
 	require.Greater(t, includedA.Time, includedB.Time)
 
@@ -541,7 +541,7 @@ func TestExpiredMessage(gt *testing.T) {
 	includedB, err := txB.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
 
-	// initating messages time + expiryTime >= executing message time
+	// initiating messages time + expiryTime >= executing message time
 	// BUT we intentionally break the message expiry invariant
 	require.Greater(t, includedB.Time, includedA.Time+expiryTime)
 
