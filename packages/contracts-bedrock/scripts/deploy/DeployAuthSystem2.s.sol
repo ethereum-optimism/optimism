@@ -47,7 +47,6 @@ contract DeployAuthSystem2 is Script {
         //
         // TODO: replace with a real deployment.
         //
-
         address safe = makeAddr("safe");
         vm.etch(safe, type(Safe).runtimeCode);
         vm.store(safe, bytes32(uint256(3)), bytes32(_input.owners.length));
