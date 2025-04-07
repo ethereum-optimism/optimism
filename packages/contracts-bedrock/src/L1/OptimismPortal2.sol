@@ -76,14 +76,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Spacer for backwards compatibility.
     address private spacer_53_1_20;
 
-    /// @notice Address of the SystemConfig contract.
-    /// @custom:network-specific
-    ISystemConfig public systemConfig;
-
     /// @custom:legacy
     /// @custom:spacer l2Oracle
     /// @notice Spacer taking up the legacy `l2Oracle` address slot.
-    address private spacer_55_0_20;
+    address private spacer_54_0_20;
+
+    /// @notice Address of the SystemConfig contract.
+    /// @custom:network-specific
+    ISystemConfig public systemConfig;
 
     /// @custom:network-specific
     /// @custom:legacy

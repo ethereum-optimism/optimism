@@ -64,17 +64,17 @@
   },
   {
     "bytes": "20",
-    "label": "systemConfig",
+    "label": "spacer_54_0_20",
     "offset": 0,
     "slot": "54",
-    "type": "contract ISystemConfig"
+    "type": "address"
   },
   {
     "bytes": "20",
-    "label": "spacer_55_0_20",
+    "label": "systemConfig",
     "offset": 0,
     "slot": "55",
-    "type": "address"
+    "type": "contract ISystemConfig"
   },
   {
     "bytes": "20",
