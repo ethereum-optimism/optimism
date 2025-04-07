@@ -47,9 +47,17 @@ func processFile(artifactPath string) (*common.Void, []error) {
 		return nil, nil
 	}
 
-	// Find if it contains any upgrade function and if there are no upgradeFunctions, return early.
-	if getNumberOfUpgradeFunctions(artifact) != 1 {
+	// Find if it contains any upgrade function
+	numOfUpgradeFunctions := getNumberOfUpgradeFunctions(artifact)
+
+	// If there are no upgrade functions, return early.
+	if numOfUpgradeFunctions == 0 {
 		return nil, nil
+	}
+
+	// If there are more than 1 upgrade functions, return an error.
+	if numOfUpgradeFunctions > 1 {
+		return nil, []error{fmt.Errorf("expected 0 or 1 upgrade function, found %v", numOfUpgradeFunctions)}
 	}
 
 	// Get the AST of OPCM's upgrade function.
