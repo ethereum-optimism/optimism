@@ -15,6 +15,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
@@ -165,7 +166,7 @@ contract Initializer_Test is CommonTest {
                             optimismMintableERC20Factory: address(0)
                         }),
                         0,
-                        address(0)
+                        ISuperchainConfig(address(0))
                     )
                 )
             })
@@ -201,7 +202,7 @@ contract Initializer_Test is CommonTest {
                             optimismMintableERC20Factory: address(0)
                         }),
                         0,
-                        address(0)
+                        ISuperchainConfig(address(0))
                     )
                 )
             })

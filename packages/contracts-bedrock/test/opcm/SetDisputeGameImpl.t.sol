@@ -14,6 +14,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract SetDisputeGameImplInput_Test is Test {
     SetDisputeGameImplInput input;
@@ -119,7 +120,7 @@ contract SetDisputeGameImpl_Test is Test {
                         optimismMintableERC20Factory: address(7)
                     }),
                     10,
-                    address(8)
+                    ISuperchainConfig(address(supConfigProxy))
                 )
             )
         );

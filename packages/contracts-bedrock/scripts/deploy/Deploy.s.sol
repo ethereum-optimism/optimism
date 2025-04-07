@@ -499,7 +499,7 @@ contract Deploy is Deployer {
                         optimismMintableERC20Factory: artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy")
                     }),
                     cfg.l2ChainID(),
-                    artifacts.mustGetAddress("SuperchainConfigProxy")
+                    ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"))
                 )
             )
         });

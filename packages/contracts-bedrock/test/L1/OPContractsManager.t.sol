@@ -74,7 +74,7 @@ contract OPContractsManager_Harness is OPContractsManager {
         OPContractsManagerDeployer _opcmDeployer,
         OPContractsManagerUpgrader _opcmUpgrader,
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
-        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
         string memory _l1ContractsRelease,
@@ -85,7 +85,7 @@ contract OPContractsManager_Harness is OPContractsManager {
             _opcmDeployer,
             _opcmUpgrader,
             _opcmInteropMigrator,
-            _systemConfig,
+            _superchainConfig,
             _protocolVersions,
             _superchainProxyAdmin,
             _l1ContractsRelease,
@@ -191,13 +191,13 @@ contract OPContractsManager_InternalMethods_Test is Test {
     OPContractsManager_Harness opcmHarness;
 
     function setUp() public {
-        ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfig"));
+        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
         address upgradeController = makeAddr("upgradeController");
         OPContractsManager.Blueprints memory emptyBlueprints;
         OPContractsManager.Implementations memory emptyImpls;
-        vm.etch(address(systemConfigProxy), hex"01");
+        vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         OPContractsManagerContractsContainer container =
@@ -208,7 +208,7 @@ contract OPContractsManager_InternalMethods_Test is Test {
             _opcmDeployer: new OPContractsManagerDeployer(container),
             _opcmUpgrader: new OPContractsManagerUpgrader(container),
             _opcmInteropMigrator: new OPContractsManagerInteropMigrator(container),
-            _systemConfig: systemConfigProxy,
+            _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
             _l1ContractsRelease: "dev",

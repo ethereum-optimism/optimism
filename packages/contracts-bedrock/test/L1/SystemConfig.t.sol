@@ -14,6 +14,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract SystemConfig_Init is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
@@ -147,7 +148,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismMintableERC20Factory: address(0)
             }),
             _l2ChainId: 1234,
-            _superchainConfig: address(0)
+            _superchainConfig: ISuperchainConfig(address(0))
         });
     }
 
@@ -177,7 +178,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismMintableERC20Factory: address(0)
             }),
             _l2ChainId: 1234,
-            _superchainConfig: address(0)
+            _superchainConfig: ISuperchainConfig(address(0))
         });
         assertEq(systemConfig.startBlock(), block.number);
     }
@@ -208,7 +209,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismMintableERC20Factory: address(0)
             }),
             _l2ChainId: 1234,
-            _superchainConfig: address(0)
+            _superchainConfig: ISuperchainConfig(address(0))
         });
         assertEq(systemConfig.startBlock(), 1);
     }
@@ -323,7 +324,7 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 optimismMintableERC20Factory: address(0)
             }),
             _l2ChainId: 1234,
-            _superchainConfig: address(0)
+            _superchainConfig: ISuperchainConfig(address(0))
         });
     }
 }
