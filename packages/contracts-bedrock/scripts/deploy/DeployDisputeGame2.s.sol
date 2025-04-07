@@ -5,7 +5,6 @@ pragma solidity ^0.8.15;
 import { Script } from "forge-std/Script.sol";
 
 // Scripts
-import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries

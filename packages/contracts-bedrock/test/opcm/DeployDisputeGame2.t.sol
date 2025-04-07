@@ -10,7 +10,6 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 // Libraries
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
