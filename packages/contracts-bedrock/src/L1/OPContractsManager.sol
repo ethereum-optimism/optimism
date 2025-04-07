@@ -305,10 +305,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.
-    function addGameType(
-        OPContractsManager.AddGameInput[] memory _gameConfigs,
-        ISystemConfig _systemConfig
-    )
+    function addGameType(OPContractsManager.AddGameInput[] memory _gameConfigs)
         public
         virtual
         returns (OPContractsManager.AddGameOutput[] memory)
@@ -361,7 +358,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     gameConfig.proxyAdmin,
                     address(outputs[i].delayedWETH),
                     getImplementations().delayedWETHImpl,
-                    abi.encodeCall(IDelayedWETH.initialize, (gameConfig.proxyAdmin.owner(), _systemConfig))
+                    abi.encodeCall(IDelayedWETH.initialize, (gameConfig.proxyAdmin.owner(), gameConfig.systemConfig))
                 );
             } else {
                 outputs[i].delayedWETH = gameConfig.delayedWETH;
@@ -450,12 +447,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
     /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
     /// @param _prestateUpdateInputs The new prestate hash to use
-    function updatePrestate(
-        OPContractsManager.OpChainConfig[] memory _prestateUpdateInputs,
-        ISystemConfig _systemConfig
-    )
-        public
-    {
+    function updatePrestate(OPContractsManager.OpChainConfig[] memory _prestateUpdateInputs) public {
         // Loop through each chain and prestate hash
         for (uint256 i = 0; i < _prestateUpdateInputs.length; i++) {
             if (Claim.unwrap(_prestateUpdateInputs[i].absolutePrestate) == bytes32(0)) {
@@ -533,7 +525,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 inputs[0] = pdgInput;
             }
             // Add the new game type with updated prestate
-            addGameType(inputs, _systemConfig);
+            addGameType(inputs);
         }
     }
 }
@@ -1335,6 +1327,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
 
+        // TODO: Explain why portals[0].systemConfig() is used here.
         // Initialize the new AnchorStateRegistry.
         upgradeToAndCall(
             _input.opChainConfigs[0].proxyAdmin,
