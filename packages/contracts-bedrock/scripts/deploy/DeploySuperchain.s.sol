@@ -5,7 +5,6 @@ import { Script } from "forge-std/Script.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";

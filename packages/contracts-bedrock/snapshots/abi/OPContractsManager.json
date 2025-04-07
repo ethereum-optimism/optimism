@@ -22,8 +22,8 @@
         "type": "address"
       },
       {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
+        "internalType": "contract ISuperchainConfig",
+        "name": "_superchainConfig",
         "type": "address"
       },
       {
@@ -347,11 +347,6 @@
             "internalType": "Duration",
             "name": "disputeMaxClockDuration",
             "type": "uint64"
-          },
-          {
-            "internalType": "address",
-            "name": "superchainConfig",
-            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.DeployInput",
@@ -734,10 +729,10 @@
   },
   {
     "inputs": [],
-    "name": "superchainProxyAdmin",
+    "name": "superchainConfig",
     "outputs": [
       {
-        "internalType": "contract IProxyAdmin",
+        "internalType": "contract ISuperchainConfig",
         "name": "",
         "type": "address"
       }
@@ -747,10 +742,10 @@
   },
   {
     "inputs": [],
-    "name": "systemConfig",
+    "name": "superchainProxyAdmin",
     "outputs": [
       {
-        "internalType": "contract ISystemConfig",
+        "internalType": "contract IProxyAdmin",
         "name": "",
         "type": "address"
       }

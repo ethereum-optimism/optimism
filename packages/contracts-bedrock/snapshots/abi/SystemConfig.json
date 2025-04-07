@@ -267,6 +267,19 @@
   },
   {
     "inputs": [],
+    "name": "guardian",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "initVersion",
     "outputs": [
       {
@@ -390,7 +403,7 @@
         "type": "uint256"
       },
       {
-        "internalType": "address",
+        "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
       }
