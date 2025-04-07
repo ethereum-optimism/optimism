@@ -64,3 +64,15 @@ func TestListCustomChainIDs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []eth.ChainID{eth.ChainIDFromUInt64(901)}, actual)
 }
+
+func TestLoadSepoliaIsthmusConfig(t *testing.T) {
+	config, err := LoadSepoliaIsthmusConfig()
+	require.NoError(t, err)
+	require.NotNil(t, config)
+
+	// Check that the loaded hardfork time matches the expected value
+	require.Equal(t, uint64(1744905600), config.IsthmusTime)
+	require.Equal(t, "sepolia", config.Network)
+	require.Equal(t, uint64(11155420), config.ChainID)
+	require.Equal(t, "OP Sepolia Isthmus hardfork configuration", config.Description)
+}
