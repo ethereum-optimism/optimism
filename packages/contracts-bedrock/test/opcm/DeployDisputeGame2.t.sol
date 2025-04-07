@@ -59,18 +59,16 @@ contract DeployDisputeGame2_Test is Test {
 
         // These come from the constructor or FaultDisputeGame
         vm.assume(_gameType != type(uint32).max);
-        vm.assume(_splitDepth >= 2);
-        vm.assume(uint256(_splitDepth) + 1 < _maxGameDepth);
+        vm.assume(_maxClockDuration >= 2);
+        vm.assume(_maxGameDepth >= 4);
         vm.assume(_maxGameDepth <= LibPosition.MAX_POSITION_BITLEN - 1);
-        vm.assume(uint256(_clockExtension) * 2 <= _maxClockDuration);
-        vm.assume(uint256(_clockExtension) * 2 <= type(uint64).max);
 
         _input.gameKind = "FaultDisputeGame";
         _input.gameType = _gameType;
-        _input.clockExtension = _clockExtension;
+        _input.clockExtension = bound(_clockExtension, 1, _maxClockDuration / 2);
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
-        _input.splitDepth = _splitDepth;
+        _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
         _input.vm = bigStepper;
 
         // For FaultDisputeGame, these must be empty
@@ -103,18 +101,16 @@ contract DeployDisputeGame2_Test is Test {
 
         // These come from the constructor or FaultDisputeGame
         vm.assume(_gameType != type(uint32).max);
-        vm.assume(_splitDepth >= 2);
-        vm.assume(uint256(_splitDepth) + 1 < _maxGameDepth);
+        vm.assume(_maxClockDuration >= 2);
+        vm.assume(_maxGameDepth >= 4);
         vm.assume(_maxGameDepth <= LibPosition.MAX_POSITION_BITLEN - 1);
-        vm.assume(uint256(_clockExtension) * 2 <= _maxClockDuration);
-        vm.assume(uint256(_clockExtension) * 2 <= type(uint64).max);
 
         _input.gameKind = "PermissionedDisputeGame";
         _input.gameType = _gameType;
-        _input.clockExtension = _clockExtension;
+        _input.clockExtension = bound(_clockExtension, 1, _maxClockDuration / 2);
         _input.maxClockDuration = _maxClockDuration;
         _input.maxGameDepth = _maxGameDepth;
-        _input.splitDepth = _splitDepth;
+        _input.splitDepth = bound(_splitDepth, 2, _maxGameDepth - 2);
         _input.vm = bigStepper;
 
         // Run the deployment script.
