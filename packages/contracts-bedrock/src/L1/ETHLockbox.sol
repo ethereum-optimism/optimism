@@ -13,11 +13,11 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+
 /// @custom:proxied true
 /// @title ETHLockbox
 /// @notice Manages ETH liquidity locking and unlocking for authorized OptimismPortals, enabling unified ETH liquidity
 ///         management across chains in the superchain cluster.
-
 contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Thrown when the lockbox is paused.
     error ETHLockbox_Paused();
@@ -84,9 +84,10 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Initializer.
     /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _portals The addresses of the portals to authorize.
-    /// @dev Note: Multiple chains can share an ETHLockbox contract. In this case, all SystemConfig contracts
-    ///      will point to the same pause identifier (the lockbox itself). Therefore, it doesn't matter which
-    ///      SystemConfig is used here as long as it belongs to one of the chains that share the lockbox.
+    /// @dev Note: Multiple chains can share an ETHLockbox contract. In this case, all SystemConfig
+    ///      contracts will point to the same pause identifier (the lockbox itself). Therefore, it
+    ///      doesn't matter which SystemConfig is used here as long as it belongs to one of the
+    ///      chains that share the lockbox.
     function initialize(ISystemConfig _systemConfig, IOptimismPortal[] calldata _portals) external initializer {
         systemConfig = _systemConfig;
         for (uint256 i; i < _portals.length; i++) {

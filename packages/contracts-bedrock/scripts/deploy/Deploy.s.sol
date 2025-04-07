@@ -332,7 +332,6 @@ contract Deploy is Deployer {
         console.log("Deploying OP Chain");
 
         // Ensure that the requisite contracts are deployed
-        address systemConfigProxy = artifacts.mustGetAddress("SystemConfigProxy");
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
 
         IOPContractsManager.DeployInput memory deployInput = getDeployInput();
@@ -371,7 +370,7 @@ contract Deploy is Deployer {
         IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
             _implementation: delayedWETHImpl,
             _data: abi.encodeCall(
-                IDelayedWETH.initialize, (msg.sender, ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy")))
+                IDelayedWETH.initialize, (msg.sender, deployOutput.systemConfigProxy)
             )
         });
 
