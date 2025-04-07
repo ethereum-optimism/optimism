@@ -35,7 +35,7 @@ contract DeployDelayedWETH2_Test is Test {
         vm.assume(!LibString.eq(_input.release, ""));
 
         // make sure we don't pass implementation in
-        vm.assume(_input.delayedWethImpl == address(0));
+        _input.delayedWethImpl == address(0);
 
         // Run the deployment script.
         deployDelayedWETH.run(_input);
