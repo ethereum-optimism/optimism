@@ -18,7 +18,6 @@ Then run the following commands to check the code is working fine:
 ```bash
 make lint
 make test
-make test-integration
 git status # should show no changes
 
 # Start rollup-boost with the example .env config

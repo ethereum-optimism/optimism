@@ -639,7 +639,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_forward_miner_set_gas_price() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let gas_price = U128::ZERO;
@@ -651,6 +650,7 @@ mod tests {
             .await?;
 
         let expected_price = json!(gas_price);
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
 
         // Assert the builder received the correct payload
         let builder = &test_harness.builder;
@@ -673,7 +673,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_forward_miner_set_gas_limit() -> eyre::Result<()> {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let test_harness = TestHarness::new().await?;
 
         let gas_limit = U128::ZERO;
@@ -685,6 +684,8 @@ mod tests {
             .await?;
 
         let expected_price = json!(gas_limit);
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         // Assert the builder received the correct payload
         let builder = &test_harness.builder;

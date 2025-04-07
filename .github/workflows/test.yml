@@ -2,25 +2,22 @@ name: Tests
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  build:
+  run-tests:
+    name: Run tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-
-      - name: Build
-        run: cargo build
-
-      - name: Run tests
-        run: cargo test -- --test-threads=1
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+      - name: Run nextest
+        run: cargo nextest run

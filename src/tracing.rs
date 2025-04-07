@@ -9,6 +9,7 @@ use tracing::level_filters::LevelFilter;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
+use tracing_subscriber::fmt::writer::BoxMakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 
 use crate::cli::{Args, LogFormat};
@@ -83,6 +84,17 @@ pub fn init_tracing(args: &Args) -> eyre::Result<()> {
         .with_default(LevelFilter::INFO)
         .with_target(&filter_name, args.log_level);
 
+    let writer = if let Some(path) = &args.log_file {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .context("Failed to open log file")?;
+        BoxMakeWriter::new(file)
+    } else {
+        BoxMakeWriter::new(std::io::stdout)
+    };
+
     // Weird control flow here is required because of type system
     if args.tracing {
         global::set_text_map_propagator(TraceContextPropagator::new());
@@ -120,6 +132,7 @@ pub fn init_tracing(args: &Args) -> eyre::Result<()> {
                         tracing_subscriber::fmt::layer()
                             .json()
                             .with_ansi(false)
+                            .with_writer(writer)
                             .with_filter(log_filter.clone()),
                     ),
                 )?;
@@ -129,6 +142,7 @@ pub fn init_tracing(args: &Args) -> eyre::Result<()> {
                     registry.with(
                         tracing_subscriber::fmt::layer()
                             .with_ansi(false)
+                            .with_writer(writer)
                             .with_filter(log_filter.clone()),
                     ),
                 )?;
@@ -142,6 +156,7 @@ pub fn init_tracing(args: &Args) -> eyre::Result<()> {
                         tracing_subscriber::fmt::layer()
                             .json()
                             .with_ansi(false)
+                            .with_writer(writer)
                             .with_filter(log_filter.clone()),
                     ),
                 )?;
@@ -151,6 +166,7 @@ pub fn init_tracing(args: &Args) -> eyre::Result<()> {
                     registry.with(
                         tracing_subscriber::fmt::layer()
                             .with_ansi(false)
+                            .with_writer(writer)
                             .with_filter(log_filter.clone()),
                     ),
                 )?;

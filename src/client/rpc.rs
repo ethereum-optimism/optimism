@@ -351,10 +351,11 @@ macro_rules! define_rpc_args {
 define_rpc_args!((BuilderArgs, builder), (L2ClientArgs, l2));
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use assert_cmd::Command;
     use http::Uri;
     use jsonrpsee::core::client::ClientT;
+    use parking_lot::Mutex;
 
     use crate::client::auth::AuthClientService;
     use crate::server::PayloadSource;
@@ -370,15 +371,28 @@ mod tests {
     };
     use predicates::prelude::*;
     use reth_rpc_layer::{AuthLayer, JwtAuthValidator};
+    use std::collections::HashSet;
     use std::net::SocketAddr;
+    use std::net::TcpListener;
     use std::result::Result;
     use std::str::FromStr;
+    use std::sync::LazyLock;
 
     use super::*;
 
-    const AUTH_PORT: u32 = 8550;
     const AUTH_ADDR: &str = "0.0.0.0";
     const SECRET: &str = "f79ae8046bc11c9927afe911db7143c51a806c4a537cc08e0d37140b0192f430";
+
+    pub fn get_available_port() -> u16 {
+        static CLAIMED_PORTS: LazyLock<Mutex<HashSet<u16>>> =
+            LazyLock::new(|| Mutex::new(HashSet::new()));
+        loop {
+            let port: u16 = rand::random_range(1000..20000);
+            if TcpListener::bind(("127.0.0.1", port)).is_ok() && CLAIMED_PORTS.lock().insert(port) {
+                return port;
+            }
+        }
+    }
 
     #[test]
     fn test_invalid_args() {
@@ -392,21 +406,22 @@ mod tests {
 
     #[tokio::test]
     async fn valid_jwt() {
+        let port = get_available_port();
         let secret = JwtSecret::from_hex(SECRET).unwrap();
-
-        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, port)).unwrap();
         let client = RpcClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
-        let response = send_request(client.auth_client).await;
+        let response = send_request(client.auth_client, port).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
     }
 
     #[tokio::test]
     async fn invalid_jwt() {
+        let port = get_available_port();
         let secret = JwtSecret::random();
-        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, AUTH_PORT)).unwrap();
+        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, port)).unwrap();
         let client = RpcClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
-        let response = send_request(client.auth_client).await;
+        let response = send_request(client.auth_client, port).await;
         assert!(response.is_err());
         assert!(matches!(
             response.unwrap_err(),
@@ -417,8 +432,9 @@ mod tests {
 
     async fn send_request(
         client: HttpClient<AuthClientService<HttpBackend>>,
+        port: u16,
     ) -> Result<String, ClientError> {
-        let server = spawn_server().await;
+        let server = spawn_server(port).await;
 
         let response = client
             .request::<String, _>("greet_melkor", rpc_params![])
@@ -431,9 +447,9 @@ mod tests {
     }
 
     /// Spawn a new RPC server equipped with a `JwtLayer` auth middleware.
-    async fn spawn_server() -> ServerHandle {
+    async fn spawn_server(port: u16) -> ServerHandle {
         let secret = JwtSecret::from_hex(SECRET).unwrap();
-        let addr = format!("{AUTH_ADDR}:{AUTH_PORT}");
+        let addr = format!("{AUTH_ADDR}:{port}");
         let validator = JwtAuthValidator::new(secret);
         let layer = AuthLayer::new(validator);
         let middleware = tower::ServiceBuilder::default().layer(layer);

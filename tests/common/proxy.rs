@@ -9,6 +9,7 @@ use hyper_util::rt::TokioIo;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 
@@ -37,13 +38,20 @@ pub struct JsonRpcError {
     data: Option<Value>,
 }
 
-pub type DynHandlerFn = Box<dyn Fn(&str, Value, Value) -> Option<Value> + Send + Sync>;
+pub trait ProxyHandler: Send + Sync + 'static {
+    fn handle(
+        &self,
+        method: String,
+        params: Value,
+        result: Value,
+    ) -> Pin<Box<dyn Future<Output = Option<Value>> + Send>>;
+}
 
 // Structure to hold the target address that we'll pass to the proxy function
 #[derive(Clone)]
 struct ProxyConfig {
     target_addr: SocketAddr,
-    handler: Arc<DynHandlerFn>,
+    handler: Arc<dyn ProxyHandler>,
 }
 
 async fn proxy(
@@ -78,7 +86,10 @@ async fn proxy(
 
     let json_rpc_response = serde_json::from_slice::<JsonRpcResponse>(&bytes).unwrap();
     let bytes = if let Some(result) = json_rpc_response.clone().result {
-        let value = (config.handler)(&json_rpc_request.method, json_rpc_request.params, result);
+        let value = config
+            .handler
+            .handle(json_rpc_request.method, json_rpc_request.params, result)
+            .await;
         if let Some(value) = value {
             // If the handler returns a value, we replace the result with the new value
             // The callback only returns the result of the jsonrpc request so we have to wrap it up
@@ -105,16 +116,16 @@ async fn proxy(
 }
 
 pub async fn start_proxy_server(
-    handler: DynHandlerFn,
+    handler: Arc<dyn ProxyHandler>,
     listen_port: u16,
     target_port: u16,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> eyre::Result<()> {
     let listen_addr = SocketAddr::from(([127, 0, 0, 1], listen_port));
     let target_addr = SocketAddr::from(([127, 0, 0, 1], target_port));
 
     let config = ProxyConfig {
         target_addr,
-        handler: Arc::new(handler),
+        handler,
     };
     let listener = TcpListener::bind(listen_addr).await?;
 

@@ -20,7 +20,7 @@ We employ a layered testing strategy that provides defense in depth:
 
 **Unit Tests** verify individual components, but as this is a distributed system, they only get us so far.
 
-**Integration Tests** serve as our most critical testing layer. Located in `src/integration/`, these tests use a simulated environment to verify system behavior under various conditions:
+**Integration Tests** serve as our most critical testing layer. Located in `tests`, these tests use a simulated environment to verify system behavior under various conditions:
 
 - How does the system respond when the builder produces invalid blocks?
 - What happens when the builder experiences high latency?
