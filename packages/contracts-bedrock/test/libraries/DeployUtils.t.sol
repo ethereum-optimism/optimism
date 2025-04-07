@@ -49,7 +49,19 @@ contract DeployUtils_Test is Test {
         addresses[_length] = addresses[_duplicateIndex];
 
         // Unfortunately it's not possible to use vm.expectRevert() here because the revert message is not a calldata argument
-        vm.expectRevert();
-        DeployUtils.assertUniqueAddresses(addresses);
+        // so we need to externalize the call
+        DeployUtils_Test(this).helper_assertUniqueAddresses_withDuplicateAddress_reverts(
+            string.concat("DeployUtils: check failed, duplicates at ", vm.toString(_duplicateIndex), ",", vm.toString(_length)),
+            addresses
+        );
+    }
+
+    /// @notice Helper function to test the revert message of assertUniqueAddresses with duplicate addresses.
+    /// @dev This function only exists because expectRevert only accepts a calldata argument
+    /// but string concatenation (required to create the revert message) is not possible in calldata.
+    /// @dev See testFuzz_assertUniqueAddresses_withDuplicateAddress_reverts
+    function helper_assertUniqueAddresses_withDuplicateAddress_reverts(string calldata _message, address[] calldata _addresses) external {
+        vm.expectRevert(bytes(_message));
+        DeployUtils.assertUniqueAddresses(_addresses);
     }
 }
