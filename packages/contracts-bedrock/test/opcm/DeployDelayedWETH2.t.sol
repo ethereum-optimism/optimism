@@ -11,7 +11,6 @@ import { LibString } from "@solady/utils/LibString.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
-import { Proxy } from "src/universal/Proxy.sol";
 import { DeployDelayedWETH2 } from "scripts/deploy/DeployDelayedWETH2.s.sol";
 
 contract DeployDelayedWETH2_Test is Test {
