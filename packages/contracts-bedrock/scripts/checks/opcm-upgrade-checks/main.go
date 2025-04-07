@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
@@ -16,20 +15,7 @@ var opcmAst *solc.ForgeArtifact
 var opcmUpgradeFunctionSelector = "ff2dd5a1"
 
 func main() {
-	// Get all L1 contract file names.
-	l1Dir := "src/L1/"
-	fileNames, err := os.ReadDir(l1Dir)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	// Create a new array of string paths and only add the file to
-	// the array if it's not in the global excludedFiles array.
-	var excludedFiles = []string{
-		"OPContractsManager.sol",
-	}
-	includedFiles := filterFilesAndDeriveArtifactPath(fileNames, excludedFiles)
+	var err error
 
 	// Get OPCM's AST.
 	opcmAst, err = common.ReadForgeArtifact(opcmArtifactPath)
@@ -40,8 +26,8 @@ func main() {
 
 	// Process.
 	if _, err := common.ProcessFilesGlob(
-		includedFiles,
-		[]string{},
+		[]string{"forge-artifacts/**/*.json"},
+		[]string{"forge-artifacts/OPContractsManager.sol/*.json"},
 		processFile,
 	); err != nil {
 		fmt.Printf("error: %v\n", err)
@@ -54,6 +40,11 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	artifact, err := common.ReadForgeArtifact(artifactPath)
 	if err != nil {
 		return nil, []error{err}
+	}
+
+	// If the absolute path is not src/L1, return early.
+	if !strings.HasPrefix(artifact.Ast.AbsolutePath, "src/L1") {
+		return nil, nil
 	}
 
 	// Find if it contains any upgrade function and if there are no upgradeFunctions, return early.
@@ -187,20 +178,6 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string) bool {
 
 	// Else return false.
 	return false
-}
-
-// Convert all file names to their corresponding artifact paths while excluding any file that is in the excludedFiles array.
-func filterFilesAndDeriveArtifactPath(fileNames []os.DirEntry, excludedFiles []string) []string {
-	includedFiles := []string{}
-	for _, fileName := range fileNames {
-		if slices.Contains(excludedFiles, fileName.Name()) {
-			continue
-		}
-		artifactPath := "forge-artifacts/" + fileName.Name() + "/*.json"
-		includedFiles = append(includedFiles, artifactPath)
-	}
-
-	return includedFiles
 }
 
 // Get the AST of OPCM's upgrade function.

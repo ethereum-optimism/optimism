@@ -1,78 +1,12 @@
 package main
 
 import (
-	"os"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 	"github.com/stretchr/testify/assert"
 )
-
-// mockDirEntry implements os.DirEntry for testing
-type mockDirEntry struct {
-	name string
-}
-
-func (m mockDirEntry) Name() string {
-	return m.name
-}
-
-func (m mockDirEntry) IsDir() bool {
-	return false
-}
-
-func (m mockDirEntry) Type() os.FileMode {
-	return 0
-}
-
-func (m mockDirEntry) Info() (os.FileInfo, error) {
-	return nil, nil
-}
-
-func TestFilterFilesAndDeriveArtifactPath(t *testing.T) {
-	tests := []struct {
-		name                  string
-		files                 []os.DirEntry
-		excludedFiles         []string
-		expectedArtifactPaths []string
-	}{
-		{
-			name: "no excluded files",
-			files: []os.DirEntry{
-				&mockDirEntry{name: "Opcm.sol"},
-				&mockDirEntry{name: "Opcm2.sol"},
-			},
-			excludedFiles:         []string{},
-			expectedArtifactPaths: []string{"forge-artifacts/Opcm.sol/*.json", "forge-artifacts/Opcm2.sol/*.json"},
-		},
-		{
-			name: "one excluded file",
-			files: []os.DirEntry{
-				&mockDirEntry{name: "Opcm.sol"},
-				&mockDirEntry{name: "Opcm2.sol"},
-			},
-			excludedFiles:         []string{"Opcm.sol"},
-			expectedArtifactPaths: []string{"forge-artifacts/Opcm2.sol/*.json"},
-		},
-		{
-			name: "multiple excluded files",
-			files: []os.DirEntry{
-				&mockDirEntry{name: "Opcm.sol"},
-				&mockDirEntry{name: "Opcm2.sol"},
-			},
-			excludedFiles:         []string{"Opcm.sol", "Opcm2.sol"},
-			expectedArtifactPaths: []string{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			artifactPaths := filterFilesAndDeriveArtifactPath(test.files, test.excludedFiles)
-			assert.Equal(t, test.expectedArtifactPaths, artifactPaths)
-		})
-	}
-}
 
 func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 	tests := []struct {
