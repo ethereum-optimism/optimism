@@ -266,10 +266,10 @@ contract Deploy is Deployer {
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.protocolVersionsProxy.selector, artifacts.mustGetAddress("ProtocolVersionsProxy"));
 
-        ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
-        dii.set(dii.systemConfigProxy.selector, address(systemConfig));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        dii.set(dii.superchainConfigProxy.selector, address(superchainConfig));
 
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig.superchainConfig())));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
         dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
 
         // I think this was a bug

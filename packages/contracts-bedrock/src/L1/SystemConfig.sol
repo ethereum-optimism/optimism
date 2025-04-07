@@ -179,7 +179,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         address _batchInbox,
         SystemConfig.Addresses memory _addresses,
         uint256 _l2ChainId,
-        address _superchainConfig
+        ISuperchainConfig _superchainConfig
     )
         public
         reinitializer(initVersion())

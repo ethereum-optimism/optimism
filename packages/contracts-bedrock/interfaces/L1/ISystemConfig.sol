@@ -57,7 +57,7 @@ interface ISystemConfig {
         address _batchInbox,
         Addresses memory _addresses,
         uint256 _l2ChainId,
-        address _superchainConfig
+        ISuperchainConfig _superchainConfig
     )
         external;
     function initVersion() external view returns (uint8);
