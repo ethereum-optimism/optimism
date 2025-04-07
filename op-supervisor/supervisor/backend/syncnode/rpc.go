@@ -3,9 +3,12 @@ package syncnode
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
+	backendrpc "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/rpc"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -138,4 +141,52 @@ func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPa
 	var out types.DerivedBlockRefPair
 	err := rs.cl.CallContext(ctx, &out, "interop_anchorPoint")
 	return out, err
+}
+
+func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) (types.BlockSeal, error) {
+	chainID, err := rs.ChainID(ctx)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("failed to get chain ID for verifying access with RPC: %w", err)
+	}
+
+	blockRef, err := rs.BlockRefByNumber(ctx, query.BlockNum)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("failed to get block ref for verifiying access with RPC: %w", err)
+	}
+
+	log, err := rs.getLogAtIndex(ctx, blockRef.Hash, query.LogIdx)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("failed to get log index for verifying access with RPC: %w", err)
+	}
+
+	logHash := processors.LogToLogHash(log)
+	entryChecksum := types.ChecksumArgs{
+		BlockNumber: query.BlockNum,
+		LogIndex:    query.LogIdx,
+		Timestamp:   blockRef.Time,
+		ChainID:     chainID,
+		LogHash:     logHash,
+	}.Checksum()
+	if entryChecksum != query.Checksum {
+		return types.BlockSeal{}, types.ErrAccessListVerifyError
+	}
+
+	return types.BlockSeal{
+		Hash:      blockRef.Hash,
+		Number:    blockRef.Number,
+		Timestamp: blockRef.Time,
+	}, nil
+}
+
+func (rs *RPCSyncNode) getLogAtIndex(ctx context.Context, blockHash common.Hash, logIndex uint32) (*gethtypes.Log, error) {
+	receipts, err := rs.FetchReceipts(ctx, blockHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch receipts for verifying access with RPC: %w", err)
+	}
+
+	log, err := backendrpc.GetLogAtIndex(receipts, uint(logIndex))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get log index for verifying access with RPC: %w", err)
+	}
+	return log, err
 }

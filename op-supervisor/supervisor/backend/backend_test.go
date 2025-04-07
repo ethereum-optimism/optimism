@@ -279,6 +279,10 @@ func (m *MockMetrics) RecordDBSearchEntriesRead(chainID eth.ChainID, count int64
 	m.Mock.Called(chainID, count)
 }
 
+func (m *MockMetrics) RecordAccessListVerifyFailure(chainID eth.ChainID) {
+	m.Mock.Called(chainID)
+}
+
 type MockProcessorSource struct {
 	mock.Mock
 }

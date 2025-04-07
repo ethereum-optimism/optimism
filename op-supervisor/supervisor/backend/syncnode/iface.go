@@ -24,12 +24,14 @@ type SyncNodeSetup interface {
 }
 
 type SyncSource interface {
+	Contains(ctx context.Context, query types.ContainsQuery) (includedIn types.BlockSeal, err error)
 	BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error)
 	ChainID(ctx context.Context) (eth.ChainID, error)
 	OutputV0AtTimestamp(ctx context.Context, timestamp uint64) (*eth.OutputV0, error)
 	PendingOutputV0AtTimestamp(ctx context.Context, timestamp uint64) (*eth.OutputV0, error)
 	L2BlockRefByTimestamp(ctx context.Context, timestamp uint64) (eth.L2BlockRef, error)
+
 	// String identifies the sync source
 	String() string
 }

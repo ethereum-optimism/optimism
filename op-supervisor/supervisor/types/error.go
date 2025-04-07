@@ -37,4 +37,6 @@ var (
 	ErrNoRPCSource = errors.New("no RPC client configured")
 	// ErrUninitialized happens when a chain database is not initialized yet
 	ErrUninitialized = errors.New("uninitialized chain database")
+	// ErrAccessListVerifyError happens when the access list verify fails for whatever reason
+	ErrAccessListVerifyError = errors.New("access list verify error")
 )

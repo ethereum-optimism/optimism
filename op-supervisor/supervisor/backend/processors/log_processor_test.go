@@ -76,19 +76,19 @@ func TestLogProcessor(t *testing.T) {
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: logToLogHash(rcpts[0].Logs[0]),
+				logHash: LogToLogHash(rcpts[0].Logs[0]),
 				execMsg: nil,
 			},
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: logToLogHash(rcpts[0].Logs[1]),
+				logHash: LogToLogHash(rcpts[0].Logs[1]),
 				execMsg: nil,
 			},
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: logToLogHash(rcpts[1].Logs[0]),
+				logHash: LogToLogHash(rcpts[1].Logs[0]),
 				execMsg: nil,
 			},
 		}
@@ -136,7 +136,7 @@ func TestLogProcessor(t *testing.T) {
 			{
 				parent:  block1.ParentID(),
 				logIdx:  0,
-				logHash: logToLogHash(rcpts[0].Logs[0]),
+				logHash: LogToLogHash(rcpts[0].Logs[0]),
 				execMsg: execMsg,
 			},
 		}
@@ -187,7 +187,7 @@ func TestToLogHash(t *testing.T) {
 		func(l *ethTypes.Log) { l.Index = 98 },
 		func(l *ethTypes.Log) { l.Removed = true },
 	}
-	refHash := logToLogHash(mkLog())
+	refHash := LogToLogHash(mkLog())
 	// The log hash is stored in the database so test that it matches the actual value.
 	// If this changes, compatibility with existing databases may be affected
 	expectedRefHash := common.HexToHash("0x4e1dc08fddeb273275f787762cdfe945cf47bb4e80a1fabbc7a825801e81b73f")
@@ -197,14 +197,14 @@ func TestToLogHash(t *testing.T) {
 	for i, mod := range relevantMods {
 		l := mkLog()
 		mod(l)
-		hash := logToLogHash(l)
+		hash := LogToLogHash(l)
 		require.NotEqualf(t, refHash, hash, "expected relevant modification %v to affect the hash but it did not", i)
 	}
 	// Check that the hash is not changed when any data it should not include changes
 	for i, mod := range irrelevantMods {
 		l := mkLog()
 		mod(l)
-		hash := logToLogHash(l)
+		hash := LogToLogHash(l)
 		require.Equal(t, refHash, hash, "expected irrelevant modification %v to not affect the hash but it did", i)
 	}
 }

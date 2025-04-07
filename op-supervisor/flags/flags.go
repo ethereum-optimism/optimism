@@ -62,6 +62,12 @@ var (
 		EnvVars: prefixEnvVars("MOCK_RUN"),
 		Hidden:  true, // this is for testing only
 	}
+	RPCVerificationWarningsFlag = &cli.BoolFlag{
+		Name:    "rpc-verification-warnings",
+		Usage:   "Enable asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric",
+		EnvVars: prefixEnvVars("RPC_VERIFICATION_WARNINGS"),
+		Value:   false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -75,6 +81,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	MockRunFlag,
 	DataDirSyncEndpointFlag,
+	RPCVerificationWarningsFlag,
 }
 
 func init() {
@@ -101,17 +108,18 @@ func CheckRequired(ctx *cli.Context) error {
 
 func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
 	return &config.Config{
-		Version:             version,
-		LogConfig:           oplog.ReadCLIConfig(ctx),
-		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:         oppprof.ReadCLIConfig(ctx),
-		RPC:                 oprpc.ReadCLIConfig(ctx),
-		DependencySetSource: &depset.JsonDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
-		MockRun:             ctx.Bool(MockRunFlag.Name),
-		L1RPC:               ctx.String(L1RPCFlag.Name),
-		SyncSources:         syncSourceSetups(ctx),
-		Datadir:             ctx.Path(DataDirFlag.Name),
-		DatadirSyncEndpoint: ctx.Path(DataDirSyncEndpointFlag.Name),
+		Version:                 version,
+		LogConfig:               oplog.ReadCLIConfig(ctx),
+		MetricsConfig:           opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:             oppprof.ReadCLIConfig(ctx),
+		RPC:                     oprpc.ReadCLIConfig(ctx),
+		DependencySetSource:     &depset.JsonDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+		MockRun:                 ctx.Bool(MockRunFlag.Name),
+		RPCVerificationWarnings: ctx.Bool(RPCVerificationWarningsFlag.Name),
+		L1RPC:                   ctx.String(L1RPCFlag.Name),
+		SyncSources:             syncSourceSetups(ctx),
+		Datadir:                 ctx.Path(DataDirFlag.Name),
+		DatadirSyncEndpoint:     ctx.Path(DataDirSyncEndpointFlag.Name),
 	}
 }
 
