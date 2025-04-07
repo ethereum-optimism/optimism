@@ -631,6 +631,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
+	// deploy eventLogger per chain
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
