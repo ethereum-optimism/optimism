@@ -45,7 +45,7 @@ contract DeployDisputeGame2_Test is Test {
         uint32 _gameType,
         uint32 _clockExtension,
         uint64 _maxClockDuration,
-        uint128 _splitDepth,
+        uint8 _splitDepth,
         uint8 _maxGameDepth
     )
         public
