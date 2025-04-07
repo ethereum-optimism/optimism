@@ -50,6 +50,10 @@ func (f *EnclaveContext) RunStarlarkPackage(ctx context.Context, pkg string, par
 	return ch, "", nil
 }
 
+func (f *EnclaveContext) RunStarlarkScript(ctx context.Context, script string, params *starlark_run_config.StarlarkRunConfig) error {
+	return f.RunErr
+}
+
 // StarlarkResponse implements interfaces.StarlarkResponse for testing
 type StarlarkResponse struct {
 	Err          interfaces.StarlarkError

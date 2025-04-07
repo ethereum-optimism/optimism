@@ -93,6 +93,12 @@ func (w *EnclaveContextWrapper) RunStarlarkPackage(ctx context.Context, pkg stri
 	return wrappedStream, "", nil
 }
 
+func (w *EnclaveContextWrapper) RunStarlarkScript(ctx context.Context, script string, serializedParams *starlark_run_config.StarlarkRunConfig) error {
+	// TODO: we should probably collect some data from the result and extend the error.
+	_, err := w.EnclaveContext.RunStarlarkScriptBlocking(ctx, script, serializedParams)
+	return err
+}
+
 func (w *starlarkRunResponseLineWrapper) GetError() interfaces.StarlarkError {
 	if err := w.StarlarkRunResponseLine.GetError(); err != nil {
 		return &starlarkErrorWrapper{err}

@@ -7,45 +7,63 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/kt"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/surface"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+type surfaceGetter func() (surface.ControlSurface, error)
+type controllerFactory func(string) surfaceGetter
 
 type DevnetEnv struct {
 	Config descriptors.DevnetEnvironment
 	Name   string
 	URL    string
+
+	ctrl surfaceGetter
 }
 
 // DataFetcher is a function type for fetching data from a URL
 type DataFetcher func(*url.URL) (string, []byte, error)
 
-// schemeToFetcher maps URL schemes to their respective data fetcher functions
-var schemeToFetcher = map[string]DataFetcher{
-	"":         fetchFileData,
-	"file":     fetchFileData,
-	"kt":       fetchKurtosisData,
-	"ktnative": fetchKurtosisNativeData,
+type schemeBackend struct {
+	fetcher     DataFetcher
+	ctrlFactory controllerFactory
+}
+
+func getKurtosisController(enclave string) surfaceGetter {
+	return func() (surface.ControlSurface, error) {
+		return kt.NewKurtosisControllerSurface(enclave)
+	}
+}
+
+// schemeToBackend maps URL schemes to their respective data fetcher functions
+var schemeToBackend = map[string]schemeBackend{
+	"":         {fetchFileData, nil},
+	"file":     {fetchFileData, nil},
+	"kt":       {fetchKurtosisData, getKurtosisController},
+	"ktnative": {fetchKurtosisNativeData, getKurtosisController},
 }
 
 // fetchDevnetData retrieves data from a URL based on its scheme
-func fetchDevnetData(devnetURL string) (string, []byte, error) {
-	parsedURL, err := url.Parse(devnetURL)
-	if err != nil {
-		return "", nil, fmt.Errorf("error parsing URL: %w", err)
-	}
-
+func fetchDevnetData(parsedURL *url.URL) (string, []byte, error) {
 	scheme := strings.ToLower(parsedURL.Scheme)
-	fetcher, ok := schemeToFetcher[scheme]
+	backend, ok := schemeToBackend[scheme]
 	if !ok {
 		return "", nil, fmt.Errorf("unsupported URL scheme: %s", scheme)
 	}
 
-	return fetcher(parsedURL)
+	return backend.fetcher(parsedURL)
 }
 
 func LoadDevnetFromURL(devnetURL string) (*DevnetEnv, error) {
-	name, data, err := fetchDevnetData(devnetURL)
+	parsedURL, err := url.Parse(devnetURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing URL: %w", err)
+	}
+
+	name, data, err := fetchDevnetData(parsedURL)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching devnet data: %w", err)
 	}
@@ -60,10 +78,18 @@ func LoadDevnetFromURL(devnetURL string) (*DevnetEnv, error) {
 		return nil, fmt.Errorf("error fixing up devnet config: %w", err)
 	}
 
+	var ctrl surfaceGetter
+	// we're safe here as fetchDevnetData above ensures the scheme is supported
+	ctrlFactory := schemeToBackend[parsedURL.Scheme].ctrlFactory
+	if ctrlFactory != nil {
+		ctrl = ctrlFactory(parsedURL.Host)
+	}
+
 	return &DevnetEnv{
 		Config: config,
 		Name:   name,
 		URL:    devnetURL,
+		ctrl:   ctrl,
 	}, nil
 }
 
@@ -89,6 +115,13 @@ func (d *DevnetEnv) GetChain(chainName string) (*ChainConfig, error) {
 		devnetURL: d.URL,
 		name:      chainName,
 	}, nil
+}
+
+func (d *DevnetEnv) Control() (surface.ControlSurface, error) {
+	if d.ctrl == nil {
+		return nil, fmt.Errorf("devnet is not controllable")
+	}
+	return d.ctrl()
 }
 
 func fixupDevnetConfig(config descriptors.DevnetEnvironment) (descriptors.DevnetEnvironment, error) {

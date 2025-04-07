@@ -90,7 +90,7 @@ func (r *KurtosisRunner) Run(ctx context.Context, packageName string, args io.Re
 	}
 
 	// Set up run config with args if provided
-	var serializedParams string
+	serializedParams := "{}"
 	if args != nil {
 		argsBytes, err := io.ReadAll(args)
 		if err != nil {
@@ -127,5 +127,21 @@ func (r *KurtosisRunner) Run(ctx context.Context, packageName string, args io.Re
 	}
 
 	return nil
+}
 
+func (r *KurtosisRunner) RunScript(ctx context.Context, script string) error {
+	if r.dryRun {
+		fmt.Printf("Dry run mode enabled, would run following script in enclave %s\n%s\n",
+			r.enclave, script)
+		return nil
+	}
+
+	enclaveCtx, err := r.kurtosisCtx.GetEnclave(ctx, r.enclave)
+	if err != nil {
+		return fmt.Errorf("failed to get enclave: %w", err)
+	}
+
+	return enclaveCtx.RunStarlarkScript(ctx, script, &starlark_run_config.StarlarkRunConfig{
+		SerializedParams: "{}",
+	})
 }

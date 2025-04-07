@@ -49,6 +49,7 @@ type StarlarkResponse interface {
 
 type EnclaveContext interface {
 	RunStarlarkPackage(context.Context, string, *starlark_run_config.StarlarkRunConfig) (<-chan StarlarkResponse, string, error)
+	RunStarlarkScript(context.Context, string, *starlark_run_config.StarlarkRunConfig) error
 }
 
 type KurtosisContextInterface interface {
