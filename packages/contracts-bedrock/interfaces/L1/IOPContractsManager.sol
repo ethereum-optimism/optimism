@@ -17,6 +17,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
@@ -64,7 +65,7 @@ interface IOPContractsManagerDeployer {
 
     function deploy(
         IOPContractsManager.DeployInput memory _input,
-        address _systemConfig,
+        ISuperchainConfig _superchainConfig,
         address _deployer
     )
         external
@@ -235,7 +236,6 @@ interface IOPContractsManager {
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     function superchainConfig() external view returns (ISuperchainConfig);
-
 
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     function protocolVersions() external view returns (IProtocolVersions);

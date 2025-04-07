@@ -163,7 +163,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
     IProtocolVersions internal _protocolVersionsProxy;
     ISuperchainConfig internal _superchainConfigImpl;
     ISuperchainConfig internal _superchainConfigProxy;
-    ISystemConfig internal _systemConfigProxy;
     IProxyAdmin internal _superchainProxyAdmin;
 
     // This method lets each field be set individually. The selector of an output's getter method
@@ -175,7 +174,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
         else if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = ISuperchainConfig(_address);
         else if (_sel == this.protocolVersionsImpl.selector) _protocolVersionsImpl = IProtocolVersions(_address);
         else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = IProtocolVersions(_address);
-        else if (_sel == this.systemConfigProxy.selector) _systemConfigProxy = ISystemConfig(_address);
         else revert("DeploySuperchainOutput: unknown selector");
     }
 
@@ -187,8 +185,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
             address(this.superchainConfigImpl()),
             address(this.superchainConfigProxy()),
             address(this.protocolVersionsImpl()),
-            address(this.protocolVersionsProxy()),
-            address(this.systemConfigProxy())
+            address(this.protocolVersionsProxy())
         );
         DeployUtils.assertValidContractAddresses(addrs);
 
@@ -219,11 +216,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
     function superchainConfigProxy() public view returns (ISuperchainConfig) {
         DeployUtils.assertValidContractAddress(address(_superchainConfigProxy));
         return _superchainConfigProxy;
-    }
-
-    function systemConfigProxy() public view returns (ISystemConfig) {
-        DeployUtils.assertValidContractAddress(address(_systemConfigProxy));
-        return _systemConfigProxy;
     }
 
     function protocolVersionsImpl() public view returns (IProtocolVersions) {
@@ -393,7 +385,7 @@ contract DeploySuperchain is Script {
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(ISuperchainConfig.initialize, (guardian, 15778800))
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian, _dsi.pauseExpiry()))
         );
         vm.stopBroadcast();
 
