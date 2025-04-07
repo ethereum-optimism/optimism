@@ -72,13 +72,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     bool private spacer_53_0_1;
 
     /// @custom:legacy
-    /// @custom:spacer l2Oracle
-    /// @notice Spacer taking up the legacy `l2Oracle` address slot.
+    /// @custom:spacer superchainConfig
+    /// @notice Spacer for backwards compatibility.
     address private spacer_54_0_20;
 
-    /// @notice Address of the SystemConfig contract.
-    /// @custom:network-specific
-    ISystemConfig public systemConfig;
+    /// @custom:legacy
+    /// @custom:spacer l2Oracle
+    /// @notice Spacer taking up the legacy `l2Oracle` address slot.
+    address private spacer_55_0_20;
 
     /// @custom:network-specific
     /// @custom:legacy
@@ -122,6 +123,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Whether the OptimismPortal is using Super Roots or Output Roots.
     bool public superRootsActive;
+
+    /// @notice Address of the SystemConfig contract.
+    /// @custom:network-specific
+    ISystemConfig public systemConfig;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
     ///         are read by the rollup node and used to derive deposit transactions on L2.
