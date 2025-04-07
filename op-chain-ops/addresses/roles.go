@@ -12,11 +12,11 @@ type SuperchainRoles struct {
 }
 
 type OpChainRoles struct {
-	Base        *OpChainBaseRoles
+	Core        *OpChainCoreRoles
 	FaultProofs *OpChainFaultProofsRoles
 }
 
-type OpChainBaseRoles struct {
+type OpChainCoreRoles struct {
 	SystemConfigOwner      common.Address
 	OpChainProxyAdminOwner common.Address
 	Guardian               common.Address

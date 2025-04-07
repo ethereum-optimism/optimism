@@ -40,14 +40,14 @@ type ImplementationsContracts struct {
 }
 
 type OpChainContracts struct {
-	Base        *OpChainBaseContracts
+	Core        *OpChainCoreContracts
 	FaultProofs *OpChainFaultProofsContracts
 	AltDA       *OpChainAltDAContracts
 	Legacy      *OpChainLegacyContracts
 }
 
 // DeployOPChain.s.sol output
-type OpChainBaseContracts struct {
+type OpChainCoreContracts struct {
 	OpChainProxyAdminImpl             common.Address
 	AddressManagerImpl                common.Address
 	L1ERC721BridgeProxy               common.Address
