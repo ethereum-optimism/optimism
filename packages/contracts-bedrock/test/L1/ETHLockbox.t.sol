@@ -166,10 +166,9 @@ contract ETHLockboxTest is CommonTest {
 
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // lockbox.
-        // PEP: Remove comments and fix
-        // vm.mockCall(
-        //     address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
-        // );
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+        );
 
         // Set the portal as an authorized portal if needed
         if (!ethLockbox.authorizedPortals(_portal)) {
@@ -285,10 +284,10 @@ contract ETHLockboxTest is CommonTest {
 
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // lockbox.
-        // PEP: Remove comments and fix
-        // vm.mockCall(
-        //     address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
-        // );
+
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+        );
 
         // Set the portal as an authorized portal if needed
         if (!ethLockbox.authorizedPortals(_portal)) {
@@ -378,10 +377,9 @@ contract ETHLockboxTest is CommonTest {
 
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // Lockbox.
-        // PEP: Remove comments and fix
-        // vm.mockCall(
-        //     address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
-        // );
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+        );
 
         // Expect the `PortalAuthorized` event to be emitted
         vm.expectEmit(address(ethLockbox));

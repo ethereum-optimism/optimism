@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IDelayedWETH {
     struct WithdrawalRequest {
@@ -58,6 +59,8 @@ interface IDelayedWETH {
     function transfer(address dst, uint256 wad) external returns (bool);
 
     function transferFrom(address src, address dst, uint256 wad) external returns (bool);
+
+    function superchainConfig() external view returns (ISuperchainConfig);
 
     function __constructor__(uint256 _delay) external;
 }

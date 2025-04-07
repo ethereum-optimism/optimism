@@ -5,6 +5,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IETHLockbox is IProxyAdminOwnedBase, ISemver {
     error ETHLockbox_Unauthorized();
@@ -32,6 +33,7 @@ interface IETHLockbox is IProxyAdminOwnedBase, ISemver {
     function authorizePortal(IOptimismPortal2 _portal) external;
     function authorizeLockbox(IETHLockbox _lockbox) external;
     function migrateLiquidity(IETHLockbox _lockbox) external;
+    function superchainConfig() external view returns (ISuperchainConfig);
 
     function __constructor__() external;
 }

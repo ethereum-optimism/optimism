@@ -6,6 +6,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IAnchorStateRegistry {
     error AnchorStateRegistry_AnchorGameBlacklisted();
@@ -48,6 +49,7 @@ interface IAnchorStateRegistry {
     function systemConfig() external view returns (ISystemConfig);
     function updateRetirementTimestamp() external;
     function version() external view returns (string memory);
+    function superchainConfig() external view returns (ISuperchainConfig);
 
     function __constructor__(
         uint256 _disputeGameFinalityDelaySeconds
