@@ -28,6 +28,28 @@ func OPSepoliaChainConfig() *params.ChainConfig {
 	return mustLoadChainConfig("op-sepolia")
 }
 
+// LoadSepoliaIsthmusConfig loads the Sepolia Isthmus config, which contains the hardfork time.
+func LoadSepoliaIsthmusConfig() (*IsthmusConfig, error) {
+	data, err := customChainConfigFS.ReadFile("configs/sepolia-isthmus.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Sepolia Isthmus config: %w", err)
+	}
+	var config IsthmusConfig
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Sepolia Isthmus config: %w", err)
+	}
+	return &config, nil
+}
+
+// IsthmusConfig represents the configuration for the Isthmus hardfork.
+type IsthmusConfig struct {
+	IsthmusTime uint64 `json:"isthmus_time"`
+	Network     string `json:"network"`
+	ChainID     uint64 `json:"chain_id"`
+	Description string `json:"description"`
+}
+
 //go:embed configs/*json
 var customChainConfigFS embed.FS
 
