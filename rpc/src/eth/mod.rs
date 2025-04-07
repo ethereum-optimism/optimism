@@ -340,6 +340,7 @@ where
         .eth_proof_window(ctx.config.eth_proof_window)
         .fee_history_cache_config(ctx.config.fee_history_cache)
         .proof_permits(ctx.config.proof_permits)
+        .gas_oracle_config(ctx.config.gas_oracle)
         .build_inner();
 
         OpEthApi { inner: Arc::new(OpEthApiInner { eth_api, sequencer_client }) }
