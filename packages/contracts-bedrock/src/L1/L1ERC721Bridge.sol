@@ -25,12 +25,17 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /// @notice Address of the SystemConfig contract.
-    ISystemConfig public systemConfig;
+    /// @custom:legacy
+    /// @custom:spacer superchainConfig
+    /// @notice Spacer taking up the legacy `superchainConfig` slot.
+    address private spacer_50_0_20;
 
     /// @notice Semantic version.
     /// @custom:semver 3.0.0
     string public constant version = "3.0.0";
+
+    /// @notice Address of the SystemConfig contract.
+    ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {

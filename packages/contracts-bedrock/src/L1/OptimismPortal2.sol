@@ -74,7 +74,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:legacy
     /// @custom:spacer superchainConfig
     /// @notice Spacer for backwards compatibility.
-    address private spacer_54_0_20;
+    address private spacer_53_1_20;
 
     /// @notice Address of the SystemConfig contract.
     /// @custom:network-specific

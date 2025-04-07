@@ -19,8 +19,10 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @notice Contract of the SystemConfig.
-    ISystemConfig public systemConfig;
+    /// @custom:legacy
+    /// @custom:spacer superchainConfig
+    /// @notice Spacer taking up the legacy `superchainConfig` slot.
+    address private spacer_251_0_20;
 
     /// @notice Contract of the OptimismPortal.
     /// @custom:network-specific
@@ -34,6 +36,9 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Semantic version.
     /// @custom:semver 3.0.0
     string public constant version = "3.0.0";
+
+    /// @notice Contract of the SystemConfig.
+    ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() {

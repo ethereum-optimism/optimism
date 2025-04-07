@@ -78,13 +78,18 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @custom:semver 3.0.0
     string public constant version = "3.0.0";
 
-    /// @notice Address of the SystemConfig contract.
-    ISystemConfig public systemConfig;
+    /// @custom:legacy
+    /// @custom:spacer superchainConfig
+    /// @notice Spacer taking up the legacy `superchainConfig` slot.
+    address private spacer_50_0_20;
 
     /// @custom:legacy
     /// @custom:spacer systemConfig
     /// @notice Spacer taking up the legacy `systemConfig` slot.
     address private spacer_51_0_20;
+
+    /// @notice Address of the SystemConfig contract.
+    ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
