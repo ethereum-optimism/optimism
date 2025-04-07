@@ -1,10 +1,15 @@
 package sysext
 
 import (
+	"os"
+
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
 )
+
+const defaultDevnetUrl = "kt://interop-devnet"
 
 type OrchestratorOption func(*Orchestrator)
 
@@ -20,7 +25,14 @@ type Orchestrator struct {
 var _ stack.Orchestrator = (*Orchestrator)(nil)
 
 func NewOrchestrator(p devtest.P) *Orchestrator {
-	return &Orchestrator{p: p}
+	url := os.Getenv(env.EnvURLVar)
+	if url == "" {
+		p.Logger().Warn("No devnet URL specified, using default", "default", defaultDevnetUrl)
+		url = defaultDevnetUrl
+	}
+	env, err := env.LoadDevnetFromURL(url)
+	p.Require().NoError(err, "Error loading devnet environment")
+	return &Orchestrator{env: &env.Config, p: p}
 }
 
 func (o *Orchestrator) P() devtest.P {
