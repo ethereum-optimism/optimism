@@ -10,6 +10,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
@@ -233,8 +234,9 @@ interface IOPContractsManager {
 
     function version() external pure returns (string memory);
 
-    /// @notice Address of the SystemConfig contract shared by all chains.
-    function systemConfig() external view returns (ISystemConfig);
+    /// @notice Address of the SuperchainConfig contract shared by all chains.
+    function superchainConfig() external view returns (ISuperchainConfig);
+
 
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     function protocolVersions() external view returns (IProtocolVersions);
@@ -293,7 +295,7 @@ interface IOPContractsManager {
         IOPContractsManagerDeployer _opcmDeployer,
         IOPContractsManagerUpgrader _opcmUpgrader,
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
-        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
         string memory _l1ContractsRelease,

@@ -27,7 +27,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { Claim, Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
@@ -587,7 +587,7 @@ contract DeployOPChain is Script {
 
         require(address(messenger.PORTAL()) == address(_doo.optimismPortalProxy()), "L1xDM-30");
         require(address(messenger.portal()) == address(_doo.optimismPortalProxy()), "L1xDM-40");
-        require(address(messenger.systemConfig()) == address(_doi.opcm().systemConfig()), "L1xDM-50");
+        require(address(messenger.systemConfig().superchainConfig()) == address(_doi.opcm().superchainConfig()), "L1xDM-50");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
@@ -603,7 +603,7 @@ contract DeployOPChain is Script {
         require(address(bridge.messenger()) == address(messenger), "L1SB-20");
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-30");
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-40");
-        require(address(bridge.systemConfig()) == address(_doi.opcm().systemConfig()), "L1SB-50");
+        require(address(bridge.systemConfig().superchainConfig()) == address(_doi.opcm().superchainConfig()), "L1SB-50");
     }
 
     function assertValidOptimismMintableERC20Factory(DeployOPChainInput, DeployOPChainOutput _doo) internal {
@@ -625,12 +625,12 @@ contract DeployOPChain is Script {
 
         require(address(bridge.MESSENGER()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-30");
         require(address(bridge.messenger()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-40");
-        require(address(bridge.systemConfig()) == address(_doi.opcm().systemConfig()), "L721B-50");
+        require(address(bridge.systemConfig().superchainConfig()) == address(_doi.opcm().superchainConfig()), "L721B-50");
     }
 
     function assertValidOptimismPortal(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         IOptimismPortal portal = _doo.optimismPortalProxy();
-        ISystemConfig systemConfig = ISystemConfig(address(_doi.opcm().systemConfig()));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(address(_doi.opcm().superchainConfig()));
 
         require(address(portal.anchorStateRegistry()) == address(_doo.anchorStateRegistryProxy()), "PORTAL-10");
         require(address(portal.disputeGameFactory()) == address(_doo.disputeGameFactoryProxy()), "PORTAL-20");

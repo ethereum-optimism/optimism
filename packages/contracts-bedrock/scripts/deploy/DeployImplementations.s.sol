@@ -51,7 +51,6 @@ contract DeployImplementationsInput is BaseDeployIO {
     string internal _l1ContractsRelease;
 
     // Outputs from DeploySuperchain.s.sol.
-    ISystemConfig internal _systemConfigProxy;
     ISuperchainConfig internal _superchainConfigProxy;
     IProtocolVersions internal _protocolVersionsProxy;
     IProxyAdmin internal _superchainProxyAdmin;
@@ -90,7 +89,6 @@ contract DeployImplementationsInput is BaseDeployIO {
         else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = IProtocolVersions(_addr);
         else if (_sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = IProxyAdmin(_addr);
         else if (_sel == this.upgradeController.selector) _upgradeController = _addr;
-        else if (_sel == this.systemConfigProxy.selector) _systemConfigProxy = ISystemConfig(_addr);
         else revert("DeployImplementationsInput: unknown selector");
     }
 
@@ -140,11 +138,6 @@ contract DeployImplementationsInput is BaseDeployIO {
     function protocolVersionsProxy() public view returns (IProtocolVersions) {
         require(address(_protocolVersionsProxy) != address(0), "DeployImplementationsInput: not set");
         return _protocolVersionsProxy;
-    }
-
-    function systemConfigProxy() public view returns (ISystemConfig) {
-        require(address(_systemConfigProxy) != address(0), "DeployImplementationsInput: not set");
-        return _systemConfigProxy;
     }
 
     function superchainProxyAdmin() public view returns (IProxyAdmin) {
@@ -356,7 +349,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
     function assertValidOpcm(DeployImplementationsInput _dii) internal view {
         IOPContractsManager impl = IOPContractsManager(address(opcm()));
-        require(address(impl.systemConfig()) == address(_dii.superchainConfigProxy()), "OPCMI-10");
+        require(address(impl.superchainConfig()) == address(_dii.superchainConfigProxy()), "OPCMI-10");
         require(address(impl.protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPCMI-20");
         require(impl.upgradeController() == _dii.upgradeController(), "OPCMI-30");
     }
@@ -368,7 +361,8 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         require(address(portal.anchorStateRegistry()) == address(0), "PORTAL-10");
         require(address(portal.systemConfig()) == address(0), "PORTAL-20");
-        require(portal.l2Sender() == address(0), "PORTAL-30");
+        require(address(portal.superchainConfig()) == address(0), "PORTAL-30");
+        require(portal.l2Sender() == address(0), "PORTAL-40");
 
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
@@ -603,7 +597,7 @@ contract DeployImplementations is Script {
                     _dio.opcmDeployer(),
                     _dio.opcmUpgrader(),
                     _dio.opcmInteropMigrator(),
-                    _dii.systemConfigProxy(),
+                    _dii.superchainConfigProxy(),
                     _dii.protocolVersionsProxy(),
                     _dii.superchainProxyAdmin(),
                     _l1ContractsRelease,
