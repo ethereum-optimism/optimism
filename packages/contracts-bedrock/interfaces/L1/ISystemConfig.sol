@@ -90,6 +90,7 @@ interface ISystemConfig {
     function version() external pure returns (string memory);
     function paused() external view returns (bool);
     function superchainConfig() external view returns (ISuperchainConfig);
+    function guardian() external view returns (address);
 
     function __constructor__() external;
 }

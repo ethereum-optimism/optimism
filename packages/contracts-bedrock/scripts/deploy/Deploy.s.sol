@@ -369,9 +369,7 @@ contract Deploy is Deployer {
         vm.broadcast(msg.sender);
         IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
             _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(
-                IDelayedWETH.initialize, (msg.sender, deployOutput.systemConfigProxy)
-            )
+            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, deployOutput.systemConfigProxy))
         });
 
         setAlphabetFaultGameImplementation();

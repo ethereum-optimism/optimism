@@ -310,7 +310,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
     function guardian() public view returns (address) {
-        return systemConfig.superchainConfig().guardian();
+        return systemConfig.guardian();
     }
 
     /// @custom:legacy

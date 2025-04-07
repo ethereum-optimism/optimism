@@ -466,10 +466,10 @@ contract DeployOPChain is Script {
         assertValidAnchorStateRegistryProxy(_doi, _doo);
         assertValidDelayedWETH(_doi, _doo);
         assertValidDisputeGameFactory(_doi, _doo);
-        assertValidL1CrossDomainMessenger(_doi, _doo);
-        assertValidL1ERC721Bridge(_doi, _doo);
-        assertValidL1StandardBridge(_doi, _doo);
-        assertValidOptimismMintableERC20Factory(_doi, _doo);
+        assertValidL1CrossDomainMessenger(_doo);
+        assertValidL1ERC721Bridge(_doo);
+        assertValidL1StandardBridge(_doo);
+        assertValidOptimismMintableERC20Factory(_doo);
         assertValidOptimismPortal(_doi, _doo);
         assertValidETHLockbox(_doi, _doo);
         assertValidPermissionedDisputeGame(_doi, _doo);
@@ -569,7 +569,7 @@ contract DeployOPChain is Script {
         );
     }
 
-    function assertValidL1CrossDomainMessenger(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidL1CrossDomainMessenger(DeployOPChainOutput _doo) internal {
         IL1CrossDomainMessenger messenger = _doo.l1CrossDomainMessengerProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: true, _slot: 0, _offset: 20 });
@@ -585,7 +585,7 @@ contract DeployOPChain is Script {
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
     }
 
-    function assertValidL1StandardBridge(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidL1StandardBridge(DeployOPChainOutput _doo) internal {
         IL1StandardBridge bridge = _doo.l1StandardBridgeProxy();
         IL1CrossDomainMessenger messenger = _doo.l1CrossDomainMessengerProxy();
 
@@ -598,7 +598,7 @@ contract DeployOPChain is Script {
         require(address(bridge.systemConfig()) == address(_doo.systemConfigProxy()), "L1SB-50");
     }
 
-    function assertValidOptimismMintableERC20Factory(DeployOPChainInput, DeployOPChainOutput _doo) internal {
+    function assertValidOptimismMintableERC20Factory(DeployOPChainOutput _doo) internal {
         IOptimismMintableERC20Factory factory = _doo.optimismMintableERC20FactoryProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: true, _slot: 0, _offset: 0 });
@@ -607,7 +607,7 @@ contract DeployOPChain is Script {
         require(factory.bridge() == address(_doo.l1StandardBridgeProxy()), "MERC20F-20");
     }
 
-    function assertValidL1ERC721Bridge(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidL1ERC721Bridge(DeployOPChainOutput _doo) internal {
         IL1ERC721Bridge bridge = _doo.l1ERC721BridgeProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(bridge), _isProxy: true, _slot: 0, _offset: 0 });

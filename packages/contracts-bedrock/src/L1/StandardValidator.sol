@@ -311,9 +311,7 @@ contract StandardValidatorBase {
         _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-50", _errors);
-        _errors = internalRequire(
-            _portal.guardian() == ISystemConfig(_sysCfg).superchainConfig().guardian(), "PORTAL-60", _errors
-        );
+        _errors = internalRequire(_portal.guardian() == ISystemConfig(_sysCfg).guardian(), "PORTAL-60", _errors);
         _errors = internalRequire(_portal.paused() == ISystemConfig(_sysCfg).paused(), "PORTAL-70", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
         return _errors;

@@ -115,14 +115,14 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Allows the Guardian to set the respected game type.
     /// @param _gameType The new respected game type.
     function setRespectedGameType(GameType _gameType) external {
-        if (msg.sender != systemConfig.superchainConfig().guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         respectedGameType = _gameType;
         emit RespectedGameTypeSet(_gameType);
     }
 
     /// @notice Allows the Guardian to update the retirement timestamp.
     function updateRetirementTimestamp() external {
-        if (msg.sender != systemConfig.superchainConfig().guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         retirementTimestamp = uint64(block.timestamp);
         emit RetirementTimestampSet(block.timestamp);
     }
@@ -130,7 +130,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Allows the Guardian to blacklist a dispute game.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        if (msg.sender != systemConfig.superchainConfig().guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         disputeGameBlacklist[_disputeGame] = true;
         emit DisputeGameBlacklisted(_disputeGame);
     }

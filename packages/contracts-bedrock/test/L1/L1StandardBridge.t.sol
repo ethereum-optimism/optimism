@@ -92,7 +92,7 @@ contract L1StandardBridge_Pause_TestFail is CommonTest {
     ///      the calls to the xDomainMessageSender so that it returns the correct value.
     function setUp() public override {
         super.setUp();
-        vm.prank(systemConfig.superchainConfig().guardian());
+        vm.prank(systemConfig.guardian());
         systemConfig.superchainConfig().pause(address(0));
         assertTrue(l1StandardBridge.paused());
 

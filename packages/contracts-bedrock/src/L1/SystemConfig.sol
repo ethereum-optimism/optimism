@@ -476,4 +476,10 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
         return superchainConfig.paused(address(lockbox)) || superchainConfig.paused(address(0));
     }
+
+    /// @notice Returns the guardian address of the SuperchainConfig.
+    /// @return address The guardian address.
+    function guardian() public view returns (address) {
+        return superchainConfig.guardian();
+    }
 }
