@@ -184,7 +184,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
             _message: _message
         });
 
-        if (sentMessages[messageHash_]) revert InvalidMessage();
+        if (!sentMessages[messageHash_]) revert InvalidMessage();
 
         emit SentMessage(_destination, _target, _nonce, _sender, _message);
     }
