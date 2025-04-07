@@ -98,6 +98,15 @@ func WithNonce(nonce uint64) Option {
 	}
 }
 
+func WithStaticNonce(nonce uint64) Option {
+	return func(tx *PlannedTx) {
+		tx.Nonce.Set(nonce)
+		tx.Nonce.Fn(func(ctx context.Context) (uint64, error) {
+			return nonce, nil
+		})
+	}
+}
+
 func WithAccessList(al types.AccessList) Option {
 	return func(tx *PlannedTx) {
 		tx.AccessList.Set(al)
@@ -255,7 +264,6 @@ type PendingNonceAt interface {
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 }
 
-// WithPendingNonce automatically
 func WithPendingNonce(cl PendingNonceAt) Option {
 	return func(tx *PlannedTx) {
 		tx.Nonce.DependOn(&tx.AgainstBlock, &tx.Sender)
