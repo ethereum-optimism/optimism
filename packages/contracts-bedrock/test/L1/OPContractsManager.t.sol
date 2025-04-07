@@ -159,8 +159,7 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
             disputeSplitDepth: _doi.disputeSplitDepth(),
             disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration(),
-            superchainConfig: _doi.superchainConfig()
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
         });
     }
 
@@ -866,7 +865,7 @@ contract OPContractsManager_TestInit is Test {
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
 
     function setUp() public virtual {
-        ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfig"));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
         bytes32 salt = hex"01";
@@ -947,7 +946,7 @@ contract OPContractsManager_TestInit is Test {
             })
         });
 
-        vm.etch(address(systemConfigProxy), hex"01");
+        vm.etch(address(superchainConfig), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
@@ -1003,7 +1002,7 @@ contract OPContractsManager_TestInit is Test {
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
                             ),
-                            systemConfigProxy,
+                            ISuperchainConfig(superchainConfig),
                             protocolVersionsProxy,
                             superchainProxyAdmin,
                             "dev",
@@ -1055,8 +1054,7 @@ contract OPContractsManager_TestInit is Test {
                 disputeMaxGameDepth: 73,
                 disputeSplitDepth: 30,
                 disputeClockExtension: Duration.wrap(10800),
-                disputeMaxClockDuration: Duration.wrap(302400),
-                superchainConfig: address(makeAddr("superchainConfig"))
+                disputeMaxClockDuration: Duration.wrap(302400)
             })
         );
     }

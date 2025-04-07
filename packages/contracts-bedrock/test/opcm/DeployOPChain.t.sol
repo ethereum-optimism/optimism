@@ -21,10 +21,10 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { IL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 import { IResolvedDelegateProxy } from "interfaces/legacy/IResolvedDelegateProxy.sol";
 
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 import { Claim, Duration, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
 
@@ -311,9 +311,8 @@ contract DeployOPChain_TestBase is Test {
     uint256 challengePeriodSeconds = 300;
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
-    uint256 pauseExpiry = 6 * 30 * 24 * 60 * 60; // 6 months in seconds
     string release = "dev-release"; // this means implementation contracts will be deployed
-    ISystemConfig systemConfigProxy;
+    ISuperchainConfig superchainConfigProxy;
     IProtocolVersions protocolVersionsProxy;
     IProxyAdmin superchainProxyAdmin;
     address upgradeController;
@@ -348,14 +347,14 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
-        dsi.set(dsi.pauseExpiry.selector, pauseExpiry);
+        // TODO: Add pause expiry
         dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.unwrap(requiredProtocolVersion));
         dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.unwrap(recommendedProtocolVersion));
 
         deploySuperchain.run(dsi, dso);
 
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
-        systemConfigProxy = dso.systemConfigProxy();
+        superchainConfigProxy = dso.superchainConfigProxy();
         protocolVersionsProxy = dso.protocolVersionsProxy();
         superchainProxyAdmin = dso.superchainProxyAdmin();
         upgradeController = superchainProxyAdmin.owner();
@@ -371,7 +370,7 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
         dii.set(dii.mipsVersion.selector, 1);
         dii.set(dii.l1ContractsRelease.selector, release);
-        dii.set(dii.systemConfigProxy.selector, address(systemConfigProxy));
+        dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
         dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
         dii.set(dii.upgradeController.selector, upgradeController);
