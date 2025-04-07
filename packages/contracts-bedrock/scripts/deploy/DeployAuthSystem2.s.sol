@@ -6,7 +6,6 @@ import { Script } from "forge-std/Script.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { Solarray } from "scripts/libraries/Solarray.sol";
 
 contract DeployAuthSystem2 is Script {
     struct Input {
