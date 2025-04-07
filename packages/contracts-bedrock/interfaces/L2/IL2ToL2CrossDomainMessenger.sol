@@ -94,9 +94,15 @@ interface IL2ToL2CrossDomainMessenger {
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
-    /// @return msgHash_ The hash of the message being sent, which can be used for tracking whether
-    ///                  the message has successfully been relayed.
-    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external returns (bytes32);
+    /// @return messageHash_ The hash of the message being sent, used to track whether the message
+    ///                      has successfully been relayed.
+    function sendMessage(
+        uint256 _destination,
+        address _target,
+        bytes calldata _message
+    )
+        external
+        returns (bytes32 messageHash_);
 
     /// @notice Re-emits a previously sent message event for old messages that haven't been
     ///         relayed yet, allowing offchain infrastructure to pick them up and relay them.

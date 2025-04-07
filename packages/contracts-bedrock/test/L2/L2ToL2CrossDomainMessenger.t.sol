@@ -226,7 +226,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Look for correct emitted event
         vm.recordLogs();
 
-        // Call the sendMessage function
+        // Call the `sendMessage` function
         vm.prank(_sender);
         bytes32 msgHash = l2ToL2CrossDomainMessenger.sendMessage(_destination, _target, _message);
         assertEq(
@@ -251,7 +251,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
         assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
 
-        // Call the reEmitMessageSent function
+        // Call the `reEmitMessageSent` function
         l2ToL2CrossDomainMessenger.reEmitMessageSent(_destination, messageNonce, _sender, _target, _message);
 
         // Check that the event was emitted with the correct parameters

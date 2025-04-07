@@ -64,8 +64,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0-beta.0
-    string public constant version = "1.1.0-beta.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -128,8 +128,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
-    /// @return messageHash_ The hash of the message being sent, used to track whether the message has successfully been
-    /// relayed.
+    /// @return messageHash_ The hash of the message being sent, used to track whether the message
+    ///                      has successfully been relayed.
     function sendMessage(
         uint256 _destination,
         address _target,
@@ -175,7 +175,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     )
         external
     {
-        bytes32 messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
+        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage({
             _destination: _destination,
             _source: block.chainid,
             _nonce: _nonce,
@@ -184,17 +184,17 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
             _message: _message
         });
 
-        if (!sentMessages[messageHash_]) revert InvalidMessage();
+        if (!sentMessages[messageHash]) revert InvalidMessage();
 
         emit SentMessage(_destination, _target, _nonce, _sender, _message);
     }
+
     /// @notice Relays a message that was sent by the other L2ToL2CrossDomainMessenger contract. Can only be executed
     ///         via cross chain call from the other messenger OR if the message was already received once and is
     ///         currently being replayed.
     /// @param _id          Identifier of the SentMessage event to be relayed
     /// @param _sentMessage Payload of the `SentMessage` event
     /// @return returnData_ Return data from the target contract call.
-
     function relayMessage(
         Identifier calldata _id,
         bytes calldata _sentMessage
