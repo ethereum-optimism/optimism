@@ -13,6 +13,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title L1ERC721Bridge
@@ -118,5 +119,11 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         // Send calldata into L2
         messenger.sendMessage({ _target: address(otherBridge), _message: message, _minGasLimit: _minGasLimit });
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 }

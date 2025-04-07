@@ -8,6 +8,7 @@ import { WETH98 } from "src/universal/WETH98.sol";
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title DelayedWETH
@@ -116,5 +117,11 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, ISemver {
         _allowance[_guy][msg.sender] = _wad;
         emit Approval(_guy, msg.sender, _wad);
         transferFrom(_guy, msg.sender, _wad);
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 }

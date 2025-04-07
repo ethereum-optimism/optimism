@@ -11,6 +11,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title L1CrossDomainMessenger
@@ -80,5 +81,11 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @inheritdoc CrossDomainMessenger
     function paused() public view override returns (bool) {
         return systemConfig.paused();
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 }

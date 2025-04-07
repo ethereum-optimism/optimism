@@ -11,6 +11,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title L1StandardBridge
@@ -326,5 +327,11 @@ contract L1StandardBridge is StandardBridge, ISemver {
     {
         emit ERC20WithdrawalFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 }

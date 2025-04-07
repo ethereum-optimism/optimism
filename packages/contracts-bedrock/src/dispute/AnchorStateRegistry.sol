@@ -13,6 +13,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title AnchorStateRegistry
@@ -312,5 +313,11 @@ contract AnchorStateRegistry is Initializable, ISemver {
         // Update the anchor game.
         anchorGame = game;
         emit AnchorUpdated(game);
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 }

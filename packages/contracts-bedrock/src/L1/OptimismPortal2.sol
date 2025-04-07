@@ -71,9 +71,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Spacer for backwards compatibility.
     bool private spacer_53_0_1;
 
-    /// @notice Address of the SuperchainConfig contract.
-    ISuperchainConfig public superchainConfig;
-
     /// @custom:legacy
     /// @custom:spacer l2Oracle
     /// @notice Spacer taking up the legacy `l2Oracle` address slot.
@@ -779,5 +776,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         assembly ("memory-safe") {
             config_ := config
         }
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 }

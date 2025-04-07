@@ -13,6 +13,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title ETHLockbox
@@ -207,5 +208,11 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
 
         // Emit the event.
         emit PortalAuthorized(_portal);
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 }
