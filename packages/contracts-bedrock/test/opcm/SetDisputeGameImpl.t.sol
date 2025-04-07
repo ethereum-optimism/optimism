@@ -92,38 +92,11 @@ contract SetDisputeGameImpl_Test is Test {
 
         Proxy systemConfigProxy = new Proxy(address(1));
         vm.prank(address(1));
-        systemConfigProxy.upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                systemConfigImpl.initialize,
-                (
-                    address(this),
-                    1000,
-                    1000,
-                    bytes32(0),
-                    30_000_000,
-                    address(1),
-                    IResourceMetering.ResourceConfig({
-                        maxResourceLimit: 20_000_000,
-                        elasticityMultiplier: 10,
-                        baseFeeMaxChangeDenominator: 8,
-                        minimumBaseFee: 100_000_000,
-                        systemTxMaxGas: 1_000_000,
-                        maximumBaseFee: type(uint128).max
-                    }),
-                    address(2),
-                    SystemConfig.Addresses({
-                        l1CrossDomainMessenger: address(3),
-                        l1ERC721Bridge: address(4),
-                        l1StandardBridge: address(5),
-                        optimismPortal: address(6),
-                        optimismMintableERC20Factory: address(7)
-                    }),
-                    10,
-                    ISuperchainConfig(address(supConfigProxy))
-                )
-            )
-        );
+        {
+            systemConfigProxy.upgradeToAndCall(
+                address(systemConfigImpl), _encodeInitializeSystemConfig(supConfigProxy, systemConfigImpl)
+            );
+        }
 
         Proxy factoryProxy = new Proxy(address(1));
         vm.prank(address(1));
@@ -186,5 +159,44 @@ contract SetDisputeGameImpl_Test is Test {
 
         vm.expectRevert("SDGI-30");
         script.assertValid(input);
+    }
+
+    function _encodeInitializeSystemConfig(
+        Proxy supConfigProxy,
+        SystemConfig systemConfigImpl
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        return abi.encodeCall(
+            systemConfigImpl.initialize,
+            (
+                address(this),
+                1000,
+                1000,
+                bytes32(0),
+                30_000_000,
+                address(1),
+                IResourceMetering.ResourceConfig({
+                    maxResourceLimit: 20_000_000,
+                    elasticityMultiplier: 10,
+                    baseFeeMaxChangeDenominator: 8,
+                    minimumBaseFee: 100_000_000,
+                    systemTxMaxGas: 1_000_000,
+                    maximumBaseFee: type(uint128).max
+                }),
+                address(2),
+                SystemConfig.Addresses({
+                    l1CrossDomainMessenger: address(3),
+                    l1ERC721Bridge: address(4),
+                    l1StandardBridge: address(5),
+                    optimismPortal: address(6),
+                    optimismMintableERC20Factory: address(7)
+                }),
+                10,
+                ISuperchainConfig(address(supConfigProxy))
+            )
+        );
     }
 }
