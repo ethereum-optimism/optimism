@@ -11,19 +11,9 @@ import (
 )
 
 var opcmArtifactPath = "forge-artifacts/OPContractsManager.sol/OPContractsManagerUpgrader.json"
-var opcmAst *solc.ForgeArtifact
 var opcmUpgradeFunctionSelector = "ff2dd5a1"
 
 func main() {
-	var err error
-
-	// Get OPCM's AST.
-	opcmAst, err = common.ReadForgeArtifact(opcmArtifactPath)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
 	// Process.
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
@@ -58,6 +48,12 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	// If there are more than 1 upgrade functions, return an error.
 	if numOfUpgradeFunctions > 1 {
 		return nil, []error{fmt.Errorf("expected 0 or 1 upgrade function, found %v", numOfUpgradeFunctions)}
+	}
+
+	// Get OPCM's AST.
+	opcmAst, err := common.ReadForgeArtifact(opcmArtifactPath)
+	if err != nil {
+		return nil, []error{err}
 	}
 
 	// Get the AST of OPCM's upgrade function.
