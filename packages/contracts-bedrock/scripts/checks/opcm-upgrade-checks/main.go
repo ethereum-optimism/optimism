@@ -48,7 +48,7 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	}
 
 	// Find if it contains any upgrade function and if there are no upgradeFunctions, return early.
-	if getNumberOfUpgradeFunctions(artifact) == 0 {
+	if getNumberOfUpgradeFunctions(artifact) != 1 {
 		return nil, nil
 	}
 
