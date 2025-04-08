@@ -25,7 +25,7 @@ index.html
 
 !op-deployer/pkg/deployer/artifacts
 
-packages/contracts-bedrock/deployments/devnetL1
+
 packages/contracts-bedrock/deployments/anvil
 
 # vim

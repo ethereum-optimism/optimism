@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
+	"github.com/ethereum-optimism/optimism/op-program/host/subcmds"
 	"github.com/ethereum-optimism/optimism/op-program/host/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -44,6 +45,9 @@ func run(args []string, action ConfigAction) error {
 	app.Name = "op-program"
 	app.Usage = "Optimism Fault Proof Program"
 	app.Description = "The Optimism Fault Proof Program fault proof program that runs through the rollup state-transition to verify an L2 output from L1 inputs."
+	app.Commands = []*cli.Command{
+		subcmds.ConfigsCommand,
+	}
 	app.Action = func(ctx *cli.Context) error {
 		logger, err := setupLogging(ctx)
 		if err != nil {

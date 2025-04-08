@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -151,15 +152,29 @@ type SuperRootResponse struct {
 	CrossSafeDerivedFrom BlockID `json:"crossSafeDerivedFrom"`
 	Timestamp            uint64  `json:"timestamp"`
 	SuperRoot            Bytes32 `json:"superRoot"`
+	Version              byte    `json:"version"`
 	// Chains is the list of ChainRootInfo for each chain in the dependency set.
 	// It represents the state of the chain at or before the Timestamp.
 	Chains []ChainRootInfo `json:"chains"`
+}
+
+func (s SuperRootResponse) ToSuper() (Super, error) {
+	if s.Version != SuperRootVersionV1 {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidSuperRootVersion, s.Version)
+	}
+	prevChainOutputs := make([]ChainIDAndOutput, 0, len(s.Chains))
+	for _, chain := range s.Chains {
+		prevChainOutputs = append(prevChainOutputs, ChainIDAndOutput{ChainID: chain.ChainID, Output: chain.Canonical})
+	}
+	superV1 := NewSuperV1(s.Timestamp, prevChainOutputs...)
+	return superV1, nil
 }
 
 type superRootResponseMarshalling struct {
 	CrossSafeDerivedFrom BlockID         `json:"crossSafeDerivedFrom"`
 	Timestamp            hexutil.Uint64  `json:"timestamp"`
 	SuperRoot            common.Hash     `json:"superRoot"`
+	Version              hexutil.Bytes   `json:"version"`
 	Chains               []ChainRootInfo `json:"chains"`
 }
 
@@ -168,6 +183,7 @@ func (r SuperRootResponse) MarshalJSON() ([]byte, error) {
 		CrossSafeDerivedFrom: r.CrossSafeDerivedFrom,
 		Timestamp:            hexutil.Uint64(r.Timestamp),
 		SuperRoot:            common.Hash(r.SuperRoot),
+		Version:              hexutil.Bytes{r.Version},
 		Chains:               r.Chains,
 	})
 }
@@ -180,6 +196,10 @@ func (r *SuperRootResponse) UnmarshalJSON(input []byte) error {
 	r.CrossSafeDerivedFrom = dec.CrossSafeDerivedFrom
 	r.Timestamp = uint64(dec.Timestamp)
 	r.SuperRoot = Bytes32(dec.SuperRoot)
+	if len(dec.Version) != 1 {
+		return ErrInvalidSuperRootVersion
+	}
+	r.Version = dec.Version[0]
 	r.Chains = dec.Chains
 	return nil
 }

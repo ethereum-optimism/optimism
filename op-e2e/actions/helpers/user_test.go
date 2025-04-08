@@ -67,10 +67,6 @@ func TestCrossLayerUser_Standard(t *testing.T) {
 	testCrossLayerUser(t, config.AllocTypeStandard)
 }
 
-func TestCrossLayerUser_L2OO(t *testing.T) {
-	testCrossLayerUser(t, config.AllocTypeL2OO)
-}
-
 // TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various hardfork configurations:
 // - transact on L1
 // - transact on L2
@@ -307,6 +303,12 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		require.NoError(t, err)
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "proposal failed")
 	}
+
+	// Mine an empty block so that the timestamp is updated. Otherwise ActProveWithdrawal will fail
+	// because it tries to estimate gas based on the current timestamp, which is the same timestamp
+	// as the dispute game creation timestamp, which causes proveWithdrawalTransaction to revert.
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1EndBlock(t)
 
 	// prove our withdrawal on L1
 	alice.ActProveWithdrawal(t)

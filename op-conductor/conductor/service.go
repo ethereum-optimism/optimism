@@ -186,7 +186,12 @@ func (c *OpConductor) initConsensus(ctx context.Context) error {
 	}
 	cons, err := consensus.NewRaftConsensus(c.log, raftConsensusConfig)
 	if err != nil {
-		return errors.Wrap(err, "failed to create raft consensus")
+		if !errors.Is(err, raft.ErrCantBootstrap) {
+			return errors.Wrap(err, "failed to create raft consensus")
+		}
+	} else if c.cfg.RaftBootstrap {
+		c.log.Warn("Raft cluster bootstrapped, pausing conductor.")
+		c.paused.Store(true)
 	}
 	c.cons = cons
 	c.leaderUpdateCh = c.cons.LeaderCh()

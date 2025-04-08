@@ -20,7 +20,7 @@ import (
 var (
 	LoadELFVMTypeFlag = &cli.StringFlag{
 		Name:     "type",
-		Usage:    "VM type to create state for. Valid options: " + openum.EnumString(stateVersions()),
+		Usage:    "VM type to create state for. Valid options: " + openum.EnumString(versions.GetStateVersionStrings()),
 		Required: true,
 	}
 	LoadELFPathFlag = &cli.PathFlag{
@@ -43,14 +43,6 @@ var (
 	}
 )
 
-func stateVersions() []string {
-	vers := make([]string, len(versions.StateVersionTypes))
-	for i, v := range versions.StateVersionTypes {
-		vers[i] = v.String()
-	}
-	return vers
-}
-
 func LoadELF(ctx *cli.Context) error {
 	elfPath := ctx.Path(LoadELFPathFlag.Name)
 	elfProgram, err := elf.Open(elfPath)
@@ -69,7 +61,7 @@ func LoadELF(ctx *cli.Context) error {
 		return err
 	}
 	switch ver {
-	case versions.VersionSingleThreaded2:
+	case versions.GetCurrentSingleThreaded():
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -80,7 +72,7 @@ func LoadELF(ctx *cli.Context) error {
 			}
 			return program.PatchStack(state)
 		}
-	case versions.VersionMultiThreaded_v2, versions.VersionMultiThreaded64_v3:
+	case versions.GetCurrentMultiThreaded(), versions.GetCurrentMultiThreaded64():
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}

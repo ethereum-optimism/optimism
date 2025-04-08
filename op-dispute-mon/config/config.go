@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	ErrMissingL1EthRPC           = errors.New("missing l1 eth rpc url")
-	ErrMissingGameFactoryAddress = errors.New("missing game factory address")
-	ErrMissingRollupRpc          = errors.New("missing rollup rpc url")
-	ErrMissingMaxConcurrency     = errors.New("missing max concurrency")
+	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
+	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
+	ErrMissingRollupAndSupervisorRpc = errors.New("must specify rollup rpc or supervisor rpc")
+	ErrMissingMaxConcurrency         = errors.New("missing max concurrency")
 )
 
 const (
@@ -40,6 +40,7 @@ type Config struct {
 
 	HonestActors    []common.Address // List of honest actors to monitor claims for.
 	RollupRpc       string           // The rollup node RPC URL.
+	SupervisorRpc   string           // The supervisor RPC URL.
 	MonitorInterval time.Duration    // Frequency to check for new games to monitor.
 	GameWindow      time.Duration    // Maximum window to look for games to monitor.
 	IgnoredGames    []common.Address // Games to exclude from monitoring
@@ -49,10 +50,19 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 }
 
+func NewInteropConfig(gameFactoryAddress common.Address, l1EthRpc string, supervisorRpc string) Config {
+	return NewCombinedConfig(gameFactoryAddress, l1EthRpc, "", supervisorRpc)
+}
+
 func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpc string) Config {
+	return NewCombinedConfig(gameFactoryAddress, l1EthRpc, rollupRpc, "")
+}
+
+func NewCombinedConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpc string, supervisorRpc string) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
 		RollupRpc:          rollupRpc,
+		SupervisorRpc:      supervisorRpc,
 		GameFactoryAddress: gameFactoryAddress,
 
 		MonitorInterval: DefaultMonitorInterval,
@@ -68,8 +78,8 @@ func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
 	}
-	if c.RollupRpc == "" {
-		return ErrMissingRollupRpc
+	if c.RollupRpc == "" && c.SupervisorRpc == "" {
+		return ErrMissingRollupAndSupervisorRpc
 	}
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress

@@ -249,6 +249,13 @@ var (
 		Value:    4,
 		Category: SequencerCategory,
 	}
+	SequencerRecoverMode = &cli.BoolFlag{
+		Name:     "sequencer.recover",
+		Usage:    "Forces the sequencer to strictly prepare the next L1 origin and create empty L2 blocks",
+		EnvVars:  prefixEnvVars("SEQUENCER_RECOVER"),
+		Value:    false,
+		Category: SequencerCategory,
+	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -419,6 +426,16 @@ var (
 		Destination: new(string),
 		Category:    InteropCategory,
 	}
+
+	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
+		Name: "ignore-missing-pectra-blob-schedule",
+		Usage: "Ignore missing pectra blob schedule fix for Sepolia and Holesky chains. Only set if you know what you are doing!" +
+			"Ask your chain's operator for the correct Pectra blob schedule activation time and set it via the rollup.json config" +
+			"or use the --override.pectrablobschedule flag.",
+		EnvVars:  prefixEnvVars("IGNORE_MISSING_PECTRA_BLOB_SCHEDULE"),
+		Category: RollupCategory,
+		Hidden:   true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -448,6 +465,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerRecoverMode,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,
@@ -471,6 +489,7 @@ var optionalFlags = []cli.Flag{
 	InteropRPCAddr,
 	InteropRPCPort,
 	InteropJWTSecret,
+	IgnoreMissingPectraBlobSchedule,
 }
 
 var DeprecatedFlags = []cli.Flag{

@@ -116,7 +116,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 				return
 			}
 			infos[currIndex].status = metadata.Status
-			infos[currIndex].l2BlockNum = metadata.L2BlockNum
+			infos[currIndex].l2BlockNum = metadata.L2SequenceNum
 			infos[currIndex].rootClaim = metadata.RootClaim
 			claimCount, err := gameContract.GetClaimCount(ctx)
 			if err != nil {

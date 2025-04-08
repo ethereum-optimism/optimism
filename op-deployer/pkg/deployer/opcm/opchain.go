@@ -40,6 +40,9 @@ type DeployOPChainInput struct {
 	DisputeClockExtension        uint64
 	DisputeMaxClockDuration      uint64
 	AllowCustomDisputeParameters bool
+
+	OperatorFeeScalar   uint32
+	OperatorFeeConstant uint64
 }
 
 func (input *DeployOPChainInput) InputSet() bool {
@@ -60,6 +63,7 @@ type DeployOPChainOutput struct {
 	L1CrossDomainMessengerProxy       common.Address
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address
+	ETHLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address
 	AnchorStateRegistryProxy           common.Address
 	FaultDisputeGame                   common.Address
@@ -89,6 +93,7 @@ type ReadImplementationAddressesInput struct {
 type ReadImplementationAddressesOutput struct {
 	DelayedWETH                  common.Address
 	OptimismPortal               common.Address
+	ETHLockbox                   common.Address `evm:"ethLockbox"`
 	SystemConfig                 common.Address
 	L1CrossDomainMessenger       common.Address
 	L1ERC721Bridge               common.Address

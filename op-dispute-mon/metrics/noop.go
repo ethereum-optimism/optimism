@@ -5,11 +5,13 @@ import (
 	"time"
 
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type NoopMetricsImpl struct {
 	contractMetrics.NoopMetrics
+	opmetrics.NoopRPCMetrics
 }
 
 var NoopMetrics Metricer = new(NoopMetricsImpl)

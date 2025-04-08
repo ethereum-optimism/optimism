@@ -96,6 +96,12 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
+
+        // Warp ahead of the game retirement timestamp if needed.
+        if (block.timestamp <= anchorStateRegistry.retirementTimestamp()) {
+            vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
+        }
+
         // Create a new game.
         gameProxy = IFaultDisputeGame(
             payable(address(disputeGameFactory.create{ value: bondAmount }(GAME_TYPE, rootClaim, extraData)))
@@ -1849,14 +1855,14 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// resolves in favor of the defender but the game state is not newer than the anchor state.
     function test_resolve_validOlderStateSameAnchor_succeeds() public {
         // Mock the game block to be older than the game state.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(0));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(0));
 
         // Confirm that the anchor state is newer than the game state.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
-        assert(l2BlockNumber >= gameProxy.l2BlockNumber());
+        assert(l2BlockNumber >= gameProxy.l2SequenceNumber());
 
         // Resolve the game.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(0));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(0));
         vm.warp(block.timestamp + 3 days + 12 hours);
         gameProxy.resolveClaim(0, 0);
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
@@ -2472,6 +2478,38 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         gameProxy.closeGame();
         assertEq(uint8(gameProxy.bondDistributionMode()), uint8(BondDistributionMode.NORMAL));
+    }
+
+    /// @dev Tests that closeGame called with any amount of gas either reverts (with OOG) or
+    ///      updates the anchor state. This is specifically to verify that the try/catch inside
+    ///      closeGame can't be called with just enough gas to OOG when calling the
+    ///      AnchorStateRegistry but successfully execute the remainder of the function.
+    /// @param _gas Amount of gas to provide to closeGame.
+    function testFuzz_closeGame_canUpdateAnchorStateAndDoes_succeeds(uint256 _gas) public {
+        // Resolve and close the game first
+        vm.warp(block.timestamp + 3 days + 12 hours);
+        gameProxy.resolveClaim(0, 0);
+        gameProxy.resolve();
+
+        // Wait for finalization delay
+        vm.warp(block.timestamp + 3.5 days + 1 seconds);
+
+        // Since providing *too* much gas isn't the issue here, bounding it to half the block gas
+        // limit is sufficient. We want to know that either (1) the function reverts or (2) the
+        // anchor state gets updated. If the function doesn't revert and the anchor state isn't
+        // updated then we have a problem.
+        _gas = bound(_gas, 0, block.gaslimit / 2);
+
+        // The anchor state should not be the game proxy.
+        assert(address(gameProxy.anchorStateRegistry().anchorGame()) != address(gameProxy));
+
+        // Try closing the game.
+        try gameProxy.closeGame{ gas: _gas }() {
+            // If we got here, the function didn't revert, so the anchor state should have updated.
+            assert(address(gameProxy.anchorStateRegistry().anchorGame()) == address(gameProxy));
+        } catch {
+            // Ok, function reverted.
+        }
     }
 
     /// @dev Helper to generate a mock RLP encoded header (with only a real block number) & an output root proof.

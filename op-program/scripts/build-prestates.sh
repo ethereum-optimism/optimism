@@ -34,6 +34,11 @@ do
     LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
     echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
     git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
+    if [ -f mise.toml ]
+    then
+      echo "Install dependencies with mise" >> "${LOG_FILE}"
+      mise install -v -y >> "${LOG_FILE}" 2>&1
+    fi
     rm -rf "${BIN_DIR}"
     make reproducible-prestate >> "${LOG_FILE}" 2>&1
     HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
@@ -43,8 +48,8 @@ do
     else
       cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
     fi
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\"}]")
-    echo "Built ${VERSION}: ${HASH}"
+    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon32\"}]")
+    echo "Built cannon32 ${VERSION}: ${HASH}"
 
     if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
       HASH=$(cat "${BIN_DIR}/prestate-proof-mt64.json" | jq -r .pre)

@@ -138,13 +138,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	var afterForceIncludeTxs []hexutil.Bytes
-	if ba.rollupCfg.IsInterop(nextL2Time) {
-		depositsCompleteTx, err := DepositsCompleteBytes(seqNumber, l1Info)
-		if err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to create depositsCompleteTx: %w", err))
-		}
-		afterForceIncludeTxs = append(afterForceIncludeTxs, depositsCompleteTx)
-	}
 
 	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(afterForceIncludeTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)

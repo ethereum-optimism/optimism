@@ -59,13 +59,13 @@ library Preinstalls {
 
     /// @notice Address of history storage contract, introduced in the Prague upgrade.
     ///         See HISTORY_STORAGE_ADDRESS in EIP-2935.
-    ///         This contract is introduced in L2 through an Ecotone upgrade transaction, if not already in genesis.
-    address internal constant HistoryStorage = 0x0F792be4B0c0cb4DAE440Ef133E90C0eCD48CCCC;
+    ///         This contract is introduced in L2 through an Isthmus upgrade transaction, if not already in genesis.
+    address internal constant HistoryStorage = 0x0000F90827F1C53a10cb7A02335B175320002935;
 
     /// @notice See https://eips.ethereum.org/EIPS/eip-2935, this is the address of the sender of the deployment tx.
     /// The nonce of this account must be non-zero, to ensure the Ishtmus upgrade tx is still successful
     /// if the code is already in place.
-    address internal constant HistoryStorageSender = 0xE9f0662359Bb2c8111840eFFD73B9AFA77CbDE10;
+    address internal constant HistoryStorageSender = 0x3462413Af4609098e1E27A490f554f260213D685;
 
     // @notice Permit2 code is templated. The template is a copy of the Mainnet Ethereum L1 Permit2 deployment.
     //         This deployed bytecode contains two immutable values _CACHED_CHAIN_ID and _CACHED_DOMAIN_SEPARATOR,

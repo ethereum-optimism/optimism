@@ -55,7 +55,8 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		timedOut:       false,
 	}
 
-	happyCaseLogs := []string{} // in the happy case we expect no logs
+	happyCaseLogs := []string{"computed sync actions"}
+	noBlocksLogs := []string{"no blocks in state"}
 
 	type TestCase struct {
 		name string
@@ -68,6 +69,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		expected             syncActions
 		expectedSeqOutOfSync bool
 		expectedLogs         []string
+		preferLocalSafeL2    bool
 	}
 
 	testCases := []TestCase{
@@ -196,6 +198,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			expected: syncActions{
 				blocksToLoad: &inclusiveBlockRange{104, 109},
 			},
+			expectedLogs: happyCaseLogs,
 		},
 		{name: "no blocks",
 			// This happens when the batcher is starting up for the first time
@@ -229,6 +232,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				channelsToPrune: 1,
 				blocksToLoad:    &inclusiveBlockRange{104, 109},
 			},
+			expectedLogs: happyCaseLogs,
 		},
 		{name: "happy path + multiple channels",
 			newSyncStatus: eth.SyncStatus{
@@ -258,7 +262,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			blocks:        queue.Queue[*types.Block]{},
 			channels:      []channelStatuser{},
 			expected:      syncActions{},
-			expectedLogs:  []string{"no blocks in state"},
+			expectedLogs:  noBlocksLogs,
 		},
 		{name: "no progress + unsafe=safe + blocks in state",
 			newSyncStatus: eth.SyncStatus{
@@ -275,15 +279,63 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			},
 			expectedLogs: happyCaseLogs,
 		},
+		{name: "localSafeL2 > safeL2, preferLocalSafeL2=false",
+			newSyncStatus: eth.SyncStatus{
+				HeadL1:      eth.BlockRef{Number: 5},
+				CurrentL1:   eth.BlockRef{Number: 2},
+				SafeL2:      eth.L2BlockRef{Number: 103, Hash: block103.Hash()},
+				LocalSafeL2: eth.L2BlockRef{Number: 104, Hash: block104.Hash()},
+				UnsafeL2:    eth.L2BlockRef{Number: 109},
+			},
+			prevCurrentL1: eth.BlockRef{Number: 1},
+			blocks:        queue.Queue[*types.Block]{},
+			channels:      []channelStatuser{},
+			expected: syncActions{
+				blocksToLoad: &inclusiveBlockRange{104, 109},
+			},
+			expectedLogs: noBlocksLogs,
+		},
+		{name: "localSafeL2 > safeL2, preferLocalSafeL2=true",
+			preferLocalSafeL2: true,
+			newSyncStatus: eth.SyncStatus{
+				HeadL1:      eth.BlockRef{Number: 5},
+				CurrentL1:   eth.BlockRef{Number: 2},
+				SafeL2:      eth.L2BlockRef{Number: 103, Hash: block103.Hash()},
+				LocalSafeL2: eth.L2BlockRef{Number: 104, Hash: block104.Hash()},
+				UnsafeL2:    eth.L2BlockRef{Number: 109},
+			},
+			prevCurrentL1: eth.BlockRef{Number: 1},
+			blocks:        queue.Queue[*types.Block]{},
+			channels:      []channelStatuser{},
+			expected: syncActions{
+				blocksToLoad: &inclusiveBlockRange{105, 109},
+			},
+			expectedLogs: noBlocksLogs,
+		},
+		{name: "LocalSafeL2=0,SafeL2>0", // This shouldn't ever happen, but has occurred due to bugs
+			newSyncStatus: eth.SyncStatus{
+				HeadL1:    eth.BlockRef{Number: 5},
+				CurrentL1: eth.BlockRef{Number: 2},
+				SafeL2:    eth.L2BlockRef{Number: 104, Hash: block104.Hash()},
+				UnsafeL2:  eth.L2BlockRef{Number: 109},
+			},
+			prevCurrentL1: eth.BlockRef{Number: 1},
+			blocks:        queue.Queue[*types.Block]{},
+			channels:      []channelStatuser{},
+			expected: syncActions{
+				blocksToLoad: &inclusiveBlockRange{105, 109},
+			},
+			expectedLogs: noBlocksLogs,
+		},
 	}
 
-	for _, tc := range testCases[len(testCases)-1:] {
+	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
 			l, h := testlog.CaptureLogger(t, log.LevelDebug)
 
 			result, outOfSync := computeSyncActions(
-				tc.newSyncStatus, tc.prevCurrentL1, tc.blocks, tc.channels, l,
+				tc.newSyncStatus, tc.prevCurrentL1, tc.blocks, tc.channels, l, tc.preferLocalSafeL2,
 			)
 
 			require.Equal(t, tc.expected, result, "unexpected actions")

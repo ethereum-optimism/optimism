@@ -29,7 +29,7 @@ func createTraceProvider(
 	dir string,
 ) (types.TraceProvider, error) {
 	switch traceType {
-	case types.TraceTypeCannon:
+	case types.TraceTypeCannon, types.TraceTypeSuperCannon:
 		serverExecutor := vm.NewOpProgramServerExecutor(logger)
 		stateConverter := cannon.NewStateConverter(cfg.Cannon)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
@@ -21,9 +22,9 @@ type l1Node interface {
 type rewinderDB interface {
 	DependencySet() depset.DependencySet
 
-	CrossSourceToLastDerived(chainID eth.ChainID, derivedFrom eth.BlockID) (derived types.BlockSeal, err error)
+	CrossSourceToLastDerived(chainID eth.ChainID, source eth.BlockID) (derived types.BlockSeal, err error)
 	PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource types.BlockSeal, err error)
-	CrossDerivedToSourceRef(chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error)
+	CrossDerivedToSourceRef(chainID eth.ChainID, derived eth.BlockID) (source eth.BlockRef, err error)
 
 	LocalSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 	CrossSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
@@ -35,7 +36,7 @@ type rewinderDB interface {
 	FindSealedBlock(eth.ChainID, uint64) (types.BlockSeal, error)
 	Finalized(eth.ChainID) (types.BlockSeal, error)
 
-	LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error)
+	LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
 }
 
 // Rewinder is responsible for handling the rewinding of databases to the latest common ancestor between
@@ -157,7 +158,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 
 	// Get the canonical L1 block at our local head's height
 	canonicalL1, err := r.l1Node.L1BlockRefByNumber(context.Background(), localSafeL1.Number)
-	if err != nil {
+	if err != nil && !errors.Is(err, ethereum.NotFound) {
 		return fmt.Errorf("failed to get canonical L1 block at height %d: %w", localSafeL1.Number, err)
 	}
 
@@ -189,9 +190,14 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 	currentL1 := localSafeL1.ID()
 	for currentL1.Number >= finalizedL1.Number {
 		// Get the canonical L1 block at this height from the node
+		// If it's not found we'll continue through the loop and try the previous block
 		remoteL1, err := r.l1Node.L1BlockRefByNumber(context.Background(), currentL1.Number)
 		if err != nil {
-			return fmt.Errorf("failed to get L1 block at height %d: %w", currentL1.Number, err)
+			if errors.Is(err, ethereum.NotFound) {
+				r.log.Debug("no L1 block at height", "chain", chainID, "height", currentL1.Number)
+			} else {
+				return fmt.Errorf("failed to get L1 block at height %d: %w", currentL1.Number, err)
+			}
 		}
 
 		// If hashes match, we found the common ancestor
@@ -201,7 +207,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 		}
 
 		// Get the previous L1 block from our DB
-		prevDerivedFrom, err := r.db.PreviousSource(chainID, currentL1)
+		prevSource, err := r.db.PreviousSource(chainID, currentL1)
 		if err != nil {
 			// If we hit the first block, use it as common ancestor
 			if errors.Is(err, types.ErrPreviousToFirst) {
@@ -222,7 +228,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 		}
 
 		// Move to the parent
-		currentL1 = prevDerivedFrom.ID()
+		currentL1 = prevSource.ID()
 	}
 
 	// Rewind LocalSafe to not include data derived from the old L1 chain

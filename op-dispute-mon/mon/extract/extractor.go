@@ -152,7 +152,7 @@ func (e *Extractor) enrichGame(ctx context.Context, blockHash common.Hash, game 
 		LastUpdateTime:        e.clock.Now(),
 		GameMetadata:          game,
 		L1Head:                meta.L1Head,
-		L2BlockNumber:         meta.L2BlockNum,
+		L2BlockNumber:         meta.L2SequenceNum,
 		RootClaim:             meta.RootClaim,
 		Status:                meta.Status,
 		MaxClockDuration:      meta.MaxClockDuration,

@@ -267,7 +267,11 @@ func (ev TryUpdateEngineEvent) getBlockProcessingMetrics() []interface{} {
 }
 
 type EngineResetConfirmedEvent struct {
-	Unsafe, Safe, Finalized eth.L2BlockRef
+	LocalUnsafe eth.L2BlockRef
+	CrossUnsafe eth.L2BlockRef
+	LocalSafe   eth.L2BlockRef
+	CrossSafe   eth.L2BlockRef
+	Finalized   eth.L2BlockRef
 }
 
 func (ev EngineResetConfirmedEvent) String() string {
@@ -401,6 +405,12 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			d.log.Error("failed to decode L2 block ref from payload", "err", err)
 			return true
 		}
+		// Avoid re-processing the same unsafe payload if it has already been processed. Because a FCU event emits the ProcessUnsafePayloadEvent
+		// it is possible to have multiple queueed up ProcessUnsafePayloadEvent for the same L2 block. This becomes an issue when processing
+		// a large number of unsafe payloads at once (like when iterating through the payload queue after the safe head has advanced).
+		if ref.BlockRef().ID() == d.ec.UnsafeL2Head().BlockRef().ID() {
+			return true
+		}
 		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
 			d.log.Info("failed to insert payload", "ref", ref,
 				"txs", len(x.Envelope.ExecutionPayload.Transactions), "err", err)
@@ -430,10 +440,22 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		// Time to apply the changes to the underlying engine
 		d.emitter.Emit(TryUpdateEngineEvent{})
 
-		log.Debug("Reset of Engine is completed",
-			"safeHead", x.Safe, "unsafe", x.Unsafe, "safe_timestamp", x.Safe.Time,
-			"unsafe_timestamp", x.Unsafe.Time)
-		d.emitter.Emit(EngineResetConfirmedEvent(x))
+		v := EngineResetConfirmedEvent{
+			LocalUnsafe: d.ec.LocalSafeL2Head(),
+			CrossUnsafe: d.ec.CrossUnsafeL2Head(),
+			LocalSafe:   d.ec.LocalSafeL2Head(),
+			CrossSafe:   d.ec.SafeL2Head(),
+			Finalized:   d.ec.Finalized(),
+		}
+		// We do not emit the original event values, since those might not be set (optional attributes).
+		d.emitter.Emit(v)
+		d.log.Info("Reset of Engine is completed",
+			"local_unsafe", v.LocalUnsafe,
+			"cross_unsafe", v.CrossUnsafe,
+			"local_safe", v.LocalSafe,
+			"cross_safe", v.CrossSafe,
+			"finalized", v.Finalized,
+		)
 	case PromoteUnsafeEvent:
 		// Backup unsafeHead when new block is not built on original unsafe head.
 		if d.ec.unsafeHead.Number >= x.Ref.Number {
@@ -504,6 +526,14 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			CrossSafe: d.ec.SafeL2Head(),
 			LocalSafe: d.ec.LocalSafeL2Head(),
 		})
+		if x.Ref.Number > d.ec.crossUnsafeHead.Number {
+			d.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", d.ec.crossUnsafeHead, "cross_safe", x.Ref)
+			d.ec.SetCrossUnsafeHead(x.Ref)
+			d.emitter.Emit(CrossUnsafeUpdateEvent{
+				CrossUnsafe: x.Ref,
+				LocalUnsafe: d.ec.UnsafeL2Head(),
+			})
+		}
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
 	case PromoteFinalizedEvent:
@@ -562,24 +592,31 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 
 type ResetEngineControl interface {
 	SetUnsafeHead(eth.L2BlockRef)
+	SetCrossUnsafeHead(ref eth.L2BlockRef)
+	SetLocalSafeHead(ref eth.L2BlockRef)
 	SetSafeHead(eth.L2BlockRef)
 	SetFinalizedHead(eth.L2BlockRef)
-	SetLocalSafeHead(ref eth.L2BlockRef)
-	SetCrossUnsafeHead(ref eth.L2BlockRef)
 	SetBackupUnsafeL2Head(block eth.L2BlockRef, triggerReorg bool)
 	SetPendingSafeL2Head(eth.L2BlockRef)
 }
 
-// ForceEngineReset is not to be used. The op-program needs it for now, until event processing is adopted there.
 func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
-	// if the unsafe head is not provided, do not override the existing unsafe head
-	if x.Unsafe != (eth.L2BlockRef{}) {
-		ec.SetUnsafeHead(x.Unsafe)
+	// local-unsafe is an optional attribute, empty to preserve the existing latest chain
+	if x.LocalUnsafe != (eth.L2BlockRef{}) {
+		ec.SetUnsafeHead(x.LocalUnsafe)
 	}
-	ec.SetLocalSafeHead(x.Safe)
-	ec.SetPendingSafeL2Head(x.Safe)
+	// cross-safe is fine to revert back, it does not affect engine logic, just sync-status
+	ec.SetCrossUnsafeHead(x.CrossUnsafe)
+
+	// derivation continues at local-safe point
+	ec.SetLocalSafeHead(x.LocalSafe)
+	ec.SetPendingSafeL2Head(x.LocalSafe)
+
+	// "safe" in RPC terms is cross-safe
+	ec.SetSafeHead(x.CrossSafe)
+
+	// finalized head
 	ec.SetFinalizedHead(x.Finalized)
-	ec.SetSafeHead(x.Safe)
-	ec.SetCrossUnsafeHead(x.Safe)
+
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 }

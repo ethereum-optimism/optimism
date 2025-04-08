@@ -58,6 +58,7 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 
 	st.ImplementationsDeployment.DelayedWETHImplAddress = impls.DelayedWETH
 	st.ImplementationsDeployment.OptimismPortalImplAddress = impls.OptimismPortal
+	st.ImplementationsDeployment.ETHLockboxImplAddress = impls.ETHLockbox
 	st.ImplementationsDeployment.SystemConfigImplAddress = impls.SystemConfig
 	st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress = impls.L1CrossDomainMessenger
 	st.ImplementationsDeployment.L1ERC721BridgeImplAddress = impls.L1ERC721Bridge
@@ -107,6 +108,8 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
 		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
+		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
+		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
 	}, nil
 }
 
@@ -121,6 +124,7 @@ func makeChainState(chainID common.Hash, dco opcm.DeployOPChainOutput) *state.Ch
 		L1StandardBridgeProxyAddress:              dco.L1StandardBridgeProxy,
 		L1CrossDomainMessengerProxyAddress:        dco.L1CrossDomainMessengerProxy,
 		OptimismPortalProxyAddress:                dco.OptimismPortalProxy,
+		ETHLockboxProxyAddress:                    dco.ETHLockboxProxy,
 		DisputeGameFactoryProxyAddress:            dco.DisputeGameFactoryProxy,
 		AnchorStateRegistryProxyAddress:           dco.AnchorStateRegistryProxy,
 		FaultDisputeGameAddress:                   dco.FaultDisputeGame,

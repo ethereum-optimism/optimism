@@ -360,7 +360,7 @@ type maxBlocksTest struct {
 func TestSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T) {
 	for i, tt := range []maxBlocksTest{
 		{
-			outputSize:        10_751,
+			outputSize:        9_109,
 			exactFull:         true,
 			numBatches:        15,
 			maxBlocks:         4,
@@ -368,14 +368,14 @@ func TestSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T) {
 			expLastNumBlocks:  3,
 		},
 		{
-			outputSize:        11_000,
+			outputSize:        9_200,
 			numBatches:        16,
 			maxBlocks:         4,
 			expNumSpanBatches: 4,
 			expLastNumBlocks:  3,
 		},
 		{
-			outputSize:        11_154,
+			outputSize:        9_310,
 			exactFull:         true,
 			numBatches:        16,
 			maxBlocks:         4,
@@ -383,14 +383,14 @@ func TestSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T) {
 			expLastNumBlocks:  4,
 		},
 		{
-			outputSize:        11_500,
+			outputSize:        9_400,
 			numBatches:        17,
 			maxBlocks:         4,
 			expNumSpanBatches: 4,
 			expLastNumBlocks:  4,
 		},
 		{
-			outputSize:        11_801,
+			outputSize:        9_933,
 			exactFull:         true,
 			numBatches:        17,
 			maxBlocks:         4,
@@ -398,7 +398,7 @@ func TestSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T) {
 			expLastNumBlocks:  1,
 		},
 		{
-			outputSize:        12_000,
+			outputSize:        10_000,
 			numBatches:        18,
 			maxBlocks:         4,
 			expNumSpanBatches: 5,
@@ -490,4 +490,28 @@ func testSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T, tt maxBlocksTest) {
 		batch0.ParentHash = (common.Hash{})
 		require.Equalf(t, batch0, batch, "iteration %d", i)
 	}
+}
+
+func TestSpanChannelOut_MaxRLPBytesPerChannel(t *testing.T) {
+	for _, algo := range CompressionAlgos {
+		t.Run("testSpanChannelOut_MaxRLPBytesPerChannel_"+algo.String(), func(t *testing.T) {
+			testSpanChannelOut_MaxRLPBytesPerChannel(t, algo)
+		})
+	}
+}
+
+func testSpanChannelOut_MaxRLPBytesPerChannel(t *testing.T, algo CompressionAlgo) {
+
+	maxRLPBytesPerChannel := int(rollup.NewChainSpec(&rollupCfg).MaxRLPBytesPerChannel(0))
+	cout, singularBatches := SpanChannelAndBatches(t, 100, 1, algo)
+
+	cout.rlp[0] = bytes.NewBuffer(make([]byte, maxRLPBytesPerChannel))
+	cout.rlp[1] = bytes.NewBuffer(make([]byte, maxRLPBytesPerChannel))
+	cout.sealedRLPBytes = maxRLPBytesPerChannel
+
+	err := cout.addSingularBatch(singularBatches[0], 1)
+	require.ErrorIs(t, err, ErrTooManyRLPBytes, "error should be ErrTooManyRLPBytes")
+
+	require.Equal(t, cout.activeRLP().Len(), maxRLPBytesPerChannel, "active RLP should be equal to the max RLP limit")
+	require.Greater(t, cout.inactiveRLP().Len(), maxRLPBytesPerChannel, "inactive RLP should be greater than max RLP limit")
 }

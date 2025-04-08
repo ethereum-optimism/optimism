@@ -101,7 +101,7 @@ func runHazardCycleChecksTestCase(t *testing.T, tc hazardCycleChecksTestCase) {
 		depSet.mapping[index] = eth.ChainIDFromUInt64(uint64(index))
 	}
 	// Run the test
-	err := HazardCycleChecks(depSet, deps, 100, hazards)
+	err := HazardCycleChecks(depSet, deps, 100, NewHazardSetFromEntries(hazards))
 
 	// No error expected
 	if tc.expectErr == nil {
@@ -187,6 +187,31 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			},
 			expectErr: errors.New("tried to open block"),
 			msg:       "expected error due to block mismatch",
+		},
+		{
+			name: "multiple blocks with messages",
+			chainBlocks: map[string]chainBlockDef{
+				"1": {
+					logCount: 2,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsg("2", 0),
+						1: execMsg("2", 1),
+					},
+				},
+				"2": {
+					logCount: 2,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsg("1", 0),
+						1: execMsg("1", 1),
+					},
+				},
+			},
+			hazards: map[types.ChainIndex]types.BlockSeal{
+				1: {Number: 1},
+				2: {Number: 1},
+			},
+			expectErr: ErrCycle,
+			msg:       "expected cycle error with multiple blocks and messages",
 		},
 		{
 			name: "invalid log index error",

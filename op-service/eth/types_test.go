@@ -3,7 +3,9 @@ package eth
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -65,6 +67,13 @@ func TestEcotoneScalars(t *testing.T) {
 	}
 }
 
+func TestOperatorFeeScalars(t *testing.T) {
+	sysConfig := SystemConfig{OperatorFeeParams: Bytes32{0: 0, 20: 4, 29: 3}}
+	params := sysConfig.OperatorFee()
+	require.Equal(t, uint32(0x4000000), params.Scalar)
+	require.Equal(t, uint64(0x30000), params.Constant)
+}
+
 func FuzzEncodeScalar(f *testing.F) {
 	f.Fuzz(func(t *testing.T, blobBaseFeeScalar uint32, baseFeeScalar uint32) {
 		encoded := EncodeScalar(EcotoneScalars{BlobBaseFeeScalar: blobBaseFeeScalar, BaseFeeScalar: baseFeeScalar})
@@ -75,18 +84,28 @@ func FuzzEncodeScalar(f *testing.F) {
 	})
 }
 
+func FuzzEncodeOperatorFeeParams(f *testing.F) {
+	f.Fuzz(func(t *testing.T, scalar uint32, constant uint64) {
+		encoded := EncodeOperatorFeeParams(OperatorFeeParams{Scalar: scalar, Constant: constant})
+		scalars := DecodeOperatorFeeParams(encoded)
+		require.Equal(t, scalar, scalars.Scalar)
+		require.Equal(t, constant, scalars.Constant)
+	})
+}
+
 func TestSystemConfigMarshaling(t *testing.T) {
 	sysConfig := SystemConfig{
-		BatcherAddr: common.Address{'A'},
-		Overhead:    Bytes32{0x4, 0x5, 0x6},
-		Scalar:      Bytes32{0x7, 0x8, 0x9},
-		GasLimit:    1234,
+		BatcherAddr:       common.Address{'A'},
+		Overhead:          Bytes32{0x4, 0x5, 0x6},
+		Scalar:            Bytes32{0x7, 0x8, 0x9},
+		OperatorFeeParams: Bytes32{0x1, 0x2, 0x3},
+		GasLimit:          1234,
 		// Leave EIP1559 params empty to prove that the
 		// zero value is sent.
 	}
 	j, err := json.Marshal(sysConfig)
 	require.NoError(t, err)
-	require.Equal(t, `{"batcherAddr":"0x4100000000000000000000000000000000000000","overhead":"0x0405060000000000000000000000000000000000000000000000000000000000","scalar":"0x0708090000000000000000000000000000000000000000000000000000000000","gasLimit":1234,"eip1559Params":"0x0000000000000000"}`, string(j))
+	require.Equal(t, `{"batcherAddr":"0x4100000000000000000000000000000000000000","overhead":"0x0405060000000000000000000000000000000000000000000000000000000000","scalar":"0x0708090000000000000000000000000000000000000000000000000000000000","gasLimit":1234,"eip1559Params":"0x0000000000000000","operatorFeeParams":"0x0102030000000000000000000000000000000000000000000000000000000000"}`, string(j))
 	sysConfig.MarshalPreHolocene = true
 	j, err = json.Marshal(sysConfig)
 	require.NoError(t, err)
@@ -130,4 +149,43 @@ func TestStorageKey(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, c.marshaled, []uint8(key)[:])
 	}
+}
+
+func TestBytes(t *testing.T) {
+	testBytesN(t, 8, &Bytes8{0: 1, 8 - 1: 2}, func() BytesN { return new(Bytes8) })
+	testBytesN(t, 32, &Bytes32{0: 1, 32 - 1: 2}, func() BytesN { return new(Bytes32) })
+	testBytesN(t, 65, &Bytes65{0: 1, 65 - 1: 2}, func() BytesN { return new(Bytes65) })
+	testBytesN(t, 96, &Bytes96{0: 1, 96 - 1: 2}, func() BytesN { return new(Bytes96) })
+	testBytesN(t, 256, &Bytes256{0: 1, 256 - 1: 2}, func() BytesN { return new(Bytes256) })
+}
+
+type BytesN interface {
+	String() string
+	TerminalString() string
+	UnmarshalJSON(text []byte) error
+	UnmarshalText(text []byte) error
+	MarshalText() ([]byte, error)
+}
+
+func testBytesN(t *testing.T, n int, x BytesN, alloc func() BytesN) {
+	t.Run(fmt.Sprintf("Bytes%d", n), func(t *testing.T) {
+		xStr := "0x01" + strings.Repeat("00", n-2) + "02"
+		require.Equal(t, xStr, x.String())
+		if n == 8 { // too short for dots
+			require.Equal(t, "0x0100000000000002", x.TerminalString())
+		} else {
+			require.Equal(t, "0x010000..000002", x.TerminalString())
+		}
+		out, err := x.MarshalText()
+		require.NoError(t, err)
+		require.Equal(t, xStr, string(out))
+
+		y := alloc()
+		require.NoError(t, y.UnmarshalText([]byte(xStr)))
+		require.Equal(t, x, y)
+
+		z := alloc()
+		require.NoError(t, z.UnmarshalJSON([]byte(fmt.Sprintf("%q", xStr))))
+		require.Equal(t, x, z)
+	})
 }
