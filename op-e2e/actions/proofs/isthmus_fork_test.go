@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -14,9 +15,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,60 +100,67 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	env.RunFaultProofProgram(t, safeBlock.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-// // There are 2 stages pre-Isthmus that we need to test:
-// // 1. Pre-Canyon: withdrawals root should be nil
-// // 2. Post-Canyon: withdrawals root should be EmptyWithdrawalsHash
-// func TestWithdrawlsRootPreCanyonAndIsthmus(gt *testing.T) {
-// 	t := helpers.NewDefaultTesting(gt)
-// 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-// 	canyonOffset := hexutil.Uint64(2)
+func Test_ProgramAction_IsthmusWithdrawlsRoot(gt *testing.T) {
+	matrix := helpers.NewMatrix[any]()
 
-// 	log := testlog.Logger(t, log.LvlDebug)
+	matrix.AddDefaultTestCases(
+		nil,
+		helpers.NewForkMatrix(helpers.Regolith, helpers.Canyon, helpers.Isthmus),
+		testWithdrawlsRoot,
+	)
 
-// 	dp.DeployConfig.L1CancunTimeOffset = &canyonOffset
+	matrix.Run(gt)
+}
 
-// 	// Activate pre-canyon forks at genesis, and schedule Canyon the block after
-// 	dp.DeployConfig.ActivateForkAtOffset(rollup.Canyon, uint64(canyonOffset))
-// 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
+// There are 2 stages pre-Isthmus that we need to test:
+// 1. Pre-Canyon: withdrawals root should be nil
+// 2. Post-Canyon: withdrawals root should be EmptyWithdrawalsHash
+func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {})
+	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 
-// 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-// 	_, _, _, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
+	sequencer, engine := env.Sequencer, env.Engine
 
-// 	// start op-nodes
-// 	sequencer.ActL2PipelineFull(t)
-// 	verifier.ActL2PipelineFull(t)
+	// start op-nodes
+	sequencer.ActL2PipelineFull(t)
 
-// 	verifyPreCanyonHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
+	// Send withdrawal transaction
+	// Bind L2 Withdrawer Contract
+	ethCl := engine.EthClient()
+	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
+	require.Nil(t, err, "binding withdrawer on L2")
 
-// 	// build blocks until canyon activates
-// 	sequencer.ActBuildL2ToCanyon(t)
+	// Initiate Withdrawal
+	l2opts, err := bind.NewKeyedTransactorWithChainID(env.Alice.L2.Secret(), new(big.Int).SetUint64(env.Dp.DeployConfig.L2ChainID))
+	require.Nil(t, err)
+	l2opts.Value = big.NewInt(500)
 
-// 	// Send withdrawal transaction
-// 	// Bind L2 Withdrawer Contract
-// 	ethCl := engine.EthClient()
-// 	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
-// 	require.Nil(t, err, "binding withdrawer on L2")
+	_, err = l2withdrawer.Receive(l2opts)
+	require.Nil(t, err)
 
-// 	// Initiate Withdrawal
-// 	l2opts, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Alice, new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
-// 	require.Nil(t, err)
-// 	l2opts.Value = big.NewInt(500)
+	// mine blocks
+	sequencer.ActL2EmptyBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 
-// 	_, err = l2withdrawer.Receive(l2opts)
-// 	require.Nil(t, err)
+	if testCfg.Hardfork == helpers.Regolith {
+		verifyPreCanyonHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
+	} else if testCfg.Hardfork == helpers.Canyon {
+		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
+	} else if testCfg.Hardfork == helpers.Isthmus {
+		verifyIsthmusHeaderWithdrawalsRoot(gt, engine.RPCClient(), engine.L2Chain().CurrentBlock(), true)
+	}
 
-// 	// mine blocks
-// 	sequencer.ActL2EmptyBlock(t)
-// 	sequencer.ActL2EmptyBlock(t)
+	l2Safe := sequencer.L2Safe()
 
-// 	verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
-// }
+	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+}
 
 // // In this section, we will test the following combinations
 // // 1. Withdrawals root before isthmus w/ and w/o L2toL1 withdrawal
 // // 2. Withdrawals root at isthmus w/ and w/o L2toL1 withdrawal
 // // 3. Withdrawals root after isthmus w/ and w/o L2toL1 withdrawal
-// func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(t *testing.T) {
+// func testWithdrawalsRootBeforeAtAndAfterIsthmus(t *testing.T) {
 // 	tests := []struct {
 // 		name              string
 // 		withdrawalTx      bool
@@ -228,7 +238,7 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 // 	}
 // }
 
-// func Test_ProgramAction_WithdrawlsRootPostIsthmus(gt *testing.T) {
+// func testWithdrawlsRootPostIsthmus(gt *testing.T) {
 // 	t := helpers.NewDefaultTesting(gt)
 // 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 // 	const isthmusOffset = 2
@@ -282,15 +292,15 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 // 	verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
 // }
 
-// // Pre-Canyon, the withdrawals root field in the header should be nil
-// func verifyPreCanyonHeaderWithdrawalsRoot(gt *testing.T, header *types.Header) {
-// 	require.Nil(gt, header.WithdrawalsHash)
-// }
+// Pre-Canyon, the withdrawals root field in the header should be nil
+func verifyPreCanyonHeaderWithdrawalsRoot(gt *testing.T, header *types.Header) {
+	require.Nil(gt, header.WithdrawalsHash)
+}
 
-// // Post-Canyon, the withdrawals root field in the header should be EmptyWithdrawalsHash
-// func verifyPreIsthmusHeaderWithdrawalsRoot(gt *testing.T, header *types.Header) {
-// 	require.Equal(gt, types.EmptyWithdrawalsHash, *header.WithdrawalsHash)
-// }
+// Post-Canyon, the withdrawals root field in the header should be EmptyWithdrawalsHash
+func verifyPreIsthmusHeaderWithdrawalsRoot(gt *testing.T, header *types.Header) {
+	require.Equal(gt, types.EmptyWithdrawalsHash, *header.WithdrawalsHash)
+}
 
 func verifyIsthmusHeaderWithdrawalsRoot(gt *testing.T, rpcCl client.RPC, header *types.Header, l2toL1MPPresent bool) {
 	getStorageRoot := func(rpcCl client.RPC, ctx context.Context, address common.Address, blockTag string) common.Hash {
@@ -309,17 +319,17 @@ func verifyIsthmusHeaderWithdrawalsRoot(gt *testing.T, rpcCl client.RPC, header 
 	}
 }
 
-// func checkContractVersion(gt *testing.T, client *ethclient.Client, addr common.Address, expectedVersion string) {
-// 	isemver, err := bindings.NewISemver(addr, client)
-// 	require.NoError(gt, err)
+func checkContractVersion(gt *testing.T, client *ethclient.Client, addr common.Address, expectedVersion string) {
+	isemver, err := bindings.NewISemver(addr, client)
+	require.NoError(gt, err)
 
-// 	version, err := isemver.Version(nil)
-// 	require.NoError(gt, err)
+	version, err := isemver.Version(nil)
+	require.NoError(gt, err)
 
-// 	require.Equal(gt, expectedVersion, version)
-// }
+	require.Equal(gt, expectedVersion, version)
+}
 
-// func Test_ProgramAction_IsthmusNetworkUpgradeTransactions(gt *testing.T) {
+// func testIsthmusNetworkUpgradeTransactions(gt *testing.T) {
 // 	t := helpers.NewDefaultTesting(gt)
 // 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 // 	const isthmusOffset = 2
