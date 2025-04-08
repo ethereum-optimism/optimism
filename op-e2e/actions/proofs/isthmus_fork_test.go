@@ -158,7 +158,6 @@ func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	}
 
 	l2Safe := sequencer.L2Safe()
-
 	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
@@ -430,6 +429,9 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)
 	require.NoError(t, err)
 	checkRecentBlockHash(latestBlock.NumberU64()-1, latestBlock.Header().ParentHash, "post-activation")
+
+	l2Safe := sequencer.L2Safe()
+	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // verifyCodeHashMatches checks that the has of the code at the given address matches the expected code-hash.
