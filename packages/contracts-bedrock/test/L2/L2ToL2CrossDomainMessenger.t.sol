@@ -181,9 +181,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
-    /// @dev Tests that the `reEmitMessageSent` function reverts when the message hash does not correspond to
+    /// @dev Tests that the `resendMessage` function reverts when the message hash does not correspond to
     ///      any previously sent message.
-    function testFuzz_reEmitMessageSent_invalidMessage_reverts(
+    function testFuzz_resendMessage_invalidMessage_reverts(
         uint256 _destination,
         uint256 _nonce,
         address _sender,
@@ -200,13 +200,13 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Expect a revert with the InvalidMessage selector
         vm.expectRevert(InvalidMessage.selector);
 
-        // Call the reEmitMessageSent function
-        l2ToL2CrossDomainMessenger.reEmitMessageSent(_destination, _nonce, _sender, _target, _message);
+        // Call the resendMessage function
+        l2ToL2CrossDomainMessenger.resendMessage(_destination, _nonce, _sender, _target, _message);
     }
 
-    /// @dev Tests that `reEmitMessageSent` succeeds and emits the same SentMessage event as the one
+    /// @dev Tests that `resendMessage` succeeds and emits the same SentMessage event as the one
     ///      emitted by `sendMessage`.
-    function testFuzz_reEmitMessageSent_succeeds(
+    function testFuzz_resendMessage_succeeds(
         address _sender,
         uint256 _destination,
         address _target,
@@ -251,8 +251,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
         assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
 
-        // Call the `reEmitMessageSent` function
-        l2ToL2CrossDomainMessenger.reEmitMessageSent(_destination, messageNonce, _sender, _target, _message);
+        // Call the `resendMessage` function
+        l2ToL2CrossDomainMessenger.resendMessage(_destination, messageNonce, _sender, _target, _message);
 
         // Check that the event was emitted with the correct parameters
         logs = vm.getRecordedLogs();

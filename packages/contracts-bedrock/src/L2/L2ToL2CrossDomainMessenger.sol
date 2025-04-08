@@ -166,7 +166,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @param _sender Address that sent the message
     /// @param _target Target contract or wallet address.
     /// @param _message Message payload to call target with.
-    function reEmitMessageSent(
+    function resendMessage(
         uint256 _destination,
         uint256 _nonce,
         address _sender,

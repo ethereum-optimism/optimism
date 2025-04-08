@@ -84,8 +84,8 @@
     "sourceCodeHash": "0xaef8ea36c5b78cd12e0e62811d51db627ccf0dfd2cc5479fb707a10ef0d42048"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol:L2ToL2CrossDomainMessenger": {
-    "initCodeHash": "0x3531197206d6cac9b4919f74668cefadb073a04c55b98dad0340876d4652181e",
-    "sourceCodeHash": "0x7d9e819f8c4501e27f8bec5f32e332d56518e1172f443160714656094dea8fe4"
+    "initCodeHash": "0xe7cd3ce077d1584ec9f7c2771bdf8afdb03fc4af35cb9060b6f12905fa14d2e7",
+    "sourceCodeHash": "0xb0c4d6fb360f19664c5f1aa8617834d8337fba3592f5cf4f316c28df891394e5"
   },
   "src/L2/OperatorFeeVault.sol:OperatorFeeVault": {
     "initCodeHash": "0x3d8c0d7736e8767f2f797da1c20c5fe30bd7f48a4cf75f376290481ad7c0f91f",
