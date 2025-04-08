@@ -412,10 +412,8 @@ func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, outp
 }
 
 func (g *CannonHelper) VerifyPreimage(ctx context.Context, outputRootClaim *ClaimHelper, preimageKey preimage.Key) {
-	execDepth := g.splitGame.ExecDepth(ctx)
-
 	// Identifying the first state transition that loads a global preimage
-	provider, localContext := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(TestKey))
+	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(TestKey))
 	start := uint64(0)
 	found := false
 	for offset := uint32(0); ; offset += 4 {
@@ -433,40 +431,64 @@ func (g *CannonHelper) VerifyPreimage(ctx context.Context, outputRootClaim *Clai
 		found = true
 
 		g.t.Logf("Target trace index: %v", targetTraceIndex)
-		pos := types.NewPosition(execDepth, new(big.Int).SetUint64(targetTraceIndex))
-		g.require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
 
-		prestate, proof, oracleData, err := provider.GetStepData(ctx, pos)
-		g.require.NoError(err, "Failed to get step data")
-		g.require.NotNil(oracleData, "Should have had required preimage oracle data")
-		g.require.Equal(common.Hash(preimageKey.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
-
-		candidate, err := g.splitGame.Game.UpdateOracleTx(ctx, uint64(outputRootClaim.Index), oracleData)
-		g.require.NoError(err, "failed to get oracle")
-		transactions.RequireSendTx(g.t, ctx, g.client, candidate, g.privKey)
-
-		expectedPostState, err := provider.Get(ctx, pos)
-		g.require.NoError(err, "Failed to get expected post state")
-
-		vm, err := g.splitGame.Game.Vm(ctx)
-		g.require.NoError(err, "Failed to get VM address")
-
-		abi, err := bindings.MIPSMetaData.GetAbi()
-		g.require.NoError(err, "Failed to load MIPS ABI")
-		caller := batching.NewMultiCaller(g.client.Client(), batching.DefaultBatchSize)
-		result, err := caller.SingleCall(ctx, rpcblock.Latest, &batching.ContractCall{
-			Abi:    abi,
-			Addr:   vm.Addr(),
-			Method: "step",
-			Args: []interface{}{
-				prestate, proof, localContext,
-			},
-			From: g.splitGame.Addr,
-		})
-		g.require.NoError(err, "Failed to call step")
-		actualPostState := result.GetBytes32(0)
-		g.require.Equal(expectedPostState, common.Hash(actualPostState))
+		g.VerifyPreimageAtTarget(ctx, outputRootClaim, targetTraceIndex, g.GetOracleKeyValidator(preimageKey), true)
 	}
+}
+
+type OracleDataValidator = func(oracleData *types.PreimageOracleData)
+
+func (g *CannonHelper) GetOracleKeyPrefixValidator(prefix byte) OracleDataValidator {
+	return func(oracleData *types.PreimageOracleData) {
+		g.require.Equal(prefix, oracleData.OracleKey[0], "Must have correct preimage key prefix")
+	}
+}
+
+func (g *CannonHelper) GetOracleKeyValidator(key preimage.Key) OracleDataValidator {
+	return func(oracleData *types.PreimageOracleData) {
+		g.require.Equal(common.Hash(key.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
+	}
+}
+
+func (g *CannonHelper) VerifyPreimageAtTarget(ctx context.Context, outputRootClaim *ClaimHelper, targetTraceIndex uint64, oracleDataValidator OracleDataValidator, uploadOracleData bool) {
+	execDepth := g.splitGame.ExecDepth(ctx)
+	provider, localContext := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(TestKey))
+
+	pos := types.NewPosition(execDepth, new(big.Int).SetUint64(targetTraceIndex))
+	g.require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
+
+	prestate, proof, oracleData, err := provider.GetStepData(ctx, pos)
+	g.require.NoError(err, "Failed to get step data")
+	g.require.NotNil(oracleData, "Should have had required preimage oracle data")
+	oracleDataValidator(oracleData)
+
+	if uploadOracleData {
+		txCandidate, err := g.splitGame.Game.UpdateOracleTx(ctx, uint64(outputRootClaim.Index), oracleData)
+		g.require.NoError(err, "failed to get oracle")
+		transactions.RequireSendTx(g.t, ctx, g.client, txCandidate, g.privKey)
+	}
+
+	expectedPostState, err := provider.Get(ctx, pos)
+	g.require.NoError(err, "Failed to get expected post state")
+
+	vm, err := g.splitGame.Game.Vm(ctx)
+	g.require.NoError(err, "Failed to get VM address")
+
+	abi, err := bindings.MIPSMetaData.GetAbi()
+	g.require.NoError(err, "Failed to load MIPS ABI")
+	caller := batching.NewMultiCaller(g.client.Client(), batching.DefaultBatchSize)
+	result, err := caller.SingleCall(ctx, rpcblock.Latest, &batching.ContractCall{
+		Abi:    abi,
+		Addr:   vm.Addr(),
+		Method: "step",
+		Args: []interface{}{
+			prestate, proof, localContext,
+		},
+		From: g.splitGame.Addr,
+	})
+	g.require.NoError(err, "Failed to call step")
+	actualPostState := result.GetBytes32(0)
+	g.require.Equal(expectedPostState, common.Hash(actualPostState))
 }
 
 func (g *CannonHelper) createCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) (*cannon.CannonTraceProviderForTest, common.Hash) {

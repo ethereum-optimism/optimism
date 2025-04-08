@@ -266,6 +266,9 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 		game.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, step, preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
+
+		// Finally, validate that we can manually invoke step at this point in the game and produce the expected post-state
+		game.VerifyPreimageAtTarget(ctx, outputRootClaim, step, game.GetOracleKeyPrefixValidator(preimageOptConfig.KeyPrefix), false)
 	}
 
 	t.Run("non-existing preimage-keccak", func(t *testing.T) {
