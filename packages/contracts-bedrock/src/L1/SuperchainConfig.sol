@@ -120,13 +120,15 @@ contract SuperchainConfig is Initializable, ISemver {
         return timestamp + pauseExpiry;
     }
 
-    /// @notice Resets the pause mechanism for a specific identifier.
-    /// @param _identifier The address identifier to reset.
-    function reset(address _identifier) external {
+    /// @notice Extends the pause for a specific identifier by resetting and pausing again.
+    /// @param _identifier The address identifier to extend.
+    function extend(address _identifier) external {
         if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
-        pauseUsed[_identifier] = false;
+        pauseTimestamps[_identifier] = block.timestamp;
+        pauseUsed[_identifier] = true;
+        emit Paused(string(abi.encodePacked(_identifier)));
     }
 
     /// @notice Sets the guardian address. This is only callable during initialization, so an upgrade

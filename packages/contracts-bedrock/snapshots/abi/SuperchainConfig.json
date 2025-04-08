@@ -24,6 +24,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
+    "name": "extend",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "guardian",
     "outputs": [
@@ -154,19 +167,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_identifier",
-        "type": "address"
-      }
-    ],
-    "name": "reset",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

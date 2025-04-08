@@ -21,7 +21,7 @@ interface ISuperchainConfig {
     function pausable(address _identifier) external view returns (bool);
     function paused(address _identifier) external view returns (bool);
     function expiration(address _identifier) external view returns (uint256);
-    function reset(address _identifier) external;
+    function extend(address _identifier) external;
     function version() external view returns (string memory);
     function pauseUsed(address) external view returns (bool);
     function pauseTimestamps(address) external view returns (uint256);

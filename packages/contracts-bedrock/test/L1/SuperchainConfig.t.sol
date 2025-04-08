@@ -119,24 +119,28 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
     }
 }
 
-contract SuperchainConfig_Reset_Test is CommonTest {
-    /// @dev Tests that `reset` successfully resets a used identifier.
-    function test_reset_succeeds() external {
+contract SuperchainConfig_Extend_Test is CommonTest {
+    /// @dev Tests that `extend` successfully resets and re-pauses an identifier.
+    function test_extend_succeeds() external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
         assertTrue(superchainConfig.pauseUsed(address(this)));
+        uint256 firstPauseTimestamp = block.timestamp;
 
-        superchainConfig.reset(address(this));
-        assertFalse(superchainConfig.pauseUsed(address(this)));
+        vm.warp(block.timestamp + 1);
+
+        superchainConfig.extend(address(this));
+        assertTrue(superchainConfig.pauseUsed(address(this)));
+        assertTrue(superchainConfig.pauseTimestamps(address(this)) > firstPauseTimestamp);
     }
 
-    /// @dev Tests that `reset` reverts when called by a non-guardian.
-    function test_reset_notGuardian_reverts() external {
+    /// @dev Tests that `extend` reverts when called by a non-guardian.
+    function test_extend_notGuardian_reverts() external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
 
         vm.expectRevert(ISuperchainConfig.OnlyGuardian.selector);
         vm.prank(alice);
-        superchainConfig.reset(address(this));
+        superchainConfig.extend(address(this));
     }
 }
