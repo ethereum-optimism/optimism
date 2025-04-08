@@ -13,8 +13,7 @@ import { IL2ToL2CrossDomainMessenger, Identifier } from "interfaces/L2/IL2ToL2Cr
 import { Identifier as CrossL2InboxIdentifier } from "interfaces/L2/ICrossL2Inbox.sol";
 import { ISuperchainTokenBridge } from "interfaces/L2/ISuperchainTokenBridge.sol";
 
-/// @notice Integration test that checks that the `ExecutingMessage` event is emitted on crosschain mints. It's tested
-///         on both SuperchainERC20 and SuperchainWETH contracts.
+/// @notice Integration test that checks that the `ExecutingMessage` event is emitted on crosschain mints.
 contract ExecutingMessageEmittedTest is CommonTest {
     bytes32 internal constant SENT_MESSAGE_EVENT_SELECTOR =
         0x382409ac69001e11931a28435afef442cbfd20d9891907e8fa373ba7d351f320;
@@ -48,22 +47,6 @@ contract ExecutingMessageEmittedTest is CommonTest {
         public
     {
         _crosschainMint_emitsExecutingMessage_succeeds(superchainERC20, _id, _nonce, _sender, _to, _amount);
-    }
-
-    /// @notice Tests that when `SuperchainWETH#crosschainMint` is called, the `ExecutingMessage` event is emitted.
-    /// forge-config: default.isolate = true
-    function test_superchainWETHCrosschainMint_emitsExecutingMessage_succeeds(
-        Identifier memory _id,
-        uint256 _nonce,
-        address _sender,
-        address _to,
-        uint256 _amount
-    )
-        public
-    {
-        // Ensure the there is enough balance in the ETHLiquidity contract for the mint
-        _amount = bound(_amount, 0, Predeploys.ETH_LIQUIDITY.balance);
-        _crosschainMint_emitsExecutingMessage_succeeds(Predeploys.SUPERCHAIN_WETH, _id, _nonce, _sender, _to, _amount);
     }
 
     /// @notice Tests that when a super token mint is relayed, the `ExecutingMessage` event is emitted.

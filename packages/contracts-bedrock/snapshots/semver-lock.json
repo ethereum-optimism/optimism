@@ -124,8 +124,8 @@
     "sourceCodeHash": "0xcd2b49cb7cf6d18616ee8bec9183fe5b5b460941875bc0b4158c4d5390ec3b0c"
   },
   "src/L2/SuperchainWETH.sol:SuperchainWETH": {
-    "initCodeHash": "0xc865e00858668be0eba7d0062a88aa0554b8f8fdae1db67cd8e1ab04cd014cde",
-    "sourceCodeHash": "0x05f70cd9358ae4a17ace23f568c7952f8a81099278da6a46a601b8a101280a7e"
+    "initCodeHash": "0xa9332ce64573711b771f54a3d0d978a87c9665eb13072db4d3e890238b4d5299",
+    "sourceCodeHash": "0xdd634685a6931f8d0cc9771b0ad44a08fd542792f07de6175c3f3219e169d575"
   },
   "src/L2/WETH.sol:WETH": {
     "initCodeHash": "0x38b396fc35d72e8013bad2fe8d7dea5285499406d4c4b62e27c54252e1e0f00a",
