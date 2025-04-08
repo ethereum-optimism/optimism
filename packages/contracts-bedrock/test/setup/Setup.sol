@@ -48,7 +48,7 @@ import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
 import { IOperatorFeeVault } from "interfaces/L2/IOperatorFeeVault.sol";
 import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
-import { ISuperchainWETH } from "interfaces/L2/ISuperchainWETH.sol";
+import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { IWETH98 } from "interfaces/universal/IWETH98.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
@@ -131,7 +131,7 @@ contract Setup {
     IGovernanceToken governanceToken = IGovernanceToken(Predeploys.GOVERNANCE_TOKEN);
     ILegacyMessagePasser legacyMessagePasser = ILegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     IWETH98 weth = IWETH98(payable(Predeploys.WETH));
-    ISuperchainWETH superchainWeth = ISuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
+    ISuperchainETHBridge superchainETHBridge = ISuperchainETHBridge(payable(Predeploys.SUPERCHAIN_ETH_BRIDGE));
     IETHLiquidity ethLiquidity = IETHLiquidity(Predeploys.ETH_LIQUIDITY);
     ISuperchainTokenBridge superchainTokenBridge = ISuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     IOptimismSuperchainERC20Factory l2OptimismSuperchainERC20Factory =
@@ -321,7 +321,7 @@ contract Setup {
         labelPredeploy(Predeploys.EAS);
         labelPredeploy(Predeploys.SCHEMA_REGISTRY);
         labelPredeploy(Predeploys.WETH);
-        labelPredeploy(Predeploys.SUPERCHAIN_WETH);
+        labelPredeploy(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         labelPredeploy(Predeploys.ETH_LIQUIDITY);
         labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
         labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);

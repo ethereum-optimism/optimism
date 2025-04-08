@@ -25,19 +25,19 @@ contract ETHLiquidity is ISemver {
     event LiquidityMinted(address indexed caller, uint256 value);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.7
-    string public constant version = "1.0.0-beta.7";
+    /// @custom:semver 1.0.0-beta.8
+    string public constant version = "1.0.0-beta.8";
 
     /// @notice Allows an address to lock ETH liquidity into this contract.
     function burn() external payable {
-        if (msg.sender != Predeploys.SUPERCHAIN_WETH) revert Unauthorized();
+        if (msg.sender != Predeploys.SUPERCHAIN_ETH_BRIDGE) revert Unauthorized();
         emit LiquidityBurned(msg.sender, msg.value);
     }
 
     /// @notice Allows an address to unlock ETH liquidity from this contract.
     /// @param _amount The amount of liquidity to unlock.
     function mint(uint256 _amount) external {
-        if (msg.sender != Predeploys.SUPERCHAIN_WETH) revert Unauthorized();
+        if (msg.sender != Predeploys.SUPERCHAIN_ETH_BRIDGE) revert Unauthorized();
         new SafeSend{ value: _amount }(payable(msg.sender));
         emit LiquidityMinted(msg.sender, _amount);
     }

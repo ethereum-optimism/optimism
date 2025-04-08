@@ -123,7 +123,7 @@ rules:
         - packages/contracts-bedrock/interfaces
         - packages/contracts-bedrock/scripts/libraries/Solarray.sol
         - packages/contracts-bedrock/src/universal/WETH98.sol
-        - packages/contracts-bedrock/src/L2/SuperchainWETH.sol
+        - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
         - packages/contracts-bedrock/src/governance/GovernanceToken.sol
 
   - id: sol-style-return-arg-fmt
@@ -243,7 +243,7 @@ rules:
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
         - packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
-        - packages/contracts-bedrock/src/L2/SuperchainWETH.sol
+        - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
         - packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol
         - packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol
         - packages/contracts-bedrock/src/L2/L2StandardBridgeInterop.sol
