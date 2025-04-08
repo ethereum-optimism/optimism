@@ -124,6 +124,8 @@ type ChainsDB struct {
 	// an error until it has this L1 finality to work with.
 	finalizedL1 locks.RWValue[eth.L1BlockRef]
 
+	readRegistries locks.RWMap[eth.ChainID, *ReadRegistry]
+
 	// depSet is the dependency set, used to determine what may be tracked,
 	// what is missing, and to provide it to DB users.
 	depSet depset.DependencySet
@@ -238,4 +240,15 @@ func (db *ChainsDB) Close() error {
 		return true
 	})
 	return combined
+}
+
+func (db *ChainsDB) AcquireReadHandle(chainID eth.ChainID, blockNum uint64) (*ReadHandle, error) {
+	registry, ok := db.readRegistries.Get(chainID)
+	if !ok {
+		// Initialize registry if it doesn't exist
+		registry = NewReadRegistry()
+		db.readRegistries.Set(chainID, registry)
+	}
+
+	return registry.AcquireHandle(blockNum), nil
 }
