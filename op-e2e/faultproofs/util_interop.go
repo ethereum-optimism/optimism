@@ -49,12 +49,12 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 	// wait for the supervisor to sync genesis
 	var lastError error
 	err = wait.For(ctx, 1*time.Minute, func() (bool, error) {
-		_, err := s2.SupervisorClient().SyncStatus(ctx)
+		status, err := s2.SupervisorClient().SyncStatus(ctx)
 		if err != nil {
 			lastError = err
 			return false, nil
 		}
-		return true, nil
+		return status.SafeTimestamp != 0, nil
 	})
 	require.NoErrorf(t, err, "failed to wait for supervisor to sync genesis: %v", lastError)
 
