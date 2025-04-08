@@ -10,7 +10,6 @@ import (
 )
 
 func TestNewDeployAsteriscScript(t *testing.T) {
-	t.Skip() // TODO https://github.com/ethereum-optimism/optimism/issues/15293
 	t.Run("should not fail with current version of DeployAsterisc2 contract", func(t *testing.T) {
 		// First we grab a test host
 		host1 := createTestHost(t)
