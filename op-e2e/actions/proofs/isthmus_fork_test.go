@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -22,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
@@ -291,127 +294,152 @@ func checkContractVersion(gt *testing.T, client *ethclient.Client, addr common.A
 	require.Equal(gt, expectedVersion, version)
 }
 
-// func testIsthmusNetworkUpgradeTransactions(gt *testing.T) {
-// 	t := helpers.NewDefaultTesting(gt)
-// 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-// 	const isthmusOffset = 2
+func Test_ProgramAction_IsthmusNetworkUpgradeTransactions(gt *testing.T) {
+	matrix := helpers.NewMatrix[any]()
 
-// 	log := testlog.Logger(t, log.LvlDebug)
+	matrix.AddDefaultTestCases(
+		nil,
+		helpers.ForkMatrix{helpers.Holocene},
+		testIsthmusNetworkUpgradeTransactions,
+	)
 
-// 	dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
-// 	dp.DeployConfig.L1PragueTimeOffset = &zeroHex64
-// 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
+	matrix.Run(gt)
+}
 
-// 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-// 	_, _, _, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
-// 	ethCl := engine.EthClient()
+func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+	t := actionsHelpers.NewDefaultTesting(gt)
+	var setIsthmusTime = func(dc *genesis.DeployConfig) {
+		two := hexutil.Uint64(2)
+		dc.L2GenesisIsthmusTimeOffset = &two
+		dc.L1PragueTimeOffset = &zeroHex64
+	}
+	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {})
+	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg(), setIsthmusTime)
 
-// 	// build a single block to move away from the genesis with 0-values in L1Block contract
-// 	sequencer.ActL2StartBlock(t)
-// 	sequencer.ActL2EndBlock(t)
+	log := testlog.Logger(t, log.LvlDebug)
 
-// 	// start op-nodes
-// 	sequencer.ActL2PipelineFull(t)
-// 	verifier.ActL2PipelineFull(t)
+	require.NoError(t, env.Dp.DeployConfig.Check(log), "must have valid config")
 
-// 	// Get gas price from oracle
-// 	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, ethCl)
-// 	require.NoError(t, err)
+	sequencer, engine := env.Sequencer, env.Engine
+	ethCl := engine.EthClient()
 
-// 	// Get current implementations addresses (by slot) for L1Block + GasPriceOracle
-// 	initialL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, nil)
-// 	require.NoError(t, err)
-// 	initialGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, nil)
-// 	require.NoError(t, err)
+	// build a single block to move away from the genesis with 0-values in L1Block contract
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
 
-// 	// Build to the isthmus block
-// 	sequencer.ActBuildL2ToIsthmus(t)
+	// start op-nodes
+	sequencer.ActL2PipelineFull(t)
 
-// 	// get latest block
-// 	latestBlock, err := ethCl.BlockByNumber(context.Background(), nil)
-// 	require.NoError(t, err)
-// 	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.Number().Uint64())
+	// Get gas price from oracle
+	gasPriceOracle, err := bindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, ethCl)
+	require.NoError(t, err)
 
-// 	transactions := latestBlock.Transactions()
+	// Get current implementations addresses (by slot) for L1Block + GasPriceOracle
+	initialL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, nil)
+	require.NoError(t, err)
+	initialGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, nil)
+	require.NoError(t, err)
 
-// 	// L1Block: 1 set-L1-info + 1 deploy
-// 	// See [derive.IsthmusNetworkUpgradeTransactions]
-// 	require.Equal(t, 9, len(transactions))
+	// Build to the isthmus block
+	sequencer.ActBuildL2ToIsthmus(t)
 
-// 	// All transactions are successful
-// 	for i := 1; i < 9; i++ {
-// 		txn := transactions[i]
-// 		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
-// 		require.NoError(t, err)
-// 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
-// 		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
-// 	}
+	// get latest block
+	latestBlock, err := ethCl.BlockByNumber(context.Background(), nil)
+	require.NoError(t, err)
+	require.Equal(t, sequencer.L2Unsafe().Number, latestBlock.Number().Uint64())
 
-// 	expectedL1BlockAddress := crypto.CreateAddress(derive.L1BlockIsthmusDeployerAddress, 0)
+	transactions := latestBlock.Transactions()
 
-// 	// L1 Block Proxy is updated
-// 	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
-// 	require.NoError(t, err)
-// 	require.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
-// 	require.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "Gas L1 Block address should have changed")
-// 	verifyCodeHashMatches(t, ethCl, expectedL1BlockAddress, isthmusL1BlockCodeHash)
+	// L1Block: 1 set-L1-info + 1 deploy
+	// See [derive.IsthmusNetworkUpgradeTransactions]
+	require.Equal(t, 9, len(transactions))
 
-// 	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleIsthmusDeployerAddress, 0)
+	// All transactions are successful
+	for i := 1; i < 9; i++ {
+		txn := transactions[i]
+		receipt, err := ethCl.TransactionReceipt(context.Background(), txn.Hash())
+		require.NoError(t, err)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+		require.NotEmpty(t, txn.Data(), "upgrade tx must provide input data")
+	}
 
-// 	// Gas Price Oracle Proxy is updated
-// 	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number())
-// 	require.NoError(t, err)
-// 	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
-// 	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
-// 	verifyCodeHashMatches(t, ethCl, expectedGasPriceOracleAddress, isthmusGasPriceOracleCodeHash)
+	expectedL1BlockAddress := crypto.CreateAddress(derive.L1BlockIsthmusDeployerAddress, 0)
 
-// 	// Check that Isthmus was activated
-// 	isIsthmus, err := gasPriceOracle.IsIsthmus(nil)
-// 	require.NoError(t, err)
-// 	require.True(t, isIsthmus)
+	// L1 Block Proxy is updated
+	updatedL1BlockAddress, err := ethCl.StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, latestBlock.Number())
+	require.NoError(t, err)
+	require.Equal(t, expectedL1BlockAddress, common.BytesToAddress(updatedL1BlockAddress))
+	require.NotEqualf(t, initialL1BlockAddress, updatedL1BlockAddress, "Gas L1 Block address should have changed")
+	verifyCodeHashMatches(t, ethCl, expectedL1BlockAddress, isthmusL1BlockCodeHash)
 
-// 	expectedOperatorFeeVaultAddress := crypto.CreateAddress(derive.OperatorFeeVaultDeployerAddress, 0)
+	expectedGasPriceOracleAddress := crypto.CreateAddress(derive.GasPriceOracleIsthmusDeployerAddress, 0)
 
-// 	// Operator Fee vault is updated
-// 	updatedOperatorFeeVaultAddress, err := ethCl.StorageAt(context.Background(), predeploys.OperatorFeeVaultAddr, genesis.ImplementationSlot, latestBlock.Number())
-// 	require.NoError(t, err)
-// 	require.Equal(t, expectedOperatorFeeVaultAddress, common.BytesToAddress(updatedOperatorFeeVaultAddress))
-// 	verifyCodeHashMatches(t, ethCl, expectedOperatorFeeVaultAddress, isthmusOperatorFeeVaultCodeHash)
+	// Gas Price Oracle Proxy is updated
+	updatedGasPriceOracleAddress, err := ethCl.StorageAt(context.Background(), predeploys.GasPriceOracleAddr, genesis.ImplementationSlot, latestBlock.Number())
+	require.NoError(t, err)
+	require.Equal(t, expectedGasPriceOracleAddress, common.BytesToAddress(updatedGasPriceOracleAddress))
+	require.NotEqualf(t, initialGasPriceOracleAddress, updatedGasPriceOracleAddress, "Gas Price Oracle Proxy address should have changed")
+	verifyCodeHashMatches(t, ethCl, expectedGasPriceOracleAddress, isthmusGasPriceOracleCodeHash)
 
-// 	// EIP-2935 contract is deployed
-// 	expectedBlockHashAddress := crypto.CreateAddress(predeploys.EIP2935ContractDeployer, 0)
-// 	require.Equal(t, predeploys.EIP2935ContractAddr, expectedBlockHashAddress)
-// 	code := verifyCodeHashMatches(t, ethCl, predeploys.EIP2935ContractAddr, predeploys.EIP2935ContractCodeHash)
-// 	require.Equal(t, predeploys.EIP2935ContractCode, code)
+	// Check that Isthmus was activated
+	isIsthmus, err := gasPriceOracle.IsIsthmus(nil)
+	require.NoError(t, err)
+	require.True(t, isIsthmus)
 
-// 	// Test that the beacon-block-root has been set
-// 	checkRecentBlockHash := func(blockNumber uint64, expectedHash common.Hash, msg string) {
-// 		historyBufferLength := uint64(8191)
-// 		bufferIdx := common.BigToHash(new(big.Int).SetUint64(blockNumber % historyBufferLength))
+	expectedOperatorFeeVaultAddress := crypto.CreateAddress(derive.OperatorFeeVaultDeployerAddress, 0)
 
-// 		rootValue, err := ethCl.StorageAt(context.Background(), predeploys.EIP2935ContractAddr, bufferIdx, nil)
-// 		require.NoError(t, err)
-// 		require.Equal(t, expectedHash, common.BytesToHash(rootValue), msg)
-// 	}
+	// Operator Fee vault is updated
+	updatedOperatorFeeVaultAddress, err := ethCl.StorageAt(context.Background(), predeploys.OperatorFeeVaultAddr, genesis.ImplementationSlot, latestBlock.Number())
+	require.NoError(t, err)
+	require.Equal(t, expectedOperatorFeeVaultAddress, common.BytesToAddress(updatedOperatorFeeVaultAddress))
+	verifyCodeHashMatches(t, ethCl, expectedOperatorFeeVaultAddress, isthmusOperatorFeeVaultCodeHash)
 
-// 	// Check contract versions
-// 	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedL1BlockAddress), "1.6.0")
-// 	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedGasPriceOracleAddress), "1.4.0")
-// 	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedOperatorFeeVaultAddress), "1.0.0")
+	// EIP-2935 contract is deployed
+	expectedBlockHashAddress := crypto.CreateAddress(predeploys.EIP2935ContractDeployer, 0)
+	require.Equal(t, predeploys.EIP2935ContractAddr, expectedBlockHashAddress)
+	code := verifyCodeHashMatches(t, ethCl, predeploys.EIP2935ContractAddr, predeploys.EIP2935ContractCodeHash)
+	require.Equal(t, predeploys.EIP2935ContractCode, code)
 
-// 	// Legacy check:
-// 	// > The first block is an exception in upgrade-networks,
-// 	// > since the recent-block-hash contract isn't there at Isthmus activation,
-// 	// > and the recent-block-hash insertion is processed at the start of the block before deposit txs.
-// 	// > If the contract was permissionlessly deployed before, the contract storage will be updated (but not in this test).
-// 	checkRecentBlockHash(latestBlock.NumberU64(), common.Hash{}, "isthmus activation block has no data yet (since contract wasn't there)")
+	// Test that the beacon-block-root has been set
+	checkRecentBlockHash := func(blockNumber uint64, expectedHash common.Hash, msg string) {
+		historyBufferLength := uint64(8191)
+		bufferIdx := common.BigToHash(new(big.Int).SetUint64(blockNumber % historyBufferLength))
 
-// 	// Build empty L2 block, to pass Isthmus activation
-// 	sequencer.ActL2StartBlock(t)
-// 	sequencer.ActL2EndBlock(t)
+		rootValue, err := ethCl.StorageAt(context.Background(), predeploys.EIP2935ContractAddr, bufferIdx, nil)
+		require.NoError(t, err)
+		require.Equal(t, expectedHash, common.BytesToHash(rootValue), msg)
+	}
 
-// 	// Test the L2 block after activation: it should have the most recent block hash
-// 	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)
-// 	require.NoError(t, err)
-// 	checkRecentBlockHash(latestBlock.NumberU64()-1, latestBlock.Header().ParentHash, "post-activation")
-// }
+	// Check contract versions
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedL1BlockAddress), "1.6.0")
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedGasPriceOracleAddress), "1.4.0")
+	checkContractVersion(gt, ethCl, common.BytesToAddress(updatedOperatorFeeVaultAddress), "1.0.0")
+
+	// Legacy check:
+	// > The first block is an exception in upgrade-networks,
+	// > since the recent-block-hash contract isn't there at Isthmus activation,
+	// > and the recent-block-hash insertion is processed at the start of the block before deposit txs.
+	// > If the contract was permissionlessly deployed before, the contract storage will be updated (but not in this test).
+	checkRecentBlockHash(latestBlock.NumberU64(), common.Hash{}, "isthmus activation block has no data yet (since contract wasn't there)")
+
+	// Build empty L2 block, to pass Isthmus activation
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+
+	// Test the L2 block after activation: it should have the most recent block hash
+	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)
+	require.NoError(t, err)
+	checkRecentBlockHash(latestBlock.NumberU64()-1, latestBlock.Header().ParentHash, "post-activation")
+}
+
+// verifyCodeHashMatches checks that the has of the code at the given address matches the expected code-hash.
+// It also sanity-checks that the code is not empty: we should never deploy empty contract codes.
+// Returns the contract code
+func verifyCodeHashMatches(t actionsHelpers.Testing, client *ethclient.Client, address common.Address, expectedCodeHash common.Hash) []byte {
+	code, err := client.CodeAt(context.Background(), address, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, code)
+	codeHash := crypto.Keccak256Hash(code)
+	require.Equal(t, expectedCodeHash, codeHash)
+	return code
+}
