@@ -1,16 +1,17 @@
 package l1
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -45,17 +46,7 @@ func testBlock(t *testing.T, block *types.Block, receipts []*types.Receipt) {
 	}
 
 	// Prepare a raw mock pre-image oracle that will serve the pre-image data and handle hints
-	var hints mock.Mock
-	po := &PreimageOracle{
-		oracle: preimage.OracleFn(func(key preimage.Key) []byte {
-			v, ok := preimages[key.PreimageKey()]
-			require.True(t, ok, "preimage must exist")
-			return v
-		}),
-		hint: preimage.HinterFn(func(v preimage.Hint) {
-			hints.MethodCalled("hint", v.Hint())
-		}),
-	}
+	po, hints := createTestPreimageOracle(t, preimages)
 
 	// Check if block-headers work
 	hints.On("hint", BlockHeaderHint(block.Hash()).Hint()).Once().Return()
@@ -95,6 +86,78 @@ func testBlock(t *testing.T, block *types.Block, receipts []*types.Receipt) {
 	}
 }
 
+func TestGetBlob(t *testing.T) {
+	testCases := []struct {
+		name      string
+		blobIndex uint64
+	}{
+		{"blob index 0", 0},
+		{"blob index 1", 1},
+		{"blob index 2", 2},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Get random blob
+			rng := rand.New(rand.NewSource(567 + int64(tc.blobIndex)))
+			blob, blobCommitment, err := testutils.RandomBlob(rng)
+			require.NoError(t, err)
+			// And random block ref
+			blockRef := testutils.RandomBlockRef(rng)
+
+			indexedBlobHash := eth.IndexedBlobHash{
+				Index: tc.blobIndex,
+				Hash:  eth.KZGToVersionedHash(blobCommitment),
+			}
+
+			// Setup preimages
+			preimages := make(map[common.Hash][]byte)
+			// Store blob commitment
+			preimages[preimage.Sha256Key(indexedBlobHash.Hash).PreimageKey()] = blobCommitment[:]
+			// Store field elements
+			fieldElemKey := make([]byte, 80)
+			copy(fieldElemKey[:48], blobCommitment[:])
+			for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+				rootOfUnity := RootsOfUnity[i].Bytes()
+				copy(fieldElemKey[48:], rootOfUnity[:])
+
+				key := preimage.BlobKey(crypto.Keccak256(fieldElemKey)).PreimageKey()
+				value := blob[i*32 : (i+1)*32]
+				preimages[key] = value
+			}
+
+			// Setup expected hint
+			blobReqMeta := make([]byte, 16)
+			binary.BigEndian.PutUint64(blobReqMeta[0:8], indexedBlobHash.Index)
+			binary.BigEndian.PutUint64(blobReqMeta[8:16], blockRef.Time)
+			expectedBlobHint := BlobHint(append(indexedBlobHash.Hash[:], blobReqMeta...)).Hint()
+
+			po, hints := createTestPreimageOracle(t, preimages)
+
+			// Get Blob and verify expectations
+			hints.On("hint", expectedBlobHint).Once().Return()
+			actualBlob := po.GetBlob(blockRef, indexedBlobHash)
+			hints.AssertExpectations(t)
+			require.Equal(t, blob[:], actualBlob[:])
+		})
+	}
+}
+
+func createTestPreimageOracle(t *testing.T, preimages map[common.Hash][]byte) (*PreimageOracle, *mock.Mock) {
+	var hints = new(mock.Mock)
+	po := &PreimageOracle{
+		oracle: preimage.OracleFn(func(key preimage.Key) []byte {
+			v, ok := preimages[key.PreimageKey()]
+			require.True(t, ok, "preimage must exist")
+			return v
+		}),
+		hint: preimage.HinterFn(func(v preimage.Hint) {
+			hints.MethodCalled("hint", v.Hint())
+		}),
+	}
+	return po, hints
+}
+
 func TestPreimageOracleBlockByHash(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 
@@ -110,25 +173,15 @@ func TestPreimageOracleBlockByHash(t *testing.T) {
 // root at index i can be used to compute the field element at index i in a blob
 func TestInitRootsOfUnity(t *testing.T) {
 	// Check we have the right number of roots
-	fieldElementsPerBlob := 4096
-	require.Equal(t, fieldElementsPerBlob, len(RootsOfUnity))
+	require.Equal(t, params.BlobTxFieldElementsPerBlob, len(RootsOfUnity))
 
 	// Create a blob with random data
-	var blob kzg4844.Blob
-	for i := 0; i < fieldElementsPerBlob; i++ {
-		fieldEl := fr.NewElement(uint64(i))
-		_, err := fieldEl.SetRandom()
-		require.NoError(t, err)
-		fieldElBytes := fieldEl.Bytes()
-		copy(blob[i*32:(i+1)*32], fieldElBytes[:])
-	}
-
-	// Calculate the blob commitment - used for verification later
-	blobCommitment, err := kzg4844.BlobToCommitment(&blob)
+	rng := rand.New(rand.NewSource(123))
+	blob, blobCommitment, err := testutils.RandomBlob(rng)
 	require.NoError(t, err)
 
 	// Verify we can generate each field element using the ordered roots of unity
-	for i := 0; i < fieldElementsPerBlob; i++ {
+	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 		if i%100 == 0 {
 			t.Logf("Checking field element %d", i)
 		}
