@@ -4,9 +4,12 @@ import (
 	"context"
 	"math/big"
 	"testing"
+	"time"
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -156,87 +159,100 @@ func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-// // In this section, we will test the following combinations
-// // 1. Withdrawals root before isthmus w/ and w/o L2toL1 withdrawal
-// // 2. Withdrawals root at isthmus w/ and w/o L2toL1 withdrawal
-// // 3. Withdrawals root after isthmus w/ and w/o L2toL1 withdrawal
-// func testWithdrawalsRootBeforeAtAndAfterIsthmus(t *testing.T) {
-// 	tests := []struct {
-// 		name              string
-// 		withdrawalTx      bool
-// 		withdrawalTxBlock int
-// 		totalBlocks       int
-// 	}{
-// 		{"BeforeIsthmusWithoutWithdrawalTx", false, 0, 1},
-// 		{"BeforeIsthmusWithWithdrawalTx", true, 1, 1},
-// 		{"AtIsthmusWithoutWithdrawalTx", false, 0, 2},
-// 		{"AtIsthmusWithWithdrawalTx", true, 2, 2},
-// 		{"AfterIsthmusWithoutWithdrawalTx", false, 0, 3},
-// 		{"AfterIsthmusWithWithdrawalTx", true, 3, 3},
-// 	}
-// 	for _, test := range tests {
-// 		t.Run(test.name, func(t *testing.T) {
-// 			testWithdrawlsRootIsthmus(t, test.withdrawalTx, test.withdrawalTxBlock, test.totalBlocks)
-// 		})
-// 	}
-// }
+// In this section, we will test the following combinations
+// 1. Withdrawals root before isthmus w/ and w/o L2toL1 withdrawal
+// 2. Withdrawals root at isthmus w/ and w/o L2toL1 withdrawal
+// 3. Withdrawals root after isthmus w/ and w/o L2toL1 withdrawal
+func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
-// func testWithdrawlsRootIsthmus(gt *testing.T, withdrawalTx bool, withdrawalTxBlock, totalBlocks int) {
-// 	t := helpers.NewDefaultTesting(gt)
-// 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-// 	const isthmusOffset = 2
+	type testCase struct {
+		name              string
+		withdrawalTx      bool
+		withdrawalTxBlock int
+		totalBlocks       int
+	}
 
-// 	log := testlog.Logger(t, log.LvlDebug)
+	testWithdrawlsRootIsthmus := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
+		t := actionsHelpers.NewDefaultTesting(gt)
+		withdrawalTx, withdrawalTxBlock, totalBlocks := testCfg.Custom.withdrawalTx, testCfg.Custom.withdrawalTxBlock, testCfg.Custom.totalBlocks
 
-// 	dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
-// 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
+		dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
+		const isthmusOffset = 2
 
-// 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-// 	_, _, _, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
+		log := testlog.Logger(t, log.LvlDebug)
 
-// 	// start op-nodes
-// 	sequencer.ActL2PipelineFull(t)
-// 	verifier.ActL2PipelineFull(t)
+		dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
+		require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
-// 	verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
+		sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
+		_, _, _, sequencer, engine, verifier, _, _ := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 
-// 	ethCl := engine.EthClient()
-// 	for i := 1; i <= totalBlocks; i++ {
-// 		var tx *types.Transaction
+		// start op-nodes
+		sequencer.ActL2PipelineFull(t)
+		verifier.ActL2PipelineFull(t)
 
-// 		sequencer.ActL2StartBlock(t)
+		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
 
-// 		if withdrawalTx && withdrawalTxBlock == i {
-// 			l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
-// 			require.NoError(t, err, "binding withdrawer on L2")
+		ethCl := engine.EthClient()
+		for i := 1; i <= totalBlocks; i++ {
+			var tx *types.Transaction
 
-// 			// Initiate Withdrawal
-// 			// Bind L2 Withdrawer Contract and invoke the Receive function
-// 			l2opts, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Alice, new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
-// 			require.NoError(t, err)
-// 			l2opts.Value = big.NewInt(500)
-// 			tx, err = l2withdrawer.Receive(l2opts)
-// 			require.NoError(t, err)
+			sequencer.ActL2StartBlock(t)
 
-// 			// force-include the transaction, also in upgrade blocks
-// 			engine.ActL2IncludeTxIgnoreForcedEmpty(dp.Addresses.Alice)(t)
-// 		}
-// 		sequencer.ActL2EndBlock(t)
+			if withdrawalTx && withdrawalTxBlock == i {
+				l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
+				require.NoError(t, err, "binding withdrawer on L2")
 
-// 		if withdrawalTx && withdrawalTxBlock == i {
-// 			// wait for withdrawal to be included in a block
-// 			receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(dp.DeployConfig.L2BlockTime)*time.Second)
-// 			require.NoError(t, err, "withdrawal initiated on L2 sequencer")
-// 			require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction had incorrect status")
-// 		}
-// 	}
-// 	rpcCl := engine.RPCClient()
+				// Initiate Withdrawal
+				// Bind L2 Withdrawer Contract and invoke the Receive function
+				l2opts, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Alice, new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
+				require.NoError(t, err)
+				l2opts.Value = big.NewInt(500)
+				tx, err = l2withdrawer.Receive(l2opts)
+				require.NoError(t, err)
 
-// 	// we set withdrawals root only at or after isthmus
-// 	if totalBlocks >= isthmusOffset {
-// 		verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
-// 	}
-// }
+				// force-include the transaction, also in upgrade blocks
+				engine.ActL2IncludeTxIgnoreForcedEmpty(dp.Addresses.Alice)(t)
+			}
+			sequencer.ActL2EndBlock(t)
+
+			if withdrawalTx && withdrawalTxBlock == i {
+				// wait for withdrawal to be included in a block
+				receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(dp.DeployConfig.L2BlockTime)*time.Second)
+				require.NoError(t, err, "withdrawal initiated on L2 sequencer")
+				require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction had incorrect status")
+			}
+		}
+		rpcCl := engine.RPCClient()
+
+		// we set withdrawals root only at or after isthmus
+		if totalBlocks >= isthmusOffset {
+			verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
+		}
+	}
+
+	tests := []testCase{
+		{"BeforeIsthmusWithoutWithdrawalTx", false, 0, 1},
+		{"BeforeIsthmusWithWithdrawalTx", true, 1, 1},
+		{"AtIsthmusWithoutWithdrawalTx", false, 0, 2},
+		{"AtIsthmusWithWithdrawalTx", true, 2, 2},
+		{"AfterIsthmusWithoutWithdrawalTx", false, 0, 3},
+		{"AfterIsthmusWithWithdrawalTx", true, 3, 3},
+	}
+
+	matrix := helpers.NewMatrix[testCase]()
+
+	defer matrix.Run(gt)
+
+	for _, test := range tests {
+		matrix.AddDefaultTestCasesWithName(
+			test.name,
+			test,
+			helpers.NewForkMatrix(helpers.Holocene),
+			testWithdrawlsRootIsthmus,
+		)
+	}
+}
 
 // func testWithdrawlsRootPostIsthmus(gt *testing.T) {
 // 	t := helpers.NewDefaultTesting(gt)
