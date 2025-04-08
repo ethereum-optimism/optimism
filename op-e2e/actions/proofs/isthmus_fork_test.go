@@ -10,7 +10,6 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
@@ -39,6 +38,10 @@ var (
 
 var zeroHex64 = hexutil.Uint64(0)
 
+// Test_ProgramAction_IsthmusActivationAtGenesis tests the Isthmus activation at genesis.
+// It verifies that the Isthmus is active at genesis and that the genesis block
+// has the correct withdrawals root and requests hash. It runs the fault proof
+// program.
 func Test_ProgramAction_IsthmusActivationAtGenesis(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
@@ -106,6 +109,12 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	env.RunFaultProofProgram(t, safeBlock.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
+// Test_ProgramAction_IsthmusWithdrawlsRoot tests the withdrawals root in the header:
+// - pre canyon
+// - post canyon but pre Isthmus
+// - post Isthmus
+// It does this by activating the relevant forks at genesis.
+// It runs the fault proof program.
 func Test_ProgramAction_IsthmusWithdrawlsRoot(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
@@ -117,10 +126,6 @@ func Test_ProgramAction_IsthmusWithdrawlsRoot(gt *testing.T) {
 
 	matrix.Run(gt)
 }
-
-// There are 2 stages pre-Isthmus that we need to test:
-// 1. Pre-Canyon: withdrawals root should be nil
-// 2. Post-Canyon: withdrawals root should be EmptyWithdrawalsHash
 func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {})
@@ -161,10 +166,14 @@ func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-// In this section, we will test the following combinations
-// 1. Withdrawals root before isthmus w/ and w/o L2toL1 withdrawal
-// 2. Withdrawals root at isthmus w/ and w/o L2toL1 withdrawal
-// 3. Withdrawals root after isthmus w/ and w/o L2toL1 withdrawal
+// Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus tests the withdrawals root
+// - before isthmus
+// - at isthmus
+// - after isthmus
+// each time with and without a withdrawal transaction.
+// It verifies that the withdrawals root is set correctly in the header
+// and that the withdrawal transaction is included in the block.
+// It runs the fault proof program.
 func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
 	type testCase struct {
@@ -174,24 +183,25 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 		totalBlocks       int
 	}
 
+	isthmusOffset := 2
+
 	testWithdrawlsRootIsthmus := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
 		t := actionsHelpers.NewDefaultTesting(gt)
+		tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {})
+		var setIsthmusTime = func(dc *genesis.DeployConfig) {
+			two := hexutil.Uint64(isthmusOffset)
+			dc.L2GenesisIsthmusTimeOffset = &two
+			dc.L1PragueTimeOffset = &zeroHex64
+		}
+		env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg(), setIsthmusTime)
 		withdrawalTx, withdrawalTxBlock, totalBlocks := testCfg.Custom.withdrawalTx, testCfg.Custom.withdrawalTxBlock, testCfg.Custom.totalBlocks
-
-		dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
-		const isthmusOffset = 2
-
 		log := testlog.Logger(t, log.LvlDebug)
+		require.NoError(t, env.Dp.DeployConfig.Check(log), "must have valid config")
 
-		dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
-		require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
-
-		sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
-		_, _, _, sequencer, engine, verifier, _, _ := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
+		sequencer, engine := env.Sequencer, env.Engine
 
 		// start op-nodes
 		sequencer.ActL2PipelineFull(t)
-		verifier.ActL2PipelineFull(t)
 
 		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
 
@@ -207,20 +217,20 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
 				// Initiate Withdrawal
 				// Bind L2 Withdrawer Contract and invoke the Receive function
-				l2opts, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Alice, new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
+				l2opts, err := bind.NewKeyedTransactorWithChainID(env.Alice.L2.Secret(), new(big.Int).SetUint64(env.Dp.DeployConfig.L2ChainID))
 				require.NoError(t, err)
 				l2opts.Value = big.NewInt(500)
 				tx, err = l2withdrawer.Receive(l2opts)
 				require.NoError(t, err)
 
 				// force-include the transaction, also in upgrade blocks
-				engine.ActL2IncludeTxIgnoreForcedEmpty(dp.Addresses.Alice)(t)
+				engine.ActL2IncludeTxIgnoreForcedEmpty(env.Alice.Address())(t)
 			}
 			sequencer.ActL2EndBlock(t)
 
 			if withdrawalTx && withdrawalTxBlock == i {
 				// wait for withdrawal to be included in a block
-				receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(dp.DeployConfig.L2BlockTime)*time.Second)
+				receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(env.Dp.DeployConfig.L2BlockTime)*time.Second)
 				require.NoError(t, err, "withdrawal initiated on L2 sequencer")
 				require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction had incorrect status")
 			}
@@ -231,6 +241,9 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 		if totalBlocks >= isthmusOffset {
 			verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
 		}
+
+		l2Safe := sequencer.L2Safe()
+		env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	tests := []testCase{
@@ -305,6 +318,12 @@ func Test_ProgramAction_IsthmusNetworkUpgradeTransactions(gt *testing.T) {
 	matrix.Run(gt)
 }
 
+// TestIsthmusNetworkUpgradeTransactions tests the Isthmus network upgrade transactions.
+// It verifies that the Isthmus upgrade transactions are created correctly
+// and that the L1Block and GasPriceOracle contracts are updated with the correct code hashes.
+// It also checks that the Isthmus upgrade transactions are successful and
+// that the Isthmus network upgrade is activated.
+// It runs the fault proof program.
 func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	var setIsthmusTime = func(dc *genesis.DeployConfig) {
