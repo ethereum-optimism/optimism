@@ -18,8 +18,9 @@ type Network interface {
 
 	Faucet() Faucet
 
-	User(id UserID) User
-	Users() []UserID
+	User(m UserMatcher) User
+	Users() []User
+	UserIDs() []UserID
 }
 
 type ExtensibleNetwork interface {

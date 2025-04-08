@@ -37,8 +37,7 @@ func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
 		ID:           p.id,
 		Client:       rpcCl,
 	})
-	l2ID := system.L2NetworkID(p.id.ChainID)
-	l2Net := system.L2Network(l2ID)
+	l2Net := system.L2Network(stack.L2NetworkID(p.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2Proposer(bFrontend)
 }
 

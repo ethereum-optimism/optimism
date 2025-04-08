@@ -12,6 +12,7 @@ func TestExample1(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := SimpleInterop(t)
 
+	t.Require().NotEqual(sys.L2ChainA.ChainID(), sys.L2ChainB.ChainID(), "sanity-check we have two different chains")
 	sys.Supervisor.VerifySyncStatus(dsl.WithAllLocalUnsafeHeadsAdvancedBy(10))
 }
 

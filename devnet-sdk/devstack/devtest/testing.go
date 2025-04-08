@@ -109,6 +109,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 			logger: t.logger.New("subtest", name),
 			ctx:    ctx,
 		}
+		subT.req = require.New(subT)
 		fn(subT)
 	})
 }

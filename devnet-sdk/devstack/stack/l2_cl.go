@@ -27,10 +27,31 @@ func SortL2CLNodeIDs(ids []L2CLNodeID) []L2CLNodeID {
 	})
 }
 
+func SortL2CLNodes(elems []L2CLNode) []L2CLNode {
+	return copyAndSort(elems, func(a, b L2CLNode) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ L2CLMatcher = L2CLNodeID{}
+
+func (id L2CLNodeID) Match(elems []L2CLNode) []L2CLNode {
+	return findByID(id, elems)
+}
+
 // L2CLNode is a L2 ethereum consensus-layer node
 type L2CLNode interface {
 	Common
 	ID() L2CLNodeID
 
 	RollupAPI() apis.RollupClient
+
+	// ELs returns the engine(s) that this L2CLNode is connected to.
+	// This may be empty, if the L2CL is not connected to any.
+	ELs() []L2ELNode
+}
+
+type LinkableL2CLNode interface {
+	// Links the nodes. Does not make any backend changes, just registers the EL as connected to this CL.
+	LinkEL(el L2ELNode)
 }

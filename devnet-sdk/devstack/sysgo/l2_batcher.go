@@ -39,8 +39,7 @@ func (b *L2Batcher) hydrate(system stack.ExtensibleSystem) {
 		ID:           b.id,
 		Client:       rpcCl,
 	})
-	l2ID := system.L2NetworkID(b.id.ChainID)
-	l2Net := system.L2Network(l2ID)
+	l2Net := system.L2Network(stack.L2NetworkID(b.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2Batcher(bFrontend)
 }
 

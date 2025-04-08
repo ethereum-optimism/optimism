@@ -20,8 +20,7 @@ type L2Network struct {
 }
 
 func (c *L2Network) hydrate(system stack.ExtensibleSystem) {
-	l1NetId := system.L1NetworkID(c.l1ChainID)
-	l1Net := system.L1Network(l1NetId)
+	l1Net := system.L1Network(stack.L1NetworkID(c.l1ChainID))
 	sysL2Net := shim.NewL2Network(shim.L2NetworkConfig{
 		NetworkConfig: shim.NetworkConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),

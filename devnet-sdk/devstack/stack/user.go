@@ -30,6 +30,18 @@ func SortUserIDs(ids []UserID) []UserID {
 	})
 }
 
+func SortUsers(elems []User) []User {
+	return copyAndSort(elems, func(a, b User) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ UserMatcher = UserID{}
+
+func (id UserID) Match(elems []User) []User {
+	return findByID(id, elems)
+}
+
 // User represents a single user-key, specific to a single chain,
 // with a default connection to interact with the execution-layer of said chain.
 type User interface {

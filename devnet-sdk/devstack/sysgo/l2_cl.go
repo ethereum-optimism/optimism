@@ -32,8 +32,8 @@ type L2CLNode struct {
 	interopRPC string
 	cfg        *node.Config
 	p          devtest.P
-
-	logger log.Logger
+	logger     log.Logger
+	el         stack.L2ELNodeID
 }
 
 var _ stack.Lifecycle = (*L2CLNode)(nil)
@@ -49,9 +49,9 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 		ID:           n.id,
 		Client:       rpcCl,
 	})
-	l2ID := system.L2NetworkID(n.id.ChainID)
-	l2Net := system.L2Network(l2ID)
+	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
+	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
 }
 
 func (n *L2CLNode) rememberPort() {
@@ -194,6 +194,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			cfg:    nodeCfg,
 			logger: logger,
 			p:      o.P(),
+			el:     l2ELID,
 		}
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
 		l2CLNode.Start()

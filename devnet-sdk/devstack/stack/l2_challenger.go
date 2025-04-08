@@ -23,6 +23,18 @@ func SortL2ChallengerIDs(ids []L2ChallengerID) []L2ChallengerID {
 	})
 }
 
+func SortL2Challengers(elems []L2Challenger) []L2Challenger {
+	return copyAndSort(elems, func(a, b L2Challenger) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ L2ChallengerMatcher = L2ChallengerID{}
+
+func (id L2ChallengerID) Match(elems []L2Challenger) []L2Challenger {
+	return findByID(id, elems)
+}
+
 type L2Challenger interface {
 	Common
 	ID() L2ChallengerID

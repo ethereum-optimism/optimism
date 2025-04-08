@@ -3,6 +3,7 @@ package sysext
 import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -57,7 +58,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 			CommonConfig: commonConfig,
 			ID:           stack.UserID{Key: name, ChainID: l1ID},
 			Priv:         priv,
-			EL:           l1.L1ELNode(l1.L1ELNodes()[0]),
+			EL:           l1.L1ELNode(match.FirstL1EL),
 		}))
 	}
 

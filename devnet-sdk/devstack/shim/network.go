@@ -46,9 +46,9 @@ func (p *presetNetwork) Faucet() stack.Faucet {
 	return p.faucet
 }
 
-func (p *presetNetwork) User(id stack.UserID) stack.User {
-	v, ok := p.users.Get(id)
-	p.require().True(ok, "user %s must exist", id)
+func (p *presetNetwork) User(m stack.UserMatcher) stack.User {
+	v, ok := findMatch(m, p.users.Get, p.Users)
+	p.require().True(ok, "must find user %s", m)
 	return v
 }
 
@@ -56,6 +56,10 @@ func (p *presetNetwork) AddUser(v stack.User) {
 	p.require().True(p.users.SetIfMissing(v.ID(), v), "user %s must not already exist", v.ID())
 }
 
-func (p *presetNetwork) Users() []stack.UserID {
+func (p *presetNetwork) Users() []stack.User {
+	return stack.SortUsers(p.users.Values())
+}
+
+func (p *presetNetwork) UserIDs() []stack.UserID {
 	return stack.SortUserIDs(p.users.Keys())
 }

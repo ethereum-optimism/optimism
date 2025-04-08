@@ -23,6 +23,18 @@ func SortFaucetIDs(ids []FaucetID) []FaucetID {
 	})
 }
 
+func SortFaucets(elems []Faucet) []Faucet {
+	return copyAndSort(elems, func(a, b Faucet) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ FaucetMatcher = FaucetID{}
+
+func (id FaucetID) Match(elems []Faucet) []Faucet {
+	return findByID(id, elems)
+}
+
 type Faucet interface {
 	Common
 	ID() FaucetID

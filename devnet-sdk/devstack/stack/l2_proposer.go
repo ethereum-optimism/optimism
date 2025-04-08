@@ -23,6 +23,18 @@ func SortL2ProposerIDs(ids []L2ProposerID) []L2ProposerID {
 	})
 }
 
+func SortL2Proposers(elems []L2Proposer) []L2Proposer {
+	return copyAndSort(elems, func(a, b L2Proposer) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ L2ProposerMatcher = L2ProposerID{}
+
+func (id L2ProposerID) Match(elems []L2Proposer) []L2Proposer {
+	return findByID(id, elems)
+}
+
 // L2Proposer is a L2 output proposer, posting claims of L2 state to L1.
 type L2Proposer interface {
 	Common
