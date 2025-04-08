@@ -74,9 +74,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 
 	elService, ok := node.Services[ELServiceName]
 	require.True(ok, "need L2 EL service for chain", l2ID)
-	elRPC, err := o.findProtocolService(&elService, RPCProtocol)
-	require.NoError(err)
-	elClient := o.rpcClient(l2Net.T(), elRPC)
+	elClient := o.rpcClient(l2Net.T(), &elService, RPCProtocol)
 	l2Net.AddL2ELNode(shim.NewL2ELNode(shim.L2ELNodeConfig{
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
@@ -93,9 +91,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	require.True(ok, "need L2 CL service for chain", l2ID)
 
 	// it's an RPC, but 'http' in kurtosis descriptor
-	clRPC, err := o.findProtocolService(&clService, HTTPProtocol)
-	require.NoError(err)
-	clClient := o.rpcClient(l2Net.T(), clRPC)
+	clClient := o.rpcClient(l2Net.T(), &clService, HTTPProtocol)
 	l2Net.AddL2CLNode(shim.NewL2CLNode(shim.L2CLNodeConfig{
 		ID: stack.L2CLNodeID{
 			Key:     clService.Name,
@@ -117,16 +113,13 @@ func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack
 		return
 	}
 
-	batcherRPC, err := o.findProtocolService(&batcherService, HTTPProtocol)
-	require.NoError(err)
-
 	l2Net.AddL2Batcher(shim.NewL2Batcher(shim.L2BatcherConfig{
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		ID: stack.L2BatcherID{
 			Key:     batcherService.Name,
 			ChainID: l2ID.ChainID(),
 		},
-		Client: o.rpcClient(l2Net.T(), batcherRPC),
+		Client: o.rpcClient(l2Net.T(), &batcherService, HTTPProtocol),
 	}))
 }
 
@@ -141,17 +134,13 @@ func (o *Orchestrator) hydrateProposerMaybe(net *descriptors.L2Chain, l2Net stac
 		return
 	}
 
-	// it's an RPC, but 'http' in kurtosis descriptor
-	proposerRPC, err := o.findProtocolService(&proposerService, HTTPProtocol)
-	require.NoError(err)
-
 	l2Net.AddL2Proposer(shim.NewL2Proposer(shim.L2ProposerConfig{
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		ID: stack.L2ProposerID{
 			Key:     proposerService.Name,
 			ChainID: l2ID.ChainID(),
 		},
-		Client: o.rpcClient(l2Net.T(), proposerRPC),
+		Client: o.rpcClient(l2Net.T(), &proposerService, HTTPProtocol),
 	}))
 }
 

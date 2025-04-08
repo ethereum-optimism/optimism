@@ -42,8 +42,6 @@ func (o *Orchestrator) hydrateSupervisorMaybe(sys stack.ExtensibleSystem) {
 		return
 	}
 
-	require := sys.T().Require()
-
 	// hack, supervisor is part of the first L2
 	supervisorService, ok := o.env.L2[0].Services["supervisor"]
 	if !ok {
@@ -53,12 +51,9 @@ func (o *Orchestrator) hydrateSupervisorMaybe(sys stack.ExtensibleSystem) {
 
 	// ideally we should check supervisor is consistent across all L2s
 	// but that's what Kurtosis does.
-	supervisorRPC, err := o.findProtocolService(&supervisorService, RPCProtocol)
-	require.NoError(err)
-	supervisorClient := o.rpcClient(sys.T(), supervisorRPC)
 	sys.AddSupervisor(shim.NewSupervisor(shim.SupervisorConfig{
 		CommonConfig: shim.NewCommonConfig(sys.T()),
 		ID:           stack.SupervisorID(supervisorService.Name),
-		Client:       supervisorClient,
+		Client:       o.rpcClient(sys.T(), &supervisorService, RPCProtocol),
 	}))
 }
