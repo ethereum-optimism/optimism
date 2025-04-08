@@ -221,8 +221,7 @@ func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node 
 
 func (h *FactoryHelper) StartSuperCannonGameWithCorrectRoot(ctx context.Context, opts ...GameOpt) *SuperCannonGameHelper {
 	cfg := NewGameCfg(opts...)
-	require.NoError(h.T, wait.ForBlock(ctx, h.Client, 1))
-	b, err := h.Client.BlockByNumber(ctx, nil)
+	b, err := wait.ForNextSafeBlock(ctx, h.Client)
 	require.NoError(h.T, err)
 	l2Timestamp := b.Time()
 	h.WaitForSuperTimestamp(l2Timestamp, cfg)
