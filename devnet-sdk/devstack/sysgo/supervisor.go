@@ -2,7 +2,7 @@ package sysgo
 
 import (
 	"context"
-
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
@@ -22,6 +22,12 @@ import (
 type Supervisor struct {
 	id      stack.SupervisorID
 	userRPC string
+
+	cfg    *supervisorConfig.Config
+	p      devtest.P
+	logger log.Logger
+
+	service *supervisor.SupervisorService
 }
 
 func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
@@ -35,6 +41,41 @@ func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
 		ID:           s.id,
 		Client:       supClient,
 	}))
+}
+
+func (s *Supervisor) start() {
+	// TODO lock
+	if s.service != nil {
+		s.logger.Warn("Already started")
+		return
+	}
+	super, err := supervisor.SupervisorFromConfig(context.Background(), s.cfg, s.logger)
+	s.p.Require().NoError(err)
+
+	err = super.Start(context.Background())
+	s.p.Require().NoError(err)
+
+	s.userRPC = super.RPC()
+}
+
+func (s *Supervisor) stop() {
+	// TODO
+	if s.service == nil {
+		s.logger.Warn("Already stopped")
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // force-quit
+	s.logger.Info("Closing supervisor")
+	closeErr := s.service.Stop(ctx)
+	s.logger.Info("Closed supervisor", "err", closeErr)
+
+	// TODO: maybe option: parse port, write it to the config,
+	//  so the next start will use the same port as we used to have
+	//detectedPort = parseTodo(s.service.RPC())
+	//s.cfg.RPC.ListenPort = detectedPort
+
+	s.service = nil
 }
 
 func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option {
@@ -64,8 +105,10 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 				ListenPort:  0,
 				EnableAdmin: true,
 			},
-			SyncSources:           &syncnode.CLISyncNodes{}, // no sync-sources
-			L1RPC:                 l1EL.userRPC,
+			SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
+			L1RPC:       l1EL.userRPC,
+			// Note: datadir is created here,
+			// persistent across stop/start, for the duration of the package execution.
 			Datadir:               orch.p.TempDir(),
 			Version:               "dev",
 			DependencySetSource:   cluster.depset,
@@ -76,25 +119,17 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 
 		plog := orch.P().Logger().New("id", supervisorID)
 
-		super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, plog)
-		require.NoError(err)
-
-		err = super.Start(context.Background())
-		require.NoError(err)
-
-		orch.p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel() // force-quit
-			plog.Info("Closing supervisor")
-			closeErr := super.Stop(ctx)
-			plog.Info("Closed supervisor", "err", closeErr)
-		})
-
 		supervisorNode := &Supervisor{
 			id:      supervisorID,
-			userRPC: super.RPC(),
+			userRPC: "", // set on start
+			cfg:     cfg,
+			p:       o.P(),
+			logger:  plog,
+			service: nil, // set on start
 		}
 		orch.supervisors.Set(supervisorID, supervisorNode)
+		supervisorNode.start()
+		orch.p.Cleanup(supervisorNode.stop)
 	}
 }
 

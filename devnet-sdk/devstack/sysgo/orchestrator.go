@@ -37,10 +37,18 @@ type Orchestrator struct {
 	//challengers locks.RWMap[stack.L2ChallengerID, *L2Challenger] // TODO(#15057): op-challenger support
 	proposers locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
+	panel *ControlPanel
+
 	jwtPath     string
 	jwtSecret   [32]byte
 	jwtPathOnce sync.Once
 }
+
+func (o *Orchestrator) ControlPanel() stack.ControlPanel {
+	return o.panel
+}
+
+var _ stack.Orchestrator = (*Orchestrator)(nil)
 
 func NewOrchestrator(p devtest.P) *Orchestrator {
 	return &Orchestrator{p: p}

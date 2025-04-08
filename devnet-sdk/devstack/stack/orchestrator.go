@@ -4,6 +4,18 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 )
 
+type Mode int
+
+const (
+	Started Mode = iota
+	Stopped
+)
+
+type ControlPanel interface {
+	SupervisorState(id SupervisorID, mode Mode)
+	L2CLNodeState(id L2CLNodeID, mode Mode)
+}
+
 // Orchestrator is the base interface for all system orchestrators.
 // It imposes some common things across all orchestrators, but may also have optional extensions, that not every type of backend might support.
 type Orchestrator interface {
@@ -15,6 +27,8 @@ type Orchestrator interface {
 	// Hydrate adds all services that the orchestrator is aware of to the given system.
 	// An orchestrator may be asked to hydrate different systems, one for each test.
 	Hydrate(sys ExtensibleSystem)
+
+	ControlPanel() ControlPanel
 }
 
 // GateWithRemediation is an example of a test-gate that checks a system and may use an orchestrator to remediate any shortcomings.

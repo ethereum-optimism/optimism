@@ -42,6 +42,8 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 }
 
+// TODO start and stop methods
+
 func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option {
 	return func(o stack.Orchestrator) {
 		orch := o.(*Orchestrator)

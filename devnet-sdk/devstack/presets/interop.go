@@ -11,9 +11,10 @@ import (
 )
 
 type SimpleInterop struct {
-	Log        log.Logger
-	T          devtest.T
-	Supervisor *dsl.Supervisor
+	Log          log.Logger
+	T            devtest.T
+	Supervisor   *dsl.Supervisor
+	ControlPanel stack.ControlPanel
 }
 
 func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
@@ -47,8 +48,9 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 	supervisorId := system.Supervisors()[0]
 	sys := dsl.Hydrate(t, system)
 	return &SimpleInterop{
-		Log:        t.Logger(),
-		T:          t,
-		Supervisor: sys.Supervisor(supervisorId),
+		Log:          t.Logger(),
+		T:            t,
+		Supervisor:   sys.Supervisor(supervisorId),
+		ControlPanel: orch.ControlPanel(),
 	}
 }

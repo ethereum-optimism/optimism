@@ -18,6 +18,9 @@ type Orchestrator struct {
 
 	env *descriptors.DevnetEnvironment
 
+	// service-name -> updated service definition (or maybe just the endpoint?)
+	diff map[string]any
+
 	usePrivatePorts    bool
 	useEagerRPCClients bool
 }
