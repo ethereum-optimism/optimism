@@ -32,7 +32,7 @@ type DefaultInteropSystemIDs struct {
 	L2BProposer stack.L2ProposerID
 }
 
-func DefaultInteropSystem(contractPaths ContractPaths) (DefaultInteropSystemIDs, stack.Option) {
+func DefaultInteropSystem(contractPaths ContractPaths, dest *DefaultInteropSystemIDs) stack.Option {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2AID := eth.ChainIDFromUInt64(901)
 	l2BID := eth.ChainIDFromUInt64(902)
@@ -55,8 +55,8 @@ func DefaultInteropSystem(contractPaths ContractPaths) (DefaultInteropSystemIDs,
 		L2BProposer: stack.L2ProposerID{Key: "main", ChainID: l2BID},
 	}
 
-	opt := stack.Option(func(setup *stack.Setup) {
-		setup.Log.Info("Setting up")
+	opt := stack.Option(func(o stack.Orchestrator) {
+		o.P().Logger().Info("Setting up")
 	})
 
 	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
@@ -89,5 +89,11 @@ func DefaultInteropSystem(contractPaths ContractPaths) (DefaultInteropSystemIDs,
 
 	// TODO(#15057): maybe L2 challenger
 
-	return ids, opt
+	// Upon evaluation of the option, export the contents we created.
+	// Ids here are static, but other things may be exported too.
+	opt.Add(func(orch stack.Orchestrator) {
+		*dest = ids
+	})
+
+	return opt
 }

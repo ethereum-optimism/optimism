@@ -222,6 +222,36 @@ rules:
       exclude:
         - packages/contracts-bedrock/test
 
+  - id: sol-style-error-format
+    languages: [generic]
+    severity: ERROR
+    message: Error formatting is incorrect - must follow pattern ContractName_ErrorName with exactly one underscore
+    pattern-either:
+      - pattern-regex: contract\s+(\w+)\s*\{[^}]*error\s+(?!(\1_[^_]\w*))\w+[^;]*;
+      - pattern-regex: \berror\s+(?!([A-Z][a-zA-Z0-9]*_[^_][a-zA-Z0-9]*))[a-zA-Z0-9]+\s*\([^)]*\)\s*;
+    paths:
+      include:
+        - packages/contracts-bedrock/src
+      exclude:
+        - packages/contracts-bedrock/src/safe/LivenessModule.sol
+        - packages/contracts-bedrock/src/libraries/rlp/RLPErrors.sol
+        - packages/contracts-bedrock/src/libraries/errors/CommonErrors.sol
+        - packages/contracts-bedrock/src/libraries/TransientContext.sol
+        - packages/contracts-bedrock/src/libraries/L1BlockErrors.sol
+        - packages/contracts-bedrock/src/libraries/Blueprint.sol
+        - packages/contracts-bedrock/src/dispute/lib/Errors.sol
+        - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
+        - packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
+        - packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
+        - packages/contracts-bedrock/src/L2/SuperchainWETH.sol
+        - packages/contracts-bedrock/src/L2/SuperchainTokenBridge.sol
+        - packages/contracts-bedrock/src/L2/L2ToL2CrossDomainMessenger.sol
+        - packages/contracts-bedrock/src/L2/L2StandardBridgeInterop.sol
+        - packages/contracts-bedrock/src/L2/CrossL2Inbox.sol
+        - packages/contracts-bedrock/src/L1/ResourceMetering.sol
+        - packages/contracts-bedrock/src/L1/OPContractsManager.sol
+        - packages/contracts-bedrock/src/L1/DataAvailabilityChallenge.sol
+
   - id: sol-safety-use-disable-initializer
     languages: [solidity]
     severity: ERROR

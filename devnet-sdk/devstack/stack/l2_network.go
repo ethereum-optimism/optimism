@@ -38,7 +38,7 @@ type L2Deployment interface {
 	// Other addresses will be added here later
 }
 
-type L2Keys interface {
+type Keys interface {
 	Secret(key devkeys.Key) *ecdsa.PrivateKey
 	Address(key devkeys.Key) common.Address
 }
@@ -50,7 +50,7 @@ type L2Network interface {
 	ID() L2NetworkID
 	RollupConfig() *rollup.Config
 	Deployment() L2Deployment
-	Keys() L2Keys
+	Keys() Keys
 
 	Superchain() Superchain
 	L1() L1Network

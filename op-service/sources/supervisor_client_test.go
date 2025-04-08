@@ -18,7 +18,7 @@ func TestSupervisorClient_SuperRootAtTimestamp(t *testing.T) {
 		ctx := context.Background()
 		rpc := new(mockRPC)
 		defer rpc.AssertExpectations(t)
-		client := NewSupervisorClient(rpc, nil)
+		client := NewSupervisorClient(rpc)
 
 		timestamp := hexutil.Uint64(245)
 
@@ -44,7 +44,7 @@ func TestSupervisorClient_SuperRootAtTimestamp(t *testing.T) {
 		ctx := context.Background()
 		rpc := new(mockRPC)
 		defer rpc.AssertExpectations(t)
-		client := NewSupervisorClient(rpc, nil)
+		client := NewSupervisorClient(rpc)
 
 		timestamp := hexutil.Uint64(245)
 

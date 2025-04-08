@@ -19,7 +19,7 @@ func ReadTrie(root common.Hash, getPreimage func(key common.Hash) []byte) []hexu
 	odb := &DB{db: Hooks{
 		Get: func(key []byte) []byte {
 			if len(key) != 32 {
-				panic(fmt.Errorf("expected 32 byte key query, but got %d bytes: %x", len(key), key))
+				panic(fmt.Sprintf("expected 32 byte key query, but got %d bytes: %x", len(key), key))
 			}
 			return getPreimage(*(*[32]byte)(key))
 		},
@@ -78,10 +78,10 @@ func ReadTrie(root common.Hash, getPreimage func(key common.Hash) []byte) []hexu
 	out := make([]hexutil.Bytes, len(values))
 	for i, x := range keys {
 		if x >= uint64(len(values)) {
-			panic(fmt.Errorf("bad key: %d", x))
+			panic(fmt.Sprintf("bad key: %d", x))
 		}
 		if out[x] != nil {
-			panic(fmt.Errorf("duplicate key %d", x))
+			panic(fmt.Sprintf("duplicate key %d", x))
 		}
 		out[x] = values[i]
 	}

@@ -1,22 +1,18 @@
 package presets
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysext"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/syskt"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 // lockedOrchestrator is the global variable that stores
@@ -25,39 +21,46 @@ import (
 // unless explicitly told otherwise using a WithOrchestrator option.
 var lockedOrchestrator locks.RWValue[stack.Orchestrator]
 
-// DoMain runs the pre- and post-processing of tests,
+// DoMain runs M with the pre- and post-processing of tests,
 // to setup the default global orchestrator and global logger.
-func DoMain(m *testing.M) {
-	defer func() {
-		if x := recover(); x != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
-			os.Exit(1)
-		}
+// This will os.Exit(code) and not return.
+func DoMain(m *testing.M, opts ...stack.Option) {
+	// nest the function, so we can defer-recover and defer-cleanup, before os.Exit
+	code := func() (errCode int) {
+		defer func() {
+			if x := recover(); x != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
+				errCode = 1
+			}
+		}()
+
+		// This may be tuned with env or CLI flags in the future, to customize test output
+		logger := oplog.NewLogger(os.Stdout, oplog.CLIConfig{
+			Level:  log.LevelInfo,
+			Color:  true,
+			Format: oplog.FormatTerminal,
+			Pid:    false,
+		})
+		p := devtest.NewP(logger)
+		defer p.Close()
+
+		p.Require().NotEmpty(opts, "Expecting orchestrator options")
+
+		// For the global geth logs,
+		// capture them in the global test logger.
+		// No other tool / test should change the global logger.
+		// TODO(#15139): set log-level filter, reduce noise
+		//log.SetDefault(t.Log.New("logger", "global"))
+
+		initOrchestrator(p, opts...)
+
+		errCode = m.Run()
+		return
 	}()
-
-	// This may be tuned with env or CLI flags in the future, to customize test output
-	logger := oplog.NewLogger(os.Stdout, oplog.CLIConfig{
-		Level:  log.LevelInfo,
-		Color:  true,
-		Format: oplog.FormatTerminal,
-		Pid:    false,
-	})
-
-	t := stack.NewToolingT("Main", logger)
-
-	// For the global geth logs,
-	// capture them in the global test logger.
-	// No other tool / test should change the global logger.
-	// TODO(#15139): set log-level filter, reduce noise
-	//log.SetDefault(t.Log.New("logger", "global"))
-
-	initOrchestrator(t, t.Log)
-	code := m.Run()
-	t.RunCleanup()
 	os.Exit(code)
 }
 
-func initOrchestrator(t stack.T, logger log.Logger) {
+func initOrchestrator(p devtest.P, opts ...stack.Option) {
 	lockedOrchestrator.Lock()
 	defer lockedOrchestrator.Unlock()
 	if lockedOrchestrator.Value != nil {
@@ -65,16 +68,19 @@ func initOrchestrator(t stack.T, logger log.Logger) {
 	}
 	kind, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR")
 	if !ok {
-		logger.Warn("Selecting sysgo as default devstack orchestrator")
+		p.Logger().Warn("Selecting sysgo as default devstack orchestrator")
 		kind = "sysgo"
 	}
 	switch kind {
 	case "sysgo":
-		lockedOrchestrator.Value = sysgo.NewOrchestrator(t, logger)
+		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
 	case "syskt":
-		lockedOrchestrator.Value = syskt.NewOrchestrator(t, logger)
+		lockedOrchestrator.Value = sysext.NewOrchestrator(p)
 	default:
-		logger.Crit("Unknown devstack backend", "kind", kind)
+		p.Logger().Crit("Unknown devstack backend", "kind", kind)
+	}
+	for _, opt := range opts {
+		opt(lockedOrchestrator.Value)
 	}
 }
 
@@ -97,56 +103,4 @@ Add a TestMain to your test package init the orchestrator:
 `)
 	}
 	return out
-}
-
-// WithGlobalOrchestrator attaches the main global Orchestrator() to the setup.
-func WithGlobalOrchestrator() stack.Option {
-	return func(setup *stack.Setup) {
-		setup.Require.Nil(setup.Orchestrator, "cannot change existing orchestrator of setup")
-		setup.Orchestrator = Orchestrator()
-	}
-}
-
-// WithTestLogger attaches a test-logger
-func WithTestLogger() stack.Option {
-	return func(setup *stack.Setup) {
-		setup.Require.Nil(setup.Log, "must not already have a logger")
-		setup.Log = testlog.Logger(setup.T, log.LevelInfo)
-	}
-}
-
-// WithEmptySystem attaches an empty system, for other options to add components to
-func WithEmptySystem() stack.Option {
-	return func(setup *stack.Setup) {
-		setup.Require.Nil(setup.System, "must not already have a system")
-		setup.Require.NotNil(setup.Log, "need logger")
-		setup.System = shim.NewSystem(shim.SystemConfig{
-			CommonConfig: shim.CommonConfig{
-				Log: setup.Log,
-				T:   setup.T,
-			},
-		})
-	}
-}
-
-// NewSetup creates a new empty Setup with nil system and nil orchestrator.
-// The orchestrator can be configured with an option.
-func NewSetup(t stack.T, opts ...stack.Option) *stack.Setup {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	// Create a test-setup, unique to the test
-	setup := &stack.Setup{
-		Ctx:          ctx,
-		Log:          nil,
-		T:            t,
-		Require:      require.New(t),
-		System:       nil,
-		Orchestrator: nil,
-	}
-	// apply any initial options to the system
-	for _, opt := range opts {
-		opt(setup)
-	}
-	return setup
 }

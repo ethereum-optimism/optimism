@@ -1,12 +1,12 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.6")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.8")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test simple holocene
+    @just acceptance-test simple base
 
 holocene:
     @just acceptance-test simple holocene
@@ -17,8 +17,6 @@ isthmus:
 interop:
     @just acceptance-test interop interop
 
-
-# DEVNET_ENV_URL
 
 # Run acceptance tests with mise-managed binary
 acceptance-test devnet="simple" gate="holocene":

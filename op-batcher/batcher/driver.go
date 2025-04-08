@@ -467,6 +467,13 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup)
 	}
 
+	// First wait for all DA requests to finish to prevent new transactions being queued
+	if err := daGroup.Wait(); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			l.Log.Error("error waiting for DA requests to complete", "err", err)
+		}
+	}
+
 	// We _must_ wait for all senders on receiptsCh to finish before we can close it.
 	if err := txQueue.Wait(); err != nil {
 		if !errors.Is(err, context.Canceled) {

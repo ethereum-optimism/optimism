@@ -5,28 +5,31 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 )
 
 // CommonConfig provides common inputs for creating a new component
 type CommonConfig struct {
+	// Log is the logger to use, annotated with metadata.
+	// Shim constructors generally add default annotations like the component "id" and "chain"
 	Log log.Logger
-	T   stack.T
+	T   devtest.T
 }
 
-// CommonConfigFromSetup is a convenience method to build the config common between all components.
+// NewCommonConfig is a convenience method to build the config common between all components.
 // Note that component constructors will decorate the logger with metadata for internal use,
 // the caller of the component constructor can generally leave the logger as-is.
-func CommonConfigFromSetup(setup *stack.Setup) CommonConfig {
+func NewCommonConfig(t devtest.T) CommonConfig {
 	return CommonConfig{
-		Log: setup.Log,
-		T:   setup.T,
+		Log: t.Logger(),
+		T:   t,
 	}
 }
 
 type commonImpl struct {
 	log log.Logger
-	t   stack.T
+	t   devtest.T
 	req *require.Assertions
 }
 
@@ -38,10 +41,14 @@ var _ interface {
 // newCommon creates an object to hold on to common component data, safe to embed in other structs
 func newCommon(cfg CommonConfig) commonImpl {
 	return commonImpl{
-		log: cfg.Log,
+		log: cfg.T.Logger(),
 		t:   cfg.T,
-		req: require.New(cfg.T),
+		req: cfg.T.Require(),
 	}
+}
+
+func (c *commonImpl) T() devtest.T {
+	return c.t
 }
 
 func (c *commonImpl) Logger() log.Logger {

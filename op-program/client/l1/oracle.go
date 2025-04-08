@@ -126,7 +126,7 @@ func (p *PreimageOracle) Precompile(address common.Address, input []byte, requir
 	key := preimage.PrecompileKey(crypto.Keccak256Hash(hintBytes))
 	result := p.oracle.Get(key)
 	if len(result) == 0 { // must contain at least the status code
-		panic(fmt.Errorf("unexpected precompile oracle behavior, got result: %x", result))
+		panic(fmt.Sprintf("unexpected precompile oracle behavior, got result: %x", result))
 	}
 	return result[1:], result[0] == 1
 }

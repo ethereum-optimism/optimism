@@ -135,7 +135,7 @@ func TestP2PFull(t *testing.T) {
 			})
 		}})
 
-	backend := NewP2PAPIBackend(nodeA, logA, nil)
+	backend := NewP2PAPIBackend(nodeA, logA)
 	srv := rpc.NewServer()
 	require.NoError(t, srv.RegisterName("opp2p", backend))
 	client := rpc.DialInProc(srv)

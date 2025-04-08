@@ -4,12 +4,32 @@
 
 ### Packages
 
+- `devtest`: `T` (test-scope) and `P` (package-scope) test handles.
 - `stack`: interfaces, IDs, common typing, core building blocks.
 - `shim`: implementations to turn RPC clients / config objects into objects fitting the `stack`.
 - `sysgo`: backend, hydrates a `stack.System` with `shim` objects that link to in-process Go services.
-- `syskt`: backend, hydrates a `stack.System` with `shim` objects that link to Kurtosis-managed services.
-- `presets`: creates common configurations of the `stack`.
+- `sysext`: backend, hydrates a `stack.System` with `shim` objects that link to a devnet-descriptor, like Kurtosis-managed services.
+- `presets`: provides options that:
+  - configure an orchestrator (e.g. validate contents or add new contents)
+  - hydrate DSL test setups (e.g. turn a test handle in system with DSL utils)
 - `dsl`: makes test-interactions with the `stack` more convenient and readable.
+
+```mermaid
+graph TD
+  shim --implements interfaces--> stack
+  sysgo --hydrates system with shims--> shim
+  syskt --hydrates system with shims--> shim
+
+  dsl --interacts with system--> stack
+
+  presets --uses orchestrator--> sysgo
+  presets --uses orchestrator--> syskt
+  presets --creates DSL around system--> dsl
+
+  userMain -- creates test setup --> presets
+  userTest -- uses test setup --> presets
+```
+
 
 ### Patterns
 
@@ -46,17 +66,24 @@ Available components:
 ### `Orchestrator` interface
 
 The `Orchestrator` is an intentionally minimalist interface.
-This is implemented by external packages, and available in the `Setup`,
-to provide backend-specific functionality to setup functions.
+This is implemented by different external packages, to provide backend-specific functionality,
+and focused on creating and maintaining shared resources for tests,
 
-The orchestrator holds on to its own test-handle and logger.
-These may not be go-test variants, but rather tooling variants,
-when running in tools or as global orchestrator.
+The orchestrator holds on to its own package-level test-handle and logger.
+This package-level handle is not like the regular go-test variant, but rather meant for non-test-scoped contexts,
+e.g. when running in tools or when running as global orchestrator inside a package-level `TestMain` function.
 
 The global orchestrator is set up with:
 ```go
+var MyTestSetup presets.TestSetup[*MyTestResources]
+
 func TestMain(m *testing.M) {
-	presets.DoMain(m)
+	presets.DoMain(m, presets.WithMyExampleResources(&MyTestSetup))
+}
+
+func TestMain(t *testing.T) {
+    resources := MyTestSetup(devtest.NewT(t))
+    // resources.Sequencer.DoThing()
 }
 ```
 
@@ -98,7 +125,8 @@ and load handles for all the services into the `System`.
 - Implementations should take `client.RPC` (or equivalent), not raw endpoints. Dialing is best done by the system composer, which can customize retries, in-process RPC pipes, lazy-dialing, etc. as needed.
 - The system composer is responsible for tracking raw RPC URLs. These are not portable, and would expose too much low-level detail in the System interface.
 - The system compose is responsible for the lifecycle of each component. E.g. kurtosis will keep running, but an in-process system will couple to the test lifecycle and shutdown via `t.Cleanup`.
-- Test gates can inspect a system, abort if needed, or remediate shortcomings of the system with help of an `Orchestrator` (the test setup features offered by the system composer or maintainer).
-- The `Setup` is a struct that may be extended with additional struct-fields in the future, without breaking the `Option` function-signature.
+- Test gates do not have direct access to the `Orchestrator`, since tests may share an orchestrator and should not critically modify what the orchestrator does.
+- Orchestrators are shared: assuming a relatively static external kurtosis devnet or live network, the default operation for a package is to run against a single shared system.
+- Orchestrators are configured in the `TestMain`, with generic presets, such that the different backends can support the preset or not.
 - There are no "chains": the word "chain" is reserved for the protocol typing of the onchain / state-transition related logic. Instead, there are "networks", which include the offchain resources and attached services of a chain.
 - Do not abbreviate "client" to "cl", to avoid confusion with "consensus-layer".

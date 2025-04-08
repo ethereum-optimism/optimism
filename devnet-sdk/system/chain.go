@@ -149,7 +149,7 @@ func (c *chain) ID() types.ChainID {
 
 func (c *chain) Config() (*params.ChainConfig, error) {
 	if c.chainConfig == nil {
-		return nil, fmt.Errorf("chain config not configured on L1 chains yet")
+		return nil, fmt.Errorf("chain config is nil")
 	}
 	return c.chainConfig, nil
 }
@@ -178,8 +178,13 @@ func newNodesFromDescriptor(d *descriptors.Chain) []Node {
 	clients := newClientManager()
 	nodes := make([]Node, len(d.Nodes))
 	for i, node := range d.Nodes {
-		rpc := node.Services["el"].Endpoints["rpc"]
-		nodes[i] = newNode(fmt.Sprintf("http://%s:%d", rpc.Host, rpc.Port), clients)
+		svc := node.Services["el"]
+		name := svc.Name
+		rpc := svc.Endpoints["rpc"]
+		if rpc.Scheme == "" {
+			rpc.Scheme = "http"
+		}
+		nodes[i] = newNode(fmt.Sprintf("%s://%s:%d", rpc.Scheme, rpc.Host, rpc.Port), name, clients)
 	}
 	return nodes
 }

@@ -7,6 +7,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -16,9 +19,11 @@ var (
 )
 
 type walletV2 struct {
-	priv   *ecdsa.PrivateKey
-	client *sources.EthClient
-	ctx    context.Context
+	address    common.Address
+	priv       *ecdsa.PrivateKey
+	client     *sources.EthClient
+	gethClient *ethclient.Client
+	ctx        context.Context
 }
 
 func NewWalletV2FromWalletAndChain(ctx context.Context, wallet Wallet, chain Chain) (WalletV2, error) {
@@ -29,10 +34,16 @@ func NewWalletV2FromWalletAndChain(ctx context.Context, wallet Wallet, chain Cha
 	if err != nil {
 		return nil, err
 	}
+	gethClient, err := chain.Nodes()[0].GethClient()
+	if err != nil {
+		return nil, err
+	}
 	return &walletV2{
-		priv:   wallet.PrivateKey(),
-		client: client,
-		ctx:    ctx,
+		address:    wallet.Address(),
+		priv:       wallet.PrivateKey(),
+		client:     client,
+		gethClient: gethClient,
+		ctx:        ctx,
 	}, nil
 }
 
@@ -48,10 +59,16 @@ func NewWalletV2(ctx context.Context, rpcURL string, priv *ecdsa.PrivateKey, clC
 	if err != nil {
 		return nil, err
 	}
+	pubkeyECDSA, ok := priv.Public().(*ecdsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("Failed to assert type: publicKey is not of type *ecdsa.PublicKey")
+	}
+	address := crypto.PubkeyToAddress(*pubkeyECDSA)
 	return &walletV2{
-		client: cl,
-		priv:   priv,
-		ctx:    ctx,
+		address: address,
+		client:  cl,
+		priv:    priv,
+		ctx:     ctx,
 	}, nil
 }
 
@@ -65,4 +82,12 @@ func (w *walletV2) Client() *sources.EthClient {
 
 func (w *walletV2) Ctx() context.Context {
 	return w.ctx
+}
+
+func (w *walletV2) Address() common.Address {
+	return w.address
+}
+
+func (w *walletV2) GethClient() *ethclient.Client {
+	return w.gethClient
 }

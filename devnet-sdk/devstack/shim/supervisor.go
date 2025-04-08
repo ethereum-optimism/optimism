@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -30,7 +29,7 @@ func NewSupervisor(cfg SupervisorConfig) stack.Supervisor {
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
 		client:     cfg.Client,
-		api:        sources.NewSupervisorClient(cfg.Client, &opmetrics.NoopRPCMetrics{}),
+		api:        sources.NewSupervisorClient(cfg.Client),
 	}
 }
 

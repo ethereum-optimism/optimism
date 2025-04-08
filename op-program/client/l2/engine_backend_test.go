@@ -167,7 +167,7 @@ func TestRejectBlockWithStateRootMismatch(t *testing.T) {
 	invalidBlock := types.NewBlockWithHeader(newBlock.Header())
 
 	_, err := chain.InsertBlockWithoutSetHead(invalidBlock, false)
-	require.ErrorContains(t, err, "block root mismatch")
+	require.ErrorIs(t, err, ErrUnexpectedBlockHash)
 }
 
 func TestGetHeaderByNumber(t *testing.T) {

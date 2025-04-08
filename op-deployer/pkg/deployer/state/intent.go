@@ -41,6 +41,7 @@ type SuperchainProofParams struct {
 type Intent struct {
 	ConfigType            IntentType         `json:"configType" toml:"configType"`
 	L1ChainID             uint64             `json:"l1ChainID" toml:"l1ChainID"`
+	SuperchainConfigProxy *common.Address    `json:"superchainConfigProxy" toml:"superchainConfigProxy"`
 	SuperchainRoles       *SuperchainRoles   `json:"superchainRoles" toml:"superchainRoles,omitempty"`
 	FundDevAccounts       bool               `json:"fundDevAccounts" toml:"fundDevAccounts"`
 	UseInterop            bool               `json:"useInterop" toml:"useInterop"`
@@ -48,6 +49,7 @@ type Intent struct {
 	L2ContractsLocator    *artifacts.Locator `json:"l2ContractsLocator" toml:"l2ContractsLocator"`
 	Chains                []*ChainIntent     `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any     `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
+	L1StartTimestamp      *uint64            `json:"l1StartTimestamp" toml:"l1StartTimestamp"`
 }
 
 type SuperchainRoles struct {
@@ -119,6 +121,10 @@ func (c *Intent) validateStandardValues() error {
 	}
 	if err := c.checkL2Prod(); err != nil {
 		return err
+	}
+
+	if c.SuperchainConfigProxy != nil {
+		return ErrNonStandardValue
 	}
 
 	standardSuperchainRoles, err := GetStandardSuperchainRoles(c.L1ChainID)

@@ -299,18 +299,27 @@ func TestApplyGenesisStrategy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+	l1StartTimestamp := uint64(1000)
 
-	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
-
-	cg := stateDumpCodeGetter(st)
-	validateSuperchainDeployment(t, st, cg, true)
-
-	for i := range intent.Chains {
-		t.Run(fmt.Sprintf("chain-%d", i), func(t *testing.T) {
-			validateOPChainDeployment(t, cg, st, intent, false)
-		})
+	deployChain := func(l1StartTimestamp *uint64) *state.State {
+		opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+		intent.L1StartTimestamp = l1StartTimestamp
+		require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+		cg := stateDumpCodeGetter(st)
+		validateSuperchainDeployment(t, st, cg, true)
+		validateOPChainDeployment(t, cg, st, intent, false)
+		return st
 	}
+
+	t.Run("default start timestamp", func(t *testing.T) {
+		st := deployChain(nil)
+		require.Greater(t, st.Chains[0].StartBlock.Time, l1StartTimestamp)
+	})
+
+	t.Run("custom start timestamp", func(t *testing.T) {
+		st := deployChain(&l1StartTimestamp)
+		require.EqualValues(t, l1StartTimestamp, st.Chains[0].StartBlock.Time)
+	})
 }
 
 func TestProofParamOverrides(t *testing.T) {

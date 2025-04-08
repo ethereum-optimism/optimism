@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/safego"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -130,7 +131,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	var interopSys interop.SubSystem
 	if cfg.InteropTime != nil {
-		interopSys = managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng)
+		interopSys = managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
 		sys.Register("interop", interopSys, opts)
 		require.NoError(t, interopSys.Start(context.Background()))
 		t.Cleanup(func() {
@@ -209,19 +210,18 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	t.Cleanup(rollupNode.rpc.Stop)
 
 	// setup RPC server for rollup node, hooked to the actor as backend
-	m := &testutils.TestRPCMetrics{}
 	backend := &l2VerifierBackend{verifier: rollupNode}
 	apis := []rpc.API{
 		{
 			Namespace:     "optimism",
-			Service:       node.NewNodeAPI(cfg, eng, backend, safeHeadListener, log, m),
+			Service:       node.NewNodeAPI(cfg, eng, backend, safeHeadListener, log),
 			Public:        true,
 			Authenticated: false,
 		},
 		{
 			Namespace:     "admin",
 			Version:       "",
-			Service:       node.NewAdminAPI(backend, m, log),
+			Service:       node.NewAdminAPI(backend, log),
 			Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
 			Authenticated: false,
 		},

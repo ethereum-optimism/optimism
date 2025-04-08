@@ -41,6 +41,10 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 	isStandardIntent := intent.ConfigType == state.IntentTypeStandard ||
 		intent.ConfigType == state.IntentTypeStandardOverrides
 	if isL1Tag && hasPredeployedOPCM && isStandardIntent {
+		if intent.SuperchainConfigProxy != nil {
+			return fmt.Errorf("cannot set superchain config proxy for standard intent")
+		}
+
 		stdRoles, err := state.GetStandardSuperchainRoles(intent.L1ChainID)
 		if err != nil {
 			return fmt.Errorf("error getting superchain roles: %w", err)

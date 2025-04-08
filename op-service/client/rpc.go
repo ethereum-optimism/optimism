@@ -8,14 +8,12 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
@@ -98,6 +96,14 @@ func WithRateLimit(rateLimit float64, burst int) RPCOption {
 func WithLazyDial() RPCOption {
 	return func(cfg *rpcConfig) {
 		cfg.lazy = true
+	}
+}
+
+// WithRPCRecorder makes the RPC client use the given RPC recorder.
+// Warning: this overwrites any previous recorder choice.
+func WithRPCRecorder(recorder rpc.Recorder) RPCOption {
+	return func(cfg *rpcConfig) {
+		cfg.gethRPCOptions = append(cfg.gethRPCOptions, rpc.WithRecorder(recorder))
 	}
 }
 
@@ -236,63 +242,4 @@ func (b *BaseRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchE
 
 func (b *BaseRPCClient) Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error) {
 	return b.c.Subscribe(ctx, namespace, channel, args...)
-}
-
-// InstrumentedRPCClient is an RPC client that tracks
-// Prometheus metrics for each call.
-type InstrumentedRPCClient struct {
-	c RPC
-	m *metrics.RPCClientMetrics
-}
-
-// NewInstrumentedRPC creates a new instrumented RPC client.
-func NewInstrumentedRPC(c RPC, m *metrics.RPCClientMetrics) *InstrumentedRPCClient {
-	return &InstrumentedRPCClient{
-		c: c,
-		m: m,
-	}
-}
-
-func (ic *InstrumentedRPCClient) Close() {
-	ic.c.Close()
-}
-
-func (ic *InstrumentedRPCClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
-	return instrument1(ic.m, method, func() error {
-		return ic.c.CallContext(ctx, result, method, args...)
-	})
-}
-
-func (ic *InstrumentedRPCClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
-	return instrumentBatch(ic.m, func() error {
-		return ic.c.BatchCallContext(ctx, b)
-	}, b)
-}
-
-func (ic *InstrumentedRPCClient) Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error) {
-	return ic.c.Subscribe(ctx, namespace, channel, args...)
-}
-
-// instrumentBatch handles metrics for batch calls. Request metrics are
-// increased for each batch element. Request durations are tracked for
-// the batch as a whole using a special <batch> method. Errors are tracked
-// for each individual batch response, unless the overall request fails in
-// which case the <batch> method is used.
-func instrumentBatch(m *metrics.RPCClientMetrics, cb func() error, b []rpc.BatchElem) error {
-	m.RPCClientRequestsTotal.WithLabelValues(metrics.BatchMethod).Inc()
-	for _, elem := range b {
-		m.RPCClientRequestsTotal.WithLabelValues(elem.Method).Inc()
-	}
-	timer := prometheus.NewTimer(m.RPCClientRequestDurationSeconds.WithLabelValues(metrics.BatchMethod))
-	defer timer.ObserveDuration()
-
-	// Track response times for batch requests separately.
-	if err := cb(); err != nil {
-		m.RecordRPCClientResponse(metrics.BatchMethod, err)
-		return err
-	}
-	for _, elem := range b {
-		m.RecordRPCClientResponse(elem.Method, elem.Error)
-	}
-	return nil
 }

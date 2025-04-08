@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -50,43 +49,32 @@ type adminAPI struct {
 
 var _ apis.OpnodeAdminServer = (*adminAPI)(nil)
 
-func NewAdminAPI(dr driverClient, m metrics.RPCMetricer, log log.Logger) *adminAPI {
+func NewAdminAPI(dr driverClient, log log.Logger) *adminAPI {
 	return &adminAPI{
-		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
+		CommonAdminAPI: rpc.NewCommonAdminAPI(log),
 		dr:             dr,
 	}
 }
 
 func (n *adminAPI) ResetDerivationPipeline(ctx context.Context) error {
-	recordDur := n.M.RecordRPCServerRequest("admin_resetDerivationPipeline")
-	defer recordDur()
 	return n.dr.ResetDerivationPipeline(ctx)
 }
 
 func (n *adminAPI) StartSequencer(ctx context.Context, blockHash common.Hash) error {
-	recordDur := n.M.RecordRPCServerRequest("admin_startSequencer")
-	defer recordDur()
 	return n.dr.StartSequencer(ctx, blockHash)
 }
 
 func (n *adminAPI) StopSequencer(ctx context.Context) (common.Hash, error) {
-	recordDur := n.M.RecordRPCServerRequest("admin_stopSequencer")
-	defer recordDur()
 	return n.dr.StopSequencer(ctx)
 }
 
 func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
-	recordDur := n.M.RecordRPCServerRequest("admin_sequencerActive")
-	defer recordDur()
 	return n.dr.SequencerActive(ctx)
 }
 
 // PostUnsafePayload is a special API that allows posting an unsafe payload to the L2 derivation pipeline.
 // It should only be used by op-conductor for sequencer failover scenarios.
 func (n *adminAPI) PostUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	recordDur := n.M.RecordRPCServerRequest("admin_postUnsafePayload")
-	defer recordDur()
-
 	payload := envelope.ExecutionPayload
 	if actual, ok := envelope.CheckBlockHash(); !ok {
 		log.Error("payload has bad block hash", "bad_hash", payload.BlockHash.String(), "actual", actual.String())
@@ -98,15 +86,11 @@ func (n *adminAPI) PostUnsafePayload(ctx context.Context, envelope *eth.Executio
 
 // OverrideLeader disables sequencer conductor interactions and allow sequencer to run in non-HA mode during disaster recovery scenarios.
 func (n *adminAPI) OverrideLeader(ctx context.Context) error {
-	recordDur := n.M.RecordRPCServerRequest("admin_overrideLeader")
-	defer recordDur()
 	return n.dr.OverrideLeader(ctx)
 }
 
 // ConductorEnabled returns true if the sequencer conductor is enabled.
 func (n *adminAPI) ConductorEnabled(ctx context.Context) (bool, error) {
-	recordDur := n.M.RecordRPCServerRequest("admin_conductorEnabled")
-	defer recordDur()
 	return n.dr.ConductorEnabled(ctx)
 }
 
@@ -120,26 +104,21 @@ type nodeAPI struct {
 	dr     driverClient
 	safeDB SafeDBReader
 	log    log.Logger
-	m      metrics.RPCMetricer
 }
 
 var _ apis.RollupNodeServer = (*nodeAPI)(nil)
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
 		dr:     dr,
 		safeDB: safeDB,
 		log:    log,
-		m:      m,
 	}
 }
 
 func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*eth.OutputResponse, error) {
-	recordDur := n.m.RecordRPCServerRequest("optimism_outputAtBlock")
-	defer recordDur()
-
 	ref, status, err := n.dr.BlockRefWithStatus(ctx, uint64(number))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get L2 block ref with sync status: %w", err)
@@ -162,8 +141,6 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 }
 
 func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) (*eth.SafeHeadResponse, error) {
-	recordDur := n.m.RecordRPCServerRequest("optimism_safeHeadAtL1Block")
-	defer recordDur()
 	l1Block, safeHead, err := n.safeDB.SafeHeadAtL1(ctx, uint64(number))
 	if errors.Is(err, safedb.ErrNotFound) {
 		return nil, err
@@ -177,19 +154,13 @@ func (n *nodeAPI) SafeHeadAtL1Block(ctx context.Context, number hexutil.Uint64) 
 }
 
 func (n *nodeAPI) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	recordDur := n.m.RecordRPCServerRequest("optimism_syncStatus")
-	defer recordDur()
 	return n.dr.SyncStatus(ctx)
 }
 
 func (n *nodeAPI) RollupConfig(_ context.Context) (*rollup.Config, error) {
-	recordDur := n.m.RecordRPCServerRequest("optimism_rollupConfig")
-	defer recordDur()
 	return n.config, nil
 }
 
 func (n *nodeAPI) Version(ctx context.Context) (string, error) {
-	recordDur := n.m.RecordRPCServerRequest("optimism_version")
-	defer recordDur()
 	return version.Version + "-" + version.Meta, nil
 }

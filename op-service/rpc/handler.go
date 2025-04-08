@@ -43,6 +43,7 @@ type Handler struct {
 
 	log         log.Logger
 	middlewares []Middleware
+	recorder    rpc.Recorder
 
 	// rpcRoutes is a collection of RPC servers
 	rpcRoutes     map[string]*rpc.Server
@@ -136,6 +137,7 @@ func (b *Handler) AddRPC(route string) error {
 	}
 
 	srv := rpc.NewServer()
+	srv.SetRecorder(b.recorder)
 
 	if err := srv.RegisterName("health", &healthzAPI{
 		appVersion: b.appVersion,
