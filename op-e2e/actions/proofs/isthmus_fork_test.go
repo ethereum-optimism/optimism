@@ -254,60 +254,6 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 	}
 }
 
-// func testWithdrawlsRootPostIsthmus(gt *testing.T) {
-// 	t := helpers.NewDefaultTesting(gt)
-// 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
-// 	const isthmusOffset = 2
-
-// 	log := testlog.Logger(t, log.LvlDebug)
-
-// 	dp.DeployConfig.ActivateForkAtOffset(rollup.Isthmus, isthmusOffset)
-// 	dp.DeployConfig.L1PragueTimeOffset = &zeroHex64
-// 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
-
-// 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
-// 	_, _, _, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
-
-// 	// start op-nodes
-// 	sequencer.ActL2PipelineFull(t)
-// 	verifier.ActL2PipelineFull(t)
-
-// 	verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
-
-// 	rpcCl := engine.RPCClient()
-// 	verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), false)
-
-// 	// Send withdrawal transaction
-// 	// Bind L2 Withdrawer Contract
-// 	ethCl := engine.EthClient()
-// 	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
-// 	require.NoError(t, err, "binding withdrawer on L2")
-
-// 	// Initiate Withdrawal
-// 	l2opts, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.Alice, new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
-// 	require.NoError(t, err)
-// 	l2opts.Value = big.NewInt(500)
-
-// 	tx, err := l2withdrawer.Receive(l2opts)
-// 	require.NoError(t, err)
-
-// 	// build blocks until Isthmus activates
-// 	sequencer.ActL2StartBlock(t)
-// 	sequencer.ActL2EndBlock(t)
-// 	sequencer.ActL2StartBlock(t)
-// 	sequencer.ActL2EndBlock(t)
-// 	sequencer.ActL2StartBlock(t)
-// 	engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-// 	sequencer.ActL2EndBlock(t)
-
-// 	// wait for withdrawal to be included in a block
-// 	receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(dp.DeployConfig.L2BlockTime)*time.Second)
-// 	require.NoError(t, err, "withdrawal initiated on L2 sequencer")
-// 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction had incorrect status")
-
-// 	verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
-// }
-
 // Pre-Canyon, the withdrawals root field in the header should be nil
 func verifyPreCanyonHeaderWithdrawalsRoot(gt *testing.T, header *types.Header) {
 	require.Nil(gt, header.WithdrawalsHash)
