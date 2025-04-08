@@ -188,6 +188,9 @@ func testDisputeRootBeyondProposedBlockValidOutputRoot(t *testing.T, ctx context
 			break
 		}
 		claim = correctTrace.DefendClaim(ctx, claim)
+		if claim.IsMaxDepth(ctx) {
+			break
+		}
 	}
 	verifyFinalStepExecution(t, ctx, arena, game, claim)
 
