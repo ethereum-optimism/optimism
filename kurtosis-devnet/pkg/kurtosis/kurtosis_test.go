@@ -314,6 +314,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
 				DevnetEnvironment: descriptors.DevnetEnvironment{
+					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
 						ID:       "1234",
 						Name:     "Ethereum",
@@ -393,6 +394,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
 				DevnetEnvironment: descriptors.DevnetEnvironment{
+					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
 						ID:       "1234",
 						Name:     "Ethereum",
@@ -452,6 +454,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
 				DevnetEnvironment: descriptors.DevnetEnvironment{
+					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
 						ID:       "1234",
 						Name:     "Ethereum",

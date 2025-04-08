@@ -2,6 +2,8 @@ package inspect
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
@@ -46,6 +48,8 @@ func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 		return nil, err
 	}
 
+	enclaveUUID := string(enclaveCtx.GetEnclaveUuid())
+
 	data := &InspectData{
 		UserServices:  make(ServiceMap),
 		FileArtifacts: make([]string, len(artifacts)),
@@ -61,6 +65,7 @@ func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 		if err != nil {
 			return nil, err
 		}
+		svcUUID := string(svcCtx.GetServiceUUID())
 
 		portMap := make(PortMap)
 
@@ -75,6 +80,11 @@ func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 			// avoid non-mapped ports, we shouldn't have to use them.
 			if p, ok := portMap[port]; ok {
 				p.PrivatePort = int(portSpec.GetNumber())
+				p.ReverseProxyHeader = http.Header{
+					// This allows going through the kurtosis reverse proxy for each port
+					"Host": []string{fmt.Sprintf("%d-%.12s-%.12s", p.PrivatePort, svcUUID, enclaveUUID)},
+				}
+
 				portMap[port] = p
 			}
 		}

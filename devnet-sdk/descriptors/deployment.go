@@ -2,6 +2,7 @@ package descriptors
 
 import (
 	"encoding/json"
+	"net/http"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -12,6 +13,8 @@ type PortInfo struct {
 	Scheme      string `json:"scheme,omitempty"`
 	Port        int    `json:"port,omitempty"`
 	PrivatePort int    `json:"private_port,omitempty"`
+
+	ReverseProxyHeader http.Header `json:"reverse_proxy_header,omitempty"`
 }
 
 // EndpointMap is a map of service names to their endpoints.
@@ -63,9 +66,12 @@ type WalletMap map[string]Wallet
 
 // DevnetEnvironment exposes the relevant information to interact with a devnet.
 type DevnetEnvironment struct {
-	Name string     `json:"name"`
-	L1   *Chain     `json:"l1"`
-	L2   []*L2Chain `json:"l2"`
+	Name string `json:"name"`
+
+	ReverseProxyURL string `json:"reverse_proxy_url,omitempty"`
+
+	L1 *Chain     `json:"l1"`
+	L2 []*L2Chain `json:"l2"`
 
 	Features []string        `json:"features,omitempty"`
 	DepSet   json.RawMessage `json:"dep_set,omitempty"`
