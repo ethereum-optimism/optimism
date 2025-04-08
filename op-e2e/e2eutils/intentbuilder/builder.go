@@ -3,23 +3,31 @@ package intentbuilder
 import (
 	"fmt"
 
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 type SuperchainID string
 
 type L1Configurator interface {
 	WithChainID(chainID eth.ChainID) L1Configurator
-	WithStartTimestamp(timestamp uint64) L1Configurator
+	WithTimestamp(v uint64) L1Configurator
+	WithGasLimit(v uint64) L1Configurator
+	WithExcessBlobGas(v uint64) L1Configurator
+	WithPragueOffset(v uint64) L1Configurator
+	WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator
 }
 
 type SuperchainConfigurator interface {
@@ -31,6 +39,7 @@ type SuperchainConfigurator interface {
 }
 
 type L2Configurator interface {
+	L1Config() L1Configurator
 	ChainID() eth.ChainID
 	WithBlockTime(uint64)
 	WithL1StartBlockHash(hash common.Hash)
@@ -39,6 +48,7 @@ type L2Configurator interface {
 	L2RolesConfigurator
 	L2FeesConfigurator
 	L2HardforkConfigurator
+	WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator
 }
 
 type ContractsConfigurator interface {
@@ -76,6 +86,9 @@ type L2HardforkConfigurator interface {
 }
 
 type Builder interface {
+	WithL1ContractsLocator(loc *artifacts.Locator) Builder
+	WithL2ContractsLocator(loc *artifacts.Locator) Builder
+
 	WithSuperchain() (Builder, SuperchainConfigurator)
 	WithL1(l1ChainID eth.ChainID) (Builder, L1Configurator)
 	WithL2(l2ChainID eth.ChainID) (Builder, L2Configurator)
@@ -83,14 +96,14 @@ type Builder interface {
 }
 
 func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
-	addrFor := addrProvider(t, dk, configurator.ChainID())
+	addrFor := RoleToAddrProvider(t, dk, configurator.ChainID())
 	configurator.WithBaseFeeVaultRecipient(addrFor(devkeys.BaseFeeVaultRecipientRole))
 	configurator.WithSequencerFeeVaultRecipient(addrFor(devkeys.SequencerFeeVaultRecipientRole))
 	configurator.WithL1FeeVaultRecipient(addrFor(devkeys.L1FeeVaultRecipientRole))
 }
 
 func WithDevkeyRoles(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
-	addrFor := addrProvider(t, dk, configurator.ChainID())
+	addrFor := RoleToAddrProvider(t, dk, configurator.ChainID())
 	configurator.WithL1ProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
 	configurator.WithL2ProxyAdminOwner(addrFor(devkeys.L2ProxyAdminOwnerRole))
 	configurator.WithSystemConfigOwner(addrFor(devkeys.SystemConfigOwner))
@@ -100,12 +113,26 @@ func WithDevkeyRoles(t require.TestingT, dk devkeys.Keys, configurator L2Configu
 	configurator.WithChallenger(addrFor(devkeys.ChallengerRole))
 }
 
-// addrProvider returns a function that generates addresses for a specific devkeys.Keys and chainID
-func addrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID) func(role devkeys.Role) common.Address {
+func WithDevkeySuperRoles(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID, configurator SuperchainConfigurator) {
+	addrFor := RoleToAddrProvider(t, dk, l1ID)
+	configurator.WithGuardian(addrFor(devkeys.SuperchainConfigGuardianKey))
+	configurator.WithProtocolVersionsOwner(addrFor(devkeys.SuperchainDeployerKey))
+	configurator.WithProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
+}
+
+func KeyToAddrProvider(t require.TestingT, dk devkeys.Keys) func(k devkeys.Key) common.Address {
+	return func(k devkeys.Key) common.Address {
+		addr, err := dk.Address(k)
+		require.NoError(t, err, "failed to get address for key %s", k)
+		return addr
+	}
+}
+
+func RoleToAddrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID) func(k devkeys.Role) common.Address {
 	return func(role devkeys.Role) common.Address {
-		key := role.Key(chainID.ToBig())
-		addr, err := dk.Address(key)
-		require.NoError(t, err, "failed to get address for role %s", role)
+		k := role.Key(chainID.ToBig())
+		addr, err := dk.Address(k)
+		require.NoError(t, err, "failed to get address for key %s", k)
 		return addr
 	}
 }
@@ -123,6 +150,16 @@ func New() Builder {
 			SuperchainRoles: new(state.SuperchainRoles),
 		},
 	}
+}
+
+func (b *intentBuilder) WithL1ContractsLocator(loc *artifacts.Locator) Builder {
+	b.intent.L1ContractsLocator = loc
+	return b
+}
+
+func (b *intentBuilder) WithL2ContractsLocator(loc *artifacts.Locator) Builder {
+	b.intent.L2ContractsLocator = loc
+	return b
 }
 
 func (b *intentBuilder) WithSuperchain() (Builder, SuperchainConfigurator) {
@@ -188,8 +225,41 @@ func (c *l1Configurator) WithChainID(chainID eth.ChainID) L1Configurator {
 	return c
 }
 
-func (c *l1Configurator) WithStartTimestamp(timestamp uint64) L1Configurator {
-	c.builder.intent.L1StartTimestamp = &timestamp
+func (c *l1Configurator) initL1DevGenesisParams() {
+	if c.builder.intent.L1DevGenesisParams == nil {
+		c.builder.intent.L1DevGenesisParams = &state.L1DevGenesisParams{
+			Prefund: make(map[common.Address]*hexutil.U256),
+		}
+	}
+}
+
+func (c *l1Configurator) WithTimestamp(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BlockParams.Timestamp = v
+	return c
+}
+
+func (c *l1Configurator) WithGasLimit(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BlockParams.GasLimit = v
+	return c
+}
+
+func (c *l1Configurator) WithExcessBlobGas(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.BlockParams.ExcessBlobGas = v
+	return c
+}
+
+func (c *l1Configurator) WithPragueOffset(v uint64) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.PragueTimeOffset = &v
+	return c
+}
+
+func (c *l1Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L1Configurator {
+	c.initL1DevGenesisParams()
+	c.builder.intent.L1DevGenesisParams.Prefund[addr] = (*hexutil.U256)(&amount)
 	return c
 }
 
@@ -197,6 +267,10 @@ type l2Configurator struct {
 	t          require.TestingT
 	builder    *intentBuilder
 	chainIndex int
+}
+
+func (c *l2Configurator) L1Config() L1Configurator {
+	return &l1Configurator{builder: c.builder}
 }
 
 func (c *l2Configurator) ChainID() eth.ChainID {
@@ -307,4 +381,17 @@ func (c *l2Configurator) WithForkAtOffset(fork rollup.ForkName, offset *uint64) 
 	} else {
 		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = offset
 	}
+}
+
+func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
+	chainIntent := c.builder.intent.Chains[c.chainIndex]
+	if chainIntent.L2DevGenesisParams == nil {
+		chainIntent.L2DevGenesisParams = &state.L2DevGenesisParams{Prefund: make(map[common.Address]*hexutil.U256)}
+	}
+	return chainIntent.L2DevGenesisParams
+}
+
+func (c *l2Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator {
+	c.initL2DevGenesisParams().Prefund[addr] = (*hexutil.U256)(&amount)
+	return c
 }

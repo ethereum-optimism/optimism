@@ -29,10 +29,8 @@ func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
 
 // startInProcessSimpleInterop starts a new system that meets the simple interop criteria
 func startInProcessSimpleInterop(orch stack.Orchestrator) {
-	contracts, err := contractPaths()
-	orch.P().Require().NoError(err, "could not get contract paths")
 	var ids sysgo.DefaultInteropSystemIDs
-	opt := sysgo.DefaultInteropSystem(contracts, &ids)
+	opt := sysgo.DefaultInteropSystem(&ids)
 	opt(orch)
 }
 

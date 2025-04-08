@@ -17,6 +17,7 @@ import (
 )
 
 type ContractPaths struct {
+	// must be absolute paths, without file:// prefix
 	FoundryArtifacts string
 	SourceMap        string
 }
@@ -87,21 +88,21 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 		orch := o.(*Orchestrator)
 		require := o.P().Require()
 
-		require.True(l1ID.ChainID.ToBig().IsInt64(), "interop gen uses small chain IDs")
+		require.True(l1ID.ChainID().ToBig().IsInt64(), "interop gen uses small chain IDs")
 		genesisTime := uint64(time.Now().Add(time.Second * 2).Unix())
 		recipe := &interopgen.InteropDevRecipe{
-			L1ChainID:        l1ID.ChainID.ToBig().Uint64(),
+			L1ChainID:        l1ID.ChainID().ToBig().Uint64(),
 			L2s:              []interopgen.InteropDevL2Recipe{},
 			GenesisTimestamp: genesisTime,
 		}
 		var ids []eth.ChainID
 		for _, l2 := range l2IDs {
-			require.True(l2.ChainID.ToBig().IsInt64(), "interop gen uses small chain IDs")
+			require.True(l2.ChainID().ToBig().IsInt64(), "interop gen uses small chain IDs")
 			recipe.L2s = append(recipe.L2s, interopgen.InteropDevL2Recipe{
-				ChainID:   l2.ChainID.ToBig().Uint64(),
+				ChainID:   l2.ChainID().ToBig().Uint64(),
 				BlockTime: 2,
 			})
-			ids = append(ids, l2.ChainID)
+			ids = append(ids, l2.ChainID())
 		}
 		eth.SortChainID(ids)
 
@@ -124,7 +125,7 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 		worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
 		require.NoError(err)
 
-		orch.l1Nets.Set(l1ID.ChainID, &L1Network{
+		orch.l1Nets.Set(l1ID.ChainID(), &L1Network{
 			id:        l1ID,
 			genesis:   worldOutput.L1.Genesis,
 			blockTime: 6,
@@ -156,14 +157,14 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 		})
 
 		for _, l2ID := range l2IDs {
-			l2Out, ok := worldOutput.L2s[l2ID.ChainID.String()]
+			l2Out, ok := worldOutput.L2s[l2ID.ChainID().String()]
 			require.True(ok, "L2 output must exist")
-			l2Dep, ok := worldDeployment.L2s[l2ID.ChainID.String()]
+			l2Dep, ok := worldDeployment.L2s[l2ID.ChainID().String()]
 			require.True(ok, "L2 deployment must exist")
 
 			l2Net := &L2Network{
 				id:        l2ID,
-				l1ChainID: l1ID.ChainID,
+				l1ChainID: l1ID.ChainID(),
 				genesis:   l2Out.Genesis,
 				rollupCfg: l2Out.RollupCfg,
 				deployment: &L2Deployment{
@@ -172,7 +173,7 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 				},
 				keys: orch.keys,
 			}
-			orch.l2Nets.Set(l2ID.ChainID, l2Net)
+			orch.l2Nets.Set(l2ID.ChainID(), l2Net)
 		}
 	}
 }

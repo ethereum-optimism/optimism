@@ -1,4 +1,4 @@
-package deployers
+package opcm
 
 import (
 	"fmt"
@@ -10,6 +10,8 @@ type PreinstallsScript struct {
 	SetPreinstalls func() error
 }
 
+// InsertPreinstalls inserts preinstalls in the given host.
+// This is part of the L2Genesis already, but is isolated to be reused for L1 dev genesis.
 func InsertPreinstalls(host *script.Host) error {
 	l2GenesisScript, cleanupL2Genesis, err := script.WithScript[PreinstallsScript](host, "SetPreinstalls.s.sol", "SetPreinstalls")
 	if err != nil {

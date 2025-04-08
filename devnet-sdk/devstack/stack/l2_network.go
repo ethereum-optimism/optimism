@@ -7,28 +7,33 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // L2NetworkID identifies a L2Network by name and chainID, is type-safe, and can be value-copied and used as map key.
-type L2NetworkID idWithChain
+type L2NetworkID idOnlyChainID
 
 const L2NetworkKind Kind = "L2Network"
 
+func (id L2NetworkID) ChainID() eth.ChainID {
+	return idOnlyChainID(id).ChainID()
+}
+
 func (id L2NetworkID) String() string {
-	return idWithChain(id).string(L2NetworkKind)
+	return idOnlyChainID(id).string(L2NetworkKind)
 }
 
 func (id L2NetworkID) MarshalText() ([]byte, error) {
-	return idWithChain(id).marshalText(L2NetworkKind)
+	return idOnlyChainID(id).marshalText(L2NetworkKind)
 }
 
 func (id *L2NetworkID) UnmarshalText(data []byte) error {
-	return (*idWithChain)(id).unmarshalText(L2NetworkKind, data)
+	return (*idOnlyChainID)(id).unmarshalText(L2NetworkKind, data)
 }
 
 func SortL2NetworkIDs(ids []L2NetworkID) []L2NetworkID {
 	return copyAndSort(ids, func(a, b L2NetworkID) bool {
-		return lessIDWithChain(idWithChain(a), idWithChain(b))
+		return lessIDOnlyChainID(idOnlyChainID(a), idOnlyChainID(b))
 	})
 }
 

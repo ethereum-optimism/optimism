@@ -11,10 +11,7 @@ import (
 )
 
 func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
-	return stack.L2NetworkID{
-		Key:     net.ID,
-		ChainID: eth.ChainIDFromBig(net.Config.ChainID),
-	}
+	return stack.L2NetworkID(eth.ChainIDFromBig(net.Config.ChainID))
 }
 
 func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.ExtensibleSystem) {
@@ -35,8 +32,8 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		},
 		ID: l2ID,
 		RollupConfig: &rollup.Config{
-			L1ChainID: l1ID.ChainID.ToBig(),
-			L2ChainID: l2ID.ChainID.ToBig(),
+			L1ChainID: l1ID.ChainID().ToBig(),
+			L2ChainID: l2ID.ChainID().ToBig(),
 			// TODO this rollup config should be loaded from kurtosis artifacts
 		},
 		Deployment: newL2AddressBook(system.T(), net.L1Addresses),
@@ -62,7 +59,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		require.NoError(err)
 		l2.AddUser(shim.NewUser(shim.UserConfig{
 			CommonConfig: commonConfig,
-			ID:           stack.UserID{Key: name, ChainID: l2ID.ChainID},
+			ID:           stack.UserID{Key: name, ChainID: l2ID.ChainID()},
 			Priv:         priv,
 			EL:           l2.L2ELNode(l2.L2ELNodes()[0]),
 		}))
@@ -84,11 +81,11 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			Client:       elClient,
-			ChainID:      l2ID.ChainID,
+			ChainID:      l2ID.ChainID(),
 		},
 		ID: stack.L2ELNodeID{
 			Key:     elService.Name,
-			ChainID: l2ID.ChainID,
+			ChainID: l2ID.ChainID(),
 		},
 	}))
 
@@ -102,7 +99,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	l2Net.AddL2CLNode(shim.NewL2CLNode(shim.L2CLNodeConfig{
 		ID: stack.L2CLNodeID{
 			Key:     clService.Name,
-			ChainID: l2ID.ChainID,
+			ChainID: l2ID.ChainID(),
 		},
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		Client:       clClient,
@@ -127,7 +124,7 @@ func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		ID: stack.L2BatcherID{
 			Key:     batcherService.Name,
-			ChainID: l2ID.ChainID,
+			ChainID: l2ID.ChainID(),
 		},
 		Client: o.rpcClient(l2Net.T(), batcherRPC),
 	}))
@@ -152,7 +149,7 @@ func (o *Orchestrator) hydrateProposerMaybe(net *descriptors.L2Chain, l2Net stac
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		ID: stack.L2ProposerID{
 			Key:     proposerService.Name,
-			ChainID: l2ID.ChainID,
+			ChainID: l2ID.ChainID(),
 		},
 		Client: o.rpcClient(l2Net.T(), proposerRPC),
 	}))
@@ -173,7 +170,7 @@ func (o *Orchestrator) hydrateChallengerMaybe(net *descriptors.L2Chain, l2Net st
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		ID: stack.L2ChallengerID{
 			Key:     challengerService.Name,
-			ChainID: l2ID.ChainID,
+			ChainID: l2ID.ChainID(),
 		},
 	}))
 }

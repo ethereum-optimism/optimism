@@ -274,6 +274,14 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		pectrablobschedule := ctx.Uint64(opflags.PectraBlobScheduleOverrideFlagName)
 		rollupConfig.PectraBlobScheduleTime = &pectrablobschedule
 	}
+	if ctx.IsSet(opflags.IsthmusOverrideFlagName) {
+		isthmus := ctx.Uint64(opflags.IsthmusOverrideFlagName)
+		rollupConfig.IsthmusTime = &isthmus
+	}
+	if ctx.IsSet(opflags.InteropOverrideFlagName) {
+		interop := ctx.Uint64(opflags.InteropOverrideFlagName)
+		rollupConfig.InteropTime = &interop
+	}
 }
 
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {

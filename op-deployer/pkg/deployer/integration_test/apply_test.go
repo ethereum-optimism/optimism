@@ -299,11 +299,19 @@ func TestApplyGenesisStrategy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	l1StartTimestamp := uint64(1000)
+	pragueOffset := uint64(2000)
+	l1GenesisParams := &state.L1DevGenesisParams{
+		BlockParams: state.L1DevGenesisBlockParams{
+			Timestamp:     1000,
+			GasLimit:      42_000_000,
+			ExcessBlobGas: 9000,
+		},
+		PragueTimeOffset: &pragueOffset,
+	}
 
-	deployChain := func(l1StartTimestamp *uint64) *state.State {
+	deployChain := func(l1DevGenesisParams *state.L1DevGenesisParams) *state.State {
 		opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
-		intent.L1StartTimestamp = l1StartTimestamp
+		intent.L1DevGenesisParams = l1DevGenesisParams
 		require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 		cg := stateDumpCodeGetter(st)
 		validateSuperchainDeployment(t, st, cg, true)
@@ -311,14 +319,23 @@ func TestApplyGenesisStrategy(t *testing.T) {
 		return st
 	}
 
-	t.Run("default start timestamp", func(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
 		st := deployChain(nil)
-		require.Greater(t, st.Chains[0].StartBlock.Time, l1StartTimestamp)
+		require.Greater(t, st.Chains[0].StartBlock.Time, l1GenesisParams.BlockParams.Timestamp)
+		require.Nil(t, st.L1DevGenesis.Config.PragueTime)
 	})
 
-	t.Run("custom start timestamp", func(t *testing.T) {
-		st := deployChain(&l1StartTimestamp)
-		require.EqualValues(t, l1StartTimestamp, st.Chains[0].StartBlock.Time)
+	t.Run("custom", func(t *testing.T) {
+		st := deployChain(l1GenesisParams)
+		require.EqualValues(t, l1GenesisParams.BlockParams.Timestamp, st.Chains[0].StartBlock.Time)
+		require.EqualValues(t, l1GenesisParams.BlockParams.Timestamp, st.L1DevGenesis.Timestamp)
+
+		require.EqualValues(t, l1GenesisParams.BlockParams.GasLimit, st.L1DevGenesis.GasLimit)
+		require.NotNil(t, st.L1DevGenesis.ExcessBlobGas)
+		require.EqualValues(t, l1GenesisParams.BlockParams.ExcessBlobGas, *st.L1DevGenesis.ExcessBlobGas)
+		require.NotNil(t, st.L1DevGenesis.Config.PragueTime)
+		expectedPragueTimestamp := l1GenesisParams.BlockParams.Timestamp + *l1GenesisParams.PragueTimeOffset
+		require.EqualValues(t, expectedPragueTimestamp, *st.L1DevGenesis.Config.PragueTime)
 	})
 }
 

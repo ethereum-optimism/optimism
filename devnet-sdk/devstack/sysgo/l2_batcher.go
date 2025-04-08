@@ -56,7 +56,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID)
 		require.True(ok)
 
-		require.Equal(l2Net.l1ChainID, l1Net.id.ChainID, "expecting L1EL on L1 of L2CL")
+		require.Equal(l2Net.l1ChainID, l1Net.id.ChainID(), "expecting L1EL on L1 of L2CL")
 
 		require.Equal(l2CLID.ChainID, l2ELID.ChainID, "L2 CL and EL must be on same L2 chain")
 

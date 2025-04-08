@@ -175,7 +175,7 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 		safeL2AfterSecondBatch := verifier.SyncStatus().SafeL2
 		requireSafeHeadProgression(t, safeL2AfterFirstBatch, safeL2AfterSecondBatch, testCfg.Custom.useSetCodeTx)
 
-		env.RunFaultProofProgram(t, safeL2AfterSecondBatch.Number, testCfg.CheckResult, testCfg.InputParams...)
+		env.RunFaultProofProgramFromGenesis(t, safeL2AfterSecondBatch.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[testCase]()

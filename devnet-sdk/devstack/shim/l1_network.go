@@ -24,8 +24,8 @@ type presetL1Network struct {
 var _ stack.ExtensibleL1Network = (*presetL1Network)(nil)
 
 func NewL1Network(cfg L1NetworkConfig) stack.ExtensibleL1Network {
-	require.Equal(cfg.T, cfg.ID.ChainID, eth.ChainIDFromBig(cfg.NetworkConfig.ChainConfig.ChainID), "chain config must match expected chain")
-	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID, "id", cfg.ID)
+	require.Equal(cfg.T, cfg.ID.ChainID(), eth.ChainIDFromBig(cfg.NetworkConfig.ChainConfig.ChainID), "chain config must match expected chain")
+	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID(), "id", cfg.ID)
 	return &presetL1Network{
 		id:            cfg.ID,
 		presetNetwork: newNetwork(cfg.NetworkConfig),

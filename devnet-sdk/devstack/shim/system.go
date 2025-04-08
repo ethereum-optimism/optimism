@@ -72,8 +72,8 @@ func (p *presetSystem) L1Network(id stack.L1NetworkID) stack.L1Network {
 
 func (p *presetSystem) AddL1Network(v stack.L1Network) {
 	id := v.ID()
-	p.require().True(p.networks.SetIfMissing(id.ChainID, v), "chain with id %s must not already exist", id.ChainID)
-	p.require().True(p.l1ChainIDs.SetIfMissing(id.ChainID, id), "l1 chain id %s mapping must not already exist", id)
+	p.require().True(p.networks.SetIfMissing(id.ChainID(), v), "chain with id %s must not already exist", id.ChainID())
+	p.require().True(p.l1ChainIDs.SetIfMissing(id.ChainID(), id), "l1 chain id %s mapping must not already exist", id)
 	p.require().True(p.l1Networks.SetIfMissing(id, v), "l1 chain %s must not already exist", id)
 }
 
@@ -85,8 +85,8 @@ func (p *presetSystem) L2Network(id stack.L2NetworkID) stack.L2Network {
 
 func (p *presetSystem) AddL2Network(v stack.L2Network) {
 	id := v.ID()
-	p.require().True(p.networks.SetIfMissing(id.ChainID, v), "chain with id %s must not already exist", id.ChainID)
-	p.require().True(p.l2ChainIDs.SetIfMissing(id.ChainID, id), "l2 chain id %s mapping must not already exist", id)
+	p.require().True(p.networks.SetIfMissing(id.ChainID(), v), "chain with id %s must not already exist", id.ChainID())
+	p.require().True(p.l2ChainIDs.SetIfMissing(id.ChainID(), id), "l2 chain id %s mapping must not already exist", id)
 	p.require().True(p.l2Networks.SetIfMissing(id, v), "l2 chain %s must not already exist", id)
 }
 

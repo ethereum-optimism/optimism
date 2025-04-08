@@ -45,10 +45,10 @@ var _ stack.L2Network = (*presetL2Network)(nil)
 
 func NewL2Network(cfg L2NetworkConfig) stack.ExtensibleL2Network {
 	// sanity-check the configs match the expected chains
-	require.Equal(cfg.T, cfg.ID.ChainID, eth.ChainIDFromBig(cfg.NetworkConfig.ChainConfig.ChainID), "chain config must match expected chain")
+	require.Equal(cfg.T, cfg.ID.ChainID(), eth.ChainIDFromBig(cfg.NetworkConfig.ChainConfig.ChainID), "chain config must match expected chain")
 	require.Equal(cfg.T, cfg.L1.ChainID(), eth.ChainIDFromBig(cfg.RollupConfig.L1ChainID), "rollup config must match expected L1 chain")
-	require.Equal(cfg.T, cfg.ID.ChainID, eth.ChainIDFromBig(cfg.RollupConfig.L2ChainID), "rollup config must match expected L2 chain")
-	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID, "id", cfg.ID)
+	require.Equal(cfg.T, cfg.ID.ChainID(), eth.ChainIDFromBig(cfg.RollupConfig.L2ChainID), "rollup config must match expected L2 chain")
+	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID(), "id", cfg.ID)
 	return &presetL2Network{
 		id:            cfg.ID,
 		presetNetwork: newNetwork(cfg.NetworkConfig),

@@ -17,14 +17,14 @@ import (
 
 func TestSystem(gt *testing.T) {
 	var ids DefaultInteropSystemIDs
-	opt := DefaultInteropSystem(ContractPaths{
-		FoundryArtifacts: "../../../packages/contracts-bedrock/forge-artifacts",
-		SourceMap:        "../../../packages/contracts-bedrock",
-	}, &ids)
+	opt := DefaultInteropSystem(&ids)
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(logger)
+	p := devtest.NewP(logger, func() {
+		gt.Helper()
+		gt.FailNow()
+	})
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p)

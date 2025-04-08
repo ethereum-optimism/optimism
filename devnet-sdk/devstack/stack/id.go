@@ -75,6 +75,39 @@ func (id *idWithChain) unmarshalText(kind Kind, data []byte) error {
 	return nil
 }
 
+// idChainID is comparable, can be copied, contains only a chain-ID,
+// and has type-safe text encoding/decoding to prevent accidental mixups.
+type idOnlyChainID eth.ChainID
+
+func (id idOnlyChainID) ChainID() eth.ChainID {
+	return (eth.ChainID)(id)
+}
+
+func (id idOnlyChainID) string(kind Kind) string {
+	return fmt.Sprintf("%s-%s", kind, id.ChainID())
+}
+
+func (id idOnlyChainID) marshalText(kind Kind) ([]byte, error) {
+	k := fmt.Sprintf("%s-%s", kind, id.ChainID())
+	return []byte(k), nil
+}
+
+func (id *idOnlyChainID) unmarshalText(kind Kind, data []byte) error {
+	kindData, mainData, ok := bytes.Cut(data, []byte("-"))
+	if !ok {
+		return fmt.Errorf("expected kind-prefix, but id has none: %q", data)
+	}
+	if x := string(kindData); x != string(kind) {
+		return fmt.Errorf("id %q has unexpected kind %q, expected %q", string(data), x, kind)
+	}
+	var chainID eth.ChainID
+	if err := chainID.UnmarshalText(mainData); err != nil {
+		return fmt.Errorf("failed to unmarshal chain part: %w", err)
+	}
+	*id = idOnlyChainID(chainID)
+	return nil
+}
+
 // genericID is comparable, can be copied,
 // and has type-safe text encoding/decoding to prevent accidental mixups.
 type genericID string
@@ -126,6 +159,11 @@ func lessIDWithChain(a, b idWithChain) bool {
 		return a.ChainID.Cmp(b.ChainID) < 0
 	}
 	return true
+}
+
+// lessIDOnlyChainID is a helper function to compare two idOnlyChainID objects.
+func lessIDOnlyChainID(a, b idOnlyChainID) bool {
+	return a.ChainID().Cmp(b.ChainID()) < 0
 }
 
 // copyAndSortCmp is a helper function to copy and sort a slice of elements that are already natively comparable.

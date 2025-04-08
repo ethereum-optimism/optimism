@@ -1,23 +1,32 @@
-package presets
+package sysgo
 
 import (
 	"errors"
 	"fmt"
 	"os"
-
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
 )
 
-func contractPaths() (sysgo.ContractPaths, error) {
+func contractPaths() (ContractPaths, error) {
 	contractsBedrockPath := "packages/contracts-bedrock"
 	root, err := findMonorepoRoot(contractsBedrockPath)
 	if err != nil {
-		return sysgo.ContractPaths{}, err
+		return ContractPaths{}, err
 	}
-	return sysgo.ContractPaths{
+	return ContractPaths{
 		FoundryArtifacts: root + contractsBedrockPath + "/forge-artifacts",
 		SourceMap:        root + contractsBedrockPath,
 	}, nil
+}
+
+func ensureDir(dirPath string) error {
+	stat, err := os.Stat(dirPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat path: %w", err)
+	}
+	if !stat.IsDir() {
+		return fmt.Errorf("path is not a directory")
+	}
+	return nil
 }
 
 // findMonorepoRoot finds the relative path to the monorepo root

@@ -19,7 +19,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 			CommonConfig: commonConfig,
 			ChainConfig:  env.L1.Config,
 		},
-		ID: stack.L1NetworkID{Key: "main", ChainID: l1ID},
+		ID: stack.L1NetworkID(l1ID),
 	})
 
 	for idx, node := range env.L1.Nodes {

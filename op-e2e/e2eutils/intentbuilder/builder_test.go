@@ -2,17 +2,19 @@ package intentbuilder
 
 import (
 	"encoding/json"
+	"net/url"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 
-	"net/url"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBuilder(t *testing.T) {
@@ -30,14 +32,35 @@ func TestBuilder(t *testing.T) {
 	superchainConfig.WithProtocolVersionsOwner(common.HexToAddress("0xcccc"))
 
 	// Configure L1
-	l1StartTimestamp := uint64(1000)
+	pragueOffset := uint64(100)
+	alice := common.HexToAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	aliceFunds := uint256.NewInt(10000)
+	l1Params := state.L1DevGenesisParams{
+		BlockParams: state.L1DevGenesisBlockParams{
+			Timestamp:     1000,
+			GasLimit:      42_000_000,
+			ExcessBlobGas: 123,
+		},
+		PragueTimeOffset: &pragueOffset,
+		Prefund: map[common.Address]*hexutil.U256{
+			alice: (*hexutil.U256)(aliceFunds),
+		},
+	}
 	builder, l1Config := builder.WithL1(eth.ChainIDFromUInt64(1))
 	require.NotNil(t, l1Config)
-	l1Config.WithStartTimestamp(l1StartTimestamp)
+	l1Config.WithTimestamp(l1Params.BlockParams.Timestamp)
+	l1Config.WithGasLimit(l1Params.BlockParams.GasLimit)
+	l1Config.WithExcessBlobGas(l1Params.BlockParams.ExcessBlobGas)
+	l1Config.WithPragueOffset(*l1Params.PragueTimeOffset)
+	l1Config.WithPrefundedAccount(alice, *aliceFunds)
 
 	// Configure L2
 	builder, l2Config := builder.WithL2(eth.ChainIDFromUInt64(420))
 	require.NotNil(t, l2Config)
+
+	bob := common.HexToAddress("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	bobFunds := uint256.NewInt(10000)
+	l2Config.WithPrefundedAccount(bob, *bobFunds)
 
 	// Test direct L2Configurator methods
 	require.Equal(t, eth.ChainIDFromUInt64(420), l2Config.ChainID())
@@ -100,7 +123,7 @@ func TestBuilder(t *testing.T) {
 			Guardian:              common.HexToAddress("0xbbbb"),
 			ProtocolVersionsOwner: common.HexToAddress("0xcccc"),
 		},
-		L1StartTimestamp: &l1StartTimestamp,
+		L1DevGenesisParams: &l1Params,
 		L1ContractsLocator: &artifacts.Locator{
 			URL: &url.URL{
 				Scheme: "http",
@@ -143,6 +166,11 @@ func TestBuilder(t *testing.T) {
 					"l2GenesisGraniteTimeOffset":  0,
 					"l2GenesisHoloceneTimeOffset": 0,
 					"l2GenesisIsthmusTimeOffset":  isthmusOffset,
+				},
+				L2DevGenesisParams: &state.L2DevGenesisParams{
+					Prefund: map[common.Address]*hexutil.U256{
+						bob: (*hexutil.U256)(bobFunds),
+					},
 				},
 			},
 		},

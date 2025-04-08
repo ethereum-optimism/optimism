@@ -64,8 +64,8 @@ func EvilChainIDToUInt64(id ChainID) uint64 {
 	return v.Uint64()
 }
 
-func (id *ChainID) ToBig() *big.Int {
-	return (*uint256.Int)(id).ToBig()
+func (id ChainID) ToBig() *big.Int {
+	return (*uint256.Int)(&id).ToBig()
 }
 
 // MarshalText marshals into the decimal representation of the chainID
