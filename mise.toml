@@ -38,7 +38,7 @@ anvil = "nightly-654c8f01721e43dbc8a53c7a3b022548cb82b2f9"
 codecov-uploader = "0.8.0"
 goreleaser-pro = "2.3.2-pro"
 kurtosis = "1.6.0"
-op-acceptor = "op-acceptor/v0.1.8"
+op-acceptor = "op-acceptor/v0.1.9"
 
 # Fake dependencies
 # Put things here if you need to track versions of tools or projects that can't
