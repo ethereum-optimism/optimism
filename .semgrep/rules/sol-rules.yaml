@@ -351,16 +351,30 @@ rules:
         - packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol
         - packages/contracts-bedrock/src/universal/ReinitializableBase.sol
 
-  - id: sol-safety-private-function-underscore
+  - id: sol-safety-private-internal-function-underscore
     languages: [solidity]
     severity: ERROR
-    message: Private functions in non-library contracts must start with an underscore
+    message: Private and internal functions in non-library contracts must start with an underscore
     patterns:
       - pattern-inside: |
           contract $CONTRACT {
             ...
           }
-      - pattern-regex: function\s+(?!_)\w+\s*\([^)]*\)\s+private(\s+\w+)*\s*(\{|returns)
+      - pattern-regex: function\s+(?!_)\w+\s*\([^)]*\)\s+(private|internal)(\s+\w+)*\s*(\{|returns)
+    paths:
+      include:
+        - packages/contracts-bedrock/src
+
+  - id: sol-safety-public-external-function-underscore
+    languages: [solidity]
+    severity: ERROR
+    message: Public and external functions in contracts must not start with an underscore
+    patterns:
+      - pattern-inside: |
+          contract $CONTRACT {
+            ...
+          }
+      - pattern-regex: function\s+(_)\w+\s*\([^)]*\)\s+(public|external)(\s+\w+)*\s*(\{|returns)
     paths:
       include:
         - packages/contracts-bedrock/src

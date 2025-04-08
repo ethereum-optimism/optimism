@@ -53,11 +53,6 @@ contract SemgrepTest__sol_safety_proper_initializer {
     }
 
     // ruleid: sol-safety-proper-initializer
-    function initialize() internal {
-        // ...
-    }
-
-    // ruleid: sol-safety-proper-initializer
     function initialize() public {
         // ...
     }
