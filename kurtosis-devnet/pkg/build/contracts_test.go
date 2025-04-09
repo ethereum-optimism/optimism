@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/enclaves"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
 	"github.com/spf13/afero"
@@ -114,6 +115,22 @@ func (e *testEnclaveContext) RunStarlarkPackage(ctx context.Context, pkg string,
 
 func (e *testEnclaveContext) RunStarlarkScript(ctx context.Context, script string, config *starlark_run_config.StarlarkRunConfig) error {
 	return nil
+}
+
+func (e *testEnclaveContext) GetEnclaveUuid() enclaves.EnclaveUUID {
+	return enclaves.EnclaveUUID("test-enclave-uuid")
+}
+
+func (e *testEnclaveContext) GetServices() (map[services.ServiceName]services.ServiceUUID, error) {
+	return nil, nil
+}
+
+func (e *testEnclaveContext) GetService(serviceIdentifier string) (interfaces.ServiceContext, error) {
+	return nil, nil
+}
+
+func (e *testEnclaveContext) GetAllFilesArtifactNamesAndUuids(ctx context.Context) ([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, error) {
+	return nil, nil
 }
 
 type testKurtosisContext struct{}

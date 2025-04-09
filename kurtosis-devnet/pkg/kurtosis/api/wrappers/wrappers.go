@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/enclaves"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
 )
@@ -19,6 +20,10 @@ type KurtosisContextWrapper struct {
 
 type EnclaveContextWrapper struct {
 	*enclaves.EnclaveContext
+}
+
+type ServiceContextWrapper struct {
+	*services.ServiceContext
 }
 
 type starlarkRunResponseLineWrapper struct {
@@ -67,6 +72,14 @@ func (w KurtosisContextWrapper) GetEnclave(ctx context.Context, name string) (in
 		return nil, err
 	}
 	return &EnclaveContextWrapper{enclaveCtx}, nil
+}
+
+func (w *EnclaveContextWrapper) GetService(serviceIdentifier string) (interfaces.ServiceContext, error) {
+	svcCtx, err := w.EnclaveContext.GetServiceContext(serviceIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return &ServiceContextWrapper{svcCtx}, nil
 }
 
 func (w *EnclaveContextWrapper) RunStarlarkPackage(ctx context.Context, pkg string, serializedParams *starlark_run_config.StarlarkRunConfig) (<-chan interfaces.StarlarkResponse, string, error) {
