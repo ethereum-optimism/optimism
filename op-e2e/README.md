@@ -23,7 +23,7 @@ make test-ws
 
 ## Overview
 
-`op-e2e` can be categorized as following:
+`op-e2e` can be categorized as follows:
 - `op-e2e/actions/`: imperative test style, more DSL-like, with a focus on the state-transition parts of services.
   Parallel processing is actively avoided, and a mock clock is used.
   - `op-e2e/actions/*`: sub-packages categorize specific domains to test.
@@ -65,7 +65,7 @@ This test-type is thus used primarily for testing of the offchain service aspect
 
 By running a more full system, test-runners also run into resource-limits more quickly.
 This may result in lag or even stalled services.
-Improvements, as described in the [test infra draft design-doc],
+Improvements as described in the [test infra draft design-doc],
 are in active development, to make test execution more reliable.
 
 ### `op-e2e/opgeth`
@@ -85,7 +85,7 @@ New test framework improvements should optimize for multi-client testing.
 ### Vision
 
 Generally, design-discussion and feedback from active test users converges on:
-- a need to share test-resources, to host more tests while reducing overhead.
+- a need to share test-resources to host more tests while reducing overhead.
 - a need for a DSL, to better express common test constructs.
 - less involved test pre-requisites: the environment should be light and simple, welcoming new contributors.
   E.g. no undocumented one-off makefile prerequisites.
@@ -95,10 +95,10 @@ Generally, design-discussion and feedback from active test users converges on:
 - Interfaces first. We should not hardcode test-utilities against any specific client implementation,
   this makes a test less parameterizable and less cross-client portable.
 - Abstract setup to make it the default to reduce resource usage.
-  E.g. RPC transports can run in-process, and avoid websocket or HTTP costs,
+  E.g. RPC transports can run in-process, and avoid WebSocket or HTTP costs,
   and ideally the test-writer does not have to think about the difference.
-- Avoid one-off test chain-configurations. Tests with more realistic parameters are more comparable to production,
-  and easier consolidated onto shared testing resources.
+- Avoid one-off test chain configurations. Tests with more realistic parameters are more comparable to production,
+  and easier to consolidate onto shared testing resources.
 - Write helpers and DSL utilities, avoid re-implementing common testing steps.
   The better the test environment, the more inviting it is for someone new to help improve test coverage.
 - Use the right test-type. Do not spawn a full system for something of very limited scope,
