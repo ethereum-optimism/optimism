@@ -8,6 +8,8 @@ var (
 	ErrOutOfOrder = errors.New("data out of order")
 	// ErrDataCorruption happens when the underlying DB has some I/O issue
 	ErrDataCorruption = errors.New("data corruption")
+	// ErrNotExact happens when we search the DB, know the data may be there, but is not (e.g. different revision)
+	ErrNotExact = errors.New("missed data")
 	// ErrSkipped happens when we try to retrieve data that is not available (pruned)
 	// It may also happen if we erroneously skip data, that was not considered a conflict, if the DB is corrupted.
 	ErrSkipped = errors.New("skipped data")
@@ -33,4 +35,6 @@ var (
 	ErrUnknownChain = errors.New("unknown chain")
 	// ErrNoRPCSource happens when a sub-service needs an RPC data source, but is not configured with one.
 	ErrNoRPCSource = errors.New("no RPC client configured")
+	// ErrUninitialized happens when a chain database is not initialized yet
+	ErrUninitialized = errors.New("uninitialized chain database")
 )

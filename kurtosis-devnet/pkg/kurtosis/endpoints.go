@@ -13,6 +13,7 @@ type ServiceFinder struct {
 	services        inspect.ServiceMap
 	nodeServices    []string
 	l2ServicePrefix string
+	l2Networks      []string
 }
 
 // ServiceFinderOption configures a ServiceFinder
@@ -29,6 +30,13 @@ func WithNodeServices(services []string) ServiceFinderOption {
 func WithL2ServicePrefix(prefix string) ServiceFinderOption {
 	return func(f *ServiceFinder) {
 		f.l2ServicePrefix = prefix
+	}
+}
+
+// WithL2Networks sets the L2 networks
+func WithL2Networks(networks []string) ServiceFinderOption {
+	return func(f *ServiceFinder) {
+		f.l2Networks = networks
 	}
 }
 
@@ -67,6 +75,20 @@ func (f *ServiceFinder) FindL2Services(network string) ([]descriptors.Node, desc
 		if strings.HasSuffix(serviceName, networkSuffix) {
 			name := strings.TrimSuffix(serviceName, networkSuffix)
 			tag, idx := f.serviceTag(strings.TrimPrefix(name, f.l2ServicePrefix))
+			return tag, idx, true
+		}
+
+		// skip over the other L2 services
+		for _, l2Network := range f.l2Networks {
+			if strings.HasSuffix(serviceName, "-"+l2Network) {
+				return "", 0, false
+			}
+		}
+
+		// Some services don't have a network suffix, as they span multiple chains
+		// TODO(14849): ideally we'd need to handle *partial* chain coverage.
+		if strings.HasPrefix(serviceName, f.l2ServicePrefix) {
+			tag, idx := f.serviceTag(strings.TrimPrefix(serviceName, f.l2ServicePrefix))
 			return tag, idx, true
 		}
 		return "", 0, false

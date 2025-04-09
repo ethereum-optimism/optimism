@@ -261,8 +261,7 @@ func TestBalanceLogValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logValue := tt.balance.LogValue()
-			assert.Equal(t, tt.expected, logValue.String())
+			assert.Equal(t, tt.expected, tt.balance.String())
 		})
 	}
 }

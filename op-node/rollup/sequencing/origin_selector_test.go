@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/confdepth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -123,72 +124,112 @@ func TestOriginSelectorFetchNextError(t *testing.T) {
 // is no conf depth to stop the origin selection so block `b` should
 // be the next L1 origin, and then block `c` is the subsequent L1 origin.
 func TestOriginSelectorAdvances(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	log := testlog.Logger(t, log.LevelCrit)
-	cfg := &rollup.Config{
-		MaxSequencerDrift: 500,
-		BlockTime:         2,
+	testOriginSelectorAdvances := func(t *testing.T, recoverMode bool) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		log := testlog.Logger(t, log.LevelCrit)
+		cfg := &rollup.Config{
+			MaxSequencerDrift: 500,
+			BlockTime:         2,
+		}
+		l1 := &testutils.MockL1Source{}
+		defer l1.AssertExpectations(t)
+		a := eth.L1BlockRef{
+			Hash:   common.Hash{'a'},
+			Number: 10,
+			Time:   20,
+		}
+		b := eth.L1BlockRef{
+			Hash:       common.Hash{'b'},
+			Number:     11,
+			Time:       22,
+			ParentHash: a.Hash,
+		}
+		c := eth.L1BlockRef{
+			Hash:       common.Hash{'c'},
+			Number:     12,
+			Time:       24,
+			ParentHash: b.Hash,
+		}
+		d := eth.L1BlockRef{
+			Hash:       common.Hash{'d'},
+			Number:     13,
+			Time:       36,
+			ParentHash: c.Hash,
+		}
+		l2Head := eth.L2BlockRef{
+			L1Origin: a.ID(),
+			Time:     24,
+		}
+
+		s := NewL1OriginSelector(ctx, log, cfg, l1)
+
+		requireL1OriginAt := func(l2Head eth.L2BlockRef, want eth.L1BlockRef) {
+			got, err := s.FindL1Origin(ctx, l2Head)
+			require.Nil(t, err)
+			require.Equal(t, want, got)
+		}
+
+		s.currentOrigin = a
+		s.nextOrigin = b
+
+		// Trigger the background fetch via a forkchoice update.
+		// This should be a no-op because the next origin is already cached.
+		handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+		require.True(t, handled)
+
+		requireL1OriginAt(l2Head, b)
+
+		l2Head = eth.L2BlockRef{
+			L1Origin: b.ID(),
+			Time:     26,
+		}
+
+		// The origin is still `b` because the next origin has not been fetched yet.
+		requireL1OriginAt(l2Head, b)
+
+		l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
+
+		// Trigger the background fetch via a forkchoice update.
+		// This will actually fetch the next origin because the internal cache is empty.
+		handled = s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+		require.True(t, handled)
+
+		// The next origin should be `c` now.
+		requireL1OriginAt(l2Head, c)
+
+		// Now force the retrieval of the next L1 origin
+		s.recoverMode.Store(recoverMode)
+
+		l2Head = eth.L2BlockRef{
+			L1Origin: c.ID(),
+			Time:     d.Time + 4,
+		}
+
+		if recoverMode {
+			// In recovery mode (only) we make two RPC calls.
+			// First, cover the case where the nextOrigin
+			// is not ready yet by simulating a NotFound error.
+			l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
+			l1.ExpectL1BlockRefByNumber(d.Number, eth.BlockRef{}, ethereum.NotFound)
+			_, err := s.FindL1Origin(ctx, l2Head)
+			require.ErrorIs(t, err, derive.ErrTemporary)
+			require.ErrorIs(t, err, ethereum.NotFound)
+
+			// Now, simulate the block being ready, and ensure
+			// that the origin advances to the next block.
+			l1.ExpectL1BlockRefByHash(c.Hash, c, nil)
+			l1.ExpectL1BlockRefByNumber(d.Number, d, nil)
+			requireL1OriginAt(l2Head, d)
+		} else {
+			requireL1OriginAt(l2Head, c)
+		}
 	}
-	l1 := &testutils.MockL1Source{}
-	defer l1.AssertExpectations(t)
-	a := eth.L1BlockRef{
-		Hash:   common.Hash{'a'},
-		Number: 10,
-		Time:   20,
-	}
-	b := eth.L1BlockRef{
-		Hash:       common.Hash{'b'},
-		Number:     11,
-		Time:       22,
-		ParentHash: a.Hash,
-	}
-	c := eth.L1BlockRef{
-		Hash:       common.Hash{'c'},
-		Number:     12,
-		Time:       24,
-		ParentHash: b.Hash,
-	}
-	l2Head := eth.L2BlockRef{
-		L1Origin: a.ID(),
-		Time:     24,
-	}
 
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
-	s.currentOrigin = a
-	s.nextOrigin = b
-
-	// Trigger the background fetch via a forkchoice update.
-	// This should be a no-op because the next origin is already cached.
-	handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
-	require.True(t, handled)
-
-	next, err := s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
-	require.Equal(t, b, next)
-
-	l2Head = eth.L2BlockRef{
-		L1Origin: b.ID(),
-		Time:     26,
-	}
-
-	// The origin is still `b` because the next origin has not been fetched yet.
-	next, err = s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
-	require.Equal(t, b, next)
-
-	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
-
-	// Trigger the background fetch via a forkchoice update.
-	// This will actually fetch the next origin because the internal cache is empty.
-	handled = s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
-	require.True(t, handled)
-
-	// The next origin should be `c` now.
-	next, err = s.FindL1Origin(ctx, l2Head)
-	require.Nil(t, err)
-	require.Equal(t, c, next)
+	t.Run("normal", func(t *testing.T) { testOriginSelectorAdvances(t, false) })
+	t.Run("recover_mode", func(t *testing.T) { testOriginSelectorAdvances(t, true) })
 }
 
 // TestOriginSelectorHandlesReset ensures that the origin selector

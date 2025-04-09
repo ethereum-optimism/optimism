@@ -21,6 +21,7 @@ pragma solidity 0.8.15;
 
 /// @title WETH98
 /// @notice WETH98 is a version of WETH9 upgraded for Solidity 0.8.x.
+///         Some functions were changed to virtual to allow for overriding in other WETH implementations.
 contract WETH98 {
     /// @notice Returns the number of decimals the token uses.
     /// @return The number of decimals the token uses.
@@ -113,7 +114,7 @@ contract WETH98 {
     /// @param guy The address that is approved to transfer the WETH.
     /// @param wad The amount that is approved to transfer.
     /// @return True if the approval was successful.
-    function approve(address guy, uint256 wad) external returns (bool) {
+    function approve(address guy, uint256 wad) public virtual returns (bool) {
         _allowance[msg.sender][guy] = wad;
         emit Approval(msg.sender, guy, wad);
         return true;

@@ -38,7 +38,7 @@ func TestFetchLocalInputs(t *testing.T) {
 	require.Equal(t, l2Client.header.Hash(), inputs.L2Head)
 	require.EqualValues(t, contract.starting.OutputRoot, inputs.L2OutputRoot)
 	require.EqualValues(t, contract.disputed.OutputRoot, inputs.L2Claim)
-	require.Equal(t, contract.disputed.L2BlockNumber, inputs.L2BlockNumber)
+	require.Equal(t, contract.disputed.L2BlockNumber, inputs.L2SequenceNumber)
 }
 
 func TestFetchLocalInputsFromProposals(t *testing.T) {
@@ -66,7 +66,7 @@ func TestFetchLocalInputsFromProposals(t *testing.T) {
 	require.Equal(t, l2Client.header.Hash(), inputs.L2Head)
 	require.EqualValues(t, agreed.OutputRoot, inputs.L2OutputRoot)
 	require.EqualValues(t, claimed.OutputRoot, inputs.L2Claim)
-	require.Equal(t, claimed.L2BlockNumber, inputs.L2BlockNumber)
+	require.Equal(t, claimed.L2BlockNumber, inputs.L2SequenceNumber)
 }
 
 type mockGameInputsSource struct {

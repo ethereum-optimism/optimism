@@ -30,6 +30,7 @@ type SuperchainConfig struct {
 	PrivateKey       string
 	Logger           log.Logger
 	ArtifactsLocator *artifacts.Locator
+	CacheDir         string
 
 	privateKeyECDSA *ecdsa.PrivateKey
 
@@ -86,7 +87,7 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
-	artifactsURLStr := cliCtx.String(ArtifactsLocatorFlagName)
+	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
 	artifactsLocator := new(artifacts.Locator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts URL: %w", err)
@@ -99,12 +100,13 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	requiredVersionStr := cliCtx.String(RequiredProtocolVersionFlagName)
 	recommendedVersionStr := cliCtx.String(RecommendedProtocolVersionFlagName)
 	outfile := cliCtx.String(OutfileFlagName)
-
+	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	cfg := SuperchainConfig{
 		L1RPCUrl:                  l1RPCUrl,
 		PrivateKey:                privateKey,
 		Logger:                    l,
 		ArtifactsLocator:          artifactsLocator,
+		CacheDir:                  cacheDir,
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		ProtocolVersionsOwner:     protocolVersionsOwner,
 		Guardian:                  guardian,
@@ -139,7 +141,8 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 	}
 
 	lgr := cfg.Logger
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor())
+	cacheDir := cfg.CacheDir
+	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor(), cacheDir)
 	if err != nil {
 		return dso, fmt.Errorf("failed to download artifacts: %w", err)
 	}

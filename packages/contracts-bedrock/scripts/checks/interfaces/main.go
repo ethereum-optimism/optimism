@@ -26,9 +26,12 @@ var excludeContracts = []string{
 	// EAS
 	"IEAS", "ISchemaResolver", "ISchemaRegistry",
 
+	// Misc stuff that can be ignored
+	"IOPContractsManagerLegacyUpgrade",
+
 	// TODO: Interfaces that need to be fixed
 	"IInitializable", "IOptimismMintableERC20", "ILegacyMintableERC20",
-	"KontrolCheatsBase", "ISystemConfigInterop", "IResolvedDelegateProxy",
+	"KontrolCheatsBase", "IResolvedDelegateProxy",
 }
 
 type ContractDefinition struct {

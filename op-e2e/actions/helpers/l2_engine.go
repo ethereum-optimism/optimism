@@ -179,6 +179,12 @@ func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineCl
 	return l2Cl
 }
 
+func (e *L2Engine) SourceClient(t Testing, cacheSize int) *sources.EthClient {
+	l2sc, err := sources.NewEthClient(e.RPCClient(), e.log, nil, sources.DefaultEthClientConfig(cacheSize))
+	require.NoError(t, err)
+	return l2sc
+}
+
 // ActL2RPCFail makes the next L2 RPC request fail with given error
 func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 	if e.FailL2RPC != nil { // already set to fail?
@@ -191,7 +197,7 @@ func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 	}
 }
 
-// ActL2IncludeTx includes the next transaction from the given address in the block that is being built,
+// ActL2IncludeTxIgnoreForcedEmpty includes the next transaction from the given address in the block that is being built,
 // skipping the usual check for e.EngineApi.ForcedEmpty()
 func (e *L2Engine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Action {
 	return func(t Testing) {
@@ -200,7 +206,10 @@ func (e *L2Engine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Action {
 		}
 
 		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
-		err := e.EngineApi.IncludeTx(tx, from)
+		prevState := e.EngineApi.ForcedEmpty()
+		e.EngineApi.SetForceEmpty(false) // ensure the engine API can include it
+		_, err := e.EngineApi.IncludeTx(tx, from)
+		e.EngineApi.SetForceEmpty(prevState)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
 			t.InvalidAction(err.Error())
 		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {
@@ -221,7 +230,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 		}
 
 		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
-		err := e.EngineApi.IncludeTx(tx, from)
+		_, err := e.EngineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
 			t.InvalidAction(err.Error())
 		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {

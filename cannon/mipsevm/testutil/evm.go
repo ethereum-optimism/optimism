@@ -98,7 +98,10 @@ func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	cancunActivation := *chainCfg.ShanghaiTime + 10
 	chainCfg.CancunTime = &cancunActivation
 	offsetBlocks := uint64(1000) // blocks after cancun fork
-	bc := &testChain{startTime: *chainCfg.CancunTime + offsetBlocks*12}
+	bc := &testChain{
+		config:    chainCfg,
+		startTime: *chainCfg.CancunTime + offsetBlocks*12,
+	}
 	header := bc.GetHeader(common.Hash{}, 17034870+offsetBlocks)
 	db := rawdb.NewMemoryDatabase()
 	statedb := state.NewDatabase(triedb.NewDatabase(db, nil), nil)
@@ -117,7 +120,7 @@ func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	copy(mipsCtorArgs[12:], contracts.Addresses.Oracle[:])
 	mipsDeploy := append(bytes.Clone(contracts.Artifacts.MIPS.Bytecode.Object), mipsCtorArgs[:]...)
 	startingGas := uint64(30_000_000)
-	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(contracts.Addresses.Sender), mipsDeploy, startingGas, common.U2560)
+	_, deployedMipsAddr, leftOverGas, err := env.Create(contracts.Addresses.Sender, mipsDeploy, startingGas, common.U2560)
 	if err != nil {
 		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
 	}
@@ -129,11 +132,16 @@ func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 }
 
 type testChain struct {
+	config    *params.ChainConfig
 	startTime uint64
 }
 
 func (d *testChain) Engine() consensus.Engine {
 	return ethash.NewFullFaker()
+}
+
+func (d *testChain) Config() *params.ChainConfig {
+	return d.config
 }
 
 func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {

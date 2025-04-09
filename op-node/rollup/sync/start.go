@@ -134,8 +134,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	// Check if the execution engine corrupted, and forkchoice is ahead of the remaining chain:
 	// in this case we must go back to the prior head, to reprocess the pruned finalized/safe data.
 	if result.Unsafe.Number < result.Finalized.Number || result.Unsafe.Number < result.Safe.Number {
-		lgr.Error("Unsafe head is behind known finalized/safe blocks, "+
-			"execution-engine chain must have been rewound without forkchoice update. Attempting recovery now.",
+		lgr.Error("Unsafe head is behind known finalized/safe blocks, execution-engine chain must have been rewound without forkchoice update. Attempting recovery now.",
 			"unsafe_head", result.Unsafe, "safe_head", result.Safe, "finalized_head", result.Finalized)
 		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
 	}

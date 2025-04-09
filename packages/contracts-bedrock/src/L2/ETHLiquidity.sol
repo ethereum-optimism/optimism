@@ -15,7 +15,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @custom:predeploy 0x4200000000000000000000000000000000000025
 /// @title ETHLiquidity
 /// @notice The ETHLiquidity contract allows other contracts to access ETH liquidity without
-///         needing to modify the EVM to generate new ETH.
+///         needing to modify the EVM to generate new ETH. Contract comes "pre-loaded" with
+///         uint248.max balance to prevent liquidity shortages.
 contract ETHLiquidity is ISemver {
     /// @notice Emitted when an address burns ETH liquidity.
     event LiquidityBurned(address indexed caller, uint256 value);
@@ -24,8 +25,8 @@ contract ETHLiquidity is ISemver {
     event LiquidityMinted(address indexed caller, uint256 value);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.6
-    string public constant version = "1.0.0-beta.6";
+    /// @custom:semver 1.0.0-beta.7
+    string public constant version = "1.0.0-beta.7";
 
     /// @notice Allows an address to lock ETH liquidity into this contract.
     function burn() external payable {

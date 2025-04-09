@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type L2EndpointSetup interface {
@@ -32,7 +33,7 @@ type L1EndpointSetup interface {
 }
 
 type L1BeaconEndpointSetup interface {
-	Setup(ctx context.Context, log log.Logger) (cl sources.BeaconClient, fb []sources.BlobSideCarsFetcher, err error)
+	Setup(ctx context.Context, log log.Logger) (cl apis.BeaconClient, fb []apis.BlobSideCarsClient, err error)
 	// ShouldIgnoreBeaconCheck returns true if the Beacon-node version check should not halt startup.
 	ShouldIgnoreBeaconCheck() bool
 	ShouldFetchAllSidecars() bool
@@ -207,7 +208,7 @@ type L1BeaconEndpointConfig struct {
 
 var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
 
-func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl sources.BeaconClient, fb []sources.BlobSideCarsFetcher, err error) {
+func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl apis.BeaconClient, fb []apis.BlobSideCarsClient, err error) {
 	var opts []client.BasicHTTPClientOption
 	if cfg.BeaconHeader != "" {
 		hdr, err := parseHTTPHeader(cfg.BeaconHeader)

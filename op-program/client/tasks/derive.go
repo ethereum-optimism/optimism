@@ -50,15 +50,14 @@ func RunDerivation(
 	l1Oracle l1.Oracle,
 	l2Oracle l2.Oracle,
 	db l2.KeyValueStore,
-	options DerivationOptions,
-) (DerivationResult, error) {
+	options DerivationOptions) (DerivationResult, error) {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
 	l1BlobsSource := l1.NewBlobFetcher(logger, l1Oracle)
 	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle, l2Cfg, l2OutputRoot, db)
 	if err != nil {
 		return DerivationResult{}, fmt.Errorf("failed to create oracle-backed L2 chain: %w", err)
 	}
-	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend)
+	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend, l2Oracle.Hinter())
 
 	logger.Info("Starting derivation", "chainID", cfg.L2ChainID)
 	d := cldr.NewDriver(logger, cfg, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
@@ -69,7 +68,7 @@ func RunDerivation(
 	logger.Info("Derivation complete", "head", result)
 
 	if options.StoreBlockData {
-		if err := storeBlockData(result, db, engineBackend); err != nil {
+		if err := storeBlockData(result.Hash, db, engineBackend); err != nil {
 			return DerivationResult{}, fmt.Errorf("failed to write trie nodes: %w", err)
 		}
 		logger.Info("Trie nodes written")
@@ -89,16 +88,16 @@ func loadOutputRoot(l2ClaimBlockNum uint64, head eth.L2BlockRef, src L2Source) (
 	}, nil
 }
 
-func storeBlockData(derived eth.L2BlockRef, db l2.KeyValueStore, backend engineapi.CachingEngineBackend) error {
-	block := backend.GetBlockByHash(derived.Hash)
+func storeBlockData(derivedBlockHash common.Hash, db l2.KeyValueStore, backend engineapi.CachingEngineBackend) error {
+	block := backend.GetBlockByHash(derivedBlockHash)
 	if block == nil {
-		return fmt.Errorf("derived block %v is missing", derived.Hash)
+		return fmt.Errorf("derived block %v is missing", derivedBlockHash)
 	}
 	headerRLP, err := rlp.EncodeToBytes(block.Header())
 	if err != nil {
 		return fmt.Errorf("failed to encode block header: %w", err)
 	}
-	blockHashKey := preimage.Keccak256Key(derived.Hash).PreimageKey()
+	blockHashKey := preimage.Keccak256Key(derivedBlockHash).PreimageKey()
 	if err := db.Put(blockHashKey[:], headerRLP); err != nil {
 		return fmt.Errorf("failed to store block header: %w", err)
 	}

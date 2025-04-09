@@ -3,7 +3,15 @@ rules:
     languages: [solidity]
     severity: ERROR
     message: _args parameter should be wrapped with DeployUtils.encodeConstructor
-    pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
+    pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave|createDeterministic)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
+
+  - id: sol-safety-deployutils-named-args-parameter
+    languages: [solidity]
+    severity: ERROR
+    message: Calls to DeployUtils functions must use named arguments and have one argument named _args
+    pattern-either:
+      - pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave|createDeterministic)\s*\((?!\{)
+      - pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave|createDeterministic)\s*\(\s*(?!\{[^}]*?_args\s*:)
 
   - id: sol-safety-expectrevert-before-ll-call
     languages: [solidity]
@@ -76,6 +84,32 @@ rules:
               ...
           }
       - pattern-regex: function\s+\w+\s*\([^)]*\)\s+(?:.*\s+)?(public|external)\s+.*\{
+
+  - id: sol-safety-trycatch-eip150
+    languages: [generic]
+    severity: ERROR
+    description: |
+      EIP-150 introduced the rule that contract calls can pass along all but 1/64 available gas.
+      If try/catch blocks are not used carefully, a malicious user could exploit this rule to cause
+      the contract call to revert with an OOG error but still cause the rest of the function that
+      used the try/catch to succeed. You must therefore either (1) assert that no amount of input
+      gas can cause an OOG in the external call while still allowing the rest of the function to
+      succeed or (2) assert that a user-triggered OOG is acceptable.
+    message: try/catch blocks must be marked as EIP-150 safe
+    patterns:
+      - pattern: |
+          try ... {
+            ...
+          } catch ... {
+            ...
+          }
+      - pattern-not-inside: |
+          // eip150-safe
+          ...
+    paths:
+      exclude:
+        - packages/contracts-bedrock/test
+        - packages/contracts-bedrock/scripts
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -166,7 +200,6 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/src/L1/OPContractsManager.sol
-        - packages/contracts-bedrock/src/L1/OPContractsManagerInterop.sol
         - packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
 
   - id: sol-style-enforce-require-msg
@@ -207,15 +240,11 @@ rules:
             _disableInitializers();
             ...
           }
-    paths:
-      exclude:
-        - packages/contracts-bedrock/src/L1/SystemConfigInterop.sol
-        - packages/contracts-bedrock/src/L1/OptimismPortalInterop.sol
 
   - id: sol-safety-proper-initializer
     languages: [solidity]
     severity: ERROR
-    message: Proxied contracts must have an initialize function with the initializer modifier and external visibility
+    message: Proxied contracts must have an initialize function with the initializer or reinitializer modifier and external or public visibility
     patterns:
       - pattern-regex: "///\\s*@custom:proxied\\s+true(?P<CONTRACT>[\\s\\S]*)"
       - focus-metavariable: $CONTRACT
@@ -227,7 +256,31 @@ rules:
           function initialize(...) external initializer {
             ...
           }
-    paths:
-      exclude:
-        - packages/contracts-bedrock/src/L1/SystemConfig.sol
-        - packages/contracts-bedrock/src/L1/SystemConfigInterop.sol
+      - pattern-not: |
+          function initialize(...) public initializer {
+            ...
+          }
+      - pattern-not: |
+          function initialize(...) external reinitializer(...) {
+            ...
+          }
+      - pattern-not: |
+          function initialize(...) public reinitializer(...) {
+            ...
+          }
+
+  - id: sol-safety-proper-upgrade-function
+    languages: [solidity]
+    severity: ERROR
+    message: Upgrade functions must be external and have the reinitializer modifier
+    patterns:
+      - pattern-regex: "///\\s*@custom:proxied\\s+true(?P<CONTRACT>[\\s\\S]*)"
+      - focus-metavariable: $CONTRACT
+      - pattern: |
+          function upgrade(...) {
+            ...
+          }
+      - pattern-not: |
+          function upgrade(...) external reinitializer(...) {
+            ...
+          }

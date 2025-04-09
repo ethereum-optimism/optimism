@@ -5,8 +5,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,20 +62,14 @@ type InteropDSL struct {
 	createdUsers uint64
 }
 
-func NewInteropDSL(t helpers.Testing) *InteropDSL {
-	setup := SetupInterop(t)
+func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
+	setup := SetupInterop(t, opts...)
 	actors := setup.CreateActors()
+	actors.PrepareChainState(t)
 
 	t.Logf("ChainA: %v, ChainB: %v", actors.ChainA.ChainID, actors.ChainB.ChainID)
 
 	allChains := []*Chain{actors.ChainA, actors.ChainB}
-
-	// Get all the initial events processed
-	for _, chain := range allChains {
-		chain.Sequencer.ActL2PipelineFull(t)
-		chain.Sequencer.SyncSupervisor(t)
-	}
-	actors.Supervisor.ProcessFull(t)
 
 	superRootSource, err := NewSuperRootSource(
 		t.Ctx(),
@@ -99,6 +92,10 @@ func NewInteropDSL(t helpers.Testing) *InteropDSL {
 	}
 }
 
+func (d *InteropDSL) DepSet() *depset.StaticConfigDependencySet {
+	return d.setup.DepSet
+}
+
 func (d *InteropDSL) defaultChainOpts() ChainOpts {
 	return ChainOpts{
 		// Defensive copy to make sure the original slice isn't modified
@@ -116,10 +113,12 @@ func (d *InteropDSL) CreateUser() *DSLUser {
 	}
 }
 
-type TransactionCreator func(chain *Chain) (*types.Transaction, common.Address)
+type TransactionCreator func(chain *Chain) *GeneratedTransaction
+
 type AddL2BlockOpts struct {
 	BlockIsNotCrossUnsafe bool
 	TransactionCreators   []TransactionCreator
+	UntilTimestamp        uint64
 }
 
 func WithL2BlockTransactions(mkTxs ...TransactionCreator) func(*AddL2BlockOpts) {
@@ -134,37 +133,52 @@ func WithL1BlockCrossUnsafe() func(*AddL2BlockOpts) {
 	}
 }
 
+func WithL2BlocksUntilTimestamp(timestamp uint64) func(*AddL2BlockOpts) {
+	return func(o *AddL2BlockOpts) {
+		o.UntilTimestamp = timestamp
+	}
+}
+
 // AddL2Block adds a new unsafe block to the specified chain and fully processes it in the supervisor
 func (d *InteropDSL) AddL2Block(chain *Chain, optionalArgs ...func(*AddL2BlockOpts)) {
 	opts := AddL2BlockOpts{}
 	for _, arg := range optionalArgs {
 		arg(&opts)
 	}
-	priorSyncStatus := chain.Sequencer.SyncStatus()
-	chain.Sequencer.ActL2StartBlock(d.t)
-	for _, creator := range opts.TransactionCreators {
-		tx, from := creator(chain)
-		err := chain.SequencerEngine.EngineApi.IncludeTx(tx, from)
-		require.NoError(d.t, err)
-	}
-	chain.Sequencer.ActL2EndBlock(d.t)
-	chain.Sequencer.SyncSupervisor(d.t)
-	d.Actors.Supervisor.ProcessFull(d.t)
-	chain.Sequencer.ActL2PipelineFull(d.t)
+	for opts.UntilTimestamp == 0 || chain.Sequencer.L2Unsafe().Time <= opts.UntilTimestamp {
+		priorSyncStatus := chain.Sequencer.SyncStatus()
+		chain.Sequencer.ActL2StartBlock(d.t)
+		for _, creator := range opts.TransactionCreators {
+			creator(chain).Include()
+		}
+		chain.Sequencer.ActL2EndBlock(d.t)
+		chain.Sequencer.SyncSupervisor(d.t)
+		d.Actors.Supervisor.ProcessFull(d.t)
+		chain.Sequencer.ActL2PipelineFull(d.t)
 
-	status := chain.Sequencer.SyncStatus()
-	expectedBlockNum := priorSyncStatus.UnsafeL2.Number + 1
-	require.Equal(d.t, expectedBlockNum, status.UnsafeL2.Number, "Unsafe head did not advance")
-	if opts.BlockIsNotCrossUnsafe {
-		require.Equal(d.t, priorSyncStatus.CrossUnsafeL2.Number, status.CrossUnsafeL2.Number, "CrossUnsafe head advanced unexpectedly")
-	} else {
-		require.Equal(d.t, expectedBlockNum, status.CrossUnsafeL2.Number, "CrossUnsafe head did not advance")
+		status := chain.Sequencer.SyncStatus()
+		expectedBlockNum := priorSyncStatus.UnsafeL2.Number + 1
+		require.Equal(d.t, expectedBlockNum, status.UnsafeL2.Number, "Unsafe head did not advance")
+		if opts.BlockIsNotCrossUnsafe {
+			require.Equal(d.t, priorSyncStatus.CrossUnsafeL2.Number, status.CrossUnsafeL2.Number, "CrossUnsafe head advanced unexpectedly")
+		} else {
+			require.Equal(d.t, expectedBlockNum, status.CrossUnsafeL2.Number, "CrossUnsafe head did not advance")
+		}
+		if opts.UntilTimestamp == 0 {
+			break
+		}
 	}
 }
 
 type SubmitBatchDataOpts struct {
 	ChainOpts
 	SkipCrossSafeUpdate bool
+}
+
+func WithSkipCrossSafeUpdate() func(*SubmitBatchDataOpts) {
+	return func(o *SubmitBatchDataOpts) {
+		o.SkipCrossSafeUpdate = true
+	}
 }
 
 // SubmitBatchData submits batch data to L1 and processes the new L1 blocks, advancing the safe heads.
@@ -219,18 +233,16 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	// Process updates on each chain and verify the cross-safe head advanced
 	for _, chain := range opts.Chains {
 		chain.Sequencer.ActL2PipelineFull(d.t)
-		status := chain.Sequencer.SyncStatus()
-		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance safe head", chain.ChainID)
-
 		chain.Sequencer.SyncSupervisor(d.t)
 	}
-
-	// Re-run in case there was an invalid block that was replaced so it can now be considered safe
-	// TODO: Should this just loop until the cross safe heads stop updating or is once enough?
 	d.Actors.Supervisor.ProcessFull(d.t)
-	// Process updates on each chain and verify the cross-safe head advanced
+	// Re-run in case there was an invalid block that was replaced so it can now be considered safe
 	for _, chain := range opts.Chains {
 		chain.Sequencer.ActL2PipelineFull(d.t)
+		chain.Sequencer.SyncSupervisor(d.t)
+	}
+	d.Actors.Supervisor.ProcessFull(d.t)
+	for _, chain := range opts.Chains {
 		status := chain.Sequencer.SyncStatus()
 		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance safe head", chain.ChainID)
 	}
@@ -240,6 +252,12 @@ type AdvanceL1Opts struct {
 	ChainOpts
 	L1BlockTimeSeconds uint64
 	TxInclusion        []helpers.Action
+}
+
+func WithActIncludeTx(includeTxAction helpers.Action) func(*AdvanceL1Opts) {
+	return func(o *AdvanceL1Opts) {
+		o.TxInclusion = append(o.TxInclusion, includeTxAction)
+	}
 }
 
 // AdvanceL1 adds a new L1 block with the specified transactions and ensures it is processed by the specified chains
@@ -275,5 +293,66 @@ func (d *InteropDSL) AdvanceL1(optionalArgs ...func(*AdvanceL1Opts)) {
 		status := chain.Sequencer.SyncStatus()
 		require.Equalf(d.t, newBlock, status.HeadL1, "Chain %v did not detect new L1 head", chain.ChainID)
 		require.Equalf(d.t, newBlock, status.CurrentL1, "Chain %v did not process new L1 head", chain.ChainID)
+	}
+}
+
+// DeployEmitterContracts deploys an emitter contract on both chains
+func (d *InteropDSL) DeployEmitterContracts() *EmitterContract {
+	emitter := NewEmitterContract(d.t)
+	alice := d.CreateUser()
+	d.AddL2Block(d.Actors.ChainA, WithL2BlockTransactions(
+		emitter.Deploy(alice),
+	))
+	d.AddL2Block(d.Actors.ChainB, WithL2BlockTransactions(
+		emitter.Deploy(alice),
+	))
+	return emitter
+}
+
+type AdvanceSafeHeadsOpts struct {
+	SingleBatch bool
+}
+
+func WithSingleBatch() func(*AdvanceSafeHeadsOpts) {
+	return func(o *AdvanceSafeHeadsOpts) {
+		o.SingleBatch = true
+	}
+}
+
+// AdvanceSafeHeads advances the safe heads for all chains by adding a new L2 block and submitting batch data for each chain.
+// By default, submits batch data for each chain in separate L1 blocks.
+func (d *InteropDSL) AdvanceSafeHeads(optionalArgs ...func(*AdvanceSafeHeadsOpts)) {
+	opts := AdvanceSafeHeadsOpts{
+		SingleBatch: false,
+	}
+	for _, arg := range optionalArgs {
+		arg(&opts)
+	}
+
+	d.AddL2Block(d.Actors.ChainA)
+	d.AddL2Block(d.Actors.ChainB)
+	if opts.SingleBatch {
+		d.SubmitBatchData()
+	} else {
+		d.SubmitBatchData(func(opts *SubmitBatchDataOpts) {
+			opts.SetChains(d.Actors.ChainA)
+		})
+		d.SubmitBatchData(func(opts *SubmitBatchDataOpts) {
+			opts.SetChains(d.Actors.ChainB)
+		})
+	}
+}
+
+// AdvanceL2ToLastBlockOfOrigin advances the chain to the last block of the epoch at the specified L1 origin.
+func (d *InteropDSL) AdvanceL2ToLastBlockOfOrigin(chain *Chain, l1OriginHeight uint64) {
+	const l1BlockTime = uint64(12)
+	require.Equal(d.t, l1BlockTime%chain.RollupCfg.BlockTime, uint64(0), "L2 block time must be a multiple of L1 block time")
+	endOfEpoch := (l1BlockTime/chain.RollupCfg.BlockTime)*(l1OriginHeight+1) - 1
+	require.LessOrEqual(d.t, chain.Sequencer.L2Unsafe().Number, endOfEpoch, "end of epoch is in the future")
+	for {
+		if n := chain.Sequencer.L2Unsafe().Number; n == endOfEpoch {
+			break
+		}
+		d.AddL2Block(chain)
 	}
 }

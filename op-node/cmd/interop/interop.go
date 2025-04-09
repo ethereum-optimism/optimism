@@ -96,9 +96,14 @@ var InteropDevSetup = &cli.Command{
 		logCfg := oplog.ReadCLIConfig(cliCtx)
 		logger := oplog.NewLogger(cliCtx.App.Writer, logCfg)
 
+		l2ChainIDs := cliCtx.Uint64Slice(l2ChainIDsFlag.Name)
+		l2Recipes := make([]interopgen.InteropDevL2Recipe, len(l2ChainIDs))
+		for i, id := range l2ChainIDs {
+			l2Recipes[i] = interopgen.InteropDevL2Recipe{ChainID: id}
+		}
 		recipe := &interopgen.InteropDevRecipe{
 			L1ChainID:        cliCtx.Uint64(l1ChainIDFlag.Name),
-			L2ChainIDs:       cliCtx.Uint64Slice(l2ChainIDsFlag.Name),
+			L2s:              l2Recipes,
 			GenesisTimestamp: cliCtx.Uint64(timestampFlag.Name),
 		}
 		if recipe.GenesisTimestamp == 0 {

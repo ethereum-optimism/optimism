@@ -61,3 +61,5 @@ type ThrottlingMetrics struct {
 func (nm *ThrottlingMetrics) PendingDABytes() float64 {
 	return math.MaxFloat64
 }
+
+func (*noopMetrics) ClearAllStateMetrics() {}

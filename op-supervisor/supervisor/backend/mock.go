@@ -39,7 +39,7 @@ func (m *MockBackend) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockBackend) AllSafeDerivedAt(ctx context.Context, derivedFrom eth.BlockID) (derived map[eth.ChainID]eth.BlockID, err error) {
+func (m *MockBackend) AllSafeDerivedAt(ctx context.Context, source eth.BlockID) (derived map[eth.ChainID]eth.BlockID, err error) {
 	return nil, nil
 }
 
@@ -47,11 +47,8 @@ func (m *MockBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.By
 	return nil
 }
 
-func (m *MockBackend) CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error) {
-	return types.CrossUnsafe, nil
-}
-
-func (m *MockBackend) CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error {
+func (m *MockBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
 	return nil
 }
 
@@ -67,11 +64,11 @@ func (m *MockBackend) Finalized(ctx context.Context, chainID eth.ChainID) (eth.B
 	return eth.BlockID{}, nil
 }
 
-func (m *MockBackend) FinalizedL1() eth.BlockRef {
-	return eth.BlockRef{}
+func (m *MockBackend) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
+	return eth.BlockRef{}, nil
 }
 
-func (m *MockBackend) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error) {
+func (m *MockBackend) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (source eth.BlockRef, err error) {
 	return eth.BlockRef{}, nil
 }
 
@@ -79,7 +76,7 @@ func (m *MockBackend) SuperRootAtTimestamp(ctx context.Context, timestamp hexuti
 	return eth.SuperRootResponse{}, nil
 }
 
-func (m *MockBackend) SyncStatus() (eth.SupervisorSyncStatus, error) {
+func (m *MockBackend) SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error) {
 	return eth.SupervisorSyncStatus{}, nil
 }
 

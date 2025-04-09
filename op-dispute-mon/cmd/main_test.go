@@ -59,15 +59,32 @@ func TestL1EthRpc(t *testing.T) {
 	})
 }
 
+func TestMustSpecifyEitherRollupRpcOrSupervisorRpc(t *testing.T) {
+	verifyArgsInvalid(t, "flag rollup-rpc or supervisor-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
+}
+
 func TestRollupRpc(t *testing.T) {
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
+	t.Run("NotRequiredIfSupervisorRpcSupplied", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", "http://localhost/supervisor"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--rollup-rpc", url))
 		require.Equal(t, url, cfg.RollupRpc)
+	})
+}
+
+func TestSupervisorRpc(t *testing.T) {
+	t.Run("NotRequiredIfRollupRpcSupplied", func(t *testing.T) {
+		// rollup-rpc is in the default args.
+		configForArgs(t, addRequiredArgsExcept("--supervisor-rpc"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		url := "http://example.com:9999"
+		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url))
+		require.Equal(t, url, cfg.SupervisorRpc)
 	})
 }
 

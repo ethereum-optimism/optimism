@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -208,9 +207,8 @@ func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 		s.L2BufferedBlock = syncStatus.SafeL2
 		s.L2ChannelOut = nil
 	}
-	// If it's lagging behind, catch it up.
 	if s.l2SubmittedBlock.Number < syncStatus.SafeL2.Number {
-		s.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", s.l2SubmittedBlock, "safe", syncStatus.SafeL2)
+		s.log.Info("Safe head progressed, batch submission will continue from the new safe head now", "last", s.l2SubmittedBlock, "safe", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
 		s.L2BufferedBlock = syncStatus.SafeL2
 		s.L2ChannelOut = nil
@@ -357,8 +355,8 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 			opt(rawTx)
 		}
 
-		gas, err := core.IntrinsicGas(rawTx.Data, nil, nil, false, true, true, false)
-		require.NoError(t, err, "need to compute intrinsic gas")
+		gas, err := core.FloorDataGas(rawTx.Data)
+		require.NoError(t, err, "need to compute floor data gas")
 		rawTx.Gas = gas
 		txData = rawTx
 	} else if s.l2BatcherCfg.DataAvailabilityType == batcherFlags.BlobsType {
@@ -367,7 +365,7 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 		sidecar, blobHashes, err := txmgr.MakeSidecar([]*eth.Blob{&b})
 		require.NoError(t, err)
 		require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
-		blobBaseFee := eip4844.CalcBlobFee(*pendingHeader.ExcessBlobGas)
+		blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
 		blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 		if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 			blobFeeCap = uint256.NewInt(params.GWei)
@@ -398,11 +396,13 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 }
 
 func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
+	// Update to Prague if L1 changes to Prague and we need more blobs in multi-blob tests.
+	maxBlobsPerBlock := params.DefaultCancunBlobConfig.Max
 	if s.l2BatcherCfg.DataAvailabilityType != batcherFlags.BlobsType {
 		t.InvalidAction("ActL2BatchSubmitMultiBlob only available for Blobs DA type")
 		return
-	} else if numBlobs > eth.MaxBlobsPerBlobTx || numBlobs < 1 {
-		t.InvalidAction("invalid number of blobs %d, must be within [1,%d]", numBlobs, eth.MaxBlobsPerBlobTx)
+	} else if numBlobs > maxBlobsPerBlock || numBlobs < 1 {
+		t.InvalidAction("invalid number of blobs %d, must be within [1,%d]", numBlobs, maxBlobsPerBlock)
 	}
 
 	// Don't run this action if there's no data to submit
@@ -449,7 +449,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	sidecar, blobHashes, err := txmgr.MakeSidecar(blobs)
 	require.NoError(t, err)
 	require.NotNil(t, pendingHeader.ExcessBlobGas, "need L1 header with 4844 properties")
-	blobBaseFee := eip4844.CalcBlobFee(*pendingHeader.ExcessBlobGas)
+	blobBaseFee := eth.CalcBlobFeeDefault(pendingHeader)
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 		blobFeeCap = uint256.NewInt(params.GWei)
@@ -540,4 +540,50 @@ func (s *L2Batcher) ActSubmitAllMultiBlobs(t Testing, numBlobs int) {
 	s.ActBufferAll(t)
 	s.ActL2ChannelClose(t)
 	s.ActL2BatchSubmitMultiBlob(t, numBlobs)
+}
+
+// ActSubmitSetCodeTx submits a SetCodeTx to the batch inbox. This models a malicious
+// batcher and is only used to tests the derivation pipeline follows spec and ignores
+// the SetCodeTx.
+func (s *L2Batcher) ActSubmitSetCodeTx(t Testing) {
+	chainId := *uint256.MustFromBig(s.rollupCfg.L1ChainID)
+
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.BatcherAddr)
+	require.NoError(t, err, "need batcher nonce")
+
+	tx, err := PrepareSignedSetCodeTx(chainId, s.l2BatcherCfg.BatcherKey, s.l1Signer, nonce, s.rollupCfg.BatchInboxAddress, s.ReadNextOutputFrame(t))
+	require.NoError(t, err, "need to sign tx")
+
+	t.Log("submitting EIP 7702 Set Code Batcher Transaction...")
+	err = s.l1.SendTransaction(t.Ctx(), tx)
+	require.NoError(t, err, "need to send tx")
+	s.LastSubmitted = tx
+}
+
+func PrepareSignedSetCodeTx(chainId uint256.Int, privateKey *ecdsa.PrivateKey, signer types.Signer, nonce uint64, to common.Address, data []byte) (*types.Transaction, error) {
+
+	setCodeAuthorization := types.SetCodeAuthorization{
+		ChainID: chainId,
+		Address: common.HexToAddress("0xab"), // arbitrary nonzero address
+		Nonce:   nonce,
+	}
+
+	signedAuth, err := types.SignSetCode(privateKey, setCodeAuthorization)
+	if err != nil {
+		return nil, err
+	}
+
+	txData := &types.SetCodeTx{
+		ChainID:    &chainId,
+		Nonce:      nonce,
+		To:         to,
+		Value:      uint256.NewInt(0),
+		Data:       data,
+		AccessList: types.AccessList{},
+		AuthList:   []types.SetCodeAuthorization{signedAuth},
+		Gas:        1_000_000,
+		GasFeeCap:  uint256.NewInt(1_000_000_000),
+	}
+
+	return types.SignNewTx(privateKey, signer, txData)
 }

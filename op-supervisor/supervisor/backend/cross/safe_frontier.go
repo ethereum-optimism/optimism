@@ -12,7 +12,7 @@ import (
 type SafeFrontierCheckDeps interface {
 	CandidateCrossSafe(chain eth.ChainID) (candidate types.DerivedBlockRefPair, err error)
 
-	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error)
+	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
 
 	DependencySet() depset.DependencySet
 }
@@ -21,9 +21,9 @@ type SafeFrontierCheckDeps interface {
 //   - already cross-safe.
 //   - the first (if not first: local blocks to verify before proceeding)
 //     local-safe block, after the cross-safe block.
-func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1Source eth.BlockID, hazards map[types.ChainIndex]types.BlockSeal) error {
+func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1Source eth.BlockID, hazards *HazardSet) error {
 	depSet := d.DependencySet()
-	for hazardChainIndex, hazardBlock := range hazards {
+	for hazardChainIndex, hazardBlock := range hazards.Entries() {
 		hazardChainID, err := depSet.ChainIDFromIndex(hazardChainIndex)
 		if err != nil {
 			if errors.Is(err, types.ErrUnknownChain) {

@@ -180,7 +180,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		Log:            log,
 		Ctx:            ctx,
 		Drain:          executor.Drain,
-		ManagedMode:    false,
+		ManagedMode:    managedMode,
 	}, opts)
 
 	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
@@ -281,6 +281,10 @@ func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth
 
 func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) {
 	return false, nil
+}
+
+func (s *l2VerifierBackend) SetRecoverMode(ctx context.Context, mode bool) error {
+	return errors.New("recover mode unsupported")
 }
 
 func (s *L2Verifier) DerivationMetricsTracer() *testutils.TestDerivationMetrics {

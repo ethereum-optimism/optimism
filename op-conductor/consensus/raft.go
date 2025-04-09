@@ -164,8 +164,13 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		}
 
 		f := r.BootstrapCluster(raftCfg)
-		if err := f.Error(); err != nil {
-			return nil, errors.Wrap(err, "failed to bootstrap raft cluster")
+		err = f.Error()
+		if err != nil {
+			if errors.Is(err, raft.ErrCantBootstrap) {
+				log.Warn("Raft cluster already exists, skipping bootstrap")
+			} else {
+				return nil, errors.Wrap(err, "failed to bootstrap raft cluster")
+			}
 		}
 	}
 
@@ -176,7 +181,7 @@ func NewRaftConsensus(log log.Logger, cfg *RaftConsensusConfig) (*RaftConsensus,
 		unsafeTracker: fsm,
 		rollupCfg:     cfg.RollupCfg,
 		transport:     transport,
-	}, nil
+	}, err
 }
 
 // Addr returns the address to contact this raft consensus server.

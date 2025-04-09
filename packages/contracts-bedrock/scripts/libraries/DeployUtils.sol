@@ -17,6 +17,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IL1ChugSplashProxy, IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 import { IResolvedDelegateProxy } from "interfaces/legacy/IResolvedDelegateProxy.sol";
+import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
 
 library DeployUtils {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -33,13 +34,6 @@ library DeployUtils {
             addr_ := create(0, add(bytecode, 0x20), mload(bytecode))
         }
         assertValidContractAddress(addr_);
-    }
-
-    /// @notice Deploys a contract with the given name via CREATE.
-    /// @param _name Name of the contract to deploy.
-    /// @return Address of the deployed contract.
-    function create1(string memory _name) internal returns (address payable) {
-        return create1(_name, hex"");
     }
 
     /// @notice Deploys a contract with the given name and arguments via CREATE and saves the result.
@@ -61,22 +55,6 @@ library DeployUtils {
         addr_ = create1(_name, _args);
         _save.save(_nick, addr_);
         console.log("%s deployed at %s", _nick, addr_);
-    }
-
-    /// @notice Deploys a contract with the given name via CREATE and saves the result.
-    /// @param _save Artifacts contract.
-    /// @param _name Name of the contract to deploy.
-    /// @param _nickname Nickname to save the address to.
-    /// @return addr_ Address of the deployed contract.
-    function create1AndSave(
-        Artifacts _save,
-        string memory _name,
-        string memory _nickname
-    )
-        internal
-        returns (address payable addr_)
-    {
-        return create1AndSave(_save, _name, _nickname, hex"");
     }
 
     /// @notice Deploys a contract with the given name and arguments via CREATE and saves the result.
@@ -107,15 +85,7 @@ library DeployUtils {
         return create2asm(initCode, _salt);
     }
 
-    /// @notice Deploys a contract with the given name via CREATE2.
-    /// @param _name Name of the contract to deploy.
-    /// @param _salt Salt for the CREATE2 operation.
-    /// @return Address of the deployed contract.
-    function create2(string memory _name, bytes32 _salt) internal returns (address payable) {
-        return create2(_name, hex"", _salt);
-    }
-
-    function create2asm(bytes memory _initCode, bytes32 _salt) internal returns (address payable addr_) {
+    function create2asm(bytes memory _initCode, bytes32 _salt) private returns (address payable addr_) {
         assembly {
             addr_ := create2(0, add(_initCode, 0x20), mload(_initCode), _salt)
             if iszero(addr_) {
@@ -150,24 +120,6 @@ library DeployUtils {
         console.log("%s deployed at %s", _nick, addr_);
     }
 
-    /// @notice Deploys a contract with the given name via CREATE2 and saves the result.
-    /// @param _save Artifacts contract.
-    /// @param _name Name of the contract to deploy.
-    /// @param _nick Nickname to save the address to.
-    /// @param _salt Salt for the CREATE2 operation.
-    /// @return addr_ Address of the deployed contract.
-    function create2AndSave(
-        Artifacts _save,
-        string memory _name,
-        string memory _nick,
-        bytes32 _salt
-    )
-        internal
-        returns (address payable addr_)
-    {
-        return create2AndSave(_save, _name, _nick, hex"", _salt);
-    }
-
     /// @notice Deploys a contract with the given name and arguments via CREATE2 and saves the result.
     /// @param _save Artifacts contract.
     /// @param _name Name of the contract to deploy.
@@ -184,22 +136,6 @@ library DeployUtils {
         returns (address payable addr_)
     {
         return create2AndSave(_save, _name, _name, _args, _salt);
-    }
-
-    /// @notice Deploys a contract with the given name via CREATE2 and saves the result.
-    /// @param _save Artifacts contract.
-    /// @param _name Name of the contract to deploy.
-    /// @param _salt Salt for the CREATE2 operation.
-    /// @return addr_ Address of the deployed contract.
-    function create2AndSave(
-        Artifacts _save,
-        string memory _name,
-        bytes32 _salt
-    )
-        internal
-        returns (address payable addr_)
-    {
-        return create2AndSave(_save, _name, _name, hex"", _salt);
     }
 
     /// @notice Deploys a contract with the given name using CREATE2. If the contract is already deployed, this method
@@ -220,7 +156,7 @@ library DeployUtils {
             addr_ = payable(preComputedAddress);
         } else {
             vm.broadcast(msg.sender);
-            addr_ = DeployUtils.create2asm(initCode, _salt);
+            addr_ = create2asm(initCode, _salt);
         }
     }
 
@@ -425,7 +361,19 @@ library DeployUtils {
         bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
         uint8 val = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
         if (_isProxy) {
-            require(val == 1, "DeployUtils: storage value is not 1 at the given slot and offset");
+            // Using a try/catch here to check if the contract has an initVersion() defined.
+            // EIP-150 safe because we require that we have at least 200k gas before the call which
+            // is more than enough to avoid running out of gas when 63/64 of the gas is provided to
+            // the initVersion() call (which simply reads an immutable variable). Since this is
+            // only ever triggered as part of a script, we can safely assume we'll have the gas.
+            require(gasleft() > 200_000, "DeployUtils: insufficient gas for initVersion() call");
+
+            // eip150-safe
+            try IReinitializableBase(_contractAddress).initVersion() returns (uint8 initVersion_) {
+                require(val == initVersion_, "DeployUtils: storage value is incorrect at the given slot and offset");
+            } catch {
+                require(val == 1, "DeployUtils: storage value is not set at the given slot and offset");
+            }
         } else {
             require(val == type(uint8).max, "DeployUtils: storage value is not 0xff at the given slot and offset");
         }

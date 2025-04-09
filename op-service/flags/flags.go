@@ -11,14 +11,15 @@ import (
 )
 
 const (
-	RollupConfigFlagName     = "rollup.config"
-	NetworkFlagName          = "network"
-	CanyonOverrideFlagName   = "override.canyon"
-	DeltaOverrideFlagName    = "override.delta"
-	EcotoneOverrideFlagName  = "override.ecotone"
-	FjordOverrideFlagName    = "override.fjord"
-	GraniteOverrideFlagName  = "override.granite"
-	HoloceneOverrideFlagName = "override.holocene"
+	RollupConfigFlagName               = "rollup.config"
+	NetworkFlagName                    = "network"
+	CanyonOverrideFlagName             = "override.canyon"
+	DeltaOverrideFlagName              = "override.delta"
+	EcotoneOverrideFlagName            = "override.ecotone"
+	FjordOverrideFlagName              = "override.fjord"
+	GraniteOverrideFlagName            = "override.granite"
+	HoloceneOverrideFlagName           = "override.holocene"
+	PectraBlobScheduleOverrideFlagName = "override.pectrablobschedule"
 )
 
 func CLIFlags(envPrefix string, category string) []cli.Flag {
@@ -62,6 +63,13 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Name:     HoloceneOverrideFlagName,
 			Usage:    "Manually specify the Holocene fork timestamp, overriding the bundled setting",
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_HOLOCENE"),
+			Hidden:   false,
+			Category: category,
+		},
+		&cli.Uint64Flag{
+			Name:     PectraBlobScheduleOverrideFlagName,
+			Usage:    "Manually specify the PectraBlobSchedule fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_PECTRABLOBSCHEDULE"),
 			Hidden:   false,
 			Category: category,
 		},

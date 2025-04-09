@@ -88,7 +88,7 @@
     "label": "startingOutputRoot",
     "offset": 0,
     "slot": "8",
-    "type": "struct OutputRoot"
+    "type": "struct Proposal"
   },
   {
     "bytes": "1",

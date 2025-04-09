@@ -1,0 +1,85 @@
+REPO_ROOT := `realpath ..`
+KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.6")
+DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
+ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
+
+# Default recipe - runs acceptance tests
+default:
+    @just acceptance-test simple holocene
+
+holocene:
+    @just acceptance-test simple holocene
+
+isthmus:
+    @just acceptance-test isthmus isthmus
+
+interop:
+    @just acceptance-test interop interop
+
+
+# DEVNET_ENV_URL
+
+# Run acceptance tests with mise-managed binary
+acceptance-test devnet="simple" gate="holocene":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
+
+    # Check if mise is installed
+    if command -v mise >/dev/null; then
+        # Try to install op-acceptor using mise
+        if ! mise install op-acceptor; then
+            echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
+            just acceptance-test-docker {{devnet}} {{gate}}
+            exit 0
+        fi
+
+        # Run the appropriate devnet from the kurtosis-devnet directory if needed.
+        # Note: For now, due to a known bug, we ignore failures here
+        #       because if the devnet is already running then this command will fail.
+        just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+
+        # Print which binary is being used (for debugging)
+        BINARY_PATH=$(mise which op-acceptor)
+        echo "Using mise-managed binary: $BINARY_PATH"
+
+        # Run the op-acceptor binary
+        DEVNET_ENV_URL="kt://{{devnet}}-devnet" "$BINARY_PATH" \
+            --testdir "{{REPO_ROOT}}" \
+            --gate {{gate}} \
+            --validators ./acceptance-tests.yaml \
+            --log.level debug
+    else
+        echo "Mise not installed, falling back to Docker..."
+        just acceptance-test-docker {{devnet}} {{gate}}
+    fi
+
+# Run acceptance tests against a devnet using Docker (fallback if needed)
+acceptance-test-docker devnet="simple" gate="holocene":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
+
+    # First run the appropriate devnet from the kurtosis-devnet directory if needed.
+    # We ignore failures here because if the devnet is already running then this command will fail.
+    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+
+    # Print which image is being used (for debugging)
+    echo "Using acceptor image: {{ACCEPTOR_IMAGE}}"
+
+    # Run op-acceptor with the repository mounted at the correct Go module path
+    docker run \
+        -v "$(pwd)/acceptance-tests.yaml:/acceptance-tests.yaml" \
+        -v "{{REPO_ROOT}}:/go/src/github.com/ethereum-optimism/optimism" \
+        {{ACCEPTOR_IMAGE}} \
+        --testdir "/go/src/github.com/ethereum-optimism/optimism" \
+        --gate {{gate}} \
+        --validators /acceptance-tests.yaml \
+        --log.level debug
+
+
+clean:
+    kurtosis clean --all

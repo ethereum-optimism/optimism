@@ -10,10 +10,8 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { IL1BlockInterop } from "interfaces/L2/IL1BlockInterop.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
@@ -86,108 +84,5 @@ contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
         // setL1BlockValuesEcotone system tx ONLY gets 1m gas.
         // 200k is a safe boundary to prevent hitting the limit.
         assertLt(vm.lastCallGas().gasTotalUsed, 200_000);
-    }
-}
-
-contract GasBenchMark_L1BlockInterop is GasBenchMark_L1Block {
-    IL1BlockInterop l1BlockInterop;
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        // Create the L1BlockInterop contract.
-        l1BlockInterop = IL1BlockInterop(
-            DeployUtils.create1({
-                _name: "L1BlockInterop",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1BlockInterop.__constructor__, ()))
-            })
-        );
-
-        // Set up the calldata for setting the values.
-        setValuesCalldata = Encoding.encodeSetL1BlockValuesInterop(
-            type(uint32).max,
-            type(uint32).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            type(uint256).max,
-            keccak256(abi.encode(1)),
-            bytes32(type(uint256).max)
-        );
-    }
-}
-
-contract GasBenchMark_L1BlockInterop_SetValuesInterop is GasBenchMark_L1BlockInterop {
-    function test_setL1BlockValuesInterop_benchmark() external {
-        // Skip if the test is running in coverage.
-        skipIfCoverage();
-
-        // Test
-        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
-
-        // Assert
-        // setL1BlockValuesInterop system tx ONLY gets 1m gas.
-        // 200k is a safe boundary to prevent hitting the limit.
-        assertLt(vm.lastCallGas().gasTotalUsed, 200_000);
-    }
-}
-
-contract GasBenchMark_L1BlockInterop_SetValuesInterop_Warm is GasBenchMark_L1BlockInterop {
-    function test_setL1BlockValuesInterop_benchmark() external {
-        // Skip if the test is running in coverage.
-        skipIfCoverage();
-
-        // Setup
-        // Trigger so storage is warm.
-        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
-
-        // Test
-        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
-
-        // Assert
-        // setL1BlockValuesInterop system tx ONLY gets 1m gas.
-        // 200k is a safe boundary to prevent hitting the limit.
-        assertLt(vm.lastCallGas().gasTotalUsed, 200_000);
-    }
-}
-
-contract GasBenchMark_L1BlockInterop_DepositsComplete is GasBenchMark_L1BlockInterop {
-    function test_depositsComplete_benchmark() external {
-        // Skip if the test is running in coverage.
-        skipIfCoverage();
-
-        // Test
-        SafeCall.call({
-            _target: address(l1BlockInterop),
-            _calldata: abi.encodeCall(IL1BlockInterop.depositsComplete, ())
-        });
-
-        // Assert
-        // depositsComplete system tx ONLY gets 15k gas.
-        // 5_000 is a safe boundary to prevent hitting the limit.
-        assertLt(vm.lastCallGas().gasTotalUsed, 5_000);
-    }
-}
-
-contract GasBenchMark_L1BlockInterop_DepositsComplete_Warm is GasBenchMark_L1BlockInterop {
-    function test_depositsComplete_benchmark() external {
-        // Skip if the test is running in coverage.
-        skipIfCoverage();
-
-        // Setup
-        // Trigger so storage is warm.
-        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
-
-        // Test
-        SafeCall.call({
-            _target: address(l1BlockInterop),
-            _calldata: abi.encodeCall(l1BlockInterop.depositsComplete, ())
-        });
-
-        // Assert
-        // depositsComplete system tx ONLY gets 15k gas.
-        // 5_000 is a safe boundary to prevent hitting the limit.
-        assertLt(vm.lastCallGas().gasTotalUsed, 5_000);
     }
 }

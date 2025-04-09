@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
@@ -50,12 +52,8 @@ func (u *Upgrader) Upgrade(host *script.Host, input json.RawMessage) error {
 	return Upgrade(host, upgradeInput)
 }
 
-func (u *Upgrader) SupportsVersion(version string) bool {
-	return version == "2.0.0"
-}
-
 func (u *Upgrader) ArtifactsURL() string {
-	return ""
+	return "tag://" + standard.ContractsV200Tag
 }
 
 var DefaultUpgrader = new(Upgrader)

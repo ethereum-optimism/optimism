@@ -95,7 +95,7 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 		vmenv := vm.NewEVM(context, statedb, provider.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
 		return vmenv
 	}
-	vmenv := mkEVM()
+	var vmenv *vm.EVM
 	if h.ParentBeaconRoot != nil {
 		if provider.Config().IsCancun(header.Number, header.Time) {
 			// Blob tx not supported on optimism chains but fields must be set when Cancun is active.
@@ -103,7 +103,11 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 			header.BlobGasUsed = &zero
 			header.ExcessBlobGas = &zero
 		}
+		// core.NewEVMBlockContext need to be called after the blob gas fields are set
+		vmenv = mkEVM()
 		core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv)
+	} else {
+		vmenv = mkEVM()
 	}
 	if provider.Config().IsPrague(header.Number, header.Time) {
 		core.ProcessParentBlockHash(header.ParentHash, vmenv)
@@ -136,21 +140,32 @@ func (b *BlockProcessor) CheckTxWithinGasLimit(tx *types.Transaction) error {
 	return nil
 }
 
-func (b *BlockProcessor) AddTx(tx *types.Transaction) error {
+func (b *BlockProcessor) AddTx(tx *types.Transaction) (*types.Receipt, error) {
 	txIndex := len(b.transactions)
 	b.state.SetTxContext(tx.Hash(), txIndex)
 	receipt, err := core.ApplyTransaction(b.evm, b.gasPool, b.state, b.header, tx, &b.header.GasUsed)
 	if err != nil {
-		return fmt.Errorf("failed to apply transaction to L2 block (tx %d): %w", txIndex, err)
+		return nil, fmt.Errorf("failed to apply transaction to L2 block (tx %d): %w", txIndex, err)
 	}
 	b.receipts = append(b.receipts, receipt)
 	b.transactions = append(b.transactions, tx)
-	return nil
+	return receipt, nil
 }
 
 func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 	body := types.Body{
 		Transactions: b.transactions,
+	}
+
+	// Processing for EIP-7685 requests would happen here, but is skipped on OP.
+	// Kept here to minimize diff.
+	if b.dataProvider.Config().IsPrague(b.header.Number, b.header.Time) && !b.dataProvider.Config().IsIsthmus(b.header.Time) {
+		_requests := [][]byte{}
+		// EIP-6110 - no-op because we just ignore all deposit requests, so no need to parse logs
+		// EIP-7002
+		core.ProcessWithdrawalQueue(&_requests, b.evm)
+		// EIP-7251
+		core.ProcessConsolidationQueue(&_requests, b.evm)
 	}
 
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)

@@ -1,0 +1,34 @@
+# Configuration file for acceptance tests (op-acceptor)
+#
+# All acceptance tests need to be registered here for op-acceptor to run them.
+
+
+
+gates:
+  - id: sanitychecks
+    description: "Sanity checks for the acceptance tests."
+    tests:
+      - name: TestFindRPCEndpoints
+        package: github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/...
+
+  - id: holocene
+    inherits:
+      - sanitychecks
+    description: "Holocene network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/fjord/...
+
+  - id: isthmus
+    inherits:
+      - sanitychecks
+    description: "Isthmus network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/...
+        timeout: 6h
+
+  - id: interop
+    inherits:
+      - sanitychecks
+    description: "Interop network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/...
