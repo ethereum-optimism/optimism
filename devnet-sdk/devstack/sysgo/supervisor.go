@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -52,7 +53,10 @@ func (s *Supervisor) start() {
 	super, err := supervisor.SupervisorFromConfig(context.Background(), s.cfg, s.logger)
 	s.p.Require().NoError(err)
 
+	s.service = super
+	s.logger.Info("Starting supervisor")
 	err = super.Start(context.Background())
+	s.logger.Info("Started supervisor")
 	s.p.Require().NoError(err)
 
 	s.userRPC = super.RPC()
@@ -102,7 +106,7 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 			},
 			RPC: oprpc.CLIConfig{
 				ListenAddr:  "127.0.0.1",
-				ListenPort:  0,
+				ListenPort:  34444, // FIXME
 				EnableAdmin: true,
 			},
 			SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources

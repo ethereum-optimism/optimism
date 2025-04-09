@@ -51,7 +51,9 @@ func (o *Orchestrator) ControlPanel() stack.ControlPanel {
 var _ stack.Orchestrator = (*Orchestrator)(nil)
 
 func NewOrchestrator(p devtest.P) *Orchestrator {
-	return &Orchestrator{p: p}
+	o := &Orchestrator{p: p}
+	o.panel = &ControlPanel{o: o}
+	return o
 }
 
 func (o *Orchestrator) P() devtest.P {
