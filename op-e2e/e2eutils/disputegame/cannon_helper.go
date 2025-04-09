@@ -326,68 +326,12 @@ func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, cann
 		g.WaitForPreimageInOracle(ctx, preimageData)
 	}
 
-	// Descending the execution game tree to reach the step that loads the preimage
 	bisectTraceIndex := func(claim *ClaimHelper) *ClaimHelper {
-		execClaimPosition, err := claim.Position.RelativeToAncestorAtDepth(splitDepth + 1)
-		g.require.NoError(err)
-
-		claimTraceIndex := execClaimPosition.TraceIndex(execDepth).Uint64()
-		g.t.Logf("Bisecting: Into targetTraceIndex %v: claimIndex=%v at depth=%v. claimPosition=%v execClaimPosition=%v claimTraceIndex=%v",
-			targetTraceIndex, claim.Index, claim.Depth(), claim.Position, execClaimPosition, claimTraceIndex)
-
-		// We always want to position ourselves such that the challenger generates proofs for the targetTraceIndex as prestate
-		if execClaimPosition.Depth() == execDepth-1 {
-			if execClaimPosition.TraceIndex(execDepth).Uint64() == targetTraceIndex {
-				newPosition := execClaimPosition.Attack()
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				g.t.Logf("Bisecting: Attack correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Attack(ctx, correct)
-			} else if execClaimPosition.TraceIndex(execDepth).Uint64() > targetTraceIndex {
-				g.t.Logf("Bisecting: Attack incorrectly for step")
-				return claim.Attack(ctx, common.Hash{0xdd})
-			} else if execClaimPosition.TraceIndex(execDepth).Uint64()+1 == targetTraceIndex {
-				g.t.Logf("Bisecting: Defend incorrectly for step")
-				return claim.Defend(ctx, common.Hash{0xcc})
-			} else {
-				newPosition := execClaimPosition.Defend()
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				g.t.Logf("Bisecting: Defend correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Defend(ctx, correct)
-			}
-		}
-
-		// Attack or Defend depending on whether the claim we're responding to is to the left or right of the trace index
-		// Induce the honest challenger to attack or defend depending on whether our new position will be to the left or right of the trace index
-		if execClaimPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex && claim.Depth() != splitDepth+1 {
-			newPosition := execClaimPosition.Defend()
-			if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
-				g.t.Logf("Bisecting: Defend correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				return claim.Defend(ctx, correct)
-			} else {
-				g.t.Logf("Bisecting: Defend incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Defend(ctx, common.Hash{0xaa})
-			}
-		} else {
-			newPosition := execClaimPosition.Attack()
-			if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
-				g.t.Logf("Bisecting: Attack correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				correct, err := provider.Get(ctx, newPosition)
-				g.require.NoError(err)
-				return claim.Attack(ctx, correct)
-			} else {
-				g.t.Logf("Bisecting: Attack incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
-				return claim.Attack(ctx, common.Hash{0xbb})
-			}
-		}
+		return traceBisection(g.t, ctx, claim, splitDepth, execDepth, targetTraceIndex, provider)
 	}
-
-	g.splitGame.LogGameData(ctx)
 	// Initial bisect to put us on defense
 	mover := bisectTraceIndex(outputRootClaim)
+	// Descending the execution game tree to reach the step that loads the preimage
 	leafClaim := g.splitGame.DefendClaim(ctx, mover, bisectTraceIndex, WithoutWaitingForStep())
 
 	// Validate that the preimage was loaded correctly
@@ -532,4 +476,71 @@ func (g *CannonHelper) createCannonTraceProvider(ctx context.Context, l2Node str
 	g.require.NoError(err)
 	translatingProvider := provider.(*trace.TranslatingProvider)
 	return translatingProvider.Original().(*cannon.CannonTraceProviderForTest), localContext
+}
+
+// traceBisection performs a bisection of the trace to the desired targetTraceIndex
+func traceBisection(
+	t *testing.T,
+	ctx context.Context,
+	claim *ClaimHelper,
+	splitDepth types.Depth,
+	execDepth types.Depth,
+	targetTraceIndex uint64,
+	provider *cannon.CannonTraceProviderForTest,
+) *ClaimHelper {
+	execClaimPosition, err := claim.Position.RelativeToAncestorAtDepth(splitDepth + 1)
+	require.NoError(t, err)
+
+	claimTraceIndex := execClaimPosition.TraceIndex(execDepth).Uint64()
+	t.Logf("Bisecting: Into targetTraceIndex %v: claimIndex=%v at depth=%v. claimPosition=%v execClaimPosition=%v claimTraceIndex=%v",
+		targetTraceIndex, claim.Index, claim.Depth(), claim.Position, execClaimPosition, claimTraceIndex)
+
+	// We always want to position ourselves such that the challenger generates proofs for the targetTraceIndex as prestate
+	if execClaimPosition.Depth() == execDepth-1 {
+		if execClaimPosition.TraceIndex(execDepth).Uint64() == targetTraceIndex {
+			newPosition := execClaimPosition.Attack()
+			correct, err := provider.Get(ctx, newPosition)
+			require.NoError(t, err)
+			t.Logf("Bisecting: Attack correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+			return claim.Attack(ctx, correct)
+		} else if execClaimPosition.TraceIndex(execDepth).Uint64() > targetTraceIndex {
+			t.Logf("Bisecting: Attack incorrectly for step")
+			return claim.Attack(ctx, common.Hash{0xdd})
+		} else if execClaimPosition.TraceIndex(execDepth).Uint64()+1 == targetTraceIndex {
+			t.Logf("Bisecting: Defend incorrectly for step")
+			return claim.Defend(ctx, common.Hash{0xcc})
+		} else {
+			newPosition := execClaimPosition.Defend()
+			correct, err := provider.Get(ctx, newPosition)
+			require.NoError(t, err)
+			t.Logf("Bisecting: Defend correctly for step at newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+			return claim.Defend(ctx, correct)
+		}
+	}
+
+	// Attack or Defend depending on whether the claim we're responding to is to the left or right of the trace index
+	// Induce the honest challenger to attack or defend depending on whether our new position will be to the left or right of the trace index
+	if execClaimPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex && claim.Depth() != splitDepth+1 {
+		newPosition := execClaimPosition.Defend()
+		if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
+			t.Logf("Bisecting: Defend correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+			correct, err := provider.Get(ctx, newPosition)
+			require.NoError(t, err)
+			return claim.Defend(ctx, correct)
+		} else {
+			t.Logf("Bisecting: Defend incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+			return claim.Defend(ctx, common.Hash{0xaa})
+		}
+	} else {
+		newPosition := execClaimPosition.Attack()
+		if newPosition.TraceIndex(execDepth).Uint64() < targetTraceIndex {
+			t.Logf("Bisecting: Attack correct. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+			correct, err := provider.Get(ctx, newPosition)
+			require.NoError(t, err)
+			return claim.Attack(ctx, correct)
+		} else {
+			t.Logf("Bisecting: Attack incorrect. newPosition=%v execIndexAtDepth=%v", newPosition, newPosition.TraceIndex(execDepth))
+			return claim.Attack(ctx, common.Hash{0xbb})
+		}
+	}
 }

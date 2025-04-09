@@ -365,99 +365,44 @@ func testOutputCannonStepWithKzgPointEvaluation(t *testing.T, allocType config.A
 	})
 }
 
-func TestOutputCannonProposedOutputRootValid_Standard(t *testing.T) {
-	testOutputCannonProposedOutputRootValid(t, config.AllocTypeStandard)
+func TestOutputCannonProposedOutputRootValid_AttackWithCorrectTrace_Standard(t *testing.T) {
+	testOutputCannonProposedOutputRootValid_AttackWithCorrectTrace(t, config.AllocTypeStandard)
 }
 
 func TestOutputCannonProposedOutputRootValid_Multithreaded(t *testing.T) {
-	testOutputCannonProposedOutputRootValid(t, config.AllocTypeMTCannon)
+	testOutputCannonProposedOutputRootValid_AttackWithCorrectTrace(t, config.AllocTypeMTCannon)
 }
 
-func testOutputCannonProposedOutputRootValid(t *testing.T, allocType config.AllocType) {
+func testOutputCannonProposedOutputRootValid_AttackWithCorrectTrace(t *testing.T, allocType config.AllocType) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
-	honestStepsFail := func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
-		// Attack step should fail
-		correctTrace.StepFails(ctx, parentClaimIdx, true)
-		// Defending should fail too
-		correctTrace.StepFails(ctx, parentClaimIdx, false)
-	}
-	tests := []struct {
-		// name is the name of the test
-		name string
+	ctx := context.Background()
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	t.Cleanup(sys.Close)
 
-		// performMove is called to respond to each claim posted by the honest op-challenger.
-		// It should either attack or defend the claim at parentClaimIdx
-		performMove func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonProposalValid_AttackWithCorrectTrace(t, ctx, arena, &game.SplitGameHelper)
+}
 
-		// performStep is called once the maximum game depth is reached. It should perform a step to counter the
-		// claim at parentClaimIdx. Since the proposed output root is invalid, the step call should always revert.
-		performStep func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64)
-	}{
-		{
-			name: "AttackWithCorrectTrace",
-			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-				// Attack everything but oddly using the correct hash.
-				// Except the root of the cannon game must have an invalid VM status code.
-				if claim.IsOutputRootLeaf(ctx) {
-					return claim.Attack(ctx, common.Hash{0x01})
-				}
-				return correctTrace.AttackClaim(ctx, claim)
-			},
-			performStep: honestStepsFail,
-		},
-		{
-			name: "DefendWithCorrectTrace",
-			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-				// Can only attack the root claim or the first cannon claim
-				if claim.IsRootClaim() {
-					return correctTrace.AttackClaim(ctx, claim)
-				}
-				// The root of the cannon game must have an invalid VM status code
-				// Attacking ensure we're running the cannon trace between two different blocks
-				// instead of being in the trace extension of the output root bisection
-				if claim.IsOutputRootLeaf(ctx) {
-					return claim.Attack(ctx, common.Hash{0x01})
-				}
-				// Otherwise, defend everything using the correct hash.
-				return correctTrace.DefendClaim(ctx, claim)
-			},
-			performStep: honestStepsFail,
-		},
-	}
+func TestOutputCannonProposedOutputRootValid_DefendWithCorrectTrace_Standard(t *testing.T) {
+	testOutputCannonProposedOutputRootValid_DefendWithCorrectTrace(t, config.AllocTypeStandard)
+}
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UsesCannon)
+func TestOutputCannonProposedOutputRootValid_DefendWithCorrectTrace_Multithreaded(t *testing.T) {
+	testOutputCannonProposedOutputRootValid_DefendWithCorrectTrace(t, config.AllocTypeMTCannon)
+}
 
-			ctx := context.Background()
-			sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
-			t.Cleanup(sys.Close)
+func testOutputCannonProposedOutputRootValid_DefendWithCorrectTrace(t *testing.T, allocType config.AllocType) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	t.Cleanup(sys.Close)
 
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-			game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
-			correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory))
-
-			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-			// Now maliciously play the game and it should be impossible to win
-			game.ChallengeClaim(ctx,
-				game.RootClaim(ctx),
-				func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-					return test.performMove(ctx, game, correctTrace, claim)
-				},
-				func(parentClaimIdx int64) {
-					test.performStep(ctx, game, correctTrace, parentClaimIdx)
-				})
-
-			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-			game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
-		})
-	}
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonProposalValid_DefendWithCorrectTrace(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestOutputCannonPoisonedPostState_Standard(t *testing.T) {
