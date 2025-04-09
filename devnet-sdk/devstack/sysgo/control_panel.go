@@ -1,25 +1,33 @@
 package sysgo
 
-import "github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+import (
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+)
 
 type ControlPanel struct {
 	o *Orchestrator
 }
 
-func (c *ControlPanel) SupervisorState(id stack.SupervisorID, mode stack.Mode) {
-	// TODO
-	s, ok := c.o.supervisors.Get(id)
-	c.o.P().Require().True(ok, "need supervisor to change state")
+func control(lifecycle stack.Lifecycle, mode stack.Mode) {
 	switch mode {
-	case stack.Stopped:
-		s.stop()
-	case stack.Started:
-		s.start()
+	case stack.Start:
+		lifecycle.Start()
+	case stack.Stop:
+		lifecycle.Stop()
 	}
 }
 
+func (c *ControlPanel) SupervisorState(id stack.SupervisorID, mode stack.Mode) {
+	s, ok := c.o.supervisors.Get(id)
+	c.o.P().Require().True(ok, "need supervisor to change state")
+	control(s, mode)
+}
+
 func (c *ControlPanel) L2CLNodeState(id stack.L2CLNodeID, mode stack.Mode) {
-	// above supervisor handle can be behind {start() stop()} interface
+	s, ok := c.o.l2CLs.Get(id)
+	c.o.P().Require().True(ok, "need l2cl node to change state")
+	// control(s, mode)
+	_ = s
 }
 
 var _ stack.ControlPanel = (*ControlPanel)(nil)
