@@ -29,7 +29,7 @@ func InitParallel(t e2eutils.TestingBase, args ...func(t e2eutils.TestingBase)) 
 
 // isSubTest determines if the test is a sub-test or top level test.
 // It does this by checking if the test name contains /
-// This is not a particularly great way check, but appears to be the only option currently.
+// This is not a particularly great way to check, but appears to be the only option currently.
 func isSubTest(t e2eutils.TestingBase) bool {
 	return strings.Contains(t.Name(), "/")
 }
@@ -52,7 +52,7 @@ func UsesCannon(t e2eutils.TestingBase) {
 	}
 }
 
-// IsSlow indicates that the test is too expensive to run on the main CI workflow
+// IsSlow indicates that the test is too expensive to run on the main CI workflow.
 func IsSlow(t e2eutils.TestingBase) {
 	if os.Getenv("OP_E2E_SKIP_SLOW_TEST") == "true" {
 		t.Skip("Skipping slow test")
