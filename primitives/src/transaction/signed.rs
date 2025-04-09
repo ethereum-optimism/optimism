@@ -647,7 +647,6 @@ impl reth_codecs::Compact for OpTransactionSigned {
 #[cfg(any(test, feature = "arbitrary"))]
 impl<'a> arbitrary::Arbitrary<'a> for OpTransactionSigned {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-        #[allow(unused_mut)]
         let mut transaction = OpTypedTransaction::arbitrary(u)?;
 
         let secp = secp256k1::Secp256k1::new();
@@ -737,7 +736,6 @@ pub mod serde_bincode_compat {
 
     /// Bincode-compatible [`super::OpTypedTransaction`] serde implementation.
     #[derive(Debug, Serialize, Deserialize)]
-    #[allow(missing_docs)]
     enum OpTypedTransaction<'a> {
         Legacy(TxLegacy<'a>),
         Eip2930(TxEip2930<'a>),
