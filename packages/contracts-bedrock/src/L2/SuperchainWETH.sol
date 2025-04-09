@@ -45,8 +45,8 @@ contract SuperchainWETH is WETH98, IERC7802, ISemver {
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.15
-    string public constant version = "1.0.0-beta.15";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @inheritdoc WETH98
     function allowance(address owner, address spender) public view override returns (uint256) {

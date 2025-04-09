@@ -86,8 +86,8 @@ contract DeputyPauseModule is ISemver, EIP712 {
     mapping(bytes32 => bool) public usedNonces;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @param _foundationSafe Address of the Foundation Safe.
     /// @param _deputyGuardianModule Address of the DeputyGuardianModule used by the SC Safe.

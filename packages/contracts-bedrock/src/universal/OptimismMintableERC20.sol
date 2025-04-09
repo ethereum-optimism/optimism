@@ -47,8 +47,8 @@ contract OptimismMintableERC20 is ERC20Permit, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0-beta.5
-    string public constant version = "1.4.0-beta.5";
+    /// @custom:semver 1.4.1
+    string public constant version = "1.4.1";
 
     /// @notice Getter function for the permit2 address. It deterministically deployed
     ///         so it will always be at the same address. It is also included as a preinstall,
