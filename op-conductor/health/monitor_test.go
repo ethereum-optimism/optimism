@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/client"
+	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
@@ -69,6 +72,41 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		timeProviderFn: tp.Now,
 		node:           mockRollupClient,
 		p2p:            mockP2P,
+	}
+	err := monitor.Start(context.Background())
+	s.NoError(err)
+	return monitor
+}
+
+// SetupMonitorWithRollupBoost creates a HealthMonitor that includes a RollupBoostClient
+func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
+	now, unsafeInterval, safeInterval uint64,
+	mockRollupClient *testutils.MockRollupClient,
+	mockP2P *p2pMocks.API,
+	mockRollupBoost *clientmocks.RollupBoostClient,
+) *SequencerHealthMonitor {
+	tp := &timeProvider{now: now}
+	if mockP2P == nil {
+		mockP2P = &p2pMocks.API{}
+		ps1 := &p2p.PeerStats{
+			Connected: healthyPeerCount,
+		}
+		mockP2P.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+	}
+	monitor := &SequencerHealthMonitor{
+		log:            s.log,
+		interval:       s.interval,
+		metrics:        &metrics.NoopMetricsImpl{},
+		healthUpdateCh: make(chan error),
+		rollupCfg:      s.rollupCfg,
+		unsafeInterval: unsafeInterval,
+		safeInterval:   safeInterval,
+		safeEnabled:    true,
+		minPeerCount:   s.minPeerCount,
+		timeProviderFn: tp.Now,
+		node:           mockRollupClient,
+		p2p:            mockP2P,
+		rb:             mockRollupBoost,
 	}
 	err := monitor.Start(context.Background())
 	s.NoError(err)
@@ -203,6 +241,175 @@ func (s *HealthMonitorTestSuite) TestHealthyWithUnsafeLag() {
 	s.Nil(healthFailure)
 	s.Equal(lastSeenUnsafeTime+2, monitor.lastSeenUnsafeTime)
 	s.Equal(uint64(2), monitor.lastSeenUnsafeNum)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestRollupBoostConnectionDown() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	// Setup healthy node conditions
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+	rc.ExpectSyncStatus(ss1, nil)
+
+	// Setup healthy peer count
+	pc := &p2pMocks.API{}
+	ps1 := &p2p.PeerStats{
+		Connected: healthyPeerCount,
+	}
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+
+	// Setup rollup boost connection failure
+	rb := &clientmocks.RollupBoostClient{}
+	rb.EXPECT().Healthcheck(mock.Anything).Return(client.HealthStatus(""), errors.New("connection refused"))
+
+	// Start monitor with all dependencies
+	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, rb)
+
+	// Check for connection down error
+	healthUpdateCh := monitor.Subscribe()
+	healthFailure := <-healthUpdateCh
+	s.Equal(ErrRollupBoostConnectionDown, healthFailure)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestRollupBoostNotHealthy() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	// Setup healthy node conditions
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+	rc.ExpectSyncStatus(ss1, nil)
+
+	// Setup healthy peer count
+	pc := &p2pMocks.API{}
+	ps1 := &p2p.PeerStats{
+		Connected: healthyPeerCount,
+	}
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+
+	// Setup unhealthy rollup boost
+	rb := &clientmocks.RollupBoostClient{}
+	rb.EXPECT().Healthcheck(mock.Anything).Return(client.HealthStatusUnhealthy, nil)
+
+	// Start monitor with all dependencies
+	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, rb)
+
+	// Check for unhealthy status
+	healthUpdateCh := monitor.Subscribe()
+	healthFailure := <-healthUpdateCh
+	s.Equal(ErrRollupBoostNotHealthy, healthFailure)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestRollupBoostPartialStatus() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	// Setup healthy node conditions
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+	rc.ExpectSyncStatus(ss1, nil)
+
+	// Setup healthy peer count
+	pc := &p2pMocks.API{}
+	ps1 := &p2p.PeerStats{
+		Connected: healthyPeerCount,
+	}
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+
+	// Setup partial rollup boost status (treated as unhealthy)
+	rb := &clientmocks.RollupBoostClient{}
+	rb.EXPECT().Healthcheck(mock.Anything).Return(client.HealthStatusPartial, nil)
+
+	// Start monitor with all dependencies
+	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, rb)
+
+	// Check for unhealthy status
+	healthUpdateCh := monitor.Subscribe()
+	healthFailure := <-healthUpdateCh
+	s.Equal(ErrRollupBoostNotHealthy, healthFailure)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestRollupBoostHealthy() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	// Setup healthy node conditions
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+	rc.ExpectSyncStatus(ss1, nil)
+
+	// Setup healthy peer count
+	pc := &p2pMocks.API{}
+	ps1 := &p2p.PeerStats{
+		Connected: healthyPeerCount,
+	}
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+
+	// Setup healthy rollup boost
+	rb := &clientmocks.RollupBoostClient{}
+	rb.EXPECT().Healthcheck(mock.Anything).Return(client.HealthStatusHealthy, nil)
+
+	// Start monitor with all dependencies
+	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, rb)
+
+	// Should report healthy status
+	healthUpdateCh := monitor.Subscribe()
+	healthStatus := <-healthUpdateCh
+	s.Nil(healthStatus)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestRollupBoostNilClient() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	// Setup healthy node conditions
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+	rc.ExpectSyncStatus(ss1, nil)
+
+	// Setup healthy peer count
+	pc := &p2pMocks.API{}
+	ps1 := &p2p.PeerStats{
+		Connected: healthyPeerCount,
+	}
+	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
+
+	// Explicitly create a monitor with all other components but nil rollup boost client
+	tp := &timeProvider{now: now}
+	monitor := &SequencerHealthMonitor{
+		log:            s.log,
+		interval:       s.interval,
+		metrics:        &metrics.NoopMetricsImpl{},
+		healthUpdateCh: make(chan error),
+		rollupCfg:      s.rollupCfg,
+		unsafeInterval: 60,
+		safeInterval:   60,
+		safeEnabled:    true,
+		minPeerCount:   s.minPeerCount,
+		timeProviderFn: tp.Now,
+		node:           rc,
+		p2p:            pc,
+		rb:             nil, // Explicitly set to nil
+	}
+
+	err := monitor.Start(context.Background())
+	s.NoError(err)
+
+	// Health check should succeed even with nil rb
+	healthUpdateCh := monitor.Subscribe()
+	healthStatus := <-healthUpdateCh
+	s.Nil(healthStatus, "Health check should succeed with nil rollup boost client")
 
 	s.NoError(monitor.Stop())
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -209,6 +210,15 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	}
 	node := sources.NewRollupClient(nc)
 
+	var rb client.RollupBoostClient
+	if c.cfg.RollupBoostEnabled {
+		// new http client
+		httpClient := &http.Client{
+			Timeout: c.cfg.RollupBoostHealthcheckTimeout,
+		}
+		rb = client.NewRollupBoostClient(c.cfg.ExecutionRPC, httpClient)
+	}
+
 	pc, err := rpc.DialContext(ctx, c.cfg.NodeRPC)
 	if err != nil {
 		return errors.Wrap(err, "failed to create p2p rpc client")
@@ -226,6 +236,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		&c.cfg.RollupCfg,
 		node,
 		p2p,
+		rb,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 

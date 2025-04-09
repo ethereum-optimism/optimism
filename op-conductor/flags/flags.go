@@ -91,6 +91,18 @@ var (
 		Usage:   "HTTP provider URL for execution layer",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_RPC"),
 	}
+	RollupBoostEnabled = &cli.BoolFlag{
+		Name:    "rollup-boost.enabled",
+		Usage:   "Should be set to true if execution.rpc points to a rollup boost instance, false otherwise. If true, rollup boost specific healthchecks will be performed against the rollup boost instance.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_ENABLED"),
+		Value:   false,
+	}
+	RollupBoostHealthcheckTimeout = &cli.DurationFlag{
+		Name:    "rollup-boost.healthcheck-timeout",
+		Usage:   "Timeout for rollup boost healthcheck",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_HEALTHCHECK_TIMEOUT"),
+		Value:   5 * time.Second,
+	}
 	HealthCheckInterval = &cli.Uint64Flag{
 		Name:    "healthcheck.interval",
 		Usage:   "Interval between health checks",
