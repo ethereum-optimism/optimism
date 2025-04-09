@@ -81,16 +81,20 @@ func blocksTopicV3(cfg *rollup.Config) string {
 func blocksTopicV4(cfg *rollup.Config) string {
 	return fmt.Sprintf("/optimism/%s/3/blocks", cfg.L2ChainID.String())
 }
+func allBlocksTopics(cfg *rollup.Config) []string {
+	return []string{
+		blocksTopicV1(cfg),
+		blocksTopicV2(cfg),
+		blocksTopicV3(cfg),
+		blocksTopicV4(cfg),
+		// add more topics here in the future, if any.
+	}
+}
 
 // BuildSubscriptionFilter builds a simple subscription filter,
 // to help protect against peers spamming useless subscriptions.
 func BuildSubscriptionFilter(cfg *rollup.Config) pubsub.SubscriptionFilter {
-	return pubsub.NewAllowlistSubscriptionFilter(
-		blocksTopicV1(cfg),
-		blocksTopicV2(cfg),
-		blocksTopicV3(cfg),
-		blocksTopicV4(cfg), // add more topics here in the future, if any.
-	)
+	return pubsub.NewAllowlistSubscriptionFilter(allBlocksTopics(cfg)...)
 }
 
 var msgBufPool = sync.Pool{New: func() any {
