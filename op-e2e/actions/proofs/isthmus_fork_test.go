@@ -110,9 +110,9 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 }
 
 // Test_ProgramAction_IsthmusWithdrawlsRoot tests the withdrawals root in the header:
-// - pre canyon
 // - post canyon but pre Isthmus
 // - post Isthmus
+// We do not include pre canyon behaviour (nil withdrawals root) since Canyon does not support Cancun L1.
 // It does this by activating the relevant forks at genesis.
 // It runs the fault proof program.
 func Test_ProgramAction_IsthmusWithdrawlsRoot(gt *testing.T) {
@@ -120,7 +120,7 @@ func Test_ProgramAction_IsthmusWithdrawlsRoot(gt *testing.T) {
 
 	matrix.AddDefaultTestCases(
 		nil,
-		helpers.NewForkMatrix(helpers.Regolith, helpers.Canyon, helpers.Isthmus),
+		helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus),
 		testWithdrawlsRoot,
 	)
 
@@ -154,12 +154,10 @@ func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	sequencer.ActL2EmptyBlock(t)
 	sequencer.ActL2EmptyBlock(t)
 
-	if testCfg.Hardfork == helpers.Regolith {
-		verifyPreCanyonHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
-	} else if testCfg.Hardfork == helpers.Canyon {
-		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
-	} else if testCfg.Hardfork == helpers.Isthmus {
+	if sequencer.RollupCfg.IsIsthmus(engine.L2Chain().CurrentBlock().Time) {
 		verifyIsthmusHeaderWithdrawalsRoot(gt, engine.RPCClient(), engine.L2Chain().CurrentBlock(), true)
+	} else {
+		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
 	}
 
 	l2Safe := sequencer.L2Safe()
@@ -267,11 +265,6 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 			testWithdrawlsRootIsthmus,
 		)
 	}
-}
-
-// Pre-Canyon, the withdrawals root field in the header should be nil
-func verifyPreCanyonHeaderWithdrawalsRoot(gt *testing.T, header *types.Header) {
-	require.Nil(gt, header.WithdrawalsHash)
 }
 
 // Post-Canyon, the withdrawals root field in the header should be EmptyWithdrawalsHash
