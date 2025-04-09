@@ -1237,7 +1237,7 @@ jobs:
       # Notification step
       - notify-failures-on-develop:
           channel: "C03N11M0BBN"  # #notify-ci-failures
-          mentions: "@protocol-devx-pod"
+          mentions: "@stefano" # temporarily just mention Stefano until the acceptance tests are stable (was: @protocol-devx-pod)
 
   sanitize-op-program:
     docker:
