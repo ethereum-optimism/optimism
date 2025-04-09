@@ -38,7 +38,7 @@ func TestLoadArtifact(t *testing.T) {
 	// Test case 3: Non-existent file
 	_, err = loadArtifact(filepath.Join(tempDir, "nonexistent.json"))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read artifact file")
+	assert.Contains(t, err.Error(), "artifact file not found", "Should correctly report non-existent file")
 
 	// Test case 4: Invalid JSON
 	err = os.WriteFile(artifactPath, []byte("invalid json"), 0644)
@@ -492,7 +492,7 @@ func TestFindDifferences(t *testing.T) {
 			expectedBytecode: "0x1234",
 			actualBytecode:   "0x123456",
 			immutableRefs:    map[string][]ImmutableReference{},
-			wantDiffs:        0, // No differences in the common part
+			wantDiffs:        1,
 			wantImmutable:    0,
 			wantErr:          false,
 		},
@@ -588,13 +588,13 @@ func TestPrintDifferences(t *testing.T) {
 	}
 
 	// This should not panic
-	printDifferences(differences, immutableRefs)
+	printDifferences(differences, immutableRefs, false)
 
 	// Test with empty differences
-	printDifferences([]BytecodeDifference{}, immutableRefs)
+	printDifferences([]BytecodeDifference{}, immutableRefs, false)
 
 	// Test with empty immutable references
-	printDifferences(differences, map[string][]ImmutableReference{})
+	printDifferences(differences, map[string][]ImmutableReference{}, false)
 }
 
 // Test handling of bytecode with and without 0x prefix
