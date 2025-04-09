@@ -81,6 +81,7 @@ func blocksTopicV3(cfg *rollup.Config) string {
 func blocksTopicV4(cfg *rollup.Config) string {
 	return fmt.Sprintf("/optimism/%s/3/blocks", cfg.L2ChainID.String())
 }
+
 func allBlocksTopics(cfg *rollup.Config) []string {
 	return []string{
 		blocksTopicV1(cfg),
