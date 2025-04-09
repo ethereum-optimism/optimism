@@ -209,7 +209,8 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
 			sequencer.ActL2StartBlock(t)
 
-			if withdrawalTx && withdrawalTxBlock == i {
+			doWithdrawalTx := withdrawalTx && withdrawalTxBlock == i
+			if doWithdrawalTx {
 				l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
 				require.NoError(t, err, "binding withdrawer on L2")
 
@@ -226,7 +227,7 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 			}
 			sequencer.ActL2EndBlock(t)
 
-			if withdrawalTx && withdrawalTxBlock == i {
+			if doWithdrawalTx {
 				// wait for withdrawal to be included in a block
 				receipt, err := geth.WaitForTransaction(tx.Hash(), ethCl, 10*time.Duration(env.Dp.DeployConfig.L2BlockTime)*time.Second)
 				require.NoError(t, err, "withdrawal initiated on L2 sequencer")
