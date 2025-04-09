@@ -37,10 +37,10 @@ func TestController(gt *testing.T) {
 	controlPanel := orch.ControlPanel()
 
 	stopPauseStartSupervisor := func() {
-		controlPanel.SupervisorState(ids.Supervisor, stack.Stopped)
+		controlPanel.SupervisorState(ids.Supervisor, stack.Stop)
 		// ports change
 		time.Sleep(time.Second * 4)
-		controlPanel.SupervisorState(ids.Supervisor, stack.Started)
+		controlPanel.SupervisorState(ids.Supervisor, stack.Start)
 	}
 	// This does not work, must not interfere at block number 0. Fix this
 	// stopPauseStartSupervisor()
