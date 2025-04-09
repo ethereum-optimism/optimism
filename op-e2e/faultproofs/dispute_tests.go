@@ -296,12 +296,6 @@ func testCannonProposalValid_AttackWithCorrectTrace(t *testing.T, ctx context.Co
 	require.True(t, rootIsCorrect(t, ctx, arena, game), "This test must be run with a correct proposal root")
 	correctTrace := arena.CreateHonestActor(ctx)
 
-	performStep := func(ctx context.Context, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
-		// Attack step should fail
-		correctTrace.StepFails(ctx, parentClaimIdx, true)
-		// Defending should fail too
-		correctTrace.StepFails(ctx, parentClaimIdx, false)
-	}
 	performMove := func(ctx context.Context, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 		// Attack everything but oddly using the correct hash.
 		// Except the root of the cannon game must have an invalid VM status code.
@@ -319,9 +313,7 @@ func testCannonProposalValid_AttackWithCorrectTrace(t *testing.T, ctx context.Co
 		func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 			return performMove(ctx, correctTrace, claim)
 		},
-		func(parentClaimIdx int64) {
-			performStep(ctx, correctTrace, parentClaimIdx)
-		},
+		verifyFinalStepper(t, ctx, arena, game),
 	)
 
 	arena.AdvanceTime(game.MaxClockDuration(ctx))
@@ -333,12 +325,6 @@ func testCannonProposalValid_DefendWithCorrectTrace(t *testing.T, ctx context.Co
 	require.True(t, rootIsCorrect(t, ctx, arena, game), "This test must be run with a correct proposal root")
 	correctTrace := arena.CreateHonestActor(ctx)
 
-	performStep := func(ctx context.Context, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
-		// Attack step should fail
-		correctTrace.StepFails(ctx, parentClaimIdx, true)
-		// Defending should fail too
-		correctTrace.StepFails(ctx, parentClaimIdx, false)
-	}
 	performMove := func(ctx context.Context, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 		// Can only attack the root claim or the first cannon claim
 		if claim.IsRootClaim() {
@@ -362,9 +348,7 @@ func testCannonProposalValid_DefendWithCorrectTrace(t *testing.T, ctx context.Co
 		func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
 			return performMove(ctx, correctTrace, claim)
 		},
-		func(parentClaimIdx int64) {
-			performStep(ctx, correctTrace, parentClaimIdx)
-		},
+		verifyFinalStepper(t, ctx, arena, game),
 	)
 
 	arena.AdvanceTime(game.MaxClockDuration(ctx))

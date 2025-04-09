@@ -411,7 +411,7 @@ func (h *FactoryHelper) WaitForSuperTimestamp(l2Timestamp uint64, cfg *GameCfg) 
 						break
 					}
 				}
-				if !localUnsafeAtTimestamp {
+				if localUnsafeAtTimestamp {
 					return
 				}
 			} else {
@@ -421,7 +421,7 @@ func (h *FactoryHelper) WaitForSuperTimestamp(l2Timestamp uint64, cfg *GameCfg) 
 			}
 			// log every 30 seconds
 			if time.Since(lastLog) > 30*time.Second {
-				h.T.Logf("Waiting for super timestamp %v. Latest safe timestamp: %v", l2Timestamp, status.SafeTimestamp)
+				h.T.Logf("Waiting for super timestamp %v. Latest safe: %v", l2Timestamp, status.SafeTimestamp)
 				lastLog = time.Now()
 			}
 		case <-ctx.Done():

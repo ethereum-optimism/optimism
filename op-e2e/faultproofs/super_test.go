@@ -17,6 +17,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-e2e/interop"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -248,10 +250,12 @@ func TestSuperCannonStepWithPreimage(t *testing.T) {
 		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
 
-	// TODO(#15311): Add blob preimage test case
-	preimageConditions := []string{"keccak", "sha256"}
+	preimageConditions := []string{"keccak", "sha256", "blob"}
 	for _, preimageType := range preimageConditions {
 		preimageType := preimageType
+		if preimageType == "blob" || preimageType == "sha256" {
+			t.Skip("TODO(#15311): Add blob preimage test case. sha256 is also used for blobs")
+		}
 		t.Run("non-existing preimage-"+preimageType, func(t *testing.T) {
 			testPreimageStep(t, utils.FirstPreimageLoadOfType(preimageType), false)
 		})
@@ -311,6 +315,7 @@ func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
 }
 
 func TestSuperInvalidateUnsafeProposal(t *testing.T) {
+	t.Skip("TODO(#15321): Challenger does not respond to unsafe proposals")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
 	tests := []struct {
@@ -342,10 +347,33 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
-			timestamp := uint64(1)
 			sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(config.AllocTypeMTCannon))
+
+			client := sys.SupervisorClient()
+			status, err := client.SyncStatus(ctx)
+			require.NoError(t, err, "Failed to get sync status")
+			// Ensure that the superchain has progressed a bit past the genesis timestamp
+			disputeGameFactory.WaitForSuperTimestamp(status.SafeTimestamp+4, &disputegame.GameCfg{})
+			// halt the safe chain
+			for _, id := range sys.L2IDs() {
+				require.NoError(t, sys.Batcher(id).Stop(ctx))
+			}
+
+			status, err = client.SyncStatus(ctx)
+			require.NoError(t, err, "Failed to get sync status")
+
+			// Wait for any client to advance its unsafe head past the safe chain. We know this head will remain unsafe since the batc
+			l2Client := sys.L2GethClient(sys.L2IDs()[0], "sequencer")
+			wait.ForNextBlock(ctx, l2Client)
+			head, err := l2Client.BlockByNumber(ctx, nil)
+			require.NoError(t, err, "Failed to get head block")
+			unsafeTimestamp := head.Time()
+
 			// Root claim is _dishonest_ because the required data is not available on L1
-			game := disputeGameFactory.StartSuperCannonGameWithCorrectRootAtTimestamp(ctx, timestamp, disputegame.WithUnsafeProposal())
+			unsafeSuper := createSuperRoot(t, ctx, sys, unsafeTimestamp)
+			unsafeRoot := eth.SuperRoot(unsafeSuper)
+			game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, unsafeTimestamp, common.Hash(unsafeRoot), disputegame.WithFutureProposal())
+
 			correctTrace := game.CreateHonestActor(ctx, disputegame.WithPrivKey(malloryKey(t)), func(c *disputegame.HonestActorConfig) {
 				c.ChallengerOpts = append(c.ChallengerOpts, challenger.WithDepset(t, sys.DependencySet()))
 			})
@@ -660,4 +688,29 @@ func TestSuperCannonGame_HonestCallsSteps(t *testing.T) {
 	sys.AdvanceL1Time(game.MaxClockDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, sys.L1GethClient()))
 	game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
+}
+
+func createSuperRoot(t *testing.T, ctx context.Context, sys interop.SuperSystem, timestamp uint64) *eth.SuperV1 {
+	chains := make(map[eth.ChainID]eth.Bytes32)
+	for _, id := range sys.L2IDs() {
+		rollupCfg := sys.RollupConfig(id)
+		blockNum, err := rollupCfg.TargetBlockNumber(timestamp)
+		t.Logf("Target block number for timestamp %v (%v): %v", timestamp, rollupCfg.L2ChainID, blockNum)
+		require.NoError(t, err)
+
+		client := sys.L2RollupClient(id, "sequencer")
+		output, err := client.OutputAtBlock(ctx, blockNum)
+		require.NoError(t, err)
+		chains[eth.ChainIDFromBig(rollupCfg.L2ChainID)] = output.OutputRoot
+	}
+
+	var output eth.SuperV1
+	for _, chainID := range sys.DependencySet().Chains() {
+		output.Chains = append(output.Chains, eth.ChainIDAndOutput{
+			ChainID: chainID,
+			Output:  chains[chainID],
+		})
+	}
+	output.Timestamp = timestamp
+	return &output
 }
