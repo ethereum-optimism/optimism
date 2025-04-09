@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/stretchr/testify/suite"
 )
@@ -65,11 +66,7 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
 	scoringParams, err := GetScoringParams("light", cfg)
 	peerParams := scoringParams.PeerScoring
 	testSuite.NoError(err)
-	// Topics should contain options for block topic
-	testSuite.Len(peerParams.Topics, 1)
-	topicParams, ok := peerParams.Topics[blocksTopicV1(cfg)]
-	testSuite.True(ok, "should have block topic params")
-	testSuite.NotZero(topicParams.TimeInMeshQuantum)
+	requireAllTopicsPresent(testSuite, peerParams, cfg)
 	testSuite.Equal(peerParams.TopicScoreCap, float64(34))
 	testSuite.Equal(peerParams.AppSpecificWeight, float64(1))
 	testSuite.Equal(peerParams.IPColocationFactorWeight, float64(-35))
@@ -94,6 +91,15 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
 	testSuite.Positive(appParams.RejectedPayloadDecay)
 	testSuite.Equal(DecayToZero, appParams.DecayToZero)
 	testSuite.Equal(slot, appParams.DecayInterval)
+}
+
+// requireAllTopicsPresent checks that all block topics are present in the peer params.
+func requireAllTopicsPresent(testSuite *PeerParamsTestSuite, peerParams pubsub.PeerScoreParams, cfg *rollup.Config) {
+	for _, topic := range allBlocksTopics(cfg) {
+		topicParams, ok := peerParams.Topics[topic]
+		testSuite.True(ok, "should have block topic params, topic: %s", topic)
+		testSuite.NotZero(topicParams.TimeInMeshQuantum, "should have nonzero TimeInMeshQuantum")
+	}
 }
 
 // TestParamsZeroBlockTime validates peer score params use default slot for 0 block time.
