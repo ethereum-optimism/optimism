@@ -201,11 +201,14 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 
 	// Update operator fee parameters
 	logger.Info("Updating operator fee parameters",
-		"constant", tc.OperatorFeeConstant,
-		"scalar", tc.OperatorFeeScalar)
+		"operator_fee_constant", tc.OperatorFeeConstant,
+		"operator_fee_scalar", tc.OperatorFeeScalar,
+		"l1_base_fee_scalar", tc.L1BaseFeeScalar,
+		"l1_blob_base_fee_scalar", tc.L1BlobBaseFeeScalar,
+	)
 	err, reset := EnsureFeeParams(systemConfig, systemConfigProxyAddr, l2L1BlockContract, l1RollupOwnerWallet, tc)
 	require.NoError(t, err)
-	logger.Info("Fee parameters updated")
+	logger.Info("Ensure fee parameters updated")
 	defer func() {
 		logger.Info("Resetting fee parameters")
 		err := reset()
@@ -221,7 +224,6 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	logger.Debug("Initial balances", "balances", startBalances)
 
 	// Send the test transaction
-	logger.Info("Current base fee", "fee", l2PreTestHeader.BaseFee)
 	tx, receipt, err := SendValueTx(l2TestWallet1, l2TestWallet2.Address(), big.NewInt(1000))
 	require.NoError(t, err, "failed to send test transaction where it should succeed")
 
