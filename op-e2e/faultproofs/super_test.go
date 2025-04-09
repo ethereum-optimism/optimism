@@ -364,7 +364,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 
 			// Wait for any client to advance its unsafe head past the safe chain. We know this head will remain unsafe since the batc
 			l2Client := sys.L2GethClient(sys.L2IDs()[0], "sequencer")
-			wait.ForNextBlock(ctx, l2Client)
+			require.NoError(t, wait.ForNextBlock(ctx, l2Client))
 			head, err := l2Client.BlockByNumber(ctx, nil)
 			require.NoError(t, err, "Failed to get head block")
 			unsafeTimestamp := head.Time()
