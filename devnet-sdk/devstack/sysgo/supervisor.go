@@ -2,6 +2,9 @@ package sysgo
 
 import (
 	"context"
+	"net/url"
+	"strconv"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,6 +24,8 @@ import (
 )
 
 type Supervisor struct {
+	mu sync.Mutex
+
 	id      stack.SupervisorID
 	userRPC string
 
@@ -30,6 +35,8 @@ type Supervisor struct {
 
 	service *supervisor.SupervisorService
 }
+
+var _ stack.Lifecycle = (*Supervisor)(nil)
 
 func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
 	tlog := sys.Logger().New("id", s.id)
@@ -44,10 +51,11 @@ func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
 	}))
 }
 
-func (s *Supervisor) start() {
-	// TODO lock
+func (s *Supervisor) Start() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.service != nil {
-		s.logger.Warn("Already started")
+		s.logger.Warn("Supervisor already started")
 		return
 	}
 	super, err := supervisor.SupervisorFromConfig(context.Background(), s.cfg, s.logger)
@@ -56,16 +64,21 @@ func (s *Supervisor) start() {
 	s.service = super
 	s.logger.Info("Starting supervisor")
 	err = super.Start(context.Background())
-	s.logger.Info("Started supervisor")
 	s.p.Require().NoError(err)
+	s.logger.Info("Started supervisor")
 
 	s.userRPC = super.RPC()
+	rpcUrl, err := url.Parse(s.userRPC)
+	s.p.Require().NoError(err)
+	s.cfg.RPC.ListenPort, err = strconv.Atoi(rpcUrl.Port())
+	s.p.Require().NoError(err)
 }
 
-func (s *Supervisor) stop() {
-	// TODO
+func (s *Supervisor) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.service == nil {
-		s.logger.Warn("Already stopped")
+		s.logger.Warn("Supervisor already stopped")
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -73,11 +86,6 @@ func (s *Supervisor) stop() {
 	s.logger.Info("Closing supervisor")
 	closeErr := s.service.Stop(ctx)
 	s.logger.Info("Closed supervisor", "err", closeErr)
-
-	// TODO: maybe option: parse port, write it to the config,
-	//  so the next start will use the same port as we used to have
-	//detectedPort = parseTodo(s.service.RPC())
-	//s.cfg.RPC.ListenPort = detectedPort
 
 	s.service = nil
 }
@@ -105,8 +113,10 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 				Format: oplog.FormatText,
 			},
 			RPC: oprpc.CLIConfig{
-				ListenAddr:  "127.0.0.1",
-				ListenPort:  34444, // FIXME
+				ListenAddr: "127.0.0.1",
+				// When supervisor starts, store its RPC port here
+				// given by the os, to reclaim when restart.
+				ListenPort:  0,
 				EnableAdmin: true,
 			},
 			SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
@@ -132,8 +142,8 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 			service: nil, // set on start
 		}
 		orch.supervisors.Set(supervisorID, supervisorNode)
-		supervisorNode.start()
-		orch.p.Cleanup(supervisorNode.stop)
+		supervisorNode.Start()
+		orch.p.Cleanup(supervisorNode.Stop)
 	}
 }
 
