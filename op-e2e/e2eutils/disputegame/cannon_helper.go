@@ -1,11 +1,9 @@
 package disputegame
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"path/filepath"
@@ -123,29 +121,13 @@ func (g *CannonHelper) WaitForPreimageInOracle(ctx context.Context, data *types.
 
 // CheckPreimageInOracle verifies that expectedData is stored on-chain in the PreimageOracle
 func (g *CannonHelper) CheckPreimageInOracle(ctx context.Context, data *types.PreimageOracleData, expectedData [32]byte) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	oracle := g.oracle(ctx)
-
 	// Make sure data for this key and offset has been set before attempting to retrieve the data
 	g.WaitForPreimageInOracle(ctx, data)
 
 	// Pull preimage data from oracle and verify it matches our expectation
-	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		g.t.Logf("Waiting to get preimage data from oracle for key: (%v)", common.Bytes2Hex(data.OracleKey))
-		globalData, err := oracle.GetGlobalData(ctx, data)
-		if err != nil {
-			return false, err
-		}
-
-		// Compare retrieved data to expected data
-		if !bytes.Equal(globalData[:], expectedData[:]) {
-			return false, fmt.Errorf("Expected preimage part: %x\nFound: %x", expectedData, globalData[:])
-		}
-
-		return true, nil
-	})
-	g.require.NoErrorf(err, "Failed to confirm preimage data for key (%v) matches expectation", common.Bytes2Hex(data.OracleKey))
+	globalData, err := g.oracle(ctx).GetGlobalData(ctx, data)
+	g.require.NoError(err, "Failed to fetch global data")
+	g.require.Equal(expectedData[:], globalData[:], "Preimage data is incorrect")
 }
 
 // GetPreimageAtOffset returns a slice of the preimage data (with size prefix) at the specified offset
