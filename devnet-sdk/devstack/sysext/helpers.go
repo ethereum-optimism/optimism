@@ -30,21 +30,21 @@ func (orch *Orchestrator) rpcClient(t devtest.T, endpoint string) client.RPC {
 	}
 
 	// TODO function arg
-	var serviceName string
+	// var serviceName string
 
 	// op-service client util:
 	//	ReconnectingClient
 	//    contains a callback method to dynamically get the endpoint,
 	//    whenever there is a connection issue
 	//
-	opts = append(opts, client.WithReconnector(func() string {
-		newEndpoint, ok := orch.diff[serviceName]
-		if !ok {
-			// no changes, can use original inventory (aka the endpoint arg)
-			return endpoint
-		}
-		return newEndpoint
-	}))
+	// opts = append(opts, client.WithReconnector(func() string {
+	// 	newEndpoint, ok := orch.diff[serviceName]
+	// 	if !ok {
+	// 		// no changes, can use original inventory (aka the endpoint arg)
+	// 		return endpoint
+	// 	}
+	// 	return newEndpoint
+	// }))
 	cl, err := client.NewRPC(t.Ctx(), t.Logger(), endpoint, opts...)
 
 	// wrap the RPC

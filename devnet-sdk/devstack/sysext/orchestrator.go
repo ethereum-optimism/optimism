@@ -23,9 +23,15 @@ type Orchestrator struct {
 
 	usePrivatePorts    bool
 	useEagerRPCClients bool
+
+	panel *ControlPanel
 }
 
 var _ stack.Orchestrator = (*Orchestrator)(nil)
+
+func (o *Orchestrator) ControlPanel() stack.ControlPanel {
+	return o.panel
+}
 
 func NewOrchestrator(p devtest.P) *Orchestrator {
 	url := os.Getenv(env.EnvURLVar)
