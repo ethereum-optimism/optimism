@@ -18,7 +18,7 @@ type PortInfo struct {
 }
 
 // EndpointMap is a map of service names to their endpoints.
-type EndpointMap map[string]PortInfo
+type EndpointMap map[string]*PortInfo
 
 // Service represents a chain service (e.g. batcher, proposer, challenger)
 type Service struct {
@@ -27,7 +27,7 @@ type Service struct {
 }
 
 // ServiceMap is a map of service names to services.
-type ServiceMap map[string]Service
+type ServiceMap map[string]*Service
 
 // Node represents a node for a chain
 type Node struct {
@@ -50,7 +50,7 @@ type Chain struct {
 }
 
 type L2Chain struct {
-	Chain
+	*Chain
 	L1Addresses AddressMap `json:"l1_addresses,omitempty"`
 	L1Wallets   WalletMap  `json:"l1_wallets,omitempty"`
 }
@@ -62,7 +62,7 @@ type Wallet struct {
 }
 
 // WalletMap is a map of wallet names to wallets.
-type WalletMap map[string]Wallet
+type WalletMap map[string]*Wallet
 
 // DevnetEnvironment exposes the relevant information to interact with a devnet.
 type DevnetEnvironment struct {

@@ -147,7 +147,7 @@ func NewKurtosisDeployer(opts ...KurtosisDeployerOptions) (*KurtosisDeployer, er
 func (d *KurtosisDeployer) getWallets(wallets deployer.WalletList) descriptors.WalletMap {
 	walletMap := make(descriptors.WalletMap)
 	for _, wallet := range wallets {
-		walletMap[wallet.Name] = descriptors.Wallet{
+		walletMap[wallet.Name] = &descriptors.Wallet{
 			Address:    types.Address(wallet.Address),
 			PrivateKey: wallet.PrivateKey,
 		}
@@ -222,7 +222,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 		nodes, services := finder.FindL2Services(chainSpec.Name)
 
 		chain := &descriptors.L2Chain{
-			Chain: descriptors.Chain{
+			Chain: &descriptors.Chain{
 				Name:     chainSpec.Name,
 				ID:       chainSpec.NetworkID,
 				Services: services,

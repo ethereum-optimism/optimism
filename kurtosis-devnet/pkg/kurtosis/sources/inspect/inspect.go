@@ -9,7 +9,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
 )
 
-type PortMap map[string]descriptors.PortInfo
+type PortMap map[string]*descriptors.PortInfo
 
 type ServiceMap map[string]PortMap
 
@@ -70,7 +70,7 @@ func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 		portMap := make(PortMap)
 
 		for port, portSpec := range svcCtx.GetPublicPorts() {
-			portMap[port] = descriptors.PortInfo{
+			portMap[port] = &descriptors.PortInfo{
 				Host: svcCtx.GetMaybePublicIPAddress(),
 				Port: int(portSpec.GetNumber()),
 			}

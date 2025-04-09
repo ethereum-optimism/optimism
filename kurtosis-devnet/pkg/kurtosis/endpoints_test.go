@@ -66,7 +66,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 			wantNodes: []descriptors.Node{
 				{
 					Services: descriptors.ServiceMap{
-						"cl": descriptors.Service{
+						"cl": &descriptors.Service{
 							Name: "cl-1-lighthouse-geth",
 							Endpoints: descriptors.EndpointMap{
 								"metrics":       {Port: 52691},
@@ -75,7 +75,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 								"http":          {Port: 52693},
 							},
 						},
-						"el": descriptors.Service{
+						"el": &descriptors.Service{
 							Name: "el-1-geth-lighthouse",
 							Endpoints: descriptors.EndpointMap{
 								"metrics":       {Port: 52643},
@@ -100,7 +100,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 			wantNodes: []descriptors.Node{
 				{
 					Services: descriptors.ServiceMap{
-						"cl": descriptors.Service{
+						"cl": &descriptors.Service{
 							Name: "op-cl-1-op-node-op-geth-op-kurtosis",
 							Endpoints: descriptors.EndpointMap{
 								"udp-discovery": {Port: 50990},
@@ -108,7 +108,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 								"tcp-discovery": {Port: 53504},
 							},
 						},
-						"el": descriptors.Service{
+						"el": &descriptors.Service{
 							Name: "op-el-1-op-geth-op-node-op-kurtosis",
 							Endpoints: descriptors.EndpointMap{
 								"udp-discovery": {Port: 53233},
@@ -123,7 +123,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 				},
 			},
 			wantServices: descriptors.ServiceMap{
-				"batcher": descriptors.Service{
+				"batcher": &descriptors.Service{
 					Name: "op-batcher-op-kurtosis",
 					Endpoints: descriptors.EndpointMap{
 						"http": {Port: 53572},
@@ -143,7 +143,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 			},
 			wantNodes: nil,
 			wantServices: descriptors.ServiceMap{
-				"batcher": descriptors.Service{
+				"batcher": &descriptors.Service{
 					Name: "op-batcher-custom-host",
 					Endpoints: descriptors.EndpointMap{
 						"http": {Host: "custom.host", Port: 8080},

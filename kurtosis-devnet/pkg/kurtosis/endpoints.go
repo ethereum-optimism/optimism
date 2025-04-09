@@ -117,7 +117,7 @@ func (f *ServiceFinder) findRPCEndpoints(matchService func(string) (string, int,
 					for portName, portInfo := range ports {
 						endpoints[portName] = portInfo
 					}
-					nodes[num-1].Services[serviceIdentifier] = descriptors.Service{
+					nodes[num-1].Services[serviceIdentifier] = &descriptors.Service{
 						Name:      serviceName,
 						Endpoints: endpoints,
 					}
@@ -129,7 +129,7 @@ func (f *ServiceFinder) findRPCEndpoints(matchService func(string) (string, int,
 				for portName, portInfo := range ports {
 					endpoints[portName] = portInfo
 				}
-				serviceMap[serviceIdentifier] = descriptors.Service{
+				serviceMap[serviceIdentifier] = &descriptors.Service{
 					Name:      serviceName,
 					Endpoints: endpoints,
 				}

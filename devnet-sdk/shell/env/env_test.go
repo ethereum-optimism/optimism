@@ -116,7 +116,7 @@ func TestGetChain(t *testing.T) {
 			},
 			L2: []*descriptors.L2Chain{
 				{
-					Chain: descriptors.Chain{
+					Chain: &descriptors.Chain{
 						Name: "op",
 						Nodes: []descriptors.Node{
 							{
@@ -141,7 +141,7 @@ func TestGetChain(t *testing.T) {
 						"deployer": common.HexToAddress("0x2345678901234567890123456789012345678901"),
 					},
 					L1Wallets: descriptors.WalletMap{
-						"deployer": descriptors.Wallet{
+						"deployer": &descriptors.Wallet{
 							Address:    common.HexToAddress("0x2345678901234567890123456789012345678901"),
 							PrivateKey: "0x2345678901234567890123456789012345678901",
 						},

@@ -29,7 +29,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 		l1.AddL1ELNode(shim.NewL1ELNode(shim.L1ELNodeConfig{
 			ELNodeConfig: shim.ELNodeConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(system.T(), &elService, RPCProtocol),
+				Client:       o.rpcClient(system.T(), elService, RPCProtocol),
 				ChainID:      l1ID,
 			},
 			ID: stack.L1ELNodeID{
@@ -47,7 +47,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 				ChainID: l1ID,
 			},
 			CommonConfig: commonConfig,
-			Client:       o.httpClient(system.T(), &clService, HTTPProtocol),
+			Client:       o.httpClient(system.T(), clService, HTTPProtocol),
 		}))
 	}
 
