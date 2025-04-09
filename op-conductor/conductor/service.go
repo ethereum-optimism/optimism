@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -207,6 +208,14 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		return errors.Wrap(err, "failed to create node rpc client")
 	}
 	node := sources.NewRollupClient(nc)
+
+	var rb client.RollupBoostClient
+	if c.cfg.RollupBoostEnabled {
+		rb = client.NewRollupBoostClient(c.cfg.ExecutionRPC, &http.Client{
+			Timeout: c.cfg.RollupBoostHealthcheckTimeout,
+		})
+	}
+
 	p2p := sources.NewP2PClient(nc)
 
 	var supervisor health.SupervisorHealthAPI
@@ -230,6 +239,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		node,
 		p2p,
 		supervisor,
+		rb,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 

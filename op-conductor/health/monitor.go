@@ -3,11 +3,13 @@ package health
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -15,9 +17,12 @@ import (
 )
 
 var (
-	ErrSequencerNotHealthy      = errors.New("sequencer is not healthy")
-	ErrSequencerConnectionDown  = errors.New("cannot connect to sequencer rpc endpoints")
-	ErrSupervisorConnectionDown = errors.New("cannot connect to supervisor rpc endpoint")
+	ErrSequencerNotHealthy         = errors.New("sequencer is not healthy")
+	ErrSequencerConnectionDown     = errors.New("cannot connect to sequencer rpc endpoints")
+	ErrSupervisorConnectionDown    = errors.New("cannot connect to supervisor rpc endpoint")
+	ErrRollupBoostConnectionDown   = errors.New("cannot connect to rollup boost rpc endpoints")
+	ErrRollupBoostPartiallyHealthy = errors.New("rollup boost is partially healthy, meaning that rbuilder is not healthy but the execution client is healthy")
+	ErrRollupBoostNotHealthy       = errors.New("rollup boost is not healthy")
 )
 
 // HealthMonitor defines the interface for monitoring the health of the sequencer.
@@ -34,7 +39,7 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient) HealthMonitor {
 	return &SequencerHealthMonitor{
 		log:            log,
 		metrics:        metrics,
@@ -49,6 +54,7 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		node:           node,
 		p2p:            p2p,
 		supervisor:     supervisor,
+		rb:             rb,
 	}
 }
 
@@ -74,6 +80,7 @@ type SequencerHealthMonitor struct {
 	node       dial.RollupClientInterface
 	p2p        apis.P2PClient
 	supervisor SupervisorHealthAPI
+	rb         client.RollupBoostClient
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -136,6 +143,35 @@ func (hm *SequencerHealthMonitor) loop(ctx context.Context) {
 // 2. safe head is progressing every configured batch submission interval
 // 3. peer count is above the configured minimum
 func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
+	err := hm.checkNode(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = hm.checkRollupBoost(ctx)
+	if err != nil {
+		return err
+	}
+
+	hm.log.Info("sequencer is healthy")
+	return nil
+}
+
+func (hm *SequencerHealthMonitor) checkNode(ctx context.Context) error {
+	err := hm.checkNodeSyncStatus(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = hm.checkNodePeerCount(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (hm *SequencerHealthMonitor) checkNodeSyncStatus(ctx context.Context) error {
 	status, err := hm.node.SyncStatus(ctx)
 	if err != nil {
 		hm.log.Error("health monitor failed to get sync status", "err", err)
@@ -181,6 +217,10 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 		return ErrSequencerNotHealthy
 	}
 
+	return nil
+}
+
+func (hm *SequencerHealthMonitor) checkNodePeerCount(ctx context.Context) error {
 	stats, err := hm.p2p.PeerStats(ctx)
 	if err != nil {
 		hm.log.Error("health monitor failed to get peer stats", "err", err)
@@ -191,8 +231,35 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 		return ErrSequencerNotHealthy
 	}
 
-	hm.log.Info("sequencer is healthy")
 	return nil
+}
+
+func (hm *SequencerHealthMonitor) checkRollupBoost(ctx context.Context) error {
+	// Skip the check if rollup boost client is not configured
+	if hm.rb == nil {
+		hm.log.Info("rollup boost client is not configured, skipping health check")
+		return nil
+	}
+
+	status, err := hm.rb.Healthcheck(ctx)
+	if err != nil {
+		hm.log.Error("health monitor failed to get rollup boost status", "err", err)
+		return ErrRollupBoostConnectionDown
+	}
+
+	switch status {
+	case client.HealthStatusHealthy:
+		return nil
+	case client.HealthStatusPartial:
+		hm.log.Error("Rollup boost is partial failure, builder is down but fallback execution client is up", "err", ErrRollupBoostPartiallyHealthy)
+		return ErrRollupBoostPartiallyHealthy
+	case client.HealthStatusUnhealthy:
+		hm.log.Error("Rollup boost total failure, both builder and fallback execution client are down", "err", ErrRollupBoostNotHealthy)
+		return ErrRollupBoostNotHealthy
+	default:
+		hm.log.Error("Received unexpected health status from rollup boost", "status", status)
+		return fmt.Errorf("unexpected rollup boost health status: %s", status)
+	}
 }
 
 func calculateTimeDiff(now, then uint64) uint64 {

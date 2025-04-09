@@ -66,6 +66,12 @@ type Config struct {
 	// SupervisorRPC is the HTTP provider URL for supervisor.
 	SupervisorRPC string
 
+	// RollupBoostEnabled is true if the rollup boost is enabled.
+	RollupBoostEnabled bool
+
+	// RollupBoostHealthcheckTimeout is the timeout for rollup boost healthcheck.
+	RollupBoostHealthcheckTimeout time.Duration
+
 	// Paused is true if the conductor should start in a paused state.
 	Paused bool
 
@@ -139,18 +145,20 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		// The consensus server will advertise the address it binds to if this is empty/unspecified.
 		ConsensusAdvertisedAddr: ctx.String(flags.AdvertisedFullAddr.Name),
 
-		RaftBootstrap:          ctx.Bool(flags.RaftBootstrap.Name),
-		RaftServerID:           ctx.String(flags.RaftServerID.Name),
-		RaftStorageDir:         ctx.String(flags.RaftStorageDir.Name),
-		RaftSnapshotInterval:   ctx.Duration(flags.RaftSnapshotInterval.Name),
-		RaftSnapshotThreshold:  ctx.Uint64(flags.RaftSnapshotThreshold.Name),
-		RaftTrailingLogs:       ctx.Uint64(flags.RaftTrailingLogs.Name),
-		RaftHeartbeatTimeout:   ctx.Duration(flags.RaftHeartbeatTimeout.Name),
-		RaftLeaderLeaseTimeout: ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
-		NodeRPC:                ctx.String(flags.NodeRPC.Name),
-		ExecutionRPC:           ctx.String(flags.ExecutionRPC.Name),
-		SupervisorRPC:          ctx.String(flags.SupervisorRPC.Name),
-		Paused:                 ctx.Bool(flags.Paused.Name),
+		RaftBootstrap:                 ctx.Bool(flags.RaftBootstrap.Name),
+		RaftServerID:                  ctx.String(flags.RaftServerID.Name),
+		RaftStorageDir:                ctx.String(flags.RaftStorageDir.Name),
+		RaftSnapshotInterval:          ctx.Duration(flags.RaftSnapshotInterval.Name),
+		RaftSnapshotThreshold:         ctx.Uint64(flags.RaftSnapshotThreshold.Name),
+		RaftTrailingLogs:              ctx.Uint64(flags.RaftTrailingLogs.Name),
+		RaftHeartbeatTimeout:          ctx.Duration(flags.RaftHeartbeatTimeout.Name),
+		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
+		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
+		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
+		SupervisorRPC:                 ctx.String(flags.SupervisorRPC.Name),
+		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
+		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
+		Paused:                        ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
 			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
 			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
