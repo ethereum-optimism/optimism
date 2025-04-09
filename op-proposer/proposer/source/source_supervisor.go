@@ -62,12 +62,14 @@ func (s *SupervisorProposalSource) SyncStatus(ctx context.Context) (SyncStatus, 
 	close(results)
 	var errs []error
 	var earliestResponse eth.SupervisorSyncStatus
+
 	for result := range results {
 		if result.err != nil {
 			s.log.Warn("Failed to retrieve sync status from supervisor", "idx", result.idx, "err", result.err)
 			errs = append(errs, result.err)
 			continue
 		}
+		// pcw: what happens if result.status == eth.L1BlockRef{} ?
 		if earliestResponse.MinSyncedL1 == (eth.L1BlockRef{}) || result.status.MinSyncedL1.Number < earliestResponse.MinSyncedL1.Number {
 			if result.status.MinSyncedL1 == (eth.L1BlockRef{}) {
 				errs = append(errs, ErrNilL1View)
