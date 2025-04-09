@@ -1,5 +1,5 @@
 use alloy_consensus::{BlockBody, Header};
-use reth_optimism_primitives::{transaction::signed::OpTransaction, DepositReceipt};
+use reth_optimism_primitives::{transaction::OpTransaction, DepositReceipt};
 use reth_primitives_traits::{NodePrimitives, SignedTransaction};
 
 /// Helper trait to encapsulate common bounds on [`NodePrimitives`] for OP payload builder.

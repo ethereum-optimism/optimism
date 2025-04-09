@@ -24,7 +24,7 @@ use reth_evm::{
 use reth_execution_types::ExecutionOutcome;
 use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::transaction::signed::OpTransaction;
+use reth_optimism_primitives::transaction::OpTransaction;
 use reth_optimism_txpool::{
     interop::{is_valid_interop, MaybeInteropTransaction},
     OpPooledTx,

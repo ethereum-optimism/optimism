@@ -1,5 +1,6 @@
 //! A signed Optimism transaction.
 
+use crate::transaction::OpTransaction;
 use alloc::vec::Vec;
 use alloy_consensus::{
     transaction::{RlpEcdsaDecodableTx, RlpEcdsaEncodableTx},
@@ -194,13 +195,6 @@ impl From<Sealed<TxDeposit>> for OpTransactionSigned {
         let (tx, hash) = value.into_parts();
         Self::new(OpTypedTransaction::Deposit(tx), TxDeposit::signature(), hash)
     }
-}
-
-/// A trait that represents an optimism transaction, mainly used to indicate whether or not the
-/// transaction is a deposit transaction.
-pub trait OpTransaction {
-    /// Whether or not the transaction is a dpeosit transaction.
-    fn is_deposit(&self) -> bool;
 }
 
 impl OpTransaction for OpTransactionSigned {
