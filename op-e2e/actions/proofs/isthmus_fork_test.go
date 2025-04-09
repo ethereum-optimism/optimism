@@ -255,8 +255,6 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
 	matrix := helpers.NewMatrix[testCase]()
 
-	defer matrix.Run(gt)
-
 	for _, test := range tests {
 		matrix.AddDefaultTestCasesWithName(
 			test.name,
@@ -265,6 +263,7 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 			testWithdrawlsRootIsthmus,
 		)
 	}
+	matrix.Run(gt)
 }
 
 // Post-Canyon, the withdrawals root field in the header should be EmptyWithdrawalsHash
