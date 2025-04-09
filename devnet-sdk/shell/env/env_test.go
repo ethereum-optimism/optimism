@@ -69,8 +69,8 @@ func TestLoadDevnetEnv(t *testing.T) {
 	t.Run("successful load", func(t *testing.T) {
 		env, err := LoadDevnetFromURL(tmpfile.Name())
 		require.NoError(t, err)
-		assert.Equal(t, "l1", env.Config.L1.Name)
-		assert.Equal(t, "op", env.Config.L2[0].Name)
+		assert.Equal(t, "l1", env.Env.L1.Name)
+		assert.Equal(t, "op", env.Env.L2[0].Name)
 	})
 
 	// Test loading non-existent file
@@ -92,7 +92,7 @@ func TestLoadDevnetEnv(t *testing.T) {
 
 func TestGetChain(t *testing.T) {
 	devnet := &DevnetEnv{
-		Config: descriptors.DevnetEnvironment{
+		Env: &descriptors.DevnetEnvironment{
 			L1: &descriptors.Chain{
 				Name: "l1",
 				Nodes: []descriptors.Node{

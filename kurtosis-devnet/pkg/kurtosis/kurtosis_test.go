@@ -35,7 +35,7 @@ func TestKurtosisDeployer(t *testing.T) {
 			wantBaseDir: ".",
 			wantPkg:     DefaultPackageName,
 			wantDryRun:  false,
-			wantEnclave: "devnet",
+			wantEnclave: DefaultEnclave,
 		},
 		{
 			name: "with options",
@@ -313,7 +313,8 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			},
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
-				DevnetEnvironment: descriptors.DevnetEnvironment{
+				DevnetEnvironment: &descriptors.DevnetEnvironment{
+					Name:            DefaultEnclave,
 					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
 						ID:       "1234",
@@ -393,7 +394,8 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			},
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
-				DevnetEnvironment: descriptors.DevnetEnvironment{
+				DevnetEnvironment: &descriptors.DevnetEnvironment{
+					Name:            DefaultEnclave,
 					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
 						ID:       "1234",
@@ -453,7 +455,8 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			},
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
-				DevnetEnvironment: descriptors.DevnetEnvironment{
+				DevnetEnvironment: &descriptors.DevnetEnvironment{
+					Name:            DefaultEnclave,
 					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
 						ID:       "1234",

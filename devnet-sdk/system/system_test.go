@@ -116,13 +116,13 @@ func TestSystemFromDevnet(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		devnet    descriptors.DevnetEnvironment
+		devnet    *descriptors.DevnetEnvironment
 		wantErr   bool
 		isInterop bool
 	}{
 		{
 			name: "basic system",
-			devnet: descriptors.DevnetEnvironment{
+			devnet: &descriptors.DevnetEnvironment{
 				L1: &descriptors.Chain{
 					ID:    "1",
 					Nodes: []descriptors.Node{testNode},
@@ -156,7 +156,7 @@ func TestSystemFromDevnet(t *testing.T) {
 		},
 		{
 			name: "interop system",
-			devnet: descriptors.DevnetEnvironment{
+			devnet: &descriptors.DevnetEnvironment{
 				L1: &descriptors.Chain{
 					ID:    "1",
 					Nodes: []descriptors.Node{testNode},
@@ -192,7 +192,7 @@ func TestSystemFromDevnet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sys, err := systemFromDevnet(tt.devnet, "test")
+			sys, err := systemFromDevnet(tt.devnet)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

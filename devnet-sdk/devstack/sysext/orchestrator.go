@@ -39,7 +39,7 @@ func NewOrchestrator(p devtest.P) *Orchestrator {
 	}
 	env, err := env.LoadDevnetFromURL(url)
 	p.Require().NoError(err, "Error loading devnet environment")
-	orch := &Orchestrator{env: &env.Config, p: p}
+	orch := &Orchestrator{env: env.Env, p: p}
 
 	return orch
 }
