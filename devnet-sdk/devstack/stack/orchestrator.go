@@ -4,11 +4,17 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 )
 
+// Lifecycle represents a controllable component by ControlPanel
+type Lifecycle interface {
+	Start()
+	Stop()
+}
+
 type Mode int
 
 const (
-	Started Mode = iota
-	Stopped
+	Start Mode = iota
+	Stop
 )
 
 type ControlPanel interface {
