@@ -245,13 +245,13 @@ func SkipNPreimageLoads(n int) FindPreimageStepOpt {
 
 // FindOddStepForPreimageLoad attempts to find an odd step that matches the PreimageOptConfig.
 // If no such step is found, falls back to an even step if allowEvenFallback is true, otherwise fails.
-func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, poConfig utils.PreimageOptConfig, opts ...FindPreimageStepOpt) uint64 {
+func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, poConfig utils.PreimageOptConfig, opts ...FindPreimageStepOpt) uint64 {
 	config := &FindPreimageStepConfig{}
 	for _, opt := range opts {
 		opt(config)
 	}
 
-	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
+	provider, _, _ := cannonTraceProviderFunc()
 
 	var preimageOpt utils.PreimageOpt
 	var lastStep uint64 = 0
@@ -298,12 +298,12 @@ func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, outputRoo
 // 2. Descending the execution game tree to reach the step that loads the preimage
 // 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
+func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
 	// Identifying the first state transition that loads a global preimage
-	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
+	provider, _, _ := cannonTraceProviderFunc()
 	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
 	g.require.NoError(err)
-	g.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, challengerKey, targetTraceIndex, preimageCheck, preloadPreimage)
+	g.ChallengeToPreimageLoadAtTarget(ctx, cannonTraceProviderFunc, targetTraceIndex, preimageCheck, preloadPreimage)
 }
 
 // ChallengeToPreimageLoadAtTarget challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
@@ -311,8 +311,8 @@ func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootCl
 // 1. Descending the execution game tree to reach the target step that loads the preimage
 // 2. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, targetTraceIndex uint64, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
-	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
+func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, targetTraceIndex uint64, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
+	provider, _, outputRootClaim := cannonTraceProviderFunc()
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	execDepth := g.splitGame.ExecDepth(ctx)
 	g.require.NotEqual(outputRootClaim.Position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")
@@ -398,9 +398,9 @@ func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, outp
 	g.splitGame.LogGameData(ctx)
 }
 
-func (g *CannonHelper) VerifyPreimage(ctx context.Context, outputRootClaim *ClaimHelper, preimageKey preimage.Key) {
+func (g *CannonHelper) VerifyPreimage(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, preimageKey preimage.Key) {
 	// Identifying the first state transition that loads a global preimage
-	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(TestKey))
+	provider, _, _ := cannonTraceProviderFunc()
 	start := uint64(0)
 	found := false
 	for offset := uint32(0); ; offset += 4 {
@@ -419,7 +419,7 @@ func (g *CannonHelper) VerifyPreimage(ctx context.Context, outputRootClaim *Clai
 
 		g.t.Logf("Target trace index: %v", targetTraceIndex)
 
-		g.VerifyPreimageAtTarget(ctx, outputRootClaim, targetTraceIndex, g.GetOracleKeyValidator(preimageKey), true)
+		g.VerifyPreimageAtTarget(ctx, cannonTraceProviderFunc, targetTraceIndex, g.GetOracleKeyValidator(preimageKey), true)
 	}
 }
 
@@ -437,9 +437,9 @@ func (g *CannonHelper) GetOracleKeyValidator(key preimage.Key) OracleDataValidat
 	}
 }
 
-func (g *CannonHelper) VerifyPreimageAtTarget(ctx context.Context, outputRootClaim *ClaimHelper, targetTraceIndex uint64, oracleDataValidator OracleDataValidator, uploadOracleData bool) {
+func (g *CannonHelper) VerifyPreimageAtTarget(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, targetTraceIndex uint64, oracleDataValidator OracleDataValidator, uploadOracleData bool) {
 	execDepth := g.splitGame.ExecDepth(ctx)
-	provider, localContext := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(TestKey))
+	provider, localContext, outputRootClaim := cannonTraceProviderFunc()
 
 	pos := types.NewPosition(execDepth, new(big.Int).SetUint64(targetTraceIndex))
 	g.require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
@@ -476,6 +476,21 @@ func (g *CannonHelper) VerifyPreimageAtTarget(ctx context.Context, outputRootCla
 	g.require.NoError(err, "Failed to call step")
 	actualPostState := result.GetBytes32(0)
 	g.require.Equal(expectedPostState, common.Hash(actualPostState))
+}
+
+type CannonTraceProviderFunc func() (*cannon.CannonTraceProviderForTest, common.Hash, *ClaimHelper)
+
+// NewMemoizedCannonTraceProvider returns a function that will generate a cannon trace provider once, memoize it
+// and return the same trace provider on subsequent calls
+func (g *CannonHelper) NewMemoizedCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) CannonTraceProviderFunc {
+	var provider *cannon.CannonTraceProviderForTest
+	var localContext common.Hash
+	return func() (*cannon.CannonTraceProviderForTest, common.Hash, *ClaimHelper) {
+		if provider == nil {
+			provider, localContext = g.createCannonTraceProvider(ctx, l2Node, outputRootClaim, options...)
+		}
+		return provider, localContext, outputRootClaim
+	}
 }
 
 func (g *CannonHelper) createCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) (*cannon.CannonTraceProviderForTest, common.Hash) {

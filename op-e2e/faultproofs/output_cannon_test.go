@@ -221,7 +221,8 @@ func testOutputCannonStepWithLargePreimage(t *testing.T, allocType config.AllocT
 	// execution game. We then move to challenge it to induce a large preimage load.
 	sender := sys.Cfg.Secrets.Addresses().Alice
 	preimageLoadCheck := game.CreateStepLargePreimageLoadCheck(ctx, sender)
-	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, utils.PreimageLargerThan(preimage.MinPreimageSize), preimageLoadCheck, false)
+	providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	game.ChallengeToPreimageLoad(ctx, providerFunc, utils.PreimageLargerThan(preimage.MinPreimageSize), preimageLoadCheck, false)
 	// The above method already verified the image was uploaded and step called successfully
 	// So we don't waste time resolving the game - that's tested elsewhere.
 }
@@ -262,13 +263,14 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 		preimageLoadCheck := game.CreateStepPreimageLoadStrictCheck(ctx, getExpectedData)
 		// We need the honest challenger to step-defend the STF from A -> B such that A loads the preimage
 		// The ChallengeToPreimageLoadAtTarget method will induce a step-defend on odd numbered trace index from the honest challenger.
-		step := game.FindOddStepForPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageOptConfig, opts...)
-		game.ChallengeToPreimageLoadAtTarget(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, step, preimageLoadCheck, preloadPreimage)
+		providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+		step := game.FindOddStepForPreimageLoad(ctx, providerFunc, preimageOptConfig, opts...)
+		game.ChallengeToPreimageLoadAtTarget(ctx, providerFunc, step, preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
 
 		// Finally, validate that we can manually invoke step at this point in the game and produce the expected post-state
-		game.VerifyPreimageAtTarget(ctx, outputRootClaim, step, game.GetOracleKeyPrefixValidator(preimageOptConfig.KeyPrefix), false)
+		game.VerifyPreimageAtTarget(ctx, providerFunc, step, game.GetOracleKeyPrefixValidator(preimageOptConfig.KeyPrefix), false)
 	}
 
 	t.Run("non-existing preimage-keccak", func(t *testing.T) {
@@ -349,7 +351,8 @@ func testOutputCannonStepWithKzgPointEvaluation(t *testing.T, allocType config.A
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
 		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, utils.FirstPrecompilePreimageLoad(), preimageLoadCheck, preloadPreimage)
+		providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+		game.ChallengeToPreimageLoad(ctx, providerFunc, utils.FirstPrecompilePreimageLoad(), preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
