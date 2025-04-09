@@ -4,9 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -18,6 +18,7 @@ import (
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestPreimageLoader_NoPreimage(t *testing.T) {
@@ -73,8 +74,8 @@ func TestPreimageLoader_SimpleTypes(t *testing.T) {
 }
 
 func TestPreimageLoader_BlobPreimage(t *testing.T) {
-	blob := kzg4844.Blob(testBlob())
-	commitment, err := kzg4844.BlobToCommitment(&blob)
+	rng := rand.New(rand.NewSource(999))
+	blob, commitment, err := testutils.RandomBlob(rng)
 	require.NoError(t, err)
 
 	indices := []uint64{0, 1, 24, 2222, 4095}
@@ -201,22 +202,6 @@ func TestPreimageLoader_PrecompilePreimage(t *testing.T) {
 		expected := types.NewPreimageOracleData(proof.OracleKey, inputWithLength, proof.OracleOffset)
 		require.Equal(t, expected, actual)
 	})
-}
-
-// Returns a serialized random field element in big-endian
-func fieldElement(val uint64) [32]byte {
-	r := fr.NewElement(val)
-	return gokzg4844.SerializeScalar(r)
-}
-
-func testBlob() gokzg4844.Blob {
-	var blob gokzg4844.Blob
-	bytesPerBlob := gokzg4844.ScalarsPerBlob * gokzg4844.SerializedScalarSize
-	for i := 0; i < bytesPerBlob; i += gokzg4844.SerializedScalarSize {
-		fieldElementBytes := fieldElement(uint64(i))
-		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
-	}
-	return blob
 }
 
 func storeBlob(t *testing.T, kv kvstore.KV, commitment gokzg4844.KZGCommitment, blob gokzg4844.Blob) {

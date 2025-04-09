@@ -402,8 +402,7 @@ func RandomBlockPrependTxs(rng *rand.Rand, txCount int, ptxs ...*types.Transacti
 func RandomBlob(rng *rand.Rand) (kzg4844.Blob, kzg4844.Commitment, error) {
 	var blob kzg4844.Blob
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		fieldEl := fr.NewElement(uint64(i))
-
+		fieldEl := fr.NewElement(0)
 		randVal := new(big.Int).SetUint64(rng.Uint64())
 		fieldEl.SetBigInt(randVal)
 
