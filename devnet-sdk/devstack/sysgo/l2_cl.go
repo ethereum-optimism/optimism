@@ -2,8 +2,10 @@ package sysgo
 
 import (
 	"context"
+	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -13,18 +15,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type L2CLNode struct {
+	mu sync.Mutex
+
 	id     stack.L2CLNodeID
 	opNode *opnode.Opnode
 	rpc    string
+	cfg    *node.Config
+	p      devtest.P
+
+	logger log.Logger
 }
+
+var _ stack.Lifecycle = (*L2CLNode)(nil)
 
 func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
@@ -40,6 +51,39 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	l2ID := system.L2NetworkID(n.id.ChainID)
 	l2Net := system.L2Network(l2ID)
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
+}
+
+func (n *L2CLNode) Start() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.opNode != nil {
+		n.logger.Warn("Op-node already started")
+		return
+	}
+	opNode, err := opnode.NewOpnode(n.logger, n.cfg, func(err error) {
+		n.p.Require().NoError(err, "op-node critical error")
+	})
+	n.p.Require().NoError(err, "op-node failed to start")
+	n.logger.Info("Started op-node")
+	n.opNode = opNode
+
+	n.rpc = opNode.UserRPC().RPC()
+}
+
+func (n *L2CLNode) Stop() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.opNode == nil {
+		n.logger.Warn("Op-node already stopped")
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // force-quit
+	n.logger.Info("Closing op-node")
+	closeErr := n.opNode.Stop(ctx)
+	n.logger.Info("Closed op-node", "err", closeErr)
+
+	n.opNode = nil
 }
 
 // TODO start and stop methods
@@ -107,8 +151,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			L1EpochPollInterval:         time.Second * 2,
 			RuntimeConfigReloadInterval: 0,
 			Tracer:                      nil,
-			Sync: sync.Config{
-				SyncMode:                       sync.CLSync,
+			Sync: nodeSync.Config{
+				SyncMode:                       nodeSync.CLSync,
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
 			},
@@ -125,23 +169,14 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			IgnoreMissingPectraBlobSchedule: false,
 		}
 		logger := o.P().Logger().New("service", "op-node", "id", l2CLID)
-		opNode, err := opnode.NewOpnode(logger, nodeCfg, func(err error) {
-			require.NoError(err, "op-node critical error")
-		})
-		require.NoError(err, "op-node failed to start")
-		orch.p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel() // force-quit
-			logger.Info("Closing op-node")
-			closeErr := opNode.Stop(ctx)
-			logger.Info("Closed op-node", "err", closeErr)
-		})
-
 		l2CLNode := &L2CLNode{
 			id:     l2CLID,
-			opNode: opNode,
-			rpc:    opNode.UserRPC().RPC(),
+			cfg:    nodeCfg,
+			logger: logger,
+			p:      o.P(),
 		}
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
+		l2CLNode.Start()
+		orch.p.Cleanup(l2CLNode.Stop)
 	}
 }
