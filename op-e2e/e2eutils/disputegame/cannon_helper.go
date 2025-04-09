@@ -185,21 +185,26 @@ func (g *CannonHelper) CreateStepLargePreimageLoadCheck(ctx context.Context, sen
 	}
 }
 
+// ExpectedDataGetter should return (true, data) if expected data should be checked
+// Otherwise should return (false, empty data)
+type ExpectedDataGetter = func(p *types.PreimageOracleData) (bool, [32]byte)
+
 // CreateStepPreimageLoadCheck returns a PreimageLoadCheck that generates the expected preimage data and
 // verifies that data for the expected key is stored on-chain (PreimageOracle.preimagePartOk[key][offset] == true).
 func (g *CannonHelper) CreateStepPreimageLoadCheck(ctx context.Context) PreimageLoadCheck {
-	noop := func(_ *types.PreimageOracleData) [32]byte { return [32]byte{} }
+	noop := func(_ *types.PreimageOracleData) (bool, [32]byte) { return false, [32]byte{} }
 	return g.createStepPreimageLoadCheck(ctx, noop)
 }
 
 // CreateStepPreimageLoadStrictCheck returns a PreimageLoadCheck that generates the expected preimage data and
 // verifies that data for the expected key is stored on-chain (PreimageOracle.preimagePartOk[key][offset] == true).
 // Additionally, it checks that the data stored on-chain (in PreimageOracle.preimageParts) is what we expect.
-func (g *CannonHelper) CreateStepPreimageLoadStrictCheck(ctx context.Context, expectedData func(p *types.PreimageOracleData) [32]byte) PreimageLoadCheck {
+func (g *CannonHelper) CreateStepPreimageLoadStrictCheck(ctx context.Context, expectedData ExpectedDataGetter) PreimageLoadCheck {
+	g.require.NotEmpty(expectedData)
 	return g.createStepPreimageLoadCheck(ctx, expectedData)
 }
 
-func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpectedData func(p *types.PreimageOracleData) [32]byte) PreimageLoadCheck {
+func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpectedData ExpectedDataGetter) PreimageLoadCheck {
 	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
 		execDepth := g.splitGame.ExecDepth(ctx)
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
@@ -208,10 +213,10 @@ func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpec
 		// Check that preimagePartOk[preimageData.OracleKey][preimageData.OracleOffset] == true
 		g.WaitForPreimageInOracle(ctx, preimageData)
 
-		// If we have a non-zero expectation, check that the expected data is actually in the oracle
+		// If requested, check that the expected data is actually in the oracle
 		// Specifically, check that preimageParts[preimageData.OracleKey][preimageData.OracleOffset] == expectedDta
-		expectedData := getExpectedData(preimageData)
-		if expectedData != [32]byte{} {
+		shouldCheckData, expectedData := getExpectedData(preimageData)
+		if shouldCheckData {
 			g.CheckPreimageInOracle(ctx, preimageData, expectedData)
 		}
 

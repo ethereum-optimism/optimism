@@ -258,7 +258,7 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
 		// Check that the preimage is loaded into the oracle with data matching our expectation
-		getExpectedData := func(p *types.PreimageOracleData) [32]byte { return game.GetPreimageAtOffset(p) }
+		getExpectedData := func(p *types.PreimageOracleData) (bool, [32]byte) { return true, game.GetPreimageAtOffset(p) }
 		preimageLoadCheck := game.CreateStepPreimageLoadStrictCheck(ctx, getExpectedData)
 		// We need the honest challenger to step-defend the STF from A -> B such that A loads the preimage
 		// The ChallengeToPreimageLoadAtTarget method will induce a step-defend on odd numbered trace index from the honest challenger.
