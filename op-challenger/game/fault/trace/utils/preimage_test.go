@@ -156,11 +156,13 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 			actual, err := loader.LoadPreimage(proof)
 			require.NoError(t, err)
 
+			// Check the computed claim matches our expectation
 			claimWithLength := make([]byte, len(claim)+lengthPrefixSize)
 			binary.BigEndian.PutUint64(claimWithLength[:lengthPrefixSize], uint64(len(claim)))
 			copy(claimWithLength[lengthPrefixSize:], claim[:])
+			require.Equal(t, claimWithLength[:], elementDataWithLengthPrefix[:])
 
-			expected := types.NewPreimageOracleBlobData(proof.OracleKey, claimWithLength, proof.OracleOffset, zPoint, commitment[:], kzgProof[:])
+			expected := types.NewPreimageOracleBlobData(proof.OracleKey, proof.OracleValue, proof.OracleOffset, zPoint, commitment[:], kzgProof[:])
 			require.Equal(t, expected, actual)
 			require.False(t, actual.IsLocal)
 
