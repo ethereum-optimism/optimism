@@ -137,9 +137,12 @@ func (p *PreimageOracle) Precompile(address common.Address, input []byte, requir
 
 var RootsOfUnity *[4096]fr.Element
 
-// generateRootsOfUnity generates the 4096th roots of unity used in EIP-4844 as predefined evaluation points.
+// generateRootsOfUnity generates the 4096th bit-reversed roots of unity used in EIP-4844 as predefined evaluation points.
 // To compute the field element at index i in a blob, the blob polynomial is evaluated at the ith root of unity.
 // Based on go-kzg-4844: https://github.com/crate-crypto/go-kzg-4844/blob/8bcf6163d3987313a3194595cf1f33fd45d7301a/internal/kzg/domain.go#L44-L98
+// Also, see the consensus specs:
+//   - compute_roots_of_unity: https://github.com/ethereum/consensus-specs/blob/bf09edef17e2900258f7e37631e9452941c26e86/specs/deneb/polynomial-commitments.md#compute_roots_of_unity
+//   - bit-reversal permutation: https://github.com/ethereum/consensus-specs/blob/bf09edef17e2900258f7e37631e9452941c26e86/specs/deneb/polynomial-commitments.md#bit-reversal-permutation
 func generateRootsOfUnity() *[4096]fr.Element {
 	rootsOfUnity := new([4096]fr.Element)
 
