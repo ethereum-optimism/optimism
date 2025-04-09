@@ -103,10 +103,10 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	require.Equal(t, got, reproduced.Hash())
 	require.True(t, ok, "CheckBlockHash must pass")
 
-	safeBlock := env.Sequencer.L2Safe()
+	safeBlock := env.BatchMineAndSync(t)
 	require.NoError(t, err, "error fetching latest block")
 
-	env.RunFaultProofProgram(t, safeBlock.Number, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, safeBlock.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // Test_ProgramAction_IsthmusWithdrawlsRoot tests the withdrawals root in the header:
@@ -160,8 +160,8 @@ func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 		verifyPreIsthmusHeaderWithdrawalsRoot(gt, engine.L2Chain().CurrentBlock())
 	}
 
-	l2Safe := sequencer.L2Safe()
-	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+	l2Safe := env.BatchMineAndSync(t)
+	env.RunFaultProofProgramFromGenesis(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus tests the withdrawals root
@@ -240,8 +240,8 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 			verifyIsthmusHeaderWithdrawalsRoot(gt, rpcCl, engine.L2Chain().CurrentBlock(), true)
 		}
 
-		l2Safe := sequencer.L2Safe()
-		env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+		l2Safe := env.BatchMineAndSync(t)
+		env.RunFaultProofProgramFromGenesis(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	tests := []testCase{
@@ -442,8 +442,8 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	require.NoError(t, err)
 	checkRecentBlockHash(latestBlock.NumberU64()-1, latestBlock.Header().ParentHash, "post-activation")
 
-	l2Safe := sequencer.L2Safe()
-	env.RunFaultProofProgram(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+	l2Safe := env.BatchMineAndSync(t)
+	env.RunFaultProofProgramFromGenesis(t, l2Safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // verifyCodeHashMatches checks that the has of the code at the given address matches the expected code-hash.
