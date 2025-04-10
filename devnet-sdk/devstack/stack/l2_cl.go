@@ -1,9 +1,7 @@
 package stack
 
 import (
-	"context"
-
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 )
 
 // L2CLNodeID identifies a L2CLNode by name and chainID, is type-safe, and can be value-copied and used as map key.
@@ -29,14 +27,10 @@ func SortL2CLNodeIDs(ids []L2CLNodeID) []L2CLNodeID {
 	})
 }
 
-type RollupAPI interface {
-	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
-}
-
 // L2CLNode is a L2 ethereum consensus-layer node
 type L2CLNode interface {
 	Common
 	ID() L2CLNodeID
 
-	RollupAPI() RollupAPI
+	RollupAPI() apis.RollupClient
 }
