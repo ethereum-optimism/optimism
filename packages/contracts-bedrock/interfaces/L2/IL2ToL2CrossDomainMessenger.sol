@@ -113,6 +113,7 @@ interface IL2ToL2CrossDomainMessenger {
     /// @param _sender Address that sent the message
     /// @param _target Target contract or wallet address.
     /// @param _message Message payload to call target with.
+    /// @return messageHash_ The hash of the message being re-sent.
     function resendMessage(
         uint256 _destination,
         uint256 _nonce,
@@ -120,7 +121,8 @@ interface IL2ToL2CrossDomainMessenger {
         address _target,
         bytes calldata _message
     )
-        external;
+        external
+        returns (bytes32 messageHash_);
 
     /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only
     ///         be executed via cross-chain call from the other messenger OR if the message was

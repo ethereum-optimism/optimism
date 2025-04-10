@@ -252,7 +252,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
 
         // Call the `resendMessage` function
-        l2ToL2CrossDomainMessenger.resendMessage(_destination, messageNonce, _sender, _target, _message);
+        bytes32 resendMsgHash =
+            l2ToL2CrossDomainMessenger.resendMessage(_destination, messageNonce, _sender, _target, _message);
 
         // Check that the event was emitted with the correct parameters
         logs = vm.getRecordedLogs();
@@ -263,6 +264,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertEq(logs[0].topics[1], bytes32(_destination));
         assertEq(logs[0].topics[2], bytes32(uint256(uint160(_target))));
         assertEq(logs[0].topics[3], bytes32(messageNonce));
+
+        // Check that the message hash returned by `sendMessage` is the same as the one returned by `resendMessage`
+        assertEq(resendMsgHash, msgHash);
     }
 
     function testFuzz_relayMessage_eventPayloadNotSentMessage_reverts(

@@ -166,6 +166,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     /// @param _sender Address that sent the message
     /// @param _target Target contract or wallet address.
     /// @param _message Message payload to call target with.
+    /// @return messageHash_ The hash of the message being re-sent.
     function resendMessage(
         uint256 _destination,
         uint256 _nonce,
@@ -174,8 +175,9 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
         bytes calldata _message
     )
         external
+        returns (bytes32 messageHash_)
     {
-        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessage({
+        messageHash_ = Hashing.hashL2toL2CrossDomainMessage({
             _destination: _destination,
             _source: block.chainid,
             _nonce: _nonce,
@@ -184,7 +186,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
             _message: _message
         });
 
-        if (!sentMessages[messageHash]) revert InvalidMessage();
+        if (!sentMessages[messageHash_]) revert InvalidMessage();
 
         emit SentMessage(_destination, _target, _nonce, _sender, _message);
     }
