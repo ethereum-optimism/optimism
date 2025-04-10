@@ -2,11 +2,14 @@ package dsl
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/status"
 )
 
 type Supervisor struct {
@@ -59,11 +62,19 @@ func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfi
 
 func (s *Supervisor) fetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
-	status, err := s.supervisor.QueryAPI().SyncStatus(s.ctx)
+	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	defer cancel()
+	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
+		syncStatus, err := s.supervisor.QueryAPI().SyncStatus(s.ctx)
+		if errors.Is(err, status.ErrStatusTrackerNotReady) {
+			s.log.Debug("Sync status not ready from supervisor")
+		}
+		return syncStatus, err
+	})
 	s.require.NoError(err, "Failed to fetch sync status")
 	s.log.Info("Fetched supervisor sync status",
-		"minSyncedL1", status.MinSyncedL1,
-		"safeTimestamp", status.SafeTimestamp,
-		"finalizedTimestamp", status.FinalizedTimestamp)
-	return status
+		"minSyncedL1", syncStatus.MinSyncedL1,
+		"safeTimestamp", syncStatus.SafeTimestamp,
+		"finalizedTimestamp", syncStatus.FinalizedTimestamp)
+	return syncStatus
 }
