@@ -28,6 +28,7 @@ type presetSystem struct {
 	networks locks.RWMap[eth.ChainID, stack.Network]
 
 	supervisors locks.RWMap[stack.SupervisorID, stack.Supervisor]
+	sequencers  locks.RWMap[stack.SequencerID, stack.Sequencer]
 }
 
 var _ stack.ExtensibleSystem = (*presetSystem)(nil)
@@ -104,6 +105,16 @@ func (p *presetSystem) AddSupervisor(v stack.Supervisor) {
 	p.require().True(p.supervisors.SetIfMissing(v.ID(), v), "supervisor %s must not already exist", v.ID())
 }
 
+func (p *presetSystem) Sequencer(m stack.SequencerMatcher) stack.Sequencer {
+	v, ok := findMatch(m, p.sequencers.Get, p.Sequencers)
+	p.require().True(ok, "must find sequencer %s", m)
+	return v
+}
+
+func (p *presetSystem) AddSequencer(v stack.Sequencer) {
+	p.require().True(p.sequencers.SetIfMissing(v.ID(), v), "sequencer %s must not already exist", v.ID())
+}
+
 func (p *presetSystem) SuperchainIDs() []stack.SuperchainID {
 	return stack.SortSuperchainIDs(p.superchains.Keys())
 }
@@ -142,4 +153,8 @@ func (p *presetSystem) SupervisorIDs() []stack.SupervisorID {
 
 func (p *presetSystem) Supervisors() []stack.Supervisor {
 	return stack.SortSupervisors(p.supervisors.Values())
+}
+
+func (p *presetSystem) Sequencers() []stack.Sequencer {
+	return stack.SortSequencers(p.sequencers.Values())
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -14,10 +15,13 @@ import (
 
 type SequencerFrontend struct {
 	Sequencer work.Sequencer
+	Logger    log.Logger
 }
 
-func (bf *SequencerFrontend) Open(ctx context.Context) error {
-	return toJsonError(bf.Sequencer.Open(ctx))
+func (bf *SequencerFrontend) New(ctx context.Context, opts seqtypes.BuildOpts) error {
+	bf.Logger.Debug("SequencerFrontend New request", "parent", opts.Parent, "l1_origin", opts.L1Origin)
+
+	return toJsonError(bf.Sequencer.New(ctx, opts))
 }
 
 func (bf *SequencerFrontend) BuildJob() (seqtypes.BuildJobID, error) {
@@ -26,6 +30,10 @@ func (bf *SequencerFrontend) BuildJob() (seqtypes.BuildJobID, error) {
 		return "", toJsonError(seqtypes.ErrUnknownJob)
 	}
 	return job.ID(), nil
+}
+
+func (bf *SequencerFrontend) Open(ctx context.Context) error {
+	return toJsonError(bf.Sequencer.Open(ctx))
 }
 
 func (bf *SequencerFrontend) Seal(ctx context.Context) error {

@@ -51,6 +51,8 @@ type L2CLMatcher = Matcher[L2CLNodeID, L2CLNode]
 
 type SupervisorMatcher = Matcher[SupervisorID, Supervisor]
 
+type SequencerMatcher = Matcher[SequencerID, Sequencer]
+
 type L2ELMatcher = Matcher[L2ELNodeID, L2ELNode]
 
 type FaucetMatcher = Matcher[FaucetID, Faucet]

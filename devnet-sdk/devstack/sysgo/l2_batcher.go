@@ -71,7 +71,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		batcherSecret, err := orch.keys.Secret(devkeys.BatcherRole.Key(l2ELID.ChainID.ToBig()))
 		require.NoError(err)
 
-		logger := o.P().Logger().New("id", batcherID)
+		logger := o.P().Logger().New("service", "op-batcher", "id", batcherID)
 		logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 
 		batcherCLIConfig := &bss.CLIConfig{

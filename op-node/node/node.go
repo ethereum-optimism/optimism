@@ -461,6 +461,7 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 			Namespace: "opstack",
 			Service:   NewOpstackAPI(n.l2Driver.Engine, n),
 		})
+		n.log.Info("Experimental OP stack API enabled")
 	}
 	if cfg.RPC.EnableAdmin {
 		server.AddAPI(rpc.API{

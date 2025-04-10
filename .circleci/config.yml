@@ -1859,6 +1859,7 @@ workflows:
             op-program
             op-service
             op-supervisor
+            op-test-sequencer
             op-deployer
             op-fetcher
             op-validator
@@ -1906,6 +1907,7 @@ workflows:
             - op-dispute-mon-docker-build
             - op-program-docker-build
             - op-supervisor-docker-build
+            - op-test-sequencer-docker-build
             - go-tests
             - sanitize-op-program
           context:
@@ -1927,6 +1929,7 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
           context:
@@ -2020,6 +2023,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-test-sequencer
                 - op-deployer
                 - cannon
                 - op-dripper
@@ -2052,6 +2056,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-test-sequencer
                 - op-deployer
                 - cannon
                 - op-dripper
@@ -2066,6 +2071,7 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
+            - op-test-sequencer-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
           context:
@@ -2237,6 +2243,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
           name: <<matrix.docker_name>>-docker-publish
@@ -2260,6 +2267,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
           name: <<matrix.op_component>>-cross-platform

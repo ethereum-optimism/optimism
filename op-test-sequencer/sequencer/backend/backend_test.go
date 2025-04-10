@@ -86,10 +86,10 @@ func TestBackend(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, result, "alice")
 
-	_, err = b.CreateJob(context.Background(), "not there", nil)
+	_, err = b.CreateJob(context.Background(), "not there", seqtypes.BuildOpts{})
 	require.ErrorIs(t, err, seqtypes.ErrUnknownBuilder)
 
-	job, err := b.CreateJob(context.Background(), builderID, nil)
+	job, err := b.CreateJob(context.Background(), builderID, seqtypes.BuildOpts{})
 	require.NoError(t, err)
 
 	_, err = job.Seal(context.Background())
@@ -101,7 +101,7 @@ func TestBackend(t *testing.T) {
 	require.ErrorIs(t, b.Stop(context.Background()), seqtypes.ErrBackendInactive)
 	require.ErrorIs(t, b.Start(context.Background()), seqtypes.ErrBackendAlreadyStarted, "no restarts")
 
-	_, err = b.CreateJob(context.Background(), builderID, nil)
+	_, err = b.CreateJob(context.Background(), builderID, seqtypes.BuildOpts{})
 	require.ErrorIs(t, err, seqtypes.ErrBackendInactive)
 
 	require.Zero(t, b.jobs.Len())

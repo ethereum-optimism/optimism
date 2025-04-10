@@ -2,6 +2,7 @@ package standardbuilder
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -62,28 +63,54 @@ func NewBuilder(id seqtypes.BuilderID,
 	}
 }
 
-func (b *Builder) NewJob(ctx context.Context, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
+func (b *Builder) NewJob(ctx context.Context, opts seqtypes.BuildOpts) (work.BuildJob, error) {
+	b.log.Debug("Builder NewJob request", "opts", opts)
+
 	parentRef, err := b.l2.L2BlockRefByHash(ctx, opts.Parent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve parent-block: %w", err)
 	}
-	l1OriginRef, err := b.l1.L1BlockRefByHash(ctx, *opts.L1Origin)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve L1 origin: %w", err)
+	b.log.Debug("Builder NewJob fetched parentRef", "ref", parentRef)
+
+	var l1OriginRefBlkID eth.BlockID
+
+	if opts.L1Origin != nil {
+
+		b.log.Debug("About to get block ref by hash for l1 origin", "opts", opts)
+		l1OriginRef, err := b.l1.L1BlockRefByHash(ctx, *opts.L1Origin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve L1 origin: %w", err)
+		}
+		l1OriginRefBlkID = l1OriginRef.ID()
+
+		b.log.Debug("Builder NewJob fetched l1OriginRef", "block_id", l1OriginRefBlkID)
+	} else {
+		l1OriginRefBlkID = parentRef.L1Origin
+
+		b.log.Debug("Builder NewJob using L1Origin value from parentRef, as opts.L1Origin is nil", "block_id", l1OriginRefBlkID)
 	}
-	attrs, err := b.attrPrep.PreparePayloadAttributes(ctx, parentRef, l1OriginRef.ID())
+
+	attrs, err := b.attrPrep.PreparePayloadAttributes(ctx, parentRef, l1OriginRefBlkID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare payload attributes: %w", err)
 	}
-	id := seqtypes.RandomJobID()
-	info, err := b.cl.OpenBlock(ctx, parentRef.ID(), attrs)
+	b.log.Debug("Builder NewJob prepared payload attrs", "attrs", attrs)
+
+	address, err := randomAddress()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open block: %w", err)
+		return nil, fmt.Errorf("failed to generate random address: %w", err)
 	}
+	attrs.SuggestedFeeRecipient = address
+
+	b.log.Debug("Adding random SuggestedFeeRecipient, so that block is certainly new and not known", "addr", address)
+
+	id := seqtypes.RandomJobID()
 	job := &Job{
-		id:          id,
-		eng:         b.cl,
-		payloadInfo: info,
+		logger:    b.log,
+		id:        id,
+		eng:       b.cl,
+		attrs:     attrs,
+		parentRef: parentRef,
 		unregister: func() {
 			b.registry.UnregisterJob(id)
 		},
@@ -91,6 +118,7 @@ func (b *Builder) NewJob(ctx context.Context, opts *seqtypes.BuildOpts) (work.Bu
 	if err := b.registry.RegisterJob(job); err != nil {
 		return nil, err
 	}
+	b.log.Info("Builder NewJob has registered job", "job_id", id)
 	return job, nil
 }
 
@@ -105,4 +133,14 @@ func (b *Builder) String() string {
 
 func (b *Builder) ID() seqtypes.BuilderID {
 	return b.id
+}
+
+func randomAddress() (common.Address, error) {
+	var b [20]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	return common.BytesToAddress(b[:]), nil
 }

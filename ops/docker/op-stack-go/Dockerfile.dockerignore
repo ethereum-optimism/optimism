@@ -18,6 +18,7 @@
 !/op-proposer
 !/op-service
 !/op-supervisor
+!/op-test-sequencer
 !/op-wheel
 !/op-alt-da
 !/op-faucet

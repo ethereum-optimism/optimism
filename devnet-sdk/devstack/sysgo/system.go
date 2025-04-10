@@ -16,6 +16,7 @@ type DefaultInteropSystemIDs struct {
 	Cluster    stack.ClusterID
 
 	Supervisor stack.SupervisorID
+	Sequencer  stack.SequencerID
 
 	L2A   stack.L2NetworkID
 	L2ACL stack.L2CLNodeID
@@ -40,6 +41,7 @@ func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSy
 		Superchain:  "main", // TODO(#15244): hardcoded to match the deployer default ID
 		Cluster:     "main",
 		Supervisor:  "dev",
+		Sequencer:   "dev",
 		L2A:         stack.L2NetworkID(l2AID),
 		L2ACL:       stack.L2CLNodeID{Key: "sequencer", ChainID: l2AID},
 		L2AEL:       stack.L2ELNodeID{Key: "sequencer", ChainID: l2AID},
@@ -84,6 +86,8 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
 
 	opt.Add(WithL2CLNode(ids.L2ACL, true, ids.L1CL, ids.L1EL, ids.L2AEL))
 	opt.Add(WithL2CLNode(ids.L2BCL, true, ids.L1CL, ids.L1EL, ids.L2BEL))
+
+	opt.Add(WithSequencer(ids.Sequencer, ids.L2ACL, ids.L1EL, ids.L2AEL))
 
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
