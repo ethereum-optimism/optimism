@@ -75,7 +75,6 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	env.Sequencer.ActBuildToL1Head(t)
 
 	// Make verifier (=sequencer) sync, then check the block
-	env.Sequencer.ActL2PipelineFull(t)
 	block := env.Engine.L2Chain().CurrentBlock()
 	verifyIsthmusHeaderWithdrawalsRoot(gt, env.Engine.RPCClient(), block, true)
 	require.Equal(t, types.EmptyRequestsHash, *block.RequestsHash, "isthmus block must have requests hash")
