@@ -75,6 +75,7 @@ func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 	for chainID, nodeStatus := range su.statuses {
 		// if the min synced L1 is not set, or the node's current L1 is lower than the min synced L1, set it
 		if supervisorStatus.MinSyncedL1 == (eth.L1BlockRef{}) || supervisorStatus.MinSyncedL1.Number > nodeStatus.CurrentL1.Number {
+			// even after this update, MinSyncedL1 may still be empty when CurrentL1 was never updated
 			supervisorStatus.MinSyncedL1 = nodeStatus.CurrentL1
 		}
 		// if the height is equal, we need to compare the hash
