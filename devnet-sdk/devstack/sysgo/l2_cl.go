@@ -73,6 +73,7 @@ func (n *L2CLNode) Start() {
 		n.logger.Warn("Op-node already started")
 		return
 	}
+	n.logger.Info("Starting op-node")
 	opNode, err := opnode.NewOpnode(n.logger, n.cfg, func(err error) {
 		n.p.Require().NoError(err, "op-node critical error")
 	})

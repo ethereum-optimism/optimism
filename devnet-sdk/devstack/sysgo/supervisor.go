@@ -68,7 +68,7 @@ func (s *Supervisor) Start() {
 	s.service = super
 	s.logger.Info("Starting supervisor")
 	err = super.Start(context.Background())
-	s.p.Require().NoError(err)
+	s.p.Require().NoError(err, "supervisor failed to start")
 	s.logger.Info("Started supervisor")
 
 	s.userRPC = super.RPC()
