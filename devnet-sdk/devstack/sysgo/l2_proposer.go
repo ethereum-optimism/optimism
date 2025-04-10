@@ -91,7 +91,7 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 			require.NotNil(*l2CLID, "need L2 CL to connect to pre-interop")
 			l2CL, ok := orch.l2CLs.Get(*l2CLID)
 			require.True(ok)
-			proposerCLIConfig.RollupRpc = l2CL.rpc
+			proposerCLIConfig.RollupRpc = l2CL.userRPC
 		}
 
 		proposer, err := ps.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, logger)

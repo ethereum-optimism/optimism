@@ -2,8 +2,6 @@ package sysgo
 
 import (
 	"context"
-	"net/url"
-	"strconv"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
@@ -51,6 +49,12 @@ func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
 	}))
 }
 
+func (s *Supervisor) rememberPort() {
+	port, err := s.service.Port()
+	s.p.Require().NoError(err)
+	s.cfg.RPC.ListenPort = port
+}
+
 func (s *Supervisor) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -68,10 +72,8 @@ func (s *Supervisor) Start() {
 	s.logger.Info("Started supervisor")
 
 	s.userRPC = super.RPC()
-	rpcUrl, err := url.Parse(s.userRPC)
-	s.p.Require().NoError(err)
-	s.cfg.RPC.ListenPort, err = strconv.Atoi(rpcUrl.Port())
-	s.p.Require().NoError(err)
+
+	s.rememberPort()
 }
 
 func (s *Supervisor) Stop() {

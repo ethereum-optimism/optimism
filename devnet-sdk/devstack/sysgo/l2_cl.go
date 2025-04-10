@@ -26,11 +26,12 @@ import (
 type L2CLNode struct {
 	mu sync.Mutex
 
-	id     stack.L2CLNodeID
-	opNode *opnode.Opnode
-	rpc    string
-	cfg    *node.Config
-	p      devtest.P
+	id         stack.L2CLNodeID
+	opNode     *opnode.Opnode
+	userRPC    string
+	interopRPC string
+	cfg        *node.Config
+	p          devtest.P
 
 	logger log.Logger
 }
@@ -39,7 +40,7 @@ var _ stack.Lifecycle = (*L2CLNode)(nil)
 
 func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
-	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.rpc, client.WithLazyDial())
+	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.userRPC, client.WithLazyDial())
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
@@ -51,6 +52,18 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	l2ID := system.L2NetworkID(n.id.ChainID)
 	l2Net := system.L2Network(l2ID)
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
+}
+
+func (n *L2CLNode) rememberPort() {
+	userRPCPort, err := n.opNode.UserRPCPort()
+	n.p.Require().NoError(err)
+	interopRPCPort, err := n.opNode.InteropRPCPort()
+	n.p.Require().NoError(err)
+	n.cfg.RPC.ListenPort = userRPCPort
+	cfg, ok := n.cfg.InteropConfig.(*interop.Config)
+	n.p.Require().True(ok)
+	cfg.RPCPort = interopRPCPort
+	n.cfg.InteropConfig = cfg
 }
 
 func (n *L2CLNode) Start() {
@@ -67,7 +80,11 @@ func (n *L2CLNode) Start() {
 	n.logger.Info("Started op-node")
 	n.opNode = opNode
 
-	n.rpc = opNode.UserRPC().RPC()
+	n.userRPC = opNode.UserRPC().RPC()
+	interopRPC, _ := opNode.InteropRPC()
+	n.interopRPC = interopRPC
+
+	n.rememberPort()
 }
 
 func (n *L2CLNode) Stop() {
@@ -136,12 +153,16 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			Rollup:    *l2Net.rollupCfg,
 			P2PSigner: p2pSigner,
 			RPC: node.RPCConfig{
-				ListenAddr:  "127.0.0.1",
+				ListenAddr: "127.0.0.1",
+				// When op-node starts, store its RPC port here
+				// given by the os, to reclaim when restart.
 				ListenPort:  0,
 				EnableAdmin: true,
 			},
 			InteropConfig: &interop.Config{
-				RPCAddr:          "127.0.0.1",
+				RPCAddr: "127.0.0.1",
+				// When op-node starts, store its RPC port here
+				// given by the os, to reclaim when restart.
 				RPCPort:          0,
 				RPCJwtSecretPath: jwtPath,
 			},

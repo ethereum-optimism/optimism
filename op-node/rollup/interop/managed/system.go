@@ -91,6 +91,10 @@ func (m *ManagedMode) WSEndpoint() string {
 	return fmt.Sprintf("ws://%s", m.srv.Endpoint())
 }
 
+func (m *ManagedMode) WSPort() (int, error) {
+	return m.srv.Port()
+}
+
 func (m *ManagedMode) JWTSecret() eth.Bytes32 {
 	return m.jwtSecret
 }
