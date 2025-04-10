@@ -1,9 +1,11 @@
 package clsync
 
 import (
+	"cmp"
 	"container/heap"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -143,6 +145,20 @@ func (upq *PayloadsQueue) Peek() *eth.ExecutionPayloadEnvelope {
 	// peek into the priority queue, the first element is the highest priority (lowest block number).
 	// This does not apply to other elements, those are structured like a heap.
 	return upq.pq[0].envelope
+}
+
+// Max retrieves the payload with the highest block number from the queue, or nil if the queue is empty.
+func (upq *PayloadsQueue) Max() *eth.ExecutionPayloadEnvelope {
+	if len(upq.pq) == 0 {
+		return nil
+	}
+
+	payload := slices.MaxFunc(upq.pq,
+		func(a, b payloadAndSize) int {
+			return cmp.Compare(uint64(a.envelope.ExecutionPayload.BlockNumber), uint64(b.envelope.ExecutionPayload.BlockNumber))
+		})
+
+	return payload.envelope
 }
 
 // Pop removes the payload with the lowest block number from the queue in O(log(N)),

@@ -107,6 +107,8 @@ func (eq *CLSync) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	eq.log.Debug("CL sync received forkchoice update",
 		"unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
 
+	eq.reportUnsafePayloadsQueueStatus(x)
+
 	for {
 		pop, abort := eq.fromQueue(x)
 		if abort {
@@ -124,6 +126,33 @@ func (eq *CLSync) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	// We don't pop from the queue. If there is a temporary error then we can retry.
 	// Upon next forkchoice update or invalid-payload event we can remove it from the queue.
 	eq.emitter.Emit(engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope})
+}
+
+// reportUnsafePayloadsQueueStatus emits log event about unsafe payload queue status.
+func (eq *CLSync) reportUnsafePayloadsQueueStatus(x engine.ForkchoiceUpdateEvent) {
+	minBlockQueued := eq.unsafePayloads.Peek()
+	maxBlockQueued := eq.unsafePayloads.Max()
+	len := uint64(eq.unsafePayloads.Len())
+
+	if minBlockQueued == nil || maxBlockQueued == nil {
+		return
+	}
+
+	missingBlocks := func() uint64 {
+		latest := uint64(maxBlockQueued.ExecutionPayload.BlockNumber)
+
+		if latest == x.UnsafeL2Head.Number || len < 2 {
+			return 0
+		}
+
+		return latest - x.UnsafeL2Head.Number - len - 1
+	}
+
+	eq.log.Info("CL sync unsafe payloads queue status",
+		"unsafe", x.UnsafeL2Head.Number,
+		"min", uint64(minBlockQueued.ExecutionPayload.BlockNumber), "max", uint64(maxBlockQueued.ExecutionPayload.BlockNumber), "len", len,
+		"missing", missingBlocks(),
+	)
 }
 
 // fromQueue determines what to do with the tip of the payloads-queue, given the forkchoice pre-state.
