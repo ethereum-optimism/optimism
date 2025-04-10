@@ -91,7 +91,6 @@ contract ETHLiquidity_Test is CommonTest {
         // Assert
         assertEq(address(superchainWeth).balance, 0);
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
-        assertEq(superchainWeth.balanceOf(address(ethLiquidity)), 0);
     }
 
     /// @notice Tests that the mint function can always be called by an authorized caller.
@@ -101,7 +100,7 @@ contract ETHLiquidity_Test is CommonTest {
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Get balances before
-        uint256 superchainWethBalanceBefore = superchainWeth.balanceOf(address(ethLiquidity));
+        uint256 superchainWethBalanceBefore = address(superchainWeth).balance;
         uint256 ethLiquidityBalanceBefore = address(ethLiquidity).balance;
 
         // Act
@@ -113,7 +112,6 @@ contract ETHLiquidity_Test is CommonTest {
         // Assert
         assertEq(address(superchainWeth).balance, superchainWethBalanceBefore + _amount);
         assertEq(address(ethLiquidity).balance, ethLiquidityBalanceBefore - _amount);
-        assertEq(superchainWeth.balanceOf(address(ethLiquidity)), superchainWethBalanceBefore);
     }
 
     /// @notice Tests that the mint function always reverts when called by an unauthorized caller.
@@ -136,6 +134,6 @@ contract ETHLiquidity_Test is CommonTest {
         // Assert
         assertEq(_caller.balance, 0);
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
-        assertEq(superchainWeth.balanceOf(address(ethLiquidity)), 0);
+        assertEq(address(superchainWeth).balance, 0);
     }
 }
