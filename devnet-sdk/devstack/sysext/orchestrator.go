@@ -24,13 +24,13 @@ type Orchestrator struct {
 	usePrivatePorts    bool
 	useEagerRPCClients bool
 
-	panel *ControlPanel
+	controlPlane *ControlPlane
 }
 
 var _ stack.Orchestrator = (*Orchestrator)(nil)
 
-func (o *Orchestrator) ControlPanel() stack.ControlPanel {
-	return o.panel
+func (o *Orchestrator) ControlPlane() stack.ControlPlane {
+	return o.controlPlane
 }
 
 func NewOrchestrator(p devtest.P) *Orchestrator {

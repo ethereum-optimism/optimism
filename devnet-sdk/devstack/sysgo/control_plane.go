@@ -4,7 +4,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 )
 
-type ControlPanel struct {
+type ControlPlane struct {
 	o *Orchestrator
 }
 
@@ -17,16 +17,16 @@ func control(lifecycle stack.Lifecycle, mode stack.Mode) {
 	}
 }
 
-func (c *ControlPanel) SupervisorState(id stack.SupervisorID, mode stack.Mode) {
+func (c *ControlPlane) SupervisorState(id stack.SupervisorID, mode stack.Mode) {
 	s, ok := c.o.supervisors.Get(id)
 	c.o.P().Require().True(ok, "need supervisor to change state")
 	control(s, mode)
 }
 
-func (c *ControlPanel) L2CLNodeState(id stack.L2CLNodeID, mode stack.Mode) {
+func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.Mode) {
 	s, ok := c.o.l2CLs.Get(id)
 	c.o.P().Require().True(ok, "need l2cl node to change state")
 	control(s, mode)
 }
 
-var _ stack.ControlPanel = (*ControlPanel)(nil)
+var _ stack.ControlPlane = (*ControlPlane)(nil)

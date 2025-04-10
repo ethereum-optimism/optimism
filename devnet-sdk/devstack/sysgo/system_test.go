@@ -34,7 +34,7 @@ func TestController(gt *testing.T) {
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
-	controlPanel := orch.ControlPanel()
+	controlPanel := orch.ControlPlane()
 
 	stopPauseStartSupervisor := func() {
 		controlPanel.SupervisorState(ids.Supervisor, stack.Stop)

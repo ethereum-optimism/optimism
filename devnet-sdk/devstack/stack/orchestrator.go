@@ -4,7 +4,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 )
 
-// Lifecycle represents a controllable component by ControlPanel
+// Lifecycle represents a controllable component by ControlPlane
 type Lifecycle interface {
 	Start()
 	Stop()
@@ -17,7 +17,7 @@ const (
 	Stop
 )
 
-type ControlPanel interface {
+type ControlPlane interface {
 	SupervisorState(id SupervisorID, mode Mode)
 	L2CLNodeState(id L2CLNodeID, mode Mode)
 }
@@ -34,7 +34,7 @@ type Orchestrator interface {
 	// An orchestrator may be asked to hydrate different systems, one for each test.
 	Hydrate(sys ExtensibleSystem)
 
-	ControlPanel() ControlPanel
+	ControlPlane() ControlPlane
 }
 
 // GateWithRemediation is an example of a test-gate that checks a system and may use an orchestrator to remediate any shortcomings.

@@ -14,7 +14,7 @@ type SimpleInterop struct {
 	Log          log.Logger
 	T            devtest.T
 	Supervisor   *dsl.Supervisor
-	ControlPanel stack.ControlPanel
+	ControlPlane stack.ControlPlane
 }
 
 func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
@@ -51,6 +51,6 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 		Log:          t.Logger(),
 		T:            t,
 		Supervisor:   sys.Supervisor(supervisorId),
-		ControlPanel: orch.ControlPanel(),
+		ControlPlane: orch.ControlPlane(),
 	}
 }
