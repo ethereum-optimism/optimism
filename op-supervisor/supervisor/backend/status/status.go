@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var ErrStatusTrackerNotReady = fmt.Errorf("supervisor status tracker not ready")
+
 type StatusTracker struct {
 	statuses map[eth.ChainID]*NodeSyncStatus
 	mu       sync.RWMutex
@@ -63,9 +65,27 @@ func (su *StatusTracker) OnEvent(ev event.Event) bool {
 	return true
 }
 
+func (su *StatusTracker) HasInitializedStatuses() bool {
+	su.mu.RLock()
+	defer su.mu.RUnlock()
+
+	for _, nodeStatus := range su.statuses {
+		if nodeStatus != nil && *nodeStatus != (NodeSyncStatus{}) {
+			return true
+		}
+	}
+	return false
+}
+
 func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 	su.mu.RLock()
 	defer su.mu.RUnlock()
+
+	// after supervisor restarts, there is a timespan where all node's sync status is not fetched yet
+	// error immediately until at least single node sync status is available, which is not empty
+	if !su.HasInitializedStatuses() {
+		return eth.SupervisorSyncStatus{}, ErrStatusTrackerNotReady
+	}
 
 	firstChain := true
 	var supervisorStatus eth.SupervisorSyncStatus
