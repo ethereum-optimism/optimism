@@ -140,8 +140,6 @@ func (f *FakeBeacon) Start(addr string) error {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			f.log.Error("version handler err", "err", err)
-		} else {
-			w.WriteHeader(http.StatusOK)
 		}
 	})
 	f.beaconSrv = &http.Server{

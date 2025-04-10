@@ -168,7 +168,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 		l.wg.Add(1)
 		go l.throttlingLoop(l.wg, pendingBytesUpdated) // ranges over pendingBytesUpdated channel
 	} else {
-		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-interval. This should not be disabled in prod.")
+		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
 	}
 
 	l.wg.Add(3)
