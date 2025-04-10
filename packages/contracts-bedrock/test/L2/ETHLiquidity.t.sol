@@ -101,7 +101,6 @@ contract ETHLiquidity_Test is CommonTest {
 
         // Get balances before
         uint256 superchainETHBridgeBalanceBefore = address(superchainETHBridge).balance;
-        uint256 ethLiquidityBalanceBefore = address(ethLiquidity).balance;
 
         // Act
         vm.expectEmit(address(ethLiquidity));
