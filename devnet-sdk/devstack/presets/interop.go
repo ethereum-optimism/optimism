@@ -16,7 +16,10 @@ type SimpleInterop struct {
 	Log          log.Logger
 	T            devtest.T
 	Supervisor   *dsl.Supervisor
+	Sequencer    *dsl.Sequencer
 	ControlPlane stack.ControlPlane
+
+	L1Network *dsl.L1Network
 
 	L2ChainA *dsl.L2Network
 	L2ChainB *dsl.L2Network
@@ -61,13 +64,18 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
 	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
 	// since currently there's no way to tell which nodes are using which supervisor.
+
+	t.Gate().Equal(len(system.Sequencers()), 1, "expected exactly one sequencer")
+
 	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
 	l2B := system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &SimpleInterop{
 		Log:          t.Logger(),
 		T:            t,
+		Sequencer:    dsl.NewSequencer(system.Sequencer(match.Assume(t, match.FirstSequencer))),
 		Supervisor:   dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor))),
 		ControlPlane: orch.ControlPlane(),
+		L1Network:    dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
 		L2ChainA:     dsl.NewL2Network(l2A),
 		L2ChainB:     dsl.NewL2Network(l2B),
 		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),

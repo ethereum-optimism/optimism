@@ -8,6 +8,7 @@ var FirstL2Batcher = First[stack.L2BatcherID, stack.L2Batcher]()
 var FirstL2Proposer = First[stack.L2ProposerID, stack.L2Proposer]()
 var FirstL2Challenger = First[stack.L2ChallengerID, stack.L2Challenger]()
 
+var FirstSequencer = First[stack.SequencerID, stack.Sequencer]()
 var FirstSupervisor = First[stack.SupervisorID, stack.Supervisor]()
 
 var FirstL1EL = First[stack.L1ELNodeID, stack.L1ELNode]()

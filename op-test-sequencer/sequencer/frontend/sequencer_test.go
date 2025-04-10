@@ -45,6 +45,11 @@ func (m *mockSequencer) Close() error {
 	return m.err
 }
 
+func (m *mockSequencer) New(ctx context.Context, opts seqtypes.BuildOpts) error {
+	m.action = "new"
+	return m.err
+}
+
 func (m *mockSequencer) Open(ctx context.Context) error {
 	m.action = "open"
 	return m.err

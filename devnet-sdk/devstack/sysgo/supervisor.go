@@ -133,7 +133,7 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 			DatadirSyncEndpoint:   "",
 		}
 
-		plog := orch.P().Logger().New("id", supervisorID)
+		plog := orch.P().Logger().New("service", "op-supervisor", "id", supervisorID)
 
 		supervisorNode := &Supervisor{
 			id:      supervisorID,

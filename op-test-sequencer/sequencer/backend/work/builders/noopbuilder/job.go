@@ -22,6 +22,10 @@ func (job *Job) Cancel(ctx context.Context) error {
 	return nil
 }
 
+func (job *Job) Open(ctx context.Context) error {
+	return nil
+}
+
 func (job *Job) Seal(ctx context.Context) (work.Block, error) {
 	return nil, ErrNoBuild
 }

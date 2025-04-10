@@ -3,11 +3,9 @@ package e2esys
 import (
 	"context"
 	"crypto/ecdsa"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"math/big"
-	"net"
 	"os"
 	"path"
 	"sort"
@@ -23,15 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
-	ds "github.com/ipfs/go-datastore"
-	dsSync "github.com/ipfs/go-datastore/sync"
-	ic "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/host"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
-	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
-	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	ma "github.com/multiformats/go-multiaddr"
+	lib2pmock "github.com/libp2p/go-libp2p/p2p/net/mock"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -60,7 +50,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -76,6 +65,7 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/mocknet"
 )
 
 const (
@@ -361,7 +351,7 @@ type System struct {
 	RollupNodes       map[string]services.RollupNode
 	L2OutputSubmitter *l2os.ProposerService
 	BatchSubmitter    *bss.BatcherService
-	Mocknet           mocknet.Mocknet
+	Mocknet           lib2pmock.Mocknet
 	FakeAltDAServer   *altda.FakeDAServer
 
 	L1BeaconAPIAddr endpoint.RestHTTP
@@ -800,7 +790,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		return nil, fmt.Errorf("waiting for blocks: %w", err)
 	}
 
-	sys.Mocknet = mocknet.New()
+	sys.Mocknet = lib2pmock.New()
 
 	p2pNodes := make(map[string]*p2p.Prepared)
 	if cfg.P2PTopology != nil {
@@ -809,7 +799,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			if p, ok := p2pNodes[name]; ok {
 				return p, nil
 			}
-			h, err := sys.NewMockNetPeer()
+			h, err := mocknet.NewMockNetPeer(sys.Mocknet)
 			if err != nil {
 				return nil, fmt.Errorf("failed to init p2p host for node %s", name)
 			}
@@ -1025,51 +1015,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		return nil, errors.Join(fmt.Errorf("failed to start batch submitter: %w", err), batcher.Stop(context.Background()))
 	}
 	return sys, nil
-}
-
-// IP6 range that gets blackholed (in case our traffic ever makes it out onto
-// the internet).
-var blackholeIP6 = net.ParseIP("100::")
-
-// mocknet doesn't allow us to add a peerstore without fully creating the peer ourselves
-func (sys *System) NewMockNetPeer() (host.Host, error) {
-	sk, _, err := ic.GenerateECDSAKeyPair(rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-	id, err := peer.IDFromPrivateKey(sk)
-	if err != nil {
-		return nil, err
-	}
-	suffix := id
-	if len(id) > 8 {
-		suffix = id[len(id)-8:]
-	}
-	ip := append(net.IP{}, blackholeIP6...)
-	copy(ip[net.IPv6len-len(suffix):], suffix)
-	a, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/4242", ip))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create test multiaddr: %w", err)
-	}
-	p, err := peer.IDFromPublicKey(sk.GetPublic())
-	if err != nil {
-		return nil, err
-	}
-
-	ps, err := pstoremem.NewPeerstore()
-	if err != nil {
-		return nil, err
-	}
-	ps.AddAddr(p, a, peerstore.PermanentAddrTTL)
-	_ = ps.AddPrivKey(p, sk)
-	_ = ps.AddPubKey(p, sk.GetPublic())
-
-	ds := dsSync.MutexWrap(ds.NewMapDatastore())
-	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds, 24*time.Hour)
-	if err != nil {
-		return nil, err
-	}
-	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
 func (sys *System) BatcherHelper() *batcher.Helper {

@@ -204,6 +204,19 @@ target "op-supervisor" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-supervisor:${tag}"]
 }
 
+target "op-test-sequencer" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_SUPERVISOR_VERSION = "${OP_SUPERVISOR_VERSION}"
+  }
+  target = "op-test-sequencer-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-test-sequencer:${tag}"]
+}
+
 target "cannon" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."

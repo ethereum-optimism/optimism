@@ -1,7 +1,11 @@
 package stack
 
 import (
+	"context"
+
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // L2CLNodeID identifies a L2CLNode by name and chainID, is type-safe, and can be value-copied and used as map key.
@@ -39,12 +43,17 @@ func (id L2CLNodeID) Match(elems []L2CLNode) []L2CLNode {
 	return findByID(id, elems)
 }
 
+type L2BlockRefByHash interface {
+	L2BlockRefByHash(ctx context.Context, h common.Hash) (eth.L2BlockRef, error)
+}
+
 // L2CLNode is a L2 ethereum consensus-layer node
 type L2CLNode interface {
 	Common
 	ID() L2CLNodeID
 
 	RollupAPI() apis.RollupClient
+	L2BlockRefByHash() L2BlockRefByHash
 	P2PAPI() apis.P2PClient
 
 	// ELs returns the engine(s) that this L2CLNode is connected to.

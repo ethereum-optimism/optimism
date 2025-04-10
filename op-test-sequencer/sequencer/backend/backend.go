@@ -54,7 +54,7 @@ func (ba *Backend) setupSequencerFrontend(id seqtypes.SequencerID) error {
 	if err := ba.router.AddRPC(route); err != nil {
 		return fmt.Errorf("invalid sequencer RPC route: %w", err)
 	}
-	f := &frontend.SequencerFrontend{Sequencer: ba.ensemble.Sequencer(id)}
+	f := &frontend.SequencerFrontend{Sequencer: ba.ensemble.Sequencer(id), Logger: ba.logger}
 	if err := ba.router.AddAPIToRPC(route, rpc.API{
 		Namespace: "sequencer",
 		Service:   f,
@@ -65,9 +65,12 @@ func (ba *Backend) setupSequencerFrontend(id seqtypes.SequencerID) error {
 	return nil
 }
 
-func (ba *Backend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
+func (ba *Backend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts seqtypes.BuildOpts) (work.BuildJob, error) {
 	ba.activeMu.RLock()
 	defer ba.activeMu.RUnlock()
+
+	ba.logger.Debug("Backend CreateJob", "builder_id", id, "opts", opts)
+
 	if !ba.active {
 		return nil, seqtypes.ErrBackendInactive
 	}
