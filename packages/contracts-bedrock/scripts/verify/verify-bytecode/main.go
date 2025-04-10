@@ -862,7 +862,7 @@ func getImmutableReferences(artifact map[string]any) (map[string][]ImmutableRefe
 		// Ensure the references for this variable are in the expected []any format.
 		refsList, ok := refs.([]any)
 		if !ok {
-			color.Yellow("  Warning: Expected list for immutable references of variable '%s' (ID: %s), got %T. Skipping.", varName, varID, refs)
+			color.Yellow("  Warning:  Expected list for immutable references of variable '%s' (ID: %s), got %T. Skipping.", varName, varID, refs)
 			continue // Skip this variable if format is wrong.
 		}
 
