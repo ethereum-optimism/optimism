@@ -26,8 +26,7 @@ func (c *ControlPanel) SupervisorState(id stack.SupervisorID, mode stack.Mode) {
 func (c *ControlPanel) L2CLNodeState(id stack.L2CLNodeID, mode stack.Mode) {
 	s, ok := c.o.l2CLs.Get(id)
 	c.o.P().Require().True(ok, "need l2cl node to change state")
-	// control(s, mode)
-	_ = s
+	control(s, mode)
 }
 
 var _ stack.ControlPanel = (*ControlPanel)(nil)

@@ -45,12 +45,19 @@ func TestController(gt *testing.T) {
 	// This does not work, must not interfere at block number 0. Fix this
 	// stopPauseStartSupervisor()
 
+	controlPanel.L2CLNodeState(ids.L2ACL, stack.Stop)
+	controlPanel.L2CLNodeState(ids.L2BCL, stack.Stop)
+
+	// time.Sleep(time.Second * 20)
+
 	// TODO: investigate that op-node loops forever when supervisor is restarted at the very beginning
 	// TODO: investigate that proposer does not get back on when supervisor restarted
 	{
-		logger := system.T().Logger()
-		seqA := system.L2Network(ids.L2A).L2CLNode(ids.L2ACL)
-		seqB := system.L2Network(ids.L2B).L2CLNode(ids.L2BCL)
+		// logger := system.T().Logger()
+		// seqA := system.L2Network(ids.L2A).L2CLNode(ids.L2ACL)
+		// seqB := system.L2Network(ids.L2B).L2CLNode(ids.L2BCL)
+		elA := system.L2Network(ids.L2A).L2ELNode(ids.L2AEL)
+		elB := system.L2Network(ids.L2B).L2ELNode(ids.L2BEL)
 		blocks := uint64(10)
 		for i := uint64(0); i < blocks*2+10; i++ {
 			if i == 3 {
@@ -59,17 +66,33 @@ func TestController(gt *testing.T) {
 			time.Sleep(time.Second * 2)
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			statusA, err := seqA.RollupAPI().SyncStatus(ctx)
+			blockA, err := elA.EthClient().BlockRefByLabel(ctx, "latest")
 			require.NoError(t, err)
-			statusB, err := seqB.RollupAPI().SyncStatus(ctx)
+			blockB, err := elB.EthClient().BlockRefByLabel(ctx, "latest")
 			require.NoError(t, err)
 			cancel()
-			logger.Info("chain A", "tip", statusA.UnsafeL2)
-			logger.Info("chain B", "tip", statusB.UnsafeL2)
 
-			if statusA.UnsafeL2.Number > blocks && statusB.UnsafeL2.Number > blocks {
-				return
+			logger.Info("chain A", "tip", blockA)
+			logger.Info("chain B", "tip", blockB)
+
+			if i == 5 {
+				logger.Info("startttttttt")
+				controlPanel.L2CLNodeState(ids.L2ACL, stack.Start)
+				controlPanel.L2CLNodeState(ids.L2BCL, stack.Start)
 			}
+
+			// ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			// statusA, err := seqA.RollupAPI().SyncStatus(ctx)
+			// require.NoError(t, err)
+			// statusB, err := seqB.RollupAPI().SyncStatus(ctx)
+			// require.NoError(t, err)
+			// cancel()
+			// logger.Info("chain A", "tip", statusA.UnsafeL2)
+			// logger.Info("chain B", "tip", statusB.UnsafeL2)
+
+			// if statusA.UnsafeL2.Number > blocks && statusB.UnsafeL2.Number > blocks {
+			// 	return
+			// }
 		}
 	}
 }
