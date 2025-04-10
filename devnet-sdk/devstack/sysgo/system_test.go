@@ -38,22 +38,46 @@ func TestController(gt *testing.T) {
 
 	stopPauseStartSupervisor := func() {
 		controlPanel.SupervisorState(ids.Supervisor, stack.Stop)
-		// ports change
 		time.Sleep(time.Second * 4)
 		controlPanel.SupervisorState(ids.Supervisor, stack.Start)
 	}
+	_ = stopPauseStartSupervisor
+
+	stopPauseStartOpNodes := func() {
+		controlPanel.L2CLNodeState(ids.L2ACL, stack.Stop)
+		controlPanel.L2CLNodeState(ids.L2BCL, stack.Stop)
+		time.Sleep(time.Second * 4)
+		controlPanel.L2CLNodeState(ids.L2ACL, stack.Start)
+		controlPanel.L2CLNodeState(ids.L2BCL, stack.Start)
+	}
+	_ = stopPauseStartSupervisor
+
+	// supervisor := system.Supervisor(ids.Supervisor)
+	// for i := uint64(0); i < 5; i++ {
+	// 	res, err := supervisor.QueryAPI().SyncStatus(context.Background())
+	// 	time.Sleep(time.Second * 2)
+	// 	if err != nil {
+	// 		logger.Info("supersupseruper", "err", err)
+	// 		continue
+	// 	}
+	// 	prettyJSON, err := json.MarshalIndent(res, "", "  ")
+	// 	if err != nil {
+	// 		fmt.Println("Error marshalling JSON:", err)
+	// 		return
+	// 	}
+	// 	logger.Info("wowowoowwo")
+	// 	fmt.Println(string(prettyJSON))
+	// }
+
+	// return
 	// This does not work, must not interfere at block number 0. Fix this
 	// stopPauseStartSupervisor()
 
-	controlPanel.L2CLNodeState(ids.L2ACL, stack.Stop)
-	controlPanel.L2CLNodeState(ids.L2BCL, stack.Stop)
-
-	// time.Sleep(time.Second * 20)
-
 	// TODO: investigate that op-node loops forever when supervisor is restarted at the very beginning
 	// TODO: investigate that proposer does not get back on when supervisor restarted
+
 	{
-		// logger := system.T().Logger()
+		logger := system.T().Logger()
 		// seqA := system.L2Network(ids.L2A).L2CLNode(ids.L2ACL)
 		// seqB := system.L2Network(ids.L2B).L2CLNode(ids.L2BCL)
 		elA := system.L2Network(ids.L2A).L2ELNode(ids.L2AEL)
@@ -61,7 +85,7 @@ func TestController(gt *testing.T) {
 		blocks := uint64(10)
 		for i := uint64(0); i < blocks*2+10; i++ {
 			if i == 3 {
-				stopPauseStartSupervisor()
+				stopPauseStartOpNodes()
 			}
 			time.Sleep(time.Second * 2)
 
@@ -75,20 +99,14 @@ func TestController(gt *testing.T) {
 			logger.Info("chain A", "tip", blockA)
 			logger.Info("chain B", "tip", blockB)
 
-			if i == 5 {
-				logger.Info("startttttttt")
-				controlPanel.L2CLNodeState(ids.L2ACL, stack.Start)
-				controlPanel.L2CLNodeState(ids.L2BCL, stack.Start)
-			}
-
-			// ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			// statusA, err := seqA.RollupAPI().SyncStatus(ctx)
+			// ctx2, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			// statusA, err := seqA.RollupAPI().SyncStatus(ctx2)
 			// require.NoError(t, err)
-			// statusB, err := seqB.RollupAPI().SyncStatus(ctx)
+			// statusB, err := seqB.RollupAPI().SyncStatus(ctx2)
 			// require.NoError(t, err)
 			// cancel()
-			// logger.Info("chain A", "tip", statusA.UnsafeL2)
-			// logger.Info("chain B", "tip", statusB.UnsafeL2)
+			// logger.Info("chain A", "tip2", statusA.UnsafeL2)
+			// logger.Info("chain B", "tip2", statusB.UnsafeL2)
 
 			// if statusA.UnsafeL2.Number > blocks && statusB.UnsafeL2.Number > blocks {
 			// 	return
