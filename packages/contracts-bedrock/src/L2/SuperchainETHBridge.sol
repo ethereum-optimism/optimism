@@ -13,12 +13,11 @@ import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000024
-/// @title SuperchainWETH
-/// @notice SuperchainWETH is a version of WETH that can be freely transferred between chains
-///         within the superchain. SuperchainWETH can be converted into native ETH on chains that
-///         do not use a custom gas token.
-contract SuperchainWETH is ISemver {
-    /// @notice Thrown when attempting to relay a message and the cross domain message sender is not SuperchainWETH.
+/// @title SuperchainETHBridge
+/// @notice SuperchainETHBridge enables ETH transfers between chains within an interop cluster.
+contract SuperchainETHBridge is ISemver {
+    /// @notice Thrown when attempting to relay a message and the cross domain message sender is not
+    /// SuperchainETHBridge.
     error InvalidCrossDomainSender();
 
     /// @notice Emitted when ETH is sent from one chain to another.

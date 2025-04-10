@@ -19,7 +19,8 @@ import {
     MessageDestinationNotRelayChain,
     MessageTargetL2ToL2CrossDomainMessenger,
     MessageAlreadyRelayed,
-    ReentrantCall
+    ReentrantCall,
+    InvalidMessage
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 // Interfaces
@@ -115,8 +116,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // data
         assertEq(logs[0].data, abi.encode(address(this), _message));
 
-        // Check that the message nonce has been incremented
+        // Check that the message nonce has been incremented and the message hash has been stored
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
     }
 
     /// @dev Tests that the `sendMessage` function reverts when sending a ETH
@@ -179,65 +181,92 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
-    /// @dev Tests that the `relayMessage` function succeeds and emits the correct RelayedMessage event.
-    function testFuzz_relayMessage_succeeds(
-        uint256 _source,
+    /// @dev Tests that the `resendMessage` function reverts when the message hash does not correspond to
+    ///      any previously sent message.
+    function testFuzz_resendMessage_invalidMessage_reverts(
+        uint256 _destination,
         uint256 _nonce,
         address _sender,
         address _target,
-        bytes calldata _message,
-        uint256 _value,
-        uint64 _blockNum,
-        uint32 _logIndex,
-        uint64 _time
+        bytes calldata _message
     )
         external
     {
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger or the foundry VM
-        vm.assume(
-            _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != foundryVMAddress
-        );
+        // Get the message hash and ensure it has not been sent yet
+        bytes32 msgHash =
+            Hashing.hashL2toL2CrossDomainMessage(_destination, block.chainid, _nonce, _sender, _target, _message);
+        vm.assume(l2ToL2CrossDomainMessenger.sentMessages(msgHash) == false);
 
-        // Ensure that the target call is payable if value is sent
-        if (_value > 0) assumePayable(_target);
+        // Expect a revert with the InvalidMessage selector
+        vm.expectRevert(InvalidMessage.selector);
 
-        // Ensure that the target is not a forge address.
-        assumeNotForgeAddress(_target);
+        // Call the resendMessage function
+        l2ToL2CrossDomainMessenger.resendMessage(_destination, _nonce, _sender, _target, _message);
+    }
 
-        // Ensure that the target contract does not revert
-        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
+    /// @dev Tests that `resendMessage` succeeds and emits the same SentMessage event as the one
+    ///      emitted by `sendMessage`.
+    function testFuzz_resendMessage_succeeds(
+        address _sender,
+        uint256 _destination,
+        address _target,
+        bytes calldata _message
+    )
+        external
+    {
+        // Ensure the destination is not the same as the source, otherwise the function will revert
+        vm.assume(_destination != block.chainid);
 
-        // Construct the SentMessage payload & identifier
-        Identifier memory id =
-            Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _blockNum, _logIndex, _time, _source);
-        bytes memory sentMessage = abi.encodePacked(
-            abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, _target, _nonce), // topics
-            abi.encode(_sender, _message) // data
-        );
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
-        // Ensure the CrossL2Inbox validates this message
-        vm.mockCall({
-            callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(sentMessage))),
-            returnData: ""
-        });
+        // Get the current message nonce
+        uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
 
         // Look for correct emitted event
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.RelayedMessage(
-            _source, _nonce, keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
+        vm.recordLogs();
+
+        // Call the `sendMessage` function
+        vm.prank(_sender);
+        bytes32 msgHash = l2ToL2CrossDomainMessenger.sendMessage(_destination, _target, _message);
+        assertEq(
+            msgHash,
+            Hashing.hashL2toL2CrossDomainMessage(_destination, block.chainid, messageNonce, _sender, _target, _message)
         );
 
-        // relay the message
-        hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
-        assertEq(
-            l2ToL2CrossDomainMessenger.successfulMessages(
-                keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
-            ),
-            true
-        );
+        // Check that the event was emitted with the correct parameters
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+
+        // topics
+        assertEq(logs[0].topics[0], L2ToL2CrossDomainMessenger.SentMessage.selector);
+        assertEq(logs[0].topics[1], bytes32(_destination));
+        assertEq(logs[0].topics[2], bytes32(uint256(uint160(_target))));
+        assertEq(logs[0].topics[3], bytes32(messageNonce));
+
+        // data
+        assertEq(logs[0].data, abi.encode(_sender, _message));
+
+        // Check that the message nonce has been incremented and the message hash has been stored
+        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
+
+        // Call the `resendMessage` function
+        bytes32 resendMsgHash =
+            l2ToL2CrossDomainMessenger.resendMessage(_destination, messageNonce, _sender, _target, _message);
+
+        // Check that the event was emitted with the correct parameters
+        logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+
+        // topics
+        assertEq(logs[0].topics[0], L2ToL2CrossDomainMessenger.SentMessage.selector);
+        assertEq(logs[0].topics[1], bytes32(_destination));
+        assertEq(logs[0].topics[2], bytes32(uint256(uint160(_target))));
+        assertEq(logs[0].topics[3], bytes32(messageNonce));
+
+        // Check that the message hash returned by `sendMessage` is the same as the one returned by `resendMessage`
+        assertEq(resendMsgHash, msgHash);
     }
 
     function testFuzz_relayMessage_eventPayloadNotSentMessage_reverts(

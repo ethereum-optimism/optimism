@@ -10,12 +10,12 @@ import { Unauthorized, ZeroAddress } from "src/libraries/errors/CommonErrors.sol
 
 // Interfaces
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
-import { ISuperchainWETH } from "interfaces/L2/ISuperchainWETH.sol";
+import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
-/// @title SuperchainWETH_Test
-/// @notice Contract for testing the SuperchainWETH contract.
-contract SuperchainWETH_Test is CommonTest {
+/// @title SuperchainETHBridge_Test
+/// @notice Contract for testing the SuperchainETHBridge contract.
+contract SuperchainETHBridge_Test is CommonTest {
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
@@ -42,7 +42,7 @@ contract SuperchainWETH_Test is CommonTest {
         vm.deal(_sender, _amount);
         vm.prank(_sender);
         // Call the `sendETH` function with the zero address as `_to`
-        superchainWeth.sendETH{ value: _amount }(ZERO_ADDRESS, _chainId);
+        superchainETHBridge.sendETH{ value: _amount }(ZERO_ADDRESS, _chainId);
     }
 
     /// @notice Tests the `sendETH` function burns the sender ETH, sends the message, and emits the `SendETH`
@@ -69,23 +69,23 @@ contract SuperchainWETH_Test is CommonTest {
         uint256 _senderBalanceBefore = _sender.balance;
 
         // Look for the emit of the `SendETH` event
-        vm.expectEmit(address(superchainWeth));
+        vm.expectEmit(address(superchainETHBridge));
         emit SendETH(_sender, _to, _amount, _chainId);
 
         // Expect the call to the `burn` function in the `ETHLiquidity` contract
         vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.burn, ()), 1);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
-        bytes memory _message = abi.encodeCall(superchainWeth.relayETH, (_sender, _to, _amount));
+        bytes memory _message = abi.encodeCall(superchainETHBridge.relayETH, (_sender, _to, _amount));
         _mockAndExpect(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeCall(IL2ToL2CrossDomainMessenger.sendMessage, (_chainId, address(superchainWeth), _message)),
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.sendMessage, (_chainId, address(superchainETHBridge), _message)),
             abi.encode(_msgHash)
         );
 
         // Call the `sendETH` function
         vm.prank(_sender);
-        bytes32 _returnedMsgHash = superchainWeth.sendETH{ value: _amount }(_to, _chainId);
+        bytes32 _returnedMsgHash = superchainETHBridge.sendETH{ value: _amount }(_to, _chainId);
 
         // Check the message hash was generated correctly
         assertEq(_msgHash, _returnedMsgHash);
@@ -104,11 +104,11 @@ contract SuperchainWETH_Test is CommonTest {
 
         // Call the `relayETH` function with the non-messenger caller
         vm.prank(_caller);
-        superchainWeth.relayETH(_caller, _to, _amount);
+        superchainETHBridge.relayETH(_caller, _to, _amount);
     }
 
     /// @notice Tests the `relayETH` function reverts when the `crossDomainMessageSender` that sent the message is not
-    /// the same SuperchainWETH.
+    /// the same SuperchainETHBridge.
     function testFuzz_relayETH_notCrossDomainSender_reverts(
         address _crossDomainMessageSender,
         uint256 _source,
@@ -117,7 +117,7 @@ contract SuperchainWETH_Test is CommonTest {
     )
         public
     {
-        vm.assume(_crossDomainMessageSender != address(superchainWeth));
+        vm.assume(_crossDomainMessageSender != address(superchainETHBridge));
 
         // Mock the call over the `crossDomainMessageContext` function setting a wrong sender
         vm.mockCall(
@@ -127,11 +127,11 @@ contract SuperchainWETH_Test is CommonTest {
         );
 
         // Expect the revert with `InvalidCrossDomainSender` selector
-        vm.expectRevert(ISuperchainWETH.InvalidCrossDomainSender.selector);
+        vm.expectRevert(ISuperchainETHBridge.InvalidCrossDomainSender.selector);
 
         // Call the `relayETH` function with the sender caller
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        superchainWeth.relayETH(_crossDomainMessageSender, _to, _amount);
+        superchainETHBridge.relayETH(_crossDomainMessageSender, _to, _amount);
     }
 
     /// @notice Tests the `relayETH` function relays the proper amount of ETH and emits the `RelayETH` event.
@@ -142,18 +142,18 @@ contract SuperchainWETH_Test is CommonTest {
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
-        vm.deal(address(superchainWeth), _amount);
+        vm.deal(address(superchainETHBridge), _amount);
         vm.deal(Predeploys.ETH_LIQUIDITY, _amount);
         _mockAndExpect(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageContext, ()),
-            abi.encode(address(superchainWeth), _source)
+            abi.encode(address(superchainETHBridge), _source)
         );
 
         uint256 _toBalanceBefore = _to.balance;
 
         // Look for the emit of the `RelayETH` event
-        vm.expectEmit(address(superchainWeth));
+        vm.expectEmit(address(superchainETHBridge));
         emit RelayETH(_from, _to, _amount, _source);
 
         // Expect the call to the `mint` function in the `ETHLiquidity` contract
@@ -161,7 +161,7 @@ contract SuperchainWETH_Test is CommonTest {
 
         // Call the `RelayETH` function with the messenger caller
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        superchainWeth.relayETH(_from, _to, _amount);
+        superchainETHBridge.relayETH(_from, _to, _amount);
 
         assertEq(_to.balance, _toBalanceBefore + _amount);
     }

@@ -233,15 +233,17 @@ type templateData struct {
 // Build ensures the docker image for the given project is built, respecting concurrency limits.
 // It blocks until the specific requested build is complete. Other builds may run concurrently.
 func (b *DockerBuilder) Build(projectName, imageTag string) (string, error) {
+	b.mu.Lock()
 	state, exists := b.buildStates[projectName]
 	if !exists {
 		state = &buildState{
 			done: make(chan struct{}),
 		}
-		b.mu.Lock()
 		b.buildStates[projectName] = state
-		b.mu.Unlock()
+	}
+	b.mu.Unlock()
 
+	if !exists {
 		state.once.Do(func() {
 			err := b.executeBuild(projectName, imageTag, state)
 			if err != nil {
