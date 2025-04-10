@@ -1,8 +1,7 @@
 module github.com/ethereum-optimism/optimism
 
 go 1.22.0
-
-toolchain go1.22.7
+toolchain go1.24.1
 
 require (
 	github.com/BurntSushi/toml v1.4.0
@@ -53,15 +52,15 @@ require (
 	github.com/prometheus/client_model v0.6.1
 	github.com/protolambda/ctxlock v0.1.0
 	github.com/schollz/progressbar/v3 v3.18.0
-	github.com/spf13/afero v1.12.0
+	github.com/spf13/afero v1.14.0
 	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.6
 	golang.org/x/crypto v0.32.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.22.0
-	golang.org/x/sync v0.10.0
+	golang.org/x/sync v0.12.0
 	golang.org/x/term v0.28.0
-	golang.org/x/text v0.21.0
+	golang.org/x/text v0.23.0
 	golang.org/x/time v0.10.0
 	gopkg.in/yaml.v3 v3.0.1
 )
