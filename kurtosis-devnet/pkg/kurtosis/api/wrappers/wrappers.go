@@ -26,6 +26,23 @@ type ServiceContextWrapper struct {
 	*services.ServiceContext
 }
 
+// mostly a no-op, to force the values to be typed as interfaces
+func convertPortSpecMap(ports map[string]*services.PortSpec) map[string]interfaces.PortSpec {
+	wrappedPorts := make(map[string]interfaces.PortSpec)
+	for name, port := range ports {
+		wrappedPorts[name] = port
+	}
+	return wrappedPorts
+}
+
+func (w *ServiceContextWrapper) GetPublicPorts() map[string]interfaces.PortSpec {
+	return convertPortSpecMap(w.ServiceContext.GetPublicPorts())
+}
+
+func (w *ServiceContextWrapper) GetPrivatePorts() map[string]interfaces.PortSpec {
+	return convertPortSpecMap(w.ServiceContext.GetPrivatePorts())
+}
+
 type starlarkRunResponseLineWrapper struct {
 	*kurtosis_core_rpc_api_bindings.StarlarkRunResponseLine
 }

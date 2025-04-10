@@ -5,8 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/fake"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/run"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,6 +17,34 @@ import (
 func TestKurtosisControllerSurface(t *testing.T) {
 	ctx := context.Background()
 	testErr := errors.New("test error")
+
+	// Create a test environment
+	env := &descriptors.DevnetEnvironment{
+		Name: "test-env",
+		L1: &descriptors.Chain{
+			Services: descriptors.ServiceMap{
+				"test-service": &descriptors.Service{
+					Name: "test-service",
+					Endpoints: descriptors.EndpointMap{
+						"http": {
+							Port:        0,
+							PrivatePort: 0,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create a test service context with port data
+	testSvcCtx := &testServiceContext{
+		publicPorts: map[string]interfaces.PortSpec{
+			"http": &testPortSpec{number: 8080},
+		},
+		privatePorts: map[string]interfaces.PortSpec{
+			"http": &testPortSpec{number: 8082},
+		},
+	}
 
 	tests := []struct {
 		name        string
@@ -61,11 +92,17 @@ func TestKurtosisControllerSurface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a fake Kurtosis context that will return our test error
-			fakeCtx := &fake.KurtosisContext{
-				EnclaveCtx: &fake.EnclaveContext{
-					RunErr: tt.runErr,
+			// Create a fake enclave context that will return our test service context
+			fakeEnclaveCtx := &fake.EnclaveContext{
+				RunErr: tt.runErr,
+				Services: map[services.ServiceName]interfaces.ServiceContext{
+					"test-service": testSvcCtx,
 				},
+			}
+
+			// Create a fake Kurtosis context that will return our fake enclave context
+			fakeCtx := &fake.KurtosisContext{
+				EnclaveCtx: fakeEnclaveCtx,
 			}
 
 			// Create a KurtosisRunner with our fake context
@@ -75,10 +112,17 @@ func TestKurtosisControllerSurface(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			// Create the controller surface
+			// Create the controller surface with all required fields
 			surface := &KurtosisControllerSurface{
-				runner: runner,
+				env:         env,
+				kurtosisCtx: fakeCtx,
+				runner:      runner,
 			}
+
+			// Create the mock DevnetFS
+			mockDevnetFS, err := newMockDevnetFS(env)
+			require.NoError(t, err)
+			surface.devnetfs = mockDevnetFS
 
 			switch tt.operation {
 			case "start":
@@ -94,6 +138,14 @@ func TestKurtosisControllerSurface(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
+
+			// For successful start operations, verify that the service endpoints were updated
+			if tt.operation == "start" && !tt.wantErr {
+				svc := findSvcInEnv(env, tt.serviceName)
+				require.NotNil(t, svc)
+				require.Equal(t, 8080, svc[0].Endpoints["http"].Port)
+				require.Equal(t, 8082, svc[0].Endpoints["http"].PrivatePort)
+			}
 		})
 	}
 }
