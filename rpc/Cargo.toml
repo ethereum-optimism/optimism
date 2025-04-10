@@ -70,6 +70,7 @@ jsonrpsee-types.workspace = true
 jsonrpsee.workspace = true
 
 # misc
+eyre.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 derive_more = { workspace = true, features = ["constructor"] }

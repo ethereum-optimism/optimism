@@ -324,7 +324,7 @@ where
 {
     type EthApi = OpEthApi<N>;
 
-    fn build_eth_api(self, ctx: EthApiCtx<'_, N>) -> Self::EthApi {
+    async fn build_eth_api(self, ctx: EthApiCtx<'_, N>) -> eyre::Result<Self::EthApi> {
         let Self { sequencer_client } = self;
         let eth_api = reth_rpc::EthApiBuilder::new(
             ctx.components.provider().clone(),
@@ -342,6 +342,6 @@ where
         .gas_oracle_config(ctx.config.gas_oracle)
         .build_inner();
 
-        OpEthApi { inner: Arc::new(OpEthApiInner { eth_api, sequencer_client }) }
+        Ok(OpEthApi { inner: Arc::new(OpEthApiInner { eth_api, sequencer_client }) })
     }
 }
