@@ -37,20 +37,25 @@ func TestController(gt *testing.T) {
 	controlPanel := orch.ControlPlane()
 
 	stopPauseStartSupervisor := func() {
+		log.Info("stopPauseStartSupervisor start")
 		controlPanel.SupervisorState(ids.Supervisor, stack.Stop)
 		time.Sleep(time.Second * 4)
 		controlPanel.SupervisorState(ids.Supervisor, stack.Start)
+		log.Info("stopPauseStartSupervisor done")
 	}
-	_ = stopPauseStartSupervisor
 
 	stopPauseStartOpNodes := func() {
+		log.Info("stopPauseStartOpNodes start")
 		controlPanel.L2CLNodeState(ids.L2ACL, stack.Stop)
 		controlPanel.L2CLNodeState(ids.L2BCL, stack.Stop)
 		time.Sleep(time.Second * 4)
 		controlPanel.L2CLNodeState(ids.L2ACL, stack.Start)
 		controlPanel.L2CLNodeState(ids.L2BCL, stack.Start)
+		// logger.Info("Restoreeeeeeeeeeee start")
+		// Restore(orch, ids)
+		// logger.Info("Restoreeeeeeeeeeee done")
+		log.Info("stopPauseStartOpNodes done")
 	}
-	_ = stopPauseStartSupervisor
 
 	// supervisor := system.Supervisor(ids.Supervisor)
 	// for i := uint64(0); i < 5; i++ {
@@ -74,7 +79,6 @@ func TestController(gt *testing.T) {
 	// stopPauseStartSupervisor()
 
 	// TODO: investigate that op-node loops forever when supervisor is restarted at the very beginning
-	// TODO: investigate that proposer does not get back on when supervisor restarted
 
 	{
 		logger := system.T().Logger()
@@ -86,6 +90,9 @@ func TestController(gt *testing.T) {
 		for i := uint64(0); i < blocks*2+10; i++ {
 			if i == 3 {
 				stopPauseStartOpNodes()
+			}
+			if i == 10 {
+				stopPauseStartSupervisor()
 			}
 			time.Sleep(time.Second * 2)
 
