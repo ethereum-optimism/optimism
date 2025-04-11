@@ -3,7 +3,6 @@ package sysext
 import "github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 
 type ControlPlane struct {
-	o *Orchestrator
 }
 
 func (c *ControlPlane) SupervisorState(id stack.SupervisorID, mode stack.ControlAction) {
