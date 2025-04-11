@@ -1,4 +1,11 @@
 //! OP-Reth hard forks.
+//!
+//! This defines the [`ChainHardforks`] for certain op chains.
+//! It keeps L2 hardforks that correspond to L1 hardforks in sync by defining both at the same
+//! activation timestamp, this includes:
+//!  - Canyon : Shanghai
+//!  - Ecotone : Cancun
+//!  - Isthmus : Prague
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
@@ -41,14 +48,16 @@ pub static DEV_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
                 total_difficulty: U256::ZERO,
             },
         ),
-        (crate::OpHardfork::Bedrock.boxed(), ForkCondition::Block(0)),
-        (crate::OpHardfork::Regolith.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Bedrock.boxed(), ForkCondition::Block(0)),
+        (OpHardfork::Regolith.boxed(), ForkCondition::Timestamp(0)),
         (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(0)),
-        (crate::OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Canyon.boxed(), ForkCondition::Timestamp(0)),
         (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(0)),
-        (crate::OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(0)),
-        (crate::OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(0)),
-        (crate::OpHardfork::Granite.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Ecotone.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(0)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(0)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(0)),
     ])
 });
 
@@ -120,6 +129,8 @@ pub static OP_SEPOLIA_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1716998400)),
         (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1723478400)),
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1732633200)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1744905600)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1744905600)),
     ])
 });
 
@@ -156,6 +167,8 @@ pub static BASE_SEPOLIA_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1716998400)),
         (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1723478400)),
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1732633200)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1744905600)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1744905600)),
     ])
 });
 

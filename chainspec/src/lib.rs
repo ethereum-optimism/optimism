@@ -560,7 +560,12 @@ mod tests {
                 ),
                 (
                     Head { number: 0, timestamp: 1732633200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x4a, 0x1c, 0x79, 0x2e]), next: 0 },
+                    ForkId { hash: ForkHash([0x4a, 0x1c, 0x79, 0x2e]), next: 1744905600 },
+                ),
+                // isthmus
+                (
+                    Head { number: 0, timestamp: 1744905600, ..Default::default() },
+                    ForkId { hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]), next: 0 },
                 ),
             ],
         );
@@ -668,7 +673,12 @@ mod tests {
                 ),
                 (
                     Head { number: 0, timestamp: 1732633200, ..Default::default() },
-                    ForkId { hash: ForkHash([0x8b, 0x5e, 0x76, 0x29]), next: 0 },
+                    ForkId { hash: ForkHash([0x8b, 0x5e, 0x76, 0x29]), next: 1744905600 },
+                ),
+                // isthmus
+                (
+                    Head { number: 0, timestamp: 1744905600, ..Default::default() },
+                    ForkId { hash: ForkHash([0x06, 0x0a, 0x4d, 0x1d]), next: 0 },
                 ),
             ],
         );
