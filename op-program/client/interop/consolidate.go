@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -298,8 +297,7 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query supervisortypes
 		}
 		current += uint32(len(receipt.Logs))
 	}
-	//nolint:err113 // TODO(#14988): Handle non-existent logs
-	return supervisortypes.BlockSeal{}, fmt.Errorf("log not found")
+	return supervisortypes.BlockSeal{}, fmt.Errorf("log not found: %w", supervisortypes.ErrConflict)
 }
 
 func logToLogHash(l *ethtypes.Log) common.Hash {
@@ -355,7 +353,7 @@ func (d *consolidateCheckDeps) DependencySet() depset.DependencySet {
 func (d *consolidateCheckDeps) CanonBlockByNumber(oracle l2.Oracle, blockNum uint64, chainID eth.ChainID) (*ethtypes.Block, error) {
 	head := d.canonBlocks[chainID].GetHeaderByNumber(blockNum)
 	if head == nil {
-		return nil, fmt.Errorf("head not found for chain %v: %w", chainID, ethereum.NotFound)
+		return nil, fmt.Errorf("head not found for chain %v: %w", chainID, supervisortypes.ErrConflict)
 	}
 	return d.oracle.BlockByHash(head.Hash(), chainID), nil
 }
