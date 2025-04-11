@@ -21,10 +21,8 @@ const (
 	VersionMultiThreaded64_v2
 	// VersionMultiThreaded_v2 is the latest 32-bit multithreaded vm
 	VersionMultiThreaded_v2
-	// VersionMultiThreaded64_v3 does not support mips64r1 because dclo|dclz instructions were not supported
+	// VersionMultiThreaded64_v3 is the latest 64-bit multithreaded vm
 	VersionMultiThreaded64_v3
-	// VersionMultiThreaded64_v4 is the latest 64-bit multithreaded vm
-	VersionMultiThreaded64_v4
 )
 
 var StateVersionTypes = []StateVersion{
@@ -35,7 +33,6 @@ var StateVersionTypes = []StateVersion{
 	VersionMultiThreaded64_v2,
 	VersionMultiThreaded_v2,
 	VersionMultiThreaded64_v3,
-	VersionMultiThreaded64_v4,
 }
 
 func (s StateVersion) String() string {
@@ -54,8 +51,6 @@ func (s StateVersion) String() string {
 		return "multithreaded-2"
 	case VersionMultiThreaded64_v3:
 		return "multithreaded64-3"
-	case VersionMultiThreaded64_v4:
-		return "multithreaded64-4"
 	default:
 		return "unknown"
 	}
@@ -77,8 +72,6 @@ func ParseStateVersion(ver string) (StateVersion, error) {
 		return VersionMultiThreaded_v2, nil
 	case "multithreaded64-3":
 		return VersionMultiThreaded64_v3, nil
-	case "multithreaded64-4":
-		return VersionMultiThreaded64_v4, nil
 	default:
 		return StateVersion(0), errors.New("unknown state version")
 	}
@@ -98,7 +91,7 @@ func GetStateVersionStrings() []string {
 
 // GetCurrentMultiThreaded64 returns the 64-bit multithreaded VM version that is currently supported
 func GetCurrentMultiThreaded64() StateVersion {
-	return VersionMultiThreaded64_v4
+	return VersionMultiThreaded64_v3
 }
 
 // GetCurrentMultiThreaded returns the 32-bit multithreaded VM version that is currently supported
