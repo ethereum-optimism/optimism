@@ -10,17 +10,17 @@ type Lifecycle interface {
 	Stop()
 }
 
-type Mode int
+type ControlAction int
 
 const (
-	Start Mode = iota
+	Start ControlAction = iota
 	Stop
 )
 
 // ControlPlane is the interface for the orchestrators to control components of the system.
 type ControlPlane interface {
-	SupervisorState(id SupervisorID, mode Mode)
-	L2CLNodeState(id L2CLNodeID, mode Mode)
+	SupervisorState(id SupervisorID, action ControlAction)
+	L2CLNodeState(id L2CLNodeID, action ControlAction)
 }
 
 // Orchestrator is the base interface for all system orchestrators.

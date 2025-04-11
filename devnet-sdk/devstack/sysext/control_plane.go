@@ -6,11 +6,11 @@ type ControlPlane struct {
 	o *Orchestrator
 }
 
-func (c *ControlPlane) SupervisorState(id stack.SupervisorID, mode stack.Mode) {
+func (c *ControlPlane) SupervisorState(id stack.SupervisorID, mode stack.ControlAction) {
 	// TODO kurtosis command
 }
 
-func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.Mode) {
+func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.ControlAction) {
 	// TODO kurtosis command
 }
 
