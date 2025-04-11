@@ -14,8 +14,13 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 COPY . /app
 
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.4.0 AS cannon-released
+
 # we need a separate stage for src so we can build a service provides prestates for unnanounced chains
 FROM src AS builder
+
+COPY --from=cannon-released /usr/local/bin/cannon /app/cannon/bin/cannon-released
+
 # We avoid copying the full .git dir into the build for just some metadata.
 # Instead, specify:
 # --build-arg GIT_COMMIT=$(git rev-parse HEAD)

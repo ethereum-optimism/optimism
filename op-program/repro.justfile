@@ -7,19 +7,6 @@ OP_PROGRAM_VERSION := "v0.0.0"
 GOOS := ""
 GOARCH := ""
 
-# Build the cannon binary
-cannon:
-    #!/bin/bash
-    # in devnet scenario, the cannon binary is already built.
-    [ -x /app/cannon/bin/cannon ] && exit 0
-    cd ../cannon
-    make cannon \
-        GOOS={{GOOS}} \
-        GOARCH={{GOARCH}} \
-        GITCOMMIT={{GIT_COMMIT}} \
-        GITDATE={{GIT_DATE}} \
-        VERSION={{CANNON_VERSION}}
-
 # Build the op-program-client elf binaries
 op-program-client-mips:
     #!/bin/bash
@@ -33,9 +20,9 @@ op-program-client-mips:
         VERSION={{OP_PROGRAM_VERSION}}
 
 # Run the op-program-client elf binary directly through cannon's load-elf subcommand.
-client TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: cannon op-program-client-mips
+client TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: op-program-client-mips
     #!/bin/bash
-    /app/cannon/bin/cannon load-elf \
+    /app/cannon/bin/cannon-released load-elf \
         --type {{TYPE}} \
         --path /app/op-program/bin/op-program-client{{CLIENT_SUFFIX}}.elf \
         --out /app/op-program/bin/prestate{{PRESTATE_SUFFIX}}.bin.gz \
@@ -44,7 +31,7 @@ client TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: cannon op-program-client-mips
 # Generate the prestate proof containing the absolute pre-state hash.
 prestate TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: (client TYPE CLIENT_SUFFIX PRESTATE_SUFFIX)
     #!/bin/bash
-    /app/cannon/bin/cannon run \
+    /app/cannon/bin/cannon-released run \
         --proof-at '=0' \
         --stop-at '=1' \
         --input /app/op-program/bin/prestate{{PRESTATE_SUFFIX}}.bin.gz \
