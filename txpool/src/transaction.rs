@@ -284,7 +284,7 @@ mod tests {
     use crate::{OpPooledTransaction, OpTransactionValidator};
     use alloy_consensus::transaction::Recovered;
     use alloy_eips::eip2718::Encodable2718;
-    use alloy_primitives::{PrimitiveSignature as Signature, TxKind, U256};
+    use alloy_primitives::{Signature, TxKind, U256};
     use op_alloy_consensus::{OpTypedTransaction, TxDeposit};
     use reth_optimism_chainspec::OP_MAINNET;
     use reth_optimism_primitives::OpTransactionSigned;

@@ -24,9 +24,7 @@ mod tests {
     use super::*;
     use crate::OpChainSpec;
     use alloy_consensus::{Block, BlockBody, Header, TxEip1559};
-    use alloy_primitives::{
-        b256, Address, PrimitiveSignature as Signature, StorageKey, StorageValue, U256,
-    };
+    use alloy_primitives::{b256, Address, Signature, StorageKey, StorageValue, U256};
     use op_alloy_consensus::{OpTypedTransaction, TxDeposit};
     use op_revm::constants::L1_BLOCK_CONTRACT;
     use reth_chainspec::MIN_TRANSACTION_GAS;

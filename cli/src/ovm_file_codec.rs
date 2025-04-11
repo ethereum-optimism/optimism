@@ -9,7 +9,7 @@ use alloy_eips::{
 };
 use alloy_primitives::{
     bytes::{Buf, BytesMut},
-    keccak256, PrimitiveSignature as Signature, TxHash, B256, U256,
+    keccak256, Signature, TxHash, B256, U256,
 };
 use alloy_rlp::{Decodable, Error as RlpError, RlpDecodable};
 use derive_more::{AsRef, Deref};
