@@ -155,14 +155,14 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			P2PSigner: p2pSigner,
 			RPC: node.RPCConfig{
 				ListenAddr: "127.0.0.1",
-				// When op-node starts, store its RPC port here
+				// When L2CL starts, store its RPC port here
 				// given by the os, to reclaim when restart.
 				ListenPort:  0,
 				EnableAdmin: true,
 			},
 			InteropConfig: &interop.Config{
 				RPCAddr: "127.0.0.1",
-				// When op-node starts, store its RPC port here
+				// When L2CL starts, store its RPC port here
 				// given by the os, to reclaim when restart.
 				RPCPort:          0,
 				RPCJwtSecretPath: jwtPath,
