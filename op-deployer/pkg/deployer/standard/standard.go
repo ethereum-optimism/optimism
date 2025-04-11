@@ -204,7 +204,11 @@ func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
 func ArtifactsURLForTag(tag string) (*url.URL, error) {
 	release, ok := taggedReleases[tag]
 	if !ok {
-		return nil, fmt.Errorf("unsupported tag: %s", tag)
+		var validTagsStr string
+		for t := range taggedReleases {
+			validTagsStr += fmt.Sprintf("  %s\n", t)
+		}
+		return nil, fmt.Errorf("unsupported tag: %s\nValid tags are:\n%s", tag, validTagsStr)
 	}
 
 	return url.Parse(release.URL())
