@@ -17,6 +17,7 @@ const (
 	Stop
 )
 
+// ControlPlane is the interface for the orchestrators to control components of the system.
 type ControlPlane interface {
 	SupervisorState(id SupervisorID, mode Mode)
 	L2CLNodeState(id L2CLNodeID, mode Mode)
