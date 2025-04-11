@@ -110,8 +110,9 @@ var (
 	}
 	L1ContractsReleaseFlag = &cli.StringFlag{
 		Name:    L1ContractsReleaseFlagName,
-		Usage:   "Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.",
+		Usage:   "Release version to set OPCM implementations. Should match the artifacts-locator tag if using a tagged release.",
 		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
+		Value:   "dev",
 	}
 	SuperchainConfigProxyFlag = &cli.StringFlag{
 		Name:    "superchain-config-proxy",

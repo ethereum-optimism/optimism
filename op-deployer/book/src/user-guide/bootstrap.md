@@ -60,6 +60,10 @@ op-deployer bootstrap implementations \
   --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
 ```
 
+### --l1-contracts-release
+This defaults to the value `dev`. If your `--artifacts-locator` is a tagged release (i.e. has prefix `tag://`) then this value must match
+the tagged release (e.g. `op-contracts/v1.8.0-rc.4`)
+
 ### Output
 
 This command will deploy implementations, blueprints, and the OPCM. Deployments are (for the most part)

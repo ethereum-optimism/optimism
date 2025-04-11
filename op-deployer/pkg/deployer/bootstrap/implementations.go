@@ -70,6 +70,9 @@ func (c *ImplementationsConfig) Check() error {
 	if c.ArtifactsLocator == nil {
 		return errors.New("artifacts locator must be specified")
 	}
+	if c.ArtifactsLocator.IsTag() && c.ArtifactsLocator.Tag != c.L1ContractsRelease {
+		return errors.New("L1 contracts release must match artifacts locator if using a tagged release")
+	}
 	if c.L1ContractsRelease == "" {
 		return errors.New("L1 contracts release must be specified")
 	}
