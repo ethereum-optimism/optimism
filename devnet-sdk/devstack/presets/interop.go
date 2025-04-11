@@ -1,13 +1,13 @@
 package presets
 
 import (
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/dsl"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
 )
 
@@ -17,8 +17,8 @@ type SimpleInterop struct {
 	Supervisor   *dsl.Supervisor
 	ControlPlane stack.ControlPlane
 
-	L2ChainA stack.L2Network
-	L2ChainB stack.L2Network
+	L2ChainA *dsl.L2Network
+	L2ChainB *dsl.L2Network
 }
 
 func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
@@ -50,13 +50,12 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
 	// since currently there's no way to tell which nodes are using which supervisor.
 	supervisorId := system.SupervisorIDs()[0]
-	sys := dsl.Hydrate(t, system)
 	return &SimpleInterop{
 		Log:          t.Logger(),
 		T:            t,
-		Supervisor:   sys.Supervisor(supervisorId),
+		Supervisor:   dsl.NewSupervisor(system.Supervisor(supervisorId)),
 		ControlPlane: orch.ControlPlane(),
-		L2ChainA:     system.L2Network(match.L2ChainA),
-		L2ChainB:     system.L2Network(match.L2ChainB),
+		L2ChainA:     dsl.NewL2Network(system.L2Network(match.L2ChainA)),
+		L2ChainB:     dsl.NewL2Network(system.L2Network(match.L2ChainB)),
 	}
 }

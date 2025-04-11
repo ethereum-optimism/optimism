@@ -13,16 +13,23 @@ import (
 )
 
 type Supervisor struct {
-	common
-
-	supervisor stack.Supervisor
+	commonImpl
+	inner stack.Supervisor
 }
 
-func newSupervisor(c common, supervisor stack.Supervisor) *Supervisor {
+func NewSupervisor(inner stack.Supervisor) *Supervisor {
 	return &Supervisor{
-		common:     c,
-		supervisor: supervisor,
+		commonImpl: commonFromT(inner.T()),
+		inner:      inner,
 	}
+}
+
+func (s *Supervisor) String() string {
+	return s.inner.ID().String()
+}
+
+func (s *Supervisor) Escape() stack.Supervisor {
+	return s.inner
 }
 
 type VerifySyncStatusConfig struct {
@@ -65,7 +72,7 @@ func (s *Supervisor) fetchSyncStatus() eth.SupervisorSyncStatus {
 	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
 	defer cancel()
 	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
-		syncStatus, err := s.supervisor.QueryAPI().SyncStatus(s.ctx)
+		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)
 		if errors.Is(err, status.ErrStatusTrackerNotReady) {
 			s.log.Debug("Sync status not ready from supervisor")
 		}
