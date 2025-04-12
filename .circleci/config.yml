@@ -2300,7 +2300,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - discord
             - slack
-context: circleci-repo-optimism
   close-issue-workflow:
     when:
       and:
