@@ -4,6 +4,9 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 
+// Scripts
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -71,7 +74,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
         assertEq(address(impl.l1ERC721Bridge()), address(0));
         assertEq(address(impl.l1StandardBridge()), address(0));
-        assertEq(address(impl.disputeGameFactory()), address(0));
         assertEq(address(impl.optimismPortal()), address(0));
         assertEq(address(impl.optimismMintableERC20Factory()), address(0));
     }
@@ -108,12 +110,11 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(addrs.l1ERC721Bridge, address(l1ERC721Bridge));
         assertEq(address(systemConfig.l1StandardBridge()), address(l1StandardBridge));
         assertEq(addrs.l1StandardBridge, address(l1StandardBridge));
-        assertEq(address(systemConfig.disputeGameFactory()), address(disputeGameFactory));
-        assertEq(addrs.disputeGameFactory, address(disputeGameFactory));
         assertEq(address(systemConfig.optimismPortal()), address(optimismPortal2));
         assertEq(addrs.optimismPortal, address(optimismPortal2));
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
         assertEq(addrs.optimismMintableERC20Factory, address(optimismMintableERC20Factory));
+        assertNotEq(systemConfig.l2ChainId(), 0);
     }
 }
 
@@ -142,10 +143,10 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
-            })
+            }),
+            _l2ChainId: 1234
         });
     }
 
@@ -171,10 +172,10 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
-            })
+            }),
+            _l2ChainId: 1234
         });
         assertEq(systemConfig.startBlock(), block.number);
     }
@@ -201,10 +202,10 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
-            })
+            }),
+            _l2ChainId: 1234
         });
         assertEq(systemConfig.startBlock(), 1);
     }
@@ -315,10 +316,10 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
-            })
+            }),
+            _l2ChainId: 1234
         });
     }
 }
@@ -478,5 +479,75 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         systemConfig.setEIP1559Params(_denominator, _elasticity);
         assertEq(systemConfig.eip1559Denominator(), _denominator);
         assertEq(systemConfig.eip1559Elasticity(), _elasticity);
+    }
+}
+
+/// @title SystemConfig_upgrade_Test
+/// @notice Reusable test for the current upgrade() function in the SystemConfig contract. If
+///         the upgrade() function is changed, tests inside of this contract should be updated to
+///         reflect the new function. If the upgrade() function is removed, remove the
+///         corresponding tests but leave this contract in place so it's easy to add tests back
+///         in the future.
+contract SystemConfig_upgrade_Test is SystemConfig_Init {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial dispute game factory slot is non-zero.
+        // We set a value here since it seems this defaults to zero.
+        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+        vm.store(address(systemConfig), disputeGameFactorySlot, bytes32(uint256(1)));
+        assertNotEq(systemConfig.disputeGameFactory(), address(0));
+        assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
+
+        // Trigger upgrade().
+        systemConfig.upgrade(1234);
+
+        // Verify that the initialized slot was updated.
+        bytes32 initializedSlotAfter = vm.load(address(systemConfig), bytes32(slot.slot));
+        assertEq(initializedSlotAfter, bytes32(uint256(2)));
+
+        // Verify that the l2ChainId was updated.
+        assertEq(systemConfig.l2ChainId(), 1234);
+
+        // Verify that the dispute game factory address was cleared.
+        assertEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
+
+        // Trigger first upgrade.
+        systemConfig.upgrade(1234);
+
+        // Try to trigger second upgrade.
+        vm.expectRevert("Initializable: contract is already initialized");
+        systemConfig.upgrade(1234);
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called after initialization.
+    function test_upgrade_afterInitialization_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
+
+        // Slot value should be set to 2 (already initialized).
+        bytes32 initializedSlotBefore = vm.load(address(systemConfig), bytes32(slot.slot));
+        assertEq(initializedSlotBefore, bytes32(uint256(2)));
+
+        // l2ChainId should be non-zero.
+        assertNotEq(systemConfig.l2ChainId(), 0);
+
+        // Try to trigger upgrade().
+        vm.expectRevert("Initializable: contract is already initialized");
+        systemConfig.upgrade(1234);
     }
 }

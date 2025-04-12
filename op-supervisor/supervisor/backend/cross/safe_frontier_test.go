@@ -2,6 +2,7 @@ package cross
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -18,7 +19,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		hazards := map[types.ChainIndex]types.BlockSeal{}
 		// when there are no hazards,
 		// no work is done, and no error is returned
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.NoError(t, err)
 	})
 	t.Run("unknown chain", func(t *testing.T) {
@@ -33,7 +34,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {}}
 		// when there is one hazard, and ChainIDFromIndex returns ErrUnknownChain,
 		// an error is returned as a ErrConflict
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.ErrorIs(t, err, types.ErrConflict)
 	})
 	t.Run("initSource in scope", func(t *testing.T) {
@@ -46,7 +47,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// when there is one hazard, and CrossSource returns a BlockSeal within scope
 		// (ie the hazard's block number is less than or equal to the source block number),
 		// no error is returned
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.NoError(t, err)
 	})
 	t.Run("initSource out of scope", func(t *testing.T) {
@@ -59,7 +60,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// when there is one hazard, and CrossSource returns a BlockSeal out of scope
 		// (ie the hazard's block number is greater than the source block number),
 		// an error is returned as a ErrOutOfScope
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.ErrorIs(t, err, types.ErrOutOfScope)
 	})
 	t.Run("errFuture: candidate cross safe failure", func(t *testing.T) {
@@ -78,7 +79,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// when there is one hazard, and CrossSource returns an ErrFuture,
 		// and CandidateCrossSafe returns an error,
 		// the error from CandidateCrossSafe is returned
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.ErrorContains(t, err, "some error")
 	})
 	t.Run("errFuture: expected block does not match candidate", func(t *testing.T) {
@@ -98,7 +99,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// and CandidateCrossSafe returns a candidate that does not match the hazard,
 		// (ie the candidate's block number is the same as the hazard's block number, but the hashes are different),
 		// an error is returned as a ErrConflict
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.ErrorIs(t, err, types.ErrConflict)
 	})
 	t.Run("errFuture: local-safe hazard out of scope", func(t *testing.T) {
@@ -117,7 +118,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// when there is one hazard, and CrossSource returns an ErrFuture,
 		// and the initSource is out of scope,
 		// an error is returned as a ErrOutOfScope
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.ErrorIs(t, err, types.ErrOutOfScope)
 	})
 	t.Run("CrossSource Error", func(t *testing.T) {
@@ -136,7 +137,7 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		// when there is one hazard, and CrossSource returns an ErrFuture,
 		// and the initSource is out of scope,
 		// an error is returned as a ErrOutOfScope
-		err := HazardSafeFrontierChecks(sfcd, l1Source, hazards)
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.ErrorContains(t, err, "some error")
 	})
 }
@@ -166,9 +167,10 @@ func (m *mockSafeFrontierCheckDeps) DependencySet() depset.DependencySet {
 }
 
 type mockDependencySet struct {
-	chainIDFromIndexfn func() (eth.ChainID, error)
-	canExecuteAtfn     func() (bool, error)
-	canInitiateAtfn    func() (bool, error)
+	chainIDFromIndexfn  func() (eth.ChainID, error)
+	canExecuteAtfn      func() (bool, error)
+	canInitiateAtfn     func() (bool, error)
+	messageExpiryWindow uint64
 }
 
 func (m mockDependencySet) CanExecuteAt(chain eth.ChainID, timestamp uint64) (bool, error) {
@@ -194,12 +196,12 @@ func (m mockDependencySet) ChainIDFromIndex(index types.ChainIndex) (eth.ChainID
 }
 
 func (m mockDependencySet) ChainIndexFromID(chain eth.ChainID) (types.ChainIndex, error) {
-	v, err := chain.ToUInt32()
-	if err != nil {
-		return 0, err
+	v := chain.ToBig()
+	if v.BitLen() > 20 {
+		return 0, fmt.Errorf("chain ID is too large for mock dependency set: %s", chain)
 	}
-	// offset, so we catch improper manual conversion that doesn't apply this offset
-	return types.ChainIndex(v + 1000), nil
+	// offset, so we catch improper manual conversion that doesn't apply this arbitrary offset
+	return types.ChainIndex(v.Uint64() + 1000), nil
 }
 
 func (m mockDependencySet) Chains() []eth.ChainID {
@@ -208,4 +210,11 @@ func (m mockDependencySet) Chains() []eth.ChainID {
 
 func (m mockDependencySet) HasChain(chain eth.ChainID) bool {
 	return true
+}
+
+func (m mockDependencySet) MessageExpiryWindow() uint64 {
+	if m.messageExpiryWindow == 0 {
+		return 100
+	}
+	return m.messageExpiryWindow
 }

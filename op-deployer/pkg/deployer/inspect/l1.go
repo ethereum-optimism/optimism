@@ -2,6 +2,7 @@ package inspect
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 
@@ -18,6 +19,39 @@ type L1Contracts struct {
 	SuperchainDeployment      SuperchainDeployment      `json:"superchainDeployment"`
 	OpChainDeployment         OpChainDeployment         `json:"opChainDeployment"`
 	ImplementationsDeployment ImplementationsDeployment `json:"implementationsDeployment"`
+}
+
+const (
+	SuperchainBundle      = "superchain"
+	ImplementationsBundle = "implementations"
+	OpChainBundle         = "opchain"
+)
+
+var ContractBundles = []string{
+	SuperchainBundle,
+	ImplementationsBundle,
+	OpChainBundle,
+}
+
+func (l L1Contracts) GetContractAddress(name string, bundleName string) (common.Address, error) {
+	var bundle interface{}
+	switch bundleName {
+	case SuperchainBundle:
+		bundle = l.SuperchainDeployment
+	case ImplementationsBundle:
+		bundle = l.ImplementationsDeployment
+	case OpChainBundle:
+		bundle = l.OpChainDeployment
+	default:
+		return common.Address{}, fmt.Errorf("invalid contract bundle type: %s", bundleName)
+	}
+
+	field := reflect.ValueOf(bundle).FieldByName(name)
+	if !field.IsValid() {
+		return common.Address{}, fmt.Errorf("contract %s not found in %s bundle", name, bundleName)
+	}
+
+	return field.Interface().(common.Address), nil
 }
 
 func (l L1Contracts) AsL1Deployments() *genesis.L1Deployments {
@@ -37,6 +71,8 @@ func (l L1Contracts) AsL1Deployments() *genesis.L1Deployments {
 		OptimismMintableERC20FactoryProxy: l.OpChainDeployment.OptimismMintableERC20FactoryProxyAddress,
 		OptimismPortal:                    l.ImplementationsDeployment.OptimismPortalImplAddress,
 		OptimismPortalProxy:               l.OpChainDeployment.OptimismPortalProxyAddress,
+		ETHLockbox:                        l.ImplementationsDeployment.ETHLockboxImplAddress,
+		ETHLockboxProxy:                   l.OpChainDeployment.ETHLockboxProxyAddress,
 		ProxyAdmin:                        l.OpChainDeployment.ProxyAdminAddress,
 		SystemConfig:                      l.ImplementationsDeployment.SystemConfigImplAddress,
 		SystemConfigProxy:                 l.OpChainDeployment.SystemConfigProxyAddress,
@@ -64,6 +100,7 @@ type OpChainDeployment struct {
 	L1StandardBridgeProxyAddress             common.Address `json:"l1StandardBridgeProxyAddress"`
 	L1CrossDomainMessengerProxyAddress       common.Address `json:"l1CrossDomainMessengerProxyAddress"`
 	OptimismPortalProxyAddress               common.Address `json:"optimismPortalProxyAddress"`
+	ETHLockboxProxyAddress                   common.Address `json:"ethLockboxProxyAddress"`
 	DisputeGameFactoryProxyAddress           common.Address `json:"disputeGameFactoryProxyAddress"`
 	AnchorStateRegistryProxyAddress          common.Address `json:"anchorStateRegistryProxyAddress"`
 	AnchorStateRegistryImplAddress           common.Address `json:"anchorStateRegistryImplAddress"`
@@ -79,6 +116,7 @@ type ImplementationsDeployment struct {
 	OpcmAddress                             common.Address `json:"opcmAddress"`
 	DelayedWETHImplAddress                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImplAddress               common.Address `json:"optimismPortalImplAddress"`
+	ETHLockboxImplAddress                   common.Address `json:"ethLockboxImplAddress"`
 	PreimageOracleSingletonAddress          common.Address `json:"preimageOracleSingletonAddress"`
 	MipsSingletonAddress                    common.Address `json:"mipsSingletonAddress"`
 	SystemConfigImplAddress                 common.Address `json:"systemConfigImplAddress"`
@@ -135,6 +173,7 @@ func L1(globalState *state.State, chainID common.Hash) (*L1Contracts, error) {
 			L1StandardBridgeProxyAddress:             chainState.L1StandardBridgeProxyAddress,
 			L1CrossDomainMessengerProxyAddress:       chainState.L1CrossDomainMessengerProxyAddress,
 			OptimismPortalProxyAddress:               chainState.OptimismPortalProxyAddress,
+			ETHLockboxProxyAddress:                   chainState.ETHLockboxProxyAddress,
 			DisputeGameFactoryProxyAddress:           chainState.DisputeGameFactoryProxyAddress,
 			AnchorStateRegistryProxyAddress:          chainState.AnchorStateRegistryProxyAddress,
 			FaultDisputeGameAddress:                  chainState.FaultDisputeGameAddress,
@@ -148,6 +187,7 @@ func L1(globalState *state.State, chainID common.Hash) (*L1Contracts, error) {
 			OpcmAddress:                             globalState.ImplementationsDeployment.OpcmAddress,
 			DelayedWETHImplAddress:                  globalState.ImplementationsDeployment.DelayedWETHImplAddress,
 			OptimismPortalImplAddress:               globalState.ImplementationsDeployment.OptimismPortalImplAddress,
+			ETHLockboxImplAddress:                   globalState.ImplementationsDeployment.ETHLockboxImplAddress,
 			PreimageOracleSingletonAddress:          globalState.ImplementationsDeployment.PreimageOracleSingletonAddress,
 			MipsSingletonAddress:                    globalState.ImplementationsDeployment.MipsSingletonAddress,
 			SystemConfigImplAddress:                 globalState.ImplementationsDeployment.SystemConfigImplAddress,

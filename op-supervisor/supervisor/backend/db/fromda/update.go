@@ -9,15 +9,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef) error {
+func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
-	return db.addLink(source, derived, common.Hash{})
+	return db.addLink(source, derived, common.Hash{}, revision)
 }
 
 // ReplaceInvalidatedBlock replaces the current Invalidated block with the given replacement.
 // The to-be invalidated hash must be provided for consistency checks.
-func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (types.DerivedBlockSealPair, error) {
+func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (
+	out types.DerivedBlockRefPair, err error) {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
@@ -27,39 +28,39 @@ func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidat
 	// and where we thus stopped building additional entries for it.
 	lastIndex := db.store.LastEntryIdx()
 	if lastIndex < 0 {
-		return types.DerivedBlockSealPair{}, types.ErrFuture
+		return types.DerivedBlockRefPair{}, types.ErrFuture
 	}
 	last, err := db.readAt(lastIndex)
 	if err != nil {
-		return types.DerivedBlockSealPair{}, fmt.Errorf("failed to read last derivation data: %w", err)
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to read last derivation data: %w", err)
 	}
 	if !last.invalidated {
-		return types.DerivedBlockSealPair{}, fmt.Errorf("cannot replace block %d, that was not invalidated, with block %s: %w", last.derived, replacementDerived, types.ErrConflict)
+		return types.DerivedBlockRefPair{}, fmt.Errorf("cannot replace block %d, that was not invalidated, with block %s: %w", last.derived, replacementDerived, types.ErrConflict)
 	}
 	if last.derived.Hash != invalidated {
-		return types.DerivedBlockSealPair{}, fmt.Errorf("cannot replace invalidated %s, DB contains %s: %w", invalidated, last.derived, types.ErrConflict)
+		return types.DerivedBlockRefPair{}, fmt.Errorf("cannot replace invalidated %s, DB contains %s: %w", invalidated, last.derived, types.ErrConflict)
 	}
 	// Find the parent-block of derived-from.
 	// We need this to build a block-ref, so the DB can be consistency-checked when the next entry is added.
 	// There is always one, since the first entry in the DB should never be an invalidated one.
 	prevSource, err := db.previousSource(last.source.ID())
 	if err != nil {
-		return types.DerivedBlockSealPair{}, err
+		return types.DerivedBlockRefPair{}, err
 	}
 	// Remove the invalidated placeholder and everything after
 	err = db.store.Truncate(lastIndex - 1)
 	if err != nil {
-		return types.DerivedBlockSealPair{}, err
+		return types.DerivedBlockRefPair{}, err
 	}
 	replacement := types.DerivedBlockRefPair{
 		Source:  last.source.ForceWithParent(prevSource.ID()),
 		Derived: replacementDerived,
 	}
 	// Insert the replacement
-	if err := db.addLink(replacement.Source, replacement.Derived, invalidated); err != nil {
-		return types.DerivedBlockSealPair{}, fmt.Errorf("failed to add %s as replacement at %s: %w", replacement.Derived, replacement.Source, err)
+	if err := db.addLink(replacement.Source, replacement.Derived, invalidated, last.revision); err != nil {
+		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to add %s as replacement at %s: %w", replacement.Derived, replacement.Source, err)
 	}
-	return replacement.Seals(), nil
+	return replacement, nil
 }
 
 // RewindAndInvalidate rolls back the database to just before the invalidated block,
@@ -69,14 +70,47 @@ func (db *DB) RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	invalidatedSeals := types.DerivedBlockSealPair{
+	t := types.DerivedBlockSealPair{
 		Source:  types.BlockSealFromRef(invalidated.Source),
 		Derived: types.BlockSealFromRef(invalidated.Derived),
 	}
-	if err := db.rewindLocked(invalidatedSeals, true); err != nil {
+	i, link, err := db.lookupOrAfter(t.Source.Number, t.Derived.Number)
+	if err != nil {
 		return err
 	}
-	if err := db.addLink(invalidated.Source, invalidated.Derived, invalidated.Derived.Hash); err != nil {
+	if link.invalidated {
+		return fmt.Errorf("cannot invalidate already invalidated block %s with %s: %w", link, invalidated, types.ErrAwaitReplacementBlock)
+	}
+	// We must have an exact match for the source, this is where and when we decide to invalidate
+	if link.source.Hash != t.Source.Hash {
+		return fmt.Errorf("found derived-from %s, but expected %s: %w",
+			link.source, t.Source, types.ErrConflict)
+	}
+	// If we optimistically derived some block already for a previous source,
+	// and only invalidated because of a later view of newer source data,
+	// then we may have derived later blocks and will not exactly match.
+	if link.derived.Hash != t.Derived.Hash {
+		if link.derived.Number <= t.Derived.Number {
+			return fmt.Errorf("found derived %s, but expected %s: %w",
+				link.derived, t.Derived, types.ErrConflict)
+		} else {
+			db.log.Warn("Invalidating block that was previously optimistically assumed as canonical with previous source",
+				"invalidated_source", invalidated.Source, "invalidated_derived", invalidated.Derived,
+				"link_source", link.source, "link_derived", link.derived)
+		}
+	}
+	// we rewind to exclude the entry we found
+	target := i - 1
+	if err := db.store.Truncate(target); err != nil {
+		return fmt.Errorf("failed to rewind upon block invalidation of %s: %w", t, err)
+	}
+	db.m.RecordDBDerivedEntryCount(int64(target) + 1)
+
+	// Starting with the placeholder invalidated entry, we are building a new canonical chain.
+	// The block-number of the invalidated derived entry is used as revision number,
+	// so that every DB copy that invalidates here uses the same number.
+	revision := types.Revision(invalidated.Derived.Number)
+	if err := db.addLink(invalidated.Source, invalidated.Derived, invalidated.Derived.Hash, revision); err != nil {
 		return fmt.Errorf("failed to add invalidation entry %s: %w", invalidated, err)
 	}
 	return nil
@@ -114,10 +148,10 @@ func (db *DB) RewindToScope(scope eth.BlockID) error {
 
 // RewindToFirstDerived rewinds to the first time
 // when v was derived (inclusive, v is retained in DB).
-func (db *DB) RewindToFirstDerived(v eth.BlockID) error {
+func (db *DB) RewindToFirstDerived(v eth.BlockID, revision types.Revision) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
-	_, link, err := db.derivedNumToFirstSource(v.Number)
+	_, link, err := db.derivedNumToFirstSource(v.Number, revision)
 	if err != nil {
 		return fmt.Errorf("failed to find when %d was first derived: %w", v.Number, err)
 	}
@@ -132,7 +166,7 @@ func (db *DB) RewindToFirstDerived(v eth.BlockID) error {
 
 // rewindLocked performs the truncate operation to a specified block seal pair.
 // data beyond the specified block seal pair is truncated from the database.
-// if including is true, the block seal pair itself is removed as well.
+// If including is true, the block seal pair itself is removed as well.
 // Note: This function must be called with the rwLock held.
 // Callers are responsible for locking and unlocking the Database.
 func (db *DB) rewindLocked(t types.DerivedBlockSealPair, including bool) error {
@@ -163,7 +197,11 @@ func (db *DB) rewindLocked(t types.DerivedBlockSealPair, including bool) error {
 // addLink adds a L1/L2 derivation link, with strong consistency checks.
 // if the link invalidates a prior L2 block, that was valid in a prior L1,
 // the invalidated hash needs to match it, even if a new derived block replaces it.
-func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated common.Hash) error {
+// If types.RevisionAny is provided, the last registered revision is repeated.
+func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated common.Hash, revision types.Revision) error {
+	// - we are in regular operation if (invalidated = 0)
+	// - we are invalidating if (invalidated != 0 && derived == invalidated)
+	// - we are replacing an invalidated entry if (invalidated != 0 && derived != invalidated)
 	link := LinkEntry{
 		source: types.BlockSeal{
 			Hash:      source.Hash,
@@ -176,11 +214,15 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 			Timestamp: derived.Time,
 		},
 		invalidated: (invalidated != common.Hash{}) && derived.Hash == invalidated,
+		revision:    revision,
 	}
 	// If we don't have any entries yet, allow any block to start things off
 	if db.store.Size() == 0 {
 		if link.invalidated {
 			return fmt.Errorf("first DB entry %s cannot be an invalidated entry: %w", link, types.ErrConflict)
+		}
+		if revision.Any() {
+			link.revision = FirstRevision
 		}
 		e := link.encode()
 		if err := db.store.Append(e); err != nil {
@@ -196,10 +238,34 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 		return err
 	}
 	if last.invalidated {
-		return fmt.Errorf("cannot build %s on top of invalidated entry %s: %w", link, last, types.ErrConflict)
+		return fmt.Errorf("cannot build %s on top of invalidated entry %s: %w", link, last, types.ErrAwaitReplacementBlock)
 	}
 	lastSource := last.source
 	lastDerived := last.derived
+
+	if revision.Any() {
+		link.revision = last.revision
+	} else {
+		if invalidated == (common.Hash{}) {
+			// Cross-safe db can bump the revision number without invalidating anything at the same time.
+			// But can only do so when inserting the expected entry
+			if last.revision != revision {
+				if derived.Number != revision.Number() {
+					return fmt.Errorf("cannot insert entry %s with revision %s, after %s with revision %s: %w",
+						derived, revision, last.derived, last.revision, types.ErrDataCorruption)
+				}
+				db.log.Warn("New revision", "revision", revision, "source", source, "derived", derived)
+			}
+		} else if derived.Hash == invalidated {
+			if last.revision == revision {
+				return fmt.Errorf("invalidated link %s should change revision: %w", link, types.ErrConflict)
+			}
+			if derived.Number != revision.Number() {
+				return fmt.Errorf("expecting invalidated/replaced entry %s to match revision %s: %w", derived, revision, types.ErrDataCorruption)
+			}
+			db.log.Debug("Invalidating entry", "revision", revision, "source", source, "derived", derived)
+		}
+	}
 
 	if (lastSource.Number+1 == source.Number) && (lastDerived.Number+1 == derived.Number) {
 		return fmt.Errorf("cannot add source:%s derived:%s on top of last entry source:%s derived:%s, must increment source or derived, not both: %w",
@@ -218,7 +284,7 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 		// Repeat of same information. No entries to be written.
 		// But we can silently ignore and not return an error, as that brings the caller
 		// in a consistent state, after which it can insert the actual new derived-from information.
-		db.log.Debug("Database link already written", "derived", derived, "lastDerived", lastDerived)
+		db.log.Debug("Database link already written", "derived", derived, "lastDerived", lastDerived, "revision", last.revision)
 		return nil
 	}
 
@@ -247,8 +313,18 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 			lastDerived, lastSource,
 			types.ErrFuture)
 	} else {
-		return fmt.Errorf("derived block %s is older than current derived block %s: %w",
-			derived, lastDerived, types.ErrOutOfOrder)
+		if invalidated != (common.Hash{}) {
+			// Invalidated blocks or replacement blocks may be reverting back to an older derived block.
+			// If it is older, let's sanity-check it's a known block that is being invalidated or replaced.
+			if _, v, err := db.derivedNumToLastSource(derived.Number, last.revision); err != nil {
+				return fmt.Errorf("failed to check if older invalidated derived block was known: %w", err)
+			} else if v.derived.Hash != invalidated {
+				return fmt.Errorf("cannot invalidate mismatching block: expected %s but invalidating %s", link.derived, invalidated)
+			}
+		} else {
+			return fmt.Errorf("derived block %s is older than current derived block %s: %w",
+				derived, lastDerived, types.ErrOutOfOrder)
+		}
 	}
 
 	// Check derived-from relation: multiple L2 blocks may be derived from the same L1 block. But everything in sequence.

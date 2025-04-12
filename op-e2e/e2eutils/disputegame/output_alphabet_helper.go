@@ -35,7 +35,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 
 func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node string) *OutputHonestHelper {
 	logger := testlog.Logger(g.T, log.LevelInfo).New("role", "HonestHelper", "game", g.Addr)
-	prestateBlock, poststateBlock, err := g.Game.GetBlockRange(ctx)
+	prestateBlock, poststateBlock, err := g.Game.GetGameRange(ctx)
 	g.Require.NoError(err, "Get block range")
 	splitDepth := g.SplitDepth(ctx)
 	l1Head := g.GetL1Head(ctx)
@@ -44,7 +44,7 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node
 	prestateProvider := outputs.NewPrestateProvider(rollupClient, prestateBlock)
 	correctTrace, err := outputs.NewOutputAlphabetTraceAccessor(logger, metrics.NoopMetrics, prestateProvider, rollupClient, l2Client, l1Head, splitDepth, prestateBlock, poststateBlock)
 	g.Require.NoError(err, "Create trace accessor")
-	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, g.Game, correctTrace)
+	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper.SplitGameHelper, g.Game, correctTrace)
 }
 
 func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, l2Node string, defender bool) *DishonestHelper {

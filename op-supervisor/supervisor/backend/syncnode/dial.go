@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 )
 
 type RPCDialSetup struct {
@@ -20,7 +21,7 @@ type RPCDialSetup struct {
 
 var _ SyncNodeSetup = (*RPCDialSetup)(nil)
 
-func (r *RPCDialSetup) Setup(ctx context.Context, logger log.Logger) (SyncNode, error) {
+func (r *RPCDialSetup) Setup(ctx context.Context, logger log.Logger, m opmetrics.RPCMetricer) (SyncNode, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
 	defer cancel()
 
@@ -28,6 +29,7 @@ func (r *RPCDialSetup) Setup(ctx context.Context, logger log.Logger) (SyncNode, 
 	opts := []client.RPCOption{
 		client.WithGethRPCOptions(auth),
 		client.WithDialAttempts(10),
+		client.WithRPCRecorder(m.NewRecorder("syncnode")),
 	}
 	rpcCl, err := client.NewRPC(ctx, logger, r.Endpoint, opts...)
 	if err != nil {

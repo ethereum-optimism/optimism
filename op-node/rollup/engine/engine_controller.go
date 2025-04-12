@@ -262,6 +262,56 @@ func (e *EngineController) checkForkchoiceUpdatedStatus(status eth.ExecutePayloa
 	return status == eth.ExecutionValid
 }
 
+// initializeUnknowns is important to give the op-node EngineController engine state.
+// Pre-interop, the initial reset triggered a find-sync-start, and filled the forkchoice.
+// This still happens, but now overrides what may be initialized here.
+// Post-interop, the op-supervisor may diff the forkchoice state against the supervisor DB,
+// to determine where to perform the initial reset to.
+func (e *EngineController) initializeUnknowns(ctx context.Context) error {
+	if e.unsafeHead == (eth.L2BlockRef{}) {
+		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
+		if err != nil {
+			return fmt.Errorf("failed to load local-unsafe head: %w", err)
+		}
+		e.SetUnsafeHead(ref)
+		e.log.Info("Loaded initial local-unsafe block ref", "local_unsafe", ref)
+	}
+	var finalizedRef eth.L2BlockRef
+	if e.finalizedHead == (eth.L2BlockRef{}) {
+		var err error
+		finalizedRef, err = e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+		if err != nil {
+			return fmt.Errorf("failed to load finalized head: %w", err)
+		}
+		e.SetFinalizedHead(finalizedRef)
+		e.log.Info("Loaded initial finalized block ref", "finalized", finalizedRef)
+	}
+	if e.safeHead == (eth.L2BlockRef{}) {
+		ref, err := e.engine.L2BlockRefByLabel(ctx, eth.Safe)
+		if err != nil {
+			if errors.Is(err, ethereum.NotFound) {
+				// If the engine doesn't have a safe head, then we can use the finalized head
+				e.SetSafeHead(finalizedRef)
+				e.log.Info("Loaded initial cross-safe block from finalized", "cross_safe", finalizedRef)
+			} else {
+				return fmt.Errorf("failed to load cross-safe head: %w", err)
+			}
+		} else {
+			e.SetSafeHead(ref)
+			e.log.Info("Loaded initial cross-safe block ref", "cross_safe", ref)
+		}
+	}
+	if e.crossUnsafeHead == (eth.L2BlockRef{}) {
+		e.SetCrossUnsafeHead(e.safeHead) // preserve cross-safety, don't fall back to a non-cross safety level
+		e.log.Info("Set initial cross-unsafe block ref to match cross-safe", "cross_unsafe", e.safeHead)
+	}
+	if e.localSafeHead == (eth.L2BlockRef{}) {
+		e.SetLocalSafeHead(e.safeHead)
+		e.log.Info("Set initial local-safe block ref to match cross-safe", "local_safe", e.safeHead)
+	}
+	return nil
+}
+
 // TryUpdateEngine attempts to update the engine with the current forkchoice state of the rollup node,
 // this is a no-op if the nodes already agree on the forkchoice state.
 func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
@@ -270,6 +320,9 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	}
 	if e.IsEngineSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")
+	}
+	if err := e.initializeUnknowns(ctx); err != nil {
+		return derive.NewTemporaryError(fmt.Errorf("cannot update engine until engine forkchoice is initialized: %w", err))
 	}
 	if e.unsafeHead.Number < e.finalizedHead.Number {
 		err := fmt.Errorf("invalid forkchoice state, unsafe head %s is behind finalized head %s", e.unsafeHead, e.finalizedHead)
@@ -289,7 +342,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 		if errors.As(err, &rpcErr) {
 			switch eth.ErrorCode(rpcErr.ErrorCode()) {
 			case eth.InvalidForkchoiceState:
-				return derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", rpcErr))
+				return derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", err))
 			default:
 				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
@@ -370,7 +423,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		if errors.As(err, &rpcErr) {
 			switch eth.ErrorCode(rpcErr.ErrorCode()) {
 			case eth.InvalidForkchoiceState:
-				return derive.NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", rpcErr))
+				return derive.NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", err))
 			default:
 				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
@@ -460,7 +513,7 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 			switch eth.ErrorCode(rpcErr.ErrorCode()) {
 			case eth.InvalidForkchoiceState:
 				e.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
-				return true, derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", rpcErr))
+				return true, derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", err))
 			default:
 				// Retry when forkChoiceUpdate returns non-input error.
 				// Do not reset backupUnsafeHead because it will be used again.

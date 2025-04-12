@@ -7,11 +7,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -32,8 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/systemconfig"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -62,6 +63,10 @@ import (
 // kurtosis or another testing framework could be implemented
 type SuperSystem interface {
 	L1() *geth.GethInstance
+	L1GethClient() *ethclient.Client
+	L1Beacon() *fakebeacon.FakeBeacon
+	AdvanceL1Time(duration time.Duration)
+	DisputeGameFactoryAddr() common.Address
 
 	// Superchain level
 	L2IDs() []string
@@ -70,9 +75,12 @@ type SuperSystem interface {
 	Proposer(network string) *l2os.ProposerService
 	AddUser(username string)
 	SupervisorClient() *sources.SupervisorClient
+	DependencySet() *depset.StaticConfigDependencySet
 
 	// L2 client specific
+	L2GethEndpoint(id string, name string) endpoint.RPC
 	L2GethClient(network string, node string) *ethclient.Client
+	L2RollupEndpoint(network string, node string) endpoint.RPC
 	L2RollupClient(network string, node string) *sources.RollupClient
 	SendL2Tx(network string, node string, username string, applyTxOpts helpers.TxOptsFn) *types.Receipt
 	EmitData(ctx context.Context, network string, node string, username string, data string) *types.Receipt
@@ -80,12 +88,13 @@ type SuperSystem interface {
 
 	// L2 level
 	ChainID(network string) *big.Int
+	RollupConfig(network string) *rollup.Config
+	L2Genesis(network string) *core.Genesis
 	UserKey(nework, username string) ecdsa.PrivateKey
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
 	Contract(network string, contractName string) interface{}
-	DeployEmitterContract(network string, username string) common.Address
-	AddDependency(ctx context.Context, network string, dep *big.Int) *types.Receipt
+	DeployEmitterContract(ctx context.Context, network string, username string) common.Address
 	ValidateMessage(
 		ctx context.Context,
 		id string,
@@ -97,11 +106,12 @@ type SuperSystem interface {
 	// Access a contract on a network by name
 }
 type SuperSystemConfig struct {
-	mempoolFiltering bool
+	mempoolFiltering  bool
+	SupportTimeTravel bool
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
-func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe, w worldResourcePaths, config SuperSystemConfig) SuperSystem {
+func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe, w WorldResourcePaths, config SuperSystemConfig) SuperSystem {
 	s2 := &interopE2ESystem{recipe: recipe, config: &config}
 	s2.prepare(t, w)
 	return s2
@@ -115,6 +125,7 @@ type interopE2ESystem struct {
 	t               *testing.T
 	recipe          *interopgen.InteropDevRecipe
 	logger          log.Logger
+	timeTravelClock *clock.AdvancingClock
 	hdWallet        *devkeys.MnemonicDevKeys
 	worldDeployment *interopgen.WorldDeployment
 	worldOutput     *interopgen.WorldOutput
@@ -132,6 +143,19 @@ func (s *interopE2ESystem) L1() *geth.GethInstance {
 	return s.l1
 }
 
+func (s *interopE2ESystem) L1Beacon() *fakebeacon.FakeBeacon {
+	return s.beacon
+}
+
+func (s *interopE2ESystem) AdvanceL1Time(duration time.Duration) {
+	require.NotNil(s.t, s.timeTravelClock, "Attempting to time travel without enabling it.")
+	s.timeTravelClock.AdvanceTime(duration)
+}
+
+func (s *interopE2ESystem) DisputeGameFactoryAddr() common.Address {
+	return s.worldDeployment.Interop.DisputeGameFactory
+}
+
 // prepareHDWallet creates a new HD wallet to derive keys from
 func (s *interopE2ESystem) prepareHDWallet() *devkeys.MnemonicDevKeys {
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -139,24 +163,28 @@ func (s *interopE2ESystem) prepareHDWallet() *devkeys.MnemonicDevKeys {
 	return hdWallet
 }
 
-type worldResourcePaths struct {
-	foundryArtifacts string
-	sourceMap        string
+type WorldResourcePaths struct {
+	FoundryArtifacts string
+	SourceMap        string
 }
 
 // prepareWorld creates the world configuration from the recipe and deploys it
-func (s *interopE2ESystem) prepareWorld(w worldResourcePaths) (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
+func (s *interopE2ESystem) prepareWorld(w WorldResourcePaths) (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
 	// Build the world configuration from the recipe and the HD wallet
 	worldCfg, err := s.recipe.Build(s.hdWallet)
 	require.NoError(s.t, err)
+
+	for _, l2Cfg := range worldCfg.L2s {
+		require.NotNil(s.t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting isthmus fork to be enabled for interop deployments")
+	}
 
 	// create a logger for the world configuration
 	logger := s.logger.New("role", "world")
 	require.NoError(s.t, worldCfg.Check(logger))
 
 	// create the foundry artifacts and source map
-	foundryArtifacts := foundry.OpenArtifactsDir(w.foundryArtifacts)
-	sourceMap := foundry.NewSourceMapFS(os.DirFS(w.sourceMap))
+	foundryArtifacts := foundry.OpenArtifactsDir(w.FoundryArtifacts)
+	sourceMap := foundry.NewSourceMapFS(os.DirFS(w.SourceMap))
 
 	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
 	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
@@ -182,6 +210,10 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 
 	l1FinalizedDistance := uint64(3)
 	l1Clock := clock.SystemClock
+	if s.config.SupportTimeTravel {
+		s.timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		l1Clock = s.timeTravelClock
+	}
 	// Start the L1 chain
 	l1Geth, err := geth.InitL1(
 		blockTimeL1,
@@ -234,6 +266,14 @@ func (s *interopE2ESystem) ChainID(network string) *big.Int {
 	return s.l2s[network].chainID
 }
 
+func (s *interopE2ESystem) RollupConfig(network string) *rollup.Config {
+	return s.l2s[network].l2Out.RollupCfg
+}
+
+func (s *interopE2ESystem) L2Genesis(network string) *core.Genesis {
+	return s.l2s[network].l2Out.Genesis
+}
+
 // prepareSupervisor creates a new supervisor for the system
 func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 	// Be verbose with op-supervisor, it's in early test phase
@@ -258,20 +298,8 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		L1RPC:       s.l1.UserRPC().RPC(),
 		Datadir:     path.Join(s.t.TempDir(), "supervisor"),
 	}
-	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
 
-	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
-	for _, l2Out := range s.worldOutput.L2s {
-		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-		index, err := chainID.ToUInt32()
-		require.NoError(s.t, err)
-		depSet[chainID] = &depset.StaticConfigDependency{
-			ChainIndex:     supervisortypes.ChainIndex(index),
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
-	}
-	stDepSet, err := depset.NewStaticConfigDependencySet(depSet)
+	stDepSet, err := worldToDepset(s.worldOutput)
 	require.NoError(s.t, err)
 	cfg.DependencySetSource = stDepSet
 
@@ -306,7 +334,7 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 // prepare sets up the system for testing
 // components are built iteratively, so that they can be reused or modified
 // their creation can't be safely skipped or reordered at this time
-func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
+func (s *interopE2ESystem) prepare(t *testing.T, w WorldResourcePaths) {
 	s.t = t
 	s.logger = testlog.Logger(s.t, log.LevelDebug)
 	s.hdWallet = s.prepareHDWallet()
@@ -347,7 +375,6 @@ func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 // but if in the future these maps can diverge, the indexes for username would also diverge
 // NOTE: The first 20 accounts are implicitly funded by the Recipe's World Deployment
 // see: op-chain-ops/interopgen/recipe.go
-// TODO(#11887): make the funded account quantity specified in the recipe so SuperSystems can know which accounts are funded
 func (s *interopE2ESystem) AddUser(username string) {
 	for id, l2 := range s.l2s {
 		bigID, _ := big.NewInt(0).SetString(id, 10)
@@ -385,17 +412,11 @@ func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 // prepareContracts prepares contract-bindings for the L2s
 func (s *interopE2ESystem) prepareContracts() {
 	// Add bindings to common contracts for each L2
-	l1GethClient := s.L1GethClient()
-	for id, l2Dep := range s.worldDeployment.L2s {
+	for id := range s.worldDeployment.L2s {
 		{
 			contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, s.L2GethClient(id, "sequencer"))
 			require.NoError(s.t, err)
 			s.l2s[id].contracts["inbox"] = contract
-		}
-		{
-			contract, err := systemconfig.NewSystemconfig(l2Dep.SystemConfigProxy, l1GethClient)
-			require.NoError(s.t, err)
-			s.l2s[id].contracts["systemconfig"] = contract
 		}
 	}
 }
@@ -476,13 +497,14 @@ func (s *interopE2ESystem) ValidateMessage(
 ) (*types.Receipt, error) {
 	secret := s.UserKey(id, sender)
 	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 
 	require.NoError(s.t, err)
 
 	auth.GasLimit = uint64(3000_000)
-	auth.GasPrice = big.NewInt(20_000_000_000)
+	auth.GasFeeCap = big.NewInt(21_000_000_000)
+	auth.GasTipCap = big.NewInt(1_000_000_000)
 
-	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 	identifier := inbox.Identifier{
 		Origin:      msgIdentifier.Origin,
 		BlockNumber: new(big.Int).SetUint64(msgIdentifier.BlockNumber),
@@ -490,6 +512,14 @@ func (s *interopE2ESystem) ValidateMessage(
 		Timestamp:   new(big.Int).SetUint64(msgIdentifier.Timestamp),
 		ChainId:     msgIdentifier.ChainID.ToBig(),
 	}
+	access := msgIdentifier.ChecksumArgs(msgHash).Access()
+	auth.AccessList = []types.AccessTuple{
+		{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: supervisortypes.EncodeAccessList([]supervisortypes.Access{access}),
+		},
+	}
+
 	tx, err := contract.InboxTransactor.ValidateMessage(auth, identifier, msgHash)
 	if expectedError != nil {
 		require.ErrorContains(s.t, err, expectedError.Error())
@@ -501,37 +531,10 @@ func (s *interopE2ESystem) ValidateMessage(
 	return bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx) // use the sequencer client to wait for the tx
 }
 
-func (s *interopE2ESystem) AddDependency(ctx context.Context, id string, dep *big.Int) *types.Receipt {
-	// There is a note in OPContractsManagerInterop that the proxy-admin is used for now,
-	// even though it should be a separate dependency-set-manager address.
-	secret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
-		ChainID: s.l2s[id].chainID,
-		Role:    devkeys.SystemConfigOwner,
-	})
-	require.NoError(s.t, err)
-
-	auth, err := bind.NewKeyedTransactorWithChainID(secret, s.worldOutput.L1.Genesis.Config.ChainID)
-	require.NoError(s.t, err)
-
-	balance, err := s.l1GethClient.BalanceAt(ctx, crypto.PubkeyToAddress(secret.PublicKey), nil)
-	require.NoError(s.t, err)
-	require.False(s.t, balance.Sign() == 0, "system config owner needs a balance")
-
-	auth.GasLimit = uint64(3000000)
-	auth.GasPrice = big.NewInt(20000000000)
-
-	contract := s.Contract(id, "systemconfig").(*systemconfig.Systemconfig)
-	tx, err := contract.SystemconfigTransactor.AddDependency(auth, dep)
-	require.NoError(s.t, err)
-
-	receipt, err := wait.ForReceiptOK(ctx, s.L1GethClient(), tx.Hash())
-	require.NoError(s.t, err)
-	return receipt
-}
-
 // DeployEmitterContract deploys the Emitter contract on the L2
 // it uses the sequencer node to deploy the contract
 func (s *interopE2ESystem) DeployEmitterContract(
+	ctx context.Context,
 	id string,
 	sender string,
 ) common.Address {
@@ -540,7 +543,9 @@ func (s *interopE2ESystem) DeployEmitterContract(
 	require.NoError(s.t, err)
 	auth.GasLimit = uint64(3000000)
 	auth.GasPrice = big.NewInt(20000000000)
-	address, _, _, err := emit.DeployEmit(auth, s.L2GethClient(id, "sequencer"))
+	address, tx, _, err := emit.DeployEmit(auth, s.L2GethClient(id, "sequencer"))
+	require.NoError(s.t, err)
+	_, err = bind.WaitMined(ctx, s.L2GethClient(id, "sequencer"), tx)
 	require.NoError(s.t, err)
 	contract, err := emit.NewEmit(address, s.L2GethClient(id, "sequencer"))
 	require.NoError(s.t, err)
@@ -575,6 +580,12 @@ func (s *interopE2ESystem) Contract(id string, name string) interface{} {
 	return s.l2s[id].contracts[name]
 }
 
+func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
+	stDepSet, err := worldToDepset(s.worldOutput)
+	require.NoError(s.t, err)
+	return stDepSet
+}
+
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
 	return func(v string) *rpc.Client {
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
@@ -592,4 +603,26 @@ func writeDefaultJWT(t testing.TB) string {
 		t.Fatalf("failed to prepare jwt file for geth: %v", err)
 	}
 	return jwtPath
+}
+
+func worldToDepset(world *interopgen.WorldOutput) (*depset.StaticConfigDependencySet, error) {
+	var ids []eth.ChainID
+	for _, l2Out := range world.L2s {
+		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		ids = append(ids, chainID)
+	}
+	eth.SortChainID(ids)
+	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
+
+	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
+	for _, l2Out := range world.L2s {
+		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		chainIndex := supervisortypes.ChainIndex(100 + slices.Index(ids, chainID))
+		depSet[chainID] = &depset.StaticConfigDependency{
+			ChainIndex:     chainIndex,
+			ActivationTime: 0,
+			HistoryMinTime: 0,
+		}
+	}
+	return depset.NewStaticConfigDependencySet(depSet)
 }

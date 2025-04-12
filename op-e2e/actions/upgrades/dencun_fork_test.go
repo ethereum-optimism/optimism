@@ -18,6 +18,8 @@ import (
 )
 
 func TestDencunL1ForkAfterGenesis(gt *testing.T) {
+	gt.Skip("Cancun is activated in the contracts-build, rendering this test technically invalid")
+
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(24)
@@ -216,7 +218,7 @@ func TestDencunBlobTxInTxPool(gt *testing.T) {
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := newEngine(t, sd, log)
 	tx := aliceSimpleBlobTx(t, dp)
-	errs := engine.Eth.TxPool().Add([]*types.Transaction{tx}, true, true)
+	errs := engine.Eth.TxPool().Add([]*types.Transaction{tx}, true)
 	require.ErrorContains(t, errs[0], "transaction type not supported")
 }
 
@@ -234,6 +236,6 @@ func TestDencunBlobTxInclusion(gt *testing.T) {
 	tx := aliceSimpleBlobTx(t, dp)
 
 	sequencer.ActL2StartBlock(t)
-	err := engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+	_, err := engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
 	require.ErrorContains(t, err, "invalid L2 block (tx 1): failed to apply transaction to L2 block (tx 1): transaction type not supported")
 }

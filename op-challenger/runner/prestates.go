@@ -67,6 +67,14 @@ func (f *HashPrestateFetcher) getPrestate(ctx context.Context, _ log.Logger, pre
 	return prestate, nil
 }
 
+type LocalPrestateFetcher struct {
+	path string
+}
+
+func (f *LocalPrestateFetcher) getPrestate(ctx context.Context, logger log.Logger, prestateBaseUrl *url.URL, _ string, dataDir string, stateConverter vm.StateConverter) (string, error) {
+	return f.path, nil
+}
+
 // NamedPrestateFetcher downloads a file with a specified name from the prestate base URL and uses it as the prestate.
 // The file is re-downloaded on each run rather than being cached. This makes it possible to run the latest builds
 // from develop.

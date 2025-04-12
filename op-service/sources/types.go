@@ -280,7 +280,6 @@ func (block *RPCBlock) ExecutionPayloadEnvelope(trustCache bool) (*eth.Execution
 	return &eth.ExecutionPayloadEnvelope{
 		ParentBeaconBlockRoot: block.ParentBeaconRoot,
 		ExecutionPayload:      payload,
-		RequestsHash:          block.RequestsHash,
 	}, nil
 }
 

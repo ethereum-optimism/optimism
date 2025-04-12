@@ -86,18 +86,13 @@ func TestEVM_SingleStep_Operators64(t *testing.T) {
 	testOperators(t, cases, false)
 }
 
+// Additional 64-bit tests
 func TestEVM_SingleStep_Bitwise64(t *testing.T) {
 	cases := []operatorTestCase{
-		{name: "and", funct: 0x24, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(160)},                          // and t0, s1, s2
-		{name: "andi", opcode: 0xc, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(0)},                // andi t0, s1, 40
-		{name: "or", funct: 0x25, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1530)},                          // or t0, s1, s2
-		{name: "ori", opcode: 0xd, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},                // ori t0, s1, 40
-		{name: "xor", funct: 0x26, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1370)},                         // xor t0, s1, s2
-		{name: "xori", opcode: 0xe, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},               // xori t0, s1, 40
-		{name: "nor", funct: 0x27, isImm: false, rs: Word(0x4b0), rt: Word(0x1ea), expectRes: Word(0xFF_FF_FF_FF_FF_FF_FA_05)}, // nor t0, s1, s2
-		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: Word(5), expectRes: Word(0)},                           // slt t0, s1, s2
-		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FF_FF_FF_FF_FE, rt: Word(5), expectRes: Word(1)},               // slt t0, s1, s2
-		{name: "sltu", funct: 0x2b, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(0)},                           // sltu t0, s1, s2
+		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: Word(5), expectRes: Word(0)},             // slt t0, s1, s2
+		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FF_FF_FF_FF_FE, rt: Word(5), expectRes: Word(1)}, // slt t0, s1, s2
+		{name: "slti", opcode: 0xa, isImm: true, rs: 0xFF_FF_FF_FE, imm: 5, expectRes: Word(0)},                  // slt t0, s1, s2
+		{name: "slti", opcode: 0xa, isImm: true, rs: 0xFF_FF_FF_FF_FF_FF_FF_FE, imm: 5, expectRes: Word(1)},      // slt t0, s1, s2
 	}
 	testOperators(t, cases, false)
 }

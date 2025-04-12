@@ -61,7 +61,7 @@ func TestL2OutputSubmitterFaultProofs(t *testing.T) {
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			_, gameBlockNumber, err := proxy.GetBlockRange(ctx)
+			_, gameBlockNumber, err := proxy.GetGameRange(ctx)
 			require.Nil(t, err)
 			l2Output, err := rollupClient.OutputAtBlock(ctx, gameBlockNumber)
 			require.Nil(t, err)

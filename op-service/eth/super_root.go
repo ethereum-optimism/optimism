@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -155,6 +156,18 @@ type SuperRootResponse struct {
 	// Chains is the list of ChainRootInfo for each chain in the dependency set.
 	// It represents the state of the chain at or before the Timestamp.
 	Chains []ChainRootInfo `json:"chains"`
+}
+
+func (s SuperRootResponse) ToSuper() (Super, error) {
+	if s.Version != SuperRootVersionV1 {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidSuperRootVersion, s.Version)
+	}
+	prevChainOutputs := make([]ChainIDAndOutput, 0, len(s.Chains))
+	for _, chain := range s.Chains {
+		prevChainOutputs = append(prevChainOutputs, ChainIDAndOutput{ChainID: chain.ChainID, Output: chain.Canonical})
+	}
+	superV1 := NewSuperV1(s.Timestamp, prevChainOutputs...)
+	return superV1, nil
 }
 
 type superRootResponseMarshalling struct {

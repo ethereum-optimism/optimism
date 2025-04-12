@@ -11,7 +11,7 @@ A lightweight binary for utilities accessed via `forge`'s `ffi` cheatcode in the
 
 ## Usage
 
-To build, run `just build-go-ffi` from this directory or the `contract-bedrock` package.
+To build, run `just build-go-ffi` from the `contract-bedrock` package.
 
 ### In a Forge Test
 
@@ -39,7 +39,7 @@ There are two modes available in `go-ffi`: `diff` and `trie`. Each are present a
 > Variant required for diff mode.
 
 | Variant                               | Description                                                                                                        |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `decodeVersionedNonce`                | Decodes a versioned nonce and prints the decoded arguments                                                         |
 | `encodeCrossDomainMessage`            | Encodes a cross domain message and prints the encoded message                                                      |
 | `hashCrossDomainMessage`              | Encodes and hashes a cross domain message and prints the digest                                                    |

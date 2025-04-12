@@ -17,6 +17,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IL1ChugSplashProxy, IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 import { IResolvedDelegateProxy } from "interfaces/legacy/IResolvedDelegateProxy.sol";
+import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
 
 library DeployUtils {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -329,16 +330,9 @@ library DeployUtils {
         );
     }
 
-    /// @notice Asserts that the given addresses are valid contract addresses.
+    /// @notice Asserts that the given list of addresses does not contain duplicates.
     /// @param _addrs Addresses to check.
-    function assertValidContractAddresses(address[] memory _addrs) internal view {
-        // Assert that all addresses are non-zero and have code.
-        // We use LibString to avoid the need for adding cheatcodes to this contract.
-        for (uint256 i = 0; i < _addrs.length; i++) {
-            address who = _addrs[i];
-            assertValidContractAddress(who);
-        }
-
+    function assertUniqueAddresses(address[] memory _addrs) internal pure {
         // All addresses should be unique.
         for (uint256 i = 0; i < _addrs.length; i++) {
             for (uint256 j = i + 1; j < _addrs.length; j++) {
@@ -352,6 +346,20 @@ library DeployUtils {
         }
     }
 
+    /// @notice Asserts that the given addresses are valid contract addresses.
+    /// @param _addrs Addresses to check.
+    function assertValidContractAddresses(address[] memory _addrs) internal view {
+        // Assert that all addresses are non-zero and have code.
+        // We use LibString to avoid the need for adding cheatcodes to this contract.
+        for (uint256 i = 0; i < _addrs.length; i++) {
+            address who = _addrs[i];
+            assertValidContractAddress(who);
+        }
+
+        // All addresses should be unique.
+        assertUniqueAddresses(_addrs);
+    }
+
     /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1 (if a proxy contract) or
     ///      type(uint8).max (if an implementation contract).
     ///      A call to `initialize` will set proxies to 1 and a call to _disableInitializers will set implementations to
@@ -360,7 +368,19 @@ library DeployUtils {
         bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
         uint8 val = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
         if (_isProxy) {
-            require(val == 1, "DeployUtils: storage value is not 1 at the given slot and offset");
+            // Using a try/catch here to check if the contract has an initVersion() defined.
+            // EIP-150 safe because we require that we have at least 200k gas before the call which
+            // is more than enough to avoid running out of gas when 63/64 of the gas is provided to
+            // the initVersion() call (which simply reads an immutable variable). Since this is
+            // only ever triggered as part of a script, we can safely assume we'll have the gas.
+            require(gasleft() > 200_000, "DeployUtils: insufficient gas for initVersion() call");
+
+            // eip150-safe
+            try IReinitializableBase(_contractAddress).initVersion() returns (uint8 initVersion_) {
+                require(val == initVersion_, "DeployUtils: storage value is incorrect at the given slot and offset");
+            } catch {
+                require(val == 1, "DeployUtils: storage value is not set at the given slot and offset");
+            }
         } else {
             require(val == type(uint8).max, "DeployUtils: storage value is not 0xff at the given slot and offset");
         }

@@ -8,7 +8,7 @@ import (
 )
 
 func TestValidateStandardValues(t *testing.T) {
-	intent, err := NewIntentStandard(1, []common.Hash{common.HexToHash("0x336")})
+	intent, err := NewIntentStandard(11155111, []common.Hash{common.HexToHash("0x336")})
 	require.NoError(t, err)
 
 	err = intent.Check()
@@ -61,10 +61,18 @@ func TestValidateStandardValues(t *testing.T) {
 			},
 			ErrNonStandardValue,
 		},
+		{
+			"SuperchainConfigProxy",
+			func(intent *Intent) {
+				addr := common.HexToAddress("0x9999")
+				intent.SuperchainConfigProxy = &addr
+			},
+			ErrNonStandardValue,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			intent, err := NewIntentStandard(1, []common.Hash{common.HexToHash("0x336")})
+			intent, err := NewIntentStandard(11155111, []common.Hash{common.HexToHash("0x336")})
 			require.NoError(t, err)
 			setChainRoles(&intent)
 			setFeeAddresses(&intent)

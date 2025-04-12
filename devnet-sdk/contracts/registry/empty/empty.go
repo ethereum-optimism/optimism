@@ -16,3 +16,10 @@ func (r *EmptyRegistry) SuperchainWETH(address types.Address) (interfaces.Superc
 		Address:      address,
 	}
 }
+
+func (r *EmptyRegistry) L2ToL2CrossDomainMessenger(address types.Address) (interfaces.L2ToL2CrossDomainMessenger, error) {
+	return nil, &interfaces.ErrContractNotFound{
+		ContractType: "L2ToL2CrossDomainMessenger",
+		Address:      address,
+	}
+}

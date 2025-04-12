@@ -18,7 +18,7 @@ import (
 func TestInteropDevRecipe(t *testing.T) {
 	rec := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
-		L2ChainIDs:       []uint64{900200, 900201},
+		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
 		GenesisTimestamp: uint64(1234567),
 	}
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)

@@ -8,6 +8,8 @@ var (
 	ErrOutOfOrder = errors.New("data out of order")
 	// ErrDataCorruption happens when the underlying DB has some I/O issue
 	ErrDataCorruption = errors.New("data corruption")
+	// ErrNotExact happens when we search the DB, know the data may be there, but is not (e.g. different revision)
+	ErrNotExact = errors.New("missed data")
 	// ErrSkipped happens when we try to retrieve data that is not available (pruned)
 	// It may also happen if we erroneously skip data, that was not considered a conflict, if the DB is corrupted.
 	ErrSkipped = errors.New("skipped data")

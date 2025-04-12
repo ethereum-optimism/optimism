@@ -240,7 +240,7 @@ func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Conf
 	}
 	// the config has some sync sources (RPC connections) to attach to the chain-processors
 	for _, srcSetup := range setups {
-		src, err := srcSetup.Setup(ctx, su.logger)
+		src, err := srcSetup.Setup(ctx, su.logger, su.m)
 		if err != nil {
 			return fmt.Errorf("failed to set up sync source: %w", err)
 		}
@@ -264,13 +264,13 @@ func (su *SupervisorBackend) openChainDBs(chainID eth.ChainID) error {
 	}
 	su.chainDBs.AddLogDB(chainID, logDB)
 
-	localDB, err := db.OpenLocalDerivationDB(su.logger, chainID, su.dataDir, cm)
+	localDB, err := db.OpenLocalDerivationDB(su.logger.New("db-kind", "local-db", "chainID", chainID), chainID, su.dataDir, cm)
 	if err != nil {
 		return fmt.Errorf("failed to open local derived-from DB of chain %s: %w", chainID, err)
 	}
 	su.chainDBs.AddLocalDerivationDB(chainID, localDB)
 
-	crossDB, err := db.OpenCrossDerivationDB(su.logger, chainID, su.dataDir, cm)
+	crossDB, err := db.OpenCrossDerivationDB(su.logger.New("db-kind", "cross-db", "chainID", chainID), chainID, su.dataDir, cm)
 	if err != nil {
 		return fmt.Errorf("failed to open cross derived-from DB of chain %s: %w", chainID, err)
 	}
@@ -405,7 +405,7 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret
 		JWTSecret: jwtSecret,
 		Endpoint:  rpc,
 	}
-	src, err := setupSrc.Setup(ctx, su.logger)
+	src, err := setupSrc.Setup(ctx, su.logger, su.m)
 	if err != nil {
 		return fmt.Errorf("failed to set up sync source from RPC: %w", err)
 	}
@@ -423,54 +423,82 @@ func (su *SupervisorBackend) DependencySet() depset.DependencySet {
 // Query methods
 // ----------------------------
 
-func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error) {
-	logHash := types.PayloadHashToLogHash(payloadHash, identifier.Origin)
-	chainID := identifier.ChainID
-	blockNum := identifier.BlockNumber
-	logIdx := identifier.LogIndex
-	_, err := su.chainDBs.Contains(chainID,
-		types.ContainsQuery{
-			BlockNum:  blockNum,
-			Timestamp: identifier.Timestamp,
-			LogIdx:    logIdx,
-			LogHash:   logHash,
-		})
-	if errors.Is(err, types.ErrFuture) {
-		su.logger.Debug("Future message", "identifier", identifier, "payloadHash", payloadHash, "err", err)
-		return types.LocalUnsafe, nil
+// checkAccess checks message timestamp invariants and inclusion in the chain.
+// If the initiating message exists, the block it is included in is returned.
+func (su *SupervisorBackend) checkAccess(acc types.Access, execAt types.ExecutingDescriptor) (eth.BlockID, error) {
+	// Check if message passes time checks
+	if err := execAt.AccessCheck(su.depSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
+		return eth.BlockID{}, err
 	}
-	if errors.Is(err, types.ErrConflict) {
-		su.logger.Debug("Conflicting message", "identifier", identifier, "payloadHash", payloadHash, "err", err)
-		return types.Invalid, nil
-	}
+
+	// Check if message exists
+	bl, err := su.chainDBs.Contains(acc.ChainID, types.ContainsQuery{
+		Timestamp: acc.Timestamp,
+		BlockNum:  acc.BlockNumber,
+		LogIdx:    acc.LogIndex,
+		Checksum:  acc.Checksum,
+	})
 	if err != nil {
-		return types.Invalid, fmt.Errorf("failed to check log: %w", err)
+		return eth.BlockID{}, err
 	}
-	return su.chainDBs.Safest(chainID, blockNum, logIdx)
+	return bl.ID(), nil
 }
 
-func (su *SupervisorBackend) CheckMessages(
-	messages []types.Message,
-	minSafety types.SafetyLevel) error {
-	su.logger.Debug("Checking messages", "count", len(messages), "minSafety", minSafety)
+// checkSafety is a helper method to check if a block has the given safety level.
+// It is already assumed to exist in the canonical unsafe chain.
+func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockID, safetyLevel types.SafetyLevel) error {
+	switch safetyLevel {
+	case types.LocalUnsafe:
+		return nil // msg exists, nothing more to check
+	case types.CrossUnsafe:
+		return su.chainDBs.IsCrossUnsafe(chainID, blockID)
+	case types.LocalSafe:
+		return su.chainDBs.IsLocalSafe(chainID, blockID)
+	case types.CrossSafe:
+		return su.chainDBs.IsCrossSafe(chainID, blockID)
+	case types.Finalized:
+		return su.chainDBs.IsFinalized(chainID, blockID)
+	default:
+		return types.ErrConflict
+	}
+}
 
-	for _, msg := range messages {
-		su.logger.Debug("Checking message",
-			"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
-		safety, err := su.CheckMessage(msg.Identifier, msg.PayloadHash)
-		if err != nil {
-			su.logger.Error("Check message failed", "err", err,
-				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
-			return fmt.Errorf("failed to check message: %w", err)
+func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	switch minSafety {
+	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
+		// valid safety level
+	default:
+		return errors.New("unexpected min-safety level")
+	}
+
+	su.logger.Debug("Checking access-list",
+		"minSafety", minSafety, "length", len(inboxEntries))
+
+	// TODO(#14800): acquire a rewind-read-lock, so we can ensure the safety of all entries is consistent
+
+	entries := inboxEntries
+	for len(entries) > 0 {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("stopped acces-list check early: %w", err)
 		}
-		if !safety.AtLeastAsSafe(minSafety) {
-			su.logger.Error("Message is not sufficiently safe",
-				"safety", safety, "minSafety", minSafety,
-				"identifier", msg.Identifier, "payloadHash", msg.PayloadHash.String())
-			return fmt.Errorf("message %v (safety level: %v) does not meet the minimum safety %v",
-				msg.Identifier,
-				safety,
-				minSafety)
+		remaining, acc, err := types.ParseAccess(entries)
+		if err != nil {
+			return fmt.Errorf("failed to read data: %w", err)
+		}
+		entries = remaining
+
+		msgBlock, err := su.checkAccess(acc, executingDescriptor)
+		if err != nil {
+			su.logger.Debug("Access-list inclusion check failed", "err", err)
+			return types.ErrConflict
+		}
+		// TODO(#14800) add msgBlock to rewind lock
+
+		// TODO(#14800): this can be deferred to only check the latest block of all access entries
+		if err := su.checkSafety(acc.ChainID, msgBlock, minSafety); err != nil {
+			su.logger.Debug("Access-list safety check failed", "err", err)
+			return types.ErrConflict
 		}
 	}
 	return nil
@@ -522,6 +550,14 @@ func (su *SupervisorBackend) SafeDerivedAt(ctx context.Context, chainID eth.Chai
 	return v.ID(), nil
 }
 
+func (su *SupervisorBackend) FindSealedBlock(ctx context.Context, chainID eth.ChainID, number uint64) (eth.BlockID, error) {
+	seal, err := su.chainDBs.FindSealedBlock(chainID, number)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return seal.ID(), nil
+}
+
 // AllSafeDerivedAt returns the last derived block for each chain, from the given L1 block
 func (su *SupervisorBackend) AllSafeDerivedAt(ctx context.Context, source eth.BlockID) (map[eth.ChainID]eth.BlockID, error) {
 	chains := su.depSet.Chains()
@@ -544,8 +580,24 @@ func (su *SupervisorBackend) Finalized(ctx context.Context, chainID eth.ChainID)
 	return v.ID(), nil
 }
 
-func (su *SupervisorBackend) FinalizedL1() eth.BlockRef {
-	return su.chainDBs.FinalizedL1()
+func (su *SupervisorBackend) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
+	v := su.chainDBs.FinalizedL1()
+	if v == (eth.BlockRef{}) {
+		return eth.BlockRef{}, errors.New("finality of L1 is not initialized")
+	}
+	return v, nil
+}
+
+func (su *SupervisorBackend) IsLocalUnsafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error {
+	return su.chainDBs.IsLocalUnsafe(chainID, block)
+}
+
+func (su *SupervisorBackend) IsCrossSafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error {
+	return su.chainDBs.IsCrossSafe(chainID, block)
+}
+
+func (su *SupervisorBackend) IsLocalSafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error {
+	return su.chainDBs.IsLocalSafe(chainID, block)
 }
 
 func (su *SupervisorBackend) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (source eth.BlockRef, err error) {
@@ -604,19 +656,21 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 			crossSafeSource = source.ID()
 		}
 	}
-	superRoot := eth.SuperRoot(&eth.SuperV1{
+	super := eth.SuperV1{
 		Timestamp: uint64(timestamp),
 		Chains:    superRootChains,
-	})
+	}
+	superRoot := eth.SuperRoot(&super)
 	return eth.SuperRootResponse{
 		CrossSafeDerivedFrom: crossSafeSource,
 		Timestamp:            uint64(timestamp),
 		SuperRoot:            superRoot,
+		Version:              super.Version(),
 		Chains:               chainInfos,
 	}, nil
 }
 
-func (su *SupervisorBackend) SyncStatus() (eth.SupervisorSyncStatus, error) {
+func (su *SupervisorBackend) SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error) {
 	return su.statusTracker.SyncStatus()
 }
 

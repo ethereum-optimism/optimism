@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_OPProgramAction_BlockDataHint(gt *testing.T) {
+func Test_ProgramAction_BlockDataHint(gt *testing.T) {
 	testCfg := &helpers.TestCfg[any]{
 		Hardfork: helpers.LatestFork,
 	}

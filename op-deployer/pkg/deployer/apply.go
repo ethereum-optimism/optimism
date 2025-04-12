@@ -7,27 +7,23 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -37,8 +33,9 @@ type ApplyConfig struct {
 	PrivateKey       string
 	DeploymentTarget DeploymentTarget
 	Logger           log.Logger
-
-	privateKeyECDSA *ecdsa.PrivateKey
+	CacheDir         string
+	privateKeyECDSA  *ecdsa.PrivateKey
+	PreStateBuilder  pipeline.PreStateBuilder
 }
 
 func (a *ApplyConfig) Check() error {
@@ -56,6 +53,12 @@ func (a *ApplyConfig) Check() error {
 
 	if a.Logger == nil {
 		return fmt.Errorf("logger must be specified")
+	}
+
+	if a.DeploymentTarget == DeploymentTargetGenesis {
+		if a.L1RPCUrl != "" {
+			return fmt.Errorf("l1-rpc-url should not be specified when deployment-target is genesis")
+		}
 	}
 
 	if a.DeploymentTarget == DeploymentTargetLive {
@@ -80,7 +83,15 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 		l1RPCUrl := cliCtx.String(L1RPCURLFlagName)
 		workdir := cliCtx.String(WorkdirFlagName)
 		privateKey := cliCtx.String(PrivateKeyFlagName)
+		cacheDir := cliCtx.String(CacheDirFlagName)
 		depTarget, err := NewDeploymentTarget(cliCtx.String(DeploymentTargetFlag.Name))
+		opProgramSvcUrl := cliCtx.String(OpProgramSvcUrlFlag.Name)
+
+		var preStateBuilder pipeline.PreStateBuilder
+		if opProgramSvcUrl != "" {
+			preStateBuilder = prestate.NewPrestateBuilderClient(opProgramSvcUrl)
+		}
+
 		if err != nil {
 			return fmt.Errorf("failed to parse deployment target: %w", err)
 		}
@@ -93,6 +104,8 @@ func ApplyCLI() func(cliCtx *cli.Context) error {
 			PrivateKey:       privateKey,
 			DeploymentTarget: depTarget,
 			Logger:           l,
+			CacheDir:         cacheDir,
+			PreStateBuilder:  preStateBuilder,
 		})
 	}
 }
@@ -120,6 +133,8 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		State:              st,
 		Logger:             cfg.Logger,
 		StateWriter:        pipeline.WorkdirStateWriter(cfg.Workdir),
+		CacheDir:           cfg.CacheDir,
+		PreStateBuilder:    cfg.PreStateBuilder,
 	}); err != nil {
 		return err
 	}
@@ -140,6 +155,8 @@ type ApplyPipelineOpts struct {
 	State              *state.State
 	Logger             log.Logger
 	StateWriter        pipeline.StateWriter
+	CacheDir           string
+	PreStateBuilder    pipeline.PreStateBuilder
 }
 
 func ApplyPipeline(
@@ -152,7 +169,7 @@ func ApplyPipeline(
 	}
 	st := opts.State
 
-	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, artifacts.BarProgressor())
+	l1ArtifactsFS, err := artifacts.Download(ctx, intent.L1ContractsLocator, artifacts.BarProgressor(), opts.CacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
@@ -161,7 +178,7 @@ func ApplyPipeline(
 	if intent.L1ContractsLocator.Equal(intent.L2ContractsLocator) {
 		l2ArtifactsFS = l1ArtifactsFS
 	} else {
-		l2Afs, err := artifacts.Download(ctx, intent.L2ContractsLocator, artifacts.BarProgressor())
+		l2Afs, err := artifacts.Download(ctx, intent.L2ContractsLocator, artifacts.BarProgressor(), opts.CacheDir)
 		if err != nil {
 			return fmt.Errorf("failed to download L2 artifacts: %w", err)
 		}
@@ -324,6 +341,39 @@ func ApplyPipeline(
 		})
 	}
 
+	if opts.DeploymentTarget == DeploymentTargetGenesis {
+		for _, chain := range intent.Chains {
+			chainID := chain.ID
+			pline = append(pline, pipelineStage{
+				"prefund-l2-dev-genesis",
+				func() error {
+					return pipeline.PrefundL2DevGenesis(pEnv, intent, st, chainID)
+				},
+			})
+		}
+
+		pline = append(pline, pipelineStage{
+			"prefund-l1-dev-genesis",
+			func() error {
+				return pipeline.PrefundL1DevGenesis(pEnv, intent, st)
+			},
+		})
+
+		pline = append(pline, pipelineStage{
+			"preinstall-l1-dev-genesis",
+			func() error {
+				return pipeline.PreinstallL1DevGenesis(pEnv, intent, st)
+			},
+		})
+
+		pline = append(pline, pipelineStage{
+			"seal-l1-dev-genesis",
+			func() error {
+				return pipeline.SealL1DevGenesis(pEnv, intent, st)
+			},
+		})
+	}
+
 	// Set start block after all OP chains have been deployed, since the
 	// genesis strategy requires all the OP chains to exist in genesis.
 	for _, chain := range intent.Chains {
@@ -332,30 +382,36 @@ func ApplyPipeline(
 			fmt.Sprintf("set-start-block-%s", chainID.Hex()),
 			func() error {
 				if opts.DeploymentTarget == DeploymentTargetGenesis {
-					return pipeline.SetStartBlockGenesisStrategy(pEnv, st, chainID)
+					return pipeline.SetStartBlockGenesisStrategy(pEnv, intent, st, chainID)
 				}
-				return pipeline.SetStartBlockLiveStrategy(ctx, pEnv, st, chainID)
+				return pipeline.SetStartBlockLiveStrategy(ctx, intent, pEnv, st, chainID)
 			},
 		})
 	}
+
+	// Generate the interop dependency set if interop is enabled
+	if intent.UseInterop {
+		pline = append(pline, pipelineStage{
+			"generate-interop-depset",
+			func() error {
+				return pipeline.GenerateInteropDepset(ctx, pEnv, intent, st)
+			},
+		})
+	}
+
+	// Generate the prestate for all chains
+	pline = append(pline, pipelineStage{
+		"deploy-pre-state",
+		func() error {
+			return pipeline.GeneratePreState(ctx, pEnv, intent, st, opts.PreStateBuilder)
+		},
+	})
 
 	// Run through the pipeline.
 	for _, stage := range pline {
 		if err := stage.apply(); err != nil {
 			return fmt.Errorf("error in pipeline stage apply: %w", err)
 		}
-
-		// Some steps use the L1StateDump, so we need to apply it to state after every step.
-		if opts.DeploymentTarget == DeploymentTargetGenesis {
-			dump, err := pEnv.L1ScriptHost.StateDump()
-			if err != nil {
-				return fmt.Errorf("failed to dump state: %w", err)
-			}
-			st.L1StateDump = &state.GzipData[foundry.ForgeAllocs]{
-				Data: dump,
-			}
-		}
-
 		if _, err := pEnv.Broadcaster.Broadcast(ctx); err != nil {
 			return fmt.Errorf("failed to broadcast stage %s: %w", stage.name, err)
 		}

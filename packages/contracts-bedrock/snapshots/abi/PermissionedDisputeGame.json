@@ -591,6 +591,19 @@
   },
   {
     "inputs": [],
+    "name": "l2SequenceNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "l2SequenceNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "maxClockDuration",
     "outputs": [
       {
@@ -841,7 +854,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "l2BlockNumber",
+        "name": "l2SequenceNumber",
         "type": "uint256"
       }
     ],

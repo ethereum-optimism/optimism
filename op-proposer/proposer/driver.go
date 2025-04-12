@@ -26,8 +26,7 @@ import (
 )
 
 var (
-	supportedL2OutputVersion = eth.Bytes32{}
-	ErrProposerNotRunning    = errors.New("proposer is not running")
+	ErrProposerNotRunning = errors.New("proposer is not running")
 )
 
 type L1Client interface {
@@ -317,9 +316,6 @@ func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (sour
 	output, err := l.ProposalSource.ProposalAtSequenceNum(ctx, block)
 	if err != nil {
 		return source.Proposal{}, fmt.Errorf("fetching output at block %d: %w", block, err)
-	}
-	if output.Version != supportedL2OutputVersion {
-		return source.Proposal{}, fmt.Errorf("unsupported l2 output version: %v, supported: %v", output.Version, supportedL2OutputVersion)
 	}
 	if onum := output.SequenceNum; onum != block { // sanity check, e.g. in case of bad RPC caching
 		return source.Proposal{}, fmt.Errorf("output block number %d mismatches requested %d", output.SequenceNum, block)

@@ -26,11 +26,12 @@ type CompilerInput struct {
 }
 
 type CompilerSettings struct {
-	Optimizer       OptimizerSettings              `json:"optimizer"`
-	Metadata        CompilerInputMetadata          `json:"metadata"`
-	OutputSelection map[string]map[string][]string `json:"outputSelection"`
-	EvmVersion      string                         `json:"evmVersion,omitempty"`
-	Libraries       map[string]map[string]string   `json:"libraries,omitempty"`
+	Optimizer         OptimizerSettings              `json:"optimizer"`
+	Metadata          CompilerInputMetadata          `json:"metadata"`
+	CompilationTarget map[string]string              `json:"compilationTarget"`
+	OutputSelection   map[string]map[string][]string `json:"outputSelection"`
+	EvmVersion        string                         `json:"evmVersion,omitempty"`
+	Libraries         map[string]map[string]string   `json:"libraries,omitempty"`
 }
 
 type OptimizerSettings struct {
@@ -201,11 +202,13 @@ type AstNode struct {
 	Value    interface{} `json:"value,omitempty"`
 
 	// Other fields
-	Arguments []Expression `json:"arguments,omitempty"`
-	Condition *Expression  `json:"condition,omitempty"`
-	TrueBody  *AstBlock    `json:"trueBody,omitempty"`
-	FalseBody *AstBlock    `json:"falseBody,omitempty"`
-	Operator  string       `json:"operator,omitempty"`
+	ModifierName *Expression  `json:"modifierName,omitempty"`
+	Modifiers    []AstNode    `json:"modifiers,omitempty"`
+	Arguments    []Expression `json:"arguments,omitempty"`
+	Condition    *Expression  `json:"condition,omitempty"`
+	TrueBody     *AstBlock    `json:"trueBody,omitempty"`
+	FalseBody    *AstBlock    `json:"falseBody,omitempty"`
+	Operator     string       `json:"operator,omitempty"`
 }
 
 type AstBaseContract struct {
@@ -259,6 +262,9 @@ type Expression struct {
 	OverloadedDeclarations []int                 `json:"overloadedDeclarations,omitempty"`
 	ReferencedDeclaration  int                   `json:"referencedDeclaration,omitempty"`
 	ArgumentTypes          []AstTypeDescriptions `json:"argumentTypes,omitempty"`
+	Value                  interface{}           `json:"value,omitempty"`
+	Kind                   string                `json:"kind,omitempty"`
+	Expression             *Expression           `json:"expression,omitempty"`
 }
 
 type ForgeArtifact struct {

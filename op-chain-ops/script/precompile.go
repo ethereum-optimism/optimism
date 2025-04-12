@@ -18,8 +18,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var setterFnSig = "set(bytes4,address)"
-var setterFnBytes4 = bytes4(setterFnSig)
+var setAddressFnSig = "set(bytes4,address)"
+var setAddressFnBytes4 = bytes4(setAddressFnSig)
+var setBoolFnSig = "set(bytes4,bool)"
+var setBoolFnBytes4 = bytes4(setBoolFnSig)
+var setUint32FnSig = "set(bytes4,uint32)"
+var setUint32FnBytes4 = bytes4(setUint32FnSig)
 
 // precompileFunc is a prepared function to perform a method call / field read with ABI decoding/encoding.
 type precompileFunc struct {
@@ -524,7 +528,7 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 		fn:           fn,
 	}
 	// register field as settable
-	if p.fieldSetter && fieldDef.Type.AssignableTo(typeFor[common.Address]()) {
+	if p.fieldSetter {
 		p.settable[byte4Sig] = &settableField{
 			name:  fieldDef.Name,
 			value: fieldVal,
@@ -537,9 +541,9 @@ func (p *Precompile[E]) setupFieldSetter() {
 	if !p.fieldSetter {
 		return
 	}
-	p.abiMethods[setterFnBytes4] = &precompileFunc{
+	p.abiMethods[setAddressFnBytes4] = &precompileFunc{
 		goName:       "__fieldSetter___",
-		abiSignature: setterFnSig,
+		abiSignature: setAddressFnSig,
 		fn: func(input []byte) ([]byte, error) {
 			if len(input) != 32*2 {
 				return nil, fmt.Errorf("cannot set address field to %d bytes", len(input))
@@ -554,6 +558,50 @@ func (p *Precompile[E]) setupFieldSetter() {
 			}
 			addr := common.Address(input[32*2-20 : 32*2])
 			f.value.Set(reflect.ValueOf(addr))
+			return nil, nil
+		},
+	}
+	p.abiMethods[setBoolFnBytes4] = &precompileFunc{
+		goName:       "__boolSetter___",
+		abiSignature: setBoolFnSig,
+		fn: func(input []byte) ([]byte, error) {
+			if len(input) != 32*2 {
+				return nil, fmt.Errorf("cannot set bool field to %d bytes", len(input))
+			}
+			if [32 - 4]byte(input[4:32]) != ([32 - 4]byte{}) {
+				return nil, fmt.Errorf("unexpected selector content, input: %x", input[:])
+			}
+			selector := [4]byte(input[:4])
+			f, ok := p.settable[selector]
+			if !ok {
+				return nil, fmt.Errorf("unknown bool field selector 0x%x", selector)
+			}
+
+			// Boolean values are 0 or 1 in the last byte of the 32-byte word
+			boolValue := input[63] == 1
+			f.value.Set(reflect.ValueOf(boolValue))
+			return nil, nil
+		},
+	}
+	p.abiMethods[setUint32FnBytes4] = &precompileFunc{
+		goName:       "__uint32Setter___",
+		abiSignature: setUint32FnSig,
+		fn: func(input []byte) ([]byte, error) {
+			if len(input) != 32*2 {
+				return nil, fmt.Errorf("cannot set uint32 field to %d bytes", len(input))
+			}
+			if [32 - 4]byte(input[4:32]) != ([32 - 4]byte{}) {
+				return nil, fmt.Errorf("unexpected selector content, input: %x", input[:])
+			}
+			selector := [4]byte(input[:4])
+			f, ok := p.settable[selector]
+			if !ok {
+				return nil, fmt.Errorf("unknown uint32 field selector 0x%x", selector)
+			}
+
+			// uint32 values are in the last 4 bytes of the 32-byte word
+			uint32Value := binary.BigEndian.Uint32(input[60:64])
+			f.value.Set(reflect.ValueOf(uint32Value))
 			return nil, nil
 		},
 	}

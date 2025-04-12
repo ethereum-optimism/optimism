@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	e2econfig "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -32,16 +32,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+type PrestateVariant string
+
+const (
+	STCannonVariant PrestateVariant = ""
+	MTCannonVariant PrestateVariant = "mt64"
+	InteropVariant  PrestateVariant = "interop"
+)
+
 type EndpointProvider interface {
 	NodeEndpoint(name string) endpoint.RPC
+	L2NodeEndpoints() []endpoint.RPC
 	RollupEndpoint(name string) endpoint.RPC
 	L1BeaconEndpoint() endpoint.RestHTTP
+	SupervisorEndpoint() endpoint.RPC
+	IsSupersystem() bool
 }
 
 type System interface {
-	RollupCfg() *rollup.Config
-	L2Genesis() *core.Genesis
-	AllocType() e2econfig.AllocType
+	RollupCfgs() []*rollup.Config
+	L2Geneses() []*core.Genesis
+	PrestateVariant() PrestateVariant
 }
 type Helper struct {
 	log     log.Logger
@@ -101,6 +112,16 @@ func WithInvalidCannonPrestate() Option {
 	}
 }
 
+func WithDepset(t *testing.T, ds *depset.StaticConfigDependencySet) Option {
+	return func(c *config.Config) {
+		b, err := ds.MarshalJSON()
+		require.NoError(t, err)
+		path := filepath.Join(t.TempDir(), "challenger-depset.json")
+		require.NoError(t, os.WriteFile(path, b, 0o644))
+		c.Cannon.DepsetConfigPath = path
+	}
+}
+
 // FindMonorepoRoot finds the relative path to the monorepo root
 // Different tests might be nested in subdirectories of the op-e2e dir.
 func FindMonorepoRoot(t *testing.T) string {
@@ -120,43 +141,61 @@ func FindMonorepoRoot(t *testing.T) string {
 	return ""
 }
 
-func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis, allocType e2econfig.AllocType) {
+func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) {
 	require := require.New(t)
 	root := FindMonorepoRoot(t)
 	c.Cannon.VmBin = root + "cannon/bin/cannon"
 	c.Cannon.Server = root + "op-program/bin/op-program"
-	if allocType == e2econfig.AllocTypeMTCannon {
-		t.Log("Using Cannon64 absolute prestate")
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate-mt64.bin.gz"
+	t.Logf("Using absolute prestate variant %v", prestateVariant)
+	if prestateVariant != "" {
+		c.CannonAbsolutePreState = root + "op-program/bin/prestate-" + string(prestateVariant) + ".bin.gz"
 	} else {
 		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
 	}
 	c.Cannon.SnapshotFreq = 10_000_000
 
-	genesisBytes, err := json.Marshal(l2Genesis)
-	require.NoError(err, "marshall l2 genesis config")
-	genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
-	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
-	c.Cannon.L2GenesisPaths = []string{genesisFile}
+	for _, l2Genesis := range l2Geneses {
+		genesisBytes, err := json.Marshal(l2Genesis)
+		require.NoError(err, "marshall l2 genesis config")
+		genesisFile := filepath.Join(c.Datadir, fmt.Sprintf("l2-genesis-%v.json", l2Genesis.Config.ChainID))
+		require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
+		c.Cannon.L2GenesisPaths = append(c.Cannon.L2GenesisPaths, genesisFile)
+	}
 
-	rollupBytes, err := json.Marshal(rollupCfg)
-	require.NoError(err, "marshall rollup config")
-	rollupFile := filepath.Join(c.Datadir, "rollup.json")
-	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
-	c.Cannon.RollupConfigPaths = []string{rollupFile}
+	for _, rollupCfg := range rollupCfgs {
+		rollupBytes, err := json.Marshal(rollupCfg)
+		require.NoError(err, "marshall rollup config")
+		rollupFile := filepath.Join(c.Datadir, fmt.Sprintf("rollup-%v.json", rollupCfg.L2ChainID))
+		require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
+		c.Cannon.RollupConfigPaths = append(c.Cannon.RollupConfigPaths, rollupFile)
+	}
 }
 
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
-		applyCannonConfig(c, t, system.RollupCfg(), system.L2Genesis(), system.AllocType())
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
-		applyCannonConfig(c, t, system.RollupCfg(), system.L2Genesis(), system.AllocType())
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+	}
+}
+
+func WithSuperCannon(t *testing.T, system System) Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperCannon)
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+	}
+}
+
+func WithSuperPermissioned(t *testing.T, system System) Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperPermissioned)
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 
@@ -189,7 +228,16 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
 	l1Endpoint := sys.NodeEndpoint("l1").RPC()
 	l1Beacon := sys.L1BeaconEndpoint().RestHTTP()
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName).RPC(), sys.NodeEndpoint(l2NodeName).RPC(), t.TempDir())
+	var cfg config.Config
+	if sys.IsSupersystem() {
+		var l2Endpoints []string
+		for _, l2Node := range sys.L2NodeEndpoints() {
+			l2Endpoints = append(l2Endpoints, l2Node.RPC())
+		}
+		cfg = config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, sys.SupervisorEndpoint().RPC(), l2Endpoints, t.TempDir())
+	} else {
+		cfg = config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName).RPC(), sys.NodeEndpoint(l2NodeName).RPC(), t.TempDir())
+	}
 	cfg.Cannon.L2Custom = true
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
 	// before the L2 genesis is known.

@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var ErrStatusTrackerNotReady = fmt.Errorf("supervisor status tracker not ready")
+
 type StatusTracker struct {
 	statuses map[eth.ChainID]*NodeSyncStatus
 	mu       sync.RWMutex
@@ -63,9 +65,27 @@ func (su *StatusTracker) OnEvent(ev event.Event) bool {
 	return true
 }
 
+func (su *StatusTracker) HasInitializedStatuses() bool {
+	su.mu.RLock()
+	defer su.mu.RUnlock()
+
+	for _, nodeStatus := range su.statuses {
+		if nodeStatus != nil && *nodeStatus != (NodeSyncStatus{}) {
+			return true
+		}
+	}
+	return false
+}
+
 func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 	su.mu.RLock()
 	defer su.mu.RUnlock()
+
+	// after supervisor restarts, there is a timespan where all node's sync status is not fetched yet
+	// error immediately until at least single node sync status is available, which is not empty
+	if !su.HasInitializedStatuses() {
+		return eth.SupervisorSyncStatus{}, ErrStatusTrackerNotReady
+	}
 
 	firstChain := true
 	var supervisorStatus eth.SupervisorSyncStatus
@@ -75,6 +95,7 @@ func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 	for chainID, nodeStatus := range su.statuses {
 		// if the min synced L1 is not set, or the node's current L1 is lower than the min synced L1, set it
 		if supervisorStatus.MinSyncedL1 == (eth.L1BlockRef{}) || supervisorStatus.MinSyncedL1.Number > nodeStatus.CurrentL1.Number {
+			// even after this update, MinSyncedL1 may still be empty when CurrentL1 was never updated
 			supervisorStatus.MinSyncedL1 = nodeStatus.CurrentL1
 		}
 		// if the height is equal, we need to compare the hash

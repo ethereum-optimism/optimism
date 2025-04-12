@@ -7,16 +7,31 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	FeatureInterop = "interop"
+)
+
 // ChainSpec represents the network parameters for a chain
 type ChainSpec struct {
 	Name      string
 	NetworkID string
 }
 
+type FeatureList []string
+
+func (fl FeatureList) Contains(feature string) bool {
+	for _, f := range fl {
+		if f == feature {
+			return true
+		}
+	}
+	return false
+}
+
 // EnclaveSpec represents the parsed chain specifications from the YAML
 type EnclaveSpec struct {
 	Chains   []ChainSpec
-	Features []string
+	Features FeatureList
 }
 
 // NetworkParams represents the network parameters section in the YAML
@@ -61,7 +76,7 @@ func NewSpec(opts ...SpecOption) *Spec {
 type featureExtractor func(YAMLSpec, string) bool
 
 var featuresMap = map[string]featureExtractor{
-	"interop": interopExtractor,
+	FeatureInterop: interopExtractor,
 }
 
 func interopExtractor(yamlSpec YAMLSpec, chainName string) bool {

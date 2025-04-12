@@ -94,3 +94,20 @@ func PreimageLargerThan(size int) PreimageOpt {
 		return []string{"--stop-at-preimage-larger-than", strconv.Itoa(size)}
 	}
 }
+
+type PreimageOptConfig struct {
+	KeyPrefix byte
+	Offset    uint32
+	AfterStep uint64
+}
+
+func PreimageOptConfigForType(keyType preimage.KeyType) PreimageOptConfig {
+	return PreimageOptConfig{KeyPrefix: byte(keyType)}
+}
+
+func (conf PreimageOptConfig) PreimageLoad() PreimageOpt {
+	keyPrefix := fmt.Sprintf("%x", conf.KeyPrefix)
+	return func() preimageOpts {
+		return []string{"--stop-at-preimage", fmt.Sprintf("%s@%v@%v", keyPrefix, conf.Offset, conf.AfterStep)}
+	}
+}

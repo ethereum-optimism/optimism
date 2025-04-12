@@ -17,13 +17,10 @@ import {
     IdOriginNotL2ToL2CrossDomainMessenger,
     EventPayloadNotSentMessage,
     MessageDestinationNotRelayChain,
-    MessageTargetCrossL2Inbox,
     MessageTargetL2ToL2CrossDomainMessenger,
     MessageAlreadyRelayed,
     ReentrantCall,
-    TargetCallFailed,
-    IDependencySet,
-    InvalidChainId
+    InvalidMessage
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 // Interfaces
@@ -91,13 +88,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
-        // Mock the call over the `isInDependencySet` function to return true
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeCall(IDependencySet.isInDependencySet, (_destination)),
-            abi.encode(true)
-        );
-
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
 
@@ -126,8 +116,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // data
         assertEq(logs[0].data, abi.encode(address(this), _message));
 
-        // Check that the message nonce has been incremented
+        // Check that the message nonce has been incremented and the message hash has been stored
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
     }
 
     /// @dev Tests that the `sendMessage` function reverts when sending a ETH
@@ -169,22 +160,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.sendMessage({ _destination: block.chainid, _target: _target, _message: _message });
     }
 
-    /// @dev Tests that the `sendMessage` function reverts when the target is CrossL2Inbox.
-    function testFuzz_sendMessage_targetCrossL2Inbox_reverts(uint256 _destination, bytes calldata _message) external {
-        // Ensure the destination is not the same as the source, otherwise the function will revert regardless of target
-        vm.assume(_destination != block.chainid);
-
-        // Expect a revert with the MessageTargetCrossL2Inbox selector
-        vm.expectRevert(MessageTargetCrossL2Inbox.selector);
-
-        // Call `senderMessage` with the CrossL2Inbox as the target to provoke revert
-        l2ToL2CrossDomainMessenger.sendMessage({
-            _destination: _destination,
-            _target: Predeploys.CROSS_L2_INBOX,
-            _message: _message
-        });
-    }
-
     /// @dev Tests that the `sendMessage` function reverts when the target is L2ToL2CrossDomainMessenger.
     function testFuzz_sendMessage_targetL2ToL2CrossDomainMessenger_reverts(
         uint256 _destination,
@@ -206,8 +181,33 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         });
     }
 
-    /// @notice Tests the `sendMessage` function reverts when the `destination` is not in the dependency set.
-    function testFuzz_sendMessage_notInDependencySet_reverts(
+    /// @dev Tests that the `resendMessage` function reverts when the message hash does not correspond to
+    ///      any previously sent message.
+    function testFuzz_resendMessage_invalidMessage_reverts(
+        uint256 _destination,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        bytes calldata _message
+    )
+        external
+    {
+        // Get the message hash and ensure it has not been sent yet
+        bytes32 msgHash =
+            Hashing.hashL2toL2CrossDomainMessage(_destination, block.chainid, _nonce, _sender, _target, _message);
+        vm.assume(l2ToL2CrossDomainMessenger.sentMessages(msgHash) == false);
+
+        // Expect a revert with the InvalidMessage selector
+        vm.expectRevert(InvalidMessage.selector);
+
+        // Call the resendMessage function
+        l2ToL2CrossDomainMessenger.resendMessage(_destination, _nonce, _sender, _target, _message);
+    }
+
+    /// @dev Tests that `resendMessage` succeeds and emits the same SentMessage event as the one
+    ///      emitted by `sendMessage`.
+    function testFuzz_resendMessage_succeeds(
+        address _sender,
         uint256 _destination,
         address _target,
         bytes calldata _message
@@ -220,79 +220,53 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
         vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
-        // Mock the call over the `isInDependencySet` function to return false
-        vm.mockCall(
-            Predeploys.L1_BLOCK_ATTRIBUTES,
-            abi.encodeCall(IDependencySet.isInDependencySet, (_destination)),
-            abi.encode(false)
-        );
-
-        // Expect a revert with the InvalidChainId selector
-        vm.expectRevert(InvalidChainId.selector);
-
-        // Call `sendMessage` with a destination that is not in the dependency set to provoke revert
-        l2ToL2CrossDomainMessenger.sendMessage(_destination, _target, _message);
-    }
-
-    /// @dev Tests that the `relayMessage` function succeeds and emits the correct RelayedMessage event.
-    function testFuzz_relayMessage_succeeds(
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        bytes calldata _message,
-        uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
-    )
-        external
-    {
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger or the foundry VM
-        vm.assume(
-            _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
-                && _target != foundryVMAddress
-        );
-
-        // Ensure that the target call is payable if value is sent
-        if (_value > 0) assumePayable(_target);
-
-        // Ensure that the target is not a forge address.
-        assumeNotForgeAddress(_target);
-
-        // Ensure that the target contract does not revert
-        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
-
-        // Construct the SentMessage payload & identifier
-        Identifier memory id =
-            Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _blockNum, _logIndex, _time, _source);
-        bytes memory sentMessage = abi.encodePacked(
-            abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, _target, _nonce), // topics
-            abi.encode(_sender, _message) // data
-        );
-
-        // Ensure the CrossL2Inbox validates this message
-        vm.mockCall({
-            callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(sentMessage))),
-            returnData: ""
-        });
+        // Get the current message nonce
+        uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
 
         // Look for correct emitted event
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.RelayedMessage(
-            _source, _nonce, keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
+        vm.recordLogs();
+
+        // Call the `sendMessage` function
+        vm.prank(_sender);
+        bytes32 msgHash = l2ToL2CrossDomainMessenger.sendMessage(_destination, _target, _message);
+        assertEq(
+            msgHash,
+            Hashing.hashL2toL2CrossDomainMessage(_destination, block.chainid, messageNonce, _sender, _target, _message)
         );
 
-        // relay the message
-        hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
-        assertEq(
-            l2ToL2CrossDomainMessenger.successfulMessages(
-                keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
-            ),
-            true
-        );
+        // Check that the event was emitted with the correct parameters
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+
+        // topics
+        assertEq(logs[0].topics[0], L2ToL2CrossDomainMessenger.SentMessage.selector);
+        assertEq(logs[0].topics[1], bytes32(_destination));
+        assertEq(logs[0].topics[2], bytes32(uint256(uint160(_target))));
+        assertEq(logs[0].topics[3], bytes32(messageNonce));
+
+        // data
+        assertEq(logs[0].data, abi.encode(_sender, _message));
+
+        // Check that the message nonce has been incremented and the message hash has been stored
+        assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
+
+        // Call the `resendMessage` function
+        bytes32 resendMsgHash =
+            l2ToL2CrossDomainMessenger.resendMessage(_destination, messageNonce, _sender, _target, _message);
+
+        // Check that the event was emitted with the correct parameters
+        logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+
+        // topics
+        assertEq(logs[0].topics[0], L2ToL2CrossDomainMessenger.SentMessage.selector);
+        assertEq(logs[0].topics[1], bytes32(_destination));
+        assertEq(logs[0].topics[2], bytes32(uint256(uint160(_target))));
+        assertEq(logs[0].topics[3], bytes32(messageNonce));
+
+        // Check that the message hash returned by `sendMessage` is the same as the one returned by `resendMessage`
+        assertEq(resendMsgHash, msgHash);
     }
 
     function testFuzz_relayMessage_eventPayloadNotSentMessage_reverts(
@@ -300,9 +274,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         bytes32 _msgHash,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -347,9 +321,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -407,9 +381,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         uint256 _nonce,
         address _sender,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time,
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time,
         address _target,
         bytes memory _mockedReturnData
     )
@@ -485,9 +459,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _sender2, // sender passed to `relayMessage` by the reentrant call.
         uint256 _nonce,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -517,8 +491,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             returnData: ""
         });
 
-        // Expect a revert with the TargetCallFailed selector
-        vm.expectRevert(TargetCallFailed.selector);
+        // Expect the target call to revert
+        vm.expectRevert(1);
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
 
@@ -541,9 +515,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         bytes calldata _message,
         uint256 _value,
         address _origin,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -573,9 +547,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _target,
         bytes calldata _message,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -604,86 +578,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
 
-    /// @dev Tests that the `relayMessage` function reverts when the message target is CrossL2Inbox.
-    function testFuzz_relayMessage_targetCrossL2Inbox_reverts(
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        bytes calldata _message,
-        uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
-    )
-        external
-    {
-        // Expect a revert with the MessageTargetCrossL2Inbox selector
-        vm.expectRevert(MessageTargetCrossL2Inbox.selector);
-
-        // Call `relayMessage` with CrossL2Inbox as the target to provoke revert. The current chain is the destination
-        // to prevent revert due to invalid destination
-        Identifier memory id =
-            Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _blockNum, _logIndex, _time, _source);
-        bytes memory sentMessage = abi.encodePacked(
-            abi.encode(
-                L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, Predeploys.CROSS_L2_INBOX, _nonce
-            ), // topics
-            abi.encode(_sender, _message) // data
-        );
-
-        // Ensure the CrossL2Inbox validates this message
-        vm.mockCall({
-            callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(sentMessage))),
-            returnData: ""
-        });
-
-        // Call
-        hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
-    }
-
-    /// @dev Tests that the `relayMessage` function reverts when the message target is L2ToL2CrossDomainMessenger.
-    function testFuzz_relayMessage_targetL2ToL2CrossDomainMessenger_reverts(
-        uint256 _source,
-        uint256 _nonce,
-        address _sender,
-        bytes calldata _message,
-        uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
-    )
-        external
-    {
-        // Expect a revert with the MessageTargetL2ToL2CrossDomainMessenger selector
-        vm.expectRevert(MessageTargetL2ToL2CrossDomainMessenger.selector);
-
-        // Call `relayMessage` with L2ToL2CrossDomainMessenger as the target to provoke revert. The current chain is the
-        // destination to prevent revert due to invalid destination
-        Identifier memory id =
-            Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _blockNum, _logIndex, _time, _source);
-        bytes memory sentMessage = abi.encodePacked(
-            abi.encode(
-                L2ToL2CrossDomainMessenger.SentMessage.selector,
-                block.chainid,
-                Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-                _nonce
-            ), // topics
-            abi.encode(_sender, _message) // data
-        );
-
-        // Ensure the CrossL2Inbox validates this message
-        vm.mockCall({
-            callee: Predeploys.CROSS_L2_INBOX,
-            data: abi.encodeCall(ICrossL2Inbox.validateMessage, (id, keccak256(sentMessage))),
-            returnData: ""
-        });
-
-        hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
-    }
-
     /// @dev Tests that the `relayMessage` function reverts when the message has already been relayed.
     function testFuzz_relayMessage_alreadyRelayed_reverts(
         uint256 _source,
@@ -692,9 +586,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _target,
         bytes calldata _message,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        uint64 _blockNum,
+        uint32 _logIndex,
+        uint64 _time
     )
         external
     {
@@ -754,9 +648,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _target,
         bytes calldata _message,
         uint256 _value,
-        uint256 _blockNum,
-        uint256 _logIndex,
-        uint256 _time
+        bytes calldata _revertData
     )
         external
     {
@@ -767,10 +659,12 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         if (_value > 0) assumePayable(_target);
 
         // Ensure that the target contract reverts
-        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: abi.encode(false) });
+        vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: _revertData });
 
-        Identifier memory id =
-            Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _blockNum, _logIndex, _time, _source);
+        // Construct the identifier -- using some hardcoded values for the block number, log index, and time to avoid
+        // stack too deep errors.
+        Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
+
         bytes memory sentMessage = abi.encodePacked(
             abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, _target, _nonce), // topics
             abi.encode(_sender, _message) // data
@@ -783,8 +677,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             returnData: ""
         });
 
-        // Expect a revert with the TargetCallFailed selector
-        vm.expectRevert(TargetCallFailed.selector);
+        // Expect the target call to revert with the proper return data.
+        vm.expectRevert(_revertData);
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }

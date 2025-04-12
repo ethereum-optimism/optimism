@@ -7,13 +7,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum/go-ethereum/params"
-
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum/go-ethereum/params"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
@@ -31,9 +30,6 @@ const Namespace = "op_node"
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
-	RecordRPCServerRequest(method string) func()
-	RecordRPCClientRequest(method string) func(err error)
-	RecordRPCClientResponse(method string, err error)
 	SetDerivationIdle(status bool)
 	SetSequencerState(active bool)
 	RecordPipelineReset()

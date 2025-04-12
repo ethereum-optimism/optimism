@@ -273,7 +273,7 @@ func (e *RegisterTask) Register(
 			return nil, fmt.Errorf("failed to load oracle for game %v: %w", game.Proxy, err)
 		}
 		oracles.RegisterOracle(oracle)
-		prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
+		prestateBlock, poststateBlock, err := contract.GetGameRange(ctx)
 		if err != nil {
 			return nil, err
 		}

@@ -10,7 +10,7 @@ import { Process } from "scripts/libraries/Process.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameType, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
@@ -18,8 +18,8 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
 /// @title Initializer_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
@@ -124,13 +124,7 @@ contract Initializer_Test is CommonTest {
                 name: "OptimismPortal2Impl",
                 target: EIP1967Helper.getImplementation(address(optimismPortal2)),
                 initCalldata: abi.encodeCall(
-                    optimismPortal2.initialize,
-                    (
-                        disputeGameFactory,
-                        systemConfig,
-                        superchainConfig,
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
-                    )
+                    optimismPortal2.initialize, (systemConfig, superchainConfig, anchorStateRegistry, ethLockbox)
                 )
             })
         );
@@ -140,16 +134,11 @@ contract Initializer_Test is CommonTest {
                 name: "OptimismPortal2Proxy",
                 target: address(optimismPortal2),
                 initCalldata: abi.encodeCall(
-                    optimismPortal2.initialize,
-                    (
-                        disputeGameFactory,
-                        systemConfig,
-                        superchainConfig,
-                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
-                    )
+                    optimismPortal2.initialize, (systemConfig, superchainConfig, anchorStateRegistry, ethLockbox)
                 )
             })
         );
+
         // SystemConfigImpl
         contracts.push(
             InitializeableContract({
@@ -177,10 +166,10 @@ contract Initializer_Test is CommonTest {
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
                             l1StandardBridge: address(0),
-                            disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0)
-                        })
+                        }),
+                        0
                     )
                 )
             })
@@ -212,10 +201,10 @@ contract Initializer_Test is CommonTest {
                             l1CrossDomainMessenger: address(0),
                             l1ERC721Bridge: address(0),
                             l1StandardBridge: address(0),
-                            disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0)
-                        })
+                        }),
+                        0
                     )
                 )
             })
@@ -314,8 +303,8 @@ contract Initializer_Test is CommonTest {
                     (
                         ISuperchainConfig(address(0)),
                         IDisputeGameFactory(address(0)),
-                        IOptimismPortal2(payable(0)),
-                        OutputRoot({ root: Hash.wrap(bytes32(0)), l2BlockNumber: 0 })
+                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
                     )
                 )
             })
@@ -330,9 +319,31 @@ contract Initializer_Test is CommonTest {
                     (
                         ISuperchainConfig(address(0)),
                         IDisputeGameFactory(address(0)),
-                        IOptimismPortal2(payable(0)),
-                        OutputRoot({ root: Hash.wrap(bytes32(0)), l2BlockNumber: 0 })
+                        Proposal({ root: Hash.wrap(bytes32(0)), l2SequenceNumber: 0 }),
+                        GameType.wrap(uint32(deploy.cfg().respectedGameType()))
                     )
+                )
+            })
+        );
+
+        // ETHLockboxImpl
+        contracts.push(
+            InitializeableContract({
+                name: "ETHLockboxImpl",
+                target: EIP1967Helper.getImplementation(address(ethLockbox)),
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISuperchainConfig(address(0)), new IOptimismPortal2[](0))
+                )
+            })
+        );
+
+        // ETHLockboxProxy
+        contracts.push(
+            InitializeableContract({
+                name: "ETHLockboxProxy",
+                target: address(ethLockbox),
+                initCalldata: abi.encodeCall(
+                    ethLockbox.initialize, (ISuperchainConfig(address(0)), new IOptimismPortal2[](0))
                 )
             })
         );
@@ -344,30 +355,25 @@ contract Initializer_Test is CommonTest {
     ///         3. The `initialize()` function of each contract cannot be called again.
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
-        string[] memory excludes = new string[](11);
-        // TODO: Neither of these contracts are labeled properly in the deployment script. Both are
-        //       currently being labeled as their non-interop versions. Remove these exclusions once
-        //       the deployment script is fixed.
-        excludes[0] = "src/L1/SystemConfigInterop.sol";
-        excludes[1] = "src/L1/OptimismPortalInterop.sol";
+        uint256 j;
+        string[] memory excludes = new string[](8);
         // Contract is currently not being deployed as part of the standard deployment script.
-        excludes[2] = "src/L2/OptimismSuperchainERC20.sol";
+        excludes[j++] = "src/L2/OptimismSuperchainERC20.sol";
         // Periphery contracts don't get deployed as part of the standard deployment script.
-        excludes[3] = "src/periphery/*";
+        excludes[j++] = "src/periphery/*";
         // TODO: Deployment script is currently "broken" in the sense that it doesn't properly
         //       label the FaultDisputeGame, PermissionedDisputeGame, SuperFaultDisputeGame, and
         // SuperPermissionedDisputeGame
         //       contracts and instead simply deploys them anonymously. Means that functions like "getInitializedSlot"
         //       don't work properly. Remove these exclusions once the deployment script is fixed.
-        excludes[4] = "src/dispute/FaultDisputeGame.sol";
-        excludes[5] = "src/dispute/SuperFaultDisputeGame.sol";
-        excludes[6] = "src/dispute/PermissionedDisputeGame.sol";
-        excludes[7] = "src/dispute/SuperPermissionedDisputeGame.sol";
+        excludes[j++] = "src/dispute/FaultDisputeGame.sol";
+        excludes[j++] = "src/dispute/SuperFaultDisputeGame.sol";
+        excludes[j++] = "src/dispute/PermissionedDisputeGame.sol";
+        excludes[j++] = "src/dispute/SuperPermissionedDisputeGame.sol";
         // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
-        excludes[8] = "src/L1/OPContractsManager.sol";
-        excludes[9] = "src/L1/OPContractsManagerInterop.sol";
+        excludes[j++] = "src/L1/OPContractsManager.sol";
         // L2 contract initialization is tested in Predeploys.t.sol
-        excludes[10] = "src/L2/*";
+        excludes[j++] = "src/L2/*";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

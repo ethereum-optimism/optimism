@@ -5,8 +5,11 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
+
+var supportedL2OutputVersion = eth.Bytes32{}
 
 type RollupProposalSource struct {
 	provider dial.RollupProvider
@@ -47,8 +50,11 @@ func (r *RollupProposalSource) ProposalAtSequenceNum(ctx context.Context, blockN
 	if err != nil {
 		return Proposal{}, err
 	}
+
+	if output.Version != supportedL2OutputVersion {
+		return Proposal{}, fmt.Errorf("unsupported l2 output version: %v, supported: %v", output.Version, supportedL2OutputVersion)
+	}
 	return Proposal{
-		Version:     output.Version,
 		Root:        common.Hash(output.OutputRoot),
 		SequenceNum: output.BlockRef.Number,
 		CurrentL1:   output.Status.CurrentL1.ID(),

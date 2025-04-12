@@ -68,24 +68,82 @@ type InteropActors struct {
 	ChainB     *Chain
 }
 
+func (actors *InteropActors) PrepareChainState(t helpers.Testing) {
+	// Initialize both chain states
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	t.Log("Sequencers should initialize, and produce initial reset requests")
+
+	// Process the anchor point
+	actors.Supervisor.ProcessFull(t)
+	t.Log("Supervisor should have anchor points now")
+
+	// Sync supervisors, i.e. the reset request makes it to the supervisor now
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	t.Log("Supervisor has events now")
+
+	// Pick up the reset request
+	actors.Supervisor.ProcessFull(t)
+	t.Log("Supervisor processed initial resets")
+
+	// Process reset work
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	t.Log("Processed!")
+
+	// Verify initial state
+	statusA := actors.ChainA.Sequencer.SyncStatus()
+	statusB := actors.ChainB.Sequencer.SyncStatus()
+	require.Equal(t, uint64(0), statusA.UnsafeL2.Number)
+	require.Equal(t, uint64(0), statusB.UnsafeL2.Number)
+}
+
 // messageExpiryTime is the time in seconds that a message will be valid for on the L2 chain.
 // At a 2 second block time, this should be small enough to cover all events buffered in the supervisor event queue.
 const messageExpiryTime = 120 // 2 minutes
 
-// SetupInterop creates an InteropSetup to instantiate actors on, with 2 L2 chains.
-func SetupInterop(t helpers.Testing) *InteropSetup {
-	logger := testlog.Logger(t, log.LevelDebug)
+type setupOption func(*interopgen.InteropDevRecipe)
 
-	recipe := interopgen.InteropDevRecipe{
-		L1ChainID:         900100,
-		L2ChainIDs:        []uint64{900200, 900201},
-		GenesisTimestamp:  uint64(time.Now().Unix() + 3),
-		MessageExpiryTime: messageExpiryTime,
+func SetBlockTimeForChainA(blockTime uint64) setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		recipe.L2s[0].BlockTime = blockTime
 	}
+}
+
+func SetBlockTimeForChainB(blockTime uint64) setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		recipe.L2s[1].BlockTime = blockTime
+	}
+}
+
+func SetMessageExpiryTime(expiryTime uint64) setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		recipe.ExpiryTime = expiryTime
+	}
+}
+
+// SetupInterop creates an InteropSetup to instantiate actors on, with 2 L2 chains.
+func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
+	recipe := interopgen.InteropDevRecipe{
+		L1ChainID:        900100,
+		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
+		GenesisTimestamp: uint64(time.Now().Unix() + 3),
+		ExpiryTime:       messageExpiryTime,
+	}
+	for _, opt := range opts {
+		opt(&recipe)
+	}
+
+	logger := testlog.Logger(t, log.LevelDebug)
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
 	worldCfg, err := recipe.Build(hdWallet)
 	require.NoError(t, err)
+
+	for _, l2Cfg := range worldCfg.L2s {
+		require.NotNil(t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting isthmus fork to be enabled for interop deployments")
+	}
 
 	// create the foundry artifacts and source map
 	foundryArtifacts := foundry.OpenArtifactsDir(foundryArtifactsDir)
@@ -99,7 +157,7 @@ func SetupInterop(t helpers.Testing) *InteropSetup {
 		Log:        logger,
 		Deployment: worldDeployment,
 		Out:        worldOutput,
-		DepSet:     worldToDepSet(t, worldOutput),
+		DepSet:     RecipeToDepSet(t, &recipe),
 		Keys:       hdWallet,
 		T:          t,
 	}
@@ -155,17 +213,17 @@ func (sa *SupervisorActor) Rewind(chain eth.ChainID, block eth.BlockID) error {
 	return sa.backend.Rewind(chain, block)
 }
 
-// worldToDepSet converts a set of chain configs into a dependency-set for the supervisor.
-func worldToDepSet(t helpers.Testing, worldOutput *interopgen.WorldOutput) *depset.StaticConfigDependencySet {
+// RecipeToDepSet converts a recipe into a dependency-set for the supervisor.
+func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *depset.StaticConfigDependencySet {
 	depSetCfg := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for _, out := range worldOutput.L2s {
-		depSetCfg[eth.ChainIDFromBig(out.Genesis.Config.ChainID)] = &depset.StaticConfigDependency{
-			ChainIndex:     types.ChainIndex(out.Genesis.Config.ChainID.Uint64()),
+	for _, out := range recipe.L2s {
+		depSetCfg[eth.ChainIDFromUInt64(out.ChainID)] = &depset.StaticConfigDependency{
+			ChainIndex:     types.ChainIndex(out.ChainID),
 			ActivationTime: 0,
 			HistoryMinTime: 0,
 		}
 	}
-	depSet, err := depset.NewStaticConfigDependencySet(depSetCfg)
+	depSet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(depSetCfg, recipe.ExpiryTime)
 	require.NoError(t, err)
 	return depSet
 }
@@ -187,7 +245,7 @@ func NewSupervisor(t helpers.Testing, logger log.Logger, depSet depset.Dependenc
 	b.SetConfDepthL1(0)
 
 	rpcServer := helpers.NewSimpleRPCServer()
-	supervisor.RegisterRPCs(logger, svCfg, rpcServer, b)
+	supervisor.RegisterRPCs(logger, svCfg, rpcServer, b, metrics.NoopMetrics)
 	rpcServer.Start(t)
 	supervisorClient := sources.NewSupervisorClient(rpcServer.Connect(t))
 	return &SupervisorActor{

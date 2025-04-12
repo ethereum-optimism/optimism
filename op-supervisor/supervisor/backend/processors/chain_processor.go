@@ -217,7 +217,7 @@ func (s *ChainProcessor) rangeUpdate(target uint64) (int, error) {
 			return
 		}
 		if err := s.rewinder.AcceptedBlock(s.chain, next.ID()); err != nil {
-			s.log.Warn("Cannot accept next block into events DB", "err", err)
+			s.log.Warn("Cannot accept next block into events DB", "next", next.ID(), "err", err)
 			result.err = err
 			return
 		}

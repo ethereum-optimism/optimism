@@ -2,9 +2,11 @@ package genesis
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -21,7 +23,7 @@ const defaultGasLimit = 30_000_000
 var HoloceneExtraData = eip1559.EncodeHoloceneExtraData(250, 6)
 
 // NewL2Genesis will create a new L2 genesis
-func NewL2Genesis(config *DeployConfig, l1StartHeader *types.Header) (*core.Genesis, error) {
+func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Genesis, error) {
 	if config.L2ChainID == 0 {
 		return nil, errors.New("must define L2 ChainID")
 	}
@@ -70,6 +72,7 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *types.Header) (*core.Gene
 		GraniteTime:             config.GraniteTime(l1StartTime),
 		HoloceneTime:            config.HoloceneTime(l1StartTime),
 		IsthmusTime:             config.IsthmusTime(l1StartTime),
+		JovianTime:              config.JovianTime(l1StartTime),
 		PragueTime:              config.IsthmusTime(l1StartTime),
 		InteropTime:             config.InteropTime(l1StartTime),
 		Optimism: &params.OptimismConfig{
@@ -121,14 +124,35 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *types.Header) (*core.Gene
 	return genesis, nil
 }
 
-// NewL1Genesis will create a new L1 genesis config
+// NewL1Genesis will create a new L1 genesis config (without the allocs part)
 func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
-	if config.L1ChainID == 0 {
+	if config.L1CancunTimeOffset == nil || *config.L1CancunTimeOffset != 0 {
+		return nil, fmt.Errorf("expected non-nil 0 L1 cancun time offset, but got %v", config.L1CancunTimeOffset)
+	}
+	return NewL1GenesisMinimal(&DevL1DeployConfigMinimal{
+		DevL1DeployConfig:  config.DevL1DeployConfig,
+		L1ChainID:          eth.ChainIDFromUInt64(config.L1ChainID),
+		L1PragueTimeOffset: (*uint64)(config.L1PragueTimeOffset),
+	})
+}
+
+// DevL1DeployConfigMinimal is the minimal subset to actually create a L1 dev genesis.
+type DevL1DeployConfigMinimal struct {
+	DevL1DeployConfig
+	L1ChainID eth.ChainID
+	// When Prague activates. Relative to L1 genesis.
+	L1PragueTimeOffset *uint64
+}
+
+// NewL1GenesisMinimal creates a L1 dev genesis template.
+// Warning: the allocs are not included yet.
+func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error) {
+	if config.L1ChainID == eth.ChainIDFromUInt64(0) {
 		return nil, errors.New("must define L1 ChainID")
 	}
 
 	chainConfig := params.ChainConfig{
-		ChainID:             uint642Big(config.L1ChainID),
+		ChainID:             config.L1ChainID.ToBig(),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      false,
@@ -149,6 +173,8 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		// To enable post-Merge consensus at genesis
 		MergeNetsplitBlock:      big.NewInt(0),
 		TerminalTotalDifficulty: big.NewInt(0),
+		// use default Ethereum prod blob schedules
+		BlobScheduleConfig: params.DefaultBlobSchedule,
 	}
 
 	gasLimit := config.L1GenesisBlockGasLimit
@@ -167,15 +193,11 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	if timestamp == 0 {
 		timestamp = hexutil.Uint64(time.Now().Unix())
 	}
-	if config.L1CancunTimeOffset != nil {
-		cancunTime := uint64(timestamp) + uint64(*config.L1CancunTimeOffset)
-		chainConfig.CancunTime = &cancunTime
-	}
 	if config.L1PragueTimeOffset != nil {
 		pragueTime := uint64(timestamp) + uint64(*config.L1PragueTimeOffset)
 		chainConfig.PragueTime = &pragueTime
 	}
-
+	// Note: excess-blob-gas, blob-gas-used, withdrawals-hash, requests-hash are set to reasonable defaults for L1 by the ToBlock() function
 	return &core.Genesis{
 		Config:        &chainConfig,
 		Nonce:         uint64(config.L1GenesisBlockNonce),
@@ -191,7 +213,6 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		BaseFee:       baseFee.ToInt(),
 		ExcessBlobGas: (*uint64)(config.L1GenesisBlockExcessBlobGas),
 		BlobGasUsed:   (*uint64)(config.L1GenesisBlockBlobGasUsed),
-		Alloc:         map[common.Address]types.Account{},
 	}, nil
 }
 

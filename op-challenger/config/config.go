@@ -27,6 +27,7 @@ var (
 	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
 	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
 	ErrMissingCannonInfoFreq         = errors.New("missing cannon info freq")
+	ErrMissingDepsetConfig           = errors.New("missing network or depset config path")
 
 	ErrMissingRollupRpc     = errors.New("missing rollup rpc url")
 	ErrMissingSupervisorRpc = errors.New("missing supervisor rpc url")
@@ -97,6 +98,66 @@ type Config struct {
 	TxMgrConfig   txmgr.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
+}
+
+func NewInteropConfig(
+	gameFactoryAddress common.Address,
+	l1EthRpc string,
+	l1BeaconApi string,
+	supervisorRpc string,
+	l2Rpcs []string,
+	datadir string,
+	supportedTraceTypes ...types.TraceType,
+) Config {
+	return Config{
+		L1EthRpc:           l1EthRpc,
+		L1Beacon:           l1BeaconApi,
+		SupervisorRPC:      supervisorRpc,
+		L2Rpcs:             l2Rpcs,
+		GameFactoryAddress: gameFactoryAddress,
+		MaxConcurrency:     uint(runtime.NumCPU()),
+		PollInterval:       DefaultPollInterval,
+
+		TraceTypes: supportedTraceTypes,
+
+		MaxPendingTx: DefaultMaxPendingTx,
+
+		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
+		MetricsConfig: opmetrics.DefaultCLIConfig(),
+		PprofConfig:   oppprof.DefaultCLIConfig(),
+
+		Datadir: datadir,
+
+		Cannon: vm.Config{
+			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
+		Asterisc: vm.Config{
+			VmType:          types.TraceTypeAsterisc,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		AsteriscKona: vm.Config{
+			VmType:          types.TraceTypeAsteriscKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		GameWindow: DefaultGameWindow,
+	}
 }
 
 func NewConfig(
@@ -188,6 +249,10 @@ func (c Config) Check() error {
 	if c.TraceTypeEnabled(types.TraceTypeSuperCannon) || c.TraceTypeEnabled(types.TraceTypeSuperPermissioned) {
 		if c.SupervisorRPC == "" {
 			return ErrMissingSupervisorRpc
+		}
+
+		if len(c.Cannon.Networks) == 0 && c.Cannon.DepsetConfigPath == "" {
+			return ErrMissingDepsetConfig
 		}
 		if err := c.validateBaseCannonOptions(); err != nil {
 			return err

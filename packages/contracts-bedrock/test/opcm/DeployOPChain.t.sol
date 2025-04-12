@@ -7,7 +7,6 @@ import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from 
 import {
     DeployImplementationsInput,
     DeployImplementations,
-    DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/deploy/DeployOPChain.s.sol";
@@ -27,7 +26,7 @@ import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersi
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 
-import { Claim, Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash, Proposal } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
@@ -328,7 +327,7 @@ contract DeployOPChain_TestBase is Test {
     uint32 basefeeScalar = 100;
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
-    OutputRoot startingAnchorRoot = OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRoot")), l2BlockNumber: 400 });
+    Proposal startingAnchorRoot = Proposal({ root: Hash.wrap(keccak256("defaultOutputRoot")), l2SequenceNumber: 400 });
     IOPContractsManager opcm = IOPContractsManager(address(0));
     string saltMixer = "defaultSaltMixer";
     uint64 gasLimit = 60_000_000;
@@ -520,11 +519,5 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth);
         doi.set(doi.disputeClockExtension.selector, disputeClockExtension);
         doi.set(doi.disputeMaxClockDuration.selector, disputeMaxClockDuration);
-    }
-}
-
-contract DeployOPChain_Test_Interop is DeployOPChain_Test {
-    function createDeployImplementationsContract() internal override returns (DeployImplementations) {
-        return new DeployImplementationsInterop();
     }
 }

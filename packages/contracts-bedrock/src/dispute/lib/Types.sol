@@ -37,12 +37,13 @@ enum BondDistributionMode {
     REFUND
 }
 
-/// @notice Represents an L2 output root and the L2 block number at which it was generated.
+/// @notice Represents an L2 root and the L2 sequence number at which it was generated.
 /// @custom:field root The output root.
-/// @custom:field l2BlockNumber The L2 block number at which the output root was generated.
-struct OutputRoot {
+/// @custom:field l2SequenceNumber The L2 Sequence Number ( e.g. block number / timestamp) at which the root was
+/// generated.
+struct Proposal {
     Hash root;
-    uint256 l2BlockNumber;
+    uint256 l2SequenceNumber;
 }
 
 /// @title GameTypes
@@ -59,6 +60,12 @@ library GameTypes {
 
     /// @notice A dispute game type that uses the asterisc vm with Kona.
     GameType internal constant ASTERISC_KONA = GameType.wrap(3);
+
+    /// @notice A dispute game type that uses the cannon vm (Super Roots).
+    GameType internal constant SUPER_CANNON = GameType.wrap(4);
+
+    /// @notice A dispute game type that uses the permissioned cannon vm (Super Roots).
+    GameType internal constant SUPER_PERMISSIONED_CANNON = GameType.wrap(5);
 
     /// @notice A dispute game type that uses OP Succinct
     GameType internal constant OP_SUCCINCT = GameType.wrap(6);

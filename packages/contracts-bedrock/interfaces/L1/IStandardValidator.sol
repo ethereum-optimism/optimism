@@ -3,12 +3,9 @@ pragma solidity ^0.8.0;
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 
 interface IStandardValidatorBase {
     struct ImplementationsBase {
-        address superchainConfigImpl;
-        address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
         address systemConfigImpl;
@@ -35,7 +32,6 @@ interface IStandardValidatorBase {
     function l1PAOMultisig() external view returns (address);
     function l1StandardBridgeImpl() external view returns (address);
     function l1StandardBridgeVersion() external pure returns (string memory);
-    function mips() external view returns (address);
     function mipsImpl() external view returns (address);
     function mipsVersion() external pure returns (string memory);
     function optimismMintableERC20FactoryImpl() external view returns (address);
@@ -52,6 +48,7 @@ interface IStandardValidatorBase {
     function superchainConfigVersion() external pure returns (string memory);
     function systemConfigImpl() external view returns (address);
     function systemConfigVersion() external pure returns (string memory);
+    function withdrawalDelaySeconds() external view returns (uint256);
 }
 
 interface IStandardValidatorV180 is IStandardValidatorBase {
@@ -67,10 +64,9 @@ interface IStandardValidatorV180 is IStandardValidatorBase {
     function __constructor__(
         IStandardValidatorBase.ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
         address _l1PAOMultisig,
-        address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     ) external;
 }
 
@@ -87,9 +83,27 @@ interface IStandardValidatorV200 is IStandardValidatorBase {
     function __constructor__(
         IStandardValidatorBase.ImplementationsBase memory _implementations,
         ISuperchainConfig _superchainConfig,
-        IProtocolVersions _protocolVersions,
         address _l1PAOMultisig,
-        address _mips,
-        address _challenger
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
+    ) external;
+}
+
+interface IStandardValidatorV300 is IStandardValidatorBase {
+    struct InputV300 {
+        address proxyAdmin;
+        address sysCfg;
+        bytes32 absolutePrestate;
+        uint256 l2ChainID;
+    }
+
+    function validate(InputV300 memory _input, bool _allowFailure) external view returns (string memory);
+
+    function __constructor__(
+        IStandardValidatorBase.ImplementationsBase memory _implementations,
+        ISuperchainConfig _superchainConfig,
+        address _l1PAOMultisig,
+        address _challenger,
+        uint256 _withdrawalDelaySeconds
     ) external;
 }

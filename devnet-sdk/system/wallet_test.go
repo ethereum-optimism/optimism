@@ -6,9 +6,13 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -103,7 +107,15 @@ type internalMockChain struct {
 	*mockChain
 }
 
-func (m *internalMockChain) Client() (*ethclient.Client, error) {
+func (m *internalMockChain) Client() (*sources.EthClient, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*sources.EthClient), args.Error(1)
+}
+
+func (m *internalMockChain) GethClient() (*ethclient.Client, error) {
 	args := m.Called()
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -116,7 +128,7 @@ func TestNewWallet(t *testing.T) {
 	addr := types.Address(common.HexToAddress("0x5678"))
 	chain := &chain{}
 
-	w, err := newWallet(pk, addr, chain)
+	w, err := NewWallet(pk, addr, chain)
 	assert.NoError(t, err)
 
 	// The private key is converted to ECDSA, so we can't compare directly with the input string
@@ -135,6 +147,7 @@ func TestWallet_Address(t *testing.T) {
 func TestWallet_SendETH(t *testing.T) {
 	ctx := context.Background()
 	mockChain := newMockChain()
+	mockNode := newMockNode()
 	internalChain := &internalMockChain{mockChain}
 
 	// Use a valid 256-bit private key (32 bytes)
@@ -158,20 +171,29 @@ func TestWallet_SendETH(t *testing.T) {
 	mockChain.On("ID").Return(types.ChainID(chainID)).Maybe()
 
 	// Mock EIP support checks
-	mockChain.On("SupportsEIP", ctx, uint64(1559)).Return(false)
-	mockChain.On("SupportsEIP", ctx, uint64(4844)).Return(false)
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
+	mockNode.On("SupportsEIP", ctx, uint64(1559)).Return(false)
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
+	mockNode.On("SupportsEIP", ctx, uint64(4844)).Return(false)
 
 	// Mock gas price and limit
-	mockChain.On("GasPrice", ctx).Return(big.NewInt(1000000000), nil)
-	mockChain.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil)
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
+	mockNode.On("GasPrice", ctx).Return(big.NewInt(1000000000), nil)
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
+	mockNode.On("GasLimit", ctx, mock.Anything).Return(uint64(21000), nil)
 
 	// Mock nonce retrieval
-	mockChain.On("PendingNonceAt", ctx, fromAddr).Return(uint64(0), nil)
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
+	mockNode.On("PendingNonceAt", ctx, fromAddr).Return(uint64(0), nil)
 
 	// Mock client access
-	client, err := ethclient.Dial("http://this.domain.definitely.does.not.exist:8545")
+	rpcClient, err := rpc.DialContext(context.Background(), "http://this.domain.definitely.does.not.exist:8545")
 	assert.NoError(t, err)
-	mockChain.On("Client").Return(client, nil)
+	ethClCfg := sources.EthClientConfig{MaxConcurrentRequests: 1, MaxRequestsPerBatch: 1, RPCProviderKind: sources.RPCKindStandard}
+	ethCl, err := sources.NewEthClient(client.NewBaseRPCClient(rpcClient), log.Root(), nil, &ethClCfg)
+	assert.NoError(t, err)
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
+	mockNode.On("Client").Return(ethCl, nil)
 
 	// Create the send invocation
 	invocation := w.SendETH(toAddr, amount)
@@ -186,26 +208,30 @@ func TestWallet_SendETH(t *testing.T) {
 
 func TestWallet_Balance(t *testing.T) {
 	mockChain := newMockChain()
+	mockNode := newMockNode()
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
 	internalChain := &internalMockChain{mockChain}
 	w := &wallet{
 		chain: internalChain,
 	}
 
 	// Test error case when client is not available
-	mockChain.On("Client").Return(nil, assert.AnError).Once()
+	mockNode.On("Client").Return((*sources.EthClient)(nil), assert.AnError).Once()
 	balance := w.Balance()
 	assert.Equal(t, types.Balance{}, balance)
 }
 
 func TestWallet_Nonce(t *testing.T) {
 	mockChain := newMockChain()
+	mockNode := newMockNode()
+	mockChain.On("Nodes").Return([]Node{mockNode}).Once()
 	internalChain := &internalMockChain{mockChain}
 	w := &wallet{
 		chain: internalChain,
 	}
 
 	// Test error case when client is not available
-	mockChain.On("Client").Return(nil, assert.AnError).Once()
+	mockNode.On("Client").Return((*sources.EthClient)(nil), assert.AnError).Once()
 	nonce := w.Nonce()
 	assert.Equal(t, uint64(0), nonce)
 }

@@ -12,6 +12,7 @@ import (
 func run(ctx *cli.Context) error {
 	devnetURL := ctx.String("devnet")
 	chainName := ctx.String("chain")
+	nodeIndex := ctx.Int("node-index")
 
 	devnetEnv, err := env.LoadDevnetFromURL(devnetURL)
 	if err != nil {
@@ -24,7 +25,7 @@ func run(ctx *cli.Context) error {
 	}
 
 	chainEnv, err := chain.GetEnv(
-		env.WithCastIntegration(true),
+		env.WithCastIntegration(true, nodeIndex),
 	)
 	if err != nil {
 		return err
@@ -73,6 +74,13 @@ func main() {
 				Usage:    "Name of the chain to connect to",
 				EnvVars:  []string{env.ChainNameVar},
 				Required: true,
+			},
+			&cli.IntFlag{
+				Name:     "node-index",
+				Usage:    "Index of the node to connect to (default: 0)",
+				EnvVars:  []string{env.NodeIndexVar},
+				Required: false,
+				Value:    0,
 			},
 		},
 		Action: run,

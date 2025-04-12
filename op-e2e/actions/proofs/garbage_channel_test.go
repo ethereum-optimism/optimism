@@ -95,8 +95,8 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, uint64(NumL2Blocks), l2SafeHead.Number.Uint64())
 
-	// Run the FPP on L2 block # NumL2Blocks.
-	env.RunFaultProofProgram(t, NumL2Blocks, testCfg.CheckResult, testCfg.InputParams...)
+	// Run FPP from genesis up to safe head
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_GarbageChannel(gt *testing.T) {

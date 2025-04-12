@@ -28,16 +28,9 @@ func TestProposerBatchType(t *testing.T) {
 	t.Run("SingularBatch/Standard", func(t *testing.T) {
 		runProposerTest(t, nil, config.AllocTypeStandard)
 	})
-	t.Run("SingularBatch/L2OO", func(t *testing.T) {
-		runProposerTest(t, nil, config.AllocTypeL2OO)
-	})
 	t.Run("SpanBatch/Standard", func(t *testing.T) {
 		deltaTimeOffset := hexutil.Uint64(0)
 		runProposerTest(t, &deltaTimeOffset, config.AllocTypeStandard)
-	})
-	t.Run("SpanBatch/L2OO", func(t *testing.T) {
-		deltaTimeOffset := hexutil.Uint64(0)
-		runProposerTest(t, &deltaTimeOffset, config.AllocTypeL2OO)
 	})
 }
 

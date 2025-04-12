@@ -48,7 +48,8 @@ type BatcherConfig struct {
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
 	ThrottleThreshold, ThrottleTxSize          uint64
 	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
-	ThrottleInterval                           time.Duration
+
+	PreferLocalSafeL2 bool
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -111,11 +112,15 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.ThrottleTxSize = cfg.ThrottleTxSize
 	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
 	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
-	bs.ThrottleInterval = cfg.ThrottleInterval
 
-	if err := bs.initRPCClients(ctx, cfg); err != nil {
+	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
+
+	optsFromRPC, err := bs.initRPCClients(ctx, cfg)
+	if err != nil {
 		return err
 	}
+	opts = append(optsFromRPC, opts...)
+
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
@@ -146,10 +151,10 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	return nil
 }
 
-func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) error {
+func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) (opts []DriverSetupOption, _ error) {
 	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, bs.Log, cfg.L1EthRpc)
 	if err != nil {
-		return fmt.Errorf("failed to dial L1 RPC: %w", err)
+		return nil, fmt.Errorf("failed to dial L1 RPC: %w", err)
 	}
 	bs.L1Client = l1Client
 
@@ -157,16 +162,39 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 	if strings.Contains(cfg.RollupRpc, ",") && strings.Contains(cfg.L2EthRpc, ",") {
 		rollupUrls := strings.Split(cfg.RollupRpc, ",")
 		ethUrls := strings.Split(cfg.L2EthRpc, ",")
-		endpointProvider, err = dial.NewActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+		provider, err := dial.NewActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
+		}
+		endpointProvider = provider
+
+		// If we use an active endpoint provider AND throttling is enabled,
+		// we need to set up the callback to notify the driver any time we
+		// get a new active sequencer
+		if cfg.ThrottleThreshold > 0 {
+			activeSeqChanged := make(chan struct{}, 1)
+			opts = []DriverSetupOption{func(setup *DriverSetup) {
+				setup.ActiveSeqChanged = activeSeqChanged
+			}}
+			// callback to notify the driver of a new active sequencer
+			cb := func() {
+				select {
+				case activeSeqChanged <- struct{}{}:
+				default:
+				}
+			}
+			provider.SetOnActiveProviderChanged(cb)
+
+		}
 	} else {
 		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to build L2 endpoint provider: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
+		}
 	}
 	bs.EndpointProvider = endpointProvider
 
-	return nil
+	return opts, nil
 }
 
 func (bs *BatcherService) initMetrics(cfg *CLIConfig) {
@@ -230,6 +258,10 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	case flags.CalldataType: // do nothing
 	default:
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
+	}
+
+	if bs.UseAltDA && cc.UseBlobs {
+		return fmt.Errorf("cannot use data availability type blobs or auto with Alt-DA")
 	}
 
 	if bs.UseAltDA && cc.MaxFrameSize > altda.MaxInputSize {
@@ -353,9 +385,10 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPC.ListenPort,
 		bs.Version,
 		oprpc.WithLogger(bs.Log),
+		oprpc.WithRPCRecorder(bs.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPC.EnableAdmin {
-		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Metrics, bs.Log)
+		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		server.AddAPI(bs.TxManager.API())
 		bs.Log.Info("Admin RPC enabled")
@@ -424,7 +457,6 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	}
 
 	if bs.rpcServer != nil {
-		// TODO(7685): the op-service RPC server is not built on top of op-service httputil Server, and has poor shutdown
 		if err := bs.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}
@@ -478,4 +510,11 @@ func (bs *BatcherService) ThrottlingTestDriver() *TestBatchSubmitter {
 	}
 	tbs.BatchSubmitter.channelMgr.metr = new(metrics.ThrottlingMetrics)
 	return tbs
+}
+
+func (bs *BatcherService) HTTPEndpoint() string {
+	if bs.rpcServer == nil {
+		return ""
+	}
+	return "http://" + bs.rpcServer.Endpoint()
 }

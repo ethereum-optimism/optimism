@@ -44,9 +44,16 @@ var (
 	validAsteriscKonaAbsolutePreStateBaseURL, _ = url.Parse("http://localhost/bar/")
 )
 
-var cannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned, types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned}
+var singleCannonTraceTypes = []types.TraceType{types.TraceTypeCannon, types.TraceTypePermissioned}
+var superCannonTraceTypes = []types.TraceType{types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned}
+var allCannonTraceTypes []types.TraceType
 var asteriscTraceTypes = []types.TraceType{types.TraceTypeAsterisc}
 var asteriscKonaTraceTypes = []types.TraceType{types.TraceTypeAsteriscKona}
+
+func init() {
+	allCannonTraceTypes = append(allCannonTraceTypes, singleCannonTraceTypes...)
+	allCannonTraceTypes = append(allCannonTraceTypes, superCannonTraceTypes...)
+}
 
 func ensureExists(path string) error {
 	_, err := os.Stat(path)
@@ -178,7 +185,7 @@ func TestGameAllowlistNotRequired(t *testing.T) {
 }
 
 func TestCannonRequiredArgs(t *testing.T) {
-	for _, traceType := range cannonTraceTypes {
+	for _, traceType := range allCannonTraceTypes {
 		traceType := traceType
 
 		t.Run(fmt.Sprintf("TestCannonBinRequired-%v", traceType), func(t *testing.T) {
@@ -249,6 +256,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			cfg.Cannon.Networks = nil
 			cfg.Cannon.RollupConfigPaths = nil
 			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
+			cfg.Cannon.DepsetConfigPath = "foo.json"
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingRollupConfig)
 		})
 
@@ -257,6 +265,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			cfg.Cannon.Networks = nil
 			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
 			cfg.Cannon.L2GenesisPaths = nil
+			cfg.Cannon.DepsetConfigPath = "foo.json"
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingL2Genesis)
 		})
 
@@ -301,6 +310,32 @@ func TestCannonRequiredArgs(t *testing.T) {
 			cfg := validConfig(t, traceType)
 			cfg.Cannon.Server = nonExistingFile
 			require.ErrorIs(t, cfg.Check(), vm.ErrMissingServer)
+		})
+	}
+}
+
+func TestDepsetConfig(t *testing.T) {
+	for _, traceType := range superCannonTraceTypes {
+		traceType := traceType
+		t.Run(fmt.Sprintf("TestCannonNetworkOrDepsetConfigRequired-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.Cannon.Networks = nil
+			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
+			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
+			cfg.Cannon.DepsetConfigPath = ""
+			require.ErrorIs(t, cfg.Check(), ErrMissingDepsetConfig)
+		})
+	}
+
+	for _, traceType := range singleCannonTraceTypes {
+		traceType := traceType
+		t.Run(fmt.Sprintf("TestDepsetConfigNotRequired-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(t, traceType)
+			cfg.Cannon.Networks = nil
+			cfg.Cannon.RollupConfigPaths = []string{"foo.json"}
+			cfg.Cannon.L2GenesisPaths = []string{"genesis.json"}
+			cfg.Cannon.DepsetConfigPath = ""
+			require.NoError(t, cfg.Check())
 		})
 	}
 }

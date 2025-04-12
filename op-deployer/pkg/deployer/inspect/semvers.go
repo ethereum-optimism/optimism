@@ -59,7 +59,7 @@ func L2SemversCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("chain state does not have allocs")
 	}
 
-	artifactsFS, err := artifacts.Download(ctx, intent.L2ContractsLocator, artifacts.BarProgressor())
+	artifactsFS, err := artifacts.Download(ctx, intent.L2ContractsLocator, artifacts.BarProgressor(), cliCfg.CacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download L2 artifacts: %w", err)
 	}
@@ -106,7 +106,7 @@ type L2PredeploySemvers struct {
 	EAS                           string
 	CrossL2Inbox                  string
 	L2toL2CrossDomainMessenger    string
-	SuperchainWETH                string
+	SuperchainETHBridge           string
 	ETHLiquidity                  string
 	SuperchainTokenBridge         string
 	OptimismMintableERC20         string

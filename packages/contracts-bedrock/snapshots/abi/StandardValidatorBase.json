@@ -5,16 +5,6 @@
         "components": [
           {
             "internalType": "address",
-            "name": "superchainConfigImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "protocolVersionsImpl",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "l1ERC721BridgeImpl",
             "type": "address"
           },
@@ -74,24 +64,19 @@
         "type": "address"
       },
       {
-        "internalType": "contract IProtocolVersions",
-        "name": "_protocolVersions",
-        "type": "address"
-      },
-      {
         "internalType": "address",
         "name": "_l1PAOMultisig",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "_mips",
+        "name": "_challenger",
         "type": "address"
       },
       {
-        "internalType": "address",
-        "name": "_challenger",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "_withdrawalDelaySeconds",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -281,19 +266,6 @@
   },
   {
     "inputs": [],
-    "name": "mips",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "mipsImpl",
     "outputs": [
       {
@@ -398,45 +370,6 @@
   },
   {
     "inputs": [],
-    "name": "protocolVersions",
-    "outputs": [
-      {
-        "internalType": "contract IProtocolVersions",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "protocolVersionsImpl",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "protocolVersionsVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "superchainConfig",
     "outputs": [
       {
@@ -446,32 +379,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "superchainConfigImpl",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "superchainConfigVersion",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -498,6 +405,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdrawalDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ]

@@ -141,6 +141,13 @@ var (
 		EnvVars:  prefixEnvVars("RPC_ADMIN_STATE"),
 		Category: OperationsCategory,
 	}
+	FetchWithdrawalRootFromState = &cli.BoolFlag{
+		Name:     "fetch-withdrawal-root-from-state",
+		Usage:    "Read withdrawal_storage_root (aka message passer storage root) from state trie (via execution layer) instead of the block header. Restores pre-Isthmus behavior, requires an archive EL client.",
+		Required: false,
+		EnvVars:  prefixEnvVars("FETCH_WITHDRAWAL_ROOT_FROM_STATE"),
+		Category: OperationsCategory,
+	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:     "l1.trustrpc",
 		Usage:    "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
@@ -247,6 +254,13 @@ var (
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
 		EnvVars:  prefixEnvVars("SEQUENCER_L1_CONFS"),
 		Value:    4,
+		Category: SequencerCategory,
+	}
+	SequencerRecoverMode = &cli.BoolFlag{
+		Name:     "sequencer.recover",
+		Usage:    "Forces the sequencer to strictly prepare the next L1 origin and create empty L2 blocks",
+		EnvVars:  prefixEnvVars("SEQUENCER_RECOVER"),
+		Value:    false,
 		Category: SequencerCategory,
 	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
@@ -419,6 +433,16 @@ var (
 		Destination: new(string),
 		Category:    InteropCategory,
 	}
+
+	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
+		Name: "ignore-missing-pectra-blob-schedule",
+		Usage: "Ignore missing pectra blob schedule fix for Sepolia and Holesky chains. Only set if you know what you are doing!" +
+			"Ask your chain's operator for the correct Pectra blob schedule activation time and set it via the rollup.json config" +
+			"or use the --override.pectrablobschedule flag.",
+		EnvVars:  prefixEnvVars("IGNORE_MISSING_PECTRA_BLOB_SCHEDULE"),
+		Category: RollupCategory,
+		Hidden:   true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -434,6 +458,7 @@ var optionalFlags = []cli.Flag{
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
+	FetchWithdrawalRootFromState,
 	RPCListenAddr,
 	RPCListenPort,
 	L1TrustRPC,
@@ -448,6 +473,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerRecoverMode,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,
@@ -471,6 +497,7 @@ var optionalFlags = []cli.Flag{
 	InteropRPCAddr,
 	InteropRPCPort,
 	InteropJWTSecret,
+	IgnoreMissingPectraBlobSchedule,
 }
 
 var DeprecatedFlags = []cli.Flag{

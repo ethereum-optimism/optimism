@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -73,7 +74,13 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 			override(dp.DeployConfig)
 		}
 	})
-	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
+
+	genesisAlloc := testCfg.Allocs
+	if genesisAlloc == nil {
+		genesisAlloc = helpers.DefaultAlloc
+	}
+
+	sd := e2eutils.Setup(t, dp, genesisAlloc)
 
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 
@@ -165,6 +172,19 @@ func WithL1Head(head common.Hash) FixtureInputParam {
 	}
 }
 
+// RunFaultProofProgram runs the fault proof program for each state transition from genesis up to the provided l2 block num.
+func (env *L2FaultProofEnv) RunFaultProofProgramFromGenesis(t helpers.Testing, finalL2BlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
+	l2ClaimBlockNum := uint64(0)
+	for l2ClaimBlockNum <= finalL2BlockNum { // l2ClaimBlockNum = 0, finalL2BlockNum = 0 is a valid case
+		defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
+		combinedParams := []FixtureInputParam{defaultParam}
+		combinedParams = append(combinedParams, fixtureInputParams...)
+		RunFaultProofProgram(t, env.log, env.Miner, checkResult, combinedParams...)
+		l2ClaimBlockNum++
+	}
+}
+
+// RunFaultProofProgram runs the fault proof program for a single state transition, from the provided l2 block num - 1 to the provided l2 block num.
 func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	defaultParam := WithPreInteropDefaults(t, l2ClaimBlockNum, env.Sequencer.L2Verifier, env.Engine)
 	combinedParams := []FixtureInputParam{defaultParam}
@@ -224,4 +244,32 @@ func NewOpProgramCfg(
 	dfault.InteropEnabled = fi.InteropEnabled
 	dfault.DependencySet = fi.DependencySet
 	return dfault
+}
+
+// BatchAndMine batches the current unsafe chain to L1 and mines the L1 block containing the
+// batcher transaction.
+func (env *L2FaultProofEnv) BatchAndMine(t helpers.Testing) {
+	t.Helper()
+	env.Batcher.ActSubmitAll(t)
+	env.Miner.ActL1StartBlock(12)(t)
+	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
+	env.Miner.ActL1EndBlock(t)
+}
+
+// BatchMineAndSync calls env.BatchAndMine and then has the sequencer derive up to the l1 head.
+// Returns the L2 Safe Block Reference
+func (env *L2FaultProofEnv) BatchMineAndSync(t helpers.Testing) eth.L2BlockRef {
+	t.Helper()
+	id := env.Miner.UnsafeID()
+	env.BatchAndMine(t)
+	env.Sequencer.ActL1HeadSignal(t)
+	env.Sequencer.ActL2PipelineFull(t)
+
+	// Assertions
+
+	syncStatus := env.Sequencer.SyncStatus()
+	require.Equal(t, syncStatus.UnsafeL2.L1Origin, id, "UnsafeL2.L1Origin should equal L1 Unsafe ID before batch submitted")
+	require.Equal(t, syncStatus.UnsafeL2, syncStatus.SafeL2, "UnsafeL2 should equal SafeL2")
+
+	return syncStatus.SafeL2
 }

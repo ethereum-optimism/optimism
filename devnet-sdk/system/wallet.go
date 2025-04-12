@@ -4,12 +4,19 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 
 	coreTypes "github.com/ethereum/go-ethereum/core/types"
 )
@@ -19,19 +26,25 @@ var (
 	_ Wallet = (*wallet)(nil)
 )
 
-// internalChain provides access to internal chain functionality
-type internalChain interface {
-	Chain
-	Client() (*ethclient.Client, error)
-}
-
 type wallet struct {
 	privateKey types.Key
 	address    types.Address
-	chain      internalChain
+	chain      Chain
 }
 
-func newWallet(pk string, addr types.Address, chain *chain) (*wallet, error) {
+func newWalletMapFromDescriptorWalletMap(descriptorWalletMap descriptors.WalletMap, chain Chain) (WalletMap, error) {
+	result := WalletMap{}
+	for k, v := range descriptorWalletMap {
+		wallet, err := NewWallet(v.PrivateKey, v.Address, chain)
+		if err != nil {
+			return nil, err
+		}
+		result[k] = wallet
+	}
+	return result, nil
+}
+
+func NewWallet(pk string, addr types.Address, chain Chain) (*wallet, error) {
 	privateKey, err := privateKeyFromString(pk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert private from string: %w", err)
@@ -84,7 +97,7 @@ func (w *wallet) SendETH(to types.Address, amount types.Balance) types.WriteInvo
 }
 
 func (w *wallet) Balance() types.Balance {
-	client, err := w.chain.Client()
+	client, err := w.chain.Nodes()[0].Client()
 	if err != nil {
 		return types.Balance{}
 	}
@@ -97,8 +110,153 @@ func (w *wallet) Balance() types.Balance {
 	return types.NewBalance(balance)
 }
 
+func (w *wallet) InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any] {
+	return &initiateMessageImpl{
+		chain:     w.chain,
+		processor: w,
+		from:      w.address,
+		target:    target,
+		chainID:   chainID,
+		message:   message,
+	}
+}
+
+func (w *wallet) ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any] {
+	return &executeMessageImpl{
+		chain:       w.chain,
+		processor:   w,
+		from:        w.address,
+		identifier:  identifier,
+		sentMessage: sentMessage,
+	}
+}
+
+type initiateMessageImpl struct {
+	chain     Chain
+	processor TransactionProcessor
+	from      types.Address
+
+	target  types.Address
+	chainID types.ChainID
+	message []byte
+}
+
+func (i *initiateMessageImpl) Call(ctx context.Context) (any, error) {
+	builder := NewTxBuilder(ctx, i.chain)
+	messenger, err := i.chain.Nodes()[0].ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init transaction: %w", err)
+	}
+	data, err := messenger.ABI().Pack("sendMessage", i.chainID, i.target, i.message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build calldata: %w", err)
+	}
+	tx, err := builder.BuildTx(
+		WithFrom(i.from),
+		WithTo(constants.L2ToL2CrossDomainMessenger),
+		WithValue(big.NewInt(0)),
+		WithData(data),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+
+	tx, err = i.processor.Sign(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	return tx, nil
+}
+
+func (i *initiateMessageImpl) Send(ctx context.Context) types.InvocationResult {
+	result, err := i.Call(ctx)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	tx, ok := result.(Transaction)
+	if !ok {
+		return &sendResult{chain: i.chain, tx: nil, err: fmt.Errorf("unexpected return type")}
+	}
+	err = i.processor.Send(ctx, tx)
+	return &sendResult{
+		chain: i.chain,
+		tx:    tx,
+		err:   err,
+	}
+}
+
+type executeMessageImpl struct {
+	chain     Chain
+	processor TransactionProcessor
+	from      types.Address
+
+	identifier  bindings.Identifier
+	sentMessage []byte
+}
+
+func (i *executeMessageImpl) Call(ctx context.Context) (any, error) {
+	builder := NewTxBuilder(ctx, i.chain)
+	messenger, err := i.chain.Nodes()[0].ContractsRegistry().L2ToL2CrossDomainMessenger(constants.L2ToL2CrossDomainMessenger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init transaction: %w", err)
+	}
+	data, err := messenger.ABI().Pack("relayMessage", i.identifier, i.sentMessage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build calldata: %w", err)
+	}
+	// Wrapper to use Access implementation
+	msg := supervisorTypes.Message{
+		Identifier: supervisorTypes.Identifier{
+			Origin:      i.identifier.Origin,
+			BlockNumber: i.identifier.BlockNumber.Uint64(),
+			LogIndex:    uint32(i.identifier.LogIndex.Uint64()),
+			Timestamp:   i.identifier.Timestamp.Uint64(),
+			ChainID:     eth.ChainIDFromBig(i.identifier.ChainId),
+		},
+		PayloadHash: crypto.Keccak256Hash(i.sentMessage),
+	}
+	access := msg.Access()
+	accessList := coreTypes.AccessList{{
+		Address:     constants.CrossL2Inbox,
+		StorageKeys: supervisorTypes.EncodeAccessList([]supervisorTypes.Access{access}),
+	}}
+	tx, err := builder.BuildTx(
+		WithFrom(i.from),
+		WithTo(constants.L2ToL2CrossDomainMessenger),
+		WithValue(big.NewInt(0)),
+		WithData(data),
+		WithAccessList(accessList),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transaction: %w", err)
+	}
+	tx, err = i.processor.Sign(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+	return tx, nil
+}
+
+func (i *executeMessageImpl) Send(ctx context.Context) types.InvocationResult {
+	result, err := i.Call(ctx)
+	if err != nil {
+		return &sendResult{chain: i.chain, tx: nil, err: err}
+	}
+	tx, ok := result.(Transaction)
+	if !ok {
+		return &sendResult{chain: i.chain, tx: nil, err: fmt.Errorf("unexpected return type")}
+	}
+	err = i.processor.Send(ctx, tx)
+	return &sendResult{
+		chain: i.chain,
+		tx:    tx,
+		err:   err,
+	}
+}
+
 func (w *wallet) Nonce() uint64 {
-	client, err := w.chain.Client()
+	client, err := w.chain.Nodes()[0].Client()
 	if err != nil {
 		return 0
 	}
@@ -125,6 +283,8 @@ func (w *wallet) Sign(tx Transaction) (Transaction, error) {
 
 	var signer coreTypes.Signer
 	switch tx.Type() {
+	case coreTypes.SetCodeTxType:
+		signer = coreTypes.NewIsthmusSigner(w.chain.ID())
 	case coreTypes.DynamicFeeTxType:
 		signer = coreTypes.NewLondonSigner(w.chain.ID())
 	case coreTypes.AccessListTxType:
@@ -151,7 +311,7 @@ func (w *wallet) Sign(tx Transaction) (Transaction, error) {
 
 func (w *wallet) Send(ctx context.Context, tx Transaction) error {
 	if st, ok := tx.(RawTransaction); ok {
-		client, err := w.chain.Client()
+		client, err := w.chain.Nodes()[0].Client()
 		if err != nil {
 			return fmt.Errorf("failed to get client: %w", err)
 		}
@@ -165,7 +325,7 @@ func (w *wallet) Send(ctx context.Context, tx Transaction) error {
 }
 
 type sendImpl struct {
-	chain     internalChain
+	chain     Chain
 	processor TransactionProcessor
 	from      types.Address
 	to        types.Address
@@ -219,9 +379,10 @@ func (i *sendImpl) Send(ctx context.Context) types.InvocationResult {
 }
 
 type sendResult struct {
-	chain internalChain
-	tx    Transaction
-	err   error
+	chain   Chain
+	tx      Transaction
+	receipt Receipt
+	err     error
 }
 
 func (r *sendResult) Error() error {
@@ -229,7 +390,7 @@ func (r *sendResult) Error() error {
 }
 
 func (r *sendResult) Wait() error {
-	client, err := r.chain.Client()
+	client, err := r.chain.Nodes()[0].GethClient()
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}
@@ -242,15 +403,19 @@ func (r *sendResult) Wait() error {
 	}
 
 	if tx, ok := r.tx.(RawTransaction); ok {
-		receipt, err := bind.WaitMined(context.Background(), client, tx.Raw())
+		receipt, err := wait.ForReceiptOK(context.Background(), client, tx.Raw().Hash())
 		if err != nil {
 			return fmt.Errorf("failed waiting for transaction confirmation: %w", err)
 		}
-
+		r.receipt = &EthReceipt{blockNumber: receipt.BlockNumber, logs: receipt.Logs, txHash: receipt.TxHash}
 		if receipt.Status == 0 {
 			return fmt.Errorf("transaction failed")
 		}
 	}
 
 	return nil
+}
+
+func (r *sendResult) Info() any {
+	return r.receipt
 }

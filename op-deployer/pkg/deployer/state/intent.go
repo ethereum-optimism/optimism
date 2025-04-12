@@ -7,13 +7,14 @@ import (
 	"net/url"
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/superchain-registry/validation"
 )
 
 type IntentType string
@@ -36,9 +37,32 @@ type SuperchainProofParams struct {
 	MIPSVersion                     uint64 `json:"mipsVersion" toml:"mipsVersion"`
 }
 
+type L1DevGenesisBlockParams struct {
+	// Warning: the genesis timestamp will default to time.Now().
+	Timestamp uint64 `json:"timestamp"`
+	// Gas limit, uses default if 0
+	GasLimit uint64 `json:"gasLimit"`
+	// Optional. Dencun is always active in L1 dev genesis, so 0 is used as-is if not modified.
+	// This may be used to start the chain with high blob fees.
+	ExcessBlobGas uint64 `json:"excessBlobGas"`
+}
+
+type L1DevGenesisParams struct {
+	// BlockParams is the set of genesis-block parameters to use.
+	BlockParams L1DevGenesisBlockParams `json:"blockParams" toml:"blockParams"`
+
+	// PragueTimeOffset configures Prague (aka Pectra) to be activated at the given time after L1 dev genesis time.
+	PragueTimeOffset *uint64 `json:"pragueTimeOffset" toml:"pragueTimeOffset"`
+
+	// Prefund is a map of addresses to balances (in wei), to prefund in the L1 dev genesis state.
+	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.
+	Prefund map[common.Address]*hexutil.U256 `json:"prefund" toml:"prefund"`
+}
+
 type Intent struct {
 	ConfigType            IntentType         `json:"configType" toml:"configType"`
 	L1ChainID             uint64             `json:"l1ChainID" toml:"l1ChainID"`
+	SuperchainConfigProxy *common.Address    `json:"superchainConfigProxy" toml:"superchainConfigProxy"`
 	SuperchainRoles       *SuperchainRoles   `json:"superchainRoles" toml:"superchainRoles,omitempty"`
 	FundDevAccounts       bool               `json:"fundDevAccounts" toml:"fundDevAccounts"`
 	UseInterop            bool               `json:"useInterop" toml:"useInterop"`
@@ -46,6 +70,10 @@ type Intent struct {
 	L2ContractsLocator    *artifacts.Locator `json:"l2ContractsLocator" toml:"l2ContractsLocator"`
 	Chains                []*ChainIntent     `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any     `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
+
+	// L1DevGenesisParams is optional. This may be used to customize the L1 genesis when
+	// the deployer output is directed to produce a L1 genesis state for development.
+	L1DevGenesisParams *L1DevGenesisParams `json:"l1DevGenesisParams"`
 }
 
 type SuperchainRoles struct {
@@ -119,7 +147,11 @@ func (c *Intent) validateStandardValues() error {
 		return err
 	}
 
-	standardSuperchainRoles, err := getStandardSuperchainRoles(c.L1ChainID)
+	if c.SuperchainConfigProxy != nil {
+		return ErrNonStandardValue
+	}
+
+	standardSuperchainRoles, err := GetStandardSuperchainRoles(c.L1ChainID)
 	if err != nil {
 		return fmt.Errorf("error getting standard superchain roles: %w", err)
 	}
@@ -155,7 +187,7 @@ func (c *Intent) validateStandardValues() error {
 	return nil
 }
 
-func getStandardSuperchainRoles(l1ChainId uint64) (*SuperchainRoles, error) {
+func GetStandardSuperchainRoles(l1ChainId uint64) (*SuperchainRoles, error) {
 	proxyAdminOwner, err := standard.L1ProxyAdminOwner(l1ChainId)
 	if err != nil {
 		return nil, fmt.Errorf("error getting L1ProxyAdminOwner: %w", err)
@@ -229,7 +261,7 @@ func (c *Intent) checkL1Prod() error {
 		return err
 	}
 
-	if _, ok := versions[c.L1ContractsLocator.Tag]; !ok {
+	if _, ok := versions[validation.Semver(c.L1ContractsLocator.Tag)]; !ok {
 		return fmt.Errorf("tag '%s' not found in standard versions", c.L1ContractsLocator.Tag)
 	}
 
@@ -284,14 +316,24 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
 	}
 
-	superchainRoles, err := getStandardSuperchainRoles(l1ChainId)
+	superchainRoles, err := GetStandardSuperchainRoles(l1ChainId)
 	if err != nil {
 		return Intent{}, fmt.Errorf("error getting standard superchain roles: %w", err)
 	}
 	intent.SuperchainRoles = superchainRoles
 
-	challenger, _ := standard.ChallengerAddressFor(l1ChainId)
-	l1ProxyAdminOwner, _ := standard.L1ProxyAdminOwner(l1ChainId)
+	challenger, err := standard.ChallengerAddressFor(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting challenger address: %w", err)
+	}
+	l1ProxyAdminOwner, err := standard.L1ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting L1ProxyAdminOwner: %w", err)
+	}
+	l2ProxyAdminOwner, err := standard.L2ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting L2ProxyAdminOwner: %w", err)
+	}
 
 	for _, l2ChainID := range l2ChainIds {
 		intent.Chains = append(intent.Chains, &ChainIntent{
@@ -302,6 +344,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 			Roles: ChainRoles{
 				Challenger:        challenger,
 				L1ProxyAdminOwner: l1ProxyAdminOwner,
+				L2ProxyAdminOwner: l2ProxyAdminOwner,
 			},
 		})
 	}
