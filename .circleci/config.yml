@@ -1647,12 +1647,14 @@ jobs:
           name: Close issue if label is added
           command: |
             echo "Closing issue $github_pull_request_number if label $github_label_name is added on repository ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
-            if [ ! -z "$github_pull_request_number" ] && [ "$github_label_name" = "<< parameters.label_name >>" ]; then
-                MESSAGE="<< parameters.message >>"
+            if [ ! -z "$github_pull_request_number" ] && [ "$github_label_name" = "$LABEL_NAME" ]; then
+                MESSAGE="$MESSAGE"
                 export GH_TOKEN=$GITHUB_TOKEN_GOVERNANCE
                 gh issue close --repo "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" "$github_pull_request_number" --comment "$MESSAGE"
             fi
-
+          environment:
+            MESSAGE: << parameters.message >>
+            LABEL_NAME: << parameters.label_name >>
 
 workflows:
   main:
