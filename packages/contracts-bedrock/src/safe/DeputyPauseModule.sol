@@ -13,7 +13,6 @@ import { ECDSA } from "@openzeppelin/contracts-v5/utils/cryptography/ECDSA.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IDeputyGuardianModule } from "interfaces/safe/IDeputyGuardianModule.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title DeputyPauseModule
@@ -24,9 +23,6 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 contract DeputyPauseModule is ISemver, EIP712 {
     /// @notice Error message for deputy being invalid.
     error DeputyPauseModule_InvalidDeputy();
-
-    /// @notice Error message for the DeputyGuardianModule being invalid.
-    error DeputyPauseModule_InvalidDeputyGuardianModule();
 
     /// @notice Error message for unauthorized calls.
     error DeputyPauseModule_Unauthorized();
@@ -58,9 +54,6 @@ contract DeputyPauseModule is ISemver, EIP712 {
     /// @notice Event emitted when the deputy address is set.
     event DeputySet(address indexed deputy);
 
-    /// @notice Event emitted when the DeputyGuardianModule is set.
-    event DeputyGuardianModuleSet(IDeputyGuardianModule indexed deputyGuardianModule);
-
     /// @notice Event emitted when the pause is triggered.
     event PauseTriggered(address indexed deputy, bytes32 nonce, address identifier);
 
@@ -79,9 +72,6 @@ contract DeputyPauseModule is ISemver, EIP712 {
     /// @notice Address of the Deputy account.
     address public deputy;
 
-    /// @notice Address of the DeputyGuardianModule used by the SC Safe.
-    IDeputyGuardianModule public deputyGuardianModule;
-
     /// @notice Used nonces.
     mapping(bytes32 => bool) public usedNonces;
 
@@ -90,13 +80,11 @@ contract DeputyPauseModule is ISemver, EIP712 {
     string public constant version = "2.0.0-beta.0";
 
     /// @param _foundationSafe Address of the Foundation Safe.
-    /// @param _deputyGuardianModule Address of the DeputyGuardianModule used by the SC Safe.
     /// @param _superchainConfig Address of the SuperchainConfig contract.
     /// @param _deputy Address of the deputy account.
     /// @param _deputySignature Signature from the deputy verifying that the account is an EOA.
     constructor(
         Safe _foundationSafe,
-        IDeputyGuardianModule _deputyGuardianModule,
         ISuperchainConfig _superchainConfig,
         address _deputy,
         bytes memory _deputySignature
@@ -104,7 +92,6 @@ contract DeputyPauseModule is ISemver, EIP712 {
         EIP712("DeputyPauseModule", "1")
     {
         _setDeputy(_deputy, _deputySignature);
-        _setDeputyGuardianModule(_deputyGuardianModule);
         FOUNDATION_SAFE = _foundationSafe;
         SUPERCHAIN_CONFIG = _superchainConfig;
     }
@@ -146,21 +133,8 @@ contract DeputyPauseModule is ISemver, EIP712 {
         _setDeputy(_deputy, _deputySignature);
     }
 
-    /// @notice Sets the DeputyGuardianModule.
-    /// @param _deputyGuardianModule DeputyGuardianModule address.
-    function setDeputyGuardianModule(IDeputyGuardianModule _deputyGuardianModule) external {
-        // Can only be called by the Foundation Safe itself.
-        if (msg.sender != address(FOUNDATION_SAFE)) {
-            revert DeputyPauseModule_NotFromSafe();
-        }
-
-        // Set the DeputyGuardianModule.
-        _setDeputyGuardianModule(_deputyGuardianModule);
-    }
-
     /// @notice Calls the Foundation Safe's `execTransactionFromModuleReturnData()` function with
-    ///         the arguments necessary to call `pause()` on the Security Council Safe, which will
-    ///         then cause the Security Council Safe to trigger SuperchainConfig pause.
+    ///         the arguments necessary to call `pause()` on the SuperchainConfig.
     ///         Front-running this function is completely safe, it'll pause either way.
     /// @param _nonce Signature nonce.
     /// @param _signature ECDSA signature.
@@ -181,12 +155,8 @@ contract DeputyPauseModule is ISemver, EIP712 {
         usedNonces[_nonce] = true;
 
         // Attempt to trigger the call.
-        // Will succeed if the DeputyGuardianModule has no code.
         (bool success, bytes memory returnData) = FOUNDATION_SAFE.execTransactionFromModuleReturnData(
-            address(deputyGuardianModule),
-            0,
-            abi.encodeCall(IDeputyGuardianModule.pause, (_identifier)),
-            Enum.Operation.Call
+            address(SUPERCHAIN_CONFIG), 0, abi.encodeCall(ISuperchainConfig.pause, (_identifier)), Enum.Operation.Call
         );
 
         // If the call fails, revert.
@@ -218,27 +188,5 @@ contract DeputyPauseModule is ISemver, EIP712 {
 
         // Emit the DeputySet event.
         emit DeputySet(_deputy);
-    }
-
-    /// @notice Internal function to set the DeputyGuardianModule.
-    /// @param _deputyGuardianModule DeputyGuardianModule address.
-    function _setDeputyGuardianModule(IDeputyGuardianModule _deputyGuardianModule) internal {
-        // Cannot set the DeputyGuardianModule to be the Foundation Safe. This prevents the
-        // Foundation Safe from unexpectedly triggering itself if there's some important function
-        // that happens to have the "pause()" selector.
-        if (address(_deputyGuardianModule) == address(FOUNDATION_SAFE)) {
-            revert DeputyPauseModule_InvalidDeputyGuardianModule();
-        }
-
-        // Make sure that the DeputyGuardianModule actually has code.
-        if (address(_deputyGuardianModule).code.length == 0) {
-            revert DeputyPauseModule_InvalidDeputyGuardianModule();
-        }
-
-        // Set the DeputyGuardianModule.
-        deputyGuardianModule = _deputyGuardianModule;
-
-        // Emit the DeputyGuardianModuleSet event.
-        emit DeputyGuardianModuleSet(_deputyGuardianModule);
     }
 }

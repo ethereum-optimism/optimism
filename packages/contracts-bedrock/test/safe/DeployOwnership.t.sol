@@ -5,7 +5,6 @@ import {
     DeployOwnership,
     SafeConfig,
     SecurityCouncilConfig,
-    GuardianConfig,
     LivenessModuleConfig
 } from "scripts/deploy/DeployOwnership.s.sol";
 import { Test } from "forge-std/Test.sol";
@@ -15,7 +14,6 @@ import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 import { LivenessModule } from "src/safe/LivenessModule.sol";
-import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);
@@ -92,31 +90,5 @@ contract DeployOwnershipTest is Test, DeployOwnership {
 
         // Ensure the threshold on the safe agrees with the LivenessModule's required threshold
         assertEq(securityCouncilSafe.getThreshold(), LivenessModule(livenessModule).getRequiredThreshold(owners.length));
-    }
-
-    /// @dev Test the example Guardian Safe configuration.
-    function test_exampleGuardianSafe_configuration_succeeds() public view {
-        Safe guardianSafe = Safe(payable(artifacts.mustGetAddress("GuardianSafe")));
-        address[] memory owners = new address[](1);
-        owners[0] = artifacts.mustGetAddress("SecurityCouncilSafe");
-        GuardianConfig memory guardianConfig = _getExampleGuardianConfig();
-        _checkSafeConfig(guardianConfig.safeConfig, guardianSafe);
-
-        // DeputyGuardianModule checks
-        address deputyGuardianModule = artifacts.mustGetAddress("DeputyGuardianModule");
-        (address[] memory modules, address nextModule) =
-            ModuleManager(guardianSafe).getModulesPaginated(SENTINEL_MODULES, 2);
-        assertEq(modules.length, 1);
-        assertEq(modules[0], deputyGuardianModule);
-        assertEq(nextModule, SENTINEL_MODULES); // ensures there are no more modules in the list
-
-        assertEq(
-            DeputyGuardianModule(deputyGuardianModule).deputyGuardian(),
-            guardianConfig.deputyGuardianModuleConfig.deputyGuardian
-        );
-        assertEq(
-            address(DeputyGuardianModule(deputyGuardianModule).superchainConfig()),
-            address(guardianConfig.deputyGuardianModuleConfig.superchainConfig)
-        );
     }
 }

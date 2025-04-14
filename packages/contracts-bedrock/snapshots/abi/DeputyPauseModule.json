@@ -7,11 +7,6 @@
         "type": "address"
       },
       {
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "_deputyGuardianModule",
-        "type": "address"
-      },
-      {
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
@@ -54,19 +49,6 @@
       }
     ],
     "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "deputyGuardianModule",
-    "outputs": [
-      {
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -180,19 +162,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "_deputyGuardianModule",
-        "type": "address"
-      }
-    ],
-    "name": "setDeputyGuardianModule",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "superchainConfig",
     "outputs": [
@@ -236,19 +205,6 @@
     ],
     "stateMutability": "view",
     "type": "function"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "deputyGuardianModule",
-        "type": "address"
-      }
-    ],
-    "name": "DeputyGuardianModuleSet",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -308,11 +264,6 @@
   {
     "inputs": [],
     "name": "DeputyPauseModule_InvalidDeputy",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "DeputyPauseModule_InvalidDeputyGuardianModule",
     "type": "error"
   },
   {
