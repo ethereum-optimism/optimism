@@ -12,7 +12,7 @@ interface ISuperchainConfig {
     event Unpaused(string identifier);
 
     error OnlyGuardian();
-    error PauseAlreadyUsed(string identifier);
+    error AlreadyPaused(string identifier);
 
     function guardian() external view returns (address);
     function initialize(address _guardian, uint256 _pauseExpiry) external;
@@ -23,7 +23,6 @@ interface ISuperchainConfig {
     function expiration(address _identifier) external view returns (uint256);
     function extend(address _identifier) external;
     function version() external view returns (string memory);
-    function pauseUsed(address) external view returns (bool);
     function pauseTimestamps(address) external view returns (uint256);
     function pauseExpiry() external view returns (uint256);
 

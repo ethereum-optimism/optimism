@@ -95,6 +95,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ReinitializableBase, IS
         return systemConfig.superchainConfig();
     }
 
+    /// @notice Upgrades the SystemConfig contract.
+    /// @param _systemConfig The new SystemConfig contract.
     function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
         systemConfig = _systemConfig;
         spacer_251_0_20 = address(0);

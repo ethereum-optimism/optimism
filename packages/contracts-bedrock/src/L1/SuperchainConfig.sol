@@ -11,6 +11,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
+/// @dev WARNING: When upgrading this contract, any active pause states will be lost as the pause state
+///      is stored in storage variables that are not preserved during upgrades. Therefore, this contract
+///      should not be upgraded while the system is paused.
 contract SuperchainConfig is Initializable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
@@ -27,9 +30,6 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Mapping of pause identifiers to their pause timestamps
     mapping(address => uint256) public pauseTimestamps;
-
-    /// @notice Mapping of pause identifiers to their used status (false = ready to pause, true = used/unavailable)
-    mapping(address => bool) public pauseUsed;
 
     /// @notice Emitted when the pause is triggered.
     /// @param identifier A string helping to identify provenance of the pause transaction.
@@ -50,8 +50,8 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
     error OnlyGuardian();
 
-    /// @notice Thrown when attempting to pause an identifier that has already been used and not reset
-    error PauseAlreadyUsed(string identifier);
+    /// @notice Thrown when attempting to pause an identifier that is already paused
+    error AlreadyPaused(string identifier);
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
@@ -72,12 +72,11 @@ contract SuperchainConfig is Initializable, ISemver {
         if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
-        if (pauseUsed[_identifier]) {
-            revert PauseAlreadyUsed(string(abi.encodePacked(_identifier)));
+        if (pauseTimestamps[_identifier] != 0) {
+            revert AlreadyPaused(string(abi.encodePacked(_identifier)));
         }
 
         pauseTimestamps[_identifier] = block.timestamp;
-        pauseUsed[_identifier] = true;
         emit Paused(string(abi.encodePacked(_identifier)));
     }
 
@@ -89,7 +88,6 @@ contract SuperchainConfig is Initializable, ISemver {
         }
 
         pauseTimestamps[_identifier] = 0;
-        pauseUsed[_identifier] = false;
         emit Unpaused(string(abi.encodePacked(_identifier)));
     }
 
@@ -97,7 +95,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _identifier The address identifier to check.
     /// @return True if the system can be paused for this identifier.
     function pausable(address _identifier) external view returns (bool) {
-        return !pauseUsed[_identifier];
+        return pauseTimestamps[_identifier] == 0;
     }
 
     /// @notice Checks if the system is currently paused for a specific identifier.
@@ -120,14 +118,13 @@ contract SuperchainConfig is Initializable, ISemver {
         return timestamp + pauseExpiry;
     }
 
-    /// @notice Extends the pause for a specific identifier by resetting and pausing again.
+    /// @notice Extends the pause for a specific identifier by resetting the pause timestamp.
     /// @param _identifier The address identifier to extend.
     function extend(address _identifier) external {
         if (msg.sender != guardian) {
             revert OnlyGuardian();
         }
         pauseTimestamps[_identifier] = block.timestamp;
-        pauseUsed[_identifier] = true;
         emit Paused(string(abi.encodePacked(_identifier)));
     }
 

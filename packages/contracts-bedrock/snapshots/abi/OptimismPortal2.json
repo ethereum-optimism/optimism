@@ -749,6 +749,16 @@
   {
     "inputs": [
       {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IETHLockbox",
+        "name": "_ethLockbox",
+        "type": "address"
+      },
+      {
         "internalType": "contract ISystemConfig",
         "name": "_systemConfig",
         "type": "address"

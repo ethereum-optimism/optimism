@@ -135,25 +135,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "pauseUsed",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "_identifier",
         "type": "address"
       }
@@ -254,11 +235,6 @@
     "type": "event"
   },
   {
-    "inputs": [],
-    "name": "OnlyGuardian",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
         "internalType": "string",
@@ -266,7 +242,12 @@
         "type": "string"
       }
     ],
-    "name": "PauseAlreadyUsed",
+    "name": "AlreadyPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyGuardian",
     "type": "error"
   }
 ]
