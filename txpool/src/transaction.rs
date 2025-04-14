@@ -284,8 +284,8 @@ mod tests {
     use crate::{OpPooledTransaction, OpTransactionValidator};
     use alloy_consensus::transaction::Recovered;
     use alloy_eips::eip2718::Encodable2718;
-    use alloy_primitives::{Signature, TxKind, U256};
-    use op_alloy_consensus::{OpTypedTransaction, TxDeposit};
+    use alloy_primitives::{TxKind, U256};
+    use op_alloy_consensus::TxDeposit;
     use reth_optimism_chainspec::OP_MAINNET;
     use reth_optimism_primitives::OpTransactionSigned;
     use reth_provider::test_utils::MockEthProvider;
@@ -304,7 +304,7 @@ mod tests {
 
         let origin = TransactionOrigin::External;
         let signer = Default::default();
-        let deposit_tx = OpTypedTransaction::Deposit(TxDeposit {
+        let deposit_tx = TxDeposit {
             source_hash: Default::default(),
             from: signer,
             to: TxKind::Create,
@@ -313,9 +313,8 @@ mod tests {
             gas_limit: 0,
             is_system_transaction: false,
             input: Default::default(),
-        });
-        let signature = Signature::test_signature();
-        let signed_tx = OpTransactionSigned::new_unhashed(deposit_tx, signature);
+        };
+        let signed_tx: OpTransactionSigned = deposit_tx.into();
         let signed_recovered = Recovered::new_unchecked(signed_tx, signer);
         let len = signed_recovered.encode_2718_len();
         let pooled_tx: OpPooledTransaction = OpPooledTransaction::new(signed_recovered, len);

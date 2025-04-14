@@ -1,12 +1,9 @@
 //! Optimism transaction type.
 
-pub use op_alloy_consensus::OpTxType;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloy_consensus::constants::EIP7702_TX_TYPE_ID;
-    use op_alloy_consensus::DEPOSIT_TX_TYPE_ID;
+    use op_alloy_consensus::{OpTxType, DEPOSIT_TX_TYPE_ID};
     use reth_codecs::{txtype::*, Compact};
     use rstest::rstest;
 
