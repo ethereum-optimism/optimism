@@ -746,3 +746,95 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	require.Equal(t, targetBlockNum, block.Number)
 	require.Equal(t, targetTime, block.Time)
 }
+
+// TestCrossPatternSameTx tests below scenario:
+// Transaction on B executes message from A, and vice-versa. Cross-pattern, within same tx: inter-dependent but non-cyclic txs.
+// Two transactions happen in same timestamp:
+// txA: chain A: alice initiates message X and executes message Y
+// txB: chain B: bob initiates message Y and excecutes message X
+func TestCrossPatternSameTx(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	alice := setupUser(t, is, actors.ChainA, 0)
+	bob := setupUser(t, is, actors.ChainB, 0)
+
+	// deploy eventLogger per chain
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
+	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
+
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 1, 0, 0, 0)
+
+	require.Equal(t, actors.ChainA.RollupCfg.Genesis.L2Time, actors.ChainB.RollupCfg.Genesis.L2Time)
+	// assume all two txs land in block number 2, same time
+	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
+	targetNum := uint64(2)
+	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
+	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
+
+	// open blocks on both chains
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
+	// speculatively build exec messages by knowing necessary info to build Message
+	initX := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
+	logIndexX, logIndexY := uint(0), uint(0)
+	execX := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	initY := interop.RandomInitTrigger(rng, eventLoggerAddressB, 4, 7)
+	execY := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainB.ChainID)
+
+	callsA := []txintent.Call{initX, execY}
+	callsB := []txintent.Call{initY, execX}
+
+	// Intent to initiate message X and execute message Y at chain A
+	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsA)
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: callsA})
+	// Intent to initiate message Y and execute message X at chain B
+	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsB)
+	txB.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: callsB})
+
+	includedA, err := txA.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+	includedB, err := txB.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+
+	// Make sure two txs both sealed in block at expected time
+	require.Equal(t, includedA.Time, targetTime)
+	require.Equal(t, includedA.Number, targetNum)
+	require.Equal(t, includedB.Time, targetTime)
+	require.Equal(t, includedB.Number, targetNum)
+
+	assertHeads(t, actors.ChainA, targetNum, 0, 0, 0)
+	assertHeads(t, actors.ChainB, targetNum, 0, 0, 0)
+
+	// confirm speculatively built exec message X by rebuilding after txA inclusion
+	_, err = txA.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	multiTriggerA, err := txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, []int{int(logIndexX)})(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, multiTriggerA.Calls[logIndexX], execX)
+
+	// confirm speculatively built exec message Y by rebuilding after txB inclusion
+	_, err = txB.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	multiTriggerB, err := txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txB.Result, []int{int(logIndexY)})(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, multiTriggerB.Calls[logIndexY], execY)
+
+	// store unsafe head of chain A, B to compare after consolidation
+	chainAUnsafeHead := actors.ChainA.Sequencer.SyncStatus().UnsafeL2
+	chainBUnsafeHead := actors.ChainB.Sequencer.SyncStatus().UnsafeL2
+
+	consolidateToSafe(t, actors, 0, 0, targetNum, targetNum)
+
+	// unsafe heads consolidated to safe
+	require.Equal(t, chainAUnsafeHead, actors.ChainA.Sequencer.SyncStatus().SafeL2)
+	require.Equal(t, chainBUnsafeHead, actors.ChainB.Sequencer.SyncStatus().SafeL2)
+}
