@@ -25,11 +25,10 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/verify-bytecode/bindings"
 )
 
-// --- Data Structures ---
-
 // VerificationType indicates the kind of verification performed.
 type VerificationType string
 
+// VerificationType constants.
 const (
 	DeployedContract      VerificationType = "deployed contract"
 	Blueprint             VerificationType = "blueprint"
@@ -42,7 +41,6 @@ const (
 )
 
 // BytecodeDifference represents a contiguous block of differing bytes found during comparison.
-// (Retained from original, still useful)
 type BytecodeDifference struct {
 	Start         int    // Byte offset where the difference begins.
 	Length        int    // Length of the differing block in bytes.
@@ -62,16 +60,16 @@ type ImmutableValueInfo struct {
 
 // VerificationResult encapsulates the outcome of a single verification check.
 type VerificationResult struct {
-	Type           VerificationType     // What kind of check was this?
-	ContractName   string               // User-friendly name (e.g., "L1CrossDomainMessenger")
-	FieldName      string               // Field name from OPCM struct if applicable (e.g., "L1CrossDomainMessengerImpl")
-	Address        string               // Primary address checked (hex)
-	AddressPart2   string               // Address of part 2 for split blueprints (hex)
-	ArtifactPath   string               // Filesystem path to the artifact used
-	ProcessError   error                // Error during setup/fetching (RPC, file read, JSON parse, etc.)
-	Differences    []BytecodeDifference // List of bytecode differences found
-	ImmutableInfos []ImmutableValueInfo // List of immutable values found in actual code (for DeployedContract type)
-	TargetContract string               // For blueprints, the contract they deploy
+	Type           VerificationType
+	ContractName   string
+	FieldName      string
+	Address        string
+	AddressPart2   string
+	ArtifactPath   string
+	ProcessError   error
+	Differences    []BytecodeDifference
+	ImmutableInfos []ImmutableValueInfo
+	TargetContract string
 }
 
 // ArtifactConfig holds configuration related to finding contract artifacts.
@@ -79,48 +77,49 @@ type ArtifactConfig struct {
 	ArtifactsDir            string
 	ImplementationOverrides map[string]string
 	BlueprintOverrides      map[string]string
-	DefaultOPCMArtifactName string // e.g., "OPContractsManager"
+	DefaultOPCMArtifactName string
 }
 
 // ContractArtifact holds the relevant data extracted from a single artifact JSON file.
 type ContractArtifact struct {
-	ContractName     string                         // Best guess at the contract's name from path/artifact
-	DeployedBytecode string                         // Hex string ("0x...")
-	CreationBytecode string                         // Hex string ("0x...")
-	ImmutableRefs    map[string][]immutableLocation // Internal map: varName -> locations
-	RawAST           map[string]any                 // Store raw AST for potential name lookup
+	ContractName     string
+	DeployedBytecode string
+	CreationBytecode string
+	ImmutableRefs    map[string][]immutableLocation
+	RawAST           map[string]any
 }
 
 // immutableLocation is an internal helper struct used during artifact parsing and comparison.
 type immutableLocation struct {
-	Offset int    // Byte offset where the immutable value starts.
-	Length int    // Length of the immutable value in bytes.
-	Value  string // Populated during comparison by findDifferences logic
+	Offset int
+	Length int
+	Value  string
 }
 
 // currentDiff is a temporary helper struct used internally by findDifferences logic
-// (Retained from original)
 type currentDiff struct {
-	Start         int      // Starting byte offset of the current difference block.
-	Expected      []string // Accumulated expected hex bytes in the current block.
-	Actual        []string // Accumulated actual hex bytes in the current block.
-	InImmutable   bool     // True if the current block is within an immutable reference range.
-	ImmutableName string   // Name of the immutable variable if InImmutable is true.
+	Start         int
+	Expected      []string
+	Actual        []string
+	InImmutable   bool
+	ImmutableName string
 }
 
-// --- Constants and Regex ---
-
+// Defaults and constants.
 const defaultArtifactsDir = "forge-artifacts"
 const defaultOPCMContractName = "OPContractsManager"
 const blueprintPreamble = "0xFE7100"
 const maxInitCodeSize = 24573 // 24 KiB - 3 byte preamble
 
+// trailingDigitsRegex matches the last sequence of digits in a string.
 var trailingDigitsRegex = regexp.MustCompile(`\d+$`)
 
-// --- Main Application Setup (CLI) ---
+// Function variable for dependency injection / mocking in tests
+var getOnchainBytecodeImpl = getOnchainBytecode
 
+// main is the entrypoint for the verify-bytecode CLI tool.
 func main() {
-	// Default override maps (could be loaded from config file in future)
+	// Default override maps
 	// These map OPCM struct field names to artifact file paths relative to artifacts-dir
 	implementationArtifactOverrides := map[string]string{
 		"OptimismPortalImpl": "OptimismPortal2.sol/OptimismPortal2.json",
@@ -137,25 +136,6 @@ func main() {
 	app := &cli.App{
 		Name:  "verify-bytecode",
 		Usage: "Verify onchain contract bytecode against local build artifacts",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "rpc",
-				Usage:    "RPC URL for the network",
-				Required: true,
-				EnvVars:  []string{"ETH_RPC_URL"},
-			},
-			&cli.StringFlag{
-				Name:    "artifacts-dir",
-				Usage:   "Base directory containing the forge compilation artifacts",
-				Value:   defaultArtifactsDir,
-				EnvVars: []string{"ARTIFACTS_DIR"},
-			},
-			&cli.BoolFlag{
-				Name:  "verbose",
-				Usage: "Print detailed immutable diff information even on success",
-				Value: false,
-			},
-		},
 		Commands: []*cli.Command{
 			{
 				Name:  "single",
@@ -171,6 +151,23 @@ func main() {
 						Usage:    "Path to the contract artifact JSON file (can be absolute or relative to artifacts-dir)",
 						Required: true,
 					},
+					&cli.StringFlag{
+						Name:     "rpc-url",
+						Usage:    "RPC URL for the network",
+						Required: true,
+						EnvVars:  []string{"ETH_RPC_URL"},
+					},
+					&cli.StringFlag{
+						Name:    "artifacts-dir",
+						Usage:   "Base directory containing the forge compilation artifacts",
+						Value:   defaultArtifactsDir,
+						EnvVars: []string{"ARTIFACTS_DIR"},
+					},
+					&cli.BoolFlag{
+						Name:  "verbose",
+						Usage: "Print detailed immutable diff information even on success",
+						Value: false,
+					},
 				},
 				Action: func(c *cli.Context) error {
 					return runVerifySingle(c, implementationArtifactOverrides, blueprintArtifactOverrides)
@@ -185,6 +182,23 @@ func main() {
 						Usage:    "OPContractsManager contract address",
 						Required: true,
 					},
+					&cli.StringFlag{
+						Name:     "rpc-url",
+						Usage:    "RPC URL for the network",
+						Required: true,
+						EnvVars:  []string{"ETH_RPC_URL"},
+					},
+					&cli.StringFlag{
+						Name:    "artifacts-dir",
+						Usage:   "Base directory containing the forge compilation artifacts",
+						Value:   defaultArtifactsDir,
+						EnvVars: []string{"ARTIFACTS_DIR"},
+					},
+					&cli.BoolFlag{
+						Name:  "verbose",
+						Usage: "Print detailed immutable diff information even on success",
+						Value: false,
+					},
 				},
 				Action: func(c *cli.Context) error {
 					return runVerifyOPCM(c, implementationArtifactOverrides, blueprintArtifactOverrides)
@@ -195,7 +209,6 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		// Print top-level errors (e.g., CLI parsing) that aren't handled by printResults
 		color.Set(color.FgRed)
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		color.Unset()
@@ -203,14 +216,13 @@ func main() {
 	}
 }
 
-// --- CLI Action Handlers ---
-
+// runVerifySingle performs verification for a single deployed contract.
 func runVerifySingle(c *cli.Context, implOverrides, bpOverrides map[string]string) error {
-	rpcURL := c.String("rpc")
+	rpcURL := c.String("rpc-url")
 	artifactsDir := c.String("artifacts-dir")
 	addressHex := c.String("address")
 	artifactPathArg := c.String("artifact")
-	verbose := c.Bool("verbose") // Inherited from global flags or command flags
+	verbose := c.Bool("verbose")
 
 	// Resolve artifact path
 	artifactPath, err := resolvePath(artifactPathArg, artifactsDir)
@@ -228,9 +240,28 @@ func runVerifySingle(c *cli.Context, implOverrides, bpOverrides map[string]strin
 	}
 	defer client.Close()
 
+	// Load artifact
+	artifact, err := ccom.ReadForgeArtifact(artifactPath)
+	if err != nil {
+		// Handle artifact loading error before verification
+		contractName := strings.TrimSuffix(filepath.Base(artifactPath), ".json") // Best effort name from path
+		color.Red("Error loading artifact %s: %v", artifactPath, err)
+		printResults([]*VerificationResult{{
+			Type:         DeployedContract,
+			Address:      addressHex,
+			ArtifactPath: artifactPath,
+			ContractName: contractName,
+			ProcessError: fmt.Errorf("loading artifact: %w", err),
+		}}, verbose)
+		return cli.Exit("", 1) // Exit with error code 1 if artifact fails to load
+	}
+	// Derive name from path after successful load
+	contractName := strings.TrimSuffix(filepath.Base(artifactPath), ".json")
+
 	// Perform verification
 	addr := common.HexToAddress(addressHex)
-	result := verifyDeployedContractLogic(client, artifactPath, addr)
+	// Pass loaded artifact, derived name, and original path
+	result := verifyDeployedContractLogic(client, artifact, contractName, artifactPath, addr)
 
 	// Print results
 	printResults([]*VerificationResult{result}, verbose)
@@ -244,10 +275,10 @@ func runVerifySingle(c *cli.Context, implOverrides, bpOverrides map[string]strin
 }
 
 func runVerifyOPCM(c *cli.Context, implOverrides, bpOverrides map[string]string) error {
-	rpcURL := c.String("rpc")
+	rpcURL := c.String("rpc-url")
 	artifactsDir := c.String("artifacts-dir")
 	opcmAddressHex := c.String("opcm-address")
-	verbose := c.Bool("verbose") // Inherited from global flags or command flags
+	verbose := c.Bool("verbose")
 
 	// Resolve base artifact directory path
 	baseArtifactsDir, err := resolvePath("", artifactsDir) // Resolve artifactsDir itself
@@ -290,35 +321,25 @@ func runVerifyOPCM(c *cli.Context, implOverrides, bpOverrides map[string]string)
 	return cli.Exit("", exitCode)
 }
 
-// --- Core Verification Logic (No Printing) ---
-
 // verifyDeployedContractLogic performs verification for a standard deployed contract.
-func verifyDeployedContractLogic(client *ethclient.Client, artifactPath string, address common.Address) *VerificationResult {
+// It now accepts a pre-loaded artifact and contract name.
+func verifyDeployedContractLogic(client *ethclient.Client, artifact *solc.ForgeArtifact, contractName string, artifactPath string, address common.Address) *VerificationResult {
 	result := &VerificationResult{
 		Type:         DeployedContract,
 		Address:      address.Hex(),
-		ArtifactPath: artifactPath,
+		ArtifactPath: artifactPath, // Still store the path for reporting
+		ContractName: contractName, // Use passed-in name
 	}
 
-	// Set contract name from artifact path
-	result.ContractName = strings.TrimSuffix(filepath.Base(artifactPath), ".json")
-
-	// 1. Load artifact
-	artifact, err := ccom.ReadForgeArtifact(artifactPath)
-	if err != nil {
-		result.ProcessError = fmt.Errorf("loading artifact: %w", err)
-		return result
-	}
-
-	// 2. Get onchain bytecode
-	actualBytecode, err := getOnchainBytecode(client, address)
+	// Get onchain bytecode
+	actualBytecode, err := getOnchainBytecodeImpl(client, address)
 	if err != nil {
 		result.ProcessError = fmt.Errorf("getting onchain bytecode: %w", err)
 		return result
 	}
 
-	// 3. Compare bytecode
-	differences, immutables, err := compareBytecode(artifact, artifact.DeployedBytecode.Object, actualBytecode)
+	// Compare bytecode
+	differences, immutables, err := compareBytecode(artifact, true, artifact.DeployedBytecode.Object, actualBytecode)
 	if err != nil {
 		result.ProcessError = fmt.Errorf("comparing bytecode: %w", err)
 		return result
@@ -330,44 +351,36 @@ func verifyDeployedContractLogic(client *ethclient.Client, artifactPath string, 
 }
 
 // verifyBlueprintLogic performs verification for a single ERC-5202 blueprint.
-func verifyBlueprintLogic(client *ethclient.Client, targetArtifactPath string, blueprintAddress common.Address, blueprintFieldName string) *VerificationResult {
+// It now accepts a pre-loaded artifact and target contract name.
+func verifyBlueprintLogic(client *ethclient.Client, artifact *solc.ForgeArtifact, targetContractName string, targetArtifactPath string, blueprintAddress common.Address, blueprintFieldName string) *VerificationResult {
 	result := &VerificationResult{
-		Type:         Blueprint,
-		FieldName:    blueprintFieldName,
-		Address:      blueprintAddress.Hex(),
-		ArtifactPath: targetArtifactPath, // Path to the artifact of the contract *created* by the blueprint
+		Type:           Blueprint,
+		FieldName:      blueprintFieldName,
+		Address:        blueprintAddress.Hex(),
+		ArtifactPath:   targetArtifactPath,                                  // Path to the artifact of the contract *created* by the blueprint
+		TargetContract: targetContractName,                                  // Use passed-in name
+		ContractName:   fmt.Sprintf("Blueprint for %s", targetContractName), // Use passed-in name
 	}
 
-	// Set contract name from artifact path
-	result.TargetContract = strings.TrimSuffix(filepath.Base(targetArtifactPath), ".json")
-	result.ContractName = fmt.Sprintf("Blueprint for %s", result.TargetContract)
-
-	// 1. Load target artifact for creation code
-	artifact, err := ccom.ReadForgeArtifact(targetArtifactPath)
-	if err != nil {
-		result.ProcessError = fmt.Errorf("loading target artifact %s: %w", targetArtifactPath, err)
-		return result
-	}
-
+	// Error if no creation bytecode found
 	if artifact.Bytecode.Object == "" || artifact.Bytecode.Object == "0x" {
 		result.ProcessError = fmt.Errorf("no creation bytecode found in target artifact %s", targetArtifactPath)
 		return result
 	}
 
-	// 2. Construct expected blueprint bytecode
+	// Construct expected blueprint bytecode
 	expectedBlueprintBytecode := blueprintPreamble + strings.TrimPrefix(artifact.Bytecode.Object, "0x")
 
-	// 3. Get actual blueprint bytecode from chain
-	actualBytecode, err := getOnchainBytecode(client, blueprintAddress)
+	// Get actual blueprint bytecode from chain
+	actualBytecode, err := getOnchainBytecodeImpl(client, blueprintAddress)
 	if err != nil {
 		result.ProcessError = fmt.Errorf("getting onchain bytecode for blueprint %s: %w", blueprintAddress.Hex(), err)
-		// Try to compare anyway, maybe actualBytecode is "0x" which compare can handle
+		return result
 	}
 
-	// 4. Compare bytecode (no immutables for blueprints)
-	differences, _, err := compareBytecode(artifact, expectedBlueprintBytecode, actualBytecode)
+	// Compare bytecode (no immutables for blueprints)
+	differences, _, err := compareBytecode(artifact, false, expectedBlueprintBytecode, actualBytecode)
 	if err != nil {
-		// Join comparison error with potential fetch error
 		result.ProcessError = errors.Join(result.ProcessError, fmt.Errorf("comparing blueprint bytecode: %w", err))
 		return result
 	}
@@ -377,45 +390,35 @@ func verifyBlueprintLogic(client *ethclient.Client, targetArtifactPath string, b
 }
 
 // verifySplitBlueprintLogic verifies a blueprint split into two parts.
-func verifySplitBlueprintLogic(client *ethclient.Client, targetArtifactPath string, address1, address2 common.Address, fieldName1, fieldName2 string) (*VerificationResult, *VerificationResult) {
+// It now accepts a pre-loaded artifact and target contract name.
+func verifySplitBlueprintLogic(client *ethclient.Client, artifact *solc.ForgeArtifact, targetContractName string, targetArtifactPath string, address1, address2 common.Address, fieldName1, fieldName2 string) (*VerificationResult, *VerificationResult) {
 	result1 := &VerificationResult{
-		Type:         SplitBlueprintPart1,
-		FieldName:    fieldName1,
-		Address:      address1.Hex(),
-		AddressPart2: address2.Hex(), // Include part 2 address in part 1 result for context
-		ArtifactPath: targetArtifactPath,
+		Type:           SplitBlueprintPart1,
+		FieldName:      fieldName1,
+		Address:        address1.Hex(),
+		AddressPart2:   address2.Hex(),
+		ArtifactPath:   targetArtifactPath,
+		TargetContract: targetContractName,                                     // Use passed-in name
+		ContractName:   fmt.Sprintf("Split BP 1/2 for %s", targetContractName), // Use passed-in name
 	}
 	result2 := &VerificationResult{
-		Type:         SplitBlueprintPart2,
-		FieldName:    fieldName2,
-		Address:      address2.Hex(),
-		ArtifactPath: targetArtifactPath,
+		Type:           SplitBlueprintPart2,
+		FieldName:      fieldName2,
+		Address:        address2.Hex(),
+		ArtifactPath:   targetArtifactPath,
+		TargetContract: targetContractName,                                     // Use passed-in name
+		ContractName:   fmt.Sprintf("Split BP 2/2 for %s", targetContractName), // Use passed-in name
 	}
 
-	// Set contract names from artifact path
-	targetName := strings.TrimSuffix(filepath.Base(targetArtifactPath), ".json")
-	result1.TargetContract = targetName
-	result2.TargetContract = targetName
-	result1.ContractName = fmt.Sprintf("Split BP 1/2 for %s", targetName)
-	result2.ContractName = fmt.Sprintf("Split BP 2/2 for %s", targetName)
-
-	// 1. Load target artifact
-	artifact, err := ccom.ReadForgeArtifact(targetArtifactPath)
-	if err != nil {
-		err = fmt.Errorf("loading target artifact %s: %w", targetArtifactPath, err)
-		result1.ProcessError = err
-		result2.ProcessError = err
-		return result1, result2
-	}
-
+	// Error if no creation bytecode found
 	if artifact.Bytecode.Object == "" || artifact.Bytecode.Object == "0x" {
-		err = fmt.Errorf("no creation bytecode found in target artifact %s", targetArtifactPath)
+		err := fmt.Errorf("no creation bytecode found in target artifact %s", targetArtifactPath)
 		result1.ProcessError = err
 		result2.ProcessError = err
 		return result1, result2
 	}
 
-	// 2. Split creation code
+	// Split creation code
 	fullCreationCodeHex := strings.TrimPrefix(artifact.Bytecode.Object, "0x")
 	fullCreationCodeBytes, err := hex.DecodeString(fullCreationCodeHex)
 	if err != nil {
@@ -425,6 +428,7 @@ func verifySplitBlueprintLogic(client *ethclient.Client, targetArtifactPath stri
 		return result1, result2
 	}
 
+	// Split up creation code
 	part1Bytes := fullCreationCodeBytes
 	var part2Bytes []byte
 	if len(fullCreationCodeBytes) > maxInitCodeSize {
@@ -436,33 +440,34 @@ func verifySplitBlueprintLogic(client *ethclient.Client, targetArtifactPath stri
 		part2Bytes = []byte{}
 	}
 
-	// 3. Construct expected bytecodes
+	// Construct expected bytecodes
 	expectedBytecode1 := blueprintPreamble + hex.EncodeToString(part1Bytes)
 	expectedBytecode2 := blueprintPreamble + hex.EncodeToString(part2Bytes)
 
-	// 4. Fetch actual bytecodes
-	actualBytecode1, err1 := getOnchainBytecode(client, address1)
-	actualBytecode2, err2 := getOnchainBytecode(client, address2)
-
+	// Fetch actual bytecode for address 1
+	actualBytecode1, err1 := getOnchainBytecodeImpl(client, address1)
 	if err1 != nil {
 		result1.ProcessError = fmt.Errorf("getting onchain code for part 1 (%s): %w", address1.Hex(), err1)
 	}
+
+	// Fetch actual bytecode for address 2
+	actualBytecode2, err2 := getOnchainBytecodeImpl(client, address2)
 	if err2 != nil {
 		result2.ProcessError = fmt.Errorf("getting onchain code for part 2 (%s): %w", address2.Hex(), err2)
 	}
 
-	// 5. Compare Part 1
-	if result1.ProcessError == nil { // Only compare if fetch (potentially) succeeded
-		diffs1, _, cmpErr1 := compareBytecode(artifact, expectedBytecode1, actualBytecode1)
+	// Compare Part 1
+	if result1.ProcessError == nil {
+		diffs1, _, cmpErr1 := compareBytecode(artifact, false, expectedBytecode1, actualBytecode1)
 		if cmpErr1 != nil {
 			result1.ProcessError = errors.Join(result1.ProcessError, fmt.Errorf("comparing part 1 bytecode: %w", cmpErr1))
 		}
 		result1.Differences = diffs1
 	}
 
-	// 6. Compare Part 2
-	if result2.ProcessError == nil { // Only compare if fetch (potentially) succeeded
-		diffs2, _, cmpErr2 := compareBytecode(artifact, expectedBytecode2, actualBytecode2)
+	// Compare Part 2
+	if result2.ProcessError == nil {
+		diffs2, _, cmpErr2 := compareBytecode(artifact, false, expectedBytecode2, actualBytecode2)
 		if cmpErr2 != nil {
 			result2.ProcessError = errors.Join(result2.ProcessError, fmt.Errorf("comparing part 2 bytecode: %w", cmpErr2))
 		}
@@ -476,16 +481,36 @@ func verifySplitBlueprintLogic(client *ethclient.Client, targetArtifactPath stri
 func runOPCMVerificationLogic(client *ethclient.Client, opcmAddress common.Address, config ArtifactConfig) []*VerificationResult {
 	results := []*VerificationResult{}
 
-	// --- Verify OPContractsManager itself ---
-	opcmArtifactBase := config.DefaultOPCMArtifactName // e.g., "OPContractsManager"
+	// Verify OPCM itself
+	opcmArtifactBase := config.DefaultOPCMArtifactName
 	opcmArtifactRelative := filepath.Join(fmt.Sprintf("%s.sol", opcmArtifactBase), fmt.Sprintf("%s.json", opcmArtifactBase))
 	opcmArtifactPath := filepath.Join(config.ArtifactsDir, opcmArtifactRelative)
 
-	opcmResult := verifyDeployedContractLogic(client, opcmArtifactPath, opcmAddress)
-	opcmResult.Type = OPContractsManager // Override type
-	if opcmResult.ContractName == "" {   // Ensure name is set
-		opcmResult.ContractName = config.DefaultOPCMArtifactName
+	// Load OPCM artifact first
+	opcmArtifact, err := ccom.ReadForgeArtifact(opcmArtifactPath)
+	// Derive name from path before potentially erroring out
+	opcmContractName := config.DefaultOPCMArtifactName // Use default name as fallback
+	// Attempt to refine name from path
+	if nameFromPath := strings.TrimSuffix(filepath.Base(opcmArtifactPath), ".json"); nameFromPath != "" {
+		opcmContractName = nameFromPath
 	}
+	if err != nil {
+		// If OPCM artifact fails to load, create an error result and cannot proceed
+		results = append(results, &VerificationResult{
+			Type:         OPContractsManager,
+			Address:      opcmAddress.Hex(),
+			ArtifactPath: opcmArtifactPath,
+			ContractName: opcmContractName, // Use derived name
+			ProcessError: fmt.Errorf("loading OPCM artifact %s: %w", opcmArtifactPath, err),
+		})
+		return results
+	}
+	// Name is already derived above
+
+	// Verify OPCM itself using the loaded artifact
+	opcmResult := verifyDeployedContractLogic(client, opcmArtifact, opcmContractName, opcmArtifactPath, opcmAddress)
+	opcmResult.Type = OPContractsManager // Override type
+	// ContractName is already set correctly by verifyDeployedContractLogic
 	results = append(results, opcmResult)
 
 	// Cannot proceed if OPCM verification itself had a processing error (e.g., RPC down)
@@ -495,7 +520,6 @@ func runOPCMVerificationLogic(client *ethclient.Client, opcmAddress common.Addre
 		return results
 	}
 
-	// --- Set up OPCM caller ---
 	// Assuming OPCM verification passed or had only bytecode diffs, we can try to bind
 	opcmCaller, err := bindings.NewOpcm200Caller(opcmAddress, client)
 	if err != nil {
@@ -509,7 +533,7 @@ func runOPCMVerificationLogic(client *ethclient.Client, opcmAddress common.Addre
 		return results // Cannot proceed without caller
 	}
 
-	// --- Verify Implementations ---
+	// Verify implementations
 	implementationsResult, err := opcmCaller.Implementations(nil)
 	if err != nil {
 		results = append(results, &VerificationResult{
@@ -553,17 +577,35 @@ func runOPCMVerificationLogic(client *ethclient.Client, opcmAddress common.Addre
 			}
 
 			artifactPath := filepath.Join(config.ArtifactsDir, relativePath)
-			implResult := verifyDeployedContractLogic(client, artifactPath, fieldValue)
+
+			// Load implementation artifact
+			implArtifact, err := ccom.ReadForgeArtifact(artifactPath)
+			// Derive name from path before potentially erroring out
+			implContractName := strings.TrimSuffix(filepath.Base(artifactPath), ".json")
+			if err != nil {
+				// Handle artifact loading error for this implementation
+				results = append(results, &VerificationResult{
+					Type:         Implementation,
+					FieldName:    fieldName,
+					ContractName: implContractName, // Use derived name
+					Address:      implAddressStr,
+					ArtifactPath: artifactPath,
+					ProcessError: fmt.Errorf("loading implementation artifact %s: %w", artifactPath, err),
+				})
+				continue // Skip to next implementation
+			}
+			// Name is already derived
+
+			// Verify implementation using loaded artifact
+			implResult := verifyDeployedContractLogic(client, implArtifact, implContractName, artifactPath, fieldValue)
 			implResult.Type = Implementation // Override type
 			implResult.FieldName = fieldName // Store the field name
-			if implResult.ContractName == "" {
-				implResult.ContractName = strings.TrimSuffix(filepath.Base(artifactPath), ".json")
-			}
+			// ContractName is already set correctly
 			results = append(results, implResult)
 		}
 	}
 
-	// --- Verify Blueprints ---
+	// Verify blueprints
 	blueprintsResult, err := opcmCaller.Blueprints(nil)
 	if err != nil {
 		results = append(results, &VerificationResult{
@@ -625,29 +667,58 @@ func runOPCMVerificationLogic(client *ethclient.Client, opcmAddress common.Addre
 
 			targetArtifactPath := filepath.Join(config.ArtifactsDir, relativePath)
 
+			// Load target artifact (used for both single and split blueprints)
+			targetArtifact, err := ccom.ReadForgeArtifact(targetArtifactPath)
+			// Derive target contract name from baseName determined earlier
+			// baseName was derived from field name or override path
+			targetContractName := baseName
+			if err != nil {
+				// Handle artifact loading error
+				errResult := VerificationResult{
+					Type:      UnknownBlueprint, // Or SplitBlueprintPart1 if applicable
+					FieldName: fieldName,
+					// Use baseName for the failed contract's name if possible
+					ContractName: fmt.Sprintf("Unknown (%s - loading failed)", targetContractName), // Indicate loading failure
+					Address:      blueprintAddressStr,
+					ArtifactPath: targetArtifactPath,
+					ProcessError: fmt.Errorf("loading target artifact %s: %w", targetArtifactPath, err),
+				}
+				results = append(results, &errResult)
+				// If it was potentially a split, maybe add a placeholder for part 2? Less clear.
+				// For now, just report the loading error once.
+				continue // Skip to next blueprint field
+			}
+			// Name is already derived
+
 			// Check for split blueprint
 			if strings.HasSuffix(fieldName, "1") {
 				part2FieldName := strings.TrimSuffix(fieldName, "1") + "2"
 				if part2Addr, exists := blueprintFields[part2FieldName]; exists && part2Addr != (common.Address{}) {
-					// Verify as split blueprint
-					res1, res2 := verifySplitBlueprintLogic(client, targetArtifactPath, fieldValue, part2Addr, fieldName, part2FieldName)
+					// Verify as split blueprint using loaded artifact
+					res1, res2 := verifySplitBlueprintLogic(client, targetArtifact, targetContractName, targetArtifactPath, fieldValue, part2Addr, fieldName, part2FieldName)
 					results = append(results, res1, res2)
 					processedPart2[part2FieldName] = true // Mark part 2 as handled
 					continue                              // Move to next field
+				} else {
+					// Error out
+					results = append(results, &VerificationResult{
+						Type:         UnknownBlueprint,
+						FieldName:    fieldName,
+						ContractName: fmt.Sprintf("Unknown (%s)", fieldName),
+						Address:      blueprintAddressStr,
+						ProcessError: fmt.Errorf("split blueprint part 2 not found for %s", fieldName),
+					})
 				}
-				// If part 1 exists but part 2 doesn't, fall through to verify as single blueprint (warning printed later)
 			}
 
-			// Verify as a standard (single) blueprint
-			bpResult := verifyBlueprintLogic(client, targetArtifactPath, fieldValue, fieldName)
+			// Verify as a standard (single) blueprint using loaded artifact
+			bpResult := verifyBlueprintLogic(client, targetArtifact, targetContractName, targetArtifactPath, fieldValue, fieldName)
 			results = append(results, bpResult)
 		}
 	}
 
 	return results
 }
-
-// --- Blockchain Interaction Helpers ---
 
 // getOnchainBytecode fetches bytecode from the chain. Returns hex string or error.
 func getOnchainBytecode(client *ethclient.Client, address common.Address) (string, error) {
@@ -664,17 +735,15 @@ func getOnchainBytecode(client *ethclient.Client, address common.Address) (strin
 	return "0x" + hex.EncodeToString(code), nil
 }
 
-// --- Bytecode Comparison Logic ---
-
 // compareBytecode compares expected and actual bytecode, handling immutables.
 // It uses the artifact to find immutable names via the AST.
 func compareBytecode(
-	artifact *solc.ForgeArtifact, // Changed input: Full artifact
+	artifact *solc.ForgeArtifact,
+	checkImmutables bool,
 	expectedBytecodeHex string,
 	actualBytecodeHex string,
 ) ([]BytecodeDifference, []ImmutableValueInfo, error) {
-
-	// --- Input Validation and Decoding ---
+	// Input validation and decoding
 	expectedClean := strings.TrimPrefix(expectedBytecodeHex, "0x")
 	actualClean := strings.TrimPrefix(actualBytecodeHex, "0x")
 
@@ -703,18 +772,20 @@ func compareBytecode(
 		}
 	}
 
-	// --- Precompute Immutable Locations ---
+	// Error if bytecode lengths don't match
+	if len(expectedBytes) != len(actualBytes) {
+		return nil, nil, fmt.Errorf("bytecode length mismatch, expected: %d, actual: %d", len(expectedBytes), len(actualBytes))
+	}
+
+	// Precompute immutable locations
 	type immutableByteInfo struct {
 		Name string
-		// Length int // We don't strictly need Length here anymore
 	}
-	// Map byte offset -> info about the immutable variable at that offset
 	immutableBytes := make(map[int]immutableByteInfo)
 
 	if artifact != nil && artifact.DeployedBytecode.ImmutableReferences != nil {
 		for refKey, locations := range artifact.DeployedBytecode.ImmutableReferences {
-			// Get the human-readable name using the AST
-			name := GetImmutableName(artifact, refKey)
+			name := getImmutableName(artifact, refKey)
 			if name == "" {
 				name = fmt.Sprintf("immutable(id:%s)", refKey) // Fallback name
 			}
@@ -727,11 +798,10 @@ func compareBytecode(
 					continue // Skip invalid length
 				}
 
-				// Mark each byte within this location
-				for i := 0; i < length; i++ {
-					offset := start + i
+				// Mark each byte within this location using 'j'
+				for j := 0; j < length; j++ {
+					offset := start + j
 					if existing, exists := immutableBytes[offset]; exists {
-						// Warning if overlapping, but allow overwriting (last one wins?)
 						if existing.Name != info.Name {
 							fmt.Fprintf(os.Stderr, "Warning: Overlapping immutable reference at offset %d. Prev: '%s', New: '%s'\n",
 								offset, existing.Name, info.Name)
@@ -743,7 +813,7 @@ func compareBytecode(
 		}
 	}
 
-	// --- Compare Byte by Byte ---
+	// Compare byte by byte
 	differences := []BytecodeDifference{}
 	var currDiff *currentDiff = nil // Tracks the current block of differences
 	maxLength := max(len(expectedBytes), len(actualBytes))
@@ -772,7 +842,7 @@ func compareBytecode(
 
 		bytesDiffer := expectedByte != actualByte
 
-		// --- State machine logic for tracking differences ---
+		// State machine logic for tracking differences
 		if bytesDiffer {
 			if currDiff == nil {
 				// Start a new difference block
@@ -821,7 +891,7 @@ func compareBytecode(
 			}
 			// No action needed if bytes match and not in a diff block
 		}
-	} // End of byte loop
+	}
 
 	// Record the final difference block if the loop ended while in a diff
 	if currDiff != nil {
@@ -835,12 +905,12 @@ func compareBytecode(
 		})
 	}
 
-	// --- Collect Populated Immutable Values ---
+	// Collect and return immutable differences
 	immutableValues := []ImmutableValueInfo{}
-	if artifact != nil && artifact.DeployedBytecode.ImmutableReferences != nil {
+	if checkImmutables && artifact != nil && artifact.DeployedBytecode.ImmutableReferences != nil {
 		// Iterate through the defined locations in the artifact
 		for refKey, locations := range artifact.DeployedBytecode.ImmutableReferences {
-			name := GetImmutableName(artifact, refKey)
+			name := getImmutableName(artifact, refKey)
 			if name == "" {
 				name = fmt.Sprintf("immutable(id:%s)", refKey) // Fallback
 			}
@@ -849,7 +919,11 @@ func compareBytecode(
 				start := int(loc.Start)
 				length := int(loc.Length)
 				if length <= 0 {
-					continue // Skip invalid locations
+					// Invalid length - return an error
+					return nil, nil, fmt.Errorf(
+						"immutable '%s' location (offset %d, length %d) has invalid length %d",
+						name, start, length, length,
+					)
 				}
 
 				// Extract the actual value directly from actualBytes based on this location
@@ -860,18 +934,11 @@ func compareBytecode(
 					actualValueBytes := actualBytes[start:upperBound]
 					actualValueHex = "0x" + hex.EncodeToString(actualValueBytes)
 				} else {
-					// Handle cases where the location is partly or fully out of bounds
-					actualValueHex = "0x" // Represent out-of-bounds or partial data as empty hex
-					if start < len(actualBytes) && start >= 0 {
-						// Partial overlap: extract what's available
-						partialBytes := actualBytes[start:] // Extract from start to end of actualBytes
-						actualValueHex = "0x" + hex.EncodeToString(partialBytes) + " (incomplete)"
-					} else {
-						// Location is completely outside actual bytecode
-						actualValueHex = "(out of bounds)"
-					}
-					// Add warning?
-					// fmt.Fprintf(os.Stderr, "Warning: Immutable '%s' location [%d:%d] out of bounds for actual bytecode length %d\n", name, start, upperBound, len(actualBytes))
+					// Fundamental mismatch - return an error
+					return nil, nil, fmt.Errorf(
+						"immutable '%s' location (offset %d, length %d) is out of bounds for actual bytecode length %d",
+						name, start, length, len(actualBytes),
+					)
 				}
 
 				immutableValues = append(immutableValues, ImmutableValueInfo{
@@ -884,45 +951,38 @@ func compareBytecode(
 		}
 	}
 
-	// Optionally add a warning/error if lengths didn't match, but still return results
-	if len(expectedBytes) != len(actualBytes) {
-		// Could potentially add a specific difference entry for the length mismatch
-		// fmt.Fprintf(os.Stderr, "Warning: Bytecode length mismatch. Expected: %d, Actual: %d\n", len(expectedBytes), len(actualBytes))
-	}
-
 	return differences, immutableValues, nil
 }
 
-// --- Presentation Layer (Printing) ---
-
 // printResults formats and prints the outcomes of verification checks.
 func printResults(results []*VerificationResult, verbose bool) {
-	overallSuccess := true // Track if any *code* mismatches occurred
+	// Track if any *code* mismatches occurred
+	overallSuccess := true
 
 	for i, result := range results {
 		if i > 0 {
-			fmt.Println() // Add spacing between results
+			// Add spacing between results
+			fmt.Println()
 		}
 
-		// --- Print Header ---
+		// Print header
 		printResultHeader(result)
 
-		// --- Handle and Print Process Errors ---
+		// Handle and print process errors
 		if result.ProcessError != nil {
 			color.Red("  ERROR during verification: %v", result.ProcessError)
 			overallSuccess = false
-			continue // Skip comparison details if processing failed severely
+			continue
 		}
 
-		// --- Analyze Differences ---
+		// Analyze differences
 		codeDiffs, immDiffs := categorizeDifferences(result)
 
-		// --- Print Status and Details ---
+		// Print status and details
 		if len(codeDiffs) > 0 {
 			overallSuccess = false
 			color.Red("  ✗ Verification FAILED: Found unexpected differences in code.")
 			printCodeDifferences(codeDiffs)
-			// Optionally print immutable info if verbose AND failed (for deployed contracts)
 			if verbose && (result.Type == DeployedContract || result.Type == Implementation || result.Type == OPContractsManager) && len(result.ImmutableInfos) > 0 {
 				printImmutableDetails(result.ImmutableInfos, immDiffs, true) // Pass true for includeConsistencyWarning
 			}
@@ -934,23 +994,19 @@ func printResults(results []*VerificationResult, verbose bool) {
 		} else {
 			// Exact match (or blueprint match where immutables aren't checked)
 			color.Green("  ✓ Verification successful (exact match).")
-			// If verbose, still show immutable values even on exact match for deployed contracts
 			if verbose && (result.Type == DeployedContract || result.Type == Implementation || result.Type == OPContractsManager) && len(result.ImmutableInfos) > 0 {
-				printImmutableDetails(result.ImmutableInfos, nil, false) // Pass nil diffs, no consistency warning needed
+				printImmutableDetails(result.ImmutableInfos, nil, verbose)
 			}
 		}
-	} // End loop through results
-
-	// --- Print Overall Summary Footer ---
-	fmt.Println("\n----------------------------------------")
-	if overallSuccess {
-		color.Green("Overall Result: Verification PASSED.")
-		fmt.Println("All checked items match expected bytecode (or differ only in known immutable locations).")
-	} else {
-		color.Red("Overall Result: Verification FAILED.")
-		fmt.Println("One or more items had unexpected code differences or processing errors.")
 	}
-	fmt.Println("----------------------------------------")
+
+	// Print overall summary
+	fmt.Println()
+	if overallSuccess {
+		color.Green("OK")
+	} else {
+		color.Red("FAILED")
+	}
 }
 
 // printResultHeader prints the title section for a single result.
@@ -980,6 +1036,8 @@ func printResultHeader(result *VerificationResult) {
 // categorizeDifferences separates differences into code/unknown and immutable.
 func categorizeDifferences(result *VerificationResult) (codeDiffs, immutableDiffs []BytecodeDifference) {
 	isDeployed := result.Type == DeployedContract || result.Type == Implementation || result.Type == OPContractsManager
+	codeDiffs = make([]BytecodeDifference, 0)
+	immutableDiffs = make([]BytecodeDifference, 0)
 	for _, diff := range result.Differences {
 		if isDeployed && diff.InImmutable {
 			immutableDiffs = append(immutableDiffs, diff)
@@ -1004,23 +1062,18 @@ func printCodeDifferences(diffs []BytecodeDifference) {
 	for _, diff := range diffs {
 		endPos := diff.Start + diff.Length - 1
 		color.Red("    Byte %d-%d (%d bytes):", diff.Start, endPos, diff.Length)
-		// Add truncation logic
 		fmt.Printf("      Expected: 0x%s\n", maybeTruncate(diff.Expected, 64))
 		fmt.Printf("      Actual:   0x%s\n", maybeTruncate(diff.Actual, 64))
 	}
 }
 
 // printImmutableDetails formats and prints immutable variable info.
-func printImmutableDetails(infos []ImmutableValueInfo, diffs []BytecodeDifference, includeConsistencyWarning bool) {
+func printImmutableDetails(infos []ImmutableValueInfo, diffs []BytecodeDifference, verbose bool) {
 	if len(infos) == 0 {
-		// Don't print header if there's nothing to show
-		// Or print a "No immutable variables found" message?
-		// fmt.Println("  --- Immutable Reference Details ---")
-		// fmt.Println("      (No immutable variables defined or found in bytecode)")
 		return
 	}
 
-	color.Cyan("  --- Immutable Reference Details (Values from Actual Bytecode) ---")
+	color.Cyan("  --- Immutable Reference Details ---")
 
 	// Group infos by name for consistency check
 	infosByName := make(map[string][]ImmutableValueInfo)
@@ -1031,7 +1084,6 @@ func printImmutableDetails(infos []ImmutableValueInfo, diffs []BytecodeDifferenc
 		}
 		infosByName[info.Name] = append(infosByName[info.Name], info)
 	}
-	// sort.Strings(names) // Optional: sort names alphabetically
 
 	for _, name := range names {
 		locations := infosByName[name]
@@ -1042,7 +1094,7 @@ func printImmutableDetails(infos []ImmutableValueInfo, diffs []BytecodeDifferenc
 
 		for i, loc := range locations {
 			fmt.Printf("      [%d] Location: Offset %d, Length %d bytes\n", i, loc.Offset, loc.Length)
-			if loc.Value != "" && loc.Value != "0x" { // Check Value field from ImmutableValueInfo
+			if loc.Value != "" && loc.Value != "0x" {
 				fmt.Printf("          Actual Value: %s\n", loc.Value)
 				if populatedCount == 0 {
 					firstValue = loc.Value
@@ -1051,30 +1103,16 @@ func printImmutableDetails(infos []ImmutableValueInfo, diffs []BytecodeDifferenc
 				}
 				populatedCount++
 			} else {
-				// This case should be less common now if infos only includes populated values
 				fmt.Printf("          Actual Value: (Not populated - check comparison logic or bytecode length)\n")
 			}
 		}
-		// Print consistency summary for this variable if needed
-		if includeConsistencyWarning && inconsistent {
-			color.Red("        ! Consistency WARNING: Found differing values for '%s' across its locations.", name)
-		} else if populatedCount > 1 {
-			// color.Green("        ✓ Consistency: All populated values for '%s' are identical.", name)
-		} else if populatedCount == 0 && len(locations) > 0 {
-			// color.Yellow("        - Consistency: No values populated for '%s'.", name)
-		}
-	}
 
-	// Optionally print raw immutable differences if any occurred
-	if len(diffs) > 0 {
-		color.Set(color.FgYellow)
-		fmt.Println("\n  --- Differences Within Immutable Ranges ---")
-		color.Unset()
-		for _, diff := range diffs {
-			endPos := diff.Start + diff.Length - 1
-			color.Yellow("    Byte %d-%d (%d bytes) in '%s':", diff.Start, endPos, diff.Length, diff.ImmutableName)
-			fmt.Printf("      Expected: 0x%s\n", maybeTruncate(diff.Expected, 64))
-			fmt.Printf("      Actual:   0x%s\n", maybeTruncate(diff.Actual, 64))
+		if inconsistent {
+			color.Red("        ! Consistency WARNING: Found differing values for '%s' across its locations.", name)
+		} else if verbose && populatedCount > 1 {
+			color.Green("        ✓ Consistency: All populated values for '%s' are identical.", name)
+		} else if verbose && populatedCount == 0 && len(locations) > 0 {
+			color.Yellow("        - Consistency: No values populated for '%s'.", name)
 		}
 	}
 }
@@ -1086,8 +1124,6 @@ func maybeTruncate(s string, maxLen int) string {
 	}
 	return s
 }
-
-// --- Utility Helpers ---
 
 // resolvePath resolves a potentially relative path against a base directory.
 func resolvePath(path, baseDir string) (string, error) {
@@ -1113,12 +1149,10 @@ func max(a, b int) int {
 	return b
 }
 
-// --- AST Traversal Helper for Immutable Names ---
-
-// GetImmutableName finds the human-readable name of an immutable variable within a ForgeArtifact's AST,
+// getImmutableName finds the human-readable name of an immutable variable within a ForgeArtifact's AST,
 // given the reference key from the artifact's ImmutableReferences map.
 // The refKey is usually a string representation of the variable's AST node ID (e.g., "36").
-func GetImmutableName(artifact *solc.ForgeArtifact, refKey string) string {
+func getImmutableName(artifact *solc.ForgeArtifact, refKey string) string {
 	if artifact == nil {
 		fmt.Fprintln(os.Stderr, "Warning: Cannot get immutable name, artifact is nil")
 		return ""
@@ -1187,9 +1221,6 @@ func findAstNodeNameByID(nodes []solc.AstNode, targetID int) string {
 				return name
 			}
 		}
-
-		// We don't need to search ParameterLists (`node.Parameters`, `node.ReturnParameters`)
-		// as immutables cannot be parameters.
 	}
 
 	return "" // Not found in this slice or its children

@@ -142,7 +142,7 @@ type ImmutableReferences map[string][]ImmutableReference
 
 type ImmutableReference struct {
 	Start  uint `json:"start"`
-	Length uint `json:"end"`
+	Length uint `json:"length"`
 }
 
 type CompilerOutputSources map[string]CompilerOutputSource

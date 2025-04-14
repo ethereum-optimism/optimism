@@ -1,646 +1,1066 @@
 package main
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func TestLoadArtifact(t *testing.T) {
-	// Create a temporary artifact file
-	tempDir := t.TempDir()
-	artifactPath := filepath.Join(tempDir, "artifact.json")
-
-	// Test case 1: Valid artifact
-	validArtifact := map[string]interface{}{
-		"deployedBytecode": map[string]interface{}{
-			"object": "0x1234",
-		},
+// Helper to create a basic ForgeArtifact for testing
+func newTestArtifact(opts ...func(*solc.ForgeArtifact)) *solc.ForgeArtifact {
+	artifact := &solc.ForgeArtifact{
+		Abi:              solc.AbiType{}, // Usually not needed for bytecode verification tests
+		Bytecode:         solc.CompilerOutputBytecode{Object: "0x"},
+		DeployedBytecode: solc.CompilerOutputBytecode{Object: "0x"},
+		Ast:              solc.Ast{Nodes: []solc.AstNode{}},
 	}
-	artifactJSON, err := json.Marshal(validArtifact)
-	require.NoError(t, err)
-	err = os.WriteFile(artifactPath, artifactJSON, 0644)
-	require.NoError(t, err)
-
-	artifact, err := loadArtifact(artifactPath)
-	require.NoError(t, err)
-	assert.Equal(t, "0x1234", artifact["deployedBytecode"].(map[string]interface{})["object"])
-
-	// Test case 2: Empty path
-	_, err = loadArtifact("")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "artifact path is required")
-
-	// Test case 3: Non-existent file
-	_, err = loadArtifact(filepath.Join(tempDir, "nonexistent.json"))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "artifact file not found", "Should correctly report non-existent file")
-
-	// Test case 4: Invalid JSON
-	err = os.WriteFile(artifactPath, []byte("invalid json"), 0644)
-	require.NoError(t, err)
-	_, err = loadArtifact(artifactPath)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse JSON")
+	for _, opt := range opts {
+		opt(artifact)
+	}
+	return artifact
 }
 
-func TestGetDeployedBytecode(t *testing.T) {
-	tests := []struct {
-		name     string
-		artifact map[string]interface{}
-		want     string
-		wantErr  bool
-	}{
-		{
-			name: "Forge/Foundry format",
-			artifact: map[string]interface{}{
-				"deployedBytecode": map[string]interface{}{
-					"object": "0x1234",
-				},
-			},
-			want:    "0x1234",
-			wantErr: false,
-		},
-		{
-			name: "Standard format with string",
-			artifact: map[string]interface{}{
-				"deployedBytecode": "0x5678",
-			},
-			want:    "0x5678",
-			wantErr: false,
-		},
-		{
-			name: "Bytecode object format",
-			artifact: map[string]interface{}{
-				"bytecode": map[string]interface{}{
-					"object": "0xabcd",
-				},
-			},
-			want:    "0xabcd",
-			wantErr: false,
-		},
-		{
-			name: "Bytecode string format",
-			artifact: map[string]interface{}{
-				"bytecode": "0xef01",
-			},
-			want:    "0xef01",
-			wantErr: false,
-		},
-		{
-			name:     "No bytecode",
-			artifact: map[string]interface{}{},
-			want:     "",
-			wantErr:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := getDeployedBytecode(tt.artifact)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
-		})
+// Option to set deployed bytecode
+func withDeployedBytecode(code string) func(*solc.ForgeArtifact) {
+	return func(a *solc.ForgeArtifact) {
+		a.DeployedBytecode.Object = code
 	}
 }
 
-func TestGetVariableNameFromAST(t *testing.T) {
-	tests := []struct {
-		name     string
-		artifact map[string]interface{}
-		varID    string
-		want     string
-	}{
-		{
-			name: "Find variable by ID",
-			artifact: map[string]interface{}{
-				"ast": map[string]interface{}{
-					"nodes": []interface{}{
-						map[string]interface{}{
-							"id":   float64(123),
-							"name": "testVar",
-						},
-					},
-				},
-			},
-			varID: "123",
-			want:  "testVar",
-		},
-		{
-			name: "Find variable with path prefix",
-			artifact: map[string]interface{}{
-				"ast": map[string]interface{}{
-					"nodes": []interface{}{
-						map[string]interface{}{
-							"id":   float64(456),
-							"name": "prefixedVar",
-						},
-					},
-				},
-			},
-			varID: "path:to:456",
-			want:  "prefixedVar",
-		},
-		{
-			name: "Variable not found",
-			artifact: map[string]interface{}{
-				"ast": map[string]interface{}{
-					"nodes": []interface{}{
-						map[string]interface{}{
-							"id":   float64(789),
-							"name": "otherVar",
-						},
-					},
-				},
-			},
-			varID: "999",
-			want:  "999", // Returns the ID if not found
-		},
-		{
-			name: "Non-numeric ID",
-			artifact: map[string]interface{}{
-				"ast": map[string]interface{}{
-					"nodes": []interface{}{},
-				},
-			},
-			varID: "abc",
-			want:  "abc", // Returns the ID if not numeric
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getVariableNameFromAST(tt.artifact, tt.varID)
-			assert.Equal(t, tt.want, got)
-		})
+// Option to set creation bytecode
+func withCreationBytecode(code string) func(*solc.ForgeArtifact) {
+	return func(a *solc.ForgeArtifact) {
+		a.Bytecode.Object = code
 	}
 }
 
-func TestFindNodeName(t *testing.T) {
-	tests := []struct {
-		name     string
-		node     interface{}
-		targetID int
-		want     string
-	}{
-		{
-			name: "Find node in map",
-			node: map[string]interface{}{
-				"id":   float64(123),
-				"name": "testNode",
-			},
-			targetID: 123,
-			want:     "testNode",
-		},
-		{
-			name: "Find node in nested map",
-			node: map[string]interface{}{
-				"child": map[string]interface{}{
-					"id":   float64(456),
-					"name": "nestedNode",
-				},
-			},
-			targetID: 456,
-			want:     "nestedNode",
-		},
-		{
-			name: "Find node in array",
-			node: map[string]interface{}{
-				"children": []interface{}{
-					map[string]interface{}{
-						"id":   float64(789),
-						"name": "arrayNode",
-					},
-				},
-			},
-			targetID: 789,
-			want:     "arrayNode",
-		},
-		{
-			name: "Node not found",
-			node: map[string]interface{}{
-				"id":   float64(111),
-				"name": "wrongNode",
-			},
-			targetID: 999,
-			want:     "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := findNodeName(tt.node, tt.targetID)
-			assert.Equal(t, tt.want, got)
-		})
+// Option to add immutable references
+func withImmutableRefs(refs map[string][]solc.ImmutableReference) func(*solc.ForgeArtifact) {
+	return func(a *solc.ForgeArtifact) {
+		if a.DeployedBytecode.ImmutableReferences == nil {
+			a.DeployedBytecode.ImmutableReferences = make(map[string][]solc.ImmutableReference)
+		}
+		for k, v := range refs {
+			a.DeployedBytecode.ImmutableReferences[k] = v
+		}
 	}
 }
 
-func TestGetImmutableReferences(t *testing.T) {
-	tests := []struct {
-		name     string
-		artifact map[string]interface{}
-		want     map[string][]ImmutableReference
-		wantLen  int
-	}{
-		{
-			name: "Forge/Foundry format",
-			artifact: map[string]interface{}{
-				"deployedBytecode": map[string]interface{}{
-					"immutableReferences": map[string]interface{}{
-						"123": []interface{}{
-							map[string]interface{}{
-								"start":  float64(10),
-								"length": float64(32),
+// Option to add AST nodes
+func withAstNodes(nodes []solc.AstNode) func(*solc.ForgeArtifact) {
+	return func(a *solc.ForgeArtifact) {
+		a.Ast.Nodes = nodes
+	}
+}
+
+// Helper to create AST nodes for immutable tests
+func createTestAstNodes() []solc.AstNode {
+	return []solc.AstNode{
+		{ // Contract Definition
+			Id:       10,
+			NodeType: "ContractDefinition",
+			Name:     "MyContract",
+			Nodes: []solc.AstNode{
+				{ // State Variable 1 (immutable)
+					Id:               5,
+					NodeType:         "VariableDeclaration",
+					Name:             "IMMUTABLE_VAR_1",
+					StateVariable:    true,
+					Mutability:       "immutable",
+					Constant:         false,
+					TypeDescriptions: &solc.AstTypeDescriptions{TypeString: "uint256"},
+				},
+				{ // State Variable 2 (regular)
+					Id:               6,
+					NodeType:         "VariableDeclaration",
+					Name:             "regularVar",
+					StateVariable:    true,
+					TypeDescriptions: &solc.AstTypeDescriptions{TypeString: "bool"},
+				},
+				{ // Function Definition
+					Id:       8,
+					NodeType: "FunctionDefinition",
+					Name:     "doSomething",
+					Body: &solc.AstBlock{
+						NodeType: "Block",
+						Id:       9,
+						Statements: []solc.AstNode{
+							{ // Local Variable (shouldn't be found by ID 5)
+								Id:       7,
+								NodeType: "ExpressionStatement",
+								Src:      "placeholder;",
 							},
 						},
 					},
 				},
-				"ast": map[string]interface{}{
-					"nodes": []interface{}{
-						map[string]interface{}{
-							"id":   float64(123),
-							"name": "testVar",
-						},
-					},
+				{ // State Variable 3 (immutable, nested struct type not important for name lookup)
+					Id:               15,
+					NodeType:         "VariableDeclaration",
+					Name:             "IMMUTABLE_VAR_2",
+					StateVariable:    true,
+					Mutability:       "immutable",
+					TypeDescriptions: &solc.AstTypeDescriptions{TypeString: "struct MyStruct"},
 				},
 			},
-			want: map[string][]ImmutableReference{
-				"testVar": {
-					{
-						Offset: 10,
-						Length: 32,
-						Value:  "",
-					},
+		},
+		{ // Another top-level node (e.g., ImportDirective, ErrorDefinition)
+			Id:       11,
+			NodeType: "ImportDirective",
+		},
+		{ // Struct Definition (containing a node with ID 5, but wrong type)
+			Id:       12,
+			NodeType: "StructDefinition",
+			Name:     "MyStruct",
+			Nodes: []solc.AstNode{
+				{
+					Id:               5, // Duplicate ID, but wrong node type
+					NodeType:         "MemberAccess",
+					Name:             "", // Not a declaration name
+					TypeDescriptions: &solc.AstTypeDescriptions{TypeString: "uint"},
 				},
 			},
-			wantLen: 1,
+		},
+	}
+}
+
+func TestGetImmutableName(t *testing.T) {
+	astNodes := createTestAstNodes()
+	artifact := newTestArtifact(withAstNodes(astNodes))
+
+	tests := []struct {
+		name     string
+		refKey   string
+		artifact *solc.ForgeArtifact
+		wantName string
+	}{
+		{
+			name:     "Valid ID simple",
+			refKey:   "5",
+			artifact: artifact,
+			wantName: "IMMUTABLE_VAR_1",
 		},
 		{
-			name: "Standard format",
-			artifact: map[string]interface{}{
-				"immutableReferences": map[string]interface{}{
-					"456": []interface{}{
-						[]interface{}{float64(20), float64(16)},
-					},
-				},
-				"ast": map[string]interface{}{
-					"nodes": []interface{}{
-						map[string]interface{}{
-							"id":   float64(456),
-							"name": "anotherVar",
-						},
-					},
-				},
-			},
-			want: map[string][]ImmutableReference{
-				"anotherVar": {
-					{
-						Offset: 20,
-						Length: 16,
-						Value:  "",
-					},
-				},
-			},
-			wantLen: 1,
+			name:     "Valid ID with type prefix",
+			refKey:   "t_struct:MyStruct:15",
+			artifact: artifact,
+			wantName: "IMMUTABLE_VAR_2",
 		},
 		{
-			name: "No immutable references",
-			artifact: map[string]interface{}{
-				"deployedBytecode": map[string]interface{}{},
-			},
-			want:    map[string][]ImmutableReference{},
-			wantLen: 0,
+			name:     "ID exists but not VariableDeclaration",
+			refKey:   "7",
+			artifact: artifact,
+			wantName: "",
+		},
+		{
+			name:     "ID not found",
+			refKey:   "999",
+			artifact: artifact,
+			wantName: "",
+		},
+		{
+			name:     "Invalid refKey format",
+			refKey:   "invalid-key",
+			artifact: artifact,
+			wantName: "",
+		},
+		{
+			name:     "Nil artifact",
+			refKey:   "5",
+			artifact: nil,
+			wantName: "",
+		},
+		{
+			name:     "Artifact with no AST",
+			refKey:   "5",
+			artifact: newTestArtifact(),
+			wantName: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getImmutableReferences(tt.artifact)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.wantLen, len(got))
-
-			// Check specific values for non-empty cases
-			if tt.wantLen > 0 {
-				for k, v := range tt.want {
-					assert.Contains(t, got, k)
-					assert.Equal(t, v[0].Offset, got[k][0].Offset)
-					assert.Equal(t, v[0].Length, got[k][0].Length)
-				}
-			}
+			// Note: We don't directly test findAstNodeNameByID as it's an internal helper.
+			// Its behavior is tested via getImmutableName.
+			gotName := getImmutableName(tt.artifact, tt.refKey)
+			assert.Equal(t, tt.wantName, gotName)
 		})
 	}
 }
 
-func TestIsInImmutableReference(t *testing.T) {
-	immutableRefs := map[string][]ImmutableReference{
-		"var1": {
-			{Offset: 10, Length: 5, Value: ""},
-		},
-		"var2": {
-			{Offset: 20, Length: 10, Value: ""},
-			{Offset: 40, Length: 5, Value: ""},
-		},
-	}
+func TestCompareBytecode_ExactMatch(t *testing.T) {
+	artifact := newTestArtifact() // No immutables needed
+	expected := "0x12345678"
+	actual := "0x12345678"
 
-	tests := []struct {
-		name        string
-		position    int
-		wantIn      bool
-		wantVarName string
-		wantRef     bool
-	}{
-		{
-			name:        "Inside first variable",
-			position:    12,
-			wantIn:      true,
-			wantVarName: "var1",
-			wantRef:     true,
-		},
-		{
-			name:        "At start of first variable",
-			position:    10,
-			wantIn:      true,
-			wantVarName: "var1",
-			wantRef:     true,
-		},
-		{
-			name:        "At end of first variable (exclusive)",
-			position:    15,
-			wantIn:      false,
-			wantVarName: "",
-			wantRef:     false,
-		},
-		{
-			name:        "Inside second variable, first reference",
-			position:    25,
-			wantIn:      true,
-			wantVarName: "var2",
-			wantRef:     true,
-		},
-		{
-			name:        "Inside second variable, second reference",
-			position:    42,
-			wantIn:      true,
-			wantVarName: "var2",
-			wantRef:     true,
-		},
-		{
-			name:        "Outside any variable",
-			position:    30,
-			wantIn:      false,
-			wantVarName: "",
-			wantRef:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			inImmutable, varName, ref := isInImmutableReference(tt.position, immutableRefs)
-			assert.Equal(t, tt.wantIn, inImmutable)
-			assert.Equal(t, tt.wantVarName, varName)
-			if tt.wantRef {
-				assert.NotNil(t, ref)
-			} else {
-				assert.Nil(t, ref)
-			}
-		})
-	}
+	diffs, infos, err := compareBytecode(artifact, true, expected, actual)
+	require.NoError(t, err)
+	assert.Empty(t, diffs, "Should be no differences")
+	assert.Empty(t, infos, "Should be no immutable info")
 }
 
-func TestFindDifferences(t *testing.T) {
+func TestCompareBytecode_SimpleMismatch(t *testing.T) {
+	artifact := newTestArtifact()
+	expected := "0x12345678"
+	actual := "0x1234ff78" // Mismatch at byte 2 (0-indexed)
+
+	diffs, infos, err := compareBytecode(artifact, true, expected, actual)
+	require.NoError(t, err)
+	assert.Empty(t, infos)
+	require.Len(t, diffs, 1)
+
+	diff := diffs[0]
+	assert.Equal(t, 2, diff.Start)
+	assert.Equal(t, 1, diff.Length)
+	assert.Equal(t, "56", diff.Expected)
+	assert.Equal(t, "ff", diff.Actual)
+	assert.False(t, diff.InImmutable)
+	assert.Equal(t, "", diff.ImmutableName)
+}
+
+func TestCompareBytecode_DifferentLengths(t *testing.T) {
+	artifact := newTestArtifact()
+	expected := "0x12345678"
+	actualShort := "0x123456"
+	actualLong := "0x1234567890"
+
+	_, _, err := compareBytecode(artifact, true, expected, actualShort)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bytecode length mismatch")
+
+	_, _, err = compareBytecode(artifact, true, expected, actualLong)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bytecode length mismatch")
+
+	_, _, err = compareBytecode(artifact, true, actualShort, expected)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bytecode length mismatch")
+}
+
+func TestCompareBytecode_PrefixHandling(t *testing.T) {
+	artifact := newTestArtifact()
+	expected := "0x1234"
+	actualNoPrefix := "1234"
+	actualWithPrefix := "0x1234"
+
+	// Expected has prefix, actual does not
+	diffs, infos, err := compareBytecode(artifact, true, expected, actualNoPrefix)
+	require.NoError(t, err)
+	assert.Empty(t, diffs)
+	assert.Empty(t, infos)
+
+	// Expected does not have prefix, actual does
+	diffs, infos, err = compareBytecode(artifact, true, actualNoPrefix, actualWithPrefix)
+	require.NoError(t, err)
+	assert.Empty(t, diffs)
+	assert.Empty(t, infos)
+}
+
+func TestCompareBytecode_EmptyBytecode(t *testing.T) {
+	artifact := newTestArtifact()
+
+	// Both empty with prefix
+	diffs, infos, err := compareBytecode(artifact, true, "0x", "0x")
+	require.NoError(t, err)
+	assert.Empty(t, diffs)
+	assert.Empty(t, infos)
+
+	// Both empty without prefix
+	diffs, infos, err = compareBytecode(artifact, true, "", "")
+	require.NoError(t, err)
+	assert.Empty(t, diffs)
+	assert.Empty(t, infos)
+
+	// One empty, one not (should fail length check)
+	_, _, err = compareBytecode(artifact, true, "0x12", "0x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bytecode length mismatch")
+
+	_, _, err = compareBytecode(artifact, true, "", "12")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bytecode length mismatch")
+}
+
+func TestCompareBytecode_InvalidHex(t *testing.T) {
+	artifact := newTestArtifact()
+	valid := "0x1234"
+	invalid := "0x123G" // Invalid character 'G'
+	oddLen := "0x123"   // Odd length
+
+	_, _, err := compareBytecode(artifact, true, invalid, valid)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode expected bytecode")
+
+	_, _, err = compareBytecode(artifact, true, valid, invalid)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode actual bytecode")
+
+	_, _, err = compareBytecode(artifact, true, oddLen, valid)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid expected bytecode hex length")
+
+	_, _, err = compareBytecode(artifact, true, valid, oddLen)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode actual bytecode")
+	assert.Contains(t, err.Error(), "odd length hex string") // Specific error from hex pkg
+}
+
+func TestCompareBytecode_Immutables(t *testing.T) {
 	tests := []struct {
-		name             string
-		expectedBytecode string
-		actualBytecode   string
-		immutableRefs    map[string][]ImmutableReference
-		wantDiffs        int
-		wantImmutable    int
-		wantErr          bool
+		name       string
+		expected   string
+		actual     string
+		checkImmut bool
+		immutables solc.ImmutableReferences
+		wantDiffs  []BytecodeDifference
+		wantInfos  []ImmutableValueInfo
+		wantErr    bool
+		wantErrMsg string
 	}{
 		{
-			name:             "No differences",
-			expectedBytecode: "0x1234567890abcdef",
-			actualBytecode:   "0x1234567890abcdef",
-			immutableRefs:    map[string][]ImmutableReference{},
-			wantDiffs:        0,
-			wantImmutable:    0,
-			wantErr:          false,
-		},
-		{
-			name:             "Difference in immutable reference",
-			expectedBytecode: "0x1234000000abcdef",
-			actualBytecode:   "0x1234fffffeabcdef",
-			immutableRefs: map[string][]ImmutableReference{
-				"testVar": {
-					{Offset: 2, Length: 3, Value: ""},
+			name:       "Match",
+			expected:   "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			actual:     "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			checkImmut: true,
+			immutables: solc.ImmutableReferences{
+				"5": {
+					{Start: 2, Length: 3},
+				},
+				"15": {
+					{Start: 8, Length: 2},
+					{Start: 12, Length: 1},
 				},
 			},
-			wantDiffs:     1,
-			wantImmutable: 1,
-			wantErr:       false,
+			wantDiffs: []BytecodeDifference{},
+			wantInfos: []ImmutableValueInfo{
+				{Name: "IMMUTABLE_VAR_1", Offset: 2, Length: 3, Value: "0xaaaa00"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 8, Length: 2, Value: "0xbbbb"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 12, Length: 1, Value: "0xcc"},
+			},
+			wantErr: false,
 		},
 		{
-			name:             "Difference outside immutable reference",
-			expectedBytecode: "0x1234567890abcdef",
-			actualBytecode:   "0x1234567890abcdee", // Last byte different
-			immutableRefs:    map[string][]ImmutableReference{},
-			wantDiffs:        1,
-			wantImmutable:    0,
-			wantErr:          false,
+			name:       "Diff inside immutable only (checkImmut=false)",
+			expected:   "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			actual:     "0xAAAAAAAA112233BBBBBBBBCCCCDDDDDD",
+			checkImmut: false,
+			immutables: solc.ImmutableReferences{},
+			wantDiffs: []BytecodeDifference{
+				{Start: 4, Length: 3, Expected: "000000", Actual: "112233", InImmutable: false, ImmutableName: ""},
+			},
+			wantInfos: []ImmutableValueInfo{},
+			wantErr:   false,
 		},
 		{
-			name:             "Multiple differences",
-			expectedBytecode: "0x1234000000abcdef",
-			actualBytecode:   "0x1234fffffeabcdee", // Immutable and non-immutable differences
-			immutableRefs: map[string][]ImmutableReference{
-				"testVar": {
-					{Offset: 2, Length: 3, Value: ""},
+			name:       "Diff outside immutable only",
+			expected:   "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			actual:     "0xAAAAAAAA000000BBBBBBBBCCCCDDDDFF",
+			checkImmut: true,
+			immutables: solc.ImmutableReferences{
+				"5": {
+					{Start: 2, Length: 3},
+				},
+				"15": {
+					{Start: 8, Length: 2},
+					{Start: 12, Length: 1},
 				},
 			},
-			wantDiffs:     2,
-			wantImmutable: 1,
-			wantErr:       false,
+			wantDiffs: []BytecodeDifference{
+				{Start: 15, Length: 1, Expected: "dd", Actual: "ff", InImmutable: false, ImmutableName: ""},
+			},
+			wantInfos: []ImmutableValueInfo{
+				{Name: "IMMUTABLE_VAR_1", Offset: 2, Length: 3, Value: "0xaaaa00"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 8, Length: 2, Value: "0xbbbb"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 12, Length: 1, Value: "0xcc"},
+			},
+			wantErr: false,
 		},
 		{
-			name:             "Invalid expected bytecode",
-			expectedBytecode: "0xZZZZ",
-			actualBytecode:   "0x1234",
-			immutableRefs:    map[string][]ImmutableReference{},
-			wantDiffs:        0,
-			wantImmutable:    0,
-			wantErr:          true,
+			name:       "Diffs inside and outside immutable",
+			expected:   "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			actual:     "0xAAAA1122330000BBBBBBBBCCCCDDDDFF",
+			checkImmut: true,
+			immutables: solc.ImmutableReferences{
+				"5": {
+					{Start: 2, Length: 3},
+				},
+				"15": {
+					{Start: 8, Length: 2},
+					{Start: 12, Length: 1},
+				},
+			},
+			wantDiffs: []BytecodeDifference{
+				{Start: 2, Length: 3, Expected: "aaaa00", Actual: "112233", InImmutable: true, ImmutableName: "IMMUTABLE_VAR_1"},
+				{Start: 15, Length: 1, Expected: "dd", Actual: "ff", InImmutable: false, ImmutableName: ""},
+			},
+			wantInfos: []ImmutableValueInfo{
+				{Name: "IMMUTABLE_VAR_1", Offset: 2, Length: 3, Value: "0x112233"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 8, Length: 2, Value: "0xbbbb"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 12, Length: 1, Value: "0xcc"},
+			},
+			wantErr: false,
 		},
 		{
-			name:             "Invalid actual bytecode",
-			expectedBytecode: "0x1234",
-			actualBytecode:   "0xZZZZ",
-			immutableRefs:    map[string][]ImmutableReference{},
-			wantDiffs:        0,
-			wantImmutable:    0,
-			wantErr:          true,
+			name:       "Diff spanning immutable boundary",
+			expected:   "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			actual:     "0xAAAAAAAA112200BBBBBBBBCCCCDDDDDD",
+			checkImmut: true,
+			immutables: solc.ImmutableReferences{
+				"5": {
+					{Start: 2, Length: 3},
+				},
+				"15": {
+					{Start: 8, Length: 2},
+					{Start: 12, Length: 1},
+				},
+			},
+			wantDiffs: []BytecodeDifference{
+				{Start: 4, Length: 1, Expected: "00", Actual: "11", InImmutable: true, ImmutableName: "IMMUTABLE_VAR_1"},
+				{Start: 5, Length: 1, Expected: "00", Actual: "22", InImmutable: false, ImmutableName: ""},
+			},
+			wantInfos: []ImmutableValueInfo{
+				{Name: "IMMUTABLE_VAR_1", Offset: 2, Length: 3, Value: "0xaaaa11"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 8, Length: 2, Value: "0xbbbb"},
+				{Name: "IMMUTABLE_VAR_2", Offset: 12, Length: 1, Value: "0xcc"},
+			},
+			wantErr: false,
 		},
 		{
-			name:             "Different lengths",
-			expectedBytecode: "0x1234",
-			actualBytecode:   "0x123456",
-			immutableRefs:    map[string][]ImmutableReference{},
-			wantDiffs:        1,
-			wantImmutable:    0,
-			wantErr:          false,
+			name:       "Immutable ref out of bounds for actual bytecode",
+			expected:   "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			actual:     "0xAAAAAAAA000000BBBBBBBBCCCC",
+			checkImmut: true,
+			immutables: solc.ImmutableReferences{
+				"5": {
+					{Start: 2, Length: 3},
+				},
+				"15": {
+					{Start: 8, Length: 2},
+					{Start: 12, Length: 1},
+				},
+			},
+			wantDiffs:  nil,
+			wantInfos:  nil,
+			wantErr:    true,
+			wantErrMsg: "bytecode length mismatch",
+		},
+		{
+			name:       "Immutable ref has invalid length (zero)",
+			expected:   "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			actual:     "0xAAAAAAAA000000BBBBBBBBCCCCDDDDDD",
+			checkImmut: true,
+			immutables: solc.ImmutableReferences{
+				"5": {
+					{Start: 2, Length: 0},
+				},
+			},
+			wantDiffs:  nil,
+			wantInfos:  nil,
+			wantErr:    true,
+			wantErrMsg: "immutable 'IMMUTABLE_VAR_1' location (offset 2, length 0) has invalid length 0",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			diffs, err := findDifferences(tt.expectedBytecode, tt.actualBytecode, tt.immutableRefs)
+			astNodes := createTestAstNodes()
+			art := newTestArtifact(withAstNodes(astNodes), withImmutableRefs(tt.immutables))
+			diffs, infos, err := compareBytecode(art, tt.checkImmut, tt.expected, tt.actual)
 
 			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-
-			assert.NoError(t, err)
-			assert.Equal(t, tt.wantDiffs, len(diffs))
-
-			// Count immutable differences
-			immutableCount := 0
-			for _, diff := range diffs {
-				if diff.InImmutable {
-					immutableCount++
+				require.Error(t, err)
+				if tt.wantErrMsg != "" {
+					assert.Contains(t, err.Error(), tt.wantErrMsg)
 				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantDiffs, diffs, "Differences mismatch")
+				assert.ElementsMatch(t, tt.wantInfos, infos, "Immutable infos mismatch")
 			}
-			assert.Equal(t, tt.wantImmutable, immutableCount)
 		})
 	}
 }
 
-func TestFindDifferencesDetailed(t *testing.T) {
-	// Test with specific bytecode patterns to verify exact difference detection
-	expected := "0x1234567890abcdef"
-	actual := "0x1234FF7890abFFef"
+func TestCompareBytecode_DifferenceGrouping(t *testing.T) {
+	artifact := newTestArtifact()
+	expected := "0x112233445566"
+	actual := "0x11aabbcc5566" // Differs @ 1,2,3 (0x223344 -> 0xaabbcc)
 
-	immutableRefs := map[string][]ImmutableReference{
-		"testVar": {
-			{Offset: 2, Length: 1, Value: ""}, // Covers the "FF" difference
-		},
-	}
-
-	diffs, err := findDifferences(expected, actual, immutableRefs)
+	diffs, infos, err := compareBytecode(artifact, true, expected, actual)
 	require.NoError(t, err)
+	assert.Empty(t, infos)
+	require.Len(t, diffs, 1, "Differences should be grouped")
 
-	// Should find 2 differences: one in immutable ref, one outside
-	assert.Equal(t, 2, len(diffs))
-
-	// First difference should be in immutable reference
-	assert.True(t, diffs[0].InImmutable)
-	assert.Equal(t, "testVar", diffs[0].ImmutableName)
-	assert.Equal(t, 2, diffs[0].Start) // 0-based index after 0x prefix
-	assert.Equal(t, 1, diffs[0].Length)
-	assert.Equal(t, "56", diffs[0].Expected)
-	assert.Equal(t, "ff", diffs[0].Actual)
-
-	// Second difference should be outside immutable reference
-	assert.False(t, diffs[1].InImmutable)
-	assert.Equal(t, "", diffs[1].ImmutableName)
-	assert.Equal(t, 6, diffs[1].Start) // 0-based index after 0x prefix
-	assert.Equal(t, 1, diffs[1].Length)
-	assert.Equal(t, "cd", diffs[1].Expected)
-	assert.Equal(t, "ff", diffs[1].Actual)
-
-	// Check that immutable reference value was captured
-	assert.Equal(t, "ff", immutableRefs["testVar"][0].Value)
+	diff := diffs[0]
+	assert.Equal(t, 1, diff.Start)
+	assert.Equal(t, 3, diff.Length)
+	assert.Equal(t, "223344", diff.Expected)
+	assert.Equal(t, "aabbcc", diff.Actual)
+	assert.False(t, diff.InImmutable)
 }
 
-// TestPrintDifferences doesn't test the actual output (which goes to stdout)
-// but ensures the function doesn't panic with various inputs
-func TestPrintDifferences(t *testing.T) {
-	differences := []BytecodeDifference{
+func TestCategorizeDifferences(t *testing.T) {
+	tests := []struct {
+		name          string
+		resultType    VerificationType
+		allDiffs      []BytecodeDifference
+		wantCodeDiffs []BytecodeDifference
+		wantImmDiffs  []BytecodeDifference
+		wantHasCode   bool
+	}{
 		{
-			Start:         10,
-			Length:        2,
-			Expected:      "1234",
-			Actual:        "5678",
-			InImmutable:   true,
-			ImmutableName: "testVar",
+			name:          "No diffs",
+			resultType:    DeployedContract,
+			allDiffs:      []BytecodeDifference{},
+			wantCodeDiffs: []BytecodeDifference{},
+			wantImmDiffs:  []BytecodeDifference{},
+			wantHasCode:   false,
 		},
 		{
-			Start:         20,
-			Length:        1,
-			Expected:      "ab",
-			Actual:        "cd",
-			InImmutable:   false,
-			ImmutableName: "",
+			name:       "Only code diffs",
+			resultType: DeployedContract,
+			allDiffs: []BytecodeDifference{
+				{Start: 1, Length: 1, Expected: "aa", Actual: "bb", InImmutable: false},
+				{Start: 5, Length: 2, Expected: "cccc", Actual: "dddd", InImmutable: false},
+			},
+			wantCodeDiffs: []BytecodeDifference{
+				{Start: 1, Length: 1, Expected: "aa", Actual: "bb", InImmutable: false},
+				{Start: 5, Length: 2, Expected: "cccc", Actual: "dddd", InImmutable: false},
+			},
+			wantImmDiffs: []BytecodeDifference{},
+			wantHasCode:  true,
+		},
+		{
+			name:       "Only immutable diffs (DeployedContract)",
+			resultType: DeployedContract,
+			allDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+				{Start: 20, Length: 1, Expected: "ee", Actual: "ff", InImmutable: true, ImmutableName: "VarB"},
+			},
+			wantCodeDiffs: []BytecodeDifference{},
+			wantImmDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+				{Start: 20, Length: 1, Expected: "ee", Actual: "ff", InImmutable: true, ImmutableName: "VarB"},
+			},
+			wantHasCode: false,
+		},
+		{
+			name:       "Mixed diffs (DeployedContract)",
+			resultType: DeployedContract,
+			allDiffs: []BytecodeDifference{
+				{Start: 1, Length: 1, Expected: "aa", Actual: "bb", InImmutable: false},
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+				{Start: 5, Length: 2, Expected: "cccc", Actual: "dddd", InImmutable: false},
+				{Start: 20, Length: 1, Expected: "ee", Actual: "ff", InImmutable: true, ImmutableName: "VarB"},
+			},
+			wantCodeDiffs: []BytecodeDifference{
+				{Start: 1, Length: 1, Expected: "aa", Actual: "bb", InImmutable: false},
+				{Start: 5, Length: 2, Expected: "cccc", Actual: "dddd", InImmutable: false},
+			},
+			wantImmDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+				{Start: 20, Length: 1, Expected: "ee", Actual: "ff", InImmutable: true, ImmutableName: "VarB"},
+			},
+			wantHasCode: true,
+		},
+		{
+			name:       "Only immutable diffs (Implementation)",
+			resultType: Implementation, // Also checks immutables
+			allDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			},
+			wantCodeDiffs: []BytecodeDifference{},
+			wantImmDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			},
+			wantHasCode: false,
+		},
+		{
+			name:       "Only immutable diffs (OPContractsManager)",
+			resultType: OPContractsManager, // Also checks immutables
+			allDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			},
+			wantCodeDiffs: []BytecodeDifference{},
+			wantImmDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			},
+			wantHasCode: false,
+		},
+		{
+			name:       "Only immutable diffs (Blueprint)",
+			resultType: Blueprint, // Does NOT check immutables
+			allDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			},
+			wantCodeDiffs: []BytecodeDifference{
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			}, // Immutable diffs treated as code diffs
+			wantImmDiffs: []BytecodeDifference{},
+			wantHasCode:  true,
+		},
+		{
+			name:       "Mixed diffs (SplitBlueprintPart1)",
+			resultType: SplitBlueprintPart1, // Does NOT check immutables
+			allDiffs: []BytecodeDifference{
+				{Start: 1, Length: 1, Expected: "aa", Actual: "bb", InImmutable: false},
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			},
+			wantCodeDiffs: []BytecodeDifference{
+				{Start: 1, Length: 1, Expected: "aa", Actual: "bb", InImmutable: false},
+				{Start: 10, Length: 4, Expected: "00000000", Actual: "11111111", InImmutable: true, ImmutableName: "VarA"},
+			}, // Immutable diffs treated as code diffs
+			wantImmDiffs: []BytecodeDifference{},
+			wantHasCode:  true,
 		},
 	}
 
-	immutableRefs := map[string][]ImmutableReference{
-		"testVar": {
-			{Offset: 10, Length: 2, Value: "5678"},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := &VerificationResult{
+				Type:        tt.resultType,
+				Differences: tt.allDiffs,
+			}
+			gotCodeDiffs, gotImmDiffs := categorizeDifferences(result)
+			assert.Equal(t, tt.wantCodeDiffs, gotCodeDiffs, "Code differences mismatch")
+			assert.Equal(t, tt.wantImmDiffs, gotImmDiffs, "Immutable differences mismatch")
+
+			// Test hasCodeDifferences as well
+			assert.Equal(t, tt.wantHasCode, hasCodeDifferences(result), "hasCodeDifferences mismatch")
+		})
+	}
+}
+
+// --- Tests for verify*Logic functions ---
+// Note: These tests focus on the orchestration logic, assuming dependencies like
+// getOnchainBytecode, ccom.ReadForgeArtifact, and compareBytecode work correctly (or are mocked implicitly).
+// They primarily check the structure and fields of the returned VerificationResult.
+
+// Mock implementations (replace with actual mocking library if needed)
+var mockBytecodeStore = make(map[string]string)
+var mockArtifactStore = make(map[string]*solc.ForgeArtifact)
+var mockReadArtifactError error
+var mockGetBytecodeError error
+
+// setupMocks resets mock state and installs mock implementations for the current test.
+func setupMocks(t *testing.T) {
+	t.Helper()
+
+	mockBytecodeStore = make(map[string]string)
+	mockArtifactStore = make(map[string]*solc.ForgeArtifact) // Although ReadForgeArtifact isn't directly mocked here now
+	mockReadArtifactError = nil
+	mockGetBytecodeError = nil
+
+	// Keep track of the original implementation
+	originalGetBytecode := getOnchainBytecodeImpl
+
+	// Define the mock implementation
+	getOnchainBytecodeImpl = func(client *ethclient.Client, addr common.Address) (string, error) {
+		if mockGetBytecodeError != nil {
+			// Check if the error is specific to this address (optional enhancement)
+			// For now, any error applies globally.
+			return "", mockGetBytecodeError
+		}
+		code, ok := mockBytecodeStore[addr.Hex()]
+		if !ok {
+			// Return 0x for unknown addresses to simulate no code found, common case
+			return "0x", fmt.Errorf("no code found at address (mock)")
+		}
+		return code, nil
+	}
+
+	// Use t.Cleanup to restore the original implementation after the test
+	t.Cleanup(func() {
+		getOnchainBytecodeImpl = originalGetBytecode
+	})
+}
+
+func TestVerifyDeployedContractLogic(t *testing.T) {
+	artifactPath := "/mock/MyContract.json" // Path is still used for metadata
+	contractName := "MyContract"
+	address := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	expectedCode := "0x6080604052348015600f57600080fd5b50604051602080606f8339810160405280600a5f5260005f60005f5151f3fe"
+	actualCodeMatch := expectedCode
+	actualCodeMismatch := "0x6080604052348015600f57600080fd5b50604051602080606f8339810160405280ffff5f5260005f60005f5151f3fe" // Mismatch '600a' -> 'ffff' (same length)
+
+	tests := []struct {
+		name           string
+		artifact       *solc.ForgeArtifact
+		mockSetup      func()
+		wantErr        bool
+		wantErrContent string
+		wantDiffs      bool
+		wantImmutables bool
+	}{
+		{
+			name:     "Match",
+			artifact: newTestArtifact(withDeployedBytecode(expectedCode)),
+			mockSetup: func() {
+				mockBytecodeStore[address.Hex()] = actualCodeMatch
+			},
+			wantErr:        false,
+			wantDiffs:      false,
+			wantImmutables: false,
+		},
+		{
+			name:     "Mismatch",
+			artifact: newTestArtifact(withDeployedBytecode(expectedCode)),
+			mockSetup: func() {
+				mockBytecodeStore[address.Hex()] = actualCodeMismatch
+			},
+			wantErr:        false,
+			wantDiffs:      true,
+			wantImmutables: false,
+		},
+		{
+			name:     "Get bytecode error",
+			artifact: newTestArtifact(withDeployedBytecode(expectedCode)),
+			mockSetup: func() {
+				mockGetBytecodeError = fmt.Errorf("rpc is down")
+			},
+			wantErr:        true,
+			wantErrContent: "getting onchain bytecode: rpc is down",
+		},
+		{
+			name:     "No code at address",
+			artifact: newTestArtifact(withDeployedBytecode(expectedCode)),
+			mockSetup: func() {
+				// No entry in mockBytecodeStore triggers the mock's error
+			},
+			wantErr:        true,
+			wantErrContent: "no code found at address (mock)",
+		},
+		{
+			name: "Match with immutables",
+			artifact: newTestArtifact(
+				withDeployedBytecode("0xAAAABBBBCCCCDDDD"), // Expected
+				withAstNodes(createTestAstNodes()),
+				withImmutableRefs(solc.ImmutableReferences{
+					"5": {{Start: 2, Length: 2}}, // BBBBB
+				}),
+			),
+			mockSetup: func() {
+				mockBytecodeStore[address.Hex()] = "0xAAAA1122CCCCDDDD" // Actual (diff only in immutable)
+			},
+			wantErr:        false,
+			wantDiffs:      true, // compareBytecode returns diffs, but categorizeDifferences handles it
+			wantImmutables: true,
 		},
 	}
 
-	// This should not panic
-	printDifferences(differences, immutableRefs, false)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupMocks(t)
+			tt.mockSetup()
 
-	// Test with empty differences
-	printDifferences([]BytecodeDifference{}, immutableRefs, false)
+			// Pass nil client because getOnchainBytecodeImpl is mocked
+			result := verifyDeployedContractLogic(nil, tt.artifact, contractName, artifactPath, address)
 
-	// Test with empty immutable references
-	printDifferences(differences, map[string][]ImmutableReference{}, false)
+			if tt.wantErr {
+				require.Error(t, result.ProcessError)
+				if tt.wantErrContent != "" {
+					assert.Contains(t, result.ProcessError.Error(), tt.wantErrContent)
+				}
+			} else {
+				require.NoError(t, result.ProcessError)
+				assert.Equal(t, DeployedContract, result.Type)
+				assert.Equal(t, address.Hex(), result.Address)
+				assert.Equal(t, artifactPath, result.ArtifactPath)
+				assert.Equal(t, contractName, result.ContractName)
+				if tt.wantDiffs {
+					assert.NotEmpty(t, result.Differences)
+				} else {
+					assert.Empty(t, result.Differences)
+				}
+				if tt.wantImmutables {
+					assert.NotEmpty(t, result.ImmutableInfos)
+				} else {
+					assert.Empty(t, result.ImmutableInfos)
+				}
+				// Check categorization for the immutable case
+				if tt.name == "Match with immutables" {
+					assert.False(t, hasCodeDifferences(result), "Should have no *code* differences")
+				}
+			}
+		})
+	}
 }
 
-// Test handling of bytecode with and without 0x prefix
-func TestBytecodePrefix(t *testing.T) {
-	expected := "0x1234"
-	actual := "1234" // No prefix
+func TestVerifyBlueprintLogic(t *testing.T) {
+	targetArtifactPath := "/mock/TargetContract.json"
+	targetContractName := "TargetContract"
+	blueprintAddress := common.HexToAddress("0xABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD")
+	blueprintFieldName := "TheBlueprint"
+	creationCode := "608060405234801561001057600080fd5b5061015ff3"
+	expectedBlueprintCode := blueprintPreamble + creationCode
+	actualCodeMatch := expectedBlueprintCode
+	actualCodeMismatch := blueprintPreamble + "ffffff" + creationCode[6:] // Mismatch after preamble
 
-	diffs, err := findDifferences(expected, actual, map[string][]ImmutableReference{})
-	require.NoError(t, err)
-	assert.Equal(t, 0, len(diffs), "Should handle different prefixes correctly")
+	tests := []struct {
+		name           string
+		artifact       *solc.ForgeArtifact
+		mockSetup      func()
+		wantErr        bool
+		wantErrContent string
+		wantDiffs      bool
+	}{
+		{
+			name:     "Match",
+			artifact: newTestArtifact(withCreationBytecode("0x" + creationCode)),
+			mockSetup: func() {
+				mockBytecodeStore[blueprintAddress.Hex()] = actualCodeMatch
+			},
+			wantErr:   false,
+			wantDiffs: false,
+		},
+		{
+			name:     "Mismatch",
+			artifact: newTestArtifact(withCreationBytecode("0x" + creationCode)),
+			mockSetup: func() {
+				mockBytecodeStore[blueprintAddress.Hex()] = actualCodeMismatch
+			},
+			wantErr:   false,
+			wantDiffs: true,
+		},
+		{
+			name:     "Get blueprint bytecode error",
+			artifact: newTestArtifact(withCreationBytecode("0x" + creationCode)),
+			mockSetup: func() {
+				mockGetBytecodeError = fmt.Errorf("rpc is down")
+			},
+			wantErr:        true,
+			wantErrContent: "getting onchain bytecode for blueprint",
+		},
+		{
+			name:     "No code at address",
+			artifact: newTestArtifact(withCreationBytecode("0x" + creationCode)),
+			mockSetup: func() {
+				// No entry in mockBytecodeStore
+			},
+			wantErr:        true,
+			wantErrContent: "no code found at address (mock)",
+		},
+		{
+			name:           "No creation code in artifact",
+			artifact:       newTestArtifact(withCreationBytecode("0x")), // Empty creation code
+			mockSetup:      func() {},                                   // Bytecode doesn't matter here
+			wantErr:        true,
+			wantErrContent: "no creation bytecode found",
+		},
+	}
 
-	// Test the reverse
-	diffs, err = findDifferences(actual, expected, map[string][]ImmutableReference{})
-	require.NoError(t, err)
-	assert.Equal(t, 0, len(diffs), "Should handle different prefixes correctly")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupMocks(t)
+			tt.mockSetup()
+
+			// Pass nil client because getOnchainBytecodeImpl is mocked
+			result := verifyBlueprintLogic(nil, tt.artifact, targetContractName, targetArtifactPath, blueprintAddress, blueprintFieldName)
+
+			if tt.wantErr {
+				require.Error(t, result.ProcessError)
+				if tt.wantErrContent != "" {
+					assert.Contains(t, result.ProcessError.Error(), tt.wantErrContent)
+				}
+			} else {
+				require.NoError(t, result.ProcessError)
+				assert.Equal(t, Blueprint, result.Type)
+				assert.Equal(t, blueprintAddress.Hex(), result.Address)
+				assert.Equal(t, targetArtifactPath, result.ArtifactPath)
+				assert.Equal(t, blueprintFieldName, result.FieldName)
+				assert.Equal(t, targetContractName, result.TargetContract)
+				assert.Equal(t, fmt.Sprintf("Blueprint for %s", targetContractName), result.ContractName)
+				if tt.wantDiffs {
+					assert.NotEmpty(t, result.Differences)
+					assert.True(t, hasCodeDifferences(result)) // Any blueprint diff is a code diff
+				} else {
+					assert.Empty(t, result.Differences)
+				}
+			}
+		})
+	}
 }
 
-// Test consecutive differences are properly grouped
-func TestConsecutiveDifferences(t *testing.T) {
-	expected := "0x123456789a"
-	actual := "0x12FFFF789a" // Two consecutive bytes different
+func TestVerifySplitBlueprintLogic(t *testing.T) {
+	targetArtifactPath := "/mock/SplitTarget.json"
+	targetContractName := "SplitTarget"
+	address1 := common.HexToAddress("0xAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBB")
+	address2 := common.HexToAddress("0xCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDD")
+	fieldName1 := "SplitBP1"
+	fieldName2 := "SplitBP2"
 
-	diffs, err := findDifferences(expected, actual, map[string][]ImmutableReference{})
-	require.NoError(t, err)
+	// Create creation code longer than maxInitCodeSize
+	part1Hex := strings.Repeat("11", maxInitCodeSize)
+	part2Hex := strings.Repeat("22", 10)
+	fullCreationCode := part1Hex + part2Hex
+	artifactLong := newTestArtifact(withCreationBytecode("0x" + fullCreationCode))
+	expectedBP1 := blueprintPreamble + part1Hex
+	expectedBP2 := blueprintPreamble + part2Hex
 
-	// Should group consecutive differences
-	assert.Equal(t, 1, len(diffs), "Consecutive differences should be grouped")
-	assert.Equal(t, 2, diffs[0].Length, "Difference should span 2 bytes")
-	assert.Equal(t, "3456", diffs[0].Expected)
-	assert.Equal(t, "ffff", diffs[0].Actual)
-}
+	// Create creation code shorter than maxInitCodeSize
+	shortCodeHex := strings.Repeat("33", 100)
+	artifactShort := newTestArtifact(withCreationBytecode("0x" + shortCodeHex))
+	expectedShortBP1 := blueprintPreamble + shortCodeHex
+	expectedShortBP2 := blueprintPreamble // Empty part 2
 
-// Test with empty bytecode
-func TestEmptyBytecode(t *testing.T) {
-	_, err := findDifferences("0x", "0x", map[string][]ImmutableReference{})
-	assert.NoError(t, err, "Should handle empty bytecode")
+	tests := []struct {
+		name         string
+		artifact     *solc.ForgeArtifact
+		mockSetup    func()
+		wantErr1     bool
+		wantErr2     bool
+		wantErr1Cont string
+		wantErr2Cont string
+		wantDiffs1   bool
+		wantDiffs2   bool
+	}{
+		{
+			name:     "Match Long Code",
+			artifact: artifactLong,
+			mockSetup: func() {
+				mockBytecodeStore[address1.Hex()] = expectedBP1
+				mockBytecodeStore[address2.Hex()] = expectedBP2
+			},
+			wantErr1:   false,
+			wantErr2:   false,
+			wantDiffs1: false,
+			wantDiffs2: false,
+		},
+		{
+			name:     "Match Short Code (part 2 is empty)",
+			artifact: artifactShort,
+			mockSetup: func() {
+				mockBytecodeStore[address1.Hex()] = expectedShortBP1
+				mockBytecodeStore[address2.Hex()] = expectedShortBP2 // Expect preamble only for empty code
+			},
+			wantErr1:   false,
+			wantErr2:   false,
+			wantDiffs1: false,
+			wantDiffs2: false,
+		},
+		{
+			name:     "Mismatch Part 1",
+			artifact: artifactLong,
+			mockSetup: func() {
+				mockBytecodeStore[address1.Hex()] = blueprintPreamble + "ff" + part1Hex[2:]
+				mockBytecodeStore[address2.Hex()] = expectedBP2
+			},
+			wantErr1:   false,
+			wantErr2:   false,
+			wantDiffs1: true,
+			wantDiffs2: false,
+		},
+		{
+			name:     "Mismatch Part 2",
+			artifact: artifactLong,
+			mockSetup: func() {
+				mockBytecodeStore[address1.Hex()] = expectedBP1
+				mockBytecodeStore[address2.Hex()] = blueprintPreamble + strings.Repeat("ff", 10) // Match length of part2Hex
+			},
+			wantErr1:   false,
+			wantErr2:   false,
+			wantDiffs1: false,
+			wantDiffs2: true,
+		},
+		{
+			name:     "Error Getting Part 1 Code",
+			artifact: artifactLong,
+			mockSetup: func() {
+				mockGetBytecodeError = fmt.Errorf("rpc1 down")
+				// Need more specific mock to only fail for address1, assume global for now
+				mockBytecodeStore[address2.Hex()] = expectedBP2 // Set this so part 2 fetch succeeds
+			},
+			wantErr1:     true,
+			wantErr1Cont: "getting onchain code for part 1",
+			wantErr2:     true, // Error on addr1 implies error on addr2 too with global mock
+			wantErr2Cont: "getting onchain code for part 2",
+		},
+		{
+			name:     "Error Getting Part 2 Code",
+			artifact: artifactLong,
+			mockSetup: func() {
+				var getBytecodeErr error = fmt.Errorf("rpc2 down")
+				originalGetBytecode := getOnchainBytecodeImpl
+				getOnchainBytecodeImpl = func(client *ethclient.Client, addr common.Address) (string, error) {
+					if addr == address1 {
+						return expectedBP1, nil
+					} else if addr == address2 {
+						return "", getBytecodeErr // Specific error for address 2
+					}
+					return "", fmt.Errorf("unexpected address in mock")
+				}
+				t.Cleanup(func() { getOnchainBytecodeImpl = originalGetBytecode })
+			},
+			wantErr1:     false, // Fetch for part 1 succeeds
+			wantErr2:     true,
+			wantErr2Cont: "rpc2 down", // Check for the core error message
+		},
+		{
+			name:     "No creation code in artifact",
+			artifact: newTestArtifact(withCreationBytecode("0x")), // Empty
+			mockSetup: func() {
+				// Bytecode fetch doesn't matter
+			},
+			wantErr1:     true,
+			wantErr1Cont: "no creation bytecode found",
+			wantErr2:     true,
+			wantErr2Cont: "no creation bytecode found",
+		},
+	}
 
-	_, err = findDifferences("", "", map[string][]ImmutableReference{})
-	assert.NoError(t, err, "Should handle empty bytecode without prefix")
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupMocks(t) // Base setup, might be overridden by tt.mockSetup
+			tt.mockSetup()
 
-// Test with invalid hex characters
-func TestInvalidHex(t *testing.T) {
-	_, err := findDifferences("0x123Z", "0x1234", map[string][]ImmutableReference{})
-	assert.Error(t, err, "Should detect invalid hex in expected bytecode")
+			// Pass nil client because getOnchainBytecodeImpl is mocked
+			res1, res2 := verifySplitBlueprintLogic(nil, tt.artifact, targetContractName, targetArtifactPath, address1, address2, fieldName1, fieldName2)
 
-	_, err = findDifferences("0x1234", "0x123Z", map[string][]ImmutableReference{})
-	assert.Error(t, err, "Should detect invalid hex in actual bytecode")
+			// Check Result 1
+			if tt.wantErr1 {
+				require.Error(t, res1.ProcessError)
+				if tt.wantErr1Cont != "" {
+					assert.Contains(t, res1.ProcessError.Error(), tt.wantErr1Cont)
+				}
+			} else {
+				require.NoError(t, res1.ProcessError)
+				assert.Equal(t, SplitBlueprintPart1, res1.Type)
+				assert.Equal(t, address1.Hex(), res1.Address)
+				assert.Equal(t, targetArtifactPath, res1.ArtifactPath)
+				assert.Equal(t, fieldName1, res1.FieldName)
+				assert.Equal(t, targetContractName, res1.TargetContract)
+				if tt.wantDiffs1 {
+					assert.NotEmpty(t, res1.Differences)
+				} else {
+					assert.Empty(t, res1.Differences)
+				}
+			}
+
+			// Check Result 2
+			if tt.wantErr2 {
+				require.Error(t, res2.ProcessError)
+				if tt.wantErr2Cont != "" {
+					assert.Contains(t, res2.ProcessError.Error(), tt.wantErr2Cont)
+				}
+			} else {
+				require.NoError(t, res2.ProcessError)
+				assert.Equal(t, SplitBlueprintPart2, res2.Type)
+				assert.Equal(t, address2.Hex(), res2.Address)
+				assert.Equal(t, targetArtifactPath, res2.ArtifactPath)
+				assert.Equal(t, fieldName2, res2.FieldName)
+				assert.Equal(t, targetContractName, res2.TargetContract)
+				if tt.wantDiffs2 {
+					assert.NotEmpty(t, res2.Differences)
+				} else {
+					assert.Empty(t, res2.Differences)
+				}
+			}
+		})
+	}
 }
