@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/status"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +94,10 @@ func testSupervisorRestart(ids DefaultInteropSystemIDs, system stack.System, con
 		_, err := retry.Do[eth.SupervisorSyncStatus](ctx, 3, retry.Fixed(time.Millisecond*500), func() (eth.SupervisorSyncStatus, error) {
 			return supervisor.QueryAPI().SyncStatus(ctx)
 		})
-		require.NoError(t, err)
+		if err != nil {
+			// API is still back, although supervisor status tracker not ready
+			require.Equal(t, errors.Unwrap(err).Error(), status.ErrStatusTrackerNotReady.Error())
+		}
 		cancel()
 	}
 }
