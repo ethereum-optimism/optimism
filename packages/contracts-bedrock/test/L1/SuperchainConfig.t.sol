@@ -54,7 +54,7 @@ contract SuperchainConfig_Pause_TestFail is CommonTest {
         assertFalse(superchainConfig.paused(address(this)));
 
         assertTrue(superchainConfig.guardian() != alice);
-        vm.expectRevert(ISuperchainConfig.OnlyGuardian.selector);
+        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         vm.prank(alice);
         superchainConfig.pause(address(this));
 
@@ -66,7 +66,7 @@ contract SuperchainConfig_Pause_TestFail is CommonTest {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
 
-        vm.expectRevert(ISuperchainConfig.PauseAlreadyUsed.selector);
+        vm.expectRevert(ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector);
         superchainConfig.pause(address(this));
     }
 }
@@ -95,7 +95,7 @@ contract SuperchainConfig_Unpause_TestFail is CommonTest {
         assertTrue(superchainConfig.paused(address(this)));
 
         assertTrue(superchainConfig.guardian() != alice);
-        vm.expectRevert(ISuperchainConfig.OnlyGuardian.selector);
+        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         vm.prank(alice);
         superchainConfig.unpause(address(this));
 
@@ -124,14 +124,13 @@ contract SuperchainConfig_Extend_Test is CommonTest {
     function test_extend_succeeds() external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
-        assertTrue(superchainConfig.pauseUsed(address(this)));
         uint256 firstPauseTimestamp = block.timestamp;
 
         vm.warp(block.timestamp + 1);
 
         superchainConfig.extend(address(this));
-        assertTrue(superchainConfig.pauseUsed(address(this)));
         assertTrue(superchainConfig.pauseTimestamps(address(this)) > firstPauseTimestamp);
+        assertTrue(superchainConfig.paused(address(this)));
     }
 
     /// @dev Tests that `extend` reverts when called by a non-guardian.
@@ -139,7 +138,7 @@ contract SuperchainConfig_Extend_Test is CommonTest {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
 
-        vm.expectRevert(ISuperchainConfig.OnlyGuardian.selector);
+        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         vm.prank(alice);
         superchainConfig.extend(address(this));
     }

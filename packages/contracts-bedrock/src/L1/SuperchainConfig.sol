@@ -48,10 +48,10 @@ contract SuperchainConfig is Initializable, ISemver {
     string public constant version = "2.0.0";
 
     /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
-    error OnlyGuardian();
+    error SuperchainConfig_OnlyGuardian();
 
     /// @notice Thrown when attempting to pause an identifier that is already paused
-    error AlreadyPaused(string identifier);
+    error SuperchainConfig_AlreadyPaused(string identifier);
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
@@ -70,10 +70,10 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _identifier The address identifier for the pause.
     function pause(address _identifier) external {
         if (msg.sender != guardian) {
-            revert OnlyGuardian();
+            revert SuperchainConfig_OnlyGuardian();
         }
         if (pauseTimestamps[_identifier] != 0) {
-            revert AlreadyPaused(string(abi.encodePacked(_identifier)));
+            revert SuperchainConfig_AlreadyPaused(string(abi.encodePacked(_identifier)));
         }
 
         pauseTimestamps[_identifier] = block.timestamp;
@@ -84,7 +84,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _identifier The address identifier to unpause.
     function unpause(address _identifier) external {
         if (msg.sender != guardian) {
-            revert OnlyGuardian();
+            revert SuperchainConfig_OnlyGuardian();
         }
 
         pauseTimestamps[_identifier] = 0;
@@ -122,7 +122,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _identifier The address identifier to extend.
     function extend(address _identifier) external {
         if (msg.sender != guardian) {
-            revert OnlyGuardian();
+            revert SuperchainConfig_OnlyGuardian();
         }
         pauseTimestamps[_identifier] = block.timestamp;
         emit Paused(string(abi.encodePacked(_identifier)));

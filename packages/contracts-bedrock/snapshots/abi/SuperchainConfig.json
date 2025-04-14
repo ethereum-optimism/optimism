@@ -242,12 +242,12 @@
         "type": "string"
       }
     ],
-    "name": "AlreadyPaused",
+    "name": "SuperchainConfig_AlreadyPaused",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "OnlyGuardian",
+    "name": "SuperchainConfig_OnlyGuardian",
     "type": "error"
   }
 ]
