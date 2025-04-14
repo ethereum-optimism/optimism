@@ -185,7 +185,7 @@ func consolidateToSafe(t helpers.Testing, actors *dsl.InteropActors, startA, sta
 	assertHeads(t, actors.ChainA, endA, startA, startA, startA)
 	assertHeads(t, actors.ChainB, endB, startB, startB, startB)
 
-	t.Log("awaiting node to sync: unsafe to local0safe")
+	t.Log("awaiting node to sync: unsafe to local-safe")
 	actors.ChainA.Sequencer.ActL2PipelineFull(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	assertHeads(t, actors.ChainA, endA, endA, startA, startA)
@@ -699,7 +699,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	actors.ChainA.Sequencer.ActL2EndBlock(t)
 	actors.ChainB.Sequencer.ActL2EndBlock(t)
 	assertHeads(t, actors.ChainA, 2, 0, 0, 0)
-	assertHeads(t, actors.ChainA, 2, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 2, 0, 0, 0)
 
 	// store unsafe head of chain A, B to compare after consolidation
 	chainAUnsafeHead := actors.ChainA.Sequencer.SyncStatus().UnsafeL2
