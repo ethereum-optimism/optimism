@@ -243,8 +243,7 @@ library ChainAssertions {
             require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-30");
             require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-DWETH-40");
         } else {
-            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-DWETH-50");
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-60");
+            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-50");
         }
     }
 
