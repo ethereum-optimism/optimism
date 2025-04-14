@@ -48,7 +48,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     }
 
     /// @notice Version identifier, used for upgrades.
-    uint256 public constant VERSION = 1;
+    uint256 public constant VERSION = 0;
 
     /// @notice Storage slot that the unsafe block signer is stored at.
     ///         Storing it at this deterministic storage slot allows for decoupling the storage

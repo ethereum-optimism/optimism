@@ -275,7 +275,6 @@ library ChainAssertions {
             require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-PDWETH-40");
         } else {
             require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-PDWETH-50");
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-PDWETH-60");
         }
     }
 

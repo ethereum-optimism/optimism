@@ -564,15 +564,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             uint256 l2ChainId = getL2ChainId(IFaultDisputeGame(address(permissionedDisputeGame)));
 
             // Start by upgrading the SystemConfig contract to have the l2ChainId.
-            /*
+
             upgradeToAndCall(
                 _opChainConfigs[i].proxyAdmin,
                 address(_opChainConfigs[i].systemConfigProxy),
                 impls.systemConfigImpl,
-                // PEP: How to get the correct superchain config?
-                abi.encodeCall(ISystemConfig.upgrade, (l2ChainId))
+                abi.encodeCall(ISystemConfig.upgrade, (ISuperchainConfig(impls.superchainConfigImpl)))
             );
-            */
 
             // Grab chain addresses here. We need to do this after the SystemConfig upgrade or the
             // addresses will be incorrect.
