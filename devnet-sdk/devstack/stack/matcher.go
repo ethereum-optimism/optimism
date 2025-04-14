@@ -53,6 +53,4 @@ type SupervisorMatcher = Matcher[SupervisorID, Supervisor]
 
 type L2ELMatcher = Matcher[L2ELNodeID, L2ELNode]
 
-type UserMatcher = Matcher[UserID, User]
-
 type FaucetMatcher = Matcher[FaucetID, Faucet]

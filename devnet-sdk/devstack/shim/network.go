@@ -15,11 +15,10 @@ type NetworkConfig struct {
 
 type presetNetwork struct {
 	commonImpl
-	faucet   stack.Faucet
 	chainCfg *params.ChainConfig
 	chainID  eth.ChainID
 
-	users locks.RWMap[stack.UserID, stack.User]
+	faucets locks.RWMap[stack.FaucetID, stack.Faucet]
 }
 
 var _ stack.Network = (*presetNetwork)(nil)
@@ -41,25 +40,22 @@ func (p *presetNetwork) ChainConfig() *params.ChainConfig {
 	return p.chainCfg
 }
 
-func (p *presetNetwork) Faucet() stack.Faucet {
-	p.require().NotNil(p.faucet, "faucet not available")
-	return p.faucet
+func (p *presetNetwork) FaucetIDs() []stack.FaucetID {
+	return stack.SortFaucetIDs(p.faucets.Keys())
 }
 
-func (p *presetNetwork) User(m stack.UserMatcher) stack.User {
-	v, ok := findMatch(m, p.users.Get, p.Users)
-	p.require().True(ok, "must find user %s", m)
+func (p *presetNetwork) Faucets() []stack.Faucet {
+	return stack.SortFaucets(p.faucets.Values())
+}
+
+func (p *presetNetwork) Faucet(m stack.FaucetMatcher) stack.Faucet {
+	v, ok := findMatch(m, p.faucets.Get, p.Faucets)
+	p.require().True(ok, "must find faucet %s", m)
 	return v
 }
 
-func (p *presetNetwork) AddUser(v stack.User) {
-	p.require().True(p.users.SetIfMissing(v.ID(), v), "user %s must not already exist", v.ID())
-}
-
-func (p *presetNetwork) Users() []stack.User {
-	return stack.SortUsers(p.users.Values())
-}
-
-func (p *presetNetwork) UserIDs() []stack.UserID {
-	return stack.SortUserIDs(p.users.Keys())
+func (p *presetNetwork) AddFaucet(v stack.Faucet) {
+	id := v.ID()
+	p.require().Equal(p.chainID, id.ChainID, "faucet %s must be on chain %s", id, p.chainID)
+	p.require().True(p.faucets.SetIfMissing(id, v), "faucet %s must not already exist", id)
 }

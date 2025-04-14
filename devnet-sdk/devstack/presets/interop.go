@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 )
 
 type SimpleInterop struct {
@@ -19,6 +20,17 @@ type SimpleInterop struct {
 
 	L2ChainA *dsl.L2Network
 	L2ChainB *dsl.L2Network
+
+	L2ELA *dsl.L2ELNode
+	L2ELB *dsl.L2ELNode
+
+	Wallet *dsl.HDWallet
+
+	FaucetA *dsl.Faucet
+	FaucetB *dsl.Faucet
+
+	FunderA *dsl.Funder
+	FunderB *dsl.Funder
 }
 
 func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
@@ -50,12 +62,22 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
 	// since currently there's no way to tell which nodes are using which supervisor.
 	supervisorId := system.SupervisorIDs()[0]
-	return &SimpleInterop{
+	l2A := system.L2Network(match.L2ChainA)
+	l2B := system.L2Network(match.L2ChainB)
+	out := &SimpleInterop{
 		Log:          t.Logger(),
 		T:            t,
 		Supervisor:   dsl.NewSupervisor(system.Supervisor(supervisorId)),
 		ControlPlane: orch.ControlPlane(),
-		L2ChainA:     dsl.NewL2Network(system.L2Network(match.L2ChainA)),
-		L2ChainB:     dsl.NewL2Network(system.L2Network(match.L2ChainB)),
+		L2ChainA:     dsl.NewL2Network(l2A),
+		L2ChainB:     dsl.NewL2Network(l2B),
+		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.FirstL2EL)),
+		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.FirstL2EL)),
+		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
+		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.FirstFaucet)),
+		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.FirstFaucet)),
 	}
+	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
+	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
+	return out
 }

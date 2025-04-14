@@ -1,12 +1,9 @@
 package sysext
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"net/http"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
@@ -89,11 +86,6 @@ func (orch *Orchestrator) findProtocolService(service *descriptors.Service, prot
 		}
 	}
 	return "", nil, fmt.Errorf("protocol %s not found", protocol)
-}
-
-func decodePrivateKey(key string) (*ecdsa.PrivateKey, error) {
-	b := common.FromHex(key)
-	return crypto.ToECDSA(b)
 }
 
 type hostSettingRoundTripper struct {

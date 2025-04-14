@@ -3,7 +3,6 @@ package sysext
 import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -48,17 +47,6 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 			},
 			CommonConfig: commonConfig,
 			Client:       o.httpClient(system.T(), clService, HTTPProtocol),
-		}))
-	}
-
-	for name, wallet := range env.L1.Wallets {
-		priv, err := decodePrivateKey(wallet.PrivateKey)
-		require.NoError(err)
-		l1.AddUser(shim.NewUser(shim.UserConfig{
-			CommonConfig: commonConfig,
-			ID:           stack.UserID{Key: name, ChainID: l1ID},
-			Priv:         priv,
-			EL:           l1.L1ELNode(match.FirstL1EL),
 		}))
 	}
 

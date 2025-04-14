@@ -59,6 +59,17 @@ func (p *presetSystem) AddCluster(v stack.Cluster) {
 	p.require().True(p.clusters.SetIfMissing(v.ID(), v), "cluster %s must not already exist", v.ID())
 }
 
+func (p *presetSystem) Network(id eth.ChainID) stack.Network {
+	if l1Net, ok := p.l1Networks.Get(stack.L1NetworkID(id)); ok {
+		return l1Net
+	}
+	if l2Net, ok := p.l2Networks.Get(stack.L2NetworkID(id)); ok {
+		return l2Net
+	}
+	p.t.FailNow()
+	return nil
+}
+
 func (p *presetSystem) L1Network(m stack.L1NetworkMatcher) stack.L1Network {
 	v, ok := findMatch(m, p.l1Networks.Get, p.L1Networks)
 	p.require().True(ok, "must find l1 network %s", m)

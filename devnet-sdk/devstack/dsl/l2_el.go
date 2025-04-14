@@ -5,6 +5,7 @@ import "github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {
 	commonImpl
+	elNode
 	inner stack.L2ELNode
 }
 
@@ -12,6 +13,7 @@ type L2ELNode struct {
 func NewL2ELNode(inner stack.L2ELNode) *L2ELNode {
 	return &L2ELNode{
 		commonImpl: commonFromT(inner.T()),
+		elNode:     elNode{inner: inner},
 		inner:      inner,
 	}
 }

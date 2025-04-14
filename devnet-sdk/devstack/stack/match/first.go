@@ -18,4 +18,4 @@ var FirstL2Network = First[stack.L2NetworkID, stack.L2Network]()
 var FirstSuperchain = First[stack.SuperchainID, stack.Superchain]()
 var FirstCluster = First[stack.ClusterID, stack.Cluster]()
 
-var FirstUser = First[stack.UserID, stack.User]()
+var FirstFaucet = First[stack.FaucetID, stack.Faucet]()

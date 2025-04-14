@@ -1,5 +1,7 @@
 package stack
 
+import "github.com/ethereum-optimism/optimism/op-service/apis"
+
 // FaucetID identifies a Faucet by name and chainID, is type-safe, and can be value-copied and used as map key.
 type FaucetID idWithChain
 
@@ -38,6 +40,5 @@ func (id FaucetID) Match(elems []Faucet) []Faucet {
 type Faucet interface {
 	Common
 	ID() FaucetID
-	// NewUser creates a new pre-funded user account
-	NewUser() User
+	API() apis.Faucet
 }

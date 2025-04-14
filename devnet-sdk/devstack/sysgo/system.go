@@ -100,6 +100,8 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
 
 	// TODO(#15057): maybe L2 challenger
 
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
 	opt.Add(func(orch stack.Orchestrator) {

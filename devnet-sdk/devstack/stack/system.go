@@ -1,5 +1,7 @@
 package stack
 
+import "github.com/ethereum-optimism/optimism/op-service/eth"
+
 // System represents a collection of L1 and L2 chains, any superchains or clusters, and any peripherals.
 type System interface {
 	Common
@@ -8,6 +10,8 @@ type System interface {
 	Cluster(m ClusterMatcher) Cluster
 	L1Network(m L1NetworkMatcher) L1Network
 	L2Network(m L2NetworkMatcher) L2Network
+
+	Network(id eth.ChainID) Network
 
 	Supervisor(m SupervisorMatcher) Supervisor
 

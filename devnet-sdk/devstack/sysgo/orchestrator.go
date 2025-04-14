@@ -37,6 +37,8 @@ type Orchestrator struct {
 	//challengers locks.RWMap[stack.L2ChallengerID, *L2Challenger] // TODO(#15057): op-challenger support
 	proposers locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
+	faucet *FaucetService
+
 	controlPlane *ControlPlane
 
 	jwtPath     string
@@ -83,6 +85,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.supervisors.Range(rangeHydrateFn[stack.SupervisorID, *Supervisor](sys))
 	o.batchers.Range(rangeHydrateFn[stack.L2BatcherID, *L2Batcher](sys))
 	o.proposers.Range(rangeHydrateFn[stack.L2ProposerID, *L2Proposer](sys))
+	o.faucet.hydrate(sys)
 }
 
 type hydrator interface {

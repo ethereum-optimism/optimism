@@ -18,8 +18,6 @@ func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
 }
 
 func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.ExtensibleSystem) {
-	require := o.P().Require()
-
 	commonConfig := shim.NewCommonConfig(system.T())
 
 	env := o.env
@@ -55,17 +53,6 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	o.hydrateBatcherMaybe(net, l2)
 	o.hydrateProposerMaybe(net, l2)
 	o.hydrateChallengerMaybe(net, l2)
-
-	for name, wallet := range net.Wallets {
-		priv, err := decodePrivateKey(wallet.PrivateKey)
-		require.NoError(err)
-		l2.AddUser(shim.NewUser(shim.UserConfig{
-			CommonConfig: commonConfig,
-			ID:           stack.UserID{Key: name, ChainID: l2ID.ChainID()},
-			Priv:         priv,
-			EL:           l2.L2ELNode(match.FirstL2EL),
-		}))
-	}
 
 	system.AddL2Network(l2)
 }

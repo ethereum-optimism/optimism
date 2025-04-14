@@ -60,8 +60,19 @@ Available components:
   - `L2Proposer`: op-proposer, or equivalent
   - `L2Challenger`: op-challenger, or equivalent
 - `Supervisor`: op-supervisor service, or equivalent
-- `Faucet`: util to create funded user-accounts
-- `User`: util to interact with a chain using an EOA key
+- `Faucet`: util to fund eth to test accounts
+
+### DSL-only components
+
+Some components are DSL-only: these are ephemeral,
+live only for the duration of a test-case, and do not share state with other tests.
+
+Available components:
+- `Key`: a chain-agnostic private key to sign ethereum things with.
+- `HDWallet`: a source to create new `Key`s from.
+- `EOA`: an Externally-Owned-Account (EOA) is a private-key backed ethereum account, specific to a single chain.
+  This is a `Key` coupled to an `ELNode` (L1 or L2).
+- `Funder`: a wallet combined with a faucet and EL node, to create pre-funded `EOA`s
 
 ### `Orchestrator` interface
 
