@@ -119,7 +119,7 @@ func RandomInitTrigger(rng *rand.Rand, eventLoggerAddress common.Address, cnt, l
 }
 
 // ExecTriggerFromInitTrigger returns corresponding execTrigger with necessary information
-func ExecTriggerFromInitTrigger(init *txintent.InitTrigger, logIndex uint, targetNum, targetTime uint64, chainID eth.ChainID) *txintent.ExecTrigger {
+func ExecTriggerFromInitTrigger(init *txintent.InitTrigger, logIndex uint, targetNum, targetTime uint64, chainID eth.ChainID) (*txintent.ExecTrigger, error) {
 	topics := []common.Hash{}
 	for _, topic := range init.Topics {
 		topics = append(topics, topic)
@@ -129,9 +129,15 @@ func ExecTriggerFromInitTrigger(init *txintent.InitTrigger, logIndex uint, targe
 	logs := []*types.Log{log}
 	rec := &types.Receipt{Logs: logs}
 	includedIn := eth.BlockRef{Time: targetTime}
-	outputX := &txintent.InteropOutput{}
-	outputX.FromReceipt(context.TODO(), rec, includedIn, chainID)
-	return &txintent.ExecTrigger{Executor: constants.CrossL2Inbox, Msg: outputX.Entries[0]}
+	output := &txintent.InteropOutput{}
+	err := output.FromReceipt(context.TODO(), rec, includedIn, chainID)
+	if err != nil {
+		return nil, err
+	}
+	if x := len(output.Entries); x <= int(logIndex) {
+		return nil, fmt.Errorf("invalid index: %d, only have %d events", logIndex, x)
+	}
+	return &txintent.ExecTrigger{Executor: constants.CrossL2Inbox, Msg: output.Entries[logIndex]}, nil
 }
 
 func SetupDefaultInteropSystemTest(l2ChainNums int) ([]validators.WalletGetter, []systest.PreconditionValidator) {

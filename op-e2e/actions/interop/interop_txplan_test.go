@@ -786,9 +786,11 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	// speculatively build exec messages by knowing necessary info to build Message
 	initX := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
 	logIndexX, logIndexY := uint(0), uint(0)
-	execX := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	require.NoError(t, err)
 	initY := interop.RandomInitTrigger(rng, eventLoggerAddressB, 4, 7)
-	execY := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainB.ChainID)
+	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainB.ChainID)
+	require.NoError(t, err)
 
 	callsA := []txintent.Call{initX, execY}
 	callsB := []txintent.Call{initY, execX}
