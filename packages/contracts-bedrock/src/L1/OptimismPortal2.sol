@@ -277,11 +277,25 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         __ResourceMetering_init();
     }
 
-    /// @notice Upgrades the OptimismPortal contract to have a reference to the SystemConfig.
+    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry and SystemConfig
+    /// @param _anchorStateRegistry AnchorStateRegistry contract.
+    /// @param _ethLockbox ETHLockbox contract.
     /// @param _systemConfig SystemConfig contract.
-    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+    function upgrade(
+        IAnchorStateRegistry _anchorStateRegistry,
+        IETHLockbox _ethLockbox,
+        ISystemConfig _systemConfig
+    )
+        external
+        reinitializer(initVersion())
+    {
+        anchorStateRegistry = _anchorStateRegistry;
+        ethLockbox = _ethLockbox;
         systemConfig = _systemConfig;
         spacer_53_1_20 = address(0);
+
+        // Migrate the whole ETH balance to the ETHLockbox.
+        _migrateLiquidity();
     }
 
     /// @notice Getter for the current paused status.

@@ -210,7 +210,14 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
     /// @param _superchainConfig The SuperchainConfig contract address.
-    function upgrade(ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
+    function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
+        // Set the L2 chain ID.
+        l2ChainId = _l2ChainId;
+
+        // Clear out the old dispute game factory address, it's derived now.
+        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+        Storage.setAddress(disputeGameFactorySlot, address(0));
+
         superchainConfig = _superchainConfig;
     }
 
