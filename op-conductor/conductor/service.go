@@ -42,7 +42,7 @@ var (
 
 // New creates a new OpConductor instance.
 func New(ctx context.Context, cfg *Config, log log.Logger, version string) (*OpConductor, error) {
-	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil, nil)
+	return NewOpConductor(ctx, cfg, log, metrics.NewMetrics(), version, nil, nil, nil)
 }
 
 // NewOpConductor creates a new OpConductor instance.
@@ -55,7 +55,6 @@ func NewOpConductor(
 	ctrl client.SequencerControl,
 	cons consensus.Consensus,
 	hmon health.HealthMonitor,
-	rollupBoost client.RollupBoostControl,
 ) (*OpConductor, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, errors.Wrap(err, "invalid config")
@@ -283,26 +282,27 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 }
 
 func (c *OpConductor) initRollupBoostControl(ctx context.Context) error {
+	// Skip initialization if URL is not provided
 	if c.cfg.RollupBoostDebugURL == "" {
 		c.log.Info("Rollup boost debug URL not provided, skipping rollup boost initialization")
 		return nil
 	}
 
+	// Create the rollup boost client
 	rbClient, err := client.NewRollupBoostControlClient(ctx, c.cfg.RollupBoostDebugURL, c.log)
 	if err != nil {
 		return errors.Wrap(err, "failed to create rollup boost client")
 	}
 	c.rollupBoost = rbClient
+	c.log.Info("Created rollup boost client", "url", c.cfg.RollupBoostDebugURL)
 
 	// Initialize rollup boost to disabled state
 	if err := c.rollupBoost.SetExecutionMode(ctx, false); err != nil {
-		c.log.Warn("Failed to set initial rollup boost execution mode", "err", err)
-		// Don't return error here as rollup boost is not critical for operation
-	} else {
-		c.log.Info("Set initial rollup boost execution mode to disabled")
+		c.log.Error("Failed to set initial rollup boost execution mode", "err", err)
+		return errors.Wrap(err, "failed to set initial rollup boost execution mode")
 	}
 
-	c.log.Info("Initialized rollup boost client", "url", c.cfg.RollupBoostDebugURL)
+	c.log.Info("Set initial rollup boost execution mode to disabled")
 	return nil
 }
 
@@ -841,6 +841,16 @@ func (oc *OpConductor) stopSequencer() error {
 			return errors.Wrap(err, "failed to stop sequencer")
 		}
 	}
+
+	// If we have a rollup boost client, disable it now that the sequencer is stopped
+	if oc.rollupBoost != nil {
+		if rbErr := oc.rollupBoost.SetExecutionMode(oc.shutdownCtx, false); rbErr != nil {
+			oc.log.Error("failed to disable rollup boost execution mode", "err", rbErr)
+			return fmt.Errorf("failed to disable rollup boost execution mode: %w", rbErr)
+		}
+		oc.log.Info("rollup boost disabled")
+	}
+
 	oc.metrics.RecordStopSequencer(err == nil)
 	oc.seqActive.Store(false)
 	return nil
@@ -870,7 +880,27 @@ func (oc *OpConductor) startSequencer() error {
 		return err
 	}
 
-	oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
+	// If no rollup boost client, proceed with normal sequencer start
+	if oc.rollupBoost == nil {
+		oc.log.Info("starting sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
+		err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash)
+		if err != nil {
+			// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
+			if !strings.Contains(err.Error(), driver.ErrSequencerAlreadyStarted.Error()) {
+				return fmt.Errorf("failed to start sequencer: %w", err)
+			} else {
+				oc.log.Warn("sequencer already started.", "err", err)
+			}
+		}
+		oc.metrics.RecordStartSequencer(err == nil)
+		oc.seqActive.Store(true)
+		return nil
+	}
+
+	sequencerStarted := false
+
+	// If rollup boost client is present, start sequencer with rollup boost
+	oc.log.Info("starting sequencer with rollup boost", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
 	err = oc.ctrl.StartSequencer(ctx, unsafeInCons.ExecutionPayload.BlockHash)
 	if err != nil {
 		// cannot directly compare using Errors.Is because the error is returned from an JSON RPC server which lost its type.
@@ -880,8 +910,30 @@ func (oc *OpConductor) startSequencer() error {
 			oc.log.Warn("sequencer already started.", "err", err)
 		}
 	}
-	oc.metrics.RecordStartSequencer(err == nil)
 
+	sequencerStarted = true
+
+	// Set up deferred cleanup in case of errors with rollup boost
+	defer func() {
+		if sequencerStarted && !oc.seqActive.Load() && oc.ctrl != nil {
+			// If we started the sequencer but failed to set rollup boost (and thus didn't set seqActive),
+			// try to stop the sequencer again
+			_, stopErr := oc.ctrl.StopSequencer(oc.shutdownCtx)
+			if stopErr != nil {
+				oc.log.Error("failed to roll back sequencer state after rollup boost failure", "err", stopErr)
+			} else {
+				oc.log.Warn("sequencer rolled back due to rollup boost failure")
+			}
+		}
+	}()
+
+	// Enable rollup boost
+	if err := oc.rollupBoost.SetExecutionMode(ctx, true); err != nil {
+		return fmt.Errorf("failed to enable rollup boost execution mode: %w", err)
+	}
+
+	oc.log.Info("Sequencer started with rollup boost enabled")
+	oc.metrics.RecordStartSequencer(true)
 	oc.seqActive.Store(true)
 	return nil
 }
