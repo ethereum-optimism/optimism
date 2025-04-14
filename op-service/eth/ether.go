@@ -124,34 +124,6 @@ func (e ETH) ToBig() *big.Int {
 	return (*uint256.Int)(&e).ToBig()
 }
 
-// SetFromUint64 sets from an uint64, in wei.
-// The upper 192 bits are zeroed.
-func (e *ETH) SetFromUint64(v uint64) {
-	(*uint256.Int)(e).SetUint64(v)
-}
-
-// SetFromBig sets from a *big.Int,
-// and returns true if the value does not fit and overflows the uint256 max size.
-func (e *ETH) SetFromBig(v *big.Int) (overflow bool) {
-	if v == nil {
-		panic("cannot set to nil big.Int")
-	}
-	return (*uint256.Int)(e).SetFromBig(v)
-}
-
-// SetFromUint256 sets from a *uint256.Int
-func (e *ETH) SetFromUint256(v *uint256.Int) {
-	if v == nil {
-		panic("cannot set to nil uint256.Int")
-	}
-	*e = ETH(*v)
-}
-
-// Set sets to the given ETH value
-func (e *ETH) Set(v ETH) {
-	*e = v
-}
-
 // Add adds v and returns the result. No value is mutated.
 // Add panics if the computation overflows uint256.
 func (e ETH) Add(v ETH) (out ETH) {
@@ -252,21 +224,33 @@ func (e ETH) MarshalText() ([]byte, error) {
 }
 
 // WeiBig turns the given big.Int amount of wei into ETH-typed wei.
-// This panics if the amount does not fit in 256 bits.
+// This panics if the amount does not fit in 256 bits, or if it is negative.
 func WeiBig(wei *big.Int) (out ETH) {
-	out.SetFromBig(wei)
+	if wei == nil {
+		panic("nil *big.Int input to ETH constructor")
+	}
+	if wei.Sign() < 0 {
+		panic("negative amounts are not supported")
+	}
+	overflow := (*uint256.Int)(&out).SetFromBig(wei)
+	if overflow {
+		panic("*big.Int input does not fit in uint256")
+	}
 	return
 }
 
 // WeiU256 turns the given uint256.Int amount of wei into ETH-typed wei.
 func WeiU256(wei *uint256.Int) (out ETH) {
-	out.SetFromUint256(wei)
-	return
+	if wei == nil {
+		panic("nil *uint256.Int input to ETH constructor")
+	}
+	return ETH(*wei)
 }
 
 // WeiU64 turns the given uint64 amount of wei into ETH-typed wei.
+// The upper 192 bits are zeroed.
 func WeiU64(wei uint64) (out ETH) {
-	out.SetFromUint64(wei)
+	(*uint256.Int)(&out).SetUint64(wei)
 	return
 }
 

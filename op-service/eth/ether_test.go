@@ -189,11 +189,11 @@ func TestEther(t *testing.T) {
 	})
 
 	t.Run("set", func(t *testing.T) {
-		var x ETH
-		x.Set(OneEther)
+		x := OneEther
 		require.Equal(t, x, OneEther)
-		x.Set(Ether(2))
+		x = Ether(2)
 		require.Equal(t, x, Ether(2))
+		require.Equal(t, Ether(1), OneEther, "no mutation of original")
 	})
 
 	t.Run("lt", func(t *testing.T) {
@@ -233,6 +233,17 @@ func TestEther(t *testing.T) {
 		v := uint256.Int{0: 0xc0ff_ee12, 1: 0xabcd_1234, 2: 0xef56_7801, 3: 0x1234_5657}
 		require.Equal(t, v.String(), WeiU256(&v).ToU256().String())
 		require.Equal(t, v.ToBig().String(), WeiU256(&v).ToBig().String())
+		// check overflow
+		require.Panics(t, func() {
+			WeiBig(new(big.Int).Lsh(big.NewInt(1), 256))
+		})
+		require.Panics(t, func() {
+			WeiBig(new(big.Int).Lsh(big.NewInt(123), 300))
+		})
+		// check negative
+		require.Panics(t, func() {
+			WeiBig(big.NewInt(-1))
+		})
 	})
 
 	t.Run("unmarshal", func(t *testing.T) {
