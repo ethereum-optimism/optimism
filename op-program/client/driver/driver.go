@@ -16,6 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
+var errTooManyEvents = errors.New("way too many events queued up, something is wrong")
+
 type EndCondition interface {
 	Closing() bool
 	Result() (eth.L2BlockRef, error)
@@ -84,7 +86,7 @@ func (d *Driver) RunComplete() (eth.L2BlockRef, error) {
 			return d.end.Result()
 		}
 		if len(d.events) > 10000 { // sanity check, in case of bugs. Better than going OOM.
-			return eth.L2BlockRef{}, errors.New("way too many events queued up, something is wrong")
+			return eth.L2BlockRef{}, errTooManyEvents
 		}
 		ev := d.events[0]
 		d.events = d.events[1:]

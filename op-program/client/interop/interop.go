@@ -23,6 +23,7 @@ import (
 var (
 	ErrIncorrectOutputRootType = errors.New("incorrect output root type")
 	ErrL1HeadReached           = errors.New("l1 head reached")
+	ErrInvalidPrestate         = errors.New("invalid prestate")
 
 	InvalidTransition     = []byte("invalid")
 	InvalidTransitionHash = crypto.Keccak256Hash(InvalidTransition)
@@ -92,7 +93,7 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 		logger.Info("Already reached game timestamp. No derivation required.")
 		return bootInfo.AgreedPrestate, nil
 	} else if superRoot.Timestamp > bootInfo.GameTimestamp {
-		panic(fmt.Errorf("agreed prestate timestamp %v is after the game timestamp %v", superRoot.Timestamp, bootInfo.GameTimestamp))
+		panic(fmt.Sprintf("agreed prestate timestamp %v is after the game timestamp %v", superRoot.Timestamp, bootInfo.GameTimestamp))
 	}
 	expectedPendingProgress := transitionState.PendingProgress
 	if transitionState.Step < uint64(len(superRoot.Chains)) {
@@ -108,7 +109,7 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 		logger.Info("Running consolidate step")
 		// sanity check
 		if len(transitionState.PendingProgress) >= ConsolidateStep {
-			return common.Hash{}, fmt.Errorf("pending progress length does not match the expected step")
+			return common.Hash{}, fmt.Errorf("%w: pending progress length does not match the expected step", ErrInvalidPrestate)
 		}
 		expectedSuperRoot, err := RunConsolidation(
 			logger, bootInfo, l1PreimageOracle, l2PreimageOracle, transitionState, superRoot, tasks)

@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+var mockErr = errors.New("mock error")
+
 type fakeEnd struct {
 	closing bool
 	result  error
@@ -50,7 +52,6 @@ func TestDriver(t *testing.T) {
 	})
 
 	t.Run("insta error", func(t *testing.T) {
-		mockErr := errors.New("mock error")
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			end.closing = true
 			end.result = mockErr
@@ -75,7 +76,6 @@ func TestDriver(t *testing.T) {
 
 	t.Run("error after a few events", func(t *testing.T) {
 		count := 0
-		mockErr := errors.New("mock error")
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count > 3 {
 				end.closing = true

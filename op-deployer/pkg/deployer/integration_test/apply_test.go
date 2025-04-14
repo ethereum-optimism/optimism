@@ -299,18 +299,44 @@ func TestApplyGenesisStrategy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
-
-	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
-
-	cg := stateDumpCodeGetter(st)
-	validateSuperchainDeployment(t, st, cg, true)
-
-	for i := range intent.Chains {
-		t.Run(fmt.Sprintf("chain-%d", i), func(t *testing.T) {
-			validateOPChainDeployment(t, cg, st, intent, false)
-		})
+	pragueOffset := uint64(2000)
+	l1GenesisParams := &state.L1DevGenesisParams{
+		BlockParams: state.L1DevGenesisBlockParams{
+			Timestamp:     1000,
+			GasLimit:      42_000_000,
+			ExcessBlobGas: 9000,
+		},
+		PragueTimeOffset: &pragueOffset,
 	}
+
+	deployChain := func(l1DevGenesisParams *state.L1DevGenesisParams) *state.State {
+		opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+		intent.L1DevGenesisParams = l1DevGenesisParams
+		require.NoError(t, deployer.ApplyPipeline(ctx, opts))
+		cg := stateDumpCodeGetter(st)
+		validateSuperchainDeployment(t, st, cg, true)
+		validateOPChainDeployment(t, cg, st, intent, false)
+		return st
+	}
+
+	t.Run("defaults", func(t *testing.T) {
+		st := deployChain(nil)
+		require.Greater(t, st.Chains[0].StartBlock.Time, l1GenesisParams.BlockParams.Timestamp)
+		require.Nil(t, st.L1DevGenesis.Config.PragueTime)
+	})
+
+	t.Run("custom", func(t *testing.T) {
+		st := deployChain(l1GenesisParams)
+		require.EqualValues(t, l1GenesisParams.BlockParams.Timestamp, st.Chains[0].StartBlock.Time)
+		require.EqualValues(t, l1GenesisParams.BlockParams.Timestamp, st.L1DevGenesis.Timestamp)
+
+		require.EqualValues(t, l1GenesisParams.BlockParams.GasLimit, st.L1DevGenesis.GasLimit)
+		require.NotNil(t, st.L1DevGenesis.ExcessBlobGas)
+		require.EqualValues(t, l1GenesisParams.BlockParams.ExcessBlobGas, *st.L1DevGenesis.ExcessBlobGas)
+		require.NotNil(t, st.L1DevGenesis.Config.PragueTime)
+		expectedPragueTimestamp := l1GenesisParams.BlockParams.Timestamp + *l1GenesisParams.PragueTimeOffset
+		require.EqualValues(t, expectedPragueTimestamp, *st.L1DevGenesis.Config.PragueTime)
+	})
 }
 
 func TestProofParamOverrides(t *testing.T) {

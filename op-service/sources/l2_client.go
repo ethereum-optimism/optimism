@@ -22,8 +22,9 @@ import (
 type L2ClientConfig struct {
 	EthClientConfig
 
-	L2BlockRefsCacheSize int
-	L1ConfigsCacheSize   int
+	L2BlockRefsCacheSize         int
+	L1ConfigsCacheSize           int
+	FetchWithdrawalRootFromState bool
 
 	RollupCfg *rollup.Config
 }
@@ -75,6 +76,8 @@ type L2Client struct {
 	// cache SystemConfig by L2 hash
 	// common.Hash -> eth.SystemConfig
 	systemConfigsCache *caching.LRUCache[common.Hash, eth.SystemConfig]
+
+	fetchWithdrawalRootFromState bool
 }
 
 var _ apis.L2EthExtendedClient = (*L2Client)(nil)
@@ -89,10 +92,11 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	}
 
 	return &L2Client{
-		EthClient:          ethClient,
-		rollupCfg:          config.RollupCfg,
-		l2BlockRefsCache:   caching.NewLRUCache[common.Hash, eth.L2BlockRef](metrics, "blockrefs", config.L2BlockRefsCacheSize),
-		systemConfigsCache: caching.NewLRUCache[common.Hash, eth.SystemConfig](metrics, "systemconfigs", config.L1ConfigsCacheSize),
+		EthClient:                    ethClient,
+		rollupCfg:                    config.RollupCfg,
+		l2BlockRefsCache:             caching.NewLRUCache[common.Hash, eth.L2BlockRef](metrics, "blockrefs", config.L2BlockRefsCacheSize),
+		systemConfigsCache:           caching.NewLRUCache[common.Hash, eth.SystemConfig](metrics, "systemconfigs", config.L1ConfigsCacheSize),
+		fetchWithdrawalRootFromState: config.FetchWithdrawalRootFromState,
 	}, nil
 }
 
@@ -197,11 +201,14 @@ func (s *L2Client) outputV0(ctx context.Context, block eth.BlockInfo) (*eth.Outp
 
 	blockHash := block.Hash()
 	var messagePasserStorageRoot eth.Bytes32
-	if s.rollupCfg.IsIsthmus(block.Time()) {
-		// If Isthmus hard fork has activated, we can get the messagePasserStorageRoot directly from the header
+	if s.rollupCfg.IsIsthmus(block.Time()) && !s.fetchWithdrawalRootFromState {
+		s.log.Debug("Retrieving withdrawal root from block header")
+		// If Isthmus hard fork has activated, we can get the withdrawal root directly from the header
 		// instead of having to compute it from the contract storage trie.
 		messagePasserStorageRoot = eth.Bytes32(*block.WithdrawalsRoot())
+
 	} else {
+		s.log.Debug("Bypassing block header, retrieving withdrawal root from state")
 		proof, err := s.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, blockHash.String())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get contract proof at block %s: %w", blockHash, err)

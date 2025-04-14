@@ -19,6 +19,11 @@ func TestGetCustomRollupConfig(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestGetCustomRollupConfig_Missing(t *testing.T) {
+	_, err := rollupConfigByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigFS)
+	require.ErrorIs(t, err, ErrMissingChainConfig)
+}
+
 // TestGetCustomChainConfig tests loading the custom chain configs from test embed FS.
 func TestGetCustomChainConfig(t *testing.T) {
 	config, err := chainConfigByChainID(eth.ChainIDFromUInt64(901), test.TestCustomChainConfigFS)
@@ -27,6 +32,11 @@ func TestGetCustomChainConfig(t *testing.T) {
 
 	_, err = chainConfigByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.Error(t, err)
+}
+
+func TestGetCustomChainConfig_Missing(t *testing.T) {
+	_, err := chainConfigByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigFS)
+	require.ErrorIs(t, err, ErrMissingChainConfig)
 }
 
 func TestGetCustomDependencySetConfig(t *testing.T) {
@@ -42,6 +52,11 @@ func TestGetCustomDependencySetConfig(t *testing.T) {
 
 	_, err = dependencySetByChainID(eth.ChainIDFromUInt64(900), test.TestCustomChainConfigFS)
 	require.Error(t, err)
+}
+
+func TestGetCustomDependencySetConfig_MissingConfig(t *testing.T) {
+	_, err := dependencySetByChainID(eth.ChainIDFromUInt64(11111), test.TestCustomChainConfigEmptyFS)
+	require.ErrorIs(t, err, ErrMissingChainConfig)
 }
 
 func TestListCustomChainIDs(t *testing.T) {

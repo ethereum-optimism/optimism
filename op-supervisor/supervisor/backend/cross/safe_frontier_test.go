@@ -2,6 +2,7 @@ package cross
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -195,12 +196,12 @@ func (m mockDependencySet) ChainIDFromIndex(index types.ChainIndex) (eth.ChainID
 }
 
 func (m mockDependencySet) ChainIndexFromID(chain eth.ChainID) (types.ChainIndex, error) {
-	v, err := chain.ToUInt32()
-	if err != nil {
-		return 0, err
+	v := chain.ToBig()
+	if v.BitLen() > 20 {
+		return 0, fmt.Errorf("chain ID is too large for mock dependency set: %s", chain)
 	}
-	// offset, so we catch improper manual conversion that doesn't apply this offset
-	return types.ChainIndex(v + 1000), nil
+	// offset, so we catch improper manual conversion that doesn't apply this arbitrary offset
+	return types.ChainIndex(v.Uint64() + 1000), nil
 }
 
 func (m mockDependencySet) Chains() []eth.ChainID {

@@ -119,6 +119,30 @@ func (g *CannonHelper) WaitForPreimageInOracle(ctx context.Context, data *types.
 	g.require.NoErrorf(err, "Did not find preimage (%v) in oracle", common.Bytes2Hex(data.OracleKey))
 }
 
+// CheckPreimageInOracle verifies that expectedData is stored on-chain in the PreimageOracle
+func (g *CannonHelper) CheckPreimageInOracle(ctx context.Context, data *types.PreimageOracleData, expectedData [32]byte) {
+	// Make sure data for this key and offset has been set before attempting to retrieve the data
+	g.WaitForPreimageInOracle(ctx, data)
+
+	// Pull preimage data from oracle and verify it matches our expectation
+	globalData, err := g.oracle(ctx).GetGlobalData(ctx, data)
+	g.require.NoError(err, "Failed to fetch global data")
+	g.require.Equal(expectedData[:], globalData[:], "Preimage data is incorrect")
+}
+
+// GetPreimageAtOffset returns a slice of the preimage data (with size prefix) at the specified offset
+// This can be used to determine what preimage part we expect to be stored in the PreimageOracle contract.
+// This only works for some types of preimages, however.  For example, precompile preimages store data that is
+// computed on-chain
+func (g *CannonHelper) GetPreimageAtOffset(data *types.PreimageOracleData) [32]byte {
+	var part [32]byte
+
+	offset := data.OracleOffset
+	copy(part[:], data.GetPreimageWithSize()[offset:])
+
+	return part
+}
+
 func (g *CannonHelper) UploadPreimage(ctx context.Context, data *types.PreimageOracleData) {
 	oracle := g.oracle(ctx)
 	tx, err := oracle.AddGlobalDataTx(data)
@@ -161,13 +185,110 @@ func (g *CannonHelper) CreateStepLargePreimageLoadCheck(ctx context.Context, sen
 	}
 }
 
+// ExpectedDataGetter should return (true, data) if expected data should be checked
+// Otherwise should return (false, empty data)
+type ExpectedDataGetter = func(p *types.PreimageOracleData) (bool, [32]byte)
+
+// CreateStepPreimageLoadCheck returns a PreimageLoadCheck that generates the expected preimage data and
+// verifies that data for the expected key is stored on-chain (PreimageOracle.preimagePartOk[key][offset] == true).
 func (g *CannonHelper) CreateStepPreimageLoadCheck(ctx context.Context) PreimageLoadCheck {
+	noop := func(_ *types.PreimageOracleData) (bool, [32]byte) { return false, [32]byte{} }
+	return g.createStepPreimageLoadCheck(ctx, noop)
+}
+
+// CreateStepPreimageLoadStrictCheck returns a PreimageLoadCheck that generates the expected preimage data and
+// verifies that data for the expected key is stored on-chain (PreimageOracle.preimagePartOk[key][offset] == true).
+// Additionally, it checks that the data stored on-chain (in PreimageOracle.preimageParts) is what we expect.
+func (g *CannonHelper) CreateStepPreimageLoadStrictCheck(ctx context.Context, expectedData ExpectedDataGetter) PreimageLoadCheck {
+	g.require.NotEmpty(expectedData)
+	return g.createStepPreimageLoadCheck(ctx, expectedData)
+}
+
+func (g *CannonHelper) createStepPreimageLoadCheck(ctx context.Context, getExpectedData ExpectedDataGetter) PreimageLoadCheck {
 	return func(provider types.TraceProvider, targetTraceIndex uint64) error {
 		execDepth := g.splitGame.ExecDepth(ctx)
 		_, _, preimageData, err := provider.GetStepData(ctx, types.NewPosition(execDepth, big.NewInt(int64(targetTraceIndex))))
 		g.require.NoError(err)
+
+		// Check that preimagePartOk[preimageData.OracleKey][preimageData.OracleOffset] == true
 		g.WaitForPreimageInOracle(ctx, preimageData)
+
+		// If requested, check that the expected data is actually in the oracle
+		// Specifically, check that preimageParts[preimageData.OracleKey][preimageData.OracleOffset] == expectedDta
+		shouldCheckData, expectedData := getExpectedData(preimageData)
+		if shouldCheckData {
+			g.CheckPreimageInOracle(ctx, preimageData, expectedData)
+		}
+
 		return nil
+	}
+}
+
+type FindPreimageStepConfig struct {
+	allowEvenFallback  bool
+	skipNPreimageLoads int
+}
+
+type FindPreimageStepOpt func(cfg *FindPreimageStepConfig)
+
+func AllowEvenFallback() FindPreimageStepOpt {
+	return func(config *FindPreimageStepConfig) {
+		config.allowEvenFallback = true
+	}
+}
+
+func SkipNPreimageLoads(n int) FindPreimageStepOpt {
+	return func(config *FindPreimageStepConfig) {
+		config.skipNPreimageLoads = n
+	}
+}
+
+// FindOddStepForPreimageLoad attempts to find an odd step that matches the PreimageOptConfig.
+// If no such step is found, falls back to an even step if allowEvenFallback is true, otherwise fails.
+func (g *CannonHelper) FindOddStepForPreimageLoad(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, poConfig utils.PreimageOptConfig, opts ...FindPreimageStepOpt) uint64 {
+	config := &FindPreimageStepConfig{}
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	provider, _, _ := cannonTraceProviderFunc()
+
+	var preimageOpt utils.PreimageOpt
+	var lastStep uint64 = 0
+	// First, if requested, skip some number of preimage loads
+	for i := 0; i < config.skipNPreimageLoads; i++ {
+		preimageOpt = poConfig.PreimageLoad()
+		g.t.Logf("Skipping preimage load %v: %#v", i, poConfig)
+		step, err := provider.FindStep(ctx, lastStep, preimageOpt)
+		g.require.NoError(err)
+
+		lastStep = step
+		poConfig.AfterStep = step + 1
+	}
+
+	lastSkippedStep := lastStep
+	for {
+		preimageOpt = poConfig.PreimageLoad()
+		g.t.Logf("Finding step with preimage load config %#v", poConfig)
+		step, err := provider.FindStep(ctx, lastStep, preimageOpt)
+		if errors.Is(err, io.EOF) {
+			// Unlikely to happen if many preimage loads of the target type occur
+			// Can cause flakes if the target preimage type is not used often
+			if config.allowEvenFallback && lastStep > lastSkippedStep {
+				// If we have advanced the last step past the last skipped step, then the lastStep must be even.
+				// Otherwise, the last step was odd and we should have returned it.
+				g.t.Log("Unable to find odd step that matches the specified preimage load - falling back to an even step")
+				return lastStep
+			} else {
+				g.t.Fatalf("Trace does not contain an odd step that matches the specified preimage load")
+			}
+		}
+		g.require.NoError(err, "Find step failed")
+		if step%2 == 1 {
+			return step
+		}
+		lastStep = step
+		poConfig.AfterStep = step + 1
 	}
 }
 
@@ -177,12 +298,21 @@ func (g *CannonHelper) CreateStepPreimageLoadCheck(ctx context.Context) Preimage
 // 2. Descending the execution game tree to reach the step that loads the preimage
 // 3. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
 // This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
-func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootClaim *ClaimHelper, challengerKey *ecdsa.PrivateKey, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
+func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, preimage utils.PreimageOpt, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
 	// Identifying the first state transition that loads a global preimage
-	provider, _ := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(challengerKey))
+	provider, _, _ := cannonTraceProviderFunc()
 	targetTraceIndex, err := provider.FindStep(ctx, 0, preimage)
 	g.require.NoError(err)
+	g.ChallengeToPreimageLoadAtTarget(ctx, cannonTraceProviderFunc, targetTraceIndex, preimageCheck, preloadPreimage)
+}
 
+// ChallengeToPreimageLoadAtTarget challenges the supplied execution root claim by inducing a step that requires a preimage to be loaded
+// It does this by:
+// 1. Descending the execution game tree to reach the target step that loads the preimage
+// 2. Asserting that the preimage was indeed loaded by an honest challenger (assuming the preimage is not preloaded)
+// This expects an odd execution game depth in order for the honest challenger to step on our leaf claim
+func (g *CannonHelper) ChallengeToPreimageLoadAtTarget(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, targetTraceIndex uint64, preimageCheck PreimageLoadCheck, preloadPreimage bool) {
+	provider, _, outputRootClaim := cannonTraceProviderFunc()
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	execDepth := g.splitGame.ExecDepth(ctx)
 	g.require.NotEqual(outputRootClaim.Position.TraceIndex(execDepth).Uint64(), targetTraceIndex, "cannot move to defend a terminal trace index")
@@ -268,11 +398,9 @@ func (g *CannonHelper) ChallengeToPreimageLoad(ctx context.Context, outputRootCl
 	g.splitGame.LogGameData(ctx)
 }
 
-func (g *CannonHelper) VerifyPreimage(ctx context.Context, outputRootClaim *ClaimHelper, preimageKey preimage.Key) {
-	execDepth := g.splitGame.ExecDepth(ctx)
-
+func (g *CannonHelper) VerifyPreimage(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, preimageKey preimage.Key) {
 	// Identifying the first state transition that loads a global preimage
-	provider, localContext := g.createCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(TestKey))
+	provider, _, _ := cannonTraceProviderFunc()
 	start := uint64(0)
 	found := false
 	for offset := uint32(0); ; offset += 4 {
@@ -290,39 +418,78 @@ func (g *CannonHelper) VerifyPreimage(ctx context.Context, outputRootClaim *Clai
 		found = true
 
 		g.t.Logf("Target trace index: %v", targetTraceIndex)
-		pos := types.NewPosition(execDepth, new(big.Int).SetUint64(targetTraceIndex))
-		g.require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
 
-		prestate, proof, oracleData, err := provider.GetStepData(ctx, pos)
-		g.require.NoError(err, "Failed to get step data")
-		g.require.NotNil(oracleData, "Should have had required preimage oracle data")
-		g.require.Equal(common.Hash(preimageKey.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
+		g.VerifyPreimageAtTarget(ctx, cannonTraceProviderFunc, targetTraceIndex, g.GetOracleKeyValidator(preimageKey), true)
+	}
+}
 
-		candidate, err := g.splitGame.Game.UpdateOracleTx(ctx, uint64(outputRootClaim.Index), oracleData)
+type OracleDataValidator = func(oracleData *types.PreimageOracleData)
+
+func (g *CannonHelper) GetOracleKeyPrefixValidator(prefix byte) OracleDataValidator {
+	return func(oracleData *types.PreimageOracleData) {
+		g.require.Equal(prefix, oracleData.OracleKey[0], "Must have correct preimage key prefix")
+	}
+}
+
+func (g *CannonHelper) GetOracleKeyValidator(key preimage.Key) OracleDataValidator {
+	return func(oracleData *types.PreimageOracleData) {
+		g.require.Equal(common.Hash(key.PreimageKey()).Bytes(), oracleData.OracleKey, "Must have correct preimage key")
+	}
+}
+
+func (g *CannonHelper) VerifyPreimageAtTarget(ctx context.Context, cannonTraceProviderFunc CannonTraceProviderFunc, targetTraceIndex uint64, oracleDataValidator OracleDataValidator, uploadOracleData bool) {
+	execDepth := g.splitGame.ExecDepth(ctx)
+	provider, localContext, outputRootClaim := cannonTraceProviderFunc()
+
+	pos := types.NewPosition(execDepth, new(big.Int).SetUint64(targetTraceIndex))
+	g.require.Equal(targetTraceIndex, pos.TraceIndex(execDepth).Uint64())
+
+	prestate, proof, oracleData, err := provider.GetStepData(ctx, pos)
+	g.require.NoError(err, "Failed to get step data")
+	g.require.NotNil(oracleData, "Should have had required preimage oracle data")
+	oracleDataValidator(oracleData)
+
+	if uploadOracleData {
+		txCandidate, err := g.splitGame.Game.UpdateOracleTx(ctx, uint64(outputRootClaim.Index), oracleData)
 		g.require.NoError(err, "failed to get oracle")
-		transactions.RequireSendTx(g.t, ctx, g.client, candidate, g.privKey)
+		transactions.RequireSendTx(g.t, ctx, g.client, txCandidate, g.privKey)
+	}
 
-		expectedPostState, err := provider.Get(ctx, pos)
-		g.require.NoError(err, "Failed to get expected post state")
+	expectedPostState, err := provider.Get(ctx, pos)
+	g.require.NoError(err, "Failed to get expected post state")
 
-		vm, err := g.splitGame.Game.Vm(ctx)
-		g.require.NoError(err, "Failed to get VM address")
+	vm, err := g.splitGame.Game.Vm(ctx)
+	g.require.NoError(err, "Failed to get VM address")
 
-		abi, err := bindings.MIPSMetaData.GetAbi()
-		g.require.NoError(err, "Failed to load MIPS ABI")
-		caller := batching.NewMultiCaller(g.client.Client(), batching.DefaultBatchSize)
-		result, err := caller.SingleCall(ctx, rpcblock.Latest, &batching.ContractCall{
-			Abi:    abi,
-			Addr:   vm.Addr(),
-			Method: "step",
-			Args: []interface{}{
-				prestate, proof, localContext,
-			},
-			From: g.splitGame.Addr,
-		})
-		g.require.NoError(err, "Failed to call step")
-		actualPostState := result.GetBytes32(0)
-		g.require.Equal(expectedPostState, common.Hash(actualPostState))
+	abi, err := bindings.MIPSMetaData.GetAbi()
+	g.require.NoError(err, "Failed to load MIPS ABI")
+	caller := batching.NewMultiCaller(g.client.Client(), batching.DefaultBatchSize)
+	result, err := caller.SingleCall(ctx, rpcblock.Latest, &batching.ContractCall{
+		Abi:    abi,
+		Addr:   vm.Addr(),
+		Method: "step",
+		Args: []interface{}{
+			prestate, proof, localContext,
+		},
+		From: g.splitGame.Addr,
+	})
+	g.require.NoError(err, "Failed to call step")
+	actualPostState := result.GetBytes32(0)
+	g.require.Equal(expectedPostState, common.Hash(actualPostState))
+}
+
+type CannonTraceProviderFunc func() (*cannon.CannonTraceProviderForTest, common.Hash, *ClaimHelper)
+
+// NewMemoizedCannonTraceProvider returns a function that will generate a cannon trace provider once, memoize it
+// and return the same trace provider on subsequent calls
+func (g *CannonHelper) NewMemoizedCannonTraceProvider(ctx context.Context, l2Node string, outputRootClaim *ClaimHelper, options ...challenger.Option) CannonTraceProviderFunc {
+	var provider *cannon.CannonTraceProviderForTest
+	var localContext common.Hash
+	return func() (*cannon.CannonTraceProviderForTest, common.Hash, *ClaimHelper) {
+		if provider == nil {
+			provider, localContext = g.createCannonTraceProvider(ctx, l2Node, outputRootClaim, options...)
+		}
+		return provider, localContext, outputRootClaim
 	}
 }
 

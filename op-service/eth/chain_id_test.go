@@ -39,3 +39,25 @@ func TestChainID_String(t *testing.T) {
 		})
 	}
 }
+
+func TestSortChainIDs(t *testing.T) {
+	ids := []ChainID{
+		ChainIDFromUInt64(123),
+		ChainIDFromUInt64(16),
+		ChainIDFromBytes32([32]byte{0: 1}),
+		ChainIDFromUInt64(1),
+		ChainIDFromUInt64(2),
+		ChainIDFromUInt64(0xdeadbeef),
+	}
+	expected := []ChainID{
+		ChainIDFromUInt64(1),
+		ChainIDFromUInt64(2),
+		ChainIDFromUInt64(16),
+		ChainIDFromUInt64(123),
+		ChainIDFromUInt64(0xdeadbeef),
+		ChainIDFromBytes32([32]byte{0: 1}),
+	}
+	require.NotEqual(t, expected, ids)
+	SortChainID(ids)
+	require.Equal(t, expected, ids)
+}

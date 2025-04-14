@@ -24,20 +24,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultTimeout = 5 * time.Minute
+const defaultTimeout = 20 * time.Minute
 
 type SplitGameHelper struct {
-	T                     *testing.T
-	Require               *require.Assertions
-	Client                *ethclient.Client
-	Opts                  *bind.TransactOpts
-	PrivKey               *ecdsa.PrivateKey
-	Game                  contracts.FaultDisputeGameContract
-	FactoryAddr           common.Address
-	Addr                  common.Address
-	CorrectOutputProvider types.TraceProvider
-	System                DisputeSystem
-	DescribePosition      func(pos types.Position, splitDepth types.Depth) string
+	T                       *testing.T
+	Require                 *require.Assertions
+	Client                  *ethclient.Client
+	Opts                    *bind.TransactOpts
+	PrivKey                 *ecdsa.PrivateKey
+	Game                    contracts.FaultDisputeGameContract
+	FactoryAddr             common.Address
+	Addr                    common.Address
+	CorrectOutputProvider   types.TraceProvider
+	System                  DisputeSystem
+	DescribePosition        func(pos types.Position, splitDepth types.Depth) string
+	ClaimedL2SequenceNumber func(pos types.Position) (uint64, error)
 }
 
 type moveCfg struct {
@@ -279,6 +280,18 @@ func (g *SplitGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 		})
 }
 
+func (g *SplitGameHelper) WaitForCountered(ctx context.Context, claimIdx int64) {
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		claim := g.getClaim(ctx, claimIdx)
+		return claim.CounteredBy != common.Address{}, nil
+	})
+	if err != nil { // Avoid waiting time capturing game data when there's no error
+		g.Require.NoErrorf(err, "Claim %v was not countered\n%v", claimIdx, g.GameData(ctx))
+	}
+}
+
 func (g *SplitGameHelper) Resolve(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
@@ -372,7 +385,7 @@ func (g *SplitGameHelper) GameData(ctx context.Context) string {
 		pos := claim.Position
 		extra := g.DescribePosition(pos, splitDepth)
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v %v\n",
-			i, claim.Position.ToGIndex().Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond, extra)
+			i, claim.Position.ToGIndex(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond, extra)
 	}
 	l2BlockNum := g.L2BlockNum(ctx)
 	status, err := g.Game.GetStatus(ctx)
@@ -416,6 +429,25 @@ func WithoutWaitingForStep() DefendClaimOpt {
 	return func(cfg *defendClaimCfg) {
 		cfg.skipWaitingForStep = true
 	}
+}
+
+func (g *SplitGameHelper) SupportClaim(ctx context.Context, claim *ClaimHelper, performMove Mover, attemptStep Stepper) {
+	g.T.Logf("Supporting claim %v at depth %v", claim.Index, claim.Depth())
+	for !claim.IsMaxDepth(ctx) {
+		g.LogGameData(ctx)
+		// Wait for the challenger to counter
+		claim = claim.WaitForCounterClaim(ctx)
+		if claim.IsMaxDepth(ctx) {
+			break
+		}
+		g.LogGameData(ctx)
+
+		// Respond with our own move
+		claim = performMove(claim)
+	}
+
+	g.LogGameData(ctx)
+	attemptStep(claim.Index)
 }
 
 // DefendClaim uses the supplied Mover to perform moves in an attempt to defend the supplied claim.
@@ -555,7 +587,7 @@ func (g *SplitGameHelper) StepFails(ctx context.Context, claimIdx int64, isAttac
 	validStepErr := "0xfb4e40dd"
 	invalidPrestateErr := "0x696550ff"
 	if !strings.Contains(err.Error(), validStepErr) && !strings.Contains(err.Error(), invalidPrestateErr) {
-		g.Require.Failf("Revert reason should be abi encoded ValidStep() or InvalidPrestate() but was: %v", err.Error())
+		g.Require.Failf("Revert reason should be abi encoded ValidStep() or InvalidPrestate()", "err is %v", err.Error())
 	}
 }
 
@@ -564,4 +596,53 @@ func (g *SplitGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	candidate, err := g.Game.ResolveClaimTx(uint64(claimIdx))
 	g.Require.NoError(err, "Failed to create resolve claim candidate tx")
 	transactions.RequireSendTx(g.T, ctx, g.Client, candidate, g.PrivKey)
+}
+
+func (g *SplitGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
+	return g.DisputeBlock(ctx, g.L2BlockNum(ctx))
+}
+
+// DisputeBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
+// through to the split depth and the claims are setup such that the last block in the game range is the block
+// to execute cannon on. ie the first block the honest and dishonest actors disagree about is the l2 block of the game.
+func (g *SplitGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uint64) *ClaimHelper {
+	dishonestValue := g.GetClaimValue(ctx, 0)
+	correctRootClaim := g.correctClaimValue(ctx, types.NewPositionFromGIndex(big.NewInt(1)))
+	rootIsValid := dishonestValue == correctRootClaim
+	if rootIsValid {
+		// Ensure that the dishonest actor is actually posting invalid roots.
+		// Otherwise, the honest challenger will defend our counter and ruin everything.
+		dishonestValue = common.Hash{0xff, 0xff, 0xff}
+	}
+	pos := types.NewPositionFromGIndex(big.NewInt(1))
+	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
+		claimBlockNum, err := g.ClaimedL2SequenceNumber(claimPos)
+		g.Require.NoError(err, "failed to calculate claim block number")
+		if claimBlockNum < disputeBlockNum {
+			// Use the correct output root for all claims prior to the dispute block number
+			// This pushes the game to dispute the last block in the range
+			return g.correctClaimValue(ctx, claimPos)
+		}
+		if rootIsValid == parentClaim.AgreesWithOutputRoot() {
+			// We are responding to a parent claim that agrees with a valid root, so we're being dishonest
+			return dishonestValue
+		} else {
+			// Otherwise we must be the honest actor so use the correct root
+			return g.correctClaimValue(ctx, claimPos)
+		}
+	}
+
+	claim := g.RootClaim(ctx)
+	for !claim.IsOutputRootLeaf(ctx) {
+		parentClaimBlockNum, err := g.ClaimedL2SequenceNumber(pos)
+		g.Require.NoError(err, "failed to calculate parent claim block number")
+		if parentClaimBlockNum >= disputeBlockNum {
+			pos = pos.Attack()
+			claim = claim.Attack(ctx, getClaimValue(claim, pos))
+		} else {
+			pos = pos.Defend()
+			claim = claim.Defend(ctx, getClaimValue(claim, pos))
+		}
+	}
+	return claim
 }

@@ -78,6 +78,7 @@ type Config struct {
 	AltDA altda.CLIConfig
 
 	IgnoreMissingPectraBlobSchedule bool
+	FetchWithdrawalRootFromState    bool
 }
 
 // ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.

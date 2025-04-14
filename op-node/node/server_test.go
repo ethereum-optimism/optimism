@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -101,15 +101,14 @@ func TestOutputAtBlock(t *testing.T) {
 	safeReader := &mockSafeDBReader{}
 	status := randomSyncStatus(rand.New(rand.NewSource(123)))
 	drClient.ExpectBlockRefWithStatus(0xdcdc89, ref, status, nil)
-
-	server, err := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, "0.0", metrics.NoopMetrics)
-	require.NoError(t, err)
+	m := &opmetrics.NoopRPCMetrics{}
+	server := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, m, "0.0")
 	require.NoError(t, server.Start())
 	defer func() {
-		require.NoError(t, server.Stop(context.Background()))
+		require.NoError(t, server.Stop())
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Endpoint(), rpcclient.WithDialAttempts(3))
 	require.NoError(t, err)
 
 	var out *eth.OutputResponse
@@ -138,14 +137,14 @@ func TestVersion(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	server, err := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, "0.0", metrics.NoopMetrics)
-	assert.NoError(t, err)
+	m := &opmetrics.NoopRPCMetrics{}
+	server := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, m, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
-		require.NoError(t, server.Stop(context.Background()))
+		require.NoError(t, server.Stop())
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Endpoint(), rpcclient.WithDialAttempts(3))
 	assert.NoError(t, err)
 
 	var out string
@@ -184,14 +183,14 @@ func TestSyncStatus(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	server, err := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, "0.0", metrics.NoopMetrics)
-	assert.NoError(t, err)
+	m := &opmetrics.NoopRPCMetrics{}
+	server := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, m, "0.0")
 	assert.NoError(t, server.Start())
 	defer func() {
-		require.NoError(t, server.Stop(context.Background()))
+		require.NoError(t, server.Stop())
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Endpoint(), rpcclient.WithDialAttempts(3))
 	assert.NoError(t, err)
 
 	var out *eth.SyncStatus
@@ -227,14 +226,14 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	server, err := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, "0.0", metrics.NoopMetrics)
-	require.NoError(t, err)
+	m := &opmetrics.NoopRPCMetrics{}
+	server := newRPCServer(rpcCfg, rollupCfg, l2Client, drClient, safeReader, log, m, "0.0")
 	require.NoError(t, server.Start())
 	defer func() {
-		require.NoError(t, server.Stop(context.Background()))
+		require.NoError(t, server.Stop())
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Endpoint(), rpcclient.WithDialAttempts(3))
 	require.NoError(t, err)
 
 	var out *eth.SafeHeadResponse

@@ -92,6 +92,21 @@ func WithData(data []byte) Option {
 	}
 }
 
+func WithNonce(nonce uint64) Option {
+	return func(tx *PlannedTx) {
+		tx.Nonce.Set(nonce)
+	}
+}
+
+func WithStaticNonce(nonce uint64) Option {
+	return func(tx *PlannedTx) {
+		tx.Nonce.Set(nonce)
+		tx.Nonce.Fn(func(ctx context.Context) (uint64, error) {
+			return nonce, nil
+		})
+	}
+}
+
 func WithAccessList(al types.AccessList) Option {
 	return func(tx *PlannedTx) {
 		tx.AccessList.Set(al)
@@ -116,6 +131,18 @@ func WithGasLimit(limit uint64) Option {
 	}
 }
 
+func WithGasFeeCap(feeCap *big.Int) Option {
+	return func(tx *PlannedTx) {
+		tx.GasFeeCap.Set(feeCap)
+	}
+}
+
+func WithGasTipCap(tipCap *big.Int) Option {
+	return func(tx *PlannedTx) {
+		tx.GasTipCap.Set(tipCap)
+	}
+}
+
 func WithPrivateKey(priv *ecdsa.PrivateKey) Option {
 	return func(tx *PlannedTx) {
 		tx.Priv.Set(priv)
@@ -125,6 +152,12 @@ func WithPrivateKey(priv *ecdsa.PrivateKey) Option {
 func WithEth(value *big.Int) Option {
 	return func(tx *PlannedTx) {
 		tx.Value.Set(value)
+	}
+}
+
+func WithUnsigned(tx types.TxData) Option {
+	return func(ptx *PlannedTx) {
+		ptx.Unsigned.Set(tx)
 	}
 }
 
@@ -231,7 +264,6 @@ type PendingNonceAt interface {
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
 }
 
-// WithPendingNonce automatically
 func WithPendingNonce(cl PendingNonceAt) Option {
 	return func(tx *PlannedTx) {
 		tx.Nonce.DependOn(&tx.AgainstBlock, &tx.Sender)

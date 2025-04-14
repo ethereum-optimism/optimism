@@ -1,7 +1,9 @@
 package subcmds
 
 import (
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
@@ -26,6 +28,13 @@ var ConfigsCommand = &cli.Command{
 	Usage:       "List the supported chain configurations",
 	Description: "List the supported chain configurations.",
 	Action:      ListConfigs,
+	Subcommands: []*cli.Command{
+		{
+			Name:   "check-custom-chains",
+			Usage:  "Check that all embedded custom chain configs are valid",
+			Action: CheckCustomChains,
+		},
+	},
 	Flags: []cli.Flag{
 		ConfigsChainIDFlag,
 		ConfigsNetworkFlag,
@@ -94,5 +103,56 @@ func listChain(chainID eth.ChainID) error {
 	}
 	description := cfg.Description(chaincfg.L2ChainIDToNetworkDisplayName)
 	fmt.Println(description)
+	return nil
+}
+
+func CheckCustomChains(ctx *cli.Context) error {
+	customChainIDs, err := chainconfig.CustomChainIDs()
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	interopChains := make(map[eth.ChainID]bool)
+
+	for _, chainID := range customChainIDs {
+		cfg, err := chainconfig.RollupConfigByChainID(chainID)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		_, err = chainconfig.ChainConfigByChainID(chainID)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		if cfg.InteropTime != nil {
+			depset, err := chainconfig.DependencySetByChainID(chainID)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			for _, dep := range depset.Chains() {
+				interopChains[dep] = true
+			}
+		}
+		if err := listChain(chainID); err != nil {
+			return err
+		}
+	}
+
+	for chainID := range interopChains {
+		if !slices.Contains(customChainIDs, chainID) {
+			err := listChain(chainID)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("chain in depset not found in superchain-registry: %w", err))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("errors checking custom chains: %w", errors.Join(errs...))
+	}
 	return nil
 }

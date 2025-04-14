@@ -47,6 +47,9 @@ parameters:
   contracts_coverage_dispatch:
     type: boolean
     default: false
+  acceptance_tests_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -55,6 +58,7 @@ orbs:
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
   utils: ethereum-optimism/circleci-utils@1.0.13
+  docker: circleci/docker@2.8.2
 
 commands:
   gcp-oidc-authenticate:
@@ -429,7 +433,7 @@ jobs:
         type: boolean
         default: false
       resource_class:
-        description: Docker resoruce class
+        description: Docker resource class
         type: string
         default: medium
     machine:
@@ -1133,26 +1137,41 @@ jobs:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
         default: ""
-      resource_class:
-        description: Machine resource class
-        type: string
-        default: xlarge
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
     machine: true
-    resource_class: <<parameters.resource_class>>
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise
-      - attach_workspace:
-          at: "."
+      - run:
+          name: Setup Kurtosis
+          command: |
+            echo "Setting up Kurtosis..."
+
+            # Print Kurtosis version
+            echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+            kurtosis version
+
+            # Start Kurtosis engine
+            echo "Starting Kurtosis engine..."
+            kurtosis engine start || true
+
+            # Clean old instances
+            echo "Cleaning old instances..."
+            kurtosis clean -a || true
+
+            # Check engine status
+            kurtosis engine status || true
+
+            echo "Kurtosis setup complete"
       # Restore cached Go modules
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
             - go-mod-v1-
-      # Download dependencies first
+      # Download Go dependencies
       - run:
           name: Download Go dependencies
           working_directory: op-acceptance-tests
@@ -1164,13 +1183,41 @@ jobs:
           command: go test -v ./... || true # ignore failures; we're just compiling the tests
       # Run the actual acceptance tests with optimized settings
       - run:
-          name: Run acceptance tests
+          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
-          no_output_timeout: <<parameters.no_output_timeout>>
+          no_output_timeout: 2h
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
           command: just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+      - run:
+          name: Print results (summary)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/summary.log" || true
+          when: always
+      - run:
+          name: Print results (failures)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/failed/*.log" || true
+          when: on_fail
+      - run:
+          name: Print results (all)
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            cat "$LOG_DIR/all.log" || true
+          when: always
+      - run:
+          name: Generate JUnit XML test report for CircleCI
+          working_directory: op-acceptance-tests
+          command: |
+            LOG_DIR=$(ls -td -- logs/* | head -1)
+            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
+          when: always
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
@@ -1190,7 +1237,7 @@ jobs:
       # Notification step
       - notify-failures-on-develop:
           channel: "C03N11M0BBN"  # #notify-ci-failures
-          mentions: "@protocol-devx-pod"
+          mentions: "@stefano" # temporarily just mention Stefano until the acceptance tests are stable (was: @protocol-devx-pod)
 
   sanitize-op-program:
     docker:
@@ -1531,6 +1578,34 @@ jobs:
           command: |
             goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
+  diff-fetcher-forge-artifacts:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise
+      - check-changed:
+          patterns: packages/contracts-bedrock
+      - install-contracts-dependencies
+      - run:
+          name: Build contracts
+          command: |
+            just build-contracts
+          working_directory: op-fetcher
+      - run:
+          name: Compare forge artifacts
+          command: |
+            diff -qr "packages/contracts-bedrock/forge-artifacts/FetchChainInfo.s.sol" \
+                    "op-fetcher/pkg/fetcher/fetch/forge-artifacts/FetchChainInfo.s.sol"
+
+            if [ $? -ne 0 ]; then
+              echo "ERROR: The checked-in forge artifacts for FetchChainInfo.s.sol do not match the ci build."
+              echo "Please run 'just build-contracts' in the op-fetcher directory and commit the changes."
+              exit 1
+            fi
+
+            echo "✅ Checked-in forge artifacts match the ci build"
+
   stale-check:
       machine:
         image: ubuntu-2204:2024.08.1
@@ -1649,6 +1724,10 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+      - diff-fetcher-forge-artifacts:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -1656,11 +1735,15 @@ workflows:
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - go-lint:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -1712,6 +1795,7 @@ workflows:
             op-service
             op-supervisor
             op-deployer
+            op-fetcher
             op-validator
             op-e2e/system
             op-e2e/e2eutils
@@ -1735,21 +1819,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-      - op-acceptance-tests:
-          devnet: isthmus
-          gate: isthmus
-          no_output_timeout: 60m
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-            - slack
-          filters:
-            branches:
-              only: develop
-      - op-program-compat:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
+      # TODO(#15353) - Need to regenerate data used in op-program-compat and then reenable this test
+      #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
+#      - op-program-compat:
+#          context:
+#            - circleci-repo-readonly-authenticated-github-token
+#            - discord
       - bedrock-go-tests:
           requires:
             - go-lint
@@ -1758,7 +1833,9 @@ workflows:
             - cannon-go-lint-and-test-64-bit
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
-            - op-program-compat
+            # TODO(#15353) - Need to regenerate data used in op-program-compat
+            #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
+            # - op-program-compat # Temporarily disable this requirement
             # Not needed for the devnet but we want to make sure they build successfully
             - cannon-docker-build
             - op-dispute-mon-docker-build
@@ -1837,6 +1914,8 @@ workflows:
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs: ./packages/contracts-bedrock/lib
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   go-release-deployer:
     jobs:
@@ -1926,6 +2005,8 @@ workflows:
             - op-supervisor-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # Standard (xlarge) AMD-only docker images go here
       - docker-build:
           matrix:
@@ -1953,8 +2034,11 @@ workflows:
               only: /^op-program\/v.*/
             branches:
               ignore: /.*/
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - publish-cannon-prestates:
           context:
+            - circleci-repo-readonly-authenticated-github-token
             - slack
             - oplabs-network-optimism-io-bucket
           requires:
@@ -2036,6 +2120,7 @@ workflows:
           context:
             - slack
             - oplabs-network-optimism-io-bucket
+            - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - cannon-prestate
@@ -2133,6 +2218,8 @@ workflows:
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   scheduled-preimage-reproducibility:
     when:
@@ -2158,3 +2245,39 @@ workflows:
           context:
             - circleci-repo-optimism
             - discord
+
+  acceptance-tests:
+    when:
+      and:
+        - or:
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+        - not:
+            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+    jobs:
+      # KURTOSIS (Simple)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-simple
+          devnet: simple
+          gate: base
+
+          # CircleCI params
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+            - slack
+      # KURTOSIS (Isthmus)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-isthmus
+          devnet: isthmus
+          gate: isthmus
+
+          # CircleCI params
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+            - slack

@@ -238,6 +238,7 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 		oc.cfg.RPC.ListenPort,
 		oc.version,
 		oprpc.WithLogger(oc.log),
+		oprpc.WithRPCRecorder(oc.metrics.NewRecorder("main")),
 	)
 	api := conductorrpc.NewAPIBackend(oc.log, oc)
 	server.AddAPI(rpc.API{

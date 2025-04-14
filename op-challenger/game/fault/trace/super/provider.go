@@ -74,7 +74,7 @@ func (s *SuperTraceProvider) GetPreimageBytes(ctx context.Context, pos types.Pos
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info("Getting claim", "pos", pos.ToGIndex(), "timestamp", timestamp, "step", step)
+	s.logger.Trace("Getting claim", "pos", pos.ToGIndex(), "timestamp", timestamp, "step", step)
 	if step == 0 {
 		root, err := s.rootProvider.SuperRootAtTimestamp(ctx, hexutil.Uint64(timestamp))
 		if errors.Is(err, ethereum.NotFound) {

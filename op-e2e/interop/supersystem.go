@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -74,6 +75,7 @@ type SuperSystem interface {
 	Proposer(network string) *l2os.ProposerService
 	AddUser(username string)
 	SupervisorClient() *sources.SupervisorClient
+	DependencySet() *depset.StaticConfigDependencySet
 
 	// L2 client specific
 	L2GethEndpoint(id string, name string) endpoint.RPC
@@ -296,20 +298,8 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		L1RPC:       s.l1.UserRPC().RPC(),
 		Datadir:     path.Join(s.t.TempDir(), "supervisor"),
 	}
-	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
 
-	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
-	for _, l2Out := range s.worldOutput.L2s {
-		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-		index, err := chainID.ToUInt32()
-		require.NoError(s.t, err)
-		depSet[chainID] = &depset.StaticConfigDependency{
-			ChainIndex:     supervisortypes.ChainIndex(index),
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
-	}
-	stDepSet, err := depset.NewStaticConfigDependencySet(depSet)
+	stDepSet, err := worldToDepset(s.worldOutput)
 	require.NoError(s.t, err)
 	cfg.DependencySetSource = stDepSet
 
@@ -336,7 +326,7 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 	}
 	cl, err := client.NewRPC(context.Background(), s.logger, s.supervisor.RPC())
 	require.NoError(s.t, err, "failed to dial supervisor RPC")
-	superClient := sources.NewSupervisorClient(cl, nil)
+	superClient := sources.NewSupervisorClient(cl)
 	s.superClient = superClient
 	return superClient
 }
@@ -590,6 +580,12 @@ func (s *interopE2ESystem) Contract(id string, name string) interface{} {
 	return s.l2s[id].contracts[name]
 }
 
+func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
+	stDepSet, err := worldToDepset(s.worldOutput)
+	require.NoError(s.t, err)
+	return stDepSet
+}
+
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
 	return func(v string) *rpc.Client {
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
@@ -607,4 +603,26 @@ func writeDefaultJWT(t testing.TB) string {
 		t.Fatalf("failed to prepare jwt file for geth: %v", err)
 	}
 	return jwtPath
+}
+
+func worldToDepset(world *interopgen.WorldOutput) (*depset.StaticConfigDependencySet, error) {
+	var ids []eth.ChainID
+	for _, l2Out := range world.L2s {
+		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		ids = append(ids, chainID)
+	}
+	eth.SortChainID(ids)
+	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
+
+	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
+	for _, l2Out := range world.L2s {
+		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		chainIndex := supervisortypes.ChainIndex(100 + slices.Index(ids, chainID))
+		depSet[chainID] = &depset.StaticConfigDependency{
+			ChainIndex:     chainIndex,
+			ActivationTime: 0,
+			HistoryMinTime: 0,
+		}
+	}
+	return depset.NewStaticConfigDependencySet(depSet)
 }

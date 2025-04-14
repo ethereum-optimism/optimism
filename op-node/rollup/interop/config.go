@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/standard"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -39,7 +40,7 @@ func (cfg *Config) Check() error {
 	return nil
 }
 
-func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, l1 L1Source, l2 L2Source) (SubSystem, error) {
+func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *rollup.Config, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) (SubSystem, error) {
 	if cfg.RPCAddr != "" {
 		logger.Info("Setting up Interop RPC server to serve supervisor sync work")
 		// Load JWT secret, if any, generate one otherwise.
@@ -47,13 +48,13 @@ func (cfg *Config) Setup(ctx context.Context, logger log.Logger, rollupCfg *roll
 		if err != nil {
 			return nil, err
 		}
-		return managed.NewManagedMode(logger, rollupCfg, cfg.RPCAddr, cfg.RPCPort, jwtSecret, l1, l2), nil
+		return managed.NewManagedMode(logger, rollupCfg, cfg.RPCAddr, cfg.RPCPort, jwtSecret, l1, l2, m), nil
 	} else {
 		logger.Info("Setting up Interop RPC client to sync from read-only supervisor")
 		cl, err := client.NewRPC(ctx, logger, cfg.SupervisorAddr, client.WithLazyDial())
 		if err != nil {
 			return nil, fmt.Errorf("failed to create supervisor RPC: %w", err)
 		}
-		return standard.NewStandardMode(logger, sources.NewSupervisorClient(cl, nil)), nil
+		return standard.NewStandardMode(logger, sources.NewSupervisorClient(cl)), nil
 	}
 }

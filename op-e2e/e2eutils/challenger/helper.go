@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -41,8 +42,11 @@ const (
 
 type EndpointProvider interface {
 	NodeEndpoint(name string) endpoint.RPC
+	L2NodeEndpoints() []endpoint.RPC
 	RollupEndpoint(name string) endpoint.RPC
 	L1BeaconEndpoint() endpoint.RestHTTP
+	SupervisorEndpoint() endpoint.RPC
+	IsSupersystem() bool
 }
 
 type System interface {
@@ -108,6 +112,16 @@ func WithInvalidCannonPrestate() Option {
 	}
 }
 
+func WithDepset(t *testing.T, ds *depset.StaticConfigDependencySet) Option {
+	return func(c *config.Config) {
+		b, err := ds.MarshalJSON()
+		require.NoError(t, err)
+		path := filepath.Join(t.TempDir(), "challenger-depset.json")
+		require.NoError(t, os.WriteFile(path, b, 0o644))
+		c.Cannon.DepsetConfigPath = path
+	}
+}
+
 // FindMonorepoRoot finds the relative path to the monorepo root
 // Different tests might be nested in subdirectories of the op-e2e dir.
 func FindMonorepoRoot(t *testing.T) string {
@@ -143,7 +157,7 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Conf
 	for _, l2Genesis := range l2Geneses {
 		genesisBytes, err := json.Marshal(l2Genesis)
 		require.NoError(err, "marshall l2 genesis config")
-		genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
+		genesisFile := filepath.Join(c.Datadir, fmt.Sprintf("l2-genesis-%v.json", l2Genesis.Config.ChainID))
 		require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
 		c.Cannon.L2GenesisPaths = append(c.Cannon.L2GenesisPaths, genesisFile)
 	}
@@ -151,7 +165,7 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Conf
 	for _, rollupCfg := range rollupCfgs {
 		rollupBytes, err := json.Marshal(rollupCfg)
 		require.NoError(err, "marshall rollup config")
-		rollupFile := filepath.Join(c.Datadir, "rollup.json")
+		rollupFile := filepath.Join(c.Datadir, fmt.Sprintf("rollup-%v.json", rollupCfg.L2ChainID))
 		require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
 		c.Cannon.RollupConfigPaths = append(c.Cannon.RollupConfigPaths, rollupFile)
 	}
@@ -167,6 +181,20 @@ func WithCannon(t *testing.T, system System) Option {
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+	}
+}
+
+func WithSuperCannon(t *testing.T, system System) Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperCannon)
+		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+	}
+}
+
+func WithSuperPermissioned(t *testing.T, system System) Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperPermissioned)
 		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
@@ -200,7 +228,16 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
 	l1Endpoint := sys.NodeEndpoint("l1").RPC()
 	l1Beacon := sys.L1BeaconEndpoint().RestHTTP()
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName).RPC(), sys.NodeEndpoint(l2NodeName).RPC(), t.TempDir())
+	var cfg config.Config
+	if sys.IsSupersystem() {
+		var l2Endpoints []string
+		for _, l2Node := range sys.L2NodeEndpoints() {
+			l2Endpoints = append(l2Endpoints, l2Node.RPC())
+		}
+		cfg = config.NewInteropConfig(common.Address{}, l1Endpoint, l1Beacon, sys.SupervisorEndpoint().RPC(), l2Endpoints, t.TempDir())
+	} else {
+		cfg = config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, sys.RollupEndpoint(l2NodeName).RPC(), sys.NodeEndpoint(l2NodeName).RPC(), t.TempDir())
+	}
 	cfg.Cannon.L2Custom = true
 	// The devnet can't set the absolute prestate output root because the contracts are deployed in L1 genesis
 	// before the L2 genesis is known.

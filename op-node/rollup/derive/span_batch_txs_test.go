@@ -302,6 +302,7 @@ func TestSpanBatchTxsTxDatas(t *testing.T) {
 	require.Equal(t, txDatas, sbt.txDatas)
 	require.Equal(t, txTypes, sbt.txTypes)
 }
+
 func TestSpanBatchTxsAddTxs(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x1234))
 	chainID := big.NewInt(rng.Int63n(1000))

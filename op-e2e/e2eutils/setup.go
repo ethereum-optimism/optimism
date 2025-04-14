@@ -272,4 +272,6 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
+	// Activated by default, contracts depend on it
+	deployConfig.L1CancunTimeOffset = new(hexutil.Uint64)
 }

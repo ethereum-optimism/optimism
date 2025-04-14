@@ -16,6 +16,7 @@ type InteropDevRecipe struct {
 	L1ChainID        uint64
 	L2s              []InteropDevL2Recipe
 	GenesisTimestamp uint64
+	ExpiryTime       uint64
 }
 
 func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) {

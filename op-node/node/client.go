@@ -15,12 +15,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type L2EndpointSetup interface {
 	// Setup a RPC client to a L2 execution engine to process rollup blocks with.
-	Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (cl client.RPC, rpcCfg *sources.EngineClientConfig, err error)
+	Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config, metrics opmetrics.RPCMetricer) (cl client.RPC, rpcCfg *sources.EngineClientConfig, err error)
 	Check() error
 }
 
@@ -28,7 +29,7 @@ type L1EndpointSetup interface {
 	// Setup a RPC client to a L1 node to pull rollup input-data from.
 	// The results of the RPC client may be trusted for faster processing, or strictly validated.
 	// The kind of the RPC may be non-basic, to optimize RPC usage.
-	Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (cl client.RPC, rpcCfg *sources.L1ClientConfig, err error)
+	Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config, metrics opmetrics.RPCMetricer) (cl client.RPC, rpcCfg *sources.L1ClientConfig, err error)
 	Check() error
 }
 
@@ -64,7 +65,7 @@ func (cfg *L2EndpointConfig) Check() error {
 	return nil
 }
 
-func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.EngineClientConfig, error) {
+func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config, metrics opmetrics.RPCMetricer) (client.RPC, *sources.EngineClientConfig, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, nil, err
 	}
@@ -73,6 +74,7 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 		client.WithGethRPCOptions(auth),
 		client.WithDialAttempts(10),
 		client.WithCallTimeout(cfg.L2EngineCallTimeout),
+		client.WithRPCRecorder(metrics.NewRecorder("engine-api")),
 	}
 	l2Node, err := client.NewRPC(ctx, log, cfg.L2EngineAddr, opts...)
 	if err != nil {
@@ -96,7 +98,7 @@ func (p *PreparedL2Endpoints) Check() error {
 
 var _ L2EndpointSetup = (*PreparedL2Endpoints)(nil)
 
-func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.EngineClientConfig, error) {
+func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config, metrics opmetrics.RPCMetricer) (client.RPC, *sources.EngineClientConfig, error) {
 	return p.Client, sources.EngineClientDefaultConfig(rollupCfg), nil
 }
 
@@ -152,10 +154,11 @@ func (cfg *L1EndpointConfig) Check() error {
 	return nil
 }
 
-func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.L1ClientConfig, error) {
+func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config, metrics opmetrics.RPCMetricer) (client.RPC, *sources.L1ClientConfig, error) {
 	opts := []client.RPCOption{
 		client.WithHttpPollInterval(cfg.HttpPollInterval),
 		client.WithDialAttempts(10),
+		client.WithRPCRecorder(metrics.NewRecorder("l1")),
 	}
 	if cfg.RateLimit != 0 {
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
@@ -186,7 +189,7 @@ type PreparedL1Endpoint struct {
 
 var _ L1EndpointSetup = (*PreparedL1Endpoint)(nil)
 
-func (p *PreparedL1Endpoint) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.L1ClientConfig, error) {
+func (p *PreparedL1Endpoint) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config, metrics opmetrics.RPCMetricer) (client.RPC, *sources.L1ClientConfig, error) {
 	return p.Client, sources.L1ClientDefaultConfig(rollupCfg, p.TrustRPC, p.RPCProviderKind), nil
 }
 

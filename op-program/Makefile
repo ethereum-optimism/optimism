@@ -47,7 +47,10 @@ op-program-client-mips64-interop:
 op-program-client-riscv:
 	env GO111MODULE=on GOOS=linux GOARCH=riscv64 go build -v -gcflags="all=-d=softfloat" -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-riscv.elf ./client/cmd/main.go
 
-reproducible-prestate:
+check-custom-chains: op-program-host
+	./bin/op-program configs check-custom-chains
+
+reproducible-prestate: check-custom-chains
 	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
 	@echo "Cannon Absolute prestate hash: "
 	@cat ./bin/prestate-proof.json | jq -r .pre

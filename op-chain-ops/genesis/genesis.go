@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -123,14 +124,35 @@ func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Gene
 	return genesis, nil
 }
 
-// NewL1Genesis will create a new L1 genesis config
+// NewL1Genesis will create a new L1 genesis config (without the allocs part)
 func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
-	if config.L1ChainID == 0 {
+	if config.L1CancunTimeOffset == nil || *config.L1CancunTimeOffset != 0 {
+		return nil, fmt.Errorf("expected non-nil 0 L1 cancun time offset, but got %v", config.L1CancunTimeOffset)
+	}
+	return NewL1GenesisMinimal(&DevL1DeployConfigMinimal{
+		DevL1DeployConfig:  config.DevL1DeployConfig,
+		L1ChainID:          eth.ChainIDFromUInt64(config.L1ChainID),
+		L1PragueTimeOffset: (*uint64)(config.L1PragueTimeOffset),
+	})
+}
+
+// DevL1DeployConfigMinimal is the minimal subset to actually create a L1 dev genesis.
+type DevL1DeployConfigMinimal struct {
+	DevL1DeployConfig
+	L1ChainID eth.ChainID
+	// When Prague activates. Relative to L1 genesis.
+	L1PragueTimeOffset *uint64
+}
+
+// NewL1GenesisMinimal creates a L1 dev genesis template.
+// Warning: the allocs are not included yet.
+func NewL1GenesisMinimal(config *DevL1DeployConfigMinimal) (*core.Genesis, error) {
+	if config.L1ChainID == eth.ChainIDFromUInt64(0) {
 		return nil, errors.New("must define L1 ChainID")
 	}
 
 	chainConfig := params.ChainConfig{
-		ChainID:             uint642Big(config.L1ChainID),
+		ChainID:             config.L1ChainID.ToBig(),
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      false,
@@ -171,15 +193,11 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	if timestamp == 0 {
 		timestamp = hexutil.Uint64(time.Now().Unix())
 	}
-	if config.L1CancunTimeOffset != nil {
-		cancunTime := uint64(timestamp) + uint64(*config.L1CancunTimeOffset)
-		chainConfig.CancunTime = &cancunTime
-	}
 	if config.L1PragueTimeOffset != nil {
 		pragueTime := uint64(timestamp) + uint64(*config.L1PragueTimeOffset)
 		chainConfig.PragueTime = &pragueTime
 	}
-
+	// Note: excess-blob-gas, blob-gas-used, withdrawals-hash, requests-hash are set to reasonable defaults for L1 by the ToBlock() function
 	return &core.Genesis{
 		Config:        &chainConfig,
 		Nonce:         uint64(config.L1GenesisBlockNonce),
@@ -195,7 +213,6 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		BaseFee:       baseFee.ToInt(),
 		ExcessBlobGas: (*uint64)(config.L1GenesisBlockExcessBlobGas),
 		BlobGasUsed:   (*uint64)(config.L1GenesisBlockBlobGasUsed),
-		Alloc:         map[common.Address]types.Account{},
 	}, nil
 }
 

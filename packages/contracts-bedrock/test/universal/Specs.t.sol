@@ -892,7 +892,6 @@ contract Specification_Test is CommonTest {
 
         _addSpec({ _name: "StandardValidator", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("l1PAOMultisig()") });
-        _addSpec({ _name: "StandardValidator", _sel: _getSel("mips()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("challenger()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("l1ERC721BridgeImpl()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("optimismPortalImpl()") });

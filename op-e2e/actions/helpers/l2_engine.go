@@ -179,6 +179,12 @@ func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineCl
 	return l2Cl
 }
 
+func (e *L2Engine) SourceClient(t Testing, cacheSize int) *sources.EthClient {
+	l2sc, err := sources.NewEthClient(e.RPCClient(), e.log, nil, sources.DefaultEthClientConfig(cacheSize))
+	require.NoError(t, err)
+	return l2sc
+}
+
 // ActL2RPCFail makes the next L2 RPC request fail with given error
 func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 	if e.FailL2RPC != nil { // already set to fail?

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -138,7 +139,7 @@ func singleRoundConsolidation(
 		agreedOutput := l2PreimageOracle.OutputByRoot(common.Hash(chain.Output), chain.ChainID)
 		agreedOutputV0, ok := agreedOutput.(*eth.OutputV0)
 		if !ok {
-			return fmt.Errorf("unsupported L2 output version: %d", agreedOutput.Version())
+			return fmt.Errorf("%w: version: %d", l2.ErrUnsupportedL2Output, agreedOutput.Version())
 		}
 		agreedBlockHash := common.Hash(agreedOutputV0.BlockHash)
 
@@ -297,6 +298,7 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query supervisortypes
 		}
 		current += uint32(len(receipt.Logs))
 	}
+	//nolint:err113 // TODO(#14988): Handle non-existent logs
 	return supervisortypes.BlockSeal{}, fmt.Errorf("log not found")
 }
 
@@ -353,7 +355,7 @@ func (d *consolidateCheckDeps) DependencySet() depset.DependencySet {
 func (d *consolidateCheckDeps) CanonBlockByNumber(oracle l2.Oracle, blockNum uint64, chainID eth.ChainID) (*ethtypes.Block, error) {
 	head := d.canonBlocks[chainID].GetHeaderByNumber(blockNum)
 	if head == nil {
-		return nil, fmt.Errorf("head not found for chain %v", chainID)
+		return nil, fmt.Errorf("head not found for chain %v: %w", chainID, ethereum.NotFound)
 	}
 	return d.oracle.BlockByHash(head.Hash(), chainID), nil
 }

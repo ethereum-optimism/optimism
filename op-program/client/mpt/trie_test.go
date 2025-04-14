@@ -27,7 +27,7 @@ func (tc *trieCase) run(t *testing.T) {
 	results := ReadTrie(root, func(key common.Hash) []byte {
 		v, ok := byHash[key]
 		if !ok {
-			panic(fmt.Errorf("missing key %s", key))
+			panic(fmt.Sprintf("missing key %s", key))
 		}
 		return v
 	})
