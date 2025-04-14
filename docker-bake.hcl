@@ -7,7 +7,11 @@ variable "REPOSITORY" {
 }
 
 variable "KONA_VERSION" {
-  default = "kona-client-v0.1.0-beta.8"
+  default = "0.1.0-beta.15"
+}
+
+variable "ASTERISC_VERSION" {
+  default = "v1.2.0"
 }
 
 variable "GIT_COMMIT" {
@@ -129,6 +133,7 @@ target "op-challenger" {
     GIT_DATE = "${GIT_DATE}"
     OP_CHALLENGER_VERSION = "${OP_CHALLENGER_VERSION}"
     KONA_VERSION="${KONA_VERSION}"
+    ASTERISC_VERSION="${ASTERISC_VERSION}"
   }
   target = "op-challenger-target"
   platforms = split(",", PLATFORMS)
@@ -210,18 +215,6 @@ target "cannon" {
   target = "cannon-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
-}
-
-target "proofs-tools" {
-  dockerfile = "./ops/docker/proofs-tools/Dockerfile"
-  context = "."
-  args = {
-    CHALLENGER_VERSION="b46bffed42db3442d7484f089278d59f51503049"
-    KONA_VERSION="${KONA_VERSION}"
-  }
-  target="proofs-tools"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofs-tools:${tag}"]
 }
 
 target "holocene-deployer" {

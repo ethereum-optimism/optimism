@@ -1875,7 +1875,6 @@ workflows:
             - op-dispute-mon-docker-build
             - op-program-docker-build
             - op-supervisor-docker-build
-            - proofs-tools-docker-build
             - go-tests
             - sanitize-op-program
           context:
@@ -1893,7 +1892,6 @@ workflows:
                 - op-program
                 - op-proposer
                 - op-challenger
-                - proofs-tools
                 - op-dispute-mon
                 - op-conductor
                 - da-server
@@ -1974,7 +1972,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|proofs-tools|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       # Standard (medium) cross-platform docker images go here
@@ -2041,27 +2039,6 @@ workflows:
             - op-dripper-docker-release
           context:
             - circleci-repo-readonly-authenticated-github-token
-      # Standard (xlarge) AMD-only docker images go here
-      - docker-build:
-          matrix:
-            parameters:
-              docker_name:
-                - proofs-tools
-          name: <<matrix.docker_name>>-docker-release
-          resource_class: xlarge
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          filters:
-            tags:
-              only: /^<<matrix.docker_name>>\/v.*/
-            branches:
-              ignore: /.*/
-          context:
-            - oplabs-gcr-release
-            - discord
-          requires:
-            - hold
       - cannon-prestate:
           filters:
             tags:
