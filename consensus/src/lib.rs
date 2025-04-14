@@ -36,8 +36,7 @@ pub use proof::calculate_receipt_root_no_memo_optimism;
 
 pub mod validation;
 pub use validation::{
-    canyon, decode_holocene_base_fee, isthmus, next_block_base_fee, shanghai,
-    validate_block_post_execution,
+    canyon, decode_holocene_base_fee, isthmus, next_block_base_fee, validate_block_post_execution,
 };
 
 pub mod error;
@@ -104,7 +103,7 @@ impl<ChainSpec: EthChainSpec + OpHardforks, B: Block> Consensus<B>
 
         // Check empty shanghai-withdrawals
         if self.chain_spec.is_shanghai_active_at_timestamp(block.timestamp()) {
-            shanghai::ensure_empty_shanghai_withdrawals(block.body()).map_err(|err| {
+            canyon::ensure_empty_shanghai_withdrawals(block.body()).map_err(|err| {
                 ConsensusError::Other(format!("failed to verify block {}: {err}", block.number()))
             })?
         } else {
