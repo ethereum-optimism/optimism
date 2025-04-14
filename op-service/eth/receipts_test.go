@@ -1,14 +1,13 @@
-package rpc_test
+package eth_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/rpc"
 )
 
 // newLog creates a log with a specific index and address.
@@ -138,7 +137,7 @@ func TestGetLogAtIndex(t *testing.T) {
 			receipts := data.receipts
 			allLogs := data.logs
 
-			log, err := rpc.GetLogAtIndex(receipts, tc.logIndexToFind)
+			log, err := eth.GetLogAtIndex(receipts, tc.logIndexToFind)
 
 			if tc.expectedError {
 				require.Error(t, err, "Expected an error but got none")

@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
-	backendrpc "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/rpc"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -168,7 +167,7 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) 
 		LogHash:     logHash,
 	}.Checksum()
 	if entryChecksum != query.Checksum {
-		return types.BlockSeal{}, types.ErrAccessListVerifyError
+		return types.BlockSeal{}, types.ErrConflict
 	}
 
 	return types.BlockSeal{
@@ -184,7 +183,7 @@ func (rs *RPCSyncNode) getLogAtIndex(ctx context.Context, blockHash common.Hash,
 		return nil, fmt.Errorf("failed to fetch receipts for verifying access with RPC: %w", err)
 	}
 
-	log, err := backendrpc.GetLogAtIndex(receipts, uint(logIndex))
+	log, err := eth.GetLogAtIndex(receipts, uint(logIndex))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get log index for verifying access with RPC: %w", err)
 	}

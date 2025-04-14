@@ -452,7 +452,7 @@ func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc t
 		timeoutCtx, cancel := context.WithTimeout(ctx, verifyAccessWithRPCTimeout)
 		defer cancel()
 		msgBlockFromRPC, err := su.checkAccessWithRPC(timeoutCtx, acc)
-		if errors.Is(err, types.ErrAccessListVerifyError) {
+		if errors.Is(err, types.ErrConflict) {
 			su.logger.Error("RPC access checksum failed", "err", err, "access", acc)
 			su.m.RecordAccessListVerifyFailure(acc.ChainID)
 		} else {
@@ -483,7 +483,7 @@ func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc types.A
 		Checksum:  acc.Checksum,
 	})
 	if err != nil {
-		return eth.BlockID{}, fmt.Errorf("failed to check access with RPC: %w", err)
+		return eth.BlockID{}, err
 	}
 
 	return blockSeal.ID(), nil
