@@ -50,7 +50,6 @@ This command will deploy several contracts, and output a JSON like the one below
 ```shell
 op-deployer bootstrap implementations \
   --artifacts-locator="<locator>" \
-  --l1-contracts-release="op-contracts/v<your-release>" \
   --l1-rpc-url="<rpc url>" \
   --outfile="./.deployer/bootstrap_implementations.json" \
   --mips-version="<1 or 2, for MIPS32 or MIPS64>" \
@@ -59,10 +58,6 @@ op-deployer bootstrap implementations \
   --superchain-config-proxy="<address output from bootstrap superchain>" \
   --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
 ```
-
-### --l1-contracts-release
-This defaults to the value `dev`. If your `--artifacts-locator` is a tagged release (i.e. has prefix `tag://`) then this value must match
-the tagged release (e.g. `op-contracts/v1.8.0-rc.4`)
 
 ### Output
 
