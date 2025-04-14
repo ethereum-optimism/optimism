@@ -4,7 +4,7 @@ type Identifiable[I comparable] interface {
 	ID() I
 }
 
-// Matcher is abstracts what can be used as getter-method argument.
+// Matcher abstracts what can be used as getter-method argument.
 // All ID types implement this interface, and lookup functions check
 // if the argument is an ID before searching for a match.
 // This enables lookups such as getting a component by labels,
