@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 COPY . /app
 
-FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.4.0 AS cannon-released
+FROM --platform=$BUILDPLATFORM ghcr.io/ethereum-optimism/optimism/cannon:v1.4.0 AS cannon-released
 
 # we need a separate stage for src so we can build a service provides prestates for unnanounced chains
 FROM src AS builder
