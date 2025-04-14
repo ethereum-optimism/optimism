@@ -751,7 +751,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 // Transaction on B executes message from A, and vice-versa. Cross-pattern, within same tx: inter-dependent but non-cyclic txs.
 // Two transactions happen in same timestamp:
 // txA: chain A: alice initiates message X and executes message Y
-// txB: chain B: bob initiates message Y and excecutes message X
+// txB: chain B: bob initiates message Y and executes message X
 func TestCrossPatternSameTx(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	rng := rand.New(rand.NewSource(1234))
