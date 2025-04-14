@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
@@ -15,6 +16,9 @@ type SimpleInterop struct {
 	T            devtest.T
 	Supervisor   *dsl.Supervisor
 	ControlPlane stack.ControlPlane
+
+	L2ChainA stack.L2Network
+	L2ChainB stack.L2Network
 }
 
 func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
@@ -52,5 +56,7 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 		T:            t,
 		Supervisor:   sys.Supervisor(supervisorId),
 		ControlPlane: orch.ControlPlane(),
+		L2ChainA:     system.L2Network(match.L2ChainA),
+		L2ChainB:     system.L2Network(match.L2ChainB),
 	}
 }
