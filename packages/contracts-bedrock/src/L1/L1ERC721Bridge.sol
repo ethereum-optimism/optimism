@@ -14,13 +14,14 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 /// @custom:proxied true
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC721 tokens deposited into L2.
-contract L1ERC721Bridge is ERC721Bridge, ISemver {
+contract L1ERC721Bridge is ERC721Bridge, ReinitializableBase, ISemver {
     /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
@@ -31,21 +32,27 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     address private spacer_50_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 2.5.0
+    string public constant version = "2.5.0";
 
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1ERC721Bridge contract.
-    constructor() ERC721Bridge() {
+    constructor() ERC721Bridge() ReinitializableBase(1) {
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
     /// @param _messenger   Contract of the CrossDomainMessenger on this network.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
-    function initialize(ICrossDomainMessenger _messenger, ISystemConfig _systemConfig) external initializer {
+    function initialize(
+        ICrossDomainMessenger _messenger,
+        ISystemConfig _systemConfig
+    )
+        external
+        reinitializer(initVersion())
+    {
         systemConfig = _systemConfig;
         __ERC721Bridge_init({ _messenger: _messenger, _otherBridge: ERC721Bridge(payable(Predeploys.L2_ERC721_BRIDGE)) });
     }
@@ -53,6 +60,19 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     /// @inheritdoc ERC721Bridge
     function paused() public view override returns (bool) {
         return systemConfig.paused();
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
+    }
+
+    /// @notice Upgrades the L1ERC721Bridge contract to have a reference to the SystemConfig.
+    /// @param _systemConfig SystemConfig contract.
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+        systemConfig = _systemConfig;
+        spacer_50_0_20 = address(0);
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
@@ -124,11 +144,5 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         // Send calldata into L2
         messenger.sendMessage({ _target: address(otherBridge), _message: message, _minGasLimit: _minGasLimit });
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-    }
-
-    /// @notice Returns the SuperchainConfig contract.
-    /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
     }
 }

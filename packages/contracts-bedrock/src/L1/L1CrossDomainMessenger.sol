@@ -12,13 +12,14 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 /// @custom:proxied true
 /// @title L1CrossDomainMessenger
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
-contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
+
+contract L1CrossDomainMessenger is CrossDomainMessenger, ReinitializableBase, ISemver {
     /// @custom:legacy
     /// @custom:spacer superchainConfig
     /// @notice Spacer taking up the legacy `superchainConfig` slot.
@@ -34,21 +35,21 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 2.7.0
+    string public constant version = "2.7.0";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    constructor() {
+    constructor() ReinitializableBase(1) {
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
-    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external initializer {
+    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external reinitializer(initVersion()) {
         systemConfig = _systemConfig;
         portal = _portal;
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
@@ -92,5 +93,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() public view returns (ISuperchainConfig) {
         return systemConfig.superchainConfig();
+    }
+
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+        systemConfig = _systemConfig;
+        spacer_251_0_20 = address(0);
     }
 }

@@ -369,7 +369,7 @@ contract Deploy is Deployer {
         vm.broadcast(msg.sender);
         IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
             _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, deployOutput.systemConfigProxy))
+            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
         });
 
         setAlphabetFaultGameImplementation();
@@ -379,8 +379,6 @@ contract Deploy is Deployer {
         setCannonFaultGameImplementation();
 
         transferDisputeGameFactoryOwnership();
-        transferDelayedWETHOwnership();
-        transferPermissionedDelayedWETHOwnership();
     }
 
     /// @notice Add AltDA setup to the OP chain
@@ -586,44 +584,6 @@ contract Deploy is Deployer {
             _contracts: _proxies(),
             _expectedOwner: finalSystemOwner,
             _isProxy: true
-        });
-    }
-
-    /// @notice Transfer ownership of the DelayedWETH contract to the final system owner
-    function transferDelayedWETHOwnership() public broadcast {
-        console.log("Transferring DelayedWETH ownership to Safe");
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-        address owner = weth.owner();
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            weth.transferOwnership(finalSystemOwner);
-            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkDelayedWETH({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true,
-            _expectedOwner: finalSystemOwner
-        });
-    }
-
-    /// @notice Transfer ownership of the permissioned DelayedWETH contract to the final system owner
-    function transferPermissionedDelayedWETHOwnership() public broadcast {
-        console.log("Transferring permissioned DelayedWETH ownership to Safe");
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("PermissionedDelayedWETHProxy"));
-        address owner = weth.owner();
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            weth.transferOwnership(finalSystemOwner);
-            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkPermissionedDelayedWETH({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true,
-            _expectedOwner: finalSystemOwner
         });
     }
 

@@ -2,8 +2,9 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 import { WETH98 } from "src/universal/WETH98.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -20,7 +21,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         is meant to sit behind a proxy contract and has an owner address that can pull WETH from any account and
 ///         can recover ETH from the contract itself. Variable and function naming vaguely follows the vibe of WETH9.
 ///         Not the prettiest contract in the world, but it gets the job done.
-contract DelayedWETH is OwnableUpgradeable, WETH98, ISemver {
+contract DelayedWETH is Initializable, ProxyAdminOwnedBase, WETH98, ISemver {
     /// @notice Represents a withdrawal request.
     struct WithdrawalRequest {
         uint256 amount;
@@ -37,7 +38,7 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, ISemver {
     /// @notice Withdrawal delay in seconds.
     uint256 internal immutable DELAY_SECONDS;
 
-    /// @notice Address of the SuperchainConfig contract.
+    /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
     /// @param _delay The delay for withdrawals in seconds.
@@ -47,11 +48,8 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, ISemver {
     }
 
     /// @notice Initializes the contract.
-    /// @param _owner The address of the owner.
     /// @param _systemConfig Address of the SystemConfig contract.
-    function initialize(address _owner, ISystemConfig _systemConfig) external initializer {
-        __Ownable_init();
-        _transferOwnership(_owner);
+    function initialize(ISystemConfig _systemConfig) external initializer {
         systemConfig = _systemConfig;
     }
 
@@ -59,6 +57,12 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, ISemver {
     /// @return The withdrawal delay in seconds.
     function delay() external view returns (uint256) {
         return DELAY_SECONDS;
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function config() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 
     /// @notice Unlocks withdrawals for the sender's account, after a time delay.
@@ -94,34 +98,29 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, ISemver {
         super.withdraw(_wad);
     }
 
-    /// @notice Allows the owner to recover from error cases by pulling ETH out of the contract.
+    /// @notice Allows the proxy admin owner to recover from error cases by pulling ETH out of the contract.
     /// @param _wad The amount of WETH to recover.
     function recover(uint256 _wad) external {
-        require(msg.sender == owner(), "DelayedWETH: not owner");
+        require(msg.sender == proxyAdminOwner(), "DelayedWETH: not proxy admin owner");
         uint256 amount = _wad < address(this).balance ? _wad : address(this).balance;
         (bool success,) = payable(msg.sender).call{ value: amount }(hex"");
         require(success, "DelayedWETH: recover failed");
     }
 
-    /// @notice Allows the owner to recover from error cases by pulling all WETH from a specific owner.
+    /// @notice Allows the proxy admin owner to recover from error cases by pulling all WETH from a specific owner.
     /// @param _guy The address to recover the WETH from.
     function hold(address _guy) external {
         hold(_guy, balanceOf(_guy));
     }
 
-    /// @notice Allows the owner to recover from error cases by pulling a specific amount of WETH from a specific owner.
+    /// @notice Allows the proxy admin owner to recover from error cases by pulling a specific amount of WETH from a
+    /// specific owner.
     /// @param _guy The address to recover the WETH from.
     /// @param _wad The amount of WETH to recover.
     function hold(address _guy, uint256 _wad) public {
-        require(msg.sender == owner(), "DelayedWETH: not owner");
+        require(msg.sender == proxyAdminOwner(), "DelayedWETH: not proxy admin owner");
         _allowance[_guy][msg.sender] = _wad;
         emit Approval(_guy, msg.sender, _wad);
         transferFrom(_guy, msg.sender, _wad);
-    }
-
-    /// @notice Returns the SuperchainConfig contract.
-    /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
     }
 }

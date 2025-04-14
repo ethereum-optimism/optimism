@@ -187,8 +187,7 @@ contract StandardValidatorBase {
         _errors = internalRequire(outputConfig.systemTxMaxGas == 1_000_000, "SYSCON-80", _errors);
         _errors = internalRequire(outputConfig.minimumBaseFee == 1 gwei, "SYSCON-90", _errors);
         _errors = internalRequire(outputConfig.maximumBaseFee == type(uint128).max, "SYSCON-100", _errors);
-        _errors =
-            internalRequire(address(_sysCfg.superchainConfig()) == address(superchainConfig), "SYSCON-110", _errors);
+        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-110", _errors);
         return _errors;
     }
 
@@ -459,7 +458,7 @@ contract StandardValidatorBase {
             string.concat(_errorPrefix, "-20"),
             _errors
         );
-        _errors = internalRequire(_weth.owner() == l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
+        _errors = internalRequire(_weth.proxyAdminOwner() == l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
         return _errors;
     }

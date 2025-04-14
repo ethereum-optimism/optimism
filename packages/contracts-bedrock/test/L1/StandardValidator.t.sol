@@ -583,7 +583,7 @@ abstract contract StandardValidatorTest is Test {
 
         // Test invalid DelayedWETH owner
         _mockValidationCalls();
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.owner, ()), abi.encode(address(0xbad)));
+        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(address(0xbad)));
         assertEq(string.concat(errorPrefix, "-DWETH-30"), validate(true));
 
         // Test invalid DelayedWETH delay
@@ -933,7 +933,7 @@ abstract contract StandardValidatorTest is Test {
 
     function _mockDelayedWETH(address _weth) public {
         vm.mockCall(address(_weth), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.0"));
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.owner, ()), abi.encode(l1PAOMultisig));
+        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(l1PAOMultisig));
         vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1 weeks / 2));
     }
 }

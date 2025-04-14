@@ -241,9 +241,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 5.0.0
+    /// @custom:semver 4.2.0
     function version() public pure virtual returns (string memory) {
-        return "5.0.0";
+        return "4.2.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -277,21 +277,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         __ResourceMetering_init();
     }
 
-    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry.
-    /// @param _anchorStateRegistry AnchorStateRegistry contract.
-    /// @param _ethLockbox ETHLockbox contract.
-    function upgrade(
-        IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox
-    )
-        external
-        reinitializer(initVersion())
-    {
-        anchorStateRegistry = _anchorStateRegistry;
-        ethLockbox = _ethLockbox;
-
-        // Migrate the whole ETH balance to the ETHLockbox.
-        _migrateLiquidity();
+    /// @notice Upgrades the OptimismPortal contract to have a reference to the SystemConfig.
+    /// @param _systemConfig SystemConfig contract.
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+        systemConfig = _systemConfig;
+        spacer_53_1_20 = address(0);
     }
 
     /// @notice Getter for the current paused status.
@@ -331,6 +321,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Getter for the timestamp at which the respected game type was updated.
     function respectedGameTypeUpdatedAt() external view returns (uint64) {
         return anchorStateRegistry.retirementTimestamp();
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 
     /// @notice Computes the minimum gas limit for a deposit.
@@ -781,11 +777,5 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         assembly ("memory-safe") {
             config_ := config
         }
-    }
-
-    /// @notice Returns the SuperchainConfig contract.
-    /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
     }
 }

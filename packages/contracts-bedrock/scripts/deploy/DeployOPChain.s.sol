@@ -664,7 +664,7 @@ contract DeployOPChain is Script {
     function assertValidDelayedWETH(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         IDelayedWETH permissioned = _doo.delayedWETHPermissionedGameProxy();
 
-        require(permissioned.owner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
+        require(permissioned.proxyAdminOwner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
 
         IProxy proxy = IProxy(payable(address(permissioned)));
         vm.prank(address(0));

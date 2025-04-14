@@ -7,6 +7,10 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IL1ERC721Bridge is IERC721Bridge {
+    error ReinitializableBase_ZeroInitVersion();
+
+    function initVersion() external view returns (uint8);
+    function upgrade(ISystemConfig _systemConfig) external;
     function bridgeERC721(
         address _localToken,
         address _remoteToken,

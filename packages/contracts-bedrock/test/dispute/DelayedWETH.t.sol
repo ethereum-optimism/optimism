@@ -18,17 +18,13 @@ contract DelayedWETH_Init is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-
-        // Transfer ownership of delayed WETH to the test contract.
-        vm.prank(delayedWeth.owner());
-        delayedWeth.transferOwnership(address(this));
     }
 }
 
 contract DelayedWETH_Initialize_Test is DelayedWETH_Init {
     /// @dev Tests that initialization is successful.
     function test_initialize_succeeds() public view {
-        assertEq(delayedWeth.owner(), address(this));
+        assertEq(delayedWeth.proxyAdminOwner(), address(this));
         assertEq(address(delayedWeth.systemConfig()), address(systemConfig));
     }
 }
@@ -281,25 +277,19 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
         // Assume
         _fallbackGasUsage = bound(_fallbackGasUsage, 0, 20000000);
 
-        // Set up the gas burner.
-        FallbackGasUser gasUser = new FallbackGasUser(_fallbackGasUsage);
-
-        // Transfer ownership to alice.
-        delayedWeth.transferOwnership(address(gasUser));
-
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), _amount);
 
         // Record the initial balance.
-        uint256 initialBalance = address(gasUser).balance;
+        uint256 initialBalance = address(delayedWeth.proxyAdminOwner()).balance;
 
         // Recover the WETH.
-        vm.prank(address(gasUser));
+        vm.prank(address(delayedWeth.proxyAdminOwner()));
         delayedWeth.recover(_amount);
 
         // Verify the WETH was recovered.
         assertEq(address(delayedWeth).balance, 0);
-        assertEq(address(gasUser).balance, initialBalance + _amount);
+        assertEq(address(delayedWeth.proxyAdminOwner()).balance, initialBalance + _amount);
     }
 
     /// @dev Tests that recovering WETH by non-owner fails.
@@ -314,14 +304,11 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
 
     /// @dev Tests that recovering more than the balance recovers what it can.
     function test_recover_moreThanBalance_succeeds() public {
-        // Transfer ownership to alice.
-        delayedWeth.transferOwnership(alice);
-
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), 0.5 ether);
 
         // Record the initial balance.
-        uint256 initialBalance = address(alice).balance;
+        uint256 initialBalance = address(delayedWeth.proxyAdminOwner()).balance;
 
         // Recover the WETH.
         vm.prank(alice);
@@ -329,16 +316,13 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
 
         // Verify the WETH was recovered.
         assertEq(address(delayedWeth).balance, 0);
-        assertEq(address(alice).balance, initialBalance + 0.5 ether);
+        assertEq(address(delayedWeth.proxyAdminOwner()).balance, initialBalance + 0.5 ether);
     }
 
     /// @dev Tests that recover reverts when recipient reverts.
     function test_recover_whenRecipientReverts_fails() public {
         // Set up the reverter.
         FallbackReverter reverter = new FallbackReverter();
-
-        // Transfer ownership to the reverter.
-        delayedWeth.transferOwnership(address(reverter));
 
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), 1 ether);

@@ -239,11 +239,11 @@ library ChainAssertions {
         DeployUtils.assertInitialized({ _contractAddress: address(weth), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(weth.owner() == _expectedOwner, "CHECK-DWETH-20");
+            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-DWETH-20");
             require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-30");
             require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-DWETH-40");
         } else {
-            require(weth.owner() == _expectedOwner, "CHECK-DWETH-50");
+            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-DWETH-50");
             require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-60");
         }
     }
@@ -270,11 +270,11 @@ library ChainAssertions {
         DeployUtils.assertInitialized({ _contractAddress: address(weth), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(weth.owner() == _expectedOwner, "CHECK-PDWETH-20");
+            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-PDWETH-20");
             require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-PDWETH-30");
             require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-PDWETH-40");
         } else {
-            require(weth.owner() == _expectedOwner, "CHECK-PDWETH-50");
+            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-PDWETH-50");
             require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-PDWETH-60");
         }
     }

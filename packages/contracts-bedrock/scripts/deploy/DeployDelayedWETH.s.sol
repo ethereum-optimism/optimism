@@ -141,7 +141,7 @@ contract DeployDelayedWETHOutput is BaseDeployIO {
             _slot: 0,
             _offset: 0
         });
-        require(delayedWethImpl().owner() == address(0), "DWI-20");
+        require(delayedWethImpl().proxyAdminOwner() == address(0), "DWI-20");
         require(delayedWethImpl().delay() == _dwi.delayedWethDelay(), "DWI-30");
         require(address(delayedWethImpl().systemConfig()) == address(0), "DWI-30");
     }
@@ -160,7 +160,7 @@ contract DeployDelayedWETHOutput is BaseDeployIO {
             _slot: 0,
             _offset: 0
         });
-        require(delayedWethProxy().owner() == _dwi.delayedWethOwner(), "DWP-20");
+        require(delayedWethProxy().proxyAdminOwner() == _dwi.delayedWethOwner(), "DWP-20");
         require(delayedWethProxy().delay() == _dwi.delayedWethDelay(), "DWP-30");
         require(delayedWethProxy().systemConfig() == _dwi.systemConfigProxy(), "DWP-40");
     }
@@ -211,9 +211,7 @@ contract DeployDelayedWETH is Script {
         IDelayedWETH impl = _dwo.delayedWethImpl();
 
         vm.startBroadcast(msg.sender);
-        proxy.upgradeToAndCall(
-            address(impl), abi.encodeCall(impl.initialize, (_dwi.delayedWethOwner(), _dwi.systemConfigProxy()))
-        );
+        proxy.upgradeToAndCall(address(impl), abi.encodeCall(impl.initialize, (_dwi.systemConfigProxy())));
         proxy.changeAdmin(_dwi.proxyAdmin());
         vm.stopBroadcast();
 

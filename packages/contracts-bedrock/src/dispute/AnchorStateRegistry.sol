@@ -108,6 +108,12 @@ contract AnchorStateRegistry is Initializable, ISemver {
         return systemConfig.paused();
     }
 
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
+    }
+
     /// @notice Returns the dispute game finality delay in seconds.
     function disputeGameFinalityDelaySeconds() external view returns (uint256) {
         return DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -313,11 +319,5 @@ contract AnchorStateRegistry is Initializable, ISemver {
         // Update the anchor game.
         anchorGame = game;
         emit AnchorUpdated(game);
-    }
-
-    /// @notice Returns the SuperchainConfig contract.
-    /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
     }
 }

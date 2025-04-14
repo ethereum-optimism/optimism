@@ -87,6 +87,19 @@
   },
   {
     "inputs": [],
+    "name": "config",
+    "outputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "decimals",
     "outputs": [
       {
@@ -152,11 +165,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      },
-      {
         "internalType": "contract ISystemConfig",
         "name": "_systemConfig",
         "type": "address"
@@ -182,7 +190,7 @@
   },
   {
     "inputs": [],
-    "name": "owner",
+    "name": "proxyAdminOwner",
     "outputs": [
       {
         "internalType": "address",
@@ -204,26 +212,6 @@
     "name": "recover",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "superchainConfig",
-    "outputs": [
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -315,19 +303,6 @@
         "type": "bool"
       }
     ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "transferOwnership",
-    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -477,25 +452,6 @@
       }
     ],
     "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "previousOwner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "OwnershipTransferred",
     "type": "event"
   },
   {

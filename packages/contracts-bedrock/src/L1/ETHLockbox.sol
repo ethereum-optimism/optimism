@@ -105,6 +105,12 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
         return systemConfig.paused();
     }
 
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
+    }
+
     /// @notice Authorizes a portal to lock and unlock ETH.
     /// @param _portal The address of the portal to authorize.
     function authorizePortal(IOptimismPortal _portal) external {
@@ -217,11 +223,5 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
 
         // Emit the event.
         emit PortalAuthorized(_portal);
-    }
-
-    /// @notice Returns the SuperchainConfig contract.
-    /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
     }
 }

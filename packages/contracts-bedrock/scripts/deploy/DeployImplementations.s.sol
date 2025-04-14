@@ -385,7 +385,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(delayedWETH), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(delayedWETH.owner() == address(0), "DW-10");
+        require(delayedWETH.proxyAdminOwner() == address(0), "DW-10");
         require(delayedWETH.delay() == _dii.withdrawalDelaySeconds(), "DW-20");
         require(delayedWETH.systemConfig() == ISystemConfig(address(0)), "DW-30");
     }

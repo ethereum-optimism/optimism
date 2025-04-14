@@ -141,9 +141,9 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 4.0.0
+    /// @custom:semver 3.1.0
     function version() public pure virtual returns (string memory) {
-        return "4.0.0";
+        return "3.1.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -208,15 +208,10 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         superchainConfig = ISuperchainConfig(_superchainConfig);
     }
 
-    /// @notice Upgrades the SystemConfig by setting the L2 chain ID variable.
-    /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
-    function upgrade(uint256 _l2ChainId) external reinitializer(initVersion()) {
-        // Set the L2 chain ID.
-        l2ChainId = _l2ChainId;
-
-        // Clear out the old dispute game factory address, it's derived now.
-        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-        Storage.setAddress(disputeGameFactorySlot, address(0));
+    /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
+    /// @param _superchainConfig The SuperchainConfig contract address.
+    function upgrade(ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
+        superchainConfig = _superchainConfig;
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to

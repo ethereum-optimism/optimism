@@ -217,6 +217,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "initVersion",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "contract ISystemConfig",
@@ -393,6 +406,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "upgrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "version",
     "outputs": [
@@ -512,5 +538,10 @@
     ],
     "name": "SentMessageExtension1",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ReinitializableBase_ZeroInitVersion",
+    "type": "error"
   }
 ]

@@ -629,7 +629,7 @@ contract DeployImplementations2 is Script {
 
         DeployUtils.assertInitialized({ _contractAddress: address(delayedWETH), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(delayedWETH.owner() == address(0), "DW-10");
+        require(delayedWETH.proxyAdminOwner() == address(0), "DW-10");
         require(delayedWETH.delay() == _input.withdrawalDelaySeconds, "DW-20");
         require(delayedWETH.config() == ISuperchainConfig(address(0)), "DW-30");
     }

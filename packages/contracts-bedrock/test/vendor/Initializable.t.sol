@@ -107,7 +107,7 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHImpl",
                 target: EIP1967Helper.getImplementation(address(delayedWeth)),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (address(0), ISystemConfig(address(0))))
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (ISystemConfig(address(0))))
             })
         );
         // DelayedWETHProxy
@@ -115,7 +115,7 @@ contract Initializer_Test is CommonTest {
             InitializeableContract({
                 name: "DelayedWETHProxy",
                 target: address(delayedWeth),
-                initCalldata: abi.encodeCall(delayedWeth.initialize, (address(0), ISystemConfig(address(0))))
+                initCalldata: abi.encodeCall(delayedWeth.initialize, (ISystemConfig(address(0))))
             })
         );
         // OptimismPortal2Impl

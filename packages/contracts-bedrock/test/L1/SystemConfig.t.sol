@@ -510,7 +510,7 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
         assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
 
         // Trigger upgrade().
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(ISuperchainConfig(address(0xdeadbeef)));
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(systemConfig), bytes32(slot.slot));
@@ -532,11 +532,11 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
         vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
 
         // Trigger first upgrade.
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(ISuperchainConfig(address(0xdeadbeef)));
 
         // Try to trigger second upgrade.
         vm.expectRevert("Initializable: contract is already initialized");
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(ISuperchainConfig(address(0xdeadbeef)));
     }
 
     /// @notice Tests that the upgrade() function reverts if called after initialization.
@@ -553,6 +553,6 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
 
         // Try to trigger upgrade().
         vm.expectRevert("Initializable: contract is already initialized");
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(ISuperchainConfig(address(0xdeadbeef)));
     }
 }

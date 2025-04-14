@@ -36,7 +36,7 @@ contract SuperchainConfig is Initializable, ISemver {
     event Paused(string identifier);
 
     /// @notice Emitted when the pause is lifted.
-    event Unpaused();
+    event Unpaused(string identifier);
 
     /// @notice Emitted when configuration is updated.
     /// @param updateType Type of update.
@@ -51,7 +51,7 @@ contract SuperchainConfig is Initializable, ISemver {
     error OnlyGuardian();
 
     /// @notice Thrown when attempting to pause an identifier that has already been used and not reset
-    error PauseAlreadyUsed();
+    error PauseAlreadyUsed(string identifier);
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
@@ -73,7 +73,7 @@ contract SuperchainConfig is Initializable, ISemver {
             revert OnlyGuardian();
         }
         if (pauseUsed[_identifier]) {
-            revert PauseAlreadyUsed();
+            revert PauseAlreadyUsed(string(abi.encodePacked(_identifier)));
         }
 
         pauseTimestamps[_identifier] = block.timestamp;
@@ -90,7 +90,7 @@ contract SuperchainConfig is Initializable, ISemver {
 
         pauseTimestamps[_identifier] = 0;
         pauseUsed[_identifier] = false;
-        emit Unpaused();
+        emit Unpaused(string(abi.encodePacked(_identifier)));
     }
 
     /// @notice Checks if the system can be paused for a specific identifier.

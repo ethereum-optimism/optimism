@@ -12,6 +12,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 /// @custom:proxied true
 /// @title L1StandardBridge
@@ -23,7 +24,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L1StandardBridge is StandardBridge, ISemver {
+contract L1StandardBridge is StandardBridge, ReinitializableBase, ISemver {
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -75,8 +76,8 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
-    string public constant version = "3.0.0";
+    /// @custom:semver 2.4.0
+    string public constant version = "2.4.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -92,14 +93,20 @@ contract L1StandardBridge is StandardBridge, ISemver {
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
-    constructor() StandardBridge() {
+    constructor() StandardBridge() ReinitializableBase(1) {
         _disableInitializers();
     }
 
     /// @notice Initializer.
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
     /// @param _systemConfig Contract for the SystemConfig on this network.
-    function initialize(ICrossDomainMessenger _messenger, ISystemConfig _systemConfig) external initializer {
+    function initialize(
+        ICrossDomainMessenger _messenger,
+        ISystemConfig _systemConfig
+    )
+        external
+        reinitializer(initVersion())
+    {
         systemConfig = _systemConfig;
         __StandardBridge_init({
             _messenger: _messenger,
@@ -110,6 +117,19 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @inheritdoc StandardBridge
     function paused() public view override returns (bool) {
         return systemConfig.paused();
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
+    }
+
+    /// @notice Upgrades the L1StandardBridge contract to have a reference to the SystemConfig.
+    /// @param _systemConfig SystemConfig contract.
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+        systemConfig = _systemConfig;
+        spacer_50_0_20 = address(0);
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
@@ -332,11 +352,5 @@ contract L1StandardBridge is StandardBridge, ISemver {
     {
         emit ERC20WithdrawalFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-    }
-
-    /// @notice Returns the SuperchainConfig contract.
-    /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
     }
 }

@@ -9,10 +9,10 @@ interface ISuperchainConfig {
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
     event Initialized(uint8 version);
     event Paused(string identifier);
-    event Unpaused();
+    event Unpaused(string identifier);
 
     error OnlyGuardian();
-    error PauseAlreadyUsed();
+    error PauseAlreadyUsed(string identifier);
 
     function guardian() external view returns (address);
     function initialize(address _guardian, uint256 _pauseExpiry) external;
