@@ -12,12 +12,14 @@ import { DelegateCaller } from "test/mocks/Callers.sol";
 import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
+import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -632,6 +634,17 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         skipIfNotOpFork("test_upgradeOPChainOnly_succeeds");
         // Run the upgrade test and checks
         runUpgradeTestAndChecks(upgrader);
+    }
+
+    function test_verifyOpcmCorrectness_succeeds() public {
+        skipIfNotOpFork("test_verifyOpcmCorrectness_succeeds");
+
+        // Run the upgrade test and checks
+        runUpgradeTestAndChecks(upgrader);
+
+        // Run the verification script
+        VerifyOPCM verify = new VerifyOPCM();
+        verify.run(address(opcm));
     }
 
     function test_isRcFalseAfterCalledByUpgrader_works() public {
