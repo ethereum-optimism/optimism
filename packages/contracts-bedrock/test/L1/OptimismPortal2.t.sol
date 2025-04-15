@@ -14,7 +14,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Libraries

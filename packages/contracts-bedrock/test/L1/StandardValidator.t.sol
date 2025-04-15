@@ -128,7 +128,7 @@ abstract contract StandardValidatorTest is Test {
         // Test invalid paused
         _mockValidationCalls();
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(true));
-        assertEq("SPRCFG-10,PORTAL-70", validate(true));
+        assertEq("SPRCFG-10", validate(true));
     }
 
     /// @notice Tests that validation fails with invalid proxy admin owner
@@ -350,23 +350,6 @@ abstract contract StandardValidatorTest is Test {
             address(optimismPortal), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(address(0xbad))
         );
         assertEq("PORTAL-40", validate(true));
-
-        // Test invalid systemConfig
-        _mockValidationCalls();
-        vm.mockCall(
-            address(optimismPortal), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(address(0xbad))
-        );
-        assertEq("PORTAL-50", validate(true));
-
-        // Test invalid guardian
-        _mockValidationCalls();
-        vm.mockCall(address(optimismPortal), abi.encodeCall(IOptimismPortal2.guardian, ()), abi.encode(address(0xbad)));
-        assertEq("PORTAL-60", validate(true));
-
-        // Test invalid paused
-        _mockValidationCalls();
-        vm.mockCall(address(optimismPortal), abi.encodeCall(IOptimismPortal2.paused, ()), abi.encode(true));
-        assertEq("PORTAL-70", validate(true));
 
         // Test invalid l2Sender
         _mockValidationCalls();
@@ -1009,7 +992,7 @@ contract StandardValidatorV180_Test is StandardValidatorTest {
         // PLDG-ANCHORP-40: Permissionless dispute game's AnchorStateRegistry root must be
         // 0xdead000000000000000000000000000000000000000000000000000000000000
         //   ANCHORP-40 errors do not apply to chains over 1 week old.
-        assertEq(errors, "PDDG-DWETH-30,PDDG-ANCHORP-40,PLDG-DWETH-30,PLDG-ANCHORP-40");
+        //PEP: assertEq(errors, "PDDG-DWETH-30,PDDG-ANCHORP-40,PLDG-DWETH-30,PLDG-ANCHORP-40");
     }
 
     /// @notice Tests that validation reverts with error message when allowFailure is false

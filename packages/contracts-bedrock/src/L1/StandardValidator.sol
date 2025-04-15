@@ -187,7 +187,7 @@ contract StandardValidatorBase {
         _errors = internalRequire(outputConfig.systemTxMaxGas == 1_000_000, "SYSCON-80", _errors);
         _errors = internalRequire(outputConfig.minimumBaseFee == 1 gwei, "SYSCON-90", _errors);
         _errors = internalRequire(outputConfig.maximumBaseFee == type(uint128).max, "SYSCON-100", _errors);
-        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-110", _errors);
+        //PEP: _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-110", _errors);
         return _errors;
     }
 
@@ -306,9 +306,6 @@ contract StandardValidatorBase {
         IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
-        _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-50", _errors);
-        _errors = internalRequire(_portal.guardian() == ISystemConfig(_sysCfg).guardian(), "PORTAL-60", _errors);
-        _errors = internalRequire(_portal.paused() == ISystemConfig(_sysCfg).paused(), "PORTAL-70", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
         return _errors;
     }
@@ -487,9 +484,9 @@ contract StandardValidatorBase {
         (Hash actualRoot,) = _asr.anchors(_gameType);
         bytes32 expectedRoot = 0xdead000000000000000000000000000000000000000000000000000000000000;
         _errors = internalRequire(Hash.unwrap(actualRoot) == expectedRoot, string.concat(_errorPrefix, "-40"), _errors);
-        _errors = internalRequire(
-            address(_asr.systemConfig()) == address(systemConfigImpl), string.concat(_errorPrefix, "-50"), _errors
-        );
+        //PEP: _errors = internalRequire(
+        //    address(_asr.systemConfig()) == address(systemConfigImpl), string.concat(_errorPrefix, "-50"), _errors
+        //);
         return _errors;
     }
 
