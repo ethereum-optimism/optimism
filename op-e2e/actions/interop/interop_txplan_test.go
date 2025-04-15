@@ -851,3 +851,54 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	require.Equal(t, chainAUnsafeHead, actors.ChainA.Sequencer.SyncStatus().SafeL2)
 	require.Equal(t, chainBUnsafeHead, actors.ChainB.Sequencer.SyncStatus().SafeL2)
 }
+
+// TestCycleInTx tests below scenario:
+// Transaction executes message, then initiates it: cycle with self
+func TestCycleInTx(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	alice := setupUser(t, is, actors.ChainA, 0)
+
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
+
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+
+	// assume all two txs land in block number 2, same time
+	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
+	targetNum := uint64(2)
+	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
+
+	// open blocks
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+
+	// speculatively build exec message by knowing necessary info to build Message
+	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
+	logIndexX := uint(0)
+	exec, err := interop.ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	require.NoError(t, err)
+
+	// tx includes cycle with self
+	calls := []txintent.Call{exec, init}
+
+	// Intent to execute message X and initiate message X at chain A
+	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsA)
+	tx.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: calls})
+
+	included, err := tx.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+
+	// Make sure tx in block sealed at expected time
+	require.Equal(t, included.Time, targetTime)
+	require.Equal(t, included.Number, targetNum)
+
+	// Make batcher happy by advancing at least a single block
+	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
+
+	unsafeHeadNumAfterReorg := targetNum - 1
+	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
+}
