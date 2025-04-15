@@ -14,7 +14,22 @@ var OPCM_ARTIFACT_PATH = "forge-artifacts/OPContractsManager.sol/OPContractsMana
 var OPCM_UPGRADE_FUNCTION_SELECTOR = "ff2dd5a1"
 var INTERNAL_UPGRADE_FUNCTION_TYPE_STRING = "function (contract IProxyAdmin,address,address,bytes memory)"
 
+type CallType int
+
+const (
+	NOT_FOUND CallType = iota
+	UPGRADE_EXTERNAL_CALL
+	UPGRADE_TO_AND_CALL_INTERNAL_CALL
+)
+
 func main() {
+	// Assert that the OPCM_BASE's upgradeToAndCall function has a call from IProxyAdmin.upgradeAndCall.
+	res, err := assertOPCMBaseUpgradeToAndCallFunction("contract IProxyAdmin", "OPContractsManagerBase")
+	if !res {
+		fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Process.
 	if _, err := common.ProcessFilesGlob(
 		[]string{"forge-artifacts/**/*.json"},
@@ -24,6 +39,38 @@ func main() {
 		fmt.Printf("error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func assertOPCMBaseUpgradeToAndCallFunction(upgraderContractTypeName string, upgradeToAndCallContractsName string) (bool, error) {
+	// First, get the OPCM's artifact.
+	opcmArtifact, err := common.ReadForgeArtifact(OPCM_ARTIFACT_PATH)
+	if err != nil {
+		return false, fmt.Errorf("error: %v", err)
+	}
+
+	// Then get the OPCM Base's upgradeToAndCall internal functions AST.
+	opcmBaseUpgradeToAndCallAst := solc.AstNode{}
+	for _, node := range opcmArtifact.Ast.Nodes {
+		if node.NodeType == "ContractDefinition" && node.Name == upgradeToAndCallContractsName {
+			for _, node := range node.Nodes {
+				if node.NodeType == "FunctionDefinition" && node.Name == "upgradeToAndCall" && node.Visibility == "internal" && len(node.Parameters.Parameters) == 4 {
+					opcmBaseUpgradeToAndCallAst = node
+					break
+				}
+			}
+		}
+	}
+	if opcmBaseUpgradeToAndCallAst.NodeType == "" {
+		return false, fmt.Errorf("OPCM Base's upgradeToAndCall internal function not found")
+	}
+
+	// Next, ensure that a call to IProxyAdmin.upgradeAndCall is found in the OPCM's upgradeToAndCall function.
+	found := upgradesContract(opcmBaseUpgradeToAndCallAst.Body.Statements, "upgradeAndCall", upgraderContractTypeName, "")
+	if found == UPGRADE_EXTERNAL_CALL {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("OPCM Base's upgradeToAndCall internal function does not have a call from IProxyAdmin.upgradeAndCall")
 }
 
 func processFile(artifactPath string) (*common.Void, []error) {
@@ -63,7 +110,9 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	// Check that there is a call to contract.upgrade.
 	contractName := strings.Split(filepath.Base(artifactPath), ".")[0]
 	typeName := "contract I" + contractName
-	if !upgradesContract(opcmUpgradeAst.Body.Statements, typeName, INTERNAL_UPGRADE_FUNCTION_TYPE_STRING) {
+
+	callType := upgradesContract(opcmUpgradeAst.Body.Statements, "upgrade", typeName, INTERNAL_UPGRADE_FUNCTION_TYPE_STRING)
+	if callType == NOT_FOUND {
 		return nil, []error{fmt.Errorf("OPCM upgrade function does not call %v.upgrade", contractName)}
 	}
 
@@ -78,27 +127,27 @@ func processFile(artifactPath string) (*common.Void, []error) {
 // - External upgrade calls within a try or catch path
 // - External upgrade calls within the true/false block of ternary statements can be identified
 // - Any combination of the aforementioned can be identified
-func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFunctionTypeString string) bool {
+func upgradesContract(opcmUpgradeAst []solc.AstNode, expectedExternalCallName string, typeName string, internalFunctionTypeString string) CallType {
 	// Loop through all statements finding any external call to an upgrade function with a contract type of `typeName`
 	for _, node := range opcmUpgradeAst {
 		// To support nested statements or blocks.
 		if node.Statements != nil {
-			found := upgradesContract(*node.Statements, typeName, internalFunctionTypeString)
-			if found {
+			found := upgradesContract(*node.Statements, expectedExternalCallName, typeName, internalFunctionTypeString)
+			if found != NOT_FOUND {
 				return found
 			}
 		}
 
 		// For if / else-if / else statements
 		if node.TrueBody != nil {
-			found := upgradesContract([]solc.AstNode{*node.TrueBody}, typeName, internalFunctionTypeString)
-			if found {
+			found := upgradesContract([]solc.AstNode{*node.TrueBody}, expectedExternalCallName, typeName, internalFunctionTypeString)
+			if found != NOT_FOUND {
 				return found
 			}
 		}
 		if node.FalseBody != nil {
-			found := upgradesContract([]solc.AstNode{*node.FalseBody}, typeName, internalFunctionTypeString)
-			if found {
+			found := upgradesContract([]solc.AstNode{*node.FalseBody}, expectedExternalCallName, typeName, internalFunctionTypeString)
+			if found != NOT_FOUND {
 				return found
 			}
 		}
@@ -106,14 +155,14 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 		// For tenary statement
 		if node.Expression != nil && node.Expression.NodeType == "Conditional" {
 			if node.Expression.TrueExpression != nil {
-				found := upgradesContract([]solc.AstNode{*node.Expression.TrueExpression}, typeName, internalFunctionTypeString)
-				if found {
+				found := upgradesContract([]solc.AstNode{*node.Expression.TrueExpression}, expectedExternalCallName, typeName, internalFunctionTypeString)
+				if found != NOT_FOUND {
 					return found
 				}
 			}
 			if node.Expression.FalseExpression != nil {
-				found := upgradesContract([]solc.AstNode{*node.Expression.FalseExpression}, typeName, internalFunctionTypeString)
-				if found {
+				found := upgradesContract([]solc.AstNode{*node.Expression.FalseExpression}, expectedExternalCallName, typeName, internalFunctionTypeString)
+				if found != NOT_FOUND {
 					return found
 				}
 			}
@@ -121,22 +170,22 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 
 		// For nested tenary statement
 		if node.TrueExpression != nil {
-			found := upgradesContract([]solc.AstNode{*node.TrueExpression}, typeName, internalFunctionTypeString)
-			if found {
+			found := upgradesContract([]solc.AstNode{*node.TrueExpression}, expectedExternalCallName, typeName, internalFunctionTypeString)
+			if found != NOT_FOUND {
 				return found
 			}
 		}
 		if node.FalseExpression != nil {
-			found := upgradesContract([]solc.AstNode{*node.FalseExpression}, typeName, internalFunctionTypeString)
-			if found {
+			found := upgradesContract([]solc.AstNode{*node.FalseExpression}, expectedExternalCallName, typeName, internalFunctionTypeString)
+			if found != NOT_FOUND {
 				return found
 			}
 		}
 
 		// To support loops.
 		if node.Body != nil && node.Body.Statements != nil {
-			found := upgradesContract(node.Body.Statements, typeName, internalFunctionTypeString)
-			if found {
+			found := upgradesContract(node.Body.Statements, expectedExternalCallName, typeName, internalFunctionTypeString)
+			if found != NOT_FOUND {
 				return found
 			}
 		}
@@ -144,8 +193,8 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 		// To support try/catch blocks.
 		// Try part
 		if node.NodeType == "TryStatement" && node.ExternalCall != nil {
-			found := upgradesContract([]solc.AstNode{*node.ExternalCall}, typeName, internalFunctionTypeString)
-			if found {
+			found := upgradesContract([]solc.AstNode{*node.ExternalCall}, expectedExternalCallName, typeName, internalFunctionTypeString)
+			if found != NOT_FOUND {
 				return found
 			}
 		}
@@ -153,8 +202,8 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 		if node.Clauses != nil {
 			for _, clause := range node.Clauses {
 				if clause.Block != nil && clause.Block.Statements != nil {
-					found := upgradesContract(clause.Block.Statements, typeName, internalFunctionTypeString)
-					if found {
+					found := upgradesContract(clause.Block.Statements, expectedExternalCallName, typeName, internalFunctionTypeString)
+					if found != NOT_FOUND {
 						return found
 					}
 				}
@@ -164,8 +213,8 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 		// If not nested, check if the statement is an external call to an upgrade function with a contract type of `typeName`
 		if node.NodeType == "ExpressionStatement" {
 			if node.Expression.Expression != nil && node.Expression.Expression.Expression != nil {
-				if node.Expression.Expression.MemberName == "upgrade" && node.Expression.Expression.Expression.TypeDescriptions.TypeString == typeName {
-					return true
+				if node.Expression.Expression.MemberName == expectedExternalCallName && node.Expression.Expression.Expression.TypeDescriptions.TypeString == typeName {
+					return UPGRADE_EXTERNAL_CALL
 				}
 			}
 		}
@@ -174,8 +223,8 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 		if node.NodeType == "FunctionCall" {
 			// Try branch.
 			if node.Expression != nil && node.Expression.Expression != nil {
-				if node.Expression.MemberName == "upgrade" && node.Expression.Expression.TypeDescriptions.TypeString == typeName {
-					return true
+				if node.Expression.MemberName == expectedExternalCallName && node.Expression.Expression.TypeDescriptions.TypeString == typeName {
+					return UPGRADE_EXTERNAL_CALL
 				}
 			}
 		}
@@ -187,7 +236,7 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 					node.Expression.Expression.TypeDescriptions.TypeString == internalFunctionTypeString {
 					// Assert that the second argument is of type `typeName` that was cast (within the argument list) into an address
 					if node.Expression.Arguments[1].Arguments[0].TypeDescriptions.TypeString == typeName {
-						return true
+						return UPGRADE_TO_AND_CALL_INTERNAL_CALL
 					}
 				}
 			}
@@ -201,7 +250,7 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 					node.Expression.TypeDescriptions.TypeString == internalFunctionTypeString {
 					// Assert that the second argument is of type `typeName` that was cast (within the argument list) into an address
 					if node.Arguments[1].Arguments[0].TypeDescriptions.TypeString == typeName {
-						return true
+						return UPGRADE_TO_AND_CALL_INTERNAL_CALL
 					}
 				}
 			}
@@ -209,7 +258,7 @@ func upgradesContract(opcmUpgradeAst []solc.AstNode, typeName string, internalFu
 	}
 
 	// Else return false.
-	return false
+	return NOT_FOUND
 }
 
 // Get the AST of OPCM's upgrade function.

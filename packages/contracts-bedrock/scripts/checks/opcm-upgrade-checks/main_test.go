@@ -261,7 +261,7 @@ func TestUpgradesContract(t *testing.T) {
 		upgradeAst                        []solc.AstNode
 		typeName                          string
 		internalUpgradeFunctionTypeString string
-		expectedOutput                    bool
+		expectedOutput                    CallType
 	}
 
 	tests := []test{}
@@ -269,7 +269,7 @@ func TestUpgradesContract(t *testing.T) {
 	for _, node := range artifact.Ast.Nodes {
 		if node.NodeType == "ContractDefinition" && node.Name != "IUpgradeable" && node.Name != "InternalUpgradeFunction" {
 			upgradeAst := solc.AstNode{}
-			expectedOutput := false
+			expectedOutput := NOT_FOUND
 			for _, astNode := range node.Nodes {
 				if astNode.NodeType == "FunctionDefinition" && astNode.Name == "upgrade" {
 					if upgradeAst.NodeType != "" {
@@ -287,14 +287,24 @@ func TestUpgradesContract(t *testing.T) {
 						t.Fatalf("Expected value to be a map: %v", astNode.Value)
 					}
 
-					if value["kind"] != "bool" {
-						continue
+					typeDescriptions, ok := value["typeDescriptions"].(map[string]interface{})
+					if !ok {
+						t.Fatalf("Expected typeDescriptions to be a map: %v", value)
+					}
+					if typeDescriptions["typeString"] != "uint8" {
+						t.Fatalf("Expected the typeString to be uint8: %v", value)
 					}
 
-					if value["value"] == "true" {
-						expectedOutput = true
-					} else if value["value"] == "false" {
-						expectedOutput = false
+					name, ok := value["name"].(string)
+					if !ok {
+						t.Fatalf("Expected name to be a string: %v", value)
+					}
+					if name == "NOT_FOUND" {
+						expectedOutput = NOT_FOUND
+					} else if name == "UPGRADE_EXTERNAL_CALL" {
+						expectedOutput = UPGRADE_EXTERNAL_CALL
+					} else if name == "UPGRADE_TO_AND_CALL_INTERNAL_CALL" {
+						expectedOutput = UPGRADE_TO_AND_CALL_INTERNAL_CALL
 					} else {
 						t.Fatalf("Expected output is not a boolean: %s", astNode.Value)
 					}
@@ -306,14 +316,14 @@ func TestUpgradesContract(t *testing.T) {
 				upgradeAst                        []solc.AstNode
 				typeName                          string
 				internalUpgradeFunctionTypeString string
-				expectedOutput                    bool
+				expectedOutput                    CallType
 			}{node.Name, []solc.AstNode{upgradeAst}, "contract IUpgradeable", "function (contract IUpgradeable,address,address,bytes memory)", expectedOutput})
 		}
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output := upgradesContract(test.upgradeAst, test.typeName, test.internalUpgradeFunctionTypeString)
+			output := upgradesContract(test.upgradeAst, "upgrade", test.typeName, test.internalUpgradeFunctionTypeString)
 			assert.Equal(t, test.expectedOutput, output)
 		})
 	}

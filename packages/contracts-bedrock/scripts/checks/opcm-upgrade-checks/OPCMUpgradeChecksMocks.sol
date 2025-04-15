@@ -2,19 +2,25 @@
 pragma solidity ^0.8.0;
 
 IUpgradeable constant UPGRADE_CONTRACT = IUpgradeable(address(111));
+uint8 constant NOT_FOUND = 0;
+uint8 constant UPGRADE_EXTERNAL_CALL = 1;
+uint8 constant UPGRADE_TO_AND_CALL_INTERNAL_CALL = 2;
 
 interface IUpgradeable {
     function upgrade() external;
+    function upgradeAndCall(address _newImplementation, address _newImplementationCode, bytes memory _data) external;
 }
 
 ///////// INDIRECT UPGRADE CALLS //////////
 
 contract InternalUpgradeFunction {
-    function upgradeToAndCall(IUpgradeable _a, address _b, address _c, bytes memory _d) internal { }
+    function upgradeToAndCall(IUpgradeable _a, address _b, address _c, bytes memory _d) internal {
+        _a.upgradeAndCall(_b, _c, _d);
+    }
 }
 
 contract WithNoExternalUpgradeFunctionInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = false;
+    uint8 constant EXPECTED_OUTPUT = NOT_FOUND;
 
     function aaa() external {
         upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
@@ -22,7 +28,7 @@ contract WithNoExternalUpgradeFunctionInternal is InternalUpgradeFunction {
 }
 
 contract WithinTopLevelFunctionInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade() external {
         upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
@@ -30,7 +36,7 @@ contract WithinTopLevelFunctionInternal is InternalUpgradeFunction {
 }
 
 contract WithinBlockStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade() external {
         {
@@ -40,7 +46,7 @@ contract WithinBlockStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinForLoopInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade() external {
         for (uint256 i = 0; i < 10; i++) {
@@ -50,7 +56,7 @@ contract WithinForLoopInternal is InternalUpgradeFunction {
 }
 
 contract WithinWhileLoopInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade() external {
         while (true) {
@@ -60,7 +66,7 @@ contract WithinWhileLoopInternal is InternalUpgradeFunction {
 }
 
 contract WithinDoWhileLoopInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade() external {
         do {
@@ -70,7 +76,7 @@ contract WithinDoWhileLoopInternal is InternalUpgradeFunction {
 }
 
 contract WithinTrueBlockOfIfStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
@@ -82,7 +88,7 @@ contract WithinTrueBlockOfIfStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinFalseBlockOfIfStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
@@ -94,7 +100,7 @@ contract WithinFalseBlockOfIfStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinElseIfBlockOfIfStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
@@ -108,7 +114,7 @@ contract WithinElseIfBlockOfIfStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinTrueBlockOfTernaryStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -118,7 +124,7 @@ contract WithinTrueBlockOfTernaryStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinFalseBlockOfTernaryStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -128,7 +134,7 @@ contract WithinFalseBlockOfTernaryStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinTrueBlockOfTrueBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -140,7 +146,7 @@ contract WithinTrueBlockOfTrueBlockOfNestedTernaryStatementInternal is InternalU
 }
 
 contract WithinFalseBlockOfTrueBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -152,7 +158,7 @@ contract WithinFalseBlockOfTrueBlockOfNestedTernaryStatementInternal is Internal
 }
 
 contract WithinFalseBlockOfFalseBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -164,7 +170,7 @@ contract WithinFalseBlockOfFalseBlockOfNestedTernaryStatementInternal is Interna
 }
 
 contract WithinTrueBlockOfFalseBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -176,7 +182,7 @@ contract WithinTrueBlockOfFalseBlockOfNestedTernaryStatementInternal is Internal
 }
 
 contract WithinTryBlockOfTryCatchStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -188,7 +194,7 @@ contract WithinTryBlockOfTryCatchStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinCatchBlockOfTryCatchStatementInternal is InternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
 
     function mock() external { }
 
@@ -203,7 +209,7 @@ contract WithinCatchBlockOfTryCatchStatementInternal is InternalUpgradeFunction 
 ///////// DIRECT UPGRADE CALLS //////////
 
 contract WithNoExternalUpgradeFunction {
-    bool constant EXPECTED_OUTPUT = false;
+    uint8 constant EXPECTED_OUTPUT = NOT_FOUND;
 
     function aaa() external {
         UPGRADE_CONTRACT.upgrade();
@@ -211,7 +217,7 @@ contract WithNoExternalUpgradeFunction {
 }
 
 contract WithinTopLevelFunction {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade() external {
         UPGRADE_CONTRACT.upgrade();
@@ -219,7 +225,7 @@ contract WithinTopLevelFunction {
 }
 
 contract WithinBlockStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade() external {
         {
@@ -229,7 +235,7 @@ contract WithinBlockStatement {
 }
 
 contract WithinForLoop {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade() external {
         for (uint256 i = 0; i < 10; i++) {
@@ -239,7 +245,7 @@ contract WithinForLoop {
 }
 
 contract WithinWhileLoop {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade() external {
         while (true) {
@@ -249,7 +255,7 @@ contract WithinWhileLoop {
 }
 
 contract WithinDoWhileLoop {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade() external {
         do {
@@ -259,7 +265,7 @@ contract WithinDoWhileLoop {
 }
 
 contract WithinTrueBlockOfIfStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
@@ -271,7 +277,7 @@ contract WithinTrueBlockOfIfStatement {
 }
 
 contract WithinFalseBlockOfIfStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
@@ -283,7 +289,7 @@ contract WithinFalseBlockOfIfStatement {
 }
 
 contract WithinElseIfBlockOfIfStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
@@ -297,7 +303,7 @@ contract WithinElseIfBlockOfIfStatement {
 }
 
 contract WithinTrueBlockOfTernaryStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
@@ -307,7 +313,7 @@ contract WithinTrueBlockOfTernaryStatement {
 }
 
 contract WithinFalseBlockOfTernaryStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
@@ -317,7 +323,7 @@ contract WithinFalseBlockOfTernaryStatement {
 }
 
 contract WithinTrueBlockOfTrueBlockOfNestedTernaryStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
@@ -327,7 +333,7 @@ contract WithinTrueBlockOfTrueBlockOfNestedTernaryStatement {
 }
 
 contract WithinFalseBlockOfTrueBlockOfNestedTernaryStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
@@ -337,7 +343,7 @@ contract WithinFalseBlockOfTrueBlockOfNestedTernaryStatement {
 }
 
 contract WithinFalseBlockOfFalseBlockOfNestedTernaryStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
@@ -347,7 +353,7 @@ contract WithinFalseBlockOfFalseBlockOfNestedTernaryStatement {
 }
 
 contract WithinTrueBlockOfFalseBlockOfNestedTernaryStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
@@ -357,7 +363,7 @@ contract WithinTrueBlockOfFalseBlockOfNestedTernaryStatement {
 }
 
 contract WithTryStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function upgrade() external {
         try UPGRADE_CONTRACT.upgrade() { } catch { }
@@ -365,7 +371,7 @@ contract WithTryStatement {
 }
 
 contract WithinTryBlockOfTryCatchStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
@@ -377,7 +383,7 @@ contract WithinTryBlockOfTryCatchStatement {
 }
 
 contract WithinCatchBlockOfTryCatchStatement {
-    bool constant EXPECTED_OUTPUT = true;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_EXTERNAL_CALL;
 
     function mock() external { }
 
