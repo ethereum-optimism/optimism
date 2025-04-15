@@ -80,11 +80,15 @@ contract VerifyOPCM is Script {
     /// @notice Maps OPCM field names (as strings) to an overriding contract name.
     mapping(string => string) internal fieldNameOverrides;
 
+    /// @notice Maps contract names to an overriding source file name.
+    mapping(string => string) internal sourceNameOverrides;
+
     /// @notice Setup flag.
     bool internal ready;
 
-    /// @notice Populate the field name overrides mapping.
+    /// @notice Populates override mappings.
     function setUp() public {
+        // Overrides for situations where field names do not cleanly map to contract names.
         fieldNameOverrides["optimismPortalImpl"] = "OptimismPortal2";
         fieldNameOverrides["mipsImpl"] = "MIPS64";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
@@ -96,6 +100,14 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["superPermissionlessDisputeGame2"] = "SuperFaultDisputeGame";
         fieldNameOverrides["superPermissionedDisputeGame1"] = "SuperPermissionedDisputeGame";
         fieldNameOverrides["superPermissionedDisputeGame2"] = "SuperPermissionedDisputeGame";
+
+        // Overrides for situations where contracts have differently named source files.
+        sourceNameOverrides["OPContractsManagerGameTypeAdder"] = "OPContractsManager";
+        sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
+        sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
+        sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
+
+        // Mark as ready.
         ready = true;
     }
 
@@ -153,19 +165,44 @@ contract VerifyOPCM is Script {
         }
 
         // Create a single array to join everything together.
-        OpcmContractRef[] memory refs = new OpcmContractRef[](implRefs.length + bpRefs.length + 1);
+        uint256 extraRefs = 5;
+        OpcmContractRef[] memory refs = new OpcmContractRef[](implRefs.length + bpRefs.length + extraRefs);
 
-        // Reference for OPCM itself.
-        refs[0] = OpcmContractRef({ field: "OPCM", name: "OPContractsManager", addr: address(_opcm), blueprint: false });
+        // References for OPCM and linked contracts.
+        refs[0] = OpcmContractRef({ field: "opcm", name: "OPContractsManager", addr: address(_opcm), blueprint: false });
+        refs[1] = OpcmContractRef({
+            field: "opcmGameTypeAdder",
+            name: "OPContractsManagerGameTypeAdder",
+            addr: address(_opcm.opcmGameTypeAdder()),
+            blueprint: false
+        });
+        refs[2] = OpcmContractRef({
+            field: "opcmDeployer",
+            name: "OPContractsManagerDeployer",
+            addr: address(_opcm.opcmDeployer()),
+            blueprint: false
+        });
+        refs[3] = OpcmContractRef({
+            field: "opcmUpgrader",
+            name: "OPContractsManagerUpgrader",
+            addr: address(_opcm.opcmUpgrader()),
+            blueprint: false
+        });
+        refs[4] = OpcmContractRef({
+            field: "opcmInteropMigrator",
+            name: "OPContractsManagerInteropMigrator",
+            addr: address(_opcm.opcmInteropMigrator()),
+            blueprint: false
+        });
 
         // Add the implementation references.
         for (uint256 i = 0; i < implRefs.length; i++) {
-            refs[i + 1] = implRefs[i];
+            refs[i + extraRefs] = implRefs[i];
         }
 
         // Add the blueprint references.
         for (uint256 i = 0; i < bpRefs.length; i++) {
-            refs[i + implRefs.length + 1] = bpRefs[i];
+            refs[i + implRefs.length + extraRefs] = bpRefs[i];
         }
 
         // Return the combined references.
@@ -460,7 +497,14 @@ contract VerifyOPCM is Script {
     /// @notice Constructs the expected path to Foundry artifact JSON file based on contract name.
     /// @param _contractName The simple contract name (e.g., "SystemConfig", "FaultDisputeGame").
     /// @return Path to the artifact file.
-    function _buildArtifactPath(string memory _contractName) internal pure returns (string memory) {
-        return string.concat("forge-artifacts/", _contractName, ".sol/", _contractName, ".json");
+    function _buildArtifactPath(string memory _contractName) internal view returns (string memory) {
+        // Potentially need to override the source name if multiple contracts are defined in the same file.
+        string memory sourceName = _contractName;
+        if (bytes(sourceNameOverrides[_contractName]).length > 0) {
+            sourceName = sourceNameOverrides[_contractName];
+        }
+
+        // Return computed path, relative to the contracts-bedrock directory.
+        return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
     }
 }

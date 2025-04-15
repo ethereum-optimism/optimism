@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { console2 as console } from "forge-std/console2.sol";
+
 // Tests
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 
@@ -26,7 +28,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _getOpcmContractRefs(_opcm, _property, _blueprint);
     }
 
-    function buildArtifactPath(string memory _contractName) public pure returns (string memory) {
+    function buildArtifactPath(string memory _contractName) public view returns (string memory) {
         return _buildArtifactPath(_contractName);
     }
 }
@@ -48,17 +50,14 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
     }
 
     /// @notice Tests that the script succeeds when differences are introduced into the immutable
-    ///         variables of implementation contracts.
-    /// @param _diffCount Number of differences to introduce.
-    function testFuzz_run_implementationDifferentInsideImmutable_succeeds(uint8 _diffCount) public {
-        // At least one diff.
-        _diffCount = uint8(bound(_diffCount, 1, type(uint8).max));
-
+    ///         variables of implementation contracts. Fuzzing is too slow here, randomness is good
+    ///         enough.
+    function test_run_implementationDifferentInsideImmutable_succeeds() public {
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
-        // Change bytes at random.
-        for (uint8 i = 0; i < _diffCount; i++) {
+        // Change 256 bytes at random.
+        for (uint8 i = 0; i < 255; i++) {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
@@ -67,9 +66,7 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
             bytes memory implCode = ref.addr.code;
 
             // Grab the artifact info for the implementation.
-            VerifyOPCM.ArtifactInfo memory artifact = harness.loadArtifactInfo(
-                harness.buildArtifactPath(ref.name)
-            );
+            VerifyOPCM.ArtifactInfo memory artifact = harness.loadArtifactInfo(harness.buildArtifactPath(ref.name));
 
             // Skip, no immutable references. Will make some fuzz runs useless but it's not worth
             // the extra complexity to handle this properly.
@@ -110,17 +107,14 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
     }
 
     /// @notice Tests that the script reverts when differences are introduced into the code of
-    ///         implementation contracts that are not inside immutable references.
-    /// @param _diffCount Number of differences to introduce.
-    function testFuzz_run_implementationDifferentOutsideImmutable_reverts(uint8 _diffCount) public {
-        // At least one diff.
-        _diffCount = uint8(bound(_diffCount, 1, type(uint8).max));
-
+    ///         implementation contracts that are not inside immutable references. Fuzzing is too
+    ///         slow here, randomness is good enough.
+    function test_run_implementationDifferentOutsideImmutable_reverts() public {
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
-        // Change bytes at random.
-        for (uint8 i = 0; i < _diffCount; i++) {
+        // Change 256 bytes at random.
+        for (uint8 i = 0; i < 255; i++) {
             // Pick a random implementation to change.
             uint256 randomImplIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomImplIndex];
@@ -129,9 +123,7 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
             bytes memory implCode = ref.addr.code;
 
             // Grab the artifact info for the implementation.
-            VerifyOPCM.ArtifactInfo memory artifact = harness.loadArtifactInfo(
-                harness.buildArtifactPath(ref.name)
-            );
+            VerifyOPCM.ArtifactInfo memory artifact = harness.loadArtifactInfo(harness.buildArtifactPath(ref.name));
 
             // Find a random byte that isn't in an immutable reference.
             bool inImmutable = true;
@@ -167,17 +159,13 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script reverts when differences are introduced into the code of
     ///         blueprints. Unlike immutables, any difference anywhere in the blueprint should
-    ///         cause the script to revert.
-    /// @param _diffCount Number of differences to introduce.
-    function testFuzz_run_blueprintAnyDifference_reverts(uint8 _diffCount) public {
-        // At least one diff.
-        _diffCount = uint8(bound(_diffCount, 1, type(uint8).max));
-
+    ///         cause the script to revert. Fuzzing is too slow here, randomness is good enough.
+    function test_run_blueprintAnyDifference_reverts() public {
         // Grab the list of blueprints.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "blueprints", true);
 
-        // Change bytes at random.
-        for (uint8 i = 0; i < _diffCount; i++) {
+        // Change 256 bytes at random.
+        for (uint8 i = 0; i < 255; i++) {
             // Pick a random blueprint to change.
             uint256 randomBlueprintIndex = vm.randomUint(0, refs.length - 1);
             VerifyOPCM.OpcmContractRef memory ref = refs[randomBlueprintIndex];
