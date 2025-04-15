@@ -868,7 +868,7 @@ func TestCycleInTx(gt *testing.T) {
 
 	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
 
-	// assume all two txs land in block number 2, same time
+	// assume tx which multicalls exec message and init message land in block number 2
 	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
 	targetNum := uint64(2)
 	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
