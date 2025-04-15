@@ -243,7 +243,12 @@ contract Deploy is Deployer {
 
         // Finally replace the SuperchainConfig proxy with the implementation address and run assertions on it.
         contracts.SuperchainConfig = artifacts.mustGetAddress("SuperchainConfigImpl");
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _pauseExpiry: 7889238, _isProxy: false });
+        ChainAssertions.checkSuperchainConfig({
+            _contracts: contracts,
+            _cfg: cfg,
+            _pauseExpiry: 7889238,
+            _isProxy: false
+        });
     }
 
     /// @notice Deploy all of the implementations
