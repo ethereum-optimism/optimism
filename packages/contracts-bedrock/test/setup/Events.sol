@@ -105,7 +105,7 @@ contract Events {
 
     event Paused(string identifier);
 
-    event Unpaused();
+    event Unpaused(string identifier);
 
     event BalanceChanged(address account, uint256 balance);
 

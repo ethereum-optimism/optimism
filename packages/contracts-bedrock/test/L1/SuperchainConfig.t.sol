@@ -67,7 +67,13 @@ contract SuperchainConfig_Pause_TestFail is CommonTest {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
 
-        vm.expectRevert(ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector,
+                string(abi.encodePacked(address(this)))
+            )
+        );
+
         superchainConfig.pause(address(this));
     }
 }
@@ -113,7 +119,7 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
         assertTrue(superchainConfig.paused(address(this)));
 
         vm.expectEmit(address(superchainConfig));
-        emit Unpaused();
+        emit Unpaused(string(abi.encodePacked(address(this))));
         superchainConfig.unpause(address(this));
 
         assertFalse(superchainConfig.paused(address(this)));
@@ -136,11 +142,11 @@ contract SuperchainConfig_Extend_Test is CommonTest {
 
     /// @dev Tests that `extend` reverts when called by a non-guardian.
     function test_extend_notGuardian_reverts() external {
-        vm.startPrank(superchainConfig.guardian());
+        vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
 
-        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         vm.prank(alice);
+        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         superchainConfig.extend(address(this));
     }
 }

@@ -34,6 +34,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
@@ -56,7 +57,6 @@ contract OptimismPortal2_Test is CommonTest {
         IOptimismPortal opImpl = IOptimismPortal(payable(EIP1967Helper.getImplementation(address(optimismPortal2))));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
-        assertEq(address(opImpl.systemConfig().superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), address(0));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.ethLockbox()), address(0));
@@ -130,8 +130,9 @@ contract OptimismPortal2_Test is CommonTest {
         vm.expectEmit(address(superchainConfig));
         emit Paused(string(abi.encodePacked(address(0))));
 
-        vm.prank(guardian);
+        vm.startPrank(guardian);
         systemConfig.superchainConfig().pause(address(0));
+        vm.stopPrank();
 
         assertEq(optimismPortal2.paused(), true);
     }
@@ -141,7 +142,7 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(optimismPortal2.paused(), false);
 
         assertTrue(optimismPortal2.guardian() != alice);
-        vm.expectRevert("SuperchainConfig: only guardian can pause");
+        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         vm.startPrank(alice);
         superchainConfig.pause(address(0));
         vm.stopPrank();
@@ -159,7 +160,7 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(optimismPortal2.paused(), true);
 
         vm.expectEmit(address(superchainConfig));
-        emit Unpaused();
+        emit Unpaused(string(abi.encodePacked(address(0))));
         vm.prank(guardian);
         superchainConfig.unpause(address(0));
 
@@ -175,7 +176,7 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(optimismPortal2.paused(), true);
 
         assertTrue(optimismPortal2.guardian() != alice);
-        vm.expectRevert("SuperchainConfig: only guardian can unpause");
+        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         vm.prank(alice);
         superchainConfig.unpause(address(0));
 
