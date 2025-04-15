@@ -142,8 +142,9 @@ contract OptimismPortal2_Test is CommonTest {
 
         assertTrue(optimismPortal2.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can pause");
-        vm.prank(alice);
+        vm.startPrank(alice);
         superchainConfig.pause(address(0));
+        vm.stopPrank();
 
         assertEq(optimismPortal2.paused(), false);
     }
@@ -650,8 +651,9 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
-        vm.prank(optimismPortal2.guardian());
+        vm.startPrank(optimismPortal2.guardian());
         systemConfig.superchainConfig().pause(address(0));
+        vm.stopPrank();
 
         vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
         optimismPortal2.proveWithdrawalTransaction({

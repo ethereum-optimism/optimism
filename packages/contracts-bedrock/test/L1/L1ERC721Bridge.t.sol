@@ -87,7 +87,7 @@ contract L1ERC721Bridge_Test is CommonTest {
         assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
-        assertEq(address(l1ERC721Bridge.systemConfig()), address(superchainConfig));
+        assertEq(address(l1ERC721Bridge.systemConfig()), address(systemConfig));
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
@@ -394,10 +394,11 @@ contract L1ERC721Bridge_Pause_TestFail is CommonTest {
     ///      the calls to the xDomainMessageSender so that it returns the correct value.
     function setUp() public override {
         super.setUp();
-        vm.prank(systemConfig.guardian());
+        vm.startPrank(systemConfig.superchainConfig().guardian());
         systemConfig.superchainConfig().pause(address(0));
-        assertTrue(l1ERC721Bridge.paused());
+        vm.stopPrank();
 
+        assertTrue(l1ERC721Bridge.paused());
         vm.mockCall(
             address(l1ERC721Bridge.messenger()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
