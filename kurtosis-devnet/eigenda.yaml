@@ -8,11 +8,13 @@
 # TODO: I hate yaml templating... should really move to something more reasonable. CUE perhaps?
 # use proxy by default, otherwise connect with eigenda holesky backend
 {{- $useProxyMemstore := dig "eigenda-proxy" "useMemstore" true $context }}
-{{- $eigendaBackendSignerKey := dig "eigenda-proxy" "secrets" "eigenda.signer-private-key-hex" "" $context }}
+{{- $proxyDispersalBackend := dig "eigenda-proxy" "dispersalBackend" "v1" $context }}
+{{- $eigendaV1SignerKey := dig "eigenda-proxy" "secrets" "eigenda.signer-private-key-hex" "" $context }}
+{{- $eigendaV2SignerKey := dig "eigenda-proxy" "secrets" "eigenda.v2.signer-payment-key-hex" "" $context }}
 {{- $eigendaBackendEthRpc := dig "eigenda-proxy" "secrets" "eigenda.eth_rpc" "" $context }}
 {{- if not $useProxyMemstore}}
   # make sure the secrets are populated when using eigenda-holesky backend
-  {{- if or (eq $eigendaBackendSignerKey "") (eq $eigendaBackendEthRpc "") }}
+  {{- if or (eq $eigendaV1SignerKey "") (eq $eigendaV2SignerKey "") (eq $eigendaBackendEthRpc "") }}
     {{- fail "Missing required eigenda-proxy eigenda-backend secrets." }}
   {{- end }}
 {{- end }}
@@ -90,19 +92,29 @@ optimism_package:
         cannon_prestates_url: "http://fileserver/proofs/op-program/cannon"
         extra_params: []
       da_server_params:
-        image: ghcr.io/layr-labs/eigenda-proxy:v1.6.5
+        image: ghcr.io/layr-labs/eigenda-proxy:v1.7.0
         cmd:
           - --addr=0.0.0.0
           - --port=3100
+          - --storage.backends-to-enable=V1,V2
+          - --storage.dispersal-backend={{ $proxyDispersalBackend }} #v1 or v2
+          - --api-enabled=admin # to enable changing dispersal-backend to v2 without restarting
+          - --eigenda.v2.max-blob-length=1MiB # makes startup faster by only loading 1MiB/2MiB of G1/G2 SRS points.
         {{- if $useProxyMemstore }}
           - --memstore.enabled
           - --memstore.expiration=30m
         {{- else }} # connect to eigenda holesky backend
+          # V1 flags
           - --eigenda.disperser-rpc=disperser-holesky.eigenda.xyz:443
           - --eigenda.svc-manager-addr=0xD4A7E1Bd8015057293f0D0A557088c286942e84b
           # The two params below are loaded from the eigenda-secrets.json file
-          - --eigenda.signer-private-key-hex={{ $eigendaBackendSignerKey }}
+          - --eigenda.signer-private-key-hex={{ $eigendaV1SignerKey }}
           - --eigenda.eth-rpc={{ $eigendaBackendEthRpc }}
+          # V2 flags
+          - --eigenda.v2.disperser-rpc=disperser-holesky.eigenda.xyz:443
+          - --eigenda.v2.cert-verifier-addr=0xFe52fE1940858DCb6e12153E2104aD0fDFbE1162
+          - --eigenda.v2.signer-payment-key-hex={{ $eigendaV2SignerKey }}
+          - --eigenda.v2.eth-rpc={{ $eigendaBackendEthRpc }}
         {{- end }}
       additional_services:
         - da_server

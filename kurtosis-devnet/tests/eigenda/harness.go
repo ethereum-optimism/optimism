@@ -1,9 +1,12 @@
 package eigenda
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -182,9 +185,10 @@ type EnclaveServiceClients struct {
 	OpGethClient *ethclient.Client
 	// gethL1 is the client for the L1 chain execution layer client.
 	GethL1Client *ethclient.Client
-	// ProxyMemconfigClient is the client for the eigenda-proxy's memstore config API.
-	// It allows us to toggle the proxy's failover behavior.
-	ProxyMemconfigClient *ProxyMemconfigClient
+	// ProxyClients is the client for the eigenda-proxy's APIs: admin and memstore config.
+	// It allows us to toggle the proxy's failover behavior,
+	// as well as toggle the dispersal backend between V1 and V2.
+	ProxyClients *ProxyClients
 }
 
 func getClientsFromEndpoints(ctx context.Context, logger log.Logger, endpoints *EnclaveServicePublicEndpoints) (*EnclaveServiceClients, error) {
@@ -204,28 +208,36 @@ func getClientsFromEndpoints(ctx context.Context, logger log.Logger, endpoints *
 		return nil, fmt.Errorf("ethclient.Dial: %w", err)
 	}
 
-	proxyMemconfigClient := &ProxyMemconfigClient{
-		Client: memconfig_client.New(&memconfig_client.Config{URL: endpoints.EigendaProxyEndpoint}),
-	}
+	proxyClients := NewProxyClients(endpoints.EigendaProxyEndpoint)
 
 	return &EnclaveServiceClients{
-		OpNodeClient:         opNodeClient,
-		OpGethClient:         opGethClient,
-		GethL1Client:         gethL1Client,
-		ProxyMemconfigClient: proxyMemconfigClient,
+		OpNodeClient: opNodeClient,
+		OpGethClient: opGethClient,
+		GethL1Client: gethL1Client,
+		ProxyClients: proxyClients,
 	}, nil
 }
 
-// ProxyMemconfigClient is a wrapper around the memconfig client that adds a Failover method
+// ProxyClients is a wrapper around the memconfig client that adds a Failover method
 // TODO: we should upstream this to eigenda-proxy repo
-type ProxyMemconfigClient struct {
+type ProxyClients struct {
 	*memconfig_client.Client
+	*ProxyAdminAPIClient
+}
+
+func NewProxyClients(proxyEndpoint string) *ProxyClients {
+	return &ProxyClients{
+		Client: memconfig_client.New(&memconfig_client.Config{URL: proxyEndpoint}),
+		ProxyAdminAPIClient: &ProxyAdminAPIClient{
+			proxyEndpoint: proxyEndpoint,
+		},
+	}
 }
 
 // Update the proxy's memstore config to start returning 503 errors
 // Note: we have to GetConfig, update it and then UpdateConfig because the client doesn't implement a "patch" method,
 // even though the API does support it.
-func (c *ProxyMemconfigClient) Failover(ctx context.Context) error {
+func (c *ProxyClients) Failover(ctx context.Context) error {
 	memConfig, err := c.GetConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("GetConfig: %w", err)
@@ -237,7 +249,7 @@ func (c *ProxyMemconfigClient) Failover(ctx context.Context) error {
 	}
 	return nil
 }
-func (c *ProxyMemconfigClient) Failback(ctx context.Context) error {
+func (c *ProxyClients) Failback(ctx context.Context) error {
 	memConfig, err := c.GetConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("GetConfig: %w", err)
@@ -246,6 +258,93 @@ func (c *ProxyMemconfigClient) Failback(ctx context.Context) error {
 	_, err = c.UpdateConfig(ctx, memConfig)
 	if err != nil {
 		return fmt.Errorf("UpdateConfig: %w", err)
+	}
+	return nil
+}
+
+type EigenDACertVersion string
+
+const (
+	EigenDACertVersionV1 EigenDACertVersion = "V1"
+	EigenDACertVersionV2 EigenDACertVersion = "V2"
+)
+
+// Simple REST client for the proxy's admin API routes:
+// https://github.com/Layr-Labs/eigenda-proxy?tab=readme-ov-file#admin-routes
+// TODO: this should prob live in proxy repo?
+type ProxyAdminAPIClient struct {
+	proxyEndpoint string // e.g. http://localhost:3100
+}
+
+func (c *ProxyAdminAPIClient) GetDispersalBackend(ctx context.Context) (EigenDACertVersion, error) {
+	// URL to send the request to
+	url := c.proxyEndpoint + "/admin/eigenda-dispersal-backend"
+
+	// Create a new request
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %w", err)
+	}
+
+	// Create HTTP client
+	client := &http.Client{}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("error response from server: %s", resp.Status)
+	}
+
+	// Read and parse the response body
+	var response struct {
+		EigenDADispersalBackend string `json:"eigenDADispersalBackend"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", fmt.Errorf("error decoding response: %w", err)
+	}
+
+	switch response.EigenDADispersalBackend {
+	case "V1":
+		return EigenDACertVersionV1, nil
+	case "V2":
+		return EigenDACertVersionV2, nil
+	default:
+		return "", fmt.Errorf("unknown backend version received from proxy: %s", response.EigenDADispersalBackend)
+	}
+}
+
+func (c *ProxyAdminAPIClient) SetDispersalBackend(ctx context.Context, version EigenDACertVersion) error {
+	// URL to send the request to
+	url := c.proxyEndpoint + "/admin/eigenda-dispersal-backend"
+
+	// body is json containing backend version
+	jsonData := []byte(fmt.Sprintf(`{"eigenDADispersalBackend": "%s"}`, version))
+
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("error creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Create HTTP client
+	client := &http.Client{}
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error response from server: %s", resp.Status)
 	}
 	return nil
 }

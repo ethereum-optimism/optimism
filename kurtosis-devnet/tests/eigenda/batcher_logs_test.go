@@ -15,14 +15,16 @@ func TestBatcherFromLogs_Holesky(t *testing.T) {
 		t.Logf("TestBatcherFromLogs_Holesky needs a timeout of at least 15 minutes to run.")
 		t.FailNow()
 	}
+	harness := NewHarness(t)
 	// Batching time on Holesky can be up to 10 minutes, so we need long time to see a tx getting confirmed.
-	testBatcherFromLogs(t, 15*time.Minute)
+	testBatcherFromLogs(t, harness, 15*time.Minute)
 }
 
 func TestBatcherFromLogs_Memstore(t *testing.T) {
+	harness := NewHarness(t)
 	// 2 minutes is arbitrary here but should be long enough to observe interesting behavior using memstore.
 	// Also need to run the failover test which takes quite a while and can't run in parallel with these tests (or can it..?)
-	testBatcherFromLogs(t, 2*time.Minute)
+	testBatcherFromLogs(t, harness, 2*time.Minute)
 }
 
 // These tests are log driven. The batcher doesn't expose an API to query its state outside of logs and metrics,
@@ -32,12 +34,10 @@ func TestBatcherFromLogs_Memstore(t *testing.T) {
 // A better approach might be to generate txs from inside the golang test instead of relying on the external tx-fuzzer.
 // We could then increase traffic until the point where DA gets throttled, then change batcher parameters to increase blob size, etc.
 // Updating the batcher params is currently hard to do however; see comments above the eigenda-devnet-restart-batcher command in the justfile.
-func testBatcherFromLogs(t *testing.T, testTimeout time.Duration) {
+func testBatcherFromLogs(t *testing.T, harness *Harness, testTimeout time.Duration) {
 	// We stream logs for testTimeout, and run all the below tests in parallel (they read the same log outputs)
 	ctxWithTestTimeout, cancel := context.WithTimeout(context.Background(), testTimeout)
 	t.Cleanup(cancel)
-
-	harness := NewHarness(t)
 
 	// Make sure that no channel is ever timing out (fails to be sent to L1 in timely manner).
 	// Make sure the testsTimer is longer than max-channel-duration in the batcher config (found in the eigenda-template-values/ files).

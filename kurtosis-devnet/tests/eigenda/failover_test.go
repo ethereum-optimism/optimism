@@ -41,7 +41,7 @@ func TestFailoverToEthDACalldata_Memstore(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		t.Logf("Cleanup; Failing back to eigenda... resetting enclave proxy to start posting to eigenda again")
-		err := harness.Clients.ProxyMemconfigClient.Failback(ctx)
+		err := harness.Clients.ProxyClients.Failback(ctx)
 		if err != nil {
 			t.Logf("Error failing back... you might need to reset proxy to normal mode manually: %v", err)
 		}
@@ -61,13 +61,18 @@ func TestFailoverToEthDACalldata_Memstore(t *testing.T) {
 	require.GreaterOrEqual(t, harness.TestStartL1BlockNum, l1BlocksQueriedForBatcherTxs, "Test started too early in the chain")
 	fromBlock := harness.TestStartL1BlockNum - l1BlocksQueriedForBatcherTxs
 
+	eigenDABackend, err := harness.Clients.ProxyClients.GetDispersalBackend(ctxWithDeadline)
+	require.NoError(t, err)
+	DALayerEigenDA, err := certVersionToDALayer(eigenDABackend)
+	require.NoError(t, err)
+
 	// 1. Check that the original commitments are EigenDA
 	t.Logf("[Stage1: EigenDA] Checking that the initial commitments are EigenDA")
 	requireBatcherTxsToBeFromLayer(t, fromBlock, fromBlock+l1BlocksQueriedForBatcherTxs, DALayerEigenDA, harness.Endpoints.GethL1Endpoint, harness.BatchInboxAddr)
 
 	// 2. Failover and check that the commitments are now EthDACalldata
 	t.Logf("[Stage2: EthDA-Calldata] Failing over... changing proxy's config to return 503 errors")
-	err := harness.Clients.ProxyMemconfigClient.Failover(ctxWithDeadline)
+	err = harness.Clients.ProxyClients.Failover(ctxWithDeadline)
 	require.NoError(t, err)
 
 	afterFailoverFromBlockNum, err := harness.Clients.GethL1Client.BlockNumber(ctxWithDeadline)
@@ -90,7 +95,7 @@ func TestFailoverToEthDACalldata_Memstore(t *testing.T) {
 
 	// 3. Failback and check that the commitments are EigenDA again
 	t.Logf("[Stage3: EigenDA] Failing back... changing proxy's config to start processing PUT requests normally again")
-	err = harness.Clients.ProxyMemconfigClient.Failback(ctxWithDeadline)
+	err = harness.Clients.ProxyClients.Failback(ctxWithDeadline)
 	require.NoError(t, err)
 
 	afterFailbackFromBlockNum, err := harness.Clients.GethL1Client.BlockNumber(ctxWithDeadline)
@@ -115,6 +120,7 @@ func requireBatcherTxsToBeFromLayer(t *testing.T, fromBlockNum, toBlockNum uint6
 	wrongCommitmentsToDiscard := 0
 	for _, batcherTx := range batcherTxs {
 		if batcherTx.daLayer != expectedLayer {
+			t.Logf("Discarding batcher tx @ block %d with wrong commitment type %s (expected %s)", batcherTx.block, batcherTx.daLayer, expectedLayer)
 			wrongCommitmentsToDiscard++
 		}
 		// as soon as we see a commitment from expectedLayer, we stop discarding.
@@ -138,14 +144,27 @@ func requireBatcherTxsToBeFromLayer(t *testing.T, fromBlockNum, toBlockNum uint6
 // Note that 4844 txs are completely different and don't use normal txs with a prefix in the calldata,
 // see https://github.com/ethereum-optimism/optimism/blob/develop/op-node/rollup/derive/blob_data_source.go#L134-L137
 const ethDACalldataCommitmentPrefix = "0x00"
-const eigenDACommitmentPrefix = "0x010100"
+const eigenDAV1CommitmentPrefix = "0x01010000"
+const eigenDAV2CommitmentPrefix = "0x01010001"
 
 type DALayer string
 
 const (
 	DALayerEthCalldata DALayer = "ethda-calldata"
-	DALayerEigenDA     DALayer = "eigenda"
+	DALayerEigenDAV1   DALayer = "eigendaV1"
+	DALayerEigenDAV2   DALayer = "eigendaV2"
 )
+
+func certVersionToDALayer(certVersion EigenDACertVersion) (DALayer, error) {
+	switch certVersion {
+	case EigenDACertVersionV1:
+		return DALayerEigenDAV1, nil
+	case EigenDACertVersionV2:
+		return DALayerEigenDAV2, nil
+	default:
+		return "", fmt.Errorf("unknown EigenDA cert version: %s", certVersion)
+	}
+}
 
 type BatcherTx struct {
 	commitment string
@@ -241,19 +260,20 @@ func fetchBatcherTxs(gethL1Endpoint string, batchInbox string, fromBlockNum, toB
 	for _, block := range graphQLResp.Data.Blocks {
 		for _, tx := range block.Transactions {
 			if strings.EqualFold(tx.To.Address, batchInbox) {
-				var daLayer DALayer
-				if strings.HasPrefix(tx.InputData, eigenDACommitmentPrefix) {
-					daLayer = DALayerEigenDA
+				batcherTx := BatcherTx{
+					commitment: tx.InputData,
+					block:      uint64(tx.Block.Number),
+				}
+				if strings.HasPrefix(tx.InputData, eigenDAV1CommitmentPrefix) {
+					batcherTx.daLayer = DALayerEigenDAV1
+				} else if strings.HasPrefix(tx.InputData, eigenDAV2CommitmentPrefix) {
+					batcherTx.daLayer = DALayerEigenDAV2
 				} else if strings.HasPrefix(tx.InputData, ethDACalldataCommitmentPrefix) {
-					daLayer = DALayerEthCalldata
+					batcherTx.daLayer = DALayerEthCalldata
 				} else {
 					return nil, fmt.Errorf("unknown commitment prefix: %s", tx.InputData)
 				}
-				batcherTxs = append(batcherTxs, BatcherTx{
-					commitment: tx.InputData,
-					daLayer:    daLayer,
-					block:      uint64(tx.Block.Number),
-				})
+				batcherTxs = append(batcherTxs, batcherTx)
 			}
 		}
 	}

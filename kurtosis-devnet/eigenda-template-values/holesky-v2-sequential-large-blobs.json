@@ -1,7 +1,7 @@
 {
   "eigenda-proxy": {
     "useMemstore": false,
-    "dispersalBackend": "v1",
+    "dispersalBackend": "v2",
     "secrets": {
       "eigenda.signer-private-key-hex": "",
       "eigenda.v2.signer-payment-key-hex": "",
@@ -10,8 +10,8 @@
   },
   "batcher": {
     "max-channel-duration": 10,
-    "altda.max-concurrent-da-requests": 100,
-    "target-num-frames": 10,
+    "altda.max-concurrent-da-requests": 1,
+    "target-num-frames": 1000,
     "max-l1-tx-size-bytes": 1000,
     "batch-type": 1
   }
