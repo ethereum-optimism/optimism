@@ -26,7 +26,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 									NodeType:         "FunctionDefinition",
 									Name:             "upgrade",
 									Visibility:       "external",
-									FunctionSelector: opcmUpgradeFunctionSelector,
+									FunctionSelector: OPCM_UPGRADE_FUNCTION_SELECTOR,
 									Nodes: []solc.AstNode{
 										{
 											NodeType: "UniqueNonExistentNodeType",
@@ -43,7 +43,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 				NodeType:         "FunctionDefinition",
 				Name:             "upgrade",
 				Visibility:       "external",
-				FunctionSelector: opcmUpgradeFunctionSelector,
+				FunctionSelector: OPCM_UPGRADE_FUNCTION_SELECTOR,
 				Nodes: []solc.AstNode{
 					{
 						NodeType: "UniqueNonExistentNodeType",
@@ -63,7 +63,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 									NodeType:         "FunctionDefinition",
 									Name:             "upgrade",
 									Visibility:       "public",
-									FunctionSelector: opcmUpgradeFunctionSelector,
+									FunctionSelector: OPCM_UPGRADE_FUNCTION_SELECTOR,
 									Nodes: []solc.AstNode{
 										{
 											NodeType: "UniqueNonExistentNodeType",
@@ -117,7 +117,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 									NodeType:         "FunctionDefinition",
 									Name:             "randomFunctionName",
 									Visibility:       "external",
-									FunctionSelector: opcmUpgradeFunctionSelector,
+									FunctionSelector: OPCM_UPGRADE_FUNCTION_SELECTOR,
 									Nodes: []solc.AstNode{
 										{
 											NodeType: "UniqueNonExistentNodeType",
@@ -257,16 +257,17 @@ func TestUpgradesContract(t *testing.T) {
 	}
 
 	type test struct {
-		name           string
-		upgradeAst     []solc.AstNode
-		typeName       string
-		expectedOutput bool
+		name                              string
+		upgradeAst                        []solc.AstNode
+		typeName                          string
+		internalUpgradeFunctionTypeString string
+		expectedOutput                    bool
 	}
 
 	tests := []test{}
 
 	for _, node := range artifact.Ast.Nodes {
-		if node.NodeType == "ContractDefinition" && node.Name != "IUpgradeable" {
+		if node.NodeType == "ContractDefinition" && node.Name != "IUpgradeable" && node.Name != "InternalUpgradeFunction" {
 			upgradeAst := solc.AstNode{}
 			expectedOutput := false
 			for _, astNode := range node.Nodes {
@@ -301,17 +302,18 @@ func TestUpgradesContract(t *testing.T) {
 			}
 
 			tests = append(tests, struct {
-				name           string
-				upgradeAst     []solc.AstNode
-				typeName       string
-				expectedOutput bool
-			}{node.Name, []solc.AstNode{upgradeAst}, "contract IUpgradeable", expectedOutput})
+				name                              string
+				upgradeAst                        []solc.AstNode
+				typeName                          string
+				internalUpgradeFunctionTypeString string
+				expectedOutput                    bool
+			}{node.Name, []solc.AstNode{upgradeAst}, "contract IUpgradeable", "function (contract IUpgradeable,address,address,bytes memory)", expectedOutput})
 		}
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output := upgradesContract(test.upgradeAst, test.typeName)
+			output := upgradesContract(test.upgradeAst, test.typeName, test.internalUpgradeFunctionTypeString)
 			assert.Equal(t, test.expectedOutput, output)
 		})
 	}

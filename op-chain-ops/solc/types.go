@@ -281,6 +281,7 @@ type Expression struct {
 	Expression             *Expression           `json:"expression,omitempty"`
 	TrueExpression         *AstNode              `json:"trueExpression,omitempty"`
 	FalseExpression        *AstNode              `json:"falseExpression,omitempty"`
+	Arguments              []Expression          `json:"arguments,omitempty"`
 }
 
 type ForgeArtifact struct {
