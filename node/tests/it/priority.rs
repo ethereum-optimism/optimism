@@ -1,9 +1,10 @@
 //! Node builder test that customizes priority of transactions in the block.
 
-use alloy_consensus::{transaction::Recovered, SignableTransaction, Transaction, TxEip1559};
+use alloy_consensus::{transaction::Recovered, SignableTransaction, TxEip1559};
 use alloy_genesis::Genesis;
 use alloy_network::TxSignerSync;
 use alloy_primitives::{Address, ChainId, TxKind};
+use op_alloy_consensus::OpTypedTransaction;
 use reth_chainspec::EthChainSpec;
 use reth_db::test_utils::create_test_rw_db_with_path;
 use reth_e2e_test_utils::{
@@ -191,10 +192,10 @@ async fn test_custom_block_priority_config() {
 
     // Check that last transaction in the block looks like a transfer to a random address.
     let end_of_block_tx = block_payload.body().transactions.last().unwrap();
-    let Some(tx) = end_of_block_tx.as_eip1559() else {
+    let OpTypedTransaction::Eip1559(end_of_block_tx) = end_of_block_tx.transaction() else {
         panic!("expected EIP-1559 transaction");
     };
-    assert_eq!(tx.tx().nonce(), 1);
-    assert_eq!(tx.tx().gas_limit(), 21_000);
-    assert!(tx.tx().input().is_empty());
+    assert_eq!(end_of_block_tx.nonce, 1);
+    assert_eq!(end_of_block_tx.gas_limit, 21_000);
+    assert!(end_of_block_tx.input.is_empty());
 }

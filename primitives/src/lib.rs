@@ -8,8 +8,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(unused)]
+
 extern crate alloc;
+
+#[cfg(feature = "alloy-compat")]
+mod alloy_compat;
 
 pub mod bedrock;
 
@@ -17,7 +20,7 @@ pub mod predeploys;
 pub use predeploys::ADDRESS_L2_TO_L1_MESSAGE_PASSER;
 
 pub mod transaction;
-pub use transaction::*;
+pub use transaction::{signed::OpTransactionSigned, tx_type::OpTxType};
 
 mod receipt;
 pub use receipt::{DepositReceipt, OpReceipt};
@@ -44,6 +47,7 @@ impl reth_primitives_traits::NodePrimitives for OpPrimitives {
 /// Bincode-compatible serde implementations.
 #[cfg(feature = "serde-bincode-compat")]
 pub mod serde_bincode_compat {
-    pub use super::receipt::serde_bincode_compat::*;
-    pub use op_alloy_consensus::serde_bincode_compat::*;
+    pub use super::{
+        receipt::serde_bincode_compat::*, transaction::signed::serde_bincode_compat::*,
+    };
 }

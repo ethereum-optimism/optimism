@@ -7,6 +7,7 @@ use reth_chainspec::ChainSpecProvider;
 use reth_node_api::BlockBody;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
+use reth_primitives_traits::SignedTransaction;
 use reth_rpc_eth_api::{
     helpers::{EthBlocks, LoadBlock, LoadPendingBlock, LoadReceipt, SpawnBlocking},
     types::RpcTypes,
@@ -49,7 +50,7 @@ where
                 .enumerate()
                 .map(|(idx, (tx, receipt))| -> Result<_, _> {
                     let meta = TransactionMeta {
-                        tx_hash: tx.tx_hash(),
+                        tx_hash: *tx.tx_hash(),
                         index: idx as u64,
                         block_hash,
                         block_number,

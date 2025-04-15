@@ -1,15 +1,7 @@
 //! Optimism transaction types
 
-mod tx_type;
-
-/// Kept for concistency tests
-#[cfg(test)]
-mod signed;
-
-pub use op_alloy_consensus::OpTxType;
-
-/// Signed transaction.
-pub type OpTransactionSigned = op_alloy_consensus::OpTxEnvelope;
+pub mod signed;
+pub mod tx_type;
 
 /// A trait that represents an optimism transaction, mainly used to indicate whether or not the
 /// transaction is a deposit transaction.
