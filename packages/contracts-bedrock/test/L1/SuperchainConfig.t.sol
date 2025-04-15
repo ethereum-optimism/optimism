@@ -40,7 +40,7 @@ contract SuperchainConfig_Init_Test is CommonTest {
 
         vm.startPrank(alice);
         newProxy.upgradeToAndCall(
-            address(newImpl), abi.encodeCall(ISuperchainConfig.initialize, (deploy.cfg().superchainConfigGuardian(), 0))
+            address(newImpl), abi.encodeCall(ISuperchainConfig.initialize, (deploy.cfg().superchainConfigGuardian(), 15778476))
         );
 
         assertFalse(ISuperchainConfig(address(newProxy)).paused(address(this)));
