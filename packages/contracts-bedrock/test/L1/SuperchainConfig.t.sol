@@ -69,8 +69,7 @@ contract SuperchainConfig_Pause_TestFail is CommonTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector,
-                string(abi.encodePacked(address(this)))
+                ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector, string(abi.encodePacked(address(this)))
             )
         );
 
