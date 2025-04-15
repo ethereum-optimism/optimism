@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-cat - | jq -r '."outdated-chains"[] | .name + "\n" + .diff.message + "\n" + (.diff.prestate | tostring) + "\n" + (.diff.latest | tostring)' | while read -r name; do
+cat - | jq -r '."outdated-chains" | sort_by(.name)[] | .name + "\n" + .diff.message + "\n" + (.diff.prestate | tostring) + "\n" + (.diff.latest | tostring)' | while read -r name; do
     read -r message
     read -r prestate
     read -r latest
