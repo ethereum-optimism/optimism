@@ -1800,7 +1800,6 @@ workflows:
             op-e2e/actions
             op-e2e/faultproofs
             packages/contracts-bedrock/scripts/checks
-            packages/contracts-bedrock/scripts/verify
             op-dripper
             devnet-sdk
             op-acceptance-tests

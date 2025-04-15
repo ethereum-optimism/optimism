@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Foundry
-import { Test } from "forge-std/Test.sol";
-import { Script } from "forge-std/Script.sol";
-import { console2 as console } from "forge-std/console2.sol";
-
 // Tests
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 

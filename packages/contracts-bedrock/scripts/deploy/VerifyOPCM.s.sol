@@ -2,7 +2,6 @@
 pragma solidity ^0.8.15;
 
 // Foundry
-import { Vm } from "forge-std/Vm.sol";
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
@@ -104,9 +103,7 @@ contract VerifyOPCM is Script {
     ///         the environment variable OPCM_ADDRESS. Use run(address) if you want to specify the
     ///         address as an argument instead.
     function run() external {
-        address opcmAddress = vm.envAddress("OPCM_ADDRESS");
-        require(opcmAddress != address(0), "OPCM_ADDRESS env var not set or invalid");
-        run(opcmAddress);
+        run(vm.envAddress("OPCM_ADDRESS"));
     }
 
     /// @notice Main verification logic.
@@ -386,7 +383,8 @@ contract VerifyOPCM is Script {
             (string[])
         );
 
-        // Call the corresponding function on the OPCM contract.
+        // Call the corresponding function on the OPCM contract.]
+        // nosemgrep: sol-style-use-abi-encodecall
         (bool callSuccess, bytes memory returnedData) =
             address(_opcm).staticcall(abi.encodeWithSignature(string.concat(_property, "()")));
         if (!callSuccess) {

@@ -19,7 +19,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
-import { Process } from "scripts/libraries/Process.sol";
 
 // Interfaces
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
