@@ -43,34 +43,28 @@ func LightPeerScoreParams(cfg *rollup.Config) pubsub.PeerScoreParams {
 	tenEpochs := 10 * epoch
 	oneHundredEpochs := 100 * epoch
 	invalidDecayPeriod := 50 * epoch
-
-	defaultTopicScoreParams := pubsub.TopicScoreParams{
-		TopicWeight:                     0.8,
-		TimeInMeshWeight:                MaxInMeshScore / inMeshCap(slot),
-		TimeInMeshQuantum:               slot,
-		TimeInMeshCap:                   inMeshCap(slot),
-		FirstMessageDeliveriesWeight:    1,
-		FirstMessageDeliveriesDecay:     ScoreDecay(20*epoch, slot),
-		FirstMessageDeliveriesCap:       23,
-		MeshMessageDeliveriesWeight:     MeshWeight,
-		MeshMessageDeliveriesDecay:      ScoreDecay(DecayEpoch*epoch, slot),
-		MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(DecayEpoch)),
-		MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(DecayEpoch) / 10),
-		MeshMessageDeliveriesWindow:     2 * time.Second,
-		MeshMessageDeliveriesActivation: 4 * epoch,
-		MeshFailurePenaltyWeight:        MeshWeight,
-		MeshFailurePenaltyDecay:         ScoreDecay(DecayEpoch*epoch, slot),
-		InvalidMessageDeliveriesWeight:  -140.4475,
-		InvalidMessageDeliveriesDecay:   ScoreDecay(invalidDecayPeriod, slot),
-	}
-
-	topics := make(map[string]*pubsub.TopicScoreParams)
-	for _, topic := range allBlocksTopics(cfg) {
-		topics[topic] = &defaultTopicScoreParams
-	}
-
 	return pubsub.PeerScoreParams{
-		Topics:        topics,
+		Topics: map[string]*pubsub.TopicScoreParams{
+			blocksTopicV1(cfg): {
+				TopicWeight:                     0.8,
+				TimeInMeshWeight:                MaxInMeshScore / inMeshCap(slot),
+				TimeInMeshQuantum:               slot,
+				TimeInMeshCap:                   inMeshCap(slot),
+				FirstMessageDeliveriesWeight:    1,
+				FirstMessageDeliveriesDecay:     ScoreDecay(20*epoch, slot),
+				FirstMessageDeliveriesCap:       23,
+				MeshMessageDeliveriesWeight:     MeshWeight,
+				MeshMessageDeliveriesDecay:      ScoreDecay(DecayEpoch*epoch, slot),
+				MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(DecayEpoch)),
+				MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(DecayEpoch) / 10),
+				MeshMessageDeliveriesWindow:     2 * time.Second,
+				MeshMessageDeliveriesActivation: 4 * epoch,
+				MeshFailurePenaltyWeight:        MeshWeight,
+				MeshFailurePenaltyDecay:         ScoreDecay(DecayEpoch*epoch, slot),
+				InvalidMessageDeliveriesWeight:  -140.4475,
+				InvalidMessageDeliveriesDecay:   ScoreDecay(invalidDecayPeriod, slot),
+			},
+		},
 		TopicScoreCap: 34,
 		AppSpecificScore: func(p peer.ID) float64 {
 			return 0
