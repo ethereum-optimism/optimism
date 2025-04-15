@@ -15,6 +15,8 @@ import (
 
 const testDefaultTimestamp = 100
 
+var errUnexpectedChain = errors.New("unexpected chain")
+
 type testDepSet struct {
 	mapping map[types.ChainIndex]eth.ChainID
 }
@@ -44,10 +46,11 @@ type chainBlockDef struct {
 }
 
 type hazardCycleChecksTestCase struct {
-	name        string
-	chainBlocks map[string]chainBlockDef
-	expectErr   error
-	msg         string
+	name              string
+	chainBlocks       map[string]chainBlockDef
+	expectErr         error
+	expectErrContains string
+	msg               string
 
 	// Optional overrides
 	hazards     map[types.ChainIndex]types.BlockSeal
@@ -75,7 +78,7 @@ func runHazardCycleChecksTestCase(t *testing.T, tc hazardCycleChecksTestCase) {
 			chainStr := chainID.String()
 			def, ok := tc.chainBlocks[chainStr]
 			if !ok {
-				return eth.BlockRef{}, 0, nil, errors.New("unexpected chain")
+				return eth.BlockRef{}, 0, nil, errUnexpectedChain
 			}
 			if def.error != nil {
 				return eth.BlockRef{}, 0, nil, def.error
@@ -105,18 +108,19 @@ func runHazardCycleChecksTestCase(t *testing.T, tc hazardCycleChecksTestCase) {
 	// Run the test
 	err := HazardCycleChecks(depSet, deps, testDefaultTimestamp, NewHazardSetFromEntries(hazards))
 
-	// No error expected
-	if tc.expectErr == nil {
-		require.NoError(t, err, tc.msg)
+	if tc.expectErr != nil && tc.expectErrContains != "" {
+		require.Fail(t, "expectErr and expectErrContains cannot both be set in a test case")
 		return
 	}
 
-	// Error expected, make sure it's the right one
-	require.Error(t, err, tc.msg)
-	if errors.Is(err, tc.expectErr) {
+	switch {
+	case tc.expectErr == nil && tc.expectErrContains == "":
+		require.NoError(t, err, tc.msg)
+	case tc.expectErr != nil:
 		require.ErrorIs(t, err, tc.expectErr, tc.msg)
-	} else {
-		require.Contains(t, err.Error(), tc.expectErr.Error(), tc.msg)
+	case tc.expectErrContains != "":
+		require.Error(t, err, tc.msg)
+		require.Contains(t, err.Error(), tc.expectErrContains, tc.msg)
 	}
 }
 
@@ -147,8 +151,11 @@ var emptyChainBlocks = map[string]chainBlockDef{
 	},
 }
 
+var (
+	errTestOpenBlock = errors.New("test OpenBlock error")
+)
+
 func TestHazardCycleChecksFailures(t *testing.T) {
-	testOpenBlockErr := errors.New("test OpenBlock error")
 	tests := []hazardCycleChecksTestCase{
 		{
 			name:        "empty hazards",
@@ -175,10 +182,10 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			name:        "failed to open block error",
 			chainBlocks: emptyChainBlocks,
 			openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
-				return eth.BlockRef{}, 0, nil, testOpenBlockErr
+				return eth.BlockRef{}, 0, nil, errTestOpenBlock
 			},
-			expectErr: errors.New("failed to open block"),
-			msg:       "expected error when OpenBlock fails",
+			expectErrContains: "failed to open block",
+			msg:               "expected error when OpenBlock fails",
 		},
 		{
 			name:        "block mismatch error",
@@ -187,7 +194,7 @@ func TestHazardCycleChecksFailures(t *testing.T) {
 			openBlockFn: func(chainID eth.ChainID, blockNum uint64) (eth.BlockRef, uint32, map[uint32]*types.ExecutingMessage, error) {
 				return eth.BlockRef{Number: blockNum + 1}, 0, make(map[uint32]*types.ExecutingMessage), nil
 			},
-			expectErr: errors.New("tried to open block"),
+			expectErr: errInconsistentBlockSeal,
 			msg:       "expected error due to block mismatch",
 		},
 		{

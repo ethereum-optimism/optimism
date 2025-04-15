@@ -17,6 +17,8 @@ import (
 
 const reqTimeout = time.Second * 10
 
+var errNoL1Source = errors.New("no L1 source configured")
+
 type L1Source interface {
 	L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error)
 	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
@@ -123,7 +125,7 @@ func (p *L1Accessor) PullFinalized() error {
 	p.clientMu.RLock()
 	defer p.clientMu.RUnlock()
 	if p.client == nil {
-		return errors.New("no L1 source configured")
+		return errNoL1Source
 	}
 
 	ctx, cancel := context.WithTimeout(p.sysCtx, reqTimeout)
@@ -141,7 +143,7 @@ func (p *L1Accessor) PullLatest() error {
 	defer p.clientMu.RUnlock()
 
 	if p.client == nil {
-		return errors.New("no L1 source configured")
+		return errNoL1Source
 	}
 
 	ctx, cancel := context.WithTimeout(p.sysCtx, reqTimeout)
@@ -186,7 +188,7 @@ func (p *L1Accessor) L1BlockRefByNumber(ctx context.Context, number uint64) (eth
 	p.clientMu.RLock()
 	defer p.clientMu.RUnlock()
 	if p.client == nil {
-		return eth.L1BlockRef{}, errors.New("no L1 source available")
+		return eth.L1BlockRef{}, errNoL1Source
 	}
 	// block access to requests more recent than the confirmation depth
 	if number > p.tip.Number-p.confDepth {

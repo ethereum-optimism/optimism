@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var errRewindFailed = errors.New("rewind failed")
+
 type LogStorage interface {
 	io.Closer
 
@@ -219,7 +221,7 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 		}
 		db.logger.Info("Resuming, starting from last sealed block", "head", head)
 		if err := logStore.Rewind(head); err != nil {
-			result = fmt.Errorf("failed to rewind chain %s to sealed block %d", chain, head)
+			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", errRewindFailed, chain, head)
 			return false
 		}
 		return true

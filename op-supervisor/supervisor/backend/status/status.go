@@ -1,6 +1,7 @@
 package status
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -10,7 +11,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-var ErrStatusTrackerNotReady = fmt.Errorf("supervisor status tracker not ready")
+var (
+	ErrStatusTrackerNotReady = errors.New("supervisor status tracker not ready")
+	ErrMinSyncedL1Mismatch   = errors.New("min synced L1 mismatch")
+)
 
 type StatusTracker struct {
 	statuses map[eth.ChainID]*NodeSyncStatus
@@ -102,7 +106,7 @@ func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 		if supervisorStatus.MinSyncedL1.Number == nodeStatus.CurrentL1.Number &&
 			supervisorStatus.MinSyncedL1.Hash != nodeStatus.CurrentL1.Hash {
 			// if the hashes are not equal, return an empty status
-			return eth.SupervisorSyncStatus{}, fmt.Errorf("min synced L1 hash mismatch: %v != %v", supervisorStatus.MinSyncedL1.Hash, nodeStatus.CurrentL1.Hash)
+			return eth.SupervisorSyncStatus{}, fmt.Errorf("%w: %v != %v", ErrMinSyncedL1Mismatch, supervisorStatus.MinSyncedL1.Hash, nodeStatus.CurrentL1.Hash)
 		}
 		// if the node's current L1 is higher than the min synced L1, we can skip it,
 		// because we already know a different node isn't synced to it yet
