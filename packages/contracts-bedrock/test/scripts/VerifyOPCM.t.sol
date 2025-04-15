@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { console2 as console } from "forge-std/console2.sol";
+// Foundry
+import { VmSafe } from "forge-std/Vm.sol";
 
 // Tests
 import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
@@ -41,11 +42,22 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
         harness = new VerifyOPCM_Harness();
         harness.setUp();
     }
+
+    /// @notice Skips if running in coverage mode.
+    function skipIfCoverage() public {
+        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
+            vm.skip(true);
+        }
+    }
 }
 
 contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
     /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Run the script.
         harness.run(address(opcm));
     }
 
@@ -53,6 +65,9 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
     ///         variables of implementation contracts. Fuzzing is too slow here, randomness is good
     ///         enough.
     function test_run_implementationDifferentInsideImmutable_succeeds() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
@@ -110,6 +125,9 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
     ///         implementation contracts that are not inside immutable references. Fuzzing is too
     ///         slow here, randomness is good enough.
     function test_run_implementationDifferentOutsideImmutable_reverts() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
         // Grab the list of implementations.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "implementations", false);
 
@@ -161,6 +179,9 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
     ///         blueprints. Unlike immutables, any difference anywhere in the blueprint should
     ///         cause the script to revert. Fuzzing is too slow here, randomness is good enough.
     function test_run_blueprintAnyDifference_reverts() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
         // Grab the list of blueprints.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "blueprints", true);
 
