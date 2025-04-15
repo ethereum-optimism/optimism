@@ -55,6 +55,17 @@ impl OpTransactionSigned {
         Self { hash: hash.into(), signature, transaction }
     }
 
+    #[cfg(test)]
+    fn input_mut(&mut self) -> &mut Bytes {
+        match &mut self.transaction {
+            OpTypedTransaction::Legacy(tx) => &mut tx.input,
+            OpTypedTransaction::Eip2930(tx) => &mut tx.input,
+            OpTypedTransaction::Eip1559(tx) => &mut tx.input,
+            OpTypedTransaction::Eip7702(tx) => &mut tx.input,
+            OpTypedTransaction::Deposit(tx) => &mut tx.input,
+        }
+    }
+
     /// Consumes the type and returns the transaction.
     #[inline]
     pub fn into_transaction(self) -> OpTypedTransaction {
@@ -819,6 +830,34 @@ mod tests {
     proptest! {
         #[test]
         fn test_roundtrip_compact_encode_envelope(reth_tx in arb::<OpTransactionSigned>()) {
+            let mut expected_buf = Vec::<u8>::new();
+            let expected_len = reth_tx.to_compact(&mut expected_buf);
+
+            let mut actual_but  = Vec::<u8>::new();
+            let alloy_tx = OpTxEnvelope::from(reth_tx);
+            let actual_len = alloy_tx.to_compact(&mut actual_but);
+
+            assert_eq!(actual_but, expected_buf);
+            assert_eq!(actual_len, expected_len);
+        }
+
+        #[test]
+        fn test_roundtrip_compact_decode_envelope_zstd(mut reth_tx in arb::<OpTransactionSigned>()) {
+                 // zstd only kicks in if the input is large enough
+            *reth_tx.input_mut() = vec![0;33].into();
+            let mut buf = Vec::<u8>::new();
+            let len = reth_tx.to_compact(&mut buf);
+
+            let (actual_tx, _) = OpTxEnvelope::from_compact(&buf, len);
+            let expected_tx = OpTxEnvelope::from(reth_tx);
+
+            assert_eq!(actual_tx, expected_tx);
+        }
+
+        #[test]
+        fn test_roundtrip_compact_encode_envelope_zstd(mut reth_tx in arb::<OpTransactionSigned>()) {
+                 // zstd only kicks in if the input is large enough
+            *reth_tx.input_mut() = vec![0;33].into();
             let mut expected_buf = Vec::<u8>::new();
             let expected_len = reth_tx.to_compact(&mut expected_buf);
 
