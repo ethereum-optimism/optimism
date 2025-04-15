@@ -10,7 +10,7 @@ interface IUpgradeable {
 ///////// INDIRECT UPGRADE CALLS //////////
 
 contract InternalUpgradeFunction {
-    function upgradeToAndCall(IUpgradeable a, address b, address c, bytes memory d) internal { }
+    function upgradeToAndCall(IUpgradeable _a, address _b, address _c, bytes memory _d) internal { }
 }
 
 contract WithNoExternalUpgradeFunctionInternal is InternalUpgradeFunction {
