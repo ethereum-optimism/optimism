@@ -3,7 +3,10 @@ pragma solidity 0.8.15;
 
 // Libraries
 import {
-    InvalidMemoryProof, InvalidRMWInstruction, InvalidSecondMemoryProof, UnsupportedStateVersion
+    InvalidMemoryProof,
+    InvalidRMWInstruction,
+    InvalidSecondMemoryProof,
+    UnsupportedStateVersion
 } from "src/cannon/libraries/CannonErrors.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
