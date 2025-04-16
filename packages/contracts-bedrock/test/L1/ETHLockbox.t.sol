@@ -19,9 +19,9 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 contract ETHLockboxTest is CommonTest {
     error InvalidInitialization();
 
-    event ETHLocked(IOptimismPortal indexed portal, uint256 amount);
-    event ETHUnlocked(IOptimismPortal indexed portal, uint256 amount);
-    event PortalAuthorized(IOptimismPortal indexed portal);
+    event ETHLocked(IOptimismPortal2 indexed portal, uint256 amount);
+    event ETHUnlocked(IOptimismPortal2 indexed portal, uint256 amount);
+    event PortalAuthorized(IOptimismPortal2 indexed portal);
     event LockboxAuthorized(IETHLockbox indexed lockbox);
     event LiquidityMigrated(IETHLockbox indexed lockbox, uint256 amount);
     event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
