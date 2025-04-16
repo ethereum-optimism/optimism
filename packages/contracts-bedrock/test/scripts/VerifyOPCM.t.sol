@@ -18,6 +18,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _loadArtifactInfo(_artifactPath);
     }
 
+    function getOpcmPropertyRefs(IOPContractsManager _opcm) public returns (OpcmContractRef[] memory) {
+        return _getOpcmPropertyRefs(_opcm);
+    }
+
     function getOpcmContractRefs(
         IOPContractsManager _opcm,
         string memory _property,
