@@ -83,7 +83,7 @@ contract MIPS2 is ISemver {
     uint256 internal constant TC_MEM_OFFSET = 0x260;
 
     /// @param _oracle The address of the preimage oracle contract.
-    constructor(IPreimageOracle _oracle) {
+    constructor(IPreimageOracle _oracle, uint256 /*_stateVersion*/ ) {
         ORACLE = _oracle;
     }
 
