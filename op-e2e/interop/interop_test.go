@@ -239,18 +239,7 @@ func TestInterop_EmitLogs(t *testing.T) {
 		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)
 		require.NoError(t, err, "logsA must all be cross-safe")
 
-		// a log should be valid when doing rpc verification in parallel
-		ctx = context.Background()
-		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)
-		require.NoError(t, err, "logsA must all be cross-safe")
-
 		// a log should be invalid if the timestamp is incorrect
-		accessEntries[0].Timestamp = 333
-		accessList = types.EncodeAccessList(accessEntries)
-		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)
-		require.ErrorContains(t, err, "conflict")
-
-		// a log should be invalid if the timestamp is incorrect when doing rpc verification in parallel as well
 		accessEntries[0].Timestamp = 333
 		accessList = types.EncodeAccessList(accessEntries)
 		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)

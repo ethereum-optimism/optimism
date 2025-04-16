@@ -294,9 +294,10 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
-		L1RPC:       s.l1.UserRPC().RPC(),
-		Datadir:     path.Join(s.t.TempDir(), "supervisor"),
+		SyncSources:             &syncnode.CLISyncNodes{}, // no sync-sources
+		L1RPC:                   s.l1.UserRPC().RPC(),
+		Datadir:                 path.Join(s.t.TempDir(), "supervisor"),
+		RPCVerificationWarnings: true,
 	}
 
 	stDepSet, err := worldToDepset(s.worldOutput)

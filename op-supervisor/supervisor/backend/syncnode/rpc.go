@@ -142,6 +142,13 @@ func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPa
 	return out, err
 }
 
+// Contains returns no error iff the specified logHash is recorded in the specified blockNum and logIdx.
+// If the log is out of reach and the block is complete, an ErrConflict is returned.
+// If the log is out of reach and the block is not complete, an ErrFuture is returned.
+// If the log is determined to conflict with the canonical chain, then ErrConflict is returned.
+// logIdx is the index of the log in the array of all logs in the block.
+// This can be used to check the validity of cross-chain interop events.
+// The block-seal of the blockNum block that the log was included in is returned.
 func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) (types.BlockSeal, error) {
 	chainID, err := rs.ChainID(ctx)
 	if err != nil {
@@ -150,12 +157,12 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) 
 
 	blockRef, err := rs.BlockRefByNumber(ctx, query.BlockNum)
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to get block ref for verifying access with RPC: %w", err)
+		return types.BlockSeal{}, types.ErrFuture
 	}
 
 	log, err := rs.getLogAtIndex(ctx, blockRef.Hash, query.LogIdx)
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to get log index for verifying access with RPC: %w", err)
+		return types.BlockSeal{}, types.ErrConflict
 	}
 
 	logHash := processors.LogToLogHash(log)

@@ -448,21 +448,19 @@ func (su *SupervisorBackend) checkAccessWithDB(acc types.Access) (eth.BlockID, e
 }
 
 func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc types.Access, msgBlockFromDB eth.BlockID) {
-	go func() {
-		timeoutCtx, cancel := context.WithTimeout(ctx, verifyAccessWithRPCTimeout)
-		defer cancel()
-		msgBlockFromRPC, err := su.checkAccessWithRPC(timeoutCtx, acc)
-		if errors.Is(err, types.ErrConflict) {
-			su.logger.Error("RPC access checksum failed", "err", err, "access", acc)
-			su.m.RecordAccessListVerifyFailure(acc.ChainID)
-		} else {
-			su.logger.Error("RPC access check failed mechanically", "err", err, "access", acc)
-		}
-		if msgBlockFromDB != msgBlockFromRPC {
-			su.logger.Error("RPC access check failed, DB access check result did not match rpc access check result", "db_block", msgBlockFromDB, "rpc_block", msgBlockFromRPC, "access", acc)
-			su.m.RecordAccessListVerifyFailure(acc.ChainID)
-		}
-	}()
+	timeoutCtx, cancel := context.WithTimeout(ctx, verifyAccessWithRPCTimeout)
+	defer cancel()
+	msgBlockFromRPC, err := su.checkAccessWithRPC(timeoutCtx, acc)
+	if errors.Is(err, types.ErrConflict) {
+		su.logger.Error("RPC access checksum failed", "err", err, "access", acc)
+		su.m.RecordAccessListVerifyFailure(acc.ChainID)
+	} else {
+		su.logger.Error("RPC access check failed mechanically", "err", err, "access", acc)
+	}
+	if msgBlockFromDB != msgBlockFromRPC {
+		su.logger.Error("RPC access check failed, DB access check result did not match rpc access check result", "db_block", msgBlockFromDB, "rpc_block", msgBlockFromRPC, "access", acc)
+		su.m.RecordAccessListVerifyFailure(acc.ChainID)
+	}
 }
 
 // checkAccessWithRPC verifies if the initiating log exists by RPC call. Returns
@@ -546,7 +544,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		}
 
 		if su.rpcVerificationWarnings {
-			su.asyncVerifyAccessWithRPC(ctx, acc, msgBlockFromDB)
+			go su.asyncVerifyAccessWithRPC(ctx, acc, msgBlockFromDB)
 		}
 
 		// TODO(#14800) add msgBlockFromDB to rewind lock
