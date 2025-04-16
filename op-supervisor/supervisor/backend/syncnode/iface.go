@@ -49,6 +49,8 @@ type SyncControl interface {
 	ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error
 	AnchorPoint(ctx context.Context) (types.DerivedBlockRefPair, error)
 
+	ReconnectRPC(ctx context.Context) error
+
 	fmt.Stringer
 }
 

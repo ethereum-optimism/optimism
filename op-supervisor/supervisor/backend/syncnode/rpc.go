@@ -3,13 +3,16 @@ package syncnode
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -18,20 +21,37 @@ import (
 )
 
 type RPCSyncNode struct {
-	name string
-	cl   client.RPC
+	name      string
+	cl        client.RPC
+	opts      []client.RPCOption
+	logger    log.Logger
+	dialSetup *RPCDialSetup
 }
 
-func NewRPCSyncNode(name string, cl client.RPC) *RPCSyncNode {
+func NewRPCSyncNode(name string, cl client.RPC, opts []client.RPCOption, logger log.Logger, dialSetup *RPCDialSetup) *RPCSyncNode {
 	return &RPCSyncNode{
-		name: name,
-		cl:   cl,
+		name:      name,
+		cl:        cl,
+		opts:      opts,
+		logger:    logger,
+		dialSetup: dialSetup,
 	}
 }
 
 var _ SyncSource = (*RPCSyncNode)(nil)
 var _ SyncControl = (*RPCSyncNode)(nil)
 var _ SyncNode = (*RPCSyncNode)(nil)
+
+func (rs *RPCSyncNode) ReconnectRPC(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
+	defer cancel()
+	cl, err := client.NewRPC(ctx, rs.logger, rs.dialSetup.Endpoint, rs.opts...)
+	if err != nil {
+		return fmt.Errorf("failed to reconnect: %w", err)
+	}
+	rs.cl = cl
+	return nil
+}
 
 func (rs *RPCSyncNode) BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error) {
 	var out *eth.BlockRef
