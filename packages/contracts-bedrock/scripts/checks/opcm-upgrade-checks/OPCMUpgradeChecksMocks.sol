@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 IUpgradeable constant UPGRADE_CONTRACT = IUpgradeable(address(111));
 uint8 constant NOT_FOUND = 0;
 uint8 constant UPGRADE_EXTERNAL_CALL = 1;
-uint8 constant UPGRADE_TO_AND_CALL_INTERNAL_CALL = 2;
+uint8 constant UPGRADE_INTERNAL_CALL = 2;
 
 interface IUpgradeable {
     function upgrade() external;
@@ -23,64 +23,78 @@ contract WithNoExternalUpgradeFunctionInternal is InternalUpgradeFunction {
     uint8 constant EXPECTED_OUTPUT = NOT_FOUND;
 
     function aaa() external {
-        upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+        upgradeToAndCall(
+            UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+        );
     }
 }
 
 contract WithinTopLevelFunctionInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade() external {
-        upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+        upgradeToAndCall(
+            UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+        );
     }
 }
 
 contract WithinBlockStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade() external {
         {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         }
     }
 }
 
 contract WithinForLoopInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade() external {
         for (uint256 i = 0; i < 10; i++) {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         }
     }
 }
 
 contract WithinWhileLoopInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade() external {
         while (true) {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         }
     }
 }
 
 contract WithinDoWhileLoopInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade() external {
         do {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         } while (true);
     }
 }
 
 contract WithinTrueBlockOfIfStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         } else {
             revert();
         }
@@ -88,25 +102,29 @@ contract WithinTrueBlockOfIfStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinFalseBlockOfIfStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
             revert();
         } else {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         }
     }
 }
 
 contract WithinElseIfBlockOfIfStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function upgrade(uint256 _a) external {
         if (_a < 10) {
             revert();
         } else if (_a < 20) {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         } else {
             revert();
         }
@@ -114,94 +132,122 @@ contract WithinElseIfBlockOfIfStatementInternal is InternalUpgradeFunction {
 }
 
 contract WithinTrueBlockOfTernaryStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
-
-    function mock() external { }
-
-    function upgrade(uint256 _a) external {
-        _a < 10 ? upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes("")) : this.mock();
-    }
-}
-
-contract WithinFalseBlockOfTernaryStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
-
-    function mock() external { }
-
-    function upgrade(uint256 _a) external {
-        _a < 10 ? this.mock() : upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
-    }
-}
-
-contract WithinTrueBlockOfTrueBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function mock() external { }
 
     function upgrade(uint256 _a) external {
         _a < 10
-            ? _a < 5 ? upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes("")) : this.mock()
+            ? upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            )
+            : this.mock();
+    }
+}
+
+contract WithinFalseBlockOfTernaryStatementInternal is InternalUpgradeFunction {
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
+
+    function mock() external { }
+
+    function upgrade(uint256 _a) external {
+        _a < 10
+            ? this.mock()
+            : upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
+    }
+}
+
+contract WithinTrueBlockOfTrueBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
+
+    function mock() external { }
+
+    function upgrade(uint256 _a) external {
+        _a < 10
+            ? _a < 5
+                ? upgradeToAndCall(
+                    UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+                )
+                : this.mock()
             : this.mock();
     }
 }
 
 contract WithinFalseBlockOfTrueBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function mock() external { }
 
     function upgrade(uint256 _a) external {
         _a < 10
-            ? _a < 5 ? this.mock() : upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""))
+            ? _a < 5
+                ? this.mock()
+                : upgradeToAndCall(
+                    UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+                )
             : this.mock();
     }
 }
 
 contract WithinFalseBlockOfFalseBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function mock() external { }
 
     function upgrade(uint256 _a) external {
         _a < 10
             ? this.mock()
-            : _a > 5 ? this.mock() : upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            : _a > 5
+                ? this.mock()
+                : upgradeToAndCall(
+                    UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+                );
     }
 }
 
 contract WithinTrueBlockOfFalseBlockOfNestedTernaryStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function mock() external { }
 
     function upgrade(uint256 _a) external {
         _a < 10
             ? this.mock()
-            : _a > 5 ? upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes("")) : this.mock();
+            : _a > 5
+                ? upgradeToAndCall(
+                    UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+                )
+                : this.mock();
     }
 }
 
 contract WithinTryBlockOfTryCatchStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function mock() external { }
 
     function upgrade() external {
         try this.mock() {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         } catch { }
     }
 }
 
 contract WithinCatchBlockOfTryCatchStatementInternal is InternalUpgradeFunction {
-    uint8 constant EXPECTED_OUTPUT = UPGRADE_TO_AND_CALL_INTERNAL_CALL;
+    uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 
     function mock() external { }
 
     function upgrade() external {
         try this.mock() { }
         catch {
-            upgradeToAndCall(UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), bytes(""));
+            upgradeToAndCall(
+                UPGRADE_CONTRACT, address(UPGRADE_CONTRACT), address(0), abi.encodeCall(IUpgradeable.upgrade, ())
+            );
         }
     }
 }

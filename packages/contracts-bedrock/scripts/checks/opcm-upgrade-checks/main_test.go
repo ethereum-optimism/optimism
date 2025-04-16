@@ -257,11 +257,11 @@ func TestUpgradesContract(t *testing.T) {
 	}
 
 	type test struct {
-		name                              string
-		upgradeAst                        []solc.AstNode
-		typeName                          string
-		internalUpgradeFunctionTypeString string
-		expectedOutput                    CallType
+		name                               string
+		upgradeAst                         []solc.AstNode
+		typeName                           string
+		internalUpgradeFunctionTypeStrings InternalUpgradeFunctionType
+		expectedOutput                     CallType
 	}
 
 	tests := []test{}
@@ -303,27 +303,30 @@ func TestUpgradesContract(t *testing.T) {
 						expectedOutput = NOT_FOUND
 					} else if name == "UPGRADE_EXTERNAL_CALL" {
 						expectedOutput = UPGRADE_EXTERNAL_CALL
-					} else if name == "UPGRADE_TO_AND_CALL_INTERNAL_CALL" {
-						expectedOutput = UPGRADE_TO_AND_CALL_INTERNAL_CALL
+					} else if name == "UPGRADE_INTERNAL_CALL" {
+						expectedOutput = UPGRADE_INTERNAL_CALL
 					} else {
 						t.Fatalf("Expected output is not a boolean: %s", astNode.Value)
 					}
 				}
 			}
 
-			tests = append(tests, struct {
-				name                              string
-				upgradeAst                        []solc.AstNode
-				typeName                          string
-				internalUpgradeFunctionTypeString string
-				expectedOutput                    CallType
-			}{node.Name, []solc.AstNode{upgradeAst}, "contract IUpgradeable", "function (contract IUpgradeable,address,address,bytes memory)", expectedOutput})
+			tests = append(tests, test{
+				name:       node.Name,
+				upgradeAst: []solc.AstNode{upgradeAst},
+				typeName:   "contract IUpgradeable",
+				internalUpgradeFunctionTypeStrings: InternalUpgradeFunctionType{
+					name:     "upgradeToAndCall",
+					typeName: "function (contract IUpgradeable,address,address,bytes memory)",
+				},
+				expectedOutput: expectedOutput,
+			})
 		}
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output := upgradesContract(test.upgradeAst, "upgrade", test.typeName, test.internalUpgradeFunctionTypeString)
+			output := upgradesContract(test.upgradeAst, "upgrade", test.typeName, test.internalUpgradeFunctionTypeStrings)
 			assert.Equal(t, test.expectedOutput, output)
 		})
 	}
