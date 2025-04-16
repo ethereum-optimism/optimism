@@ -54,13 +54,13 @@ impl SupervisorClient {
     }
 
     /// Configures a custom timeout
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+    pub const fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
     /// Returns safely level
-    pub fn safety(&self) -> SafetyLevel {
+    pub const fn safety(&self) -> SafetyLevel {
         self.safety
     }
 
@@ -140,13 +140,13 @@ pub struct CheckAccessListRequest<'a> {
 
 impl<'a> CheckAccessListRequest<'a> {
     /// Configures the timeout to use for the request if any.
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+    pub const fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
     /// Configures the [`SafetyLevel`] for this request
-    pub fn with_safety(mut self, safety: SafetyLevel) -> Self {
+    pub const fn with_safety(mut self, safety: SafetyLevel) -> Self {
         self.safety = safety;
         self
     }

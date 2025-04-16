@@ -71,7 +71,7 @@ impl<Pool, Client, Evm> OpPayloadBuilder<Pool, Client, Evm> {
     }
 
     /// Configures the builder with the given [`OpBuilderConfig`].
-    pub fn with_builder_config(
+    pub const fn with_builder_config(
         pool: Pool,
         client: Client,
         evm_config: Evm,
@@ -440,7 +440,7 @@ pub struct ExecutionInfo {
 
 impl ExecutionInfo {
     /// Create a new instance with allocated slots.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { cumulative_gas_used: 0, cumulative_da_bytes_used: 0, total_fees: U256::ZERO }
     }
 
