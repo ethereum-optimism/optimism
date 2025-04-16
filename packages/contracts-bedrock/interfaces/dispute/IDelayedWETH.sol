@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 interface IDelayedWETH {
     struct WithdrawalRequest {
@@ -26,7 +25,6 @@ interface IDelayedWETH {
     function withdraw(address _guy, uint256 _wad) external;
     function withdrawals(address, address) external view returns (uint256 amount, uint256 timestamp);
     function version() external view returns (string memory);
-    function proxyAdmin() external view returns (IProxyAdmin);
     function proxyAdminOwner() external view returns (address);
 
     function withdraw(uint256 _wad) external;

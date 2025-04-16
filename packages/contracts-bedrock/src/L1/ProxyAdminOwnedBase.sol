@@ -12,12 +12,9 @@ abstract contract ProxyAdminOwnedBase {
     ///         The ProxyAdmin is the owner of the current proxy contract.
     function proxyAdminOwner() public view returns (address) {
         // Get the proxy admin address reading for the reserved slot it has on the Proxy contract.
-        return proxyAdmin().owner();
-    }
-
-    /// @notice Getter for the ProxyAdmin.
-    function proxyAdmin() public view returns (IProxyAdmin) {
-        return IProxyAdmin(Storage.getAddress(Constants.PROXY_OWNER_ADDRESS));
+        IProxyAdmin proxyAdmin = IProxyAdmin(Storage.getAddress(Constants.PROXY_OWNER_ADDRESS));
+        // Return the owner of the proxy admin.
+        return proxyAdmin.owner();
     }
 
     /// @notice Checks if the ProxyAdmin owner of the current contract is the same as the ProxyAdmin owner of the given

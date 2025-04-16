@@ -10,6 +10,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
 import { IDeputyPauseModule } from "interfaces/safe/IDeputyPauseModule.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title DeputyPauseModule_TestInit
 /// @notice Base test setup for the DeputyPauseModule.
@@ -27,7 +28,7 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
     bytes deputyAuthSignature;
 
     bytes32 constant SOME_VALID_NONCE = keccak256("some valid nonce");
-    bytes32 constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce, address identifier)");
+    bytes32 constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce,address identifier)");
     bytes32 constant DEPUTY_AUTH_MESSAGE_TYPEHASH = keccak256("DeputyAuthMessage(address deputy)");
 
     /// @notice Sets up the test environment.
@@ -394,30 +395,6 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
         deputyPauseModule.pause(_nonce2, sig2, _identifier);
     }
 
-    /// @notice Tests that pause() succeeds when called with two different nonces after the
-    ///         superchain has already been paused between calls.
-    /// @param _nonce1 First nonce.
-    /// @param _nonce2 Second nonce.
-    /// @param _identifier The identifier to pause.
-    function testFuzz_pause_differentNoncesAlreadyPaused_succeeds(
-        bytes32 _nonce1,
-        bytes32 _nonce2,
-        address _identifier
-    )
-        external
-    {
-        // Make sure that the nonces are different.
-        vm.assume(_nonce1 != _nonce2);
-
-        // Pause once.
-        bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, _identifier, deputyKey);
-        deputyPauseModule.pause(_nonce1, sig1, _identifier);
-
-        // Pause again with a different nonce.
-        bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, _identifier, deputyKey);
-        deputyPauseModule.pause(_nonce2, sig2, _identifier);
-    }
-
     /// @notice Tests that pause() succeeds within 1 million gas.
     function test_pause_withinMillionGas_succeeds() external {
         bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey);
@@ -471,6 +448,36 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
         // Pause again.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_NonceAlreadyUsed.selector));
         deputyPauseModule.pause(_nonce, signature, address(0));
+    }
+
+    /// @notice Tests that pause() reverts when called with two different nonces after the
+    ///         superchain has already been paused between calls.
+    /// @param _nonce1 First nonce.
+    /// @param _nonce2 Second nonce.
+    /// @param _identifier The identifier to pause.
+    function testFuzz_pause_differentNoncesAlreadyPaused_reverts(
+        bytes32 _nonce1,
+        bytes32 _nonce2,
+        address _identifier
+    )
+        external
+    {
+        // Make sure that the nonces are different.
+        vm.assume(_nonce1 != _nonce2);
+
+        // Pause once.
+        bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, _identifier, deputyKey);
+        deputyPauseModule.pause(_nonce1, sig1, _identifier);
+
+        // Pause again with a different nonce.
+        bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, _identifier, deputyKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IDeputyPauseModule.DeputyPauseModule_ExecutionFailed.selector,
+                string(abi.encodeWithSelector(ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector, _identifier))
+            )
+        );
+        deputyPauseModule.pause(_nonce2, sig2, _identifier);
     }
 
     /// @notice Tests that pause() reverts when the signature is longer than 65 bytes.

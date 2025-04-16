@@ -41,8 +41,10 @@ contract DeputyPauseModule is ISemver, EIP712 {
 
     /// @notice Struct for the Pause action.
     /// @custom:field nonce Signature nonce.
+    /// @custom:field identifier Identifier to pause.
     struct PauseMessage {
         bytes32 nonce;
+        address identifier;
     }
 
     /// @notice Struct for the DeputyAuth action.
@@ -64,7 +66,7 @@ contract DeputyPauseModule is ISemver, EIP712 {
     ISuperchainConfig internal immutable SUPERCHAIN_CONFIG;
 
     /// @notice Typehash for the Pause action.
-    bytes32 internal constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce, address identifier)");
+    bytes32 internal constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce,address identifier)");
 
     /// @notice Typehash for the DeputyAuth message.
     bytes32 internal constant DEPUTY_AUTH_MESSAGE_TYPEHASH = keccak256("DeputyAuthMessage(address deputy)");

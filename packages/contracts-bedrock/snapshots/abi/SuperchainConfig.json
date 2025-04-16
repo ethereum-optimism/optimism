@@ -237,9 +237,9 @@
   {
     "inputs": [
       {
-        "internalType": "string",
+        "internalType": "address",
         "name": "identifier",
-        "type": "string"
+        "type": "address"
       }
     ],
     "name": "SuperchainConfig_AlreadyPaused",

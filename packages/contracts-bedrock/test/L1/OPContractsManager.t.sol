@@ -248,7 +248,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
     uint256 l2ChainId;
-    IProxyAdmin proxyAdmin;
     IProxyAdmin superchainProxyAdmin;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
@@ -268,7 +267,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         );
 
         absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
-        proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
         superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
         upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
@@ -1682,12 +1680,12 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         // Mock out the SuperchainConfig addresses to be different.
         vm.mockCall(
             address(chainDeployOutput1.optimismPortalProxy),
-            abi.encodeCall(IOptimismPortal2.systemConfig, ()),
+            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
             abi.encode(address(1234))
         );
         vm.mockCall(
             address(chainDeployOutput2.optimismPortalProxy),
-            abi.encodeCall(IOptimismPortal2.systemConfig, ()),
+            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
             abi.encode(address(5678))
         );
 

@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
-import { Constants } from "src/libraries/Constants.sol";
+// Testing
+import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
 import { Proxy } from "src/universal/Proxy.sol";
 
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
+
 // Interfaces
-import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-
-// Test
-import { CommonTest } from "test/setup/CommonTest.sol";
-
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 
 contract ETHLockboxTest is CommonTest {
     error InvalidInitialization();
@@ -29,18 +26,12 @@ contract ETHLockboxTest is CommonTest {
     event LiquidityMigrated(IETHLockbox indexed lockbox, uint256 amount);
     event LiquidityReceived(IETHLockbox indexed lockbox, uint256 amount);
 
-    ProxyAdmin public proxyAdmin;
-    address public proxyAdminOwner;
-
     function setUp() public virtual override {
         super.setUp();
 
         // If not on the last upgrade network, we skip the test since the `ETHLockbox` won't be yet deployed
         // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
         if (isForkTest() && !deploy.cfg().useUpgradedFork()) vm.skip(true);
-
-        proxyAdmin = ProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
-        proxyAdminOwner = proxyAdmin.owner();
     }
 
     /// @notice Tests the superchain config was correctly set during initialization.
@@ -167,7 +158,7 @@ contract ETHLockboxTest is CommonTest {
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // lockbox.
         vm.mockCall(
-            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+            address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
         );
 
         // Set the portal as an authorized portal if needed
@@ -238,7 +229,7 @@ contract ETHLockboxTest is CommonTest {
         vm.assume(_l2Sender != Constants.DEFAULT_L2_SENDER);
 
         // Mock the L2 sender
-        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal.l2Sender, ()), abi.encode(_l2Sender));
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.l2Sender, ()), abi.encode(_l2Sender));
 
         // Expect the revert with `NoWithdrawalTransactions` selector
         vm.expectRevert(IETHLockbox.ETHLockbox_NoWithdrawalTransactions.selector);
@@ -258,7 +249,7 @@ contract ETHLockboxTest is CommonTest {
         uint256 lockboxBalanceBefore = address(ethLockbox).balance;
 
         // Expect `donateETH` function to be called on Portal
-        vm.expectCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal.donateETH, ()));
+        vm.expectCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.donateETH, ()));
 
         // Look for the emit of the `ETHUnlocked` event
         vm.expectEmit(address(ethLockbox));
@@ -286,7 +277,7 @@ contract ETHLockboxTest is CommonTest {
         // lockbox.
 
         vm.mockCall(
-            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+            address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
         );
 
         // Set the portal as an authorized portal if needed
@@ -303,7 +294,7 @@ contract ETHLockboxTest is CommonTest {
         uint256 lockboxBalanceBefore = address(ethLockbox).balance;
 
         // Expect `donateETH` function to be called on Portal
-        vm.expectCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal.donateETH, ()));
+        vm.expectCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.donateETH, ()));
 
         // Look for the emit of the `ETHUnlocked` event
         vm.expectEmit(address(ethLockbox));
@@ -378,7 +369,7 @@ contract ETHLockboxTest is CommonTest {
         // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
         // Lockbox.
         vm.mockCall(
-            address(_portal), abi.encodeCall(IOptimismPortal.superchainConfig, ()), abi.encode(superchainConfig)
+            address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
         );
 
         // Expect the `PortalAuthorized` event to be emitted

@@ -1264,7 +1264,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
         // Check that the portals have the same SuperchainConfig.
         for (uint256 i = 0; i < portals.length; i++) {
-            if (portals[i].systemConfig().superchainConfig() != portals[0].systemConfig().superchainConfig()) {
+            if (portals[i].superchainConfig() != portals[0].superchainConfig()) {
                 revert OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
             }
         }

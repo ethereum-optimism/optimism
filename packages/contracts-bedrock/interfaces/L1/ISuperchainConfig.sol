@@ -12,7 +12,7 @@ interface ISuperchainConfig {
     event Unpaused(string identifier);
 
     error SuperchainConfig_OnlyGuardian();
-    error SuperchainConfig_AlreadyPaused(string identifier);
+    error SuperchainConfig_AlreadyPaused(address identifier);
 
     function guardian() external view returns (address);
     function initialize(address _guardian, uint256 _pauseExpiry) external;

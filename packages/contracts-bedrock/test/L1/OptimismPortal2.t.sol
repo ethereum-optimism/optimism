@@ -67,7 +67,7 @@ contract OptimismPortal2_Test is CommonTest {
     function test_initialize_succeeds() external virtual {
         assertEq(address(optimismPortal2.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(optimismPortal2.disputeGameFactory()), address(disputeGameFactory));
-        assertEq(address(optimismPortal2.systemConfig().superchainConfig()), address(superchainConfig));
+        assertEq(address(optimismPortal2.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal2.l2Sender(), Constants.DEFAULT_L2_SENDER);
         assertEq(optimismPortal2.paused(), false);
         assertEq(address(optimismPortal2.systemConfig()), address(systemConfig));
@@ -84,43 +84,8 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(optimismPortal2.respectedGameType().raw(), deploy.cfg().respectedGameType());
     }
 
-    /// @dev Tests that the upgrade function succeeds.
-    function testFuzz_upgrade_succeeds(
-        address _newAnchorStateRegistry,
-        uint256 _balance,
-        address _newSystemConfig
-    )
-        external
-    {
-        // Prevent overflow on an upgrade context
-        _balance = bound(_balance, 0, type(uint256).max - address(ethLockbox).balance);
-
-        // Set the initialize state of the portal to false.
-        vm.store(address(optimismPortal2), bytes32(uint256(0)), bytes32(uint256(0)));
-
-        // Set the balance of the portal and get the lockbox balance before the upgrade.
-        deal(address(optimismPortal2), _balance);
-        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
-
-        // Expect the ETH to be migrated to the lockbox.
-        vm.expectCall(address(ethLockbox), _balance, abi.encodeCall(ethLockbox.lockETH, ()));
-
-        // Call the upgrade function.
-        vm.prank(Predeploys.PROXY_ADMIN);
-        optimismPortal2.upgrade(
-            IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox), ISystemConfig(_newSystemConfig)
-        );
-
-        // Assert the portal is properly upgraded.
-        assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
-        assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
-        assertEq(address(optimismPortal2).balance, 0);
-        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _balance);
-        assertEq(address(optimismPortal2.systemConfig()), _newSystemConfig);
-    }
     /// @dev Tests that `pause` successfully pauses
     ///      when called by the GUARDIAN.
-
     function test_pause_succeeds() external {
         address guardian = optimismPortal2.guardian();
 
@@ -2195,8 +2160,18 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         // Assert the portal is properly upgraded.
         assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
         assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
-        assertEq(address(optimismPortal2).balance, 0);
         assertEq(address(optimismPortal2.systemConfig()), _newSystemConfig);
+
+        // Balance has not updated.
+        assertEq(address(optimismPortal2).balance, _balance);
+        assertEq(address(ethLockbox).balance, lockboxBalanceBefore);
+
+        // Now we migrate liquidity.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.migrateLiquidity();
+
+        // Balance has been updated.
+        assertEq(address(optimismPortal2).balance, 0);
         assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _balance);
     }
 
@@ -2204,6 +2179,7 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
     function test_upgrade_upgradeTwice_reverts() external {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
         // Set the initialized slot to 0.
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
 

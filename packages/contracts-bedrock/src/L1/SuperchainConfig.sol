@@ -7,6 +7,9 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
+// Libraries
+import { LibString } from "@solady/utils/LibString.sol";
+
 /// @custom:proxied true
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
@@ -15,6 +18,12 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///      is stored in storage variables that are not preserved during upgrades. Therefore, this contract
 ///      should not be upgraded while the system is paused.
 contract SuperchainConfig is Initializable, ISemver {
+    /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
+    error SuperchainConfig_OnlyGuardian();
+
+    /// @notice Thrown when attempting to pause an identifier that is already paused
+    error SuperchainConfig_AlreadyPaused(address identifier);
+
     /// @notice Enum representing different types of updates.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
     enum UpdateType {
@@ -47,12 +56,6 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
-    /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
-    error SuperchainConfig_OnlyGuardian();
-
-    /// @notice Thrown when attempting to pause an identifier that is already paused
-    error SuperchainConfig_AlreadyPaused(string identifier);
-
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
         _disableInitializers();
@@ -69,26 +72,46 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Pauses the system for a specific identifier.
     /// @param _identifier The address identifier for the pause.
     function pause(address _identifier) external {
+        // Only the Guardian can pause the system.
         if (msg.sender != guardian) {
             revert SuperchainConfig_OnlyGuardian();
         }
+
+        // Cannot pause if the identifier is already paused to prevent re-pausing without either
+        // unpausing, extending, or resetting the pause timestamp.
         if (pauseTimestamps[_identifier] != 0) {
-            revert SuperchainConfig_AlreadyPaused(string(abi.encodePacked(_identifier)));
+            revert SuperchainConfig_AlreadyPaused(_identifier);
         }
 
+        // Set the pause timestamp.
         pauseTimestamps[_identifier] = block.timestamp;
-        emit Paused(string(abi.encodePacked(_identifier)));
+        emit Paused(LibString.toHexString(_identifier));
     }
 
     /// @notice Unpauses the system for a specific identifier.
     /// @param _identifier The address identifier to unpause.
     function unpause(address _identifier) external {
+        // Only the Guardian can unpause the system.
         if (msg.sender != guardian) {
             revert SuperchainConfig_OnlyGuardian();
         }
 
+        // Unpause the system.
         pauseTimestamps[_identifier] = 0;
-        emit Unpaused(string(abi.encodePacked(_identifier)));
+        emit Unpaused(LibString.toHexString(_identifier));
+    }
+
+    /// @notice Extends the pause for a specific identifier by resetting the pause timestamp.
+    /// @param _identifier The address identifier to extend.
+    function extend(address _identifier) external {
+        // Only the Guardian can extend the pause.
+        if (msg.sender != guardian) {
+            revert SuperchainConfig_OnlyGuardian();
+        }
+
+        // Reset the pause timestamp.
+        pauseTimestamps[_identifier] = block.timestamp;
+        emit Paused(LibString.toHexString(_identifier));
     }
 
     /// @notice Checks if the system can be paused for a specific identifier.
@@ -104,7 +127,6 @@ contract SuperchainConfig is Initializable, ISemver {
     function paused(address _identifier) public view returns (bool) {
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return false;
-
         return block.timestamp < timestamp + pauseExpiry;
     }
 
@@ -114,18 +136,7 @@ contract SuperchainConfig is Initializable, ISemver {
     function expiration(address _identifier) external view returns (uint256) {
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return 0;
-
         return timestamp + pauseExpiry;
-    }
-
-    /// @notice Extends the pause for a specific identifier by resetting the pause timestamp.
-    /// @param _identifier The address identifier to extend.
-    function extend(address _identifier) external {
-        if (msg.sender != guardian) {
-            revert SuperchainConfig_OnlyGuardian();
-        }
-        pauseTimestamps[_identifier] = block.timestamp;
-        emit Paused(string(abi.encodePacked(_identifier)));
     }
 
     /// @notice Sets the guardian address. This is only callable during initialization, so an upgrade

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Target contract dependencies
-import { IProxy } from "interfaces/universal/IProxy.sol";
-
-// Target contract
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-
+// Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+
+// Interfaces
+import { IProxy } from "interfaces/universal/IProxy.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract SuperchainConfig_Init_Test is CommonTest {
     function setUp() public virtual override {
@@ -68,9 +69,7 @@ contract SuperchainConfig_Pause_TestFail is CommonTest {
         superchainConfig.pause(address(this));
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector, string(abi.encodePacked(address(this)))
-            )
+            abi.encodeWithSelector(ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector, address(this))
         );
 
         superchainConfig.pause(address(this));
@@ -84,7 +83,7 @@ contract SuperchainConfig_Pause_Test is CommonTest {
         assertFalse(superchainConfig.paused(address(this)));
 
         vm.expectEmit(address(superchainConfig));
-        emit Paused(string(abi.encodePacked(address(this))));
+        emit Paused(LibString.toHexString(address(this)));
 
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -118,7 +117,7 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
         assertTrue(superchainConfig.paused(address(this)));
 
         vm.expectEmit(address(superchainConfig));
-        emit Unpaused(string(abi.encodePacked(address(this))));
+        emit Unpaused(LibString.toHexString(address(this)));
         superchainConfig.unpause(address(this));
 
         assertFalse(superchainConfig.paused(address(this)));

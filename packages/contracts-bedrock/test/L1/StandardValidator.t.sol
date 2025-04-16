@@ -992,7 +992,7 @@ contract StandardValidatorV180_Test is StandardValidatorTest {
         // PLDG-ANCHORP-40: Permissionless dispute game's AnchorStateRegistry root must be
         // 0xdead000000000000000000000000000000000000000000000000000000000000
         //   ANCHORP-40 errors do not apply to chains over 1 week old.
-        //PEP: assertEq(errors, "PDDG-DWETH-30,PDDG-ANCHORP-40,PLDG-DWETH-30,PLDG-ANCHORP-40");
+        assertEq(errors, "PDDG-DWETH-30,PDDG-ANCHORP-40,PLDG-DWETH-30,PLDG-ANCHORP-40");
     }
 
     /// @notice Tests that validation reverts with error message when allowFailure is false
