@@ -254,15 +254,9 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 
 	for _, c := range cases {
 		c := c
-		for _, version := range versions.StateVersionTypes {
+		for _, version := range GetMultiThreadedTestCases(t) {
 			version := version
-			if arch.IsMips32 && !versions.IsSupportedMultiThreaded(version) {
-				continue
-			}
-			if !arch.IsMips32 && !versions.IsSupportedMultiThreaded64(version) {
-				continue
-			}
-			t.Run(fmt.Sprintf("%v-%v", version.String(), c.name), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%v-%v", version.Name, c.name), func(t *testing.T) {
 				state := multithreaded.CreateEmptyState()
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
@@ -271,7 +265,7 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 
 				var err error
 				var stepWitness *mipsevm.StepWitness
-				goVm := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil, nil, versions.FeaturesForVersion(version))
+				goVm := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil, nil, versions.FeaturesForVersion(version.Version))
 				if !c.valid {
 					// The VM should exit
 					stepWitness, err = goVm.Step(true)
