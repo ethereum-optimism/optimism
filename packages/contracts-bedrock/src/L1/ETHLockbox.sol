@@ -17,8 +17,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title ETHLockbox
-/// @notice Manages ETH liquidity locking and unlocking for authorized OptimismPortals, enabling unified ETH liquidity
-///         management across chains in the superchain cluster.
+/// @notice Manages ETH liquidity locking and unlocking for authorized OptimismPortal contracts,
+///         enabling unified ETH liquidity management across chains in the superchain cluster.
 contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Thrown when the lockbox is paused.
     error ETHLockbox_Paused();
@@ -29,14 +29,14 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Thrown when the value to unlock is greater than the balance of the lockbox.
     error ETHLockbox_InsufficientBalance();
 
-    /// @notice Thrown when attempting to unlock ETH from the lockbox through a withdrawal transaction.
+    /// @notice Thrown when attempting to unlock ETH from the lockbox through a withdrawal tx.
     error ETHLockbox_NoWithdrawalTransactions();
 
-    /// @notice Thrown when the admin owner of the lockbox is different from the admin owner of the proxy admin.
+    /// @notice Thrown when the admin owner of the lockbox is different admin owner of a portal.
     error ETHLockbox_DifferentProxyAdminOwner();
 
-    /// @notice Thrown when the SuperchainConfig of the portal's SystemConfig does not match the SuperchainConfig of the
-    /// lockbox.
+    /// @notice Thrown when the SuperchainConfig of the portal's SystemConfig does not match the
+    ///         SuperchainConfig of the lockbox.
     error ETHLockbox_DifferentSuperchainConfig();
 
     /// @notice Emitted when ETH is locked in the lockbox by an authorized portal.
@@ -53,7 +53,8 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @param portal The address of the portal that was authorized.
     event PortalAuthorized(IOptimismPortal indexed portal);
 
-    /// @notice Emitted when an ETH lockbox is authorized to migrate its liquidity to the current ETH lockbox.
+    /// @notice Emitted when an ETH lockbox is authorized to migrate its liquidity to the current
+    ///         ETH lockbox.
     /// @param lockbox The address of the ETH lockbox that was authorized.
     event LockboxAuthorized(IETHLockbox indexed lockbox);
 
@@ -142,9 +143,8 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
         emit ETHLocked(sender, msg.value);
     }
 
-    /// @notice Unlocks ETH from the lockbox.
-    ///         Called by an authorized portal when finalizing a withdrawal that requires ETH.
-    ///         Cannot be called if the lockbox is paused.
+    /// @notice Unlocks ETH from the lockbox. Called by an authorized portal when finalizing a
+    ///         withdrawal that requires ETH. Cannot be called if the lockbox is paused.
     /// @param _value The amount of ETH to unlock.
     function unlockETH(uint256 _value) external {
         // Unlocks are blocked when paused, locks are not.
@@ -214,9 +214,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
         if (!_sameProxyAdminOwner(address(_portal))) revert ETHLockbox_DifferentProxyAdminOwner();
 
         // Check that the portal has the same superchain config.
-        if (_portal.superchainConfig() != superchainConfig()) {
-            revert ETHLockbox_DifferentSuperchainConfig();
-        }
+        if (_portal.superchainConfig() != superchainConfig()) revert ETHLockbox_DifferentSuperchainConfig();
 
         // Authorize the portal.
         authorizedPortals[_portal] = true;

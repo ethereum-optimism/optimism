@@ -5,7 +5,8 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
-// Scripts
+// Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
@@ -352,7 +353,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
     /// @param _identifier The identifier to pause.
     function testFuzz_pause_validParameters_succeeds(bytes32 _nonce, address _identifier) external {
         vm.expectEmit(address(superchainConfig));
-        emit Paused(string(abi.encodePacked(_identifier)));
+        emit Paused(LibString.toHexString(_identifier));
 
         vm.expectEmit(address(foundationSafeInstance.safe));
         emit ExecutionFromModuleSuccess(address(deputyPauseModule));

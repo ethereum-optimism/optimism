@@ -93,7 +93,7 @@ contract L1StandardBridge is StandardBridge, ReinitializableBase, ISemver {
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
-    constructor() StandardBridge() ReinitializableBase(1) {
+    constructor() StandardBridge() ReinitializableBase(2) {
         _disableInitializers();
     }
 

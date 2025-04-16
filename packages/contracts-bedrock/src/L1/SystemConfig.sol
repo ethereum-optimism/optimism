@@ -214,11 +214,12 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         // Set the L2 chain ID.
         l2ChainId = _l2ChainId;
 
+        // Set the SuperchainConfig contract.
+        superchainConfig = _superchainConfig;
+
         // Clear out the old dispute game factory address, it's derived now.
         bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
         Storage.setAddress(disputeGameFactorySlot, address(0));
-
-        superchainConfig = _superchainConfig;
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to

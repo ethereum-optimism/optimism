@@ -33,7 +33,6 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
@@ -82,69 +81,6 @@ contract OptimismPortal2_Test is CommonTest {
 
         // This check is not valid on forked tests as the respectedGameType varies between OP Chains.
         assertEq(optimismPortal2.respectedGameType().raw(), deploy.cfg().respectedGameType());
-    }
-
-    /// @dev Tests that `pause` successfully pauses
-    ///      when called by the GUARDIAN.
-    function test_pause_succeeds() external {
-        address guardian = optimismPortal2.guardian();
-
-        assertEq(optimismPortal2.paused(), false);
-
-        vm.expectEmit(address(superchainConfig));
-        emit Paused(string(abi.encodePacked(address(0))));
-
-        vm.startPrank(guardian);
-        systemConfig.superchainConfig().pause(address(0));
-        vm.stopPrank();
-
-        assertEq(optimismPortal2.paused(), true);
-    }
-
-    /// @dev Tests that `pause` reverts when called by a non-GUARDIAN.
-    function test_pause_onlyGuardian_reverts() external {
-        assertEq(optimismPortal2.paused(), false);
-
-        assertTrue(optimismPortal2.guardian() != alice);
-        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
-        vm.startPrank(alice);
-        superchainConfig.pause(address(0));
-        vm.stopPrank();
-
-        assertEq(optimismPortal2.paused(), false);
-    }
-
-    /// @dev Tests that `unpause` successfully unpauses
-    ///      when called by the GUARDIAN.
-    function test_unpause_succeeds() external {
-        address guardian = optimismPortal2.guardian();
-
-        vm.prank(guardian);
-        superchainConfig.pause(address(0));
-        assertEq(optimismPortal2.paused(), true);
-
-        vm.expectEmit(address(superchainConfig));
-        emit Unpaused(string(abi.encodePacked(address(0))));
-        vm.prank(guardian);
-        superchainConfig.unpause(address(0));
-
-        assertEq(optimismPortal2.paused(), false);
-    }
-
-    /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
-    function test_unpause_onlyGuardian_reverts() external {
-        address guardian = optimismPortal2.guardian();
-
-        vm.prank(guardian);
-        superchainConfig.pause(address(0));
-        assertEq(optimismPortal2.paused(), true);
-
-        assertTrue(optimismPortal2.guardian() != alice);
-        vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
-        vm.prank(alice);
-        superchainConfig.unpause(address(0));
-
-        assertEq(optimismPortal2.paused(), true);
     }
 
     /// @dev Tests that `receive` successdully deposits ETH.

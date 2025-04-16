@@ -39,7 +39,7 @@ contract L1ERC721Bridge is ERC721Bridge, ReinitializableBase, ISemver {
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1ERC721Bridge contract.
-    constructor() ERC721Bridge() ReinitializableBase(1) {
+    constructor() ERC721Bridge() ReinitializableBase(2) {
         _disableInitializers();
     }
 
