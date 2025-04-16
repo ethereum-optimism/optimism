@@ -101,7 +101,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, WETH98, ISemver {
     /// @notice Allows the proxy admin owner to recover from error cases by pulling ETH out of the contract.
     /// @param _wad The amount of WETH to recover.
     function recover(uint256 _wad) external {
-        require(msg.sender == proxyAdminOwner(), "DelayedWETH: not proxy admin owner");
+        require(msg.sender == proxyAdminOwner(), "DelayedWETH: not owner");
         uint256 amount = _wad < address(this).balance ? _wad : address(this).balance;
         (bool success,) = payable(msg.sender).call{ value: amount }(hex"");
         require(success, "DelayedWETH: recover failed");
@@ -118,7 +118,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, WETH98, ISemver {
     /// @param _guy The address to recover the WETH from.
     /// @param _wad The amount of WETH to recover.
     function hold(address _guy, uint256 _wad) public {
-        require(msg.sender == proxyAdminOwner(), "DelayedWETH: not proxy admin owner");
+        require(msg.sender == proxyAdminOwner(), "DelayedWETH: not owner");
         _allowance[_guy][msg.sender] = _wad;
         emit Approval(_guy, msg.sender, _wad);
         transferFrom(_guy, msg.sender, _wad);

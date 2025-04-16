@@ -370,8 +370,9 @@ contract Deploy is Deployer {
             "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
         );
         address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-        address delayedWETHPermissionlessGameProxy = deployERC1967ProxyWithOwner("DelayedWETHProxy", msg.sender);
-        vm.broadcast(msg.sender);
+        address delayedWETHPermissionlessGameProxy =
+            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
+        vm.broadcast(address(deployOutput.opChainProxyAdmin));
         IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
             _implementation: delayedWETHImpl,
             _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))

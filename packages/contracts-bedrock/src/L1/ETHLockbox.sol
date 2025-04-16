@@ -210,14 +210,14 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ISemver {
     /// @notice Authorizes a portal to lock and unlock ETH.
     /// @param _portal The address of the portal to authorize.
     function _authorizePortal(IOptimismPortal _portal) internal {
-        /*
-        PEP: Breaks deployment
-        if (!_sameProxyAdminOwner(address(_portal.systemConfig()))) revert ETHLockbox_DifferentProxyAdminOwner();
+        // Check that the portal has the same proxy admin owner.
+        if (!_sameProxyAdminOwner(address(_portal))) revert ETHLockbox_DifferentProxyAdminOwner();
 
-        if (_portal.systemConfig().superchainConfig() != superchainConfig()) {
+        // Check that the portal has the same superchain config.
+        if (_portal.superchainConfig() != superchainConfig()) {
             revert ETHLockbox_DifferentSuperchainConfig();
         }
-        */
+
         // Authorize the portal.
         authorizedPortals[_portal] = true;
 

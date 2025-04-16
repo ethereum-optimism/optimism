@@ -563,12 +563,21 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // Grab the L2 chain ID from the PermissionedDisputeGame.
             uint256 l2ChainId = getL2ChainId(IFaultDisputeGame(address(permissionedDisputeGame)));
 
-            // Start by upgrading the SystemConfig contract to have the l2ChainId and SuperchainConfig.
+            // Start by upgrading the SystemConfig contract to have the l2ChainId and
+            // SuperchainConfig. We can get the SuperchainConfig from the existing OptimismPortal,
+            // we need to inline the call to avoid a stack too deep error.
             upgradeToAndCall(
                 _opChainConfigs[i].proxyAdmin,
                 address(_opChainConfigs[i].systemConfigProxy),
                 impls.systemConfigImpl,
-                abi.encodeCall(ISystemConfig.upgrade, (l2ChainId, ISuperchainConfig(impls.superchainConfigImpl)))
+                abi.encodeCall(
+                    ISystemConfig.upgrade,
+                    (
+                        l2ChainId,
+                        IOptimismPortal(payable(_opChainConfigs[i].systemConfigProxy.optimismPortal())).superchainConfig(
+                        )
+                    )
+                )
             );
 
             // Grab chain addresses here. We need to do this after the SystemConfig upgrade or the
@@ -577,9 +586,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // Grab the current respectedGameType from the OptimismPortal contract before the upgrade.
             GameType respectedGameType = IOptimismPortal(payable(opChainAddrs.optimismPortal)).respectedGameType();
-
-            // Grab the current SystemConfig from the OptimismPortal contract before the upgrade.
-            ISystemConfig systemConfig = IOptimismPortal(payable(opChainAddrs.optimismPortal)).systemConfig();
 
             // Separate context to avoid stack too deep.
             IAnchorStateRegistry newAnchorStateRegistryProxy;
@@ -612,7 +618,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         abi.encodeCall(
                             IAnchorStateRegistry.initialize,
                             (
-                                systemConfig,
+                                _opChainConfigs[i].systemConfigProxy,
                                 dgf,
                                 Proposal({ root: root, l2SequenceNumber: l2BlockNumber }),
                                 respectedGameType
@@ -628,30 +634,33 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // Separate context to avoid stack too deep.
             {
                 // Deploy the ETHLockbox proxy.
-                IETHLockbox ethLockbox;
-                {
-                    ethLockbox = IETHLockbox(
-                        deployProxy({
-                            _l2ChainId: l2ChainId,
-                            _proxyAdmin: _opChainConfigs[i].proxyAdmin,
-                            _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                            _contractName: "ETHLockbox"
-                        })
-                    );
-
-                    // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
-                    IOptimismPortal[] memory portals = new IOptimismPortal[](1);
-                    portals[0] = IOptimismPortal(payable(opChainAddrs.optimismPortal));
-                    upgradeToAndCall(
-                        _opChainConfigs[i].proxyAdmin,
-                        address(ethLockbox),
-                        impls.ethLockboxImpl,
-                        abi.encodeCall(IETHLockbox.initialize, (systemConfig, portals))
-                    );
-                }
-                IOptimismPortal(payable(opChainAddrs.optimismPortal)).upgrade(
-                    newAnchorStateRegistryProxy, ethLockbox, systemConfig
+                IETHLockbox ethLockbox = IETHLockbox(
+                    deployProxy({
+                        _l2ChainId: l2ChainId,
+                        _proxyAdmin: _opChainConfigs[i].proxyAdmin,
+                        _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
+                        _contractName: "ETHLockbox"
+                    })
                 );
+
+                // Upgrade the OptimismPortal contract first so that the SystemConfig will have
+                // the SuperchainConfig reference required in the ETHLockbox.
+                IOptimismPortal(payable(opChainAddrs.optimismPortal)).upgrade(
+                    newAnchorStateRegistryProxy, ethLockbox, _opChainConfigs[i].systemConfigProxy
+                );
+
+                // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
+                IOptimismPortal[] memory portals = new IOptimismPortal[](1);
+                portals[0] = IOptimismPortal(payable(opChainAddrs.optimismPortal));
+                upgradeToAndCall(
+                    _opChainConfigs[i].proxyAdmin,
+                    address(ethLockbox),
+                    impls.ethLockboxImpl,
+                    abi.encodeCall(IETHLockbox.initialize, (_opChainConfigs[i].systemConfigProxy, portals))
+                );
+
+                // Migrate liquidity from the OptimismPortal to the ETHLockbox.
+                IOptimismPortal(payable(opChainAddrs.optimismPortal)).migrateLiquidity();
             }
 
             // We also need to redeploy the dispute games because the AnchorStateRegistry is new.
@@ -918,16 +927,18 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
         );
 
+        // Initialize the SystemConfig before the ETHLockbox, required because the ETHLockbox will
+        // try to get the SuperchainConfig from the SystemConfig inside of its initializer.
+        data = encodeSystemConfigInitializer(_input, output, _superchainConfig);
+        upgradeToAndCall(
+            output.opChainProxyAdmin, address(output.systemConfigProxy), implementation.systemConfigImpl, data
+        );
+
         // Initialize the ETHLockbox.
         IOptimismPortal[] memory portals = new IOptimismPortal[](1);
         portals[0] = output.optimismPortalProxy;
         data = encodeETHLockboxInitializer(output, portals);
         upgradeToAndCall(output.opChainProxyAdmin, address(output.ethLockboxProxy), implementation.ethLockboxImpl, data);
-
-        data = encodeSystemConfigInitializer(_input, output, _superchainConfig);
-        upgradeToAndCall(
-            output.opChainProxyAdmin, address(output.systemConfigProxy), implementation.systemConfigImpl, data
-        );
 
         data = encodeOptimismMintableERC20FactoryInitializer(output);
         upgradeToAndCall(

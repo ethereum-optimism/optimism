@@ -293,9 +293,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         ethLockbox = _ethLockbox;
         systemConfig = _systemConfig;
         spacer_53_1_20 = address(0);
-
-        // Migrate the whole ETH balance to the ETHLockbox.
-        _migrateLiquidity();
     }
 
     /// @notice Getter for the current paused status.

@@ -9,6 +9,9 @@ import { Burn } from "src/libraries/Burn.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
+// Interfaces
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+
 contract DelayedWETH_Init is CommonTest {
     event Approval(address indexed src, address indexed guy, uint256 wad);
     event Transfer(address indexed src, address indexed dst, uint256 wad);
@@ -277,19 +280,25 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
         // Assume
         _fallbackGasUsage = bound(_fallbackGasUsage, 0, 20000000);
 
+        // Set up the gas burner.
+        FallbackGasUser gasUser = new FallbackGasUser(_fallbackGasUsage);
+
+        // Mock owner to return the gas user.
+        vm.mockCall(address(delayedWeth.proxyAdmin()), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(gasUser)));
+
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), _amount);
 
         // Record the initial balance.
-        uint256 initialBalance = address(delayedWeth.proxyAdminOwner()).balance;
+        uint256 initialBalance = address(gasUser).balance;
 
         // Recover the WETH.
-        vm.prank(address(delayedWeth.proxyAdminOwner()));
+        vm.prank(address(gasUser));
         delayedWeth.recover(_amount);
 
         // Verify the WETH was recovered.
         assertEq(address(delayedWeth).balance, 0);
-        assertEq(address(delayedWeth.proxyAdminOwner()).balance, initialBalance + _amount);
+        assertEq(address(gasUser).balance, initialBalance + _amount);
     }
 
     /// @dev Tests that recovering WETH by non-owner fails.
@@ -304,11 +313,14 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
 
     /// @dev Tests that recovering more than the balance recovers what it can.
     function test_recover_moreThanBalance_succeeds() public {
+        // Mock owner to return alice.
+        vm.mockCall(address(delayedWeth.proxyAdmin()), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(alice));
+
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), 0.5 ether);
 
         // Record the initial balance.
-        uint256 initialBalance = address(delayedWeth.proxyAdminOwner()).balance;
+        uint256 initialBalance = address(alice).balance;
 
         // Recover the WETH.
         vm.prank(alice);
@@ -316,13 +328,16 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
 
         // Verify the WETH was recovered.
         assertEq(address(delayedWeth).balance, 0);
-        assertEq(address(delayedWeth.proxyAdminOwner()).balance, initialBalance + 0.5 ether);
+        assertEq(address(alice).balance, initialBalance + 0.5 ether);
     }
 
     /// @dev Tests that recover reverts when recipient reverts.
     function test_recover_whenRecipientReverts_fails() public {
         // Set up the reverter.
         FallbackReverter reverter = new FallbackReverter();
+
+        // Mock owner to return the reverter.
+        vm.mockCall(address(delayedWeth.proxyAdmin()), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(reverter)));
 
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), 1 ether);
