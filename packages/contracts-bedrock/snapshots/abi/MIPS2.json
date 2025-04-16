@@ -5,6 +5,11 @@
         "internalType": "contract IPreimageOracle",
         "name": "_oracle",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
