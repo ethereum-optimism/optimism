@@ -47,7 +47,7 @@ contract DeployMIPS2_Test is Test {
         DeployMIPS2.Output memory output1 = deployMIPS.run(_input);
 
         // Make sure we deployed the correct MIPS
-        MIPS64 mips = new MIPS64(_input.preimageOracle);
+        MIPS64 mips = new MIPS64(_input.preimageOracle, _input.mipsVersion);
         assertEq(address(output1.mipsSingleton).code, address(mips).code, "100");
 
         // Run the deployment script again

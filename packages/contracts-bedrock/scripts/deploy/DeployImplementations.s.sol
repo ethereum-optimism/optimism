@@ -15,6 +15,7 @@ import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import {
@@ -838,6 +839,7 @@ contract DeployImplementations is Script {
     }
 
     function deployMipsSingleton(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public virtual {
+        IMIPS singleton;
         uint256 mipsVersion = _dii.mipsVersion();
         IPreimageOracle preimageOracle = IPreimageOracle(address(_dio.preimageOracleSingleton()));
 
@@ -848,13 +850,23 @@ contract DeployImplementations is Script {
             }
         }
 
-        IMIPS singleton = IMIPS(
-            DeployUtils.createDeterministic({
-                _name: mipsVersion == 1 ? "MIPS" : "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (preimageOracle))),
-                _salt: _salt
-            })
-        );
+        if (mipsVersion == 1) {
+            singleton = IMIPS(
+                DeployUtils.createDeterministic({
+                    _name: "MIPS",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (preimageOracle))),
+                    _salt: DeployUtils.DEFAULT_SALT
+                })
+            );
+        } else {
+            singleton = IMIPS(
+                DeployUtils.createDeterministic({
+                    _name: "MIPS64",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (preimageOracle, mipsVersion))),
+                    _salt: DeployUtils.DEFAULT_SALT
+                })
+            );
+        }
         vm.label(address(singleton), "MIPSSingleton");
         _dio.set(_dio.mipsSingleton.selector, address(singleton));
     }

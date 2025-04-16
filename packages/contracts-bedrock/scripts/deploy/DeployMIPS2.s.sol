@@ -10,6 +10,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 // Interfaces
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
 
 /// @title DeployMIPS
 contract DeployMIPS2 is Script {
@@ -33,16 +34,26 @@ contract DeployMIPS2 is Script {
     }
 
     function deployMipsSingleton(Input memory _input, Output memory _output) internal {
+        IMIPS singleton;
         uint256 mipsVersion = _input.mipsVersion;
-        string memory contractName = mipsVersion == 1 ? "MIPS" : "MIPS64";
 
-        IMIPS singleton = IMIPS(
-            DeployUtils.createDeterministic({
-                _name: contractName,
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (_input.preimageOracle))),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
-        );
+        if (mipsVersion == 1) {
+            singleton = IMIPS(
+                DeployUtils.createDeterministic({
+                    _name: "MIPS",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (_input.preimageOracle))),
+                    _salt: DeployUtils.DEFAULT_SALT
+                })
+            );
+        } else {
+            singleton = IMIPS(
+                DeployUtils.createDeterministic({
+                    _name: "MIPS64",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (_input.preimageOracle, mipsVersion))),
+                    _salt: DeployUtils.DEFAULT_SALT
+                })
+            );
+        }
 
         vm.label(address(singleton), "MIPSSingleton");
         _output.mipsSingleton = singleton;
