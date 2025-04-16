@@ -82,6 +82,7 @@ func DeployImplementations(
 	defer cleanupOutput()
 
 	implContract := "DeployImplementations"
+	fmt.Println(input.MipsVersion.String())
 	deployScript, cleanupDeploy, err := script.WithScript[DeployImplementationsScript](host, "DeployImplementations.s.sol", implContract)
 	if err != nil {
 		return output, fmt.Errorf("failed to load %s script: %w", implContract, err)
