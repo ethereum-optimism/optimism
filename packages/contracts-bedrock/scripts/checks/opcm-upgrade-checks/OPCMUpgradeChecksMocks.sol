@@ -29,6 +29,34 @@ contract WithNoExternalUpgradeFunctionInternal is InternalUpgradeFunction {
     }
 }
 
+contract CorrectInterfaceButWrongFunctionTypeInternal is InternalUpgradeFunction {
+    uint8 constant EXPECTED_OUTPUT = NOT_FOUND;
+
+    function upgrade() external {
+        upgradeToAndCall(
+            UPGRADE_CONTRACT,
+            address(UPGRADE_CONTRACT),
+            address(0),
+            abi.encodeCall(
+                IUpgradeable.upgradeAndCall, (address(0), address(0), abi.encodeCall(IUpgradeable.upgrade, ()))
+            )
+        );
+    }
+}
+
+contract WrongInterfaceButCorrectFunctionTypeInternal is InternalUpgradeFunction {
+    uint8 constant EXPECTED_OUTPUT = NOT_FOUND;
+
+    function upgrade() external {
+        upgradeToAndCall(
+            UPGRADE_CONTRACT,
+            address(UPGRADE_CONTRACT),
+            address(0),
+            abi.encodeCall(WrongInterfaceButCorrectFunctionTypeInternal.upgrade, ())
+        );
+    }
+}
+
 contract WithinTopLevelFunctionInternal is InternalUpgradeFunction {
     uint8 constant EXPECTED_OUTPUT = UPGRADE_INTERNAL_CALL;
 

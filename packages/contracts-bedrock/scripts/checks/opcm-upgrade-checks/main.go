@@ -127,13 +127,14 @@ func processFile(artifactPath string) (*common.Void, []error) {
 }
 
 // We want to ensure that:
-// - Top level external upgrade calls can be identified
-// - External upgrade calls within in a block i.e `{ }` can be identified
-// - External upgrade calls within a for, while, do loop can be identified
-// - External upgrade calls within the true/false block of if/else-if/else statements can be identified
-// - External upgrade calls within a try or catch path
-// - External upgrade calls within the true/false block of ternary statements can be identified
-// - Any combination of the aforementioned can be identified
+//   - Top level external upgrade calls call e.g `IContract.upgrade(...)` and
+//     Internal ones called via `upgradeToAndCall(param: IProxyAdmin, address(param: IContract), param: address, abi.encodeCall(IContract.upgrade, (...)))` can be identified
+//   - External upgrade calls within in a block i.e `{ }` can be identified
+//   - External upgrade calls within a for, while, do loop can be identified
+//   - External upgrade calls within the true/false block of if/else-if/else statements can be identified
+//   - External upgrade calls within a try or catch path
+//   - External upgrade calls within the true/false block of ternary statements can be identified
+//   - Any combination of the aforementioned can be identified
 func upgradesContract(opcmUpgradeAst []solc.AstNode, expectedExternalCallName string, typeName string, internalFunctionTypes InternalUpgradeFunctionType) CallType {
 	// Loop through all statements finding any external call to an upgrade function with a contract type of `typeName`
 	for _, node := range opcmUpgradeAst {
