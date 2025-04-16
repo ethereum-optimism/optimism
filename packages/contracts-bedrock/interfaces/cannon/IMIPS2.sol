@@ -40,10 +40,8 @@ interface IMIPS2 is ISemver {
     error InvalidMemoryProof();
     error InvalidSecondMemoryProof();
     error InvalidRMWInstruction();
-    error UnsupportedStateVersion();
 
     function oracle() external view returns (IPreimageOracle oracle_);
-    function stateVersion() external view returns (uint256 stateVersion_);
     function step(
         bytes memory _stateData,
         bytes memory _proof,
