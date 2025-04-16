@@ -150,7 +150,7 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) 
 
 	blockRef, err := rs.BlockRefByNumber(ctx, query.BlockNum)
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to get block ref for verifiying access with RPC: %w", err)
+		return types.BlockSeal{}, fmt.Errorf("failed to get block ref for verifying access with RPC: %w", err)
 	}
 
 	log, err := rs.getLogAtIndex(ctx, blockRef.Hash, query.LogIdx)
