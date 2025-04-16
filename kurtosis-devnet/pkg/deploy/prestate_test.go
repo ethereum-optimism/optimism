@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
@@ -48,6 +49,7 @@ _prestate-build target:
 				baseDir:  tmpDir,
 				dryRun:   tt.dryRun,
 				buildDir: tmpDir,
+				buildWg:  &sync.WaitGroup{},
 				urlBuilder: func(path ...string) string {
 					return "http://fileserver/" + strings.Join(path, "/")
 				},
@@ -76,6 +78,9 @@ second:
 			}
 			require.NoError(t, err)
 
+			// Wait for the async goroutine to complete
+			templater.buildWg.Wait()
+
 			// Verify the output is valid YAML and contains the static path
 			output := buf.String()
 			assert.Contains(t, output, "url: http://fileserver/proofs/op-program/cannon")
@@ -98,7 +103,7 @@ second:
 			assert.Equal(t, result.First.URL, result.Second.URL, "URLs should match")
 			assert.Equal(t, result.First.Hashes, result.Second.Hashes, "Hashes should match")
 
-			// Verify the directory was created only once
+			// In dry run mode, we don't create the directory
 			prestateDir := filepath.Join(tmpDir, "proofs", "op-program", "cannon")
 			assert.DirExists(t, prestateDir)
 		})

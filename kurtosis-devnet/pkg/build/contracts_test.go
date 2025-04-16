@@ -358,3 +358,30 @@ func TestContractBuilder_populateContractsArtifact(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test artifact", string(content))
 }
+
+func TestContractBuilder_GetContractUrl(t *testing.T) {
+	_, memFS := setupTestFS(t)
+
+	builder := NewContractBuilder(
+		WithContractFS(memFS),
+		WithContractBaseDir("."),
+	)
+
+	// Get the contract URL
+	url := builder.GetContractUrl()
+
+	// Verify the format is correct
+	assert.Regexp(t, `^artifact://contracts-[a-f0-9]{64}$`, url)
+
+	// Verify it's consistent
+	url2 := builder.GetContractUrl()
+	assert.Equal(t, url, url2)
+
+	// Verify it changes when the cache file changes
+	cacheFile := filepath.Join(".", relativeContractsPath, solidityCachePath)
+	err := afero.WriteFile(memFS, cacheFile, []byte("modified cache"), 0644)
+	require.NoError(t, err)
+
+	url3 := builder.GetContractUrl()
+	assert.NotEqual(t, url, url3)
+}
