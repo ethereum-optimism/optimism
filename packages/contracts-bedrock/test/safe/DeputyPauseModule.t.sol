@@ -40,6 +40,13 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
         // Create a Foundation Safe with 10 owners.
         foundationSafeInstance = _setupSafe(keys, 10);
 
+        vm.store(
+            address(superchainConfig),
+            bytes32(0),
+            bytes32(uint256(uint160(address(foundationSafeInstance.safe)))) << (2 * 8)
+        );
+
+        assertEq(superchainConfig.guardian(), address(foundationSafeInstance.safe));
         // Create the deputy for the DeputyPauseModule.
         (deputy, deputyKey) = makeAddrAndKey("deputy");
 
