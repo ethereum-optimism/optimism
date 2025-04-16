@@ -215,7 +215,7 @@ where
         reth_optimism_primitives::OpBlock {
             header: header.inner,
             body: reth_optimism_primitives::OpBlockBody {
-                transactions: transactions.into_transactions().map(Into::into).collect(),
+                transactions: transactions.into_transactions().collect(),
                 ..Default::default()
             },
         }

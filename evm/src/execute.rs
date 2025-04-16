@@ -23,9 +23,9 @@ impl OpExecutorProvider {
 mod tests {
     use super::*;
     use crate::OpChainSpec;
-    use alloy_consensus::{Block, BlockBody, Header, TxEip1559};
+    use alloy_consensus::{Block, BlockBody, Header, SignableTransaction, TxEip1559};
     use alloy_primitives::{b256, Address, Signature, StorageKey, StorageValue, U256};
-    use op_alloy_consensus::{OpTypedTransaction, TxDeposit};
+    use op_alloy_consensus::TxDeposit;
     use op_revm::constants::L1_BLOCK_CONTRACT;
     use reth_chainspec::MIN_TRANSACTION_GAS;
     use reth_evm::execute::{BasicBlockExecutorProvider, BlockExecutorProvider, Executor};
@@ -90,26 +90,23 @@ mod tests {
 
         let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().regolith_activated().build());
 
-        let tx = OpTransactionSigned::new_unhashed(
-            OpTypedTransaction::Eip1559(TxEip1559 {
-                chain_id: chain_spec.chain.id(),
-                nonce: 0,
-                gas_limit: MIN_TRANSACTION_GAS,
-                to: addr.into(),
-                ..Default::default()
-            }),
-            Signature::test_signature(),
-        );
+        let tx: OpTransactionSigned = TxEip1559 {
+            chain_id: chain_spec.chain.id(),
+            nonce: 0,
+            gas_limit: MIN_TRANSACTION_GAS,
+            to: addr.into(),
+            ..Default::default()
+        }
+        .into_signed(Signature::test_signature())
+        .into();
 
-        let tx_deposit = OpTransactionSigned::new_unhashed(
-            OpTypedTransaction::Deposit(op_alloy_consensus::TxDeposit {
-                from: addr,
-                to: addr.into(),
-                gas_limit: MIN_TRANSACTION_GAS,
-                ..Default::default()
-            }),
-            Signature::test_signature(),
-        );
+        let tx_deposit: OpTransactionSigned = TxDeposit {
+            from: addr,
+            to: addr.into(),
+            gas_limit: MIN_TRANSACTION_GAS,
+            ..Default::default()
+        }
+        .into();
 
         let provider = executor_provider(chain_spec);
         let mut executor = provider.executor(StateProviderDatabase::new(&db));
@@ -166,26 +163,23 @@ mod tests {
 
         let chain_spec = Arc::new(OpChainSpecBuilder::base_mainnet().canyon_activated().build());
 
-        let tx = OpTransactionSigned::new_unhashed(
-            OpTypedTransaction::Eip1559(TxEip1559 {
-                chain_id: chain_spec.chain.id(),
-                nonce: 0,
-                gas_limit: MIN_TRANSACTION_GAS,
-                to: addr.into(),
-                ..Default::default()
-            }),
-            Signature::test_signature(),
-        );
+        let tx: OpTransactionSigned = TxEip1559 {
+            chain_id: chain_spec.chain.id(),
+            nonce: 0,
+            gas_limit: MIN_TRANSACTION_GAS,
+            to: addr.into(),
+            ..Default::default()
+        }
+        .into_signed(Signature::test_signature())
+        .into();
 
-        let tx_deposit = OpTransactionSigned::new_unhashed(
-            OpTypedTransaction::Deposit(op_alloy_consensus::TxDeposit {
-                from: addr,
-                to: addr.into(),
-                gas_limit: MIN_TRANSACTION_GAS,
-                ..Default::default()
-            }),
-            TxDeposit::signature(),
-        );
+        let tx_deposit: OpTransactionSigned = TxDeposit {
+            from: addr,
+            to: addr.into(),
+            gas_limit: MIN_TRANSACTION_GAS,
+            ..Default::default()
+        }
+        .into();
 
         let provider = executor_provider(chain_spec);
         let mut executor = provider.executor(StateProviderDatabase::new(&db));

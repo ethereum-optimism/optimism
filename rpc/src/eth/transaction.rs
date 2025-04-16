@@ -1,6 +1,6 @@
 //! Loads and formats OP transaction RPC response.
 
-use alloy_consensus::{transaction::Recovered, Transaction as _};
+use alloy_consensus::{transaction::Recovered, SignableTransaction, Transaction as _};
 use alloy_primitives::{Bytes, Sealable, Sealed, Signature, B256};
 use alloy_rpc_types_eth::TransactionInfo;
 use op_alloy_consensus::OpTxEnvelope;
@@ -145,7 +145,7 @@ where
 
         // Create an empty signature for the transaction.
         let signature = Signature::new(Default::default(), Default::default(), false);
-        Ok(OpTransactionSigned::new_unhashed(tx, signature))
+        Ok(tx.into_signed(signature).into())
     }
 
     fn otterscan_api_truncate_input(tx: &mut Self::Transaction) {

@@ -18,20 +18,12 @@ reth-codecs = { workspace = true, optional = true, features = ["op"] }
 reth-zstd-compressors = { workspace = true, optional = true }
 
 # ethereum
-alloy-evm.workspace = true
 alloy-primitives.workspace = true
 alloy-consensus.workspace = true
 alloy-rlp.workspace = true
-alloy-eips = { workspace = true, features = ["k256"] }
-revm-context.workspace = true
-op-revm.workspace = true
-secp256k1 = { workspace = true, optional = true }
 
 # op
 op-alloy-consensus.workspace = true
-alloy-rpc-types-eth = { workspace = true, optional = true }
-alloy-network = { workspace = true, optional = true }
-alloy-serde = { workspace = true, optional = true }
 
 # codec
 bytes = { workspace = true, optional = true }
@@ -39,25 +31,23 @@ modular-bitfield = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
 
-# misc
-derive_more = { workspace = true, features = ["deref", "from", "into", "constructor"] }
-rand_08 = { workspace = true, optional = true }
-
 # test
 arbitrary = { workspace = true, features = ["derive"], optional = true }
-proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
-arbitrary.workspace = true
-proptest-arbitrary-interop.workspace = true
-proptest.workspace = true
-rand.workspace = true
-rand_08.workspace = true
 reth-codecs = { workspace = true, features = ["test-utils", "op"] }
+alloy-eips.workspace = true
+
+rand.workspace = true
+arbitrary.workspace = true
 rstest.workspace = true
-secp256k1 = { workspace = true, features = ["rand"] }
 serde_json.workspace = true
 bincode.workspace = true
+
+proptest-arbitrary-interop.workspace = true
+proptest.workspace = true
+rand_08.workspace = true
+secp256k1 = { workspace = true, features = ["rand"] }
 
 [features]
 default = ["std"]
@@ -65,28 +55,21 @@ std = [
     "reth-primitives-traits/std",
     "reth-codecs?/std",
     "alloy-consensus/std",
-    "alloy-eips/std",
     "alloy-primitives/std",
     "serde?/std",
     "bytes?/std",
-    "derive_more/std",
-    "secp256k1?/std",
     "alloy-rlp/std",
     "reth-zstd-compressors?/std",
     "op-alloy-consensus/std",
-    "op-revm/std",
-    "alloy-rpc-types-eth?/std",
-    "alloy-serde?/std",
-    "revm-context/std",
     "serde_json/std",
-    "alloy-evm/std",
     "serde_with?/std",
+    "alloy-eips/std",
+    "secp256k1/std",
 ]
-alloy-compat = ["dep:alloy-network", "dep:alloy-serde", "dep:alloy-rpc-types-eth", "op-alloy-consensus/alloy-compat"]
+alloy-compat = ["op-alloy-consensus/alloy-compat"]
 reth-codec = [
     "dep:reth-codecs",
     "std",
-    "dep:proptest",
     "reth-primitives-traits/reth-codec",
     "reth-codecs?/op",
     "dep:bytes",
@@ -98,37 +81,29 @@ serde = [
     "reth-primitives-traits/serde",
     "alloy-primitives/serde",
     "alloy-consensus/serde",
-    "alloy-eips/serde",
     "bytes?/serde",
     "reth-codecs?/serde",
     "op-alloy-consensus/serde",
-    "rand_08?/serde",
-    "secp256k1?/serde",
-    "op-revm/serde",
-    "alloy-rpc-types-eth?/serde",
-    "revm-context/serde",
+    "alloy-eips/serde",
     "rand/serde",
+    "rand_08/serde",
+    "secp256k1/serde",
 ]
 serde-bincode-compat = [
     "serde",
     "serde_with",
     "alloy-consensus/serde-bincode-compat",
-    "alloy-eips/serde-bincode-compat",
     "op-alloy-consensus/serde-bincode-compat",
     "reth-primitives-traits/serde-bincode-compat",
+    "alloy-eips/serde-bincode-compat",
 ]
 arbitrary = [
     "std",
     "dep:arbitrary",
-    "dep:secp256k1",
-    "secp256k1?/rand",
     "reth-primitives-traits/arbitrary",
     "reth-codecs?/arbitrary",
     "op-alloy-consensus/arbitrary",
     "alloy-consensus/arbitrary",
-    "alloy-eips/arbitrary",
     "alloy-primitives/arbitrary",
-    "rand_08",
-    "alloy-rpc-types-eth?/arbitrary",
-    "alloy-serde?/arbitrary",
+    "alloy-eips/arbitrary",
 ]
