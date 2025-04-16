@@ -16,7 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestL2CLResync checks that unsafe head advances after restarting L2CL
+// TestL2CLResync checks that unsafe head advances after restarting L2CL.
+// Resync is only possible when supervisor and L2CL reconnects.
 func TestL2CLResync(gt *testing.T) {
 	var ids DefaultInteropSystemIDs
 	opt := DefaultInteropSystem(&ids)
