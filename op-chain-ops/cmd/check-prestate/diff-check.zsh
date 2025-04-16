@@ -7,5 +7,5 @@ cat - | jq -r '."outdated-chains" | sort_by(.name)[] | .name + "\n" + .diff.mess
 
     echo "\n=== $name ===\n$message\n"
 
-    diff -u --label=prestate --label=latest <(echo "$prestate" | jq) <(echo "$latest" | jq)
+    diff -u --label="$name-prestate" --label="$name-latest" <(echo "$prestate" | jq) <(echo "$latest" | jq)
 done
