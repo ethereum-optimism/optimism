@@ -515,7 +515,12 @@ mod tests {
                 ),
                 (
                     Head { number: 0, timestamp: 1736445601, ..Default::default() },
-                    ForkId { hash: ForkHash([0x3a, 0x2a, 0xf1, 0x83]), next: 0 },
+                    ForkId { hash: ForkHash([0x3a, 0x2a, 0xf1, 0x83]), next: 1746806401 },
+                ),
+                // Isthmus
+                (
+                    Head { number: 0, timestamp: 1746806401, ..Default::default() },
+                    ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 },
                 ),
             ],
         );
@@ -628,7 +633,12 @@ mod tests {
                 // Holocene
                 (
                     Head { number: 105235063, timestamp: 1736445601, ..Default::default() },
-                    ForkId { hash: ForkHash([0x2b, 0xd9, 0x3d, 0xc8]), next: 0 },
+                    ForkId { hash: ForkHash([0x2b, 0xd9, 0x3d, 0xc8]), next: 1746806401 },
+                ),
+                // Isthmus
+                (
+                    Head { number: 105235063, timestamp: 1746806401, ..Default::default() },
+                    ForkId { hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]), next: 0 },
                 ),
             ],
         );
@@ -733,7 +743,7 @@ mod tests {
     #[test]
     fn latest_base_mainnet_fork_id() {
         assert_eq!(
-            ForkId { hash: ForkHash([0x3a, 0x2a, 0xf1, 0x83]), next: 0 },
+            ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 },
             BASE_MAINNET.latest_fork_id()
         )
     }
@@ -742,7 +752,7 @@ mod tests {
     fn latest_base_mainnet_fork_id_with_builder() {
         let base_mainnet = OpChainSpecBuilder::base_mainnet().build();
         assert_eq!(
-            ForkId { hash: ForkHash([0x3a, 0x2a, 0xf1, 0x83]), next: 0 },
+            ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 },
             base_mainnet.latest_fork_id()
         )
     }
@@ -1000,6 +1010,7 @@ mod tests {
                 merge_netsplit_block: Some(0),
                 shanghai_time: Some(0),
                 cancun_time: Some(0),
+                prague_time: Some(0),
                 terminal_total_difficulty: Some(U256::ZERO),
                 extra_fields: [
                     (String::from("bedrockBlock"), 0.into()),
@@ -1009,6 +1020,7 @@ mod tests {
                     (String::from("fjordTime"), 0.into()),
                     (String::from("graniteTime"), 0.into()),
                     (String::from("holoceneTime"), 0.into()),
+                    (String::from("isthmusTime"), 0.into()),
                 ]
                 .into_iter()
                 .collect(),
@@ -1044,7 +1056,8 @@ mod tests {
             OpHardfork::Fjord.boxed(),
             OpHardfork::Granite.boxed(),
             OpHardfork::Holocene.boxed(),
-            // OpHardfork::Isthmus.boxed(),
+            EthereumHardfork::Prague.boxed(),
+            OpHardfork::Isthmus.boxed(),
             // OpHardfork::Interop.boxed(),
         ];
 

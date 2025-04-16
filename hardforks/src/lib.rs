@@ -94,6 +94,8 @@ pub static OP_MAINNET_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1720627201)),
         (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1726070401)),
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1736445601)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1746806401)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1746806401)),
     ])
 });
 /// Optimism Sepolia list of hardforks.
@@ -205,5 +207,7 @@ pub static BASE_MAINNET_HARDFORKS: LazyLock<ChainHardforks> = LazyLock::new(|| {
         (OpHardfork::Fjord.boxed(), ForkCondition::Timestamp(1720627201)),
         (OpHardfork::Granite.boxed(), ForkCondition::Timestamp(1726070401)),
         (OpHardfork::Holocene.boxed(), ForkCondition::Timestamp(1736445601)),
+        (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1746806401)),
+        (OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1746806401)),
     ])
 });
