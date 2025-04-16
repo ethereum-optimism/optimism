@@ -5,14 +5,78 @@ pub mod isthmus;
 
 use crate::proof::calculate_receipt_root_optimism;
 use alloc::vec::Vec;
-use alloy_consensus::{BlockHeader, TxReceipt};
+use alloy_consensus::{BlockHeader, TxReceipt, EMPTY_OMMER_ROOT_HASH};
 use alloy_primitives::{Bloom, B256};
+use alloy_trie::EMPTY_ROOT_HASH;
 use op_alloy_consensus::{decode_holocene_extra_data, EIP1559ParamError};
 use reth_chainspec::{BaseFeeParams, EthChainSpec};
 use reth_consensus::ConsensusError;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
-use reth_primitives_traits::{receipt::gas_spent_by_transactions, GotExpected};
+use reth_primitives_traits::{receipt::gas_spent_by_transactions, BlockBody, GotExpected};
+
+/// Ensures the block response data matches the header.
+///
+/// This ensures the body response items match the header's hashes:
+///   - ommer hash
+///   - transaction root
+///   - withdrawals root: the body's withdrawals root must only match the header's before isthmus
+pub fn validate_body_against_header_op<B, H>(
+    chain_spec: impl OpHardforks,
+    body: &B,
+    header: &H,
+) -> Result<(), ConsensusError>
+where
+    B: BlockBody,
+    H: reth_primitives_traits::BlockHeader,
+{
+    let ommers_hash = body.calculate_ommers_root();
+    if Some(header.ommers_hash()) != ommers_hash {
+        return Err(ConsensusError::BodyOmmersHashDiff(
+            GotExpected {
+                got: ommers_hash.unwrap_or(EMPTY_OMMER_ROOT_HASH),
+                expected: header.ommers_hash(),
+            }
+            .into(),
+        ))
+    }
+
+    let tx_root = body.calculate_tx_root();
+    if header.transactions_root() != tx_root {
+        return Err(ConsensusError::BodyTransactionRootDiff(
+            GotExpected { got: tx_root, expected: header.transactions_root() }.into(),
+        ))
+    }
+
+    match (header.withdrawals_root(), body.calculate_withdrawals_root()) {
+        (Some(header_withdrawals_root), Some(withdrawals_root)) => {
+            // after isthmus, the withdrawals root field is repurposed and no longer mirrors the
+            // withdrawals root computed from the body
+            if chain_spec.is_isthmus_active_at_timestamp(header.timestamp()) {
+                // After isthmus we only ensure that the body has empty withdrawals
+                if withdrawals_root != EMPTY_ROOT_HASH {
+                    return Err(ConsensusError::BodyWithdrawalsRootDiff(
+                        GotExpected { got: withdrawals_root, expected: EMPTY_ROOT_HASH }.into(),
+                    ))
+                }
+            } else {
+                // before isthmus we ensure that the header root matches the body
+                if withdrawals_root != header_withdrawals_root {
+                    return Err(ConsensusError::BodyWithdrawalsRootDiff(
+                        GotExpected { got: withdrawals_root, expected: header_withdrawals_root }
+                            .into(),
+                    ))
+                }
+            }
+        }
+        (None, None) => {
+            // this is ok because we assume the fork is not active in this case
+        }
+        _ => return Err(ConsensusError::WithdrawalsRootUnexpected),
+    }
+
+    Ok(())
+}
 
 /// Validate a block with regard to execution results:
 ///
@@ -146,7 +210,8 @@ pub fn next_block_base_fee(
 mod tests {
     use super::*;
     use alloy_consensus::Header;
-    use alloy_primitives::{hex, Bytes, U256};
+    use alloy_primitives::{b256, hex, Bytes, U256};
+    use op_alloy_consensus::OpTxEnvelope;
     use reth_chainspec::{ChainSpec, ForkCondition, Hardfork};
     use reth_optimism_chainspec::{OpChainSpec, BASE_SEPOLIA};
     use reth_optimism_forks::{OpHardfork, BASE_SEPOLIA_HARDFORKS};
@@ -167,6 +232,15 @@ mod tests {
                 ..Default::default()
             },
         })
+    }
+
+    fn isthmus_chainspec() -> OpChainSpec {
+        let mut chainspec = BASE_SEPOLIA.as_ref().clone();
+        chainspec
+            .inner
+            .hardforks
+            .insert(OpHardfork::Isthmus.boxed(), ForkCondition::Timestamp(1800000000));
+        chainspec
     }
 
     #[test]
@@ -241,5 +315,30 @@ mod tests {
 
         let base_fee = next_block_base_fee(&*BASE_SEPOLIA, &parent, 1735315546).unwrap();
         assert_eq!(base_fee, 507);
+    }
+
+    #[test]
+    fn body_against_header_isthmus() {
+        let chainspec = isthmus_chainspec();
+        let header = Header {
+            base_fee_per_gas: Some(507),
+            gas_used: 4847634,
+            gas_limit: 60000000,
+            extra_data: hex!("00000000fa0000000a").into(),
+            timestamp: 1800000000,
+            withdrawals_root: Some(b256!(
+                "0x611e1d75cbb77fa782d79485a8384e853bc92e56883c313a51e3f9feef9a9a71"
+            )),
+            ..Default::default()
+        };
+        let mut body = alloy_consensus::BlockBody::<OpTxEnvelope> {
+            transactions: vec![],
+            ommers: vec![],
+            withdrawals: Some(Default::default()),
+        };
+        validate_body_against_header_op(&chainspec, &body, &header).unwrap();
+
+        body.withdrawals.take();
+        validate_body_against_header_op(&chainspec, &body, &header).unwrap_err();
     }
 }

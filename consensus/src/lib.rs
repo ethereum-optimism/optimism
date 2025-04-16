@@ -19,9 +19,8 @@ use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator};
 use reth_consensus_common::validation::{
     validate_against_parent_4844, validate_against_parent_eip1559_base_fee,
-    validate_against_parent_hash_number, validate_against_parent_timestamp,
-    validate_body_against_header, validate_cancun_gas, validate_header_base_fee,
-    validate_header_extra_data, validate_header_gas,
+    validate_against_parent_hash_number, validate_against_parent_timestamp, validate_cancun_gas,
+    validate_header_base_fee, validate_header_extra_data, validate_header_gas,
 };
 use reth_execution_types::BlockExecutionResult;
 use reth_optimism_forks::OpHardforks;
@@ -80,7 +79,7 @@ impl<ChainSpec: EthChainSpec + OpHardforks, B: Block> Consensus<B>
         body: &B::Body,
         header: &SealedHeader<B::Header>,
     ) -> Result<(), ConsensusError> {
-        validate_body_against_header(body, header.header())
+        validation::validate_body_against_header_op(&self.chain_spec, body, header.header())
     }
 
     fn validate_block_pre_execution(&self, block: &SealedBlock<B>) -> Result<(), ConsensusError> {
