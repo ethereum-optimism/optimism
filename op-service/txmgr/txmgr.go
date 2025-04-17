@@ -76,6 +76,9 @@ type TxManager interface {
 	// the order of nonce increments.
 	SendAsync(ctx context.Context, candidate TxCandidate, ch chan SendResponse)
 
+	// ChainID returns the chain this tx-manager is connected to
+	ChainID() eth.ChainID
+
 	// From returns the sending address associated with the instance of the transaction manager.
 	// It is static for a single instance of a TxManager.
 	From() common.Address
@@ -173,6 +176,10 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 		metr:                m,
 		gasPriceEstimatorFn: conf.GasPriceEstimatorFn,
 	}, nil
+}
+
+func (m *SimpleTxManager) ChainID() eth.ChainID {
+	return eth.ChainIDFromBig(m.chainID)
 }
 
 func (m *SimpleTxManager) From() common.Address {
