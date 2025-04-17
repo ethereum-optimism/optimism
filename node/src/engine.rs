@@ -141,9 +141,12 @@ where
         block: &RecoveredBlock<Self::Block>,
     ) -> Result<(), ConsensusError> {
         if self.chain_spec().is_isthmus_active_at_timestamp(block.timestamp()) {
-            let state = self.provider.state_by_block_hash(block.parent_hash()).map_err(|err| {
-                ConsensusError::Other(format!("failed to verify block post-execution: {err}"))
-            })?;
+            let Ok(state) = self.provider.state_by_block_hash(block.parent_hash()) else {
+                // FIXME: we don't necessarily have access to the parent block here because the
+                // parent block isn't necessarily part of the canonical chain yet. Instead this
+                // function should receive the list of in memory blocks as input
+                return Ok(())
+            };
             let predeploy_storage_updates = state_updates
                 .storages
                 .get(&self.hashed_addr_l2tol1_msg_passer)
