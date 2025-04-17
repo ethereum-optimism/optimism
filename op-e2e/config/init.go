@@ -49,13 +49,12 @@ const (
 type AllocType string
 
 const (
-	AllocTypeStandard     AllocType = "standard"
 	AllocTypeAltDA        AllocType = "alt-da"
 	AllocTypeL2OO         AllocType = "l2oo"
 	AllocTypeMTCannon     AllocType = "mt-cannon"
 	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
 
-	DefaultAllocType = AllocTypeStandard
+	DefaultAllocType = AllocTypeMTCannon
 )
 
 func (a AllocType) Check() error {
@@ -67,14 +66,14 @@ func (a AllocType) Check() error {
 
 func (a AllocType) UsesProofs() bool {
 	switch a {
-	case AllocTypeStandard, AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
+	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
 		return true
 	default:
 		return false
 	}
 }
 
-var allocTypes = []AllocType{AllocTypeStandard, AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon, AllocTypeMTCannonNext}
+var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon, AllocTypeMTCannonNext}
 
 var (
 	// All of the following variables are set in the init function
@@ -210,7 +209,7 @@ func init() {
 	decompressGzipJSON(path.Join(configPath, "addresses.json.gz"), &l2OOAddresses)
 	l1DeploymentsByType[AllocTypeL2OO] = &l2OOAddresses
 
-	l2OODC := DeployConfig(AllocTypeStandard)
+	l2OODC := DeployConfig(DefaultAllocType)
 	l2OODC.SetDeployments(&l2OOAddresses)
 	deployConfigsByType[AllocTypeL2OO] = l2OODC
 

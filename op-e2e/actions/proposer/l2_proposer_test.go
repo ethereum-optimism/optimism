@@ -26,11 +26,11 @@ import (
 // TestProposerBatchType run each proposer-related test case in singular batch mode and span batch mode.
 func TestProposerBatchType(t *testing.T) {
 	t.Run("SingularBatch/Standard", func(t *testing.T) {
-		runProposerTest(t, nil, config.AllocTypeStandard)
+		runProposerTest(t, nil, config.DefaultAllocType)
 	})
 	t.Run("SpanBatch/Standard", func(t *testing.T) {
 		deltaTimeOffset := hexutil.Uint64(0)
-		runProposerTest(t, &deltaTimeOffset, config.AllocTypeStandard)
+		runProposerTest(t, &deltaTimeOffset, config.DefaultAllocType)
 	})
 }
 
