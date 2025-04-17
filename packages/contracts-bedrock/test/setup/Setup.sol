@@ -13,6 +13,7 @@ import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
 import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -139,12 +140,12 @@ contract Setup {
 
     /// @notice Indicates whether a test is running against a forked production network.
     function isForkTest() public view returns (bool) {
-        return vm.envOr("FORK_TEST", false);
+        return Config.forkTest();
     }
 
     /// @notice Indicates whether a test is running against a forked network that is OP.
     function isOpFork() public view returns (bool) {
-        string memory opChain = vm.envOr("FORK_OP_CHAIN", string("op"));
+        string memory opChain = Config.forkOpChain();
         return keccak256(bytes(opChain)) == keccak256(bytes("op"));
     }
 
@@ -159,7 +160,7 @@ contract Setup {
         console.log("Setup: L1 setup start!");
 
         if (isForkTest()) {
-            vm.createSelectFork(vm.envString("FORK_RPC_URL"), vm.envUint("FORK_BLOCK_NUMBER"));
+            vm.createSelectFork(Config.forkRpcUrl(), Config.forkBlockNumber());
             console.log("Setup: fork selected!");
             require(
                 block.chainid == Chains.Sepolia || block.chainid == Chains.Mainnet,

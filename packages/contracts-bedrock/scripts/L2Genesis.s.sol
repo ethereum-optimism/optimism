@@ -132,9 +132,9 @@ contract L2Genesis is Deployer {
             OutputMode.NONE,
             Config.fork(),
             L1Dependencies({
-                l1CrossDomainMessengerProxy: payable(vm.envAddress("L2GENESIS_L1CrossDomainMessengerProxy")),
-                l1StandardBridgeProxy: payable(vm.envAddress("L2GENESIS_L1StandardBridgeProxy")),
-                l1ERC721BridgeProxy: payable(vm.envAddress("L2GENESIS_L1ERC721BridgeProxy"))
+                l1CrossDomainMessengerProxy: Config.l2Genesis_L1CrossDomainMessengerProxy(),
+                l1StandardBridgeProxy: Config.l2Genesis_L1StandardBridgeProxy(),
+                l1ERC721BridgeProxy: Config.l2Genesis_L1ERC721BridgeProxy()
             })
         );
     }

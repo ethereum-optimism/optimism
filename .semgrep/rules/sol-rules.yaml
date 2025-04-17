@@ -350,3 +350,12 @@ rules:
         - packages/contracts-bedrock/src/safe/LivenessModule.sol
         - packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol
         - packages/contracts-bedrock/src/universal/ReinitializableBase.sol
+
+  - id: sol-style-vm-env-only-in-config-sol
+    languages: [solidity]
+    severity: ERROR
+    message: vm.env* should only be used in Config.sol
+    pattern-regex: vm.env
+    paths:
+      exclude:
+        - packages/contracts-bedrock/scripts/libraries/Config.sol
