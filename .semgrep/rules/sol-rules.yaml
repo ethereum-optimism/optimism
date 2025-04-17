@@ -350,3 +350,16 @@ rules:
         - packages/contracts-bedrock/src/safe/LivenessModule.sol
         - packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol
         - packages/contracts-bedrock/src/universal/ReinitializableBase.sol
+
+  - id: sol-style-use-process-run
+    languages: [solidity]
+    severity: ERROR
+    message: Use Process.run instead of vm.ffi or vm.tryFfi
+    pattern-either:
+      - pattern: |
+          vm.ffi(...);
+      - pattern: |
+          vm.tryFfi(...);
+    paths:
+      exclude:
+        - packages/contracts-bedrock/scripts/libraries/Process.sol
