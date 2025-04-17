@@ -49,7 +49,11 @@ impl HttpClient {
     /// Forwards an HTTP request to the `authrpc`, attaching the provided JWT authorization.
     #[instrument(
         skip(self, req),
-        fields(otel.kind = ?SpanKind::Client),
+        fields(otel.kind = ?SpanKind::Client,
+        url = %self.url,
+        method,
+        code,
+        ),
         err(Debug)
     )]
     pub async fn forward(
@@ -58,6 +62,7 @@ impl HttpClient {
         method: String,
     ) -> Result<http::Response<HttpBody>, BoxError> {
         debug!("forwarding {} to {}", method, self.target);
+        tracing::Span::current().record("method", method);
         *req.uri_mut() = self.url.clone();
 
         let res = self.client.ready().await?.call(req).await?;
@@ -67,6 +72,7 @@ impl HttpClient {
 
         if let Some(code) = parse_response_code(&body_bytes)? {
             error!(%code, "error in forwarded response");
+            tracing::Span::current().record("code", code);
         }
 
         Ok(http::Response::from_parts(
