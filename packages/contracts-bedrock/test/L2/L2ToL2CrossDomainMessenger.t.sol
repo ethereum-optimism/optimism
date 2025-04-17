@@ -585,7 +585,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address _sender,
         address _target,
         bytes calldata _message,
-        bytes calldata _returnData,
         uint256 _value,
         uint64 _blockNum,
         uint32 _logIndex,
@@ -605,8 +604,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
                 && _target != foundryVMAddress
         );
 
-        // Ensure that the target contract does not revert
-        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: _returnData });
+        // Ensure that the target contract does not revert (using the message also as the return data)
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: _message });
 
         // Look for correct emitted event for first call.
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
@@ -614,7 +613,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _source,
             _nonce,
             keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message)),
-            keccak256(_returnData)
+            keccak256(_message)
         );
 
         Identifier memory id =
