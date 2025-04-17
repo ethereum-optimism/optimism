@@ -9,9 +9,9 @@ use reth_optimism_txpool::supervisor::DEFAULT_SUPERVISOR_URL;
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
 #[command(next_help_heading = "Rollup")]
 pub struct RollupArgs {
-    /// HTTP endpoint for the sequencer mempool
-    #[arg(long = "rollup.sequencer-http", value_name = "HTTP_URL")]
-    pub sequencer_http: Option<String>,
+    /// Endpoint for the sequencer mempool (can be both HTTP and WS)
+    #[arg(long = "rollup.sequencer", visible_aliases = ["rollup.sequencer-http", "rollup.sequencer-ws"])]
+    pub sequencer: Option<String>,
 
     /// Disable transaction pool gossip
     #[arg(long = "rollup.disable-tx-pool-gossip")]
@@ -60,7 +60,7 @@ pub struct RollupArgs {
 impl Default for RollupArgs {
     fn default() -> Self {
         Self {
-            sequencer_http: None,
+            sequencer: None,
             disable_txpool_gossip: false,
             enable_genesis_walkback: false,
             compute_pending_block: false,
@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn test_parse_optimism_sequencer_http_args() {
         let expected_args =
-            RollupArgs { sequencer_http: Some("http://host:port".into()), ..Default::default() };
+            RollupArgs { sequencer: Some("http://host:port".into()), ..Default::default() };
         let args = CommandParser::<RollupArgs>::parse_from([
             "reth",
             "--rollup.sequencer-http",
@@ -154,7 +154,7 @@ mod tests {
             compute_pending_block: true,
             enable_genesis_walkback: true,
             enable_tx_conditional: true,
-            sequencer_http: Some("http://host:port".into()),
+            sequencer: Some("http://host:port".into()),
             ..Default::default()
         };
         let args = CommandParser::<RollupArgs>::parse_from([
