@@ -41,15 +41,18 @@ do
     fi
     rm -rf "${BIN_DIR}"
     make reproducible-prestate >> "${LOG_FILE}" 2>&1
-    HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
-    if [ -f "${BIN_DIR}/prestate.bin.gz" ]
-    then
-      cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${HASH}.bin.gz"
-    else
-      cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
+
+    if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
+      HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
+      if [ -f "${BIN_DIR}/prestate.bin.gz" ]
+      then
+        cp "${BIN_DIR}/prestate.bin.gz" "${STATES_DIR}/${HASH}.bin.gz"
+      else
+        cp "${BIN_DIR}/prestate.json" "${STATES_DIR}/${HASH}.json"
+      fi
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon32\"}]")
+      echo "Built cannon32 ${VERSION}: ${HASH}"
     fi
-    VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon32\"}]")
-    echo "Built cannon32 ${VERSION}: ${HASH}"
 
     if [ -f "${BIN_DIR}/prestate-proof-mt64.json" ]; then
       HASH=$(cat "${BIN_DIR}/prestate-proof-mt64.json" | jq -r .pre)
