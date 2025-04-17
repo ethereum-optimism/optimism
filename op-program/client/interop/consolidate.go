@@ -42,11 +42,6 @@ func ReceiptsToExecutingMessages(depset depset.ChainIndexFromID, receipts ethtyp
 	return execMsgs, curr, nil
 }
 
-type execMessageCacheKey struct {
-	blockHash common.Hash
-	chainID   eth.ChainID
-}
-
 type execMessageCacheEntry struct {
 	execMsgs map[uint32]*supervisortypes.ExecutingMessage
 	logCount uint32
@@ -57,7 +52,7 @@ type consolidateState struct {
 	replacedChains map[eth.ChainID]bool
 
 	// execMessageCache is used to memoize iteration of logs in blocks to speed up executing message retrieval
-	execMessageCache map[execMessageCacheKey]execMessageCacheEntry
+	execMessageCache map[common.Hash]execMessageCacheEntry
 }
 
 func newConsolidateState(transitionState *types.TransitionState) *consolidateState {
@@ -68,7 +63,7 @@ func newConsolidateState(transitionState *types.TransitionState) *consolidateSta
 			Step:            transitionState.Step,
 		},
 		replacedChains:   make(map[eth.ChainID]bool),
-		execMessageCache: make(map[execMessageCacheKey]execMessageCacheEntry),
+		execMessageCache: make(map[common.Hash]execMessageCacheEntry),
 	}
 	// We will be updating the transition state as blocks are replaced, so make a copy
 	copy(s.PendingProgress, transitionState.PendingProgress)
@@ -85,16 +80,16 @@ func (s *consolidateState) setReplaced(transitionStateIndex int, chainID eth.Cha
 	s.replacedChains[chainID] = true
 }
 
-func (s *consolidateState) getCachedExecMsgs(blockHash common.Hash, chainID eth.ChainID) (map[uint32]*supervisortypes.ExecutingMessage, uint32, bool) {
-	entry, ok := s.execMessageCache[execMessageCacheKey{blockHash: blockHash, chainID: chainID}]
+func (s *consolidateState) getCachedExecMsgs(blockHash common.Hash) (map[uint32]*supervisortypes.ExecutingMessage, uint32, bool) {
+	entry, ok := s.execMessageCache[blockHash]
 	if !ok {
 		return nil, 0, false
 	}
 	return entry.execMsgs, entry.logCount, true
 }
 
-func (s *consolidateState) setCachedExecMsgs(blockHash common.Hash, chainID eth.ChainID, execMsgs map[uint32]*supervisortypes.ExecutingMessage, logCount uint32) {
-	s.execMessageCache[execMessageCacheKey{blockHash: blockHash, chainID: chainID}] = execMessageCacheEntry{
+func (s *consolidateState) setCachedExecMsgs(blockHash common.Hash, execMsgs map[uint32]*supervisortypes.ExecutingMessage, logCount uint32) {
+	s.execMessageCache[blockHash] = execMessageCacheEntry{
 		execMsgs: execMsgs,
 		logCount: logCount,
 	}
@@ -378,7 +373,7 @@ func (d *consolidateCheckDeps) OpenBlock(
 		Hash:   block.Hash(),
 		Number: block.NumberU64(),
 	}
-	if execMsgs, logCount, ok := d.consolidateState.getCachedExecMsgs(block.Hash(), chainID); ok {
+	if execMsgs, logCount, ok := d.consolidateState.getCachedExecMsgs(block.Hash()); ok {
 		return ref, logCount, execMsgs, nil
 	}
 
@@ -387,7 +382,7 @@ func (d *consolidateCheckDeps) OpenBlock(
 	if err != nil {
 		return eth.BlockRef{}, 0, nil, err
 	}
-	d.consolidateState.setCachedExecMsgs(block.Hash(), chainID, execMsgs, logCount)
+	d.consolidateState.setCachedExecMsgs(block.Hash(), execMsgs, logCount)
 	return ref, logCount, execMsgs, nil
 }
 
