@@ -39,6 +39,10 @@ func TestL2CLResync(gt *testing.T) {
 
 	control := orch.ControlPlane()
 
+	blockTime := system.L2Network(ids.L2A).RollupConfig().BlockTime
+	require.Equal(t, blockTime, system.L2Network(ids.L2B).RollupConfig().BlockTime)
+
+	waitTime := time.Duration(blockTime+1) * time.Second
 	{
 		logger := system.T().Logger()
 
@@ -58,55 +62,57 @@ func TestL2CLResync(gt *testing.T) {
 		}
 
 		logger.Info("wait until passing genesis")
-		for range 5 {
-			query()
-			time.Sleep(time.Millisecond * 2500)
-		}
-
-		logger.Info("check unsafe chains are advancing")
-		prevBlockA, prevBlockB := query()
-		time.Sleep(time.Millisecond * 2500)
-		for range 5 {
+		var prevBlockA, prevBlockB eth.BlockRef
+		require.Eventually(t, func() bool {
 			blockA, blockB := query()
-			require.Greater(t, blockA.Number, prevBlockA.Number)
-			require.Greater(t, blockB.Number, prevBlockB.Number)
 			prevBlockA, prevBlockB = blockA, blockB
-			time.Sleep(time.Millisecond * 2500)
-		}
+			return blockA.Number > 0 && blockB.Number > 0
+		}, 16*time.Second, waitTime)
 
-		logger.Info("stop CL nodes")
+		time.Sleep(waitTime)
+		logger.Info("check unsafe chains are advancing")
+		require.Never(t, func() bool {
+			blockA, blockB := query()
+			advanced := prevBlockA.Number < blockA.Number && prevBlockB.Number < blockB.Number
+			prevBlockA, prevBlockB = blockA, blockB
+			return !advanced
+		}, 10*time.Second, waitTime)
+
+		logger.Info("stop L2CL nodes")
 		control.L2CLNodeState(ids.L2ACL, stack.Stop)
 		control.L2CLNodeState(ids.L2BCL, stack.Stop)
 
-		logger.Info("make sure ELs does not advance")
-		pausedBlockA, pausedBlockB := query()
-		for range 5 {
+		logger.Info("make sure L2ELs does not advance")
+		require.Eventually(t, func() bool {
 			blockA, blockB := query()
-			require.Equal(t, pausedBlockA.Hash, blockA.Hash)
-			require.Equal(t, pausedBlockB.Hash, blockB.Hash)
-			time.Sleep(time.Millisecond * 2500)
-		}
+			isStatic := prevBlockA.Hash == blockA.Hash && prevBlockB.Hash == blockB.Hash
+			prevBlockA, prevBlockB = blockA, blockB
+			return isStatic
+		}, 10*time.Second, waitTime)
 
-		logger.Info("restart CL nodes")
+		logger.Info("restart L2CL nodes")
 		control.L2CLNodeState(ids.L2ACL, stack.Start)
 		control.L2CLNodeState(ids.L2BCL, stack.Start)
 
-		// supervisor will attempt to reconnect with L2CLs at this point because L2CL ws endpoint is recovered
-		logger.Info("wait until L2CLs heat up again")
-		for range 5 {
-			query()
-			time.Sleep(time.Millisecond * 2500)
-		}
-
-		logger.Info("check unsafe chains are advancing again")
-		prevBlockA, prevBlockB = pausedBlockA, pausedBlockB
-		for range 5 {
+		// L2CL may advance a few blocks without supervisor connection, but eventually it will stop without the connection
+		// we must check that unsafe head is advancing due to reconnection
+		logger.Info("boot up L2CL nodes")
+		require.Eventually(t, func() bool {
 			blockA, blockB := query()
-			require.Greater(t, blockA.Number, prevBlockA.Number)
-			require.Greater(t, blockB.Number, prevBlockB.Number)
+			advanced := prevBlockA.Number < blockA.Number && prevBlockB.Number < blockB.Number
 			prevBlockA, prevBlockB = blockA, blockB
-			time.Sleep(time.Millisecond * 2500)
-		}
-		// supervisor is successfully connected with managed L2CLs
+			return advanced
+		}, 15*time.Second, waitTime)
+
+		// supervisor will attempt to reconnect with L2CLs at this point because L2CL ws endpoint is recovered
+		logger.Info("check unsafe chains are advancing again")
+		require.Never(t, func() bool {
+			blockA, blockB := query()
+			advanced := prevBlockA.Number < blockA.Number && prevBlockB.Number < blockB.Number
+			prevBlockA, prevBlockB = blockA, blockB
+			return !advanced
+		}, 15*time.Second, waitTime)
+
+		// supervisor successfully connected with managed L2CLs
 	}
 }
