@@ -637,6 +637,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     function test_verifyOpcmCorrectness_succeeds() public {
         skipIfNotOpFork("test_verifyOpcmCorrectness_succeeds");
+        skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
 
         // Run the upgrade test and checks
         runUpgradeTestAndChecks(upgrader);

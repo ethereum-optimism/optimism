@@ -411,6 +411,7 @@ contract VerifyOPCM is Script {
             string memory functionName = functionNames[i];
 
             // Call the function to retrieve the encoded address.
+            // nosemgrep: sol-style-use-abi-encodecall
             (bool callSuccess, bytes memory returnedData) =
                 address(_opcm).staticcall(abi.encodeWithSignature(string.concat(functionName, "()")));
             if (!callSuccess) {
@@ -460,7 +461,7 @@ contract VerifyOPCM is Script {
             (string[])
         );
 
-        // Call the corresponding function on the OPCM contract.]
+        // Call the corresponding function on the OPCM contract.
         // nosemgrep: sol-style-use-abi-encodecall
         (bool callSuccess, bytes memory returnedData) =
             address(_opcm).staticcall(abi.encodeWithSignature(string.concat(_property, "()")));
