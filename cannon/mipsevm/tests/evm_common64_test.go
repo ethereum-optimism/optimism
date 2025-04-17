@@ -1,6 +1,3 @@
-//go:build cannon64
-// +build cannon64
-
 package tests
 
 import (
@@ -145,7 +142,7 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 	}
 
 	for i, tt := range cases {
-		for _, v := range GetMultiThreadedTestCases(t) {
+		for _, v := range GetMipsVersionTestCases(t) {
 			v := v
 			testName := fmt.Sprintf("%v %v", v.Name, tt.name)
 			t.Run(testName, func(t *testing.T) {

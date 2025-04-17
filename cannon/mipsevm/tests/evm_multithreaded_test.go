@@ -48,7 +48,7 @@ func TestEVM_MT_LL(t *testing.T) {
 		{name: "Unaligned addr, addr sign extended w overflow", base: 0xFF12_0001, offset: 0x8405, expectedAddr: 0xFF11_8406, memValue: posValue, retVal: posValueRet, rtReg: 5},
 		{name: "Return register set to 0", base: 0xFF12_0001, offset: 0x7404, expectedAddr: 0xFF12_7405, memValue: posValue, retVal: 0, rtReg: 0},
 	}
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			for _, withExistingReservation := range []bool{true, false} {
@@ -132,7 +132,7 @@ func TestEVM_MT_SC(t *testing.T) {
 		{name: "Unaligned addr, sign extended w overflow", base: 0xFF12_0001, offset: 0x8404, expectedAddr: 0xFF_11_8405, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
 		{name: "Return register set to 0", base: 0xFF12_0001, offset: 0x7403, expectedAddr: 0xFF12_7404, storeValue: 0xAABB_CCDD, rtReg: 0, threadId: 4},
 	}
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			for _, llVar := range llVariations {
@@ -261,7 +261,7 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 
 	for _, c := range cases {
 		c := c
-		for _, version := range GetMultiThreadedTestCases(t) {
+		for _, version := range GetMipsVersionTestCases(t) {
 			version := version
 			t.Run(fmt.Sprintf("%v-%v", version.Name, c.name), func(t *testing.T) {
 				state := multithreaded.CreateEmptyState()
@@ -305,7 +305,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 		{"traverse right", true},
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
@@ -372,7 +372,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 		{"non-zero", 11},
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
@@ -418,7 +418,7 @@ func TestEVM_SysExit(t *testing.T) {
 		{name: "three threads ", threadCount: 3},
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
@@ -472,7 +472,7 @@ func TestEVM_PopExitedThread(t *testing.T) {
 		{name: "traverse left, switch directions", traverseRight: false, activeStackThreadCount: 1, expectTraverseRightPostState: true},
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
@@ -538,7 +538,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 		{name: "memory mismatch w timeout", addressParam: 0xFF_FF_FF_FF_FF_FF_12_00, effAddr: 0xFF_FF_FF_FF_FF_FF_12_00, targetValue: 0xFF_FF_FF_F8, actualValue: 0xF8, timeout: 2000000, shouldFail: true},
 		{name: "memory mismatch w timeout, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_12_0F, effAddr: 0xFF_FF_FF_FF_FF_FF_12_0C, targetValue: 0xFF_FF_FF_01, actualValue: 0xFF_FF_FF_02, timeout: 2000000, shouldFail: true},
 	}
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
@@ -611,7 +611,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 		{name: "Traverse left, single thread", addressParam: 0xFF_FF_FF_FF_FF_FF_67_88, effAddr: 0xFF_FF_FF_FF_FF_FF_67_88, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false},
 		{name: "Traverse left, single thread, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_67_89, effAddr: 0xFF_FF_FF_FF_FF_FF_67_88, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false},
 	}
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
@@ -691,7 +691,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 		"FUTEX_CMP_REQUEUE_PI_PRIVATE":  (FUTEX_CMP_REQUEUE_PI | FUTEX_PRIVATE_FLAG),
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for name, op := range unsupportedFutexOps {
 			testName := fmt.Sprintf("%v (%v)", name, ver.Name)
@@ -748,7 +748,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 		{name: "Do not change directions", activeThreads: 3, inactiveThreads: 0},
 	}
 
-	versions := GetMultiThreadedTestCases(t)
+	versions := GetMipsVersionTestCases(t)
 	for _, ver := range versions {
 		for i, c := range cases {
 			for _, traverseRight := range []bool{true, false} {
@@ -785,7 +785,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 }
 
 func TestEVM_SysOpen(t *testing.T) {
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		t.Run(ver.Name, func(t *testing.T) {
 			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(5512)))
@@ -816,7 +816,7 @@ func TestEVM_SysOpen(t *testing.T) {
 }
 
 func TestEVM_SysGetPID(t *testing.T) {
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		t.Run(ver.Name, func(t *testing.T) {
 			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(1929)))
@@ -882,7 +882,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 		{"aligned timespec address", 0x1000},
 		{"unaligned timespec address", 0x1003},
 	}
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			for _, llVar := range llVariations {
@@ -951,7 +951,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 }
 
 func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		t.Run(ver.Name, func(t *testing.T) {
 			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(2101)))
@@ -1058,7 +1058,7 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 	// Generate proof variations
 	proofVariations := GenerateEmptyThreadProofVariations(t)
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			for _, proofCase := range proofVariations {
@@ -1088,7 +1088,7 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 		{"3 threads", 3},
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			for _, traverseRight := range []bool{true, false} {
@@ -1141,7 +1141,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 		{name: "beyond threshold", stepsSinceLastContextSwitch: exec.SchedQuantum + 1, shouldPreempt: true},
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)

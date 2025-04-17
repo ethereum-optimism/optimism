@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +32,7 @@ func TestEVM_OpenMIPS(t *testing.T) {
 		for _, f := range testFiles {
 			testName := fmt.Sprintf("%v (%v)", f.Name(), c.Name)
 			t.Run(testName, func(t *testing.T) {
-				if !versions.IsSupportedSingleThreaded(c.Version) && f.Name() == "clone.bin" {
+				if f.Name() == "clone.bin" {
 					t.Skipf("%v only supported for singlethreaded VMs", f.Name())
 				}
 

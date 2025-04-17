@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/serialize"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -31,26 +30,9 @@ func LoadStateFromFile(path string) (*VersionedState, error) {
 
 func NewFromState(vers StateVersion, state mipsevm.FPVMState) (*VersionedState, error) {
 	switch state := state.(type) {
-	case *singlethreaded.State:
-		if !IsSupportedSingleThreaded(vers) {
-			return nil, fmt.Errorf("%w: %v", ErrUnsupportedVersion, vers)
-		}
-		if !arch.IsMips32 {
-			return nil, ErrUnsupportedMipsArch
-		}
-		return &VersionedState{
-			Version:   vers,
-			FPVMState: state,
-		}, nil
 	case *multithreaded.State:
 		if arch.IsMips32 {
-			if !IsSupportedMultiThreaded(vers) {
-				return nil, fmt.Errorf("%w: %v", ErrUnsupportedVersion, vers)
-			}
-			return &VersionedState{
-				Version:   vers,
-				FPVMState: state,
-			}, nil
+			return nil, ErrUnsupportedMipsArch
 		} else {
 			if !IsSupportedMultiThreaded64(vers) {
 				return nil, fmt.Errorf("%w: %v", ErrUnsupportedVersion, vers)
@@ -100,27 +82,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 		return err
 	}
 
-	if IsSupportedSingleThreaded(s.Version) {
-		if !arch.IsMips32 {
-			return ErrUnsupportedMipsArch
-		}
-		state := &singlethreaded.State{}
-		if err := state.Deserialize(in); err != nil {
-			return err
-		}
-		s.FPVMState = state
-		return nil
-	} else if IsSupportedMultiThreaded(s.Version) {
-		if !arch.IsMips32 {
-			return ErrUnsupportedMipsArch
-		}
-		state := &multithreaded.State{}
-		if err := state.Deserialize(in); err != nil {
-			return err
-		}
-		s.FPVMState = state
-		return nil
-	} else if IsSupportedMultiThreaded64(s.Version) {
+	if IsSupportedMultiThreaded64(s.Version) {
 		if arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}

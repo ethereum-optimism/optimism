@@ -1,13 +1,9 @@
-//go:build cannon64
-// +build cannon64
-
 package versions
 
 import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -28,10 +24,6 @@ func TestNewFromState(t *testing.T) {
 				require.NoError(t, err)
 				require.IsType(t, &multithreaded.State{}, actual.FPVMState)
 				require.Equal(t, version, actual.Version)
-			})
-			t.Run(version.String()+"-st-unsupported", func(t *testing.T) {
-				_, err := NewFromState(version, singlethreaded.CreateEmptyState())
-				require.ErrorIs(t, err, ErrUnsupportedVersion)
 			})
 		}
 	}
@@ -82,11 +74,4 @@ func TestVersionsOtherThanZeroDoNotSupportJSON(t *testing.T) {
 			require.ErrorIs(t, err, ErrJsonNotSupported)
 		})
 	}
-}
-
-func writeToFile(t *testing.T, filename string, data serialize.Serializable) string {
-	dir := t.TempDir()
-	path := filepath.Join(dir, filename)
-	require.NoError(t, serialize.Write(path, data, 0o644))
-	return path
 }

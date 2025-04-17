@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
@@ -49,30 +49,10 @@ func TestDetectVersion_fromFile(t *testing.T) {
 }
 
 // Check that the latest supported versions write new states in a way that is detected correctly
-func TestDetectVersion_singleThreadedBinary(t *testing.T) {
-	if !arch.IsMips32 {
-		t.Skip("Single-threaded states are not supported for 64-bit VMs")
-	}
-	for _, version := range StateVersionTypes {
-		version := version
-		if !IsSupportedSingleThreaded(version) {
-			continue
-		}
-		t.Run(version.String(), func(t *testing.T) {
-			state, err := NewFromState(version, singlethreaded.CreateEmptyState())
-			require.NoError(t, err)
-			path := writeToFile(t, "state.bin.gz", state)
-			version, err := DetectVersion(path)
-			require.NoError(t, err)
-			require.Equal(t, version, version)
-		})
-	}
-}
-
 func TestDetectVersion_multiThreadedBinary(t *testing.T) {
 	for _, version := range StateVersionTypes {
 		version := version
-		if arch.IsMips32 && !IsSupportedMultiThreaded(version) {
+		if arch.IsMips32 {
 			continue
 		} else if !arch.IsMips32 && !IsSupportedMultiThreaded64(version) {
 			continue
@@ -110,4 +90,11 @@ func TestDetectVersion_invalid(t *testing.T) {
 		_, err = DetectVersion(path)
 		require.ErrorIs(t, err, ErrUnknownVersion)
 	})
+}
+
+func writeToFile(t *testing.T, filename string, data serialize.Serializable) string {
+	dir := t.TempDir()
+	path := filepath.Join(dir, filename)
+	require.NoError(t, serialize.Write(path, data, 0o644))
+	return path
 }

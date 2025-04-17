@@ -15,7 +15,7 @@ import (
 )
 
 func FuzzStateSyscallCloneMT(f *testing.F) {
-	versions := GetMultiThreadedTestCases(f)
+	versions := GetMipsVersionTestCases(f)
 	require.NotZero(f, len(versions), "must have at least one multithreaded version supported")
 	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr Word, seed int64, version uint) {
 		v := versions[int(version)%len(versions)]
