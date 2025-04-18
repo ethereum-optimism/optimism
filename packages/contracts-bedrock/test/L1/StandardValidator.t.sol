@@ -4,6 +4,9 @@ pragma solidity 0.8.15;
 // Testing
 import { Test } from "forge-std/Test.sol";
 
+// Scripts
+import { Config } from "scripts/libraries/Config.sol";
+
 // Target contract
 import {
     StandardValidatorBase,
@@ -994,7 +997,7 @@ contract StandardValidatorV180_Test is StandardValidatorTest {
     }
 
     function test_validate_opMainnet_succeeds() public {
-        string memory rpcUrl = vm.envOr(string("MAINNET_RPC_URL"), string(""));
+        string memory rpcUrl = Config.mainnetRpcUrl();
         if (bytes(rpcUrl).length == 0) {
             return;
         }

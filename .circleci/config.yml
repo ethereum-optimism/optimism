@@ -152,6 +152,7 @@ commands:
             git submodule update --init --recursive --force -j 8
           working_directory: packages/contracts-bedrock
 
+  # Notifies us on Slack and Discord when a build fails on develop
   notify-failures-on-develop:
     description: "Notify Slack & Discord"
     parameters:
@@ -183,6 +184,36 @@ commands:
               curl -X POST -H "Content-Type: application/json" \
                 -d "{\"content\": \"${DISCORD_MESSAGE}\"}" \
                 "${notify_ci}"
+            fi
+          when: on_fail
+
+  # Notifies us on Discord when a build fails on develop
+  discord-notification-failures-on-develop:
+    description: "Notify Discord"
+    parameters:
+      mentions:
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: "Notify Discord"
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
+              # Format message for Discord with better structure and formatting
+              DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
+
+              # Add mentions if provided
+              if [ ! -z "<< parameters.mentions >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
+              fi
+
+              # Post to Discord webhook
+              curl -X POST -H "Content-Type: application/json" \
+                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
             fi
           when: on_fail
 
@@ -1245,9 +1276,8 @@ jobs:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
       # Notification step
-      - notify-failures-on-develop:
-          channel: "C03N11M0BBN"  # #notify-ci-failures
-          mentions: "@stefano" # temporarily just mention Stefano until the acceptance tests are stable (was: @protocol-devx-pod)
+      - discord-notification-failures-on-develop:
+          mentions: "@_ftw_" # temporarily just mention Stefano until the acceptance tests are more stable (was: @protocol-devx-pod)
 
   sanitize-op-program:
     docker:
@@ -2278,7 +2308,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-            - slack
       # KURTOSIS (Isthmus)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2291,7 +2320,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-            - slack
   close-issue-workflow:
     when:
       and:

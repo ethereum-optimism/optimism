@@ -50,11 +50,15 @@ type StarlarkResponse interface {
 	GetInstructionResult() InstructionResult
 }
 
+type PortSpec interface {
+	GetNumber() uint16
+}
+
 type ServiceContext interface {
 	GetServiceUUID() services.ServiceUUID
 	GetMaybePublicIPAddress() string
-	GetPublicPorts() map[string]*services.PortSpec
-	GetPrivatePorts() map[string]*services.PortSpec
+	GetPublicPorts() map[string]PortSpec
+	GetPrivatePorts() map[string]PortSpec
 }
 
 type EnclaveContext interface {

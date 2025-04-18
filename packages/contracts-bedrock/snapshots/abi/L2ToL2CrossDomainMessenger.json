@@ -259,6 +259,12 @@
         "internalType": "bytes32",
         "name": "messageHash",
         "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "returnDataHash",
+        "type": "bytes32"
       }
     ],
     "name": "RelayedMessage",

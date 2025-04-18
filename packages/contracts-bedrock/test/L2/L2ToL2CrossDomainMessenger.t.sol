@@ -339,7 +339,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Look for correct emitted event
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.RelayedMessage(_source, _nonce, msgHash);
+        emit L2ToL2CrossDomainMessenger.RelayedMessage(_source, _nonce, msgHash, keccak256(""));
 
         // Ensure the target contract is called with the correct parameters
         vm.expectCall({ callee: target, msgValue: _value, data: message });
@@ -604,13 +604,16 @@ contract L2ToL2CrossDomainMessengerTest is Test {
                 && _target != foundryVMAddress
         );
 
-        // Ensure that the target contract does not revert
-        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
+        // Ensure that the target contract does not revert (using the message also as the return data)
+        vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: _message });
 
         // Look for correct emitted event for first call.
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.RelayedMessage(
-            _source, _nonce, keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
+            _source,
+            _nonce,
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message)),
+            keccak256(_message)
         );
 
         Identifier memory id =

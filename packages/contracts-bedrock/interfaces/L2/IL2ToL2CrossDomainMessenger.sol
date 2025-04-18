@@ -53,7 +53,10 @@ interface IL2ToL2CrossDomainMessenger {
     /// @param source       Chain ID of the source chain.
     /// @param messageNonce Nonce associated with the messsage sent
     /// @param messageHash  Hash of the message that was relayed.
-    event RelayedMessage(uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash);
+    /// @param returnDataHash Hash of the return data from the message that was relayed.
+    event RelayedMessage(
+        uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash, bytes32 returnDataHash
+    );
 
     function version() external view returns (string memory);
 
