@@ -143,6 +143,18 @@ func (c *testKurtosisContext) GetEnclave(ctx context.Context, name string) (inte
 	return &testEnclaveContext{}, nil
 }
 
+func (c *testKurtosisContext) GetEnclaveStatus(ctx context.Context, name string) (interfaces.EnclaveStatus, error) {
+	return interfaces.EnclaveStatusRunning, nil
+}
+
+func (c *testKurtosisContext) Clean(ctx context.Context, destroyAll bool) ([]interfaces.EnclaveNameAndUuid, error) {
+	return []interfaces.EnclaveNameAndUuid{}, nil
+}
+
+func (c *testKurtosisContext) DestroyEnclave(ctx context.Context, name string) error {
+	return nil
+}
+
 func setupTestFS(t *testing.T) (*testEnclaveFS, afero.Fs) {
 	fs := afero.NewMemMapFs()
 

@@ -8,13 +8,14 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	devnetTypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	apiInterfaces "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/run"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/deployer"
 	srcInterfaces "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/interfaces"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"
 )
 
 const (
@@ -50,6 +51,9 @@ type KurtosisDeployer struct {
 
 	// interface for kurtosis interactions
 	kurtosisCtx apiInterfaces.KurtosisContextInterface
+
+	// autofix mode
+	autofixMode autofixTypes.AutofixMode
 }
 
 type KurtosisDeployerOptions func(*KurtosisDeployer)
@@ -114,6 +118,12 @@ func WithKurtosisKurtosisContext(kurtosisCtx apiInterfaces.KurtosisContextInterf
 	}
 }
 
+func WithKurtosisAutofixMode(autofixMode autofixTypes.AutofixMode) KurtosisDeployerOptions {
+	return func(d *KurtosisDeployer) {
+		d.autofixMode = autofixMode
+	}
+}
+
 // NewKurtosisDeployer creates a new KurtosisDeployer instance
 func NewKurtosisDeployer(opts ...KurtosisDeployerOptions) (*KurtosisDeployer, error) {
 	d := &KurtosisDeployer{
@@ -148,7 +158,7 @@ func (d *KurtosisDeployer) getWallets(wallets deployer.WalletList) descriptors.W
 	walletMap := make(descriptors.WalletMap)
 	for _, wallet := range wallets {
 		walletMap[wallet.Name] = &descriptors.Wallet{
-			Address:    types.Address(wallet.Address),
+			Address:    devnetTypes.Address(wallet.Address),
 			PrivateKey: wallet.PrivateKey,
 		}
 	}

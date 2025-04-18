@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/engine"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"
 )
 
 type EngineManager interface {
@@ -40,6 +41,7 @@ type Deployer struct {
 	dataFile       string
 	newEnclaveFS   func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error)
 	enclaveManager *enclave.KurtosisEnclaveManager
+	autofixMode    autofixTypes.AutofixMode
 }
 
 func WithKurtosisDeployer(ktDeployer DeployerFunc) DeployerOption {
@@ -96,6 +98,12 @@ func WithEnclave(enclave string) DeployerOption {
 	}
 }
 
+func WithAutofixMode(autofixMode autofixTypes.AutofixMode) DeployerOption {
+	return func(d *Deployer) {
+		d.autofixMode = autofixMode
+	}
+}
+
 func WithNewEnclaveFSFunc(newEnclaveFS func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error)) DeployerOption {
 	return func(d *Deployer) {
 		d.newEnclaveFS = newEnclaveFS
@@ -146,6 +154,7 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 		kurtosis.WithKurtosisDryRun(d.dryRun),
 		kurtosis.WithKurtosisPackageName(d.kurtosisPkg),
 		kurtosis.WithKurtosisEnclave(d.enclave),
+		kurtosis.WithKurtosisAutofixMode(d.autofixMode),
 	}
 
 	ktd, err := d.ktDeployer(opts...)
@@ -194,6 +203,23 @@ func (d *Deployer) Deploy(ctx context.Context, r io.Reader) (*kurtosis.KurtosisE
 	if !d.dryRun {
 		if err := d.engineManager.EnsureRunning(); err != nil {
 			return nil, fmt.Errorf("error ensuring kurtosis engine is running: %w", err)
+		}
+	}
+
+	// Clean up the enclave before deploying
+	if d.autofixMode == autofixTypes.AutofixModeNuke {
+		if d.enclaveManager != nil {
+			// Remove all the enclaves and destroy all the docker resources related to kurtosis
+			err := d.enclaveManager.Nuke(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error nuking enclave: %w", err)
+			}
+		}
+	} else if d.autofixMode == autofixTypes.AutofixModeNormal {
+		if d.enclaveManager != nil {
+			if err := d.enclaveManager.Autofix(ctx, d.enclave); err != nil {
+				return nil, fmt.Errorf("error autofixing enclave: %w", err)
+			}
 		}
 	}
 

@@ -132,6 +132,8 @@ type mockKurtosisContext struct {
 	enclaveCtx interfaces.EnclaveContext
 	getErr     error
 	createErr  error
+	cleanErr   error
+	destroyErr error
 }
 
 func (m *mockKurtosisContext) GetEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
@@ -141,11 +143,32 @@ func (m *mockKurtosisContext) GetEnclave(ctx context.Context, name string) (inte
 	return m.enclaveCtx, nil
 }
 
+func (m *mockKurtosisContext) GetEnclaveStatus(ctx context.Context, name string) (interfaces.EnclaveStatus, error) {
+	if m.getErr != nil {
+		return "", m.getErr
+	}
+	return interfaces.EnclaveStatusRunning, nil
+}
+
 func (m *mockKurtosisContext) CreateEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
 	return m.enclaveCtx, nil
+}
+
+func (m *mockKurtosisContext) Clean(ctx context.Context, destroyAll bool) ([]interfaces.EnclaveNameAndUuid, error) {
+	if m.cleanErr != nil {
+		return nil, m.cleanErr
+	}
+	return []interfaces.EnclaveNameAndUuid{}, nil
+}
+
+func (m *mockKurtosisContext) DestroyEnclave(ctx context.Context, name string) error {
+	if m.destroyErr != nil {
+		return m.destroyErr
+	}
+	return nil
 }
 
 func TestDeploy(t *testing.T) {
