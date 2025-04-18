@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/ethereum-optimism/optimism/op-conductor/client"
 	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
 	consensusmocks "github.com/ethereum-optimism/optimism/op-conductor/consensus/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
@@ -906,23 +907,23 @@ func (s *OpConductorTestSuite) TestRollupBoostEnableDisable() {
 	s.cons.On("LatestUnsafePayload").Return(mockPayload, nil)
 	s.ctrl.On("LatestUnsafeBlock", mock.Anything).Return(mockBlockInfo, nil)
 	s.ctrl.On("StartSequencer", mock.Anything, mock.Anything).Return(nil)
-	mockRollupBoost.On("SetExecutionMode", mock.Anything, true).Return(nil)
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, client.ExecutionModeEnabled).Return(nil)
 
 	// Call startSequencer directly
 	err := s.conductor.startSequencer()
 	s.NoError(err)
 	s.True(s.conductor.seqActive.Load())
-	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, true)
+	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, client.ExecutionModeEnabled)
 
 	// Test stopping sequencer with Rollup boost
 	s.ctrl.On("StopSequencer", mock.Anything).Return(common.Hash{}, nil)
-	mockRollupBoost.On("SetExecutionMode", mock.Anything, false).Return(nil)
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, client.ExecutionModeDisabled).Return(nil)
 
 	// Call stopSequencer directly
 	err = s.conductor.stopSequencer()
 	s.NoError(err)
 	s.False(s.conductor.seqActive.Load())
-	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, false)
+	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, client.ExecutionModeDisabled)
 }
 
 // TestRollupBoostEnableFail tests the case where enabling Rollup boost fails
@@ -951,7 +952,7 @@ func (s *OpConductorTestSuite) TestRollupBoostEnableFail() {
 	s.cons.On("LatestUnsafePayload").Return(mockPayload, nil)
 	s.ctrl.On("LatestUnsafeBlock", mock.Anything).Return(mockBlockInfo, nil)
 	s.ctrl.On("StartSequencer", mock.Anything, mock.Anything).Return(nil)
-	mockRollupBoost.On("SetExecutionMode", mock.Anything, true).Return(errors.New("rollup boost enable failed"))
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, client.ExecutionModeEnabled).Return(errors.New("rollup boost enable failed"))
 	s.ctrl.On("StopSequencer", mock.Anything).Return(common.Hash{}, nil)
 
 	// Call startSequencer directly
@@ -963,8 +964,6 @@ func (s *OpConductorTestSuite) TestRollupBoostEnableFail() {
 	s.ctrl.AssertCalled(s.T(), "StopSequencer", mock.Anything)
 }
 
-// TestRollupBoostDisableFail tests the case where disabling Rollup boost fails
-// during sequencer stop operations.
 // TestRollupBoostDisableFail tests the case where disabling Rollup boost fails
 // during sequencer stop operations.
 func (s *OpConductorTestSuite) TestRollupBoostDisableFail() {
@@ -980,7 +979,7 @@ func (s *OpConductorTestSuite) TestRollupBoostDisableFail() {
 
 	// Setup expectations
 	s.ctrl.On("StopSequencer", mock.Anything).Return(common.Hash{}, nil)
-	mockRollupBoost.On("SetExecutionMode", mock.Anything, false).Return(errors.New("rollup boost disable failed"))
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, client.ExecutionModeDisabled).Return(errors.New("rollup boost disable failed"))
 
 	// Call stopSequencer directly
 	err := s.conductor.stopSequencer()
@@ -991,5 +990,5 @@ func (s *OpConductorTestSuite) TestRollupBoostDisableFail() {
 
 	// Verify methods were called in the right order
 	s.ctrl.AssertCalled(s.T(), "StopSequencer", mock.Anything)
-	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, false)
+	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, client.ExecutionModeDisabled)
 }

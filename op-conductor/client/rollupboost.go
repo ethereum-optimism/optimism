@@ -10,13 +10,21 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type ExecutionMode bool
+// ExecutionMode represents the operation mode of rollup boost
+type ExecutionMode string
+
+const (
+	// ExecutionModeEnabled indicates rollup boost is enabled
+	ExecutionModeEnabled ExecutionMode = "enabled"
+	// ExecutionModeDisabled indicates rollup boost is disabled
+	ExecutionModeDisabled ExecutionMode = "disabled"
+)
 
 type RollupBoostControl interface {
 	// GetExecutionMode gets the current execution mode of rollup boost
-	GetExecutionMode(ctx context.Context) (bool, error)
+	GetExecutionMode(ctx context.Context) (ExecutionMode, error)
 	// SetExecutionMode sets the execution mode of rollup boost
-	SetExecutionMode(ctx context.Context, enabled bool) error
+	SetExecutionMode(ctx context.Context, mode ExecutionMode) error
 }
 
 // RollupBoostControlClient implements RollupBoostControl
@@ -44,26 +52,33 @@ func NewRollupBoostControlClient(ctx context.Context, url string, log log.Logger
 }
 
 // GetExecutionMode implements RollupBoostControl
-func (c *RollupBoostControlClient) GetExecutionMode(ctx context.Context) (bool, error) {
+func (c *RollupBoostControlClient) GetExecutionMode(ctx context.Context) (ExecutionMode, error) {
 	var result struct {
-		ExecutionMode bool `json:"execution_mode"`
+		ExecutionMode ExecutionMode `json:"execution_mode"`
 	}
-	err := c.client.CallContext(ctx, &result, "debug_executionMode")
+	err := c.client.CallContext(ctx, &result, "debug_getExecutionMode")
 	if err != nil {
-		return false, fmt.Errorf("failed to get execution mode: %w", err)
+		return ExecutionModeDisabled, fmt.Errorf("failed to get execution mode: %w", err)
 	}
 	return result.ExecutionMode, nil
 }
 
 // SetExecutionMode implements RollupBoostControl
-func (c *RollupBoostControlClient) SetExecutionMode(ctx context.Context, enabled bool) error {
-	var result struct {
-		ExecutionMode bool `json:"execution_mode"`
+func (c *RollupBoostControlClient) SetExecutionMode(ctx context.Context, mode ExecutionMode) error {
+	req := struct {
+		ExecutionMode ExecutionMode `json:"execution_mode"`
+	}{
+		ExecutionMode: mode,
 	}
-	err := c.client.CallContext(ctx, &result, "debug_setExecutionMode", enabled)
+
+	var result struct {
+		ExecutionMode ExecutionMode `json:"execution_mode"`
+	}
+
+	err := c.client.CallContext(ctx, &result, "debug_setExecutionMode", req)
 	if err != nil {
 		return fmt.Errorf("failed to set execution mode: %w", err)
 	}
-	c.log.Info("Set rollup boost execution mode", "enabled", enabled)
+	c.log.Info("Set rollup boost execution mode", "mode", result.ExecutionMode)
 	return nil
 }

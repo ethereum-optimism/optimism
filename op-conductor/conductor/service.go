@@ -297,7 +297,7 @@ func (c *OpConductor) initRollupBoostControl(ctx context.Context) error {
 	c.log.Info("Created rollup boost client", "url", c.cfg.RollupBoostDebugURL)
 
 	// Initialize rollup boost to disabled state
-	if err := c.rollupBoost.SetExecutionMode(ctx, false); err != nil {
+	if err := c.rollupBoost.SetExecutionMode(ctx, client.ExecutionModeDisabled); err != nil {
 		c.log.Error("Failed to set initial rollup boost execution mode", "err", err)
 		return errors.Wrap(err, "failed to set initial rollup boost execution mode")
 	}
@@ -528,9 +528,9 @@ func (oc *OpConductor) OverrideLeader(override bool) {
 	oc.leaderOverride.Store(override)
 
 	if oc.rollupBoost != nil {
-		mode := false
+		mode := client.ExecutionModeDisabled
 		if override {
-			mode = true
+			mode = client.ExecutionModeEnabled
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -833,7 +833,7 @@ func (oc *OpConductor) stopSequencer() error {
 
 	// If we get here, sequencer is successfully stopped, now disable Rollup boost
 	if oc.rollupBoost != nil {
-		if err := oc.rollupBoost.SetExecutionMode(oc.shutdownCtx, false); err != nil {
+		if err := oc.rollupBoost.SetExecutionMode(oc.shutdownCtx, client.ExecutionModeDisabled); err != nil {
 			oc.log.Error("failed to disable rollup boost execution mode", "err", err)
 			// this is a critical error, we should return an error and trigger an alert
 			// to preserve strong consistency, we should not continue to sequence
@@ -920,7 +920,7 @@ func (oc *OpConductor) startSequencer() error {
 	}()
 
 	// Enable rollup boost
-	if err := oc.rollupBoost.SetExecutionMode(ctx, true); err != nil {
+	if err := oc.rollupBoost.SetExecutionMode(ctx, client.ExecutionModeEnabled); err != nil {
 		return fmt.Errorf("failed to enable rollup boost execution mode: %w", err)
 	}
 

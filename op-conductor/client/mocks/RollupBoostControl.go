@@ -5,6 +5,8 @@ package mocks
 import (
 	context "context"
 
+	client "github.com/ethereum-optimism/optimism/op-conductor/client"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -14,22 +16,22 @@ type RollupBoostControl struct {
 }
 
 // GetExecutionMode provides a mock function with given fields: ctx
-func (_m *RollupBoostControl) GetExecutionMode(ctx context.Context) (bool, error) {
+func (_m *RollupBoostControl) GetExecutionMode(ctx context.Context) (client.ExecutionMode, error) {
 	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetExecutionMode")
 	}
 
-	var r0 bool
+	var r0 client.ExecutionMode
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (bool, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context) (client.ExecutionMode, error)); ok {
 		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) bool); ok {
+	if rf, ok := ret.Get(0).(func(context.Context) client.ExecutionMode); ok {
 		r0 = rf(ctx)
 	} else {
-		r0 = ret.Get(0).(bool)
+		r0 = ret.Get(0).(client.ExecutionMode)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
@@ -41,17 +43,17 @@ func (_m *RollupBoostControl) GetExecutionMode(ctx context.Context) (bool, error
 	return r0, r1
 }
 
-// SetExecutionMode provides a mock function with given fields: ctx, enabled
-func (_m *RollupBoostControl) SetExecutionMode(ctx context.Context, enabled bool) error {
-	ret := _m.Called(ctx, enabled)
+// SetExecutionMode provides a mock function with given fields: ctx, mode
+func (_m *RollupBoostControl) SetExecutionMode(ctx context.Context, mode client.ExecutionMode) error {
+	ret := _m.Called(ctx, mode)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SetExecutionMode")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, bool) error); ok {
-		r0 = rf(ctx, enabled)
+	if rf, ok := ret.Get(0).(func(context.Context, client.ExecutionMode) error); ok {
+		r0 = rf(ctx, mode)
 	} else {
 		r0 = ret.Error(0)
 	}
