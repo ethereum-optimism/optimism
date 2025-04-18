@@ -1,6 +1,7 @@
 use crate::client::rpc::RpcClient;
 use crate::debug_api::DebugServer;
 use alloy_primitives::{B256, Bytes};
+use metrics::counter;
 use moka::sync::Cache;
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
@@ -581,6 +582,9 @@ impl RollupBoostServer {
         }?;
 
         tracing::Span::current().record("payload_source", context.to_string());
+        // To maintain backwards compatibility with old metrics, we need to record blocks built
+        // This is temporary until we migrate to the new metrics
+        counter!("rpc.blocks_created", "source" => context.to_string()).increment(1);
 
         let inner_payload = ExecutionPayload::from(payload.clone());
         let block_hash = inner_payload.block_hash();
