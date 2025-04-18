@@ -38,7 +38,7 @@ var _ RollupBoostControl = (*RollupBoostControlClient)(nil)
 // NewRollupBoostControlClient creates a new RollupBoostControlClient
 func NewRollupBoostControlClient(ctx context.Context, url string, log log.Logger) (*RollupBoostControlClient, error) {
 	httpClient := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 5 * time.Second,
 	}
 	client, err := rpc.DialOptions(ctx, url, rpc.WithHTTPClient(httpClient))
 	if err != nil {
