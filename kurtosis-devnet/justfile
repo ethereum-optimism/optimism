@@ -1,7 +1,7 @@
 import '../justfiles/prerequisites.just'
 
 KURTOSIS_PACKAGE := "./optimism-package-trampoline/"
-    
+
 test: _prerequisites
     go test --tags=testonly ./...
 
