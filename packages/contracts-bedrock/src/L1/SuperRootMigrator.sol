@@ -68,8 +68,10 @@ contract SuperRootMigrator {
         view
         returns (bytes memory super_, bytes32 superRoot_)
     {
-        /// TODO: Requirements on gameIdx length based on # of factories
         uint256 chainCount = gameFactories.length;
+        if (_gameIdxs.length != chainCount) {
+            revert LengthMismatch();
+        }
         /// TODO: should this be in the loop based on the game? implies that this contract can only migrate factories
         /// with games at the same timestamp?
         uint256 expectedTimestamp = 0;
