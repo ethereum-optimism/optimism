@@ -174,9 +174,7 @@ contract CrossL2InboxTest is CommonTest {
         _id.timestamp = bound(_id.timestamp, 0, type(uint64).max);
 
         // Try and retry the message without any access list
-        vm.expectCall(
-            address(crossL2Inbox), abi.encodeWithSelector(ICrossL2Inbox.validateMessage.selector, _id, _messageHash), 2
-        );
+        vm.expectCall(address(crossL2Inbox), abi.encodeCall(ICrossL2Inbox.validateMessage, (_id, _messageHash)), 2);
         validateMessageRelayer.validateAndRetry(_id, _messageHash);
     }
 
