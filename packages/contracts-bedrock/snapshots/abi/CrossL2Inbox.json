@@ -166,11 +166,6 @@
   },
   {
     "inputs": [],
-    "name": "NoExecutingDeposits",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "NotInAccessList",
     "type": "error"
   },
