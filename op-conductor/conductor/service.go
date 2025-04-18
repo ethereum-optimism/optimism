@@ -520,6 +520,11 @@ func (oc *OpConductor) HTTPEndpoint() string {
 }
 
 func (oc *OpConductor) OverrideLeader(override bool) {
+	// Store the previous value in case we need to revert
+	// We will use this to revert the override value if the rollup boost set execution mode fails
+	previousOverride := oc.leaderOverride.Load()
+
+	// Set the new value
 	oc.leaderOverride.Store(override)
 
 	if oc.rollupBoost != nil {
@@ -528,12 +533,14 @@ func (oc *OpConductor) OverrideLeader(override bool) {
 			mode = true
 		}
 
-		// Use a background context since this is an async operation
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		if err := oc.rollupBoost.SetExecutionMode(ctx, mode); err != nil {
-			oc.log.Error("Failed to update rollup boost execution mode after override", "err", err, "mode", mode)
+			// Revert to the previous override value on failure
+			oc.leaderOverride.Store(previousOverride)
+			oc.log.Error("Failed to update rollup boost execution mode, reverting leader override",
+				"err", err, "mode", mode, "override", override)
 		} else {
 			oc.log.Info("Updated rollup boost execution mode after override", "mode", mode)
 		}
@@ -655,24 +662,6 @@ func (oc *OpConductor) queueAction() {
 // handleLeaderUpdate handles leadership update from consensus.
 func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 	oc.log.Info("Leadership status changed", "server", oc.cons.ServerID(), "leader", leader)
-
-	// Update rollup boost execution mode based on leadership status
-	if oc.rollupBoost != nil {
-		mode := false
-		if leader {
-			mode = true
-		}
-
-		// Use a background context since this is an async operation
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := oc.rollupBoost.SetExecutionMode(ctx, mode); err != nil {
-			oc.log.Error("Failed to update rollup boost execution mode", "err", err, "mode", mode)
-		} else {
-			oc.log.Info("Updated rollup boost execution mode", "mode", mode)
-		}
-	}
 
 	oc.leader.Store(leader)
 	oc.queueAction()
@@ -831,22 +820,25 @@ func (oc *OpConductor) stopSequencer() error {
 	//
 	// To that end we allow to cancel the StopSequencer call if we're shutting down.
 	latestHead, err := oc.ctrl.StopSequencer(oc.shutdownCtx)
-	if err == nil {
-		// None of the consensus state should have changed here so don't log it again.
-		oc.log.Info("stopped sequencer", "latestHead", latestHead)
-	} else {
+	if err != nil {
 		if strings.Contains(err.Error(), driver.ErrSequencerAlreadyStopped.Error()) {
 			oc.log.Warn("sequencer already stopped", "err", err)
 		} else {
+			// If we can't stop the sequencer, maintain consistency by not touching Rollup boost
 			return errors.Wrap(err, "failed to stop sequencer")
 		}
+	} else {
+		oc.log.Info("stopped sequencer", "latestHead", latestHead)
 	}
 
-	// If we have a rollup boost client, disable it now that the sequencer is stopped
+	// If we get here, sequencer is successfully stopped, now disable Rollup boost
 	if oc.rollupBoost != nil {
-		if rbErr := oc.rollupBoost.SetExecutionMode(oc.shutdownCtx, false); rbErr != nil {
-			oc.log.Error("failed to disable rollup boost execution mode", "err", rbErr)
-			return fmt.Errorf("failed to disable rollup boost execution mode: %w", rbErr)
+		if err := oc.rollupBoost.SetExecutionMode(oc.shutdownCtx, false); err != nil {
+			oc.log.Error("failed to disable rollup boost execution mode", "err", err)
+			// this is a critical error, we should return an error and trigger an alert
+			// to preserve strong consistency, we should not continue to sequence
+			// this is treated same as failed to stop sequencer
+			return fmt.Errorf("failed to disable rollup boost execution mode: %w", err)
 		}
 		oc.log.Info("rollup boost disabled")
 	}
@@ -933,8 +925,8 @@ func (oc *OpConductor) startSequencer() error {
 	}
 
 	oc.log.Info("Sequencer started with rollup boost enabled")
-	oc.metrics.RecordStartSequencer(true)
 	oc.seqActive.Store(true)
+	oc.metrics.RecordStartSequencer(true)
 	return nil
 }
 

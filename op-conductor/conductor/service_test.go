@@ -879,3 +879,117 @@ func (s *OpConductorTestSuite) TestHandleInitError() {
 func TestControlLoop(t *testing.T) {
 	suite.Run(t, new(OpConductorTestSuite))
 }
+
+// TestRollupBoostEnableDisable tests basic enabling and disabling of Rollup boost
+// during sequencer start and stop operations.
+func (s *OpConductorTestSuite) TestRollupBoostEnableDisable() {
+	// Skip synchronization for this test
+	s.disableSynchronization()
+
+	// Create mock Rollup boost client and set it in the conductor
+	mockRollupBoost := &clientmocks.RollupBoostControl{}
+	s.conductor.rollupBoost = mockRollupBoost
+
+	// Test starting sequencer with Rollup boost
+	mockPayload := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: 1,
+			BlockHash:   [32]byte{1, 2, 3},
+		},
+	}
+	mockBlockInfo := &testutils.MockBlockInfo{
+		InfoNum:  1,
+		InfoHash: [32]byte{1, 2, 3},
+	}
+
+	// Setup expectations for startSequencer
+	s.cons.On("LatestUnsafePayload").Return(mockPayload, nil)
+	s.ctrl.On("LatestUnsafeBlock", mock.Anything).Return(mockBlockInfo, nil)
+	s.ctrl.On("StartSequencer", mock.Anything, mock.Anything).Return(nil)
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, true).Return(nil)
+
+	// Call startSequencer directly
+	err := s.conductor.startSequencer()
+	s.NoError(err)
+	s.True(s.conductor.seqActive.Load())
+	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, true)
+
+	// Test stopping sequencer with Rollup boost
+	s.ctrl.On("StopSequencer", mock.Anything).Return(common.Hash{}, nil)
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, false).Return(nil)
+
+	// Call stopSequencer directly
+	err = s.conductor.stopSequencer()
+	s.NoError(err)
+	s.False(s.conductor.seqActive.Load())
+	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, false)
+}
+
+// TestRollupBoostEnableFail tests the case where enabling Rollup boost fails
+// during sequencer start operations.
+func (s *OpConductorTestSuite) TestRollupBoostEnableFail() {
+	// Skip synchronization for this test
+	s.disableSynchronization()
+
+	// Create mock Rollup boost client and set it in the conductor
+	mockRollupBoost := &clientmocks.RollupBoostControl{}
+	s.conductor.rollupBoost = mockRollupBoost
+
+	// Test starting sequencer but Rollup boost enable fails
+	mockPayload := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			BlockNumber: 1,
+			BlockHash:   [32]byte{1, 2, 3},
+		},
+	}
+	mockBlockInfo := &testutils.MockBlockInfo{
+		InfoNum:  1,
+		InfoHash: [32]byte{1, 2, 3},
+	}
+
+	// Setup expectations
+	s.cons.On("LatestUnsafePayload").Return(mockPayload, nil)
+	s.ctrl.On("LatestUnsafeBlock", mock.Anything).Return(mockBlockInfo, nil)
+	s.ctrl.On("StartSequencer", mock.Anything, mock.Anything).Return(nil)
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, true).Return(errors.New("rollup boost enable failed"))
+	s.ctrl.On("StopSequencer", mock.Anything).Return(common.Hash{}, nil)
+
+	// Call startSequencer directly
+	err := s.conductor.startSequencer()
+	s.Error(err)                          // Should return an error
+	s.False(s.conductor.seqActive.Load()) // Should not be sequencing
+
+	// Verify stopSequencer was called to roll back
+	s.ctrl.AssertCalled(s.T(), "StopSequencer", mock.Anything)
+}
+
+// TestRollupBoostDisableFail tests the case where disabling Rollup boost fails
+// during sequencer stop operations.
+// TestRollupBoostDisableFail tests the case where disabling Rollup boost fails
+// during sequencer stop operations.
+func (s *OpConductorTestSuite) TestRollupBoostDisableFail() {
+	// Skip synchronization for this test
+	s.disableSynchronization()
+
+	// Create mock Rollup boost client and set it in the conductor
+	mockRollupBoost := &clientmocks.RollupBoostControl{}
+	s.conductor.rollupBoost = mockRollupBoost
+
+	// Set the initial state
+	s.conductor.seqActive.Store(true)
+
+	// Setup expectations
+	s.ctrl.On("StopSequencer", mock.Anything).Return(common.Hash{}, nil)
+	mockRollupBoost.On("SetExecutionMode", mock.Anything, false).Return(errors.New("rollup boost disable failed"))
+
+	// Call stopSequencer directly
+	err := s.conductor.stopSequencer()
+	s.Error(err) // Should return an error
+
+	// Verify that seqActive remains true to maintain consistency with Rollup boost state
+	s.True(s.conductor.seqActive.Load(), "seqActive should remain true when Rollup boost disable fails")
+
+	// Verify methods were called in the right order
+	s.ctrl.AssertCalled(s.T(), "StopSequencer", mock.Anything)
+	mockRollupBoost.AssertCalled(s.T(), "SetExecutionMode", mock.Anything, false)
+}
