@@ -201,7 +201,7 @@ func TestL2CLSyncP2P(gt *testing.T) {
 		time.Sleep(waitTime)
 		WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL)(orch)
 
-		targetBlockNum2 := uint64(20)
+		targetBlockNum2 := uint64(30)
 		require.Greater(t, targetBlockNum2, targetBlockNum1)
 		logger.Info("wait until reaching target block", "blockNum", targetBlockNum2)
 		require.Eventually(t, func() bool {
