@@ -3,6 +3,8 @@ package devtest
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,6 +13,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
+
+const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
 
 type T interface {
 	CommonT
@@ -35,10 +39,18 @@ type T interface {
 	// Parallel signals that this test is to be run in parallel with (and only with) other parallel tests.
 	Parallel()
 
+	// Skip is equivalent to Log followed by SkipNow.
 	Skip(args ...any)
+	// Skipped reports whether the test was skipped.
 	Skipped() bool
+	// Skipf is equivalent to Logf followed by SkipNow.
 	Skipf(format string, args ...any)
+	// SkipNow marks the test as skipped and stops test execution.
+	// It is remapped to FailNow if the env var DEVNET_EXPECT_PRECONDITIONS_MET is set to true.
 	SkipNow()
+
+	// Gate provides everything that Require does, but skips instead of fails the test upon error.
+	Gate() *require.Assertions
 
 	// This distinguishes the interface from other testing interfaces,
 	// such as the one used at package-level for shared system construction.
@@ -54,6 +66,13 @@ type testingT struct {
 	logger log.Logger
 	ctx    context.Context
 	req    *require.Assertions
+	gate   *require.Assertions
+}
+
+func mustNotSkip() bool {
+	v := os.Getenv(ExpectPreconditionsMet)
+	out, _ := strconv.ParseBool(v) // default to false
+	return out
 }
 
 func (t *testingT) Errorf(format string, args ...interface{}) {
@@ -110,6 +129,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 			ctx:    ctx,
 		}
 		subT.req = require.New(subT)
+		subT.gate = require.New(&gateAdapter{subT})
 		fn(subT)
 	})
 }
@@ -121,6 +141,10 @@ func (t *testingT) Parallel() {
 
 func (t *testingT) Skip(args ...any) {
 	t.t.Helper()
+	if mustNotSkip() {
+		t.t.Error(args...)
+		return
+	}
 	t.t.Skip(args...)
 }
 
@@ -131,12 +155,24 @@ func (t *testingT) Skipped() bool {
 
 func (t *testingT) Skipf(format string, args ...any) {
 	t.t.Helper()
+	if mustNotSkip() {
+		t.t.Errorf(format, args...)
+		return
+	}
 	t.t.Skipf(format, args...)
 }
 
 func (t *testingT) SkipNow() {
 	t.t.Helper()
+	if mustNotSkip() {
+		t.t.FailNow()
+		return
+	}
 	t.t.SkipNow()
+}
+
+func (t *testingT) Gate() *require.Assertions {
+	return t.gate
 }
 
 func (t *testingT) _TestOnly() {
@@ -156,6 +192,7 @@ func SerialT(t *testing.T) T {
 		ctx:    ctx,
 	}
 	out.req = require.New(out)
+	out.gate = require.New(&gateAdapter{out})
 	return out
 }
 

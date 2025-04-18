@@ -57,25 +57,24 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
-	t.Require().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
+	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
 	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
 	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
 	// since currently there's no way to tell which nodes are using which supervisor.
-	supervisorId := system.SupervisorIDs()[0]
-	l2A := system.L2Network(match.L2ChainA)
-	l2B := system.L2Network(match.L2ChainB)
+	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
+	l2B := system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &SimpleInterop{
 		Log:          t.Logger(),
 		T:            t,
-		Supervisor:   dsl.NewSupervisor(system.Supervisor(supervisorId)),
+		Supervisor:   dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor))),
 		ControlPlane: orch.ControlPlane(),
 		L2ChainA:     dsl.NewL2Network(l2A),
 		L2ChainB:     dsl.NewL2Network(l2B),
-		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.FirstL2EL)),
-		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.FirstL2EL)),
+		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
 		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
-		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.FirstFaucet)),
-		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.FirstFaucet)),
+		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
+		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
 	}
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
