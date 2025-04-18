@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { RLPReader } from "../libraries/rlp/RLPReader.sol";
 import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame, GameStatus } from "../../interfaces/dispute/IDisputeGame.sol";
+import { IAnchorStateRegistry } from "../../interfaces/dispute/IAnchorStateRegistry.sol";
 import { Claim, LibClaim } from "../dispute/lib/LibUDT.sol";
 import { Types } from "../libraries/Types.sol";
 
@@ -20,6 +21,8 @@ contract SuperRootMigrator {
     error InvalidGameProxy();
     error LengthMismatch();
     error ChainIDsNotAscending();
+    error BlacklistedGame();
+    error MissingAnchorStateRegistry();
 
     /// @notice The index of the block number in the RLP-encoded block header.
     uint256 internal constant HEADER_TIMESTAMP_INDEX = 11;
@@ -27,9 +30,16 @@ contract SuperRootMigrator {
 
     IDisputeGameFactory[] public gameFactories;
     uint256[] public chainIDs;
+    mapping(uint256 => IAnchorStateRegistry) public anchorStateRegistries;
 
-    constructor(IDisputeGameFactory[] memory _gameFactories, uint256[] memory _chainIDs) {
-        if (_gameFactories.length != _chainIDs.length) revert LengthMismatch();
+    constructor(
+        IDisputeGameFactory[] memory _gameFactories,
+        IAnchorStateRegistry[] memory _anchorStateRegistries,
+        uint256[] memory _chainIDs
+    ) {
+        if (_gameFactories.length != _chainIDs.length || _gameFactories.length != _anchorStateRegistries.length) {
+            revert LengthMismatch();
+        }
 
         // Verify that chainIDs are in ascending order per doc
         for (uint256 i = 1; i < _chainIDs.length; i++) {
@@ -40,6 +50,9 @@ contract SuperRootMigrator {
 
         gameFactories = _gameFactories;
         chainIDs = _chainIDs;
+        for (uint256 i = 0; i < _chainIDs.length; i++) {
+            anchorStateRegistries[_chainIDs[i]] = _anchorStateRegistries[i];
+        }
     }
 
     function chainsLen() external view returns (uint256) {
@@ -63,9 +76,16 @@ contract SuperRootMigrator {
         bytes memory chainData;
         for (uint256 i = 0; i < chainCount; i++) {
             (,, IDisputeGame game) = gameFactories[i].gameAtIndex(_gameIdxs[i]);
-            /// TODO: check blacklist?
             if (address(game) == address(0)) {
                 revert InvalidGameProxy();
+            }
+            // Fetch the ASR for the specific chain
+            IAnchorStateRegistry asr = anchorStateRegistries[chainIDs[i]];
+            if (address(asr) == address(0)) {
+                revert MissingAnchorStateRegistry();
+            }
+            if (asr.isGameBlacklisted(game)) {
+                revert BlacklistedGame();
             }
             if (!game.wasRespectedGameTypeWhenCreated()) {
                 revert InvalidGameType();
