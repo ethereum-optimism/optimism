@@ -10,6 +10,7 @@ import (
 
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/engine"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
 )
@@ -38,6 +39,7 @@ type Deployer struct {
 	templateFile   string
 	dataFile       string
 	newEnclaveFS   func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error)
+	enclaveManager *enclave.KurtosisEnclaveManager
 }
 
 func WithKurtosisDeployer(ktDeployer DeployerFunc) DeployerOption {
@@ -115,6 +117,16 @@ func NewDeployer(opts ...DeployerOption) *Deployer {
 	if d.engineManager == nil {
 		d.engineManager = engine.NewEngineManager(engine.WithKurtosisBinary(d.kurtosisBinary))
 	}
+
+	// Try to create enclave manager, but don't fail if it doesn't work
+	// This allows the deployer to work in dry run mode without a running Kurtosis engine
+	enclaveManager, err := enclave.NewKurtosisEnclaveManager()
+	if err != nil {
+		log.Printf("Warning: failed to create enclave manager: %v", err)
+	} else {
+		d.enclaveManager = enclaveManager
+	}
+
 	return d
 }
 
@@ -182,6 +194,14 @@ func (d *Deployer) Deploy(ctx context.Context, r io.Reader) (*kurtosis.KurtosisE
 	if !d.dryRun {
 		if err := d.engineManager.EnsureRunning(); err != nil {
 			return nil, fmt.Errorf("error ensuring kurtosis engine is running: %w", err)
+		}
+	}
+
+	// Pre-create the enclave if it doesn't exist
+	if d.enclaveManager != nil {
+		_, err := d.enclaveManager.GetEnclave(ctx, d.enclave)
+		if err != nil {
+			return nil, fmt.Errorf("error getting enclave: %w", err)
 		}
 	}
 
