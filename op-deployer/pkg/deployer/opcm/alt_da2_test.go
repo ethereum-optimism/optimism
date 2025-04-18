@@ -1,10 +1,9 @@
-package opcm_test
+package opcm
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -17,11 +16,11 @@ func TestNewDeployAltDAScript(t *testing.T) {
 		// Then we load the script
 		//
 		// This would raise an error if the Go types didn't match the ABI
-		deploySuperchain, err := opcm.NewDeployAltDAScript(host1)
+		deploySuperchain, err := NewDeployAltDAScript(host1)
 		require.NoError(t, err)
 
 		// Then we deploy
-		output, err := deploySuperchain.Run(opcm.DeployAltDA2Input{
+		output, err := deploySuperchain.Run(DeployAltDA2Input{
 			Salt:                     common.BigToHash(big.NewInt(1)),
 			ProxyAdmin:               common.BigToAddress(big.NewInt(2)),
 			ChallengeContractOwner:   common.BigToAddress(big.NewInt(3)),
@@ -40,7 +39,7 @@ func TestNewDeployAltDAScript(t *testing.T) {
 		// We run it on a fresh host so that the deployer nonces are the same
 		// which in turn means we should get identical output
 		host2 := createTestHost(t)
-		deprecatedOutput, err := opcm.DeployAltDA(host2, opcm.DeployAltDAInput{
+		deprecatedOutput, err := DeployAltDA(host2, DeployAltDAInput{
 			Salt:                     common.BigToHash(big.NewInt(1)),
 			ProxyAdmin:               common.BigToAddress(big.NewInt(2)),
 			ChallengeContractOwner:   common.BigToAddress(big.NewInt(3)),
