@@ -673,7 +673,7 @@ func TestForkchoiceUpdatedVersion(t *testing.T) {
 			canyonTime:     10,
 			ecotoneTime:    20,
 			attrs:          &eth.PayloadAttributes{Timestamp: 5},
-			expectedMethod: eth.FCUV1,
+			expectedMethod: eth.FCUV2,
 		},
 		{
 			name:           "Canyon",
