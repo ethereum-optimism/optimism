@@ -23,7 +23,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	env := o.env
 	l2ID := getL2ID(net)
 
-	l1 := system.L1Network(stack.L1NetworkID(eth.ChainIDFromBig(env.L1.Config.ChainID)))
+	l1 := system.L1Network(stack.L1NetworkID(eth.ChainIDFromBig(env.Env.L1.Config.ChainID)))
 
 	cfg := shim.L2NetworkConfig{
 		NetworkConfig: shim.NetworkConfig{
@@ -38,11 +38,11 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		},
 		Deployment: newL2AddressBook(system.T(), net.L1Addresses),
 		Keys:       o.defineSystemKeys(system.T()),
-		Superchain: system.Superchain(stack.SuperchainID(env.Name)),
+		Superchain: system.Superchain(stack.SuperchainID(env.Env.Name)),
 		L1:         l1,
 	}
 	if o.isInterop() {
-		cfg.Cluster = system.Cluster(stack.ClusterID(env.Name))
+		cfg.Cluster = system.Cluster(stack.ClusterID(env.Env.Name))
 	}
 
 	l2 := shim.NewL2Network(cfg)

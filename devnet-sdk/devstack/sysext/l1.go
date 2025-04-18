@@ -12,16 +12,16 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 	env := o.env
 
 	commonConfig := shim.NewCommonConfig(system.T())
-	l1ID := eth.ChainIDFromBig(env.L1.Config.ChainID)
+	l1ID := eth.ChainIDFromBig(env.Env.L1.Config.ChainID)
 	l1 := shim.NewL1Network(shim.L1NetworkConfig{
 		NetworkConfig: shim.NetworkConfig{
 			CommonConfig: commonConfig,
-			ChainConfig:  env.L1.Config,
+			ChainConfig:  env.Env.L1.Config,
 		},
 		ID: stack.L1NetworkID(l1ID),
 	})
 
-	for idx, node := range env.L1.Nodes {
+	for idx, node := range env.Env.L1.Nodes {
 		elService, ok := node.Services[ELServiceName]
 		require.True(ok, "need L1 EL service %d", idx)
 

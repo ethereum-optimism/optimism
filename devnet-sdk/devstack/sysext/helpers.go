@@ -33,7 +33,7 @@ func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, p
 		opts = append(opts, client.WithLazyDial())
 	}
 
-	if orch.env.ReverseProxyURL != "" && !orch.useDirectCnx {
+	if orch.env.Env.ReverseProxyURL != "" && !orch.useDirectCnx {
 		opts = append(
 			opts,
 			client.WithGethRPCOptions(
@@ -60,7 +60,7 @@ func (orch *Orchestrator) httpClient(t devtest.T, service *descriptors.Service, 
 
 	opts := []client.BasicHTTPClientOption{}
 
-	if orch.env.ReverseProxyURL != "" && !orch.useDirectCnx {
+	if orch.env.Env.ReverseProxyURL != "" && !orch.useDirectCnx {
 		opts = append(
 			opts,
 			client.WithHeader(header),
@@ -74,8 +74,8 @@ func (orch *Orchestrator) httpClient(t devtest.T, service *descriptors.Service, 
 func (orch *Orchestrator) findProtocolService(service *descriptors.Service, protocol string) (string, http.Header, error) {
 	for proto, endpoint := range service.Endpoints {
 		if proto == protocol {
-			if orch.env.ReverseProxyURL != "" && !orch.useDirectCnx {
-				return orch.env.ReverseProxyURL, endpoint.ReverseProxyHeader, nil
+			if orch.env.Env.ReverseProxyURL != "" && !orch.useDirectCnx {
+				return orch.env.Env.ReverseProxyURL, endpoint.ReverseProxyHeader, nil
 			}
 
 			port := endpoint.Port

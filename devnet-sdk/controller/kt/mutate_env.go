@@ -2,10 +2,8 @@ package kt
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 )
 
@@ -93,7 +91,6 @@ func (s *KurtosisControllerSurface) updateDevnetEnvironmentService(ctx context.C
 	}
 
 	if on {
-		fmt.Println("on")
 		svc.refreshEndpoints(serviceCtx)
 	}
 	// otherwise the service is down anyway, it doesn't matter if it has outdated endpoints
