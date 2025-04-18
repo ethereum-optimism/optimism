@@ -32,10 +32,7 @@ type DefaultInteropSystemIDs struct {
 	L2BProposer stack.L2ProposerID
 }
 
-func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2AID := eth.ChainIDFromUInt64(901)
-	l2BID := eth.ChainIDFromUInt64(902)
+func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSystemIDs {
 	ids := DefaultInteropSystemIDs{
 		L1:          stack.L1NetworkID(l1ID),
 		L1EL:        stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
@@ -54,6 +51,14 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
 		L2AProposer: stack.L2ProposerID{Key: "main", ChainID: l2AID},
 		L2BProposer: stack.L2ProposerID{Key: "main", ChainID: l2BID},
 	}
+	return ids
+}
+
+func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
+	l1ID := eth.ChainIDFromUInt64(900)
+	l2AID := eth.ChainIDFromUInt64(901)
+	l2BID := eth.ChainIDFromUInt64(902)
+	ids := NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID)
 
 	opt := stack.Option(func(o stack.Orchestrator) {
 		o.P().Logger().Info("Setting up")
@@ -94,6 +99,45 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, nil, &ids.Supervisor))
 
 	// TODO(#15057): maybe L2 challenger
+
+	// Upon evaluation of the option, export the contents we created.
+	// Ids here are static, but other things may be exported too.
+	opt.Add(func(orch stack.Orchestrator) {
+		*dest = ids
+	})
+
+	return opt
+}
+
+type DefaultRedundancyInteropSystemIDs struct {
+	DefaultInteropSystemIDs
+
+	L2A2CL stack.L2CLNodeID
+	L2A2EL stack.L2ELNodeID
+}
+
+func DefaultRedundancyInteropSystem(dest *DefaultRedundancyInteropSystemIDs) stack.Option {
+	l1ID := eth.ChainIDFromUInt64(900)
+	l2AID := eth.ChainIDFromUInt64(901)
+	l2BID := eth.ChainIDFromUInt64(902)
+	ids := DefaultRedundancyInteropSystemIDs{
+		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
+		L2A2CL:                  stack.L2CLNodeID{Key: "verifier", ChainID: l2AID},
+		L2A2EL:                  stack.L2ELNodeID{Key: "verifier", ChainID: l2AID},
+	}
+
+	// start with default interop system
+	var parentIds DefaultInteropSystemIDs
+	opt := DefaultInteropSystem(&parentIds)
+
+	opt.Add(WithL2ELNode(ids.L2A2EL, &ids.Supervisor))
+	opt.Add(WithL2CLNode(ids.L2A2CL, false, ids.L1CL, ids.L1EL, ids.L2A2EL))
+
+	// verifier must be also managed or it cannot advance
+	opt.Add(WithManagedBySupervisor(ids.L2A2CL, ids.Supervisor))
+
+	// P2P connect L2CL nodes
+	opt.Add(WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL))
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
