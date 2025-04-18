@@ -20,6 +20,7 @@ reth-zstd-compressors = { workspace = true, optional = true }
 # ethereum
 alloy-primitives.workspace = true
 alloy-consensus.workspace = true
+alloy-eips.workspace = true
 alloy-rlp.workspace = true
 
 # op
@@ -36,7 +37,6 @@ arbitrary = { workspace = true, features = ["derive"], optional = true }
 
 [dev-dependencies]
 reth-codecs = { workspace = true, features = ["test-utils", "op"] }
-alloy-eips.workspace = true
 
 rand.workspace = true
 arbitrary.workspace = true
