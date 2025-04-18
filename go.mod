@@ -15,7 +15,7 @@ require (
 	github.com/consensys/gnark-crypto v0.16.0
 	github.com/crate-crypto/go-kzg-4844 v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
-	github.com/docker/docker v27.5.1+incompatible
+	github.com/docker/docker v28.1.1+incompatible
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250314162817-2c60e5723c64
 	github.com/ethereum/go-ethereum v1.15.3
@@ -26,6 +26,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/raft v1.7.3
@@ -129,7 +130,6 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20241009165004-a3522334989c // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/graph-gophers/graphql-go v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
@@ -182,6 +182,7 @@ require (
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
