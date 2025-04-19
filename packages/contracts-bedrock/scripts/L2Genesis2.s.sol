@@ -518,6 +518,27 @@ contract L2Genesis is Script {
 
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
+    function setSuperchainETHBridge() internal {
+        _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setOptimismSuperchainERC20Factory() internal {
+        _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setOptimismSuperchainERC20Beacon() internal {
+        address superchainERC20Impl = Predeploys.OPTIMISM_SUPERCHAIN_ERC20;
+        vm.etch(superchainERC20Impl, vm.getDeployedCode("OptimismSuperchainERC20.sol:OptimismSuperchainERC20"));
+
+        _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
     function setSuperchainTokenBridge() internal {
         _setImplementationCode(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     }
