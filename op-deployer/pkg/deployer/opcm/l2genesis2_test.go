@@ -2,13 +2,14 @@ package opcm
 
 import (
 	"encoding/json"
+	"math/big"
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"testing"
 )
 
 func TestL2Genesis2Differential(t *testing.T) {
@@ -45,7 +46,7 @@ func TestL2Genesis2Differential(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			
+
 			initCfg := genesis.L2InitializationConfig{
 				DevDeployConfig: genesis.DevDeployConfig{FundDevAccounts: true},
 				OwnershipDeployConfig: genesis.OwnershipDeployConfig{
