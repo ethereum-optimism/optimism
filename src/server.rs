@@ -103,6 +103,8 @@ pub enum ExecutionMode {
     DryRun,
     // Not sending any requests
     Disabled,
+    // Defaulting to op-geth payloads
+    Fallback,
 }
 
 impl ExecutionMode {
@@ -113,6 +115,10 @@ impl ExecutionMode {
 
     fn is_disabled(&self) -> bool {
         matches!(self, ExecutionMode::Disabled)
+    }
+
+    fn is_fallback_enabled(&self) -> bool {
+        matches!(self, ExecutionMode::Fallback)
     }
 }
 
@@ -576,7 +582,14 @@ impl RollupBoostServer {
 
         let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
         let (payload, context) = match (builder_payload, l2_payload) {
-            (Ok(Some(builder)), _) => Ok((builder, PayloadSource::Builder)),
+            (Ok(Some(builder)), Ok(l2_payload)) => {
+                if self.execution_mode().is_fallback_enabled() {
+                    // Default to op-geth's payload
+                    Ok((l2_payload, PayloadSource::L2))
+                } else {
+                    Ok((builder, PayloadSource::Builder))
+                }
+            }
             (_, Ok(l2)) => Ok((l2, PayloadSource::L2)),
             (_, Err(e)) => Err(e),
         }?;

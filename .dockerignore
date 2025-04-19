@@ -23,4 +23,5 @@ docs/
 
 # Scripts that aren't needed for runtime
 scripts/
+tests/
 **/integration
