@@ -10,7 +10,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { ForkLive } from "test/setup/ForkLive.s.sol";
 import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { L2Genesis } from "scripts/L2Genesis2.s.sol";
-import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
+import { Fork, ForkUtils } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Config } from "scripts/libraries/Config.sol";
@@ -183,7 +183,7 @@ contract Setup {
         }
 
         console.log("Setup: L2 setup start!");
-        vm.etch(address(l2Genesis), vm.getDeployedCode("L2Genesis.s.sol:L2Genesis"));
+        vm.etch(address(l2Genesis), vm.getDeployedCode("L2Genesis2.s.sol:L2Genesis"));
         vm.allowCheatcodes(address(l2Genesis));
         console.log("Setup: L2 setup done!");
     }
