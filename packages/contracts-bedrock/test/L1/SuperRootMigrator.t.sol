@@ -44,6 +44,11 @@ contract SuperRootMigrator_Setup_Test is SuperRootMigrator_TestBase {
             address(anchorStateRegistries[0]),
             "AnchorStateRegistry mismatch"
         );
+        assertEq(
+            address(superRootMigrator.gameFactories(0)),
+            address(gameFactories[0]),
+            "GameFactory mismatch"
+        );
         assertEq(superRootMigrator.chainsLen(), 1, "Incorrect chains length");
     }
 }
