@@ -13,6 +13,10 @@ contract SuperRootMigrator {
     using RLPReader for RLPReader.RLPItem;
     using RLPReader for bytes;
 
+    /*//////////////////////////////////////////////////////////////
+                                 ERRORS
+    //////////////////////////////////////////////////////////////*/
+
     error InvalidOutput();
     error InvalidHeaderRLP();
     error InvalidGameStatus();
@@ -24,9 +28,17 @@ contract SuperRootMigrator {
     error BlacklistedGame();
     error MissingAnchorStateRegistry();
 
+    /*//////////////////////////////////////////////////////////////
+                               CONSTANTS
+    //////////////////////////////////////////////////////////////*/
+
     /// @notice The index of the block number in the RLP-encoded block header.
     uint256 internal constant HEADER_TIMESTAMP_INDEX = 11;
     uint8 internal constant SUPER_VERSION = uint8(1);
+
+    /*//////////////////////////////////////////////////////////////
+                                 STATE
+    //////////////////////////////////////////////////////////////*/
 
     IDisputeGameFactory[] public gameFactories;
     uint256[] public chainIDs;
@@ -54,6 +66,10 @@ contract SuperRootMigrator {
             anchorStateRegistries[_chainIDs[i]] = _anchorStateRegistries[i];
         }
     }
+
+    /*//////////////////////////////////////////////////////////////
+                           EXTERNAL FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
 
     function chainsLen() external view returns (uint256) {
         return gameFactories.length;
