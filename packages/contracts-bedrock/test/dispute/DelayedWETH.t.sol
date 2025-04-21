@@ -11,6 +11,7 @@ import "src/dispute/lib/Errors.sol";
 
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 
 contract DelayedWETH_Init is CommonTest {
     event Approval(address indexed src, address indexed guy, uint256 wad);
@@ -21,6 +22,14 @@ contract DelayedWETH_Init is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
+
+        // Fork tests might replace the DelayedWETH contract with a new proxy. We should really be
+        // pulling the addresses *after* the upgrade has been applied but this is good enough for
+        // the moment.
+        if (isForkTest()) {
+            address pdg = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+            delayedWeth = IPermissionedDisputeGame(pdg).weth();
+        }
     }
 }
 

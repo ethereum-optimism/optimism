@@ -37,7 +37,6 @@ type SuperchainConfig struct {
 	SuperchainProxyAdminOwner  common.Address
 	ProtocolVersionsOwner      common.Address
 	Guardian                   common.Address
-	Paused                     bool
 	RequiredProtocolVersion    params.ProtocolVersion
 	RecommendedProtocolVersion params.ProtocolVersion
 }
@@ -96,7 +95,6 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 	superchainProxyAdminOwner := common.HexToAddress(cliCtx.String(SuperchainProxyAdminOwnerFlagName))
 	protocolVersionsOwner := common.HexToAddress(cliCtx.String(ProtocolVersionsOwnerFlagName))
 	guardian := common.HexToAddress(cliCtx.String(GuardianFlagName))
-	paused := cliCtx.Bool(PausedFlagName)
 	requiredVersionStr := cliCtx.String(RequiredProtocolVersionFlagName)
 	recommendedVersionStr := cliCtx.String(RecommendedProtocolVersionFlagName)
 	outfile := cliCtx.String(OutfileFlagName)
@@ -110,7 +108,6 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		SuperchainProxyAdminOwner: superchainProxyAdminOwner,
 		ProtocolVersionsOwner:     protocolVersionsOwner,
 		Guardian:                  guardian,
-		Paused:                    paused,
 	}
 
 	if err := cfg.RequiredProtocolVersion.UnmarshalText([]byte(requiredVersionStr)); err != nil {
@@ -194,7 +191,6 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 			SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
 			ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,
 			Guardian:                   cfg.Guardian,
-			Paused:                     cfg.Paused,
 			RequiredProtocolVersion:    cfg.RequiredProtocolVersion,
 			RecommendedProtocolVersion: cfg.RecommendedProtocolVersion,
 		},

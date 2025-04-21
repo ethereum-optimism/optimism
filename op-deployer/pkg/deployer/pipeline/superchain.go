@@ -25,7 +25,6 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 			SuperchainProxyAdminOwner:  intent.SuperchainRoles.ProxyAdminOwner,
 			ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
 			Guardian:                   intent.SuperchainRoles.Guardian,
-			Paused:                     false,
 			RequiredProtocolVersion:    rollup.OPStackSupport,
 			RecommendedProtocolVersion: rollup.OPStackSupport,
 		},

@@ -10,7 +10,6 @@ type DeploySuperchain2Input struct {
 	Guardian                   common.Address         `toml:"guardian"`
 	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
 	SuperchainProxyAdminOwner  common.Address         `toml:"superchainProxyAdminOwner"`
-	Paused                     bool                   `toml:"paused"`
 	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
 	RequiredProtocolVersion    params.ProtocolVersion `toml:"requiredProtocolVersion"`
 }

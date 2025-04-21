@@ -601,16 +601,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 abi.encodeCall(ISystemConfig.upgrade, (l2ChainId, _superchainConfig))
             );
 
-            // Grab chain addresses here. We need to do this after the SystemConfig upgrade or the
-            // addresses will be incorrect.
-            ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
-
-            // Grab the current respectedGameType from the OptimismPortal contract before the upgrade.
-            GameType respectedGameType = optimismPortal.respectedGameType();
-
             // Separate context to avoid stack too deep.
             IAnchorStateRegistry newAnchorStateRegistryProxy;
             {
+                // Grab the current respectedGameType from the OptimismPortal contract before the
+                // upgrade.
+                GameType respectedGameType = optimismPortal.respectedGameType();
+
                 // Deploy a new AnchorStateRegistry contract.
                 // We use the SOT suffix to avoid CREATE2 conflicts with the existing ASR.
                 newAnchorStateRegistryProxy = IAnchorStateRegistry(
@@ -684,6 +681,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // Separate context to avoid stack too deep.
             {
+                // Grab chain addresses here. We need to do this after the SystemConfig upgrade or
+                // the addresses will be incorrect.
+                ISystemConfig.Addresses memory opChainAddrs = _opChainConfigs[i].systemConfigProxy.getAddresses();
+
                 // Upgrade the L1CrossDomainMessenger contract.
                 upgradeToAndCall(
                     _opChainConfigs[i].proxyAdmin,
@@ -712,10 +713,31 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // We also need to redeploy the dispute games because the AnchorStateRegistry is new.
             // Separate context to avoid stack too deep.
             {
+                // Create a new DelayedWETH for the permissioned game.
+                IDelayedWETH permissionedDelayedWeth = IDelayedWETH(
+                    payable(
+                        deployProxy({
+                            _l2ChainId: l2ChainId,
+                            _proxyAdmin: _opChainConfigs[i].proxyAdmin,
+                            _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
+                            _contractName: "PermissionedDelayedWETH-U16"
+                        })
+                    )
+                );
+
+                // Initialize the DelayedWETH.
+                upgradeToAndCall(
+                    _opChainConfigs[i].proxyAdmin,
+                    address(permissionedDelayedWeth),
+                    impls.delayedWETHImpl,
+                    abi.encodeCall(IDelayedWETH.initialize, (_opChainConfigs[i].systemConfigProxy))
+                );
+
                 // Deploy and set a new permissioned game to update its prestate.
                 deployAndSetNewGameImpl({
                     _l2ChainId: l2ChainId,
                     _disputeGame: IDisputeGame(address(permissionedDisputeGame)),
+                    _newDelayedWeth: permissionedDelayedWeth,
                     _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
                     _gameType: GameTypes.PERMISSIONED_CANNON,
                     _opChainConfig: _opChainConfigs[i]
@@ -730,10 +752,31 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
                 // If it exists, replace its implementation.
                 if (address(permissionlessDisputeGame) != address(0)) {
+                    // Create a new DelayedWETH for the permissionless game.
+                    IDelayedWETH permissionlessDelayedWeth = IDelayedWETH(
+                        payable(
+                            deployProxy({
+                                _l2ChainId: l2ChainId,
+                                _proxyAdmin: _opChainConfigs[i].proxyAdmin,
+                                _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
+                                _contractName: "PermissionlessDelayedWETH-U16"
+                            })
+                        )
+                    );
+
+                    // Initialize the DelayedWETH.
+                    upgradeToAndCall(
+                        _opChainConfigs[i].proxyAdmin,
+                        address(permissionlessDelayedWeth),
+                        impls.delayedWETHImpl,
+                        abi.encodeCall(IDelayedWETH.initialize, (_opChainConfigs[i].systemConfigProxy))
+                    );
+
                     // Deploy and set a new permissionless game to update its prestate
                     deployAndSetNewGameImpl({
                         _l2ChainId: l2ChainId,
                         _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
+                        _newDelayedWeth: permissionlessDelayedWeth,
                         _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
                         _gameType: GameTypes.CANNON,
                         _opChainConfig: _opChainConfigs[i]
@@ -769,12 +812,14 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Deploys and sets a new dispute game implementation
     /// @param _l2ChainId The L2 chain ID
     /// @param _disputeGame The current dispute game implementation
+    /// @param _newDelayedWeth The new delayed WETH implementation
     /// @param _newAnchorStateRegistryProxy The new anchor state registry proxy
     /// @param _gameType The type of game to deploy
     /// @param _opChainConfig The OP chain configuration
     function deployAndSetNewGameImpl(
         uint256 _l2ChainId,
         IDisputeGame _disputeGame,
+        IDelayedWETH _newDelayedWeth,
         IAnchorStateRegistry _newAnchorStateRegistryProxy,
         GameType _gameType,
         OPContractsManager.OpChainConfig memory _opChainConfig
@@ -789,7 +834,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             getGameConstructorParams(IFaultDisputeGame(address(_disputeGame)));
 
         // Modify the params with the new vm values.
-        params.anchorStateRegistry = IAnchorStateRegistry(address(_newAnchorStateRegistryProxy));
+        params.weth = _newDelayedWeth;
+        params.anchorStateRegistry = _newAnchorStateRegistryProxy;
         params.vm = IBigStepper(impls.mipsImpl);
 
         // If the prestate is set in the config, use it. If not set, we'll try to use the prestate

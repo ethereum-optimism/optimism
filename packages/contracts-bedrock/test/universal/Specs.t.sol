@@ -850,7 +850,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("deputyAuthMessageTypehash()") });
         _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("setDeputy(address,bytes)"), _auth: Role.DEPUTYGUARDIAN });
         _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("eip712Domain()") });
-        _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("pause(bytes32,bytes,address)"), _auth: Role.PAUSEDEPUTY });
+        _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("pause(bytes32,address,bytes)"), _auth: Role.PAUSEDEPUTY });
 
         // LivenessGuard
         _addSpec({ _name: "LivenessGuard", _sel: _getSel("checkAfterExecution(bytes32,bool)"), _auth: Role.COUNCILSAFE });

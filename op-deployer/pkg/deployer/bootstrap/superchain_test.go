@@ -66,7 +66,6 @@ func testSuperchain(t *testing.T, forkRPCURL string, version string) {
 		SuperchainProxyAdminOwner:  common.Address{'S'},
 		ProtocolVersionsOwner:      common.Address{'P'},
 		Guardian:                   common.Address{'G'},
-		Paused:                     false,
 		RequiredProtocolVersion:    params.ProtocolVersionV0{Major: 1}.Encode(),
 		RecommendedProtocolVersion: params.ProtocolVersionV0{Major: 2}.Encode(),
 		CacheDir:                   testCacheDir,
