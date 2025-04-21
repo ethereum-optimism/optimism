@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "../../interfaces/dispute/IAnchorStateRegistry.sol";
@@ -44,11 +43,7 @@ contract SuperRootMigrator_Setup_Test is SuperRootMigrator_TestBase {
             address(anchorStateRegistries[0]),
             "AnchorStateRegistry mismatch"
         );
-        assertEq(
-            address(superRootMigrator.gameFactories(0)),
-            address(gameFactories[0]),
-            "GameFactory mismatch"
-        );
+        assertEq(address(superRootMigrator.gameFactories(0)), address(gameFactories[0]), "GameFactory mismatch");
         assertEq(superRootMigrator.chainsLen(), 1, "Incorrect chains length");
     }
 }
