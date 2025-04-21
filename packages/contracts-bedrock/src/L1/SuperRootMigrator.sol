@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { RLPReader } from "../libraries/rlp/RLPReader.sol";
+import { Hashing } from "../libraries/Hashing.sol";
 import { IDisputeGameFactory } from "../../interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame, GameStatus } from "../../interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "../../interfaces/dispute/IAnchorStateRegistry.sol";
@@ -113,7 +114,7 @@ contract SuperRootMigrator {
             }
 
             bytes32 outputRoot = game.rootClaim().raw();
-            if (hashOutputRootProof(_outputs[i]) != outputRoot) {
+            if (Hashing.hashOutputRootProof(_outputs[i]) != outputRoot) {
                 revert InvalidOutput();
             }
             if (keccak256(_headerRLP[i]) != _outputs[i].latestBlockhash) {
@@ -151,20 +152,5 @@ contract SuperRootMigrator {
         // Or just put this method on AnchorStateRegistry and it can update itself.
 
         return (superBytes, superRoot);
-    }
-
-    /// @notice Hashes the various elements of an output root proof into an output root hash which
-    ///         can be used to check if the proof is valid.
-    /// @param _outputRootProof Output root proof which should hash to an output root.
-    /// @return Hashed output root proof.
-    function hashOutputRootProof(Types.OutputRootProof memory _outputRootProof) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                _outputRootProof.version,
-                _outputRootProof.stateRoot,
-                _outputRootProof.messagePasserStorageRoot,
-                _outputRootProof.latestBlockhash
-            )
-        );
     }
 }
