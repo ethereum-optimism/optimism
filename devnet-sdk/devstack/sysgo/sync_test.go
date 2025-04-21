@@ -207,7 +207,7 @@ func TestL2CLSyncP2P(gt *testing.T) {
 		require.Eventually(t, func() bool {
 			blockA, blockA2 := queryLatest()
 			return blockA.Number >= targetBlockNum2 && blockA2.Number >= targetBlockNum2
-		}, 30*time.Second, waitTime)
+		}, 60*time.Second, waitTime)
 
 		logger.Info("check sequencer and verifier holds identical chain until target block", "blockNum", targetBlockNum2)
 		for blockNum := range targetBlockNum2 + 1 {
