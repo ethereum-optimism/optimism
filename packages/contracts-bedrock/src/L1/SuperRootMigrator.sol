@@ -89,9 +89,7 @@ contract SuperRootMigrator {
         if (_gameIdxs.length != chainCount) {
             revert SuperRootMigrator_LengthMismatch();
         }
-        /// TODO: should this be in the loop based on the game? implies that this contract can only migrate factories
-        /// with games at the same timestamp?
-        uint256 expectedTimestamp = 0;
+        uint256 expectedTimestamp;
         bytes memory chainData;
         for (uint256 i = 0; i < chainCount; i++) {
             (,, IDisputeGame game) = gameFactories[i].gameAtIndex(_gameIdxs[i]);
@@ -140,9 +138,14 @@ contract SuperRootMigrator {
             assembly {
                 blockTimestamp := shr(shl(0x03, sub(0x20, mload(rawTimestamp))), mload(add(rawTimestamp, 0x20)))
             }
-            if (i != 0 && blockTimestamp != expectedTimestamp) {
+
+            // Set the expected timestamp on the first iteration, compare on subsequent iterations.
+            if (i == 0) {
+                expectedTimestamp = blockTimestamp;
+            } else if (blockTimestamp != expectedTimestamp) {
                 revert SuperRootMigrator_TimestampMismatch();
             }
+
             chainData = abi.encodePacked(chainData, chainIDs[i], outputRoot);
         }
         bytes memory superBytes = abi.encodePacked(SUPER_VERSION, uint64(expectedTimestamp), chainData);
