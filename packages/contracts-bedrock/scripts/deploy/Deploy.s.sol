@@ -220,7 +220,6 @@ contract Deploy is Deployer {
         dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.superchainProxyAdminOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
-        dsi.set(dsi.pauseExpiry.selector, 7889238);
         dsi.set(dsi.requiredProtocolVersion.selector, cfg.requiredProtocolVersion());
         dsi.set(dsi.recommendedProtocolVersion.selector, cfg.recommendedProtocolVersion());
 
@@ -235,7 +234,7 @@ contract Deploy is Deployer {
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxies();
         ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true, _pauseExpiry: 7889238 });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true });
 
         // Then replace the ProtocolVersions proxy with the implementation address and run assertions on it.
         contracts.ProtocolVersions = artifacts.mustGetAddress("ProtocolVersionsImpl");
@@ -243,12 +242,7 @@ contract Deploy is Deployer {
 
         // Finally replace the SuperchainConfig proxy with the implementation address and run assertions on it.
         contracts.SuperchainConfig = artifacts.mustGetAddress("SuperchainConfigImpl");
-        ChainAssertions.checkSuperchainConfig({
-            _contracts: contracts,
-            _cfg: cfg,
-            _pauseExpiry: 7889238,
-            _isProxy: false
-        });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy all of the implementations

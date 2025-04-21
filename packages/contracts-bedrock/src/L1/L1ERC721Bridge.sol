@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 
 // Libraries
@@ -14,7 +15,6 @@ import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenge
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 /// @custom:proxied true
 /// @title L1ERC721Bridge

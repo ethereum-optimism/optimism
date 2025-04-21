@@ -367,7 +367,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
 
         // Trigger the pause.
         bytes memory signature = makePauseSignature(address(deputyPauseModule), _nonce, _identifier, deputyKey);
-        deputyPauseModule.pause(_nonce, signature, _identifier);
+        deputyPauseModule.pause(_nonce, _identifier, signature);
 
         // State assertions after the pause.
         assertEq(deputyPauseModule.usedNonces(_nonce), true);
@@ -385,7 +385,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
 
         // Pause once.
         bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, _identifier, deputyKey);
-        deputyPauseModule.pause(_nonce1, sig1, _identifier);
+        deputyPauseModule.pause(_nonce1, _identifier, sig1);
 
         // Unpause.
         vm.prank(superchainConfig.guardian());
@@ -393,7 +393,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
 
         // Pause again with a different nonce.
         bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, _identifier, deputyKey);
-        deputyPauseModule.pause(_nonce2, sig2, _identifier);
+        deputyPauseModule.pause(_nonce2, _identifier, sig2);
     }
 
     /// @notice Tests that pause() succeeds within 1 million gas.
@@ -401,7 +401,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
         bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey);
 
         uint256 gasBefore = gasleft();
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature, address(0));
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
         uint256 gasUsed = gasBefore - gasleft();
 
         // Ensure gas usage is within expected bounds.
@@ -429,7 +429,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_Unauthorized.selector));
         bytes memory signature =
             makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), _privateKey);
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature, address(0));
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the nonce has already been used.
@@ -437,7 +437,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
     function testFuzz_pause_nonceAlreadyUsed_reverts(bytes32 _nonce) external {
         // Pause once.
         bytes memory signature = makePauseSignature(address(deputyPauseModule), _nonce, address(0), deputyKey);
-        deputyPauseModule.pause(_nonce, signature, address(0));
+        deputyPauseModule.pause(_nonce, address(0), signature);
 
         // Unpause.
         vm.prank(superchainConfig.guardian());
@@ -448,7 +448,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Pause again.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_NonceAlreadyUsed.selector));
-        deputyPauseModule.pause(_nonce, signature, address(0));
+        deputyPauseModule.pause(_nonce, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when called with two different nonces after the
@@ -468,7 +468,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Pause once.
         bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, _identifier, deputyKey);
-        deputyPauseModule.pause(_nonce1, sig1, _identifier);
+        deputyPauseModule.pause(_nonce1, _identifier, sig1);
 
         // Pause again with a different nonce.
         bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, _identifier, deputyKey);
@@ -478,7 +478,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
                 string(abi.encodeWithSelector(ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector, _identifier))
             )
         );
-        deputyPauseModule.pause(_nonce2, sig2, _identifier);
+        deputyPauseModule.pause(_nonce2, _identifier, sig2);
     }
 
     /// @notice Tests that pause() reverts when the signature is longer than 65 bytes.
@@ -492,7 +492,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.ECDSAInvalidSignatureLength.selector, _length));
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature, address(0));
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the signature is shorter than 65 bytes.
@@ -506,7 +506,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.ECDSAInvalidSignatureLength.selector, _length));
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature, address(0));
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the chain ID is not the same as the chain ID that
@@ -521,7 +521,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
             makePauseSignature(_chainId, address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey);
 
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_Unauthorized.selector));
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature, address(0));
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the verifying contract is not the deputy pause module.
@@ -533,7 +533,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_Unauthorized.selector));
         bytes memory signature = makePauseSignature(_verifyingContract, SOME_VALID_NONCE, address(0), deputyKey);
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature, address(0));
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that the error message is returned when the call to the safe reverts.
@@ -552,7 +552,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
             )
         );
         bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey);
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature, address(0));
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the superchain is not in a paused state after the
@@ -565,8 +565,8 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
         vm.expectRevert(IDeputyPauseModule.DeputyPauseModule_SuperchainNotPaused.selector);
         deputyPauseModule.pause(
             SOME_VALID_NONCE,
-            makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey),
-            address(0)
+            address(0),
+            makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey)
         );
     }
 }

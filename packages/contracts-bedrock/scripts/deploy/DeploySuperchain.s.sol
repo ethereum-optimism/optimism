@@ -84,7 +84,6 @@ contract DeploySuperchainInput is BaseDeployIO {
     address internal _superchainProxyAdminOwner;
 
     // Other inputs.
-    uint256 internal _pauseExpiry;
     ProtocolVersion internal _recommendedProtocolVersion;
     ProtocolVersion internal _requiredProtocolVersion;
 
@@ -105,8 +104,6 @@ contract DeploySuperchainInput is BaseDeployIO {
         } else if (_sel == this.requiredProtocolVersion.selector) {
             require(_value != 0, "DeploySuperchainInput: cannot set null protocol version");
             _requiredProtocolVersion = ProtocolVersion.wrap(_value);
-        } else if (_sel == this.pauseExpiry.selector) {
-            _pauseExpiry = _value;
         } else {
             revert("DeploySuperchainInput: unknown selector");
         }
@@ -130,10 +127,6 @@ contract DeploySuperchainInput is BaseDeployIO {
     function guardian() public view returns (address) {
         require(_guardian != address(0), "DeploySuperchainInput: guardian not set");
         return _guardian;
-    }
-
-    function pauseExpiry() public view returns (uint256) {
-        return _pauseExpiry;
     }
 
     function requiredProtocolVersion() public view returns (ProtocolVersion) {
@@ -248,7 +241,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
             _offset: 0
         });
         require(superchainConfig.guardian() == _dsi.guardian(), "SUPCON-10");
-        require(superchainConfig.pauseExpiry() == _dsi.pauseExpiry(), "SUPCON-20");
 
         vm.startPrank(address(0));
         require(
@@ -384,7 +376,7 @@ contract DeploySuperchain is Script {
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(ISuperchainConfig.initialize, (guardian, _dsi.pauseExpiry()))
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian))
         );
         vm.stopBroadcast();
 

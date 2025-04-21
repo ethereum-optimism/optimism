@@ -115,14 +115,14 @@
         "type": "bytes32"
       },
       {
-        "internalType": "bytes",
-        "name": "_signature",
-        "type": "bytes"
-      },
-      {
         "internalType": "address",
         "name": "_identifier",
         "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_signature",
+        "type": "bytes"
       }
     ],
     "name": "pause",

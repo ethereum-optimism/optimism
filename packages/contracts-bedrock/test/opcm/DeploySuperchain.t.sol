@@ -130,7 +130,6 @@ contract DeploySuperchain_Test is Test {
     address defaultProxyAdminOwner = makeAddr("defaultProxyAdminOwner");
     address defaultProtocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address defaultGuardian = makeAddr("defaultGuardian");
-    uint256 defaultPauseExpiry = 6 * 30 * 24 * 60 * 60; // 6 months in seconds
     ProtocolVersion defaultRequiredProtocolVersion = ProtocolVersion.wrap(1);
     ProtocolVersion defaultRecommendedProtocolVersion = ProtocolVersion.wrap(2);
 
@@ -154,7 +153,6 @@ contract DeploySuperchain_Test is Test {
         address superchainProxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
         address protocolVersionsOwner = address(uint160(uint256(hash(_seed, 1))));
         address guardian = address(uint160(uint256(hash(_seed, 2))));
-        uint256 pauseExpiry = uint256(hash(_seed, 3));
         ProtocolVersion requiredProtocolVersion = ProtocolVersion.wrap(uint256(hash(_seed, 4)));
         ProtocolVersion recommendedProtocolVersion = ProtocolVersion.wrap(uint256(hash(_seed, 5)));
 
@@ -162,7 +160,6 @@ contract DeploySuperchain_Test is Test {
         dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
-        dsi.set(dsi.pauseExpiry.selector, pauseExpiry);
         dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.unwrap(requiredProtocolVersion));
         dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.unwrap(recommendedProtocolVersion));
 
@@ -173,7 +170,6 @@ contract DeploySuperchain_Test is Test {
         assertEq(address(dso.superchainProxyAdmin().owner()), superchainProxyAdminOwner, "100");
         assertEq(address(dso.protocolVersionsProxy().owner()), protocolVersionsOwner, "200");
         assertEq(address(dso.superchainConfigProxy().guardian()), guardian, "300");
-        assertEq(dso.superchainConfigProxy().pauseExpiry(), pauseExpiry, "400");
         assertEq(unwrap(dso.protocolVersionsProxy().required()), unwrap(requiredProtocolVersion), "500");
         assertEq(unwrap(dso.protocolVersionsProxy().recommended()), unwrap(recommendedProtocolVersion), "600");
 
@@ -199,7 +195,6 @@ contract DeploySuperchain_Test is Test {
         dsi.set(dsi.superchainProxyAdminOwner.selector, defaultProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, defaultProtocolVersionsOwner);
         dsi.set(dsi.guardian.selector, defaultGuardian);
-        dsi.set(dsi.pauseExpiry.selector, defaultPauseExpiry);
         dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.unwrap(defaultRequiredProtocolVersion));
         dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.unwrap(defaultRecommendedProtocolVersion));
 

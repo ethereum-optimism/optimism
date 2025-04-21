@@ -87,7 +87,7 @@ contract SetDisputeGameImpl_Test is Test {
         Proxy supConfigProxy = new Proxy(address(1));
         vm.prank(address(1));
         supConfigProxy.upgradeToAndCall(
-            address(supConfigImpl), abi.encodeCall(supConfigImpl.initialize, (address(this), 15778476))
+            address(supConfigImpl), abi.encodeCall(supConfigImpl.initialize, (address(this)))
         );
 
         Proxy systemConfigProxy = new Proxy(address(1));

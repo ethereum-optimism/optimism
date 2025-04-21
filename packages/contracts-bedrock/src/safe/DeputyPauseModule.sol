@@ -139,9 +139,9 @@ contract DeputyPauseModule is ISemver, EIP712 {
     ///         the arguments necessary to call `pause()` on the SuperchainConfig.
     ///         Front-running this function is completely safe, it'll pause either way.
     /// @param _nonce Signature nonce.
-    /// @param _signature ECDSA signature.
     /// @param _identifier The identifier to pause in the SuperchainConfig.
-    function pause(bytes32 _nonce, bytes memory _signature, address _identifier) external {
+    /// @param _signature ECDSA signature.
+    function pause(bytes32 _nonce, address _identifier, bytes memory _signature) external {
         // Verify the signature.
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(PAUSE_MESSAGE_TYPEHASH, _nonce, _identifier)));
         if (ECDSA.recover(digest, _signature) != deputy) {

@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 
 // Libraries
@@ -12,7 +13,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 /// @custom:proxied true
 /// @title L1StandardBridge

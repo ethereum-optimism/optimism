@@ -14,7 +14,6 @@ contract DeploySuperchain2_Test is Test {
     address defaultProxyAdminOwner = makeAddr("defaultProxyAdminOwner");
     address defaultProtocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address defaultGuardian = makeAddr("defaultGuardian");
-    uint256 defaultPauseExpiry = 15778476;
     bytes32 defaultRequiredProtocolVersion = bytes32(uint256(1));
     bytes32 defaultRecommendedProtocolVersion = bytes32(uint256(2));
 
@@ -34,7 +33,6 @@ contract DeploySuperchain2_Test is Test {
         address _superchainProxyAdminOwner,
         address _protocolVersionsOwner,
         address _guardian,
-        uint256 _pauseExpiry,
         bytes32 _recommendedProtocolVersion,
         bytes32 _requiredProtocolVersion
     )
@@ -50,7 +48,6 @@ contract DeploySuperchain2_Test is Test {
             _guardian,
             _protocolVersionsOwner,
             _superchainProxyAdminOwner,
-            _pauseExpiry,
             _recommendedProtocolVersion,
             _requiredProtocolVersion
         );
@@ -62,7 +59,6 @@ contract DeploySuperchain2_Test is Test {
         assertEq(address(dso.superchainProxyAdmin.owner()), _superchainProxyAdminOwner, "100");
         assertEq(address(dso.protocolVersionsProxy.owner()), _protocolVersionsOwner, "200");
         assertEq(address(dso.superchainConfigProxy.guardian()), _guardian, "300");
-        assertEq(dso.superchainConfigProxy.pauseExpiry(), _pauseExpiry, "400");
         assertEq(unwrap(dso.protocolVersionsProxy.required()), _requiredProtocolVersion, "500");
         assertEq(unwrap(dso.protocolVersionsProxy.recommended()), _recommendedProtocolVersion, "600");
 
@@ -127,7 +123,6 @@ contract DeploySuperchain2_Test is Test {
             defaultGuardian,
             defaultProtocolVersionsOwner,
             defaultProxyAdminOwner,
-            defaultPauseExpiry,
             defaultRecommendedProtocolVersion,
             defaultRequiredProtocolVersion
         );

@@ -3,12 +3,14 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { Storage } from "src/libraries/Storage.sol";
 
 /// @custom:proxied true
 /// @custom:audit none This contracts is not yet audited.
@@ -17,7 +19,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 /// @dev WARNING: When upgrading this contract, any active pause states will be lost as the pause state
 ///      is stored in storage variables that are not preserved during upgrades. Therefore, this contract
 ///      should not be upgraded while the system is paused.
-contract SuperchainConfig is Initializable, ISemver {
+contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
     /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
     error SuperchainConfig_OnlyGuardian();
 
@@ -30,12 +32,13 @@ contract SuperchainConfig is Initializable, ISemver {
         GUARDIAN
     }
 
+    /// @notice The duration after which a pause expires. This value is set to exactly 3 months in
+    ///         seconds. Any duration longer than this value is incompatible with Stage 1.
+    uint256 internal constant PAUSE_EXPIRY = 7889238;
+
     /// @notice The address of the guardian, which can pause withdrawals from the System.
     ///         It can only be modified by an upgrade.
     address public guardian;
-
-    /// @notice The duration after which a pause expires
-    uint256 public pauseExpiry;
 
     /// @notice Mapping of pause identifiers to their pause timestamps
     mapping(address => uint256) public pauseTimestamps;
@@ -57,16 +60,35 @@ contract SuperchainConfig is Initializable, ISemver {
     string public constant version = "2.0.0";
 
     /// @notice Constructs the SuperchainConfig contract.
-    constructor() {
+    constructor() ReinitializableBase(2) {
         _disableInitializers();
     }
 
     /// @notice Initializer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
-    /// @param _pauseExpiry Duration in seconds after which a pause expires.
-    function initialize(address _guardian, uint256 _pauseExpiry) external initializer {
+    function initialize(address _guardian) external reinitializer(initVersion()) {
         _setGuardian(_guardian);
-        pauseExpiry = _pauseExpiry;
+    }
+
+    /// @notice Upgrades the SuperchainConfig contract.
+    function upgrade() external reinitializer(initVersion()) {
+        // Transfer the guardian into the new variable and clear the old storage slot.
+        bytes32 guardianSlot = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
+        _setGuardian(Storage.getAddress(guardianSlot));
+        Storage.setBytes32(guardianSlot, bytes32(0));
+
+        // Clear the old paused slot.
+        // Note that if the pause was active while the upgrade was happening, the system will no
+        // longer be paused after the upgrade. Upgrades should generally not ever be executed while
+        // the system is paused, but it's worth noting that this is the case.
+        bytes32 pausedSlot = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
+        Storage.setBytes32(pausedSlot, bytes32(0));
+    }
+
+    /// @notice Returns the duration after which a pause expires.
+    /// @return The duration after which a pause expires.
+    function pauseExpiry() external pure returns (uint256) {
+        return PAUSE_EXPIRY;
     }
 
     /// @notice Pauses the system for a specific identifier.
@@ -127,7 +149,7 @@ contract SuperchainConfig is Initializable, ISemver {
     function paused(address _identifier) public view returns (bool) {
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return false;
-        return block.timestamp < timestamp + pauseExpiry;
+        return block.timestamp < timestamp + PAUSE_EXPIRY;
     }
 
     /// @notice Gets the expiration timestamp for a specific pause identifier.
@@ -136,7 +158,7 @@ contract SuperchainConfig is Initializable, ISemver {
     function expiration(address _identifier) external view returns (uint256) {
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return 0;
-        return timestamp + pauseExpiry;
+        return timestamp + PAUSE_EXPIRY;
     }
 
     /// @notice Sets the guardian address. This is only callable during initialization, so an upgrade

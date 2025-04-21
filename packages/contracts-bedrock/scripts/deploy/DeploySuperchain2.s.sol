@@ -22,7 +22,6 @@ contract DeploySuperchain2 is Script {
         address protocolVersionsOwner;
         address superchainProxyAdminOwner;
         // Other inputs.
-        uint256 pauseExpiry;
         bytes32 recommendedProtocolVersion;
         bytes32 requiredProtocolVersion;
     }
@@ -39,7 +38,6 @@ contract DeploySuperchain2 is Script {
         address protocolVersionsOwner;
         address superchainProxyAdminOwner;
         // Other inputs.
-        uint256 pauseExpiry;
         ProtocolVersion recommendedProtocolVersion;
         ProtocolVersion requiredProtocolVersion;
     }
@@ -123,7 +121,6 @@ contract DeploySuperchain2 is Script {
 
     function deployAndInitializeSuperchainConfig(InternalInput memory _input, Output memory _output) private {
         address guardian = _input.guardian;
-        uint256 pauseExpiry = _input.pauseExpiry;
 
         IProxyAdmin superchainProxyAdmin = _output.superchainProxyAdmin;
         ISuperchainConfig superchainConfigImpl = _output.superchainConfigImpl;
@@ -140,7 +137,7 @@ contract DeploySuperchain2 is Script {
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(ISuperchainConfig.initialize, (guardian, pauseExpiry))
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian))
         );
         vm.stopBroadcast();
 
@@ -246,7 +243,6 @@ contract DeploySuperchain2 is Script {
             _offset: 0
         });
         require(superchainConfig.guardian() == _input.guardian, "SUPCON-10");
-        require(superchainConfig.pauseExpiry() == _input.pauseExpiry, "SUPCON-20");
 
         vm.startPrank(address(0));
         require(
@@ -261,7 +257,6 @@ contract DeploySuperchain2 is Script {
         // Implementation checks
         superchainConfig = _output.superchainConfigImpl;
         require(superchainConfig.guardian() == address(0), "SUPCON-50");
-        require(superchainConfig.pauseExpiry() == 0, "SUPCON-60");
     }
 
     function assertValidProtocolVersions(InternalInput memory _input, Output memory _output) internal {
@@ -294,7 +289,6 @@ contract DeploySuperchain2 is Script {
             _input.guardian,
             _input.protocolVersionsOwner,
             _input.superchainProxyAdminOwner,
-            _input.pauseExpiry,
             ProtocolVersion.wrap(uint256(_input.recommendedProtocolVersion)),
             ProtocolVersion.wrap(uint256(_input.requiredProtocolVersion))
         );

@@ -437,7 +437,6 @@ library ChainAssertions {
     function checkSuperchainConfig(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
-        uint256 _pauseExpiry,
         bool _isProxy
     )
         internal
@@ -461,10 +460,8 @@ library ChainAssertions {
 
         if (_isProxy) {
             require(superchainConfig.guardian() == _cfg.superchainConfigGuardian(), "CHECK-SC-20");
-            require(superchainConfig.pauseExpiry() == _pauseExpiry, "CHECK-SC-30");
         } else {
             require(superchainConfig.guardian() == address(0), "CHECK-SC-40");
-            require(superchainConfig.pauseExpiry() == 0, "CHECK-SC-50");
         }
     }
 

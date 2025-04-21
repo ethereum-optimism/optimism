@@ -45,7 +45,7 @@ interface IDeputyPauseModule is ISemver {
     function pauseMessageTypehash() external pure returns (bytes32 pauseMessageTypehash_);
     function deputyAuthMessageTypehash() external pure returns (bytes32 deputyAuthMessageTypehash_);
     function usedNonces(bytes32) external view returns (bool);
-    function pause(bytes32 _nonce, bytes memory _signature, address _identifier) external;
+    function pause(bytes32 _nonce, address _identifier, bytes memory _signature) external;
     function setDeputy(address _deputy, bytes memory _deputySignature) external;
     function eip712Domain()
         external
