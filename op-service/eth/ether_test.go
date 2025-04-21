@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -246,12 +247,39 @@ func TestEther(t *testing.T) {
 		})
 	})
 
-	t.Run("unmarshal", func(t *testing.T) {
+	t.Run("unmarshalText", func(t *testing.T) {
 		var x ETH
 		require.NoError(t, x.UnmarshalText([]byte("1234")))
 		require.Equal(t, "1,234 wei", x.String())
 		require.NoError(t, x.UnmarshalText([]byte("0xdeadbeef")))
 		require.Equal(t, "0xdeadbeef", x.Hex())
+	})
+
+	t.Run("unmarshalJSON", func(t *testing.T) {
+		var x ETH
+		// basic small unquoted value
+		require.NoError(t, x.UnmarshalJSON([]byte("1234")))
+		require.Equal(t, "1,234 wei", x.String())
+		// hex format is only allowed in strings
+		require.ErrorContains(t, x.UnmarshalJSON([]byte("0xdeadbeef")), "invalid")
+		// floats are not valid ETH inputs, even if round numbers
+		require.ErrorContains(t, x.UnmarshalJSON([]byte("1.0")), "invalid")
+		require.ErrorContains(t, x.UnmarshalJSON([]byte("1e18")), "invalid")
+		// negative should not work
+		require.ErrorContains(t, x.UnmarshalJSON([]byte("-1")), "invalid")
+		// Hex is fine when quoted
+		require.NoError(t, x.UnmarshalJSON([]byte("\"0xdeadbeef\"")))
+		require.Equal(t, WeiU64(0xdeadbeef), x)
+		// Decimals, without quotes, should work (cast doesn't add quotes to inputs)
+		require.NoError(t, x.UnmarshalJSON([]byte(OneEther.Decimal())))
+		require.Equal(t, OneEther, x)
+		require.NoError(t, x.UnmarshalJSON([]byte(MaxU256Wei.Decimal())))
+		require.Equal(t, MaxU256Wei, x)
+		// With quotes should also work
+		require.NoError(t, x.UnmarshalJSON([]byte(fmt.Sprintf("%q", OneEther.Decimal()))))
+		require.Equal(t, OneEther, x)
+		require.NoError(t, x.UnmarshalJSON([]byte(fmt.Sprintf("%q", MaxU256Wei.Decimal()))))
+		require.Equal(t, MaxU256Wei, x)
 	})
 
 	t.Run("marshal", func(t *testing.T) {

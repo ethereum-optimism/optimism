@@ -218,6 +218,13 @@ func (e *ETH) UnmarshalText(data []byte) error {
 	return (*uint256.Int)(e).UnmarshalText(data)
 }
 
+// UnmarshalJSON implements json.Unmarshaler. UnmarshalJSON accepts either
+// - Quoted string: either hexadecimal OR decimal
+// - Not quoted string: only decimal
+func (e *ETH) UnmarshalJSON(data []byte) error {
+	return (*uint256.Int)(e).UnmarshalJSON(data)
+}
+
 // MarshalText marshals as decimal number, without comma separators or unit
 func (e ETH) MarshalText() ([]byte, error) {
 	return (*uint256.Int)(&e).MarshalText()
