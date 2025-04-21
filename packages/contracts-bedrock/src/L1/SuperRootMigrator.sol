@@ -18,16 +18,16 @@ contract SuperRootMigrator {
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    error InvalidOutput();
-    error InvalidHeaderRLP();
-    error InvalidGameStatus();
-    error TimestampMismatch();
-    error InvalidGameType();
-    error InvalidGameProxy();
-    error LengthMismatch();
-    error ChainIDsNotAscending();
-    error BlacklistedGame();
-    error MissingAnchorStateRegistry();
+    error SuperRootMigrator_InvalidOutput();
+    error SuperRootMigrator_InvalidHeaderRLP();
+    error SuperRootMigrator_InvalidGameStatus();
+    error SuperRootMigrator_TimestampMismatch();
+    error SuperRootMigrator_InvalidGameType();
+    error SuperRootMigrator_InvalidGameProxy();
+    error SuperRootMigrator_LengthMismatch();
+    error SuperRootMigrator_ChainIDsNotAscending();
+    error SuperRootMigrator_BlacklistedGame();
+    error SuperRootMigrator_MissingAnchorStateRegistry();
 
     /*//////////////////////////////////////////////////////////////
                                CONSTANTS
@@ -51,13 +51,13 @@ contract SuperRootMigrator {
         uint256[] memory _chainIDs
     ) {
         if (_gameFactories.length != _chainIDs.length || _gameFactories.length != _anchorStateRegistries.length) {
-            revert LengthMismatch();
+            revert SuperRootMigrator_LengthMismatch();
         }
 
         // Verify that chainIDs are in ascending order per doc
         for (uint256 i = 1; i < _chainIDs.length; i++) {
             if (_chainIDs[i] <= _chainIDs[i - 1]) {
-                revert ChainIDsNotAscending();
+                revert SuperRootMigrator_ChainIDsNotAscending();
             }
         }
 
@@ -87,7 +87,7 @@ contract SuperRootMigrator {
     {
         uint256 chainCount = gameFactories.length;
         if (_gameIdxs.length != chainCount) {
-            revert LengthMismatch();
+            revert SuperRootMigrator_LengthMismatch();
         }
         /// TODO: should this be in the loop based on the game? implies that this contract can only migrate factories
         /// with games at the same timestamp?
@@ -96,29 +96,29 @@ contract SuperRootMigrator {
         for (uint256 i = 0; i < chainCount; i++) {
             (,, IDisputeGame game) = gameFactories[i].gameAtIndex(_gameIdxs[i]);
             if (address(game) == address(0)) {
-                revert InvalidGameProxy();
+                revert SuperRootMigrator_InvalidGameProxy();
             }
             // Fetch the ASR for the specific chain
             IAnchorStateRegistry asr = anchorStateRegistries[chainIDs[i]];
             if (address(asr) == address(0)) {
-                revert MissingAnchorStateRegistry();
+                revert SuperRootMigrator_MissingAnchorStateRegistry();
             }
             if (asr.isGameBlacklisted(game)) {
-                revert BlacklistedGame();
+                revert SuperRootMigrator_BlacklistedGame();
             }
             if (!game.wasRespectedGameTypeWhenCreated()) {
-                revert InvalidGameType();
+                revert SuperRootMigrator_InvalidGameType();
             }
             if (game.status() != GameStatus.DEFENDER_WINS) {
-                revert InvalidGameStatus();
+                revert SuperRootMigrator_InvalidGameStatus();
             }
 
             bytes32 outputRoot = game.rootClaim().raw();
             if (Hashing.hashOutputRootProof(_outputs[i]) != outputRoot) {
-                revert InvalidOutput();
+                revert SuperRootMigrator_InvalidOutput();
             }
             if (keccak256(_headerRLP[i]) != _outputs[i].latestBlockhash) {
-                revert InvalidHeaderRLP();
+                revert SuperRootMigrator_InvalidHeaderRLP();
             }
 
             // Decode the header RLP to find the number of the block. In the consensus encoding, the timestamp
@@ -128,7 +128,7 @@ contract SuperRootMigrator {
 
             // Sanity check the block number string length.
             if (rawTimestamp.length > 32) {
-                revert InvalidHeaderRLP();
+                revert SuperRootMigrator_InvalidHeaderRLP();
             }
 
             // Convert the raw, left-aligned timestamp to a uint256 by aligning it as a big-endian
@@ -141,7 +141,7 @@ contract SuperRootMigrator {
                 blockTimestamp := shr(shl(0x03, sub(0x20, mload(rawTimestamp))), mload(add(rawTimestamp, 0x20)))
             }
             if (i != 0 && blockTimestamp != expectedTimestamp) {
-                revert TimestampMismatch();
+                revert SuperRootMigrator_TimestampMismatch();
             }
             chainData = abi.encodePacked(chainData, chainIDs[i], outputRoot);
         }
