@@ -24,7 +24,7 @@ func TestService(t *testing.T) {
 		Faucets: &fconf.Config{},
 		MetricsConfig: opmetrics.CLIConfig{
 			Enabled:    true,
-			ListenAddr: "127.0.01",
+			ListenAddr: "127.0.0.1",
 			ListenPort: 0,
 		},
 		RPC: oprpc.CLIConfig{
