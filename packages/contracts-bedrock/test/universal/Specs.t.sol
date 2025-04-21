@@ -315,7 +315,8 @@ contract Specification_Test is CommonTest {
 
         // SuperchainConfig
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("guardian()") });
-        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("initialize(address,uint256)") });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("initialize(address)") });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("upgrade()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("pause(address)"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("paused(address)") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("unpause(address)"), _auth: Role.GUARDIAN });
@@ -324,6 +325,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("expiration(address)") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("pauseTimestamps(address)") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("pauseExpiry()") });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("initVersion()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("extend(address)"), _auth: Role.GUARDIAN });
 
         // SystemConfig
