@@ -85,11 +85,11 @@ where
         tx: Recovered<OpTransactionSigned>,
         tx_info: TransactionInfo,
     ) -> Result<Self::Transaction, Self::Error> {
-        let tx = tx.convert::<OpTxEnvelope>();
+        let mut tx = tx.convert::<OpTxEnvelope>();
         let mut deposit_receipt_version = None;
         let mut deposit_nonce = None;
 
-        if tx.is_deposit() {
+        if let OpTxEnvelope::Deposit(tx) = tx.inner_mut() {
             // for depost tx we need to fetch the receipt
             self.inner
                 .eth_api
@@ -102,6 +102,12 @@ where
                         deposit_nonce = receipt.deposit_nonce;
                     }
                 });
+
+            // For consistency with op-geth, we always return `0x0` for mint if it is
+            // missing This is because op-geth does not distinguish
+            // between null and 0, because this value is decoded from RLP where null is
+            // represented as 0
+            tx.inner_mut().mint = Some(tx.mint.unwrap_or_default());
         }
 
         let TransactionInfo {
