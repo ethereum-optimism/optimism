@@ -21,6 +21,7 @@ const (
 	L1ContractsReleaseFlagName              = "l1-contracts-release"
 	ProtocolVersionsOwnerFlagName           = "protocol-versions-owner"
 	GuardianFlagName                        = "guardian"
+	PausedFlagName                          = "paused"
 	RequiredProtocolVersionFlagName         = "required-protocol-version"
 	RecommendedProtocolVersionFlagName      = "recommended-protocol-version"
 )
@@ -91,6 +92,11 @@ var (
 		Usage:   "Guardian address",
 		EnvVars: deployer.PrefixEnvVar("GUARDIAN"),
 		Value:   common.Address{}.Hex(),
+	}
+	PausedFlag = &cli.BoolFlag{
+		Name:    PausedFlagName,
+		Usage:   "Initial paused state",
+		EnvVars: deployer.PrefixEnvVar("PAUSED"),
 	}
 	RequiredProtocolVersionFlag = &cli.StringFlag{
 		Name:    RequiredProtocolVersionFlagName,
@@ -168,6 +174,7 @@ var SuperchainFlags = []cli.Flag{
 	SuperchainProxyAdminOwnerFlag,
 	ProtocolVersionsOwnerFlag,
 	GuardianFlag,
+	PausedFlag,
 	RequiredProtocolVersionFlag,
 	RecommendedProtocolVersionFlag,
 }

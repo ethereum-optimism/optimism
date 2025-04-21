@@ -16,6 +16,7 @@ type DeploySuperchainInput struct {
 	SuperchainProxyAdminOwner  common.Address         `toml:"superchainProxyAdminOwner"`
 	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
 	Guardian                   common.Address         `toml:"guardian"`
+	Paused                     bool                   `toml:"paused"`
 	RequiredProtocolVersion    params.ProtocolVersion `toml:"requiredProtocolVersion"`
 	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
 }

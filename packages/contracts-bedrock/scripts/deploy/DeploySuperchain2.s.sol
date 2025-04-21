@@ -22,6 +22,7 @@ contract DeploySuperchain2 is Script {
         address protocolVersionsOwner;
         address superchainProxyAdminOwner;
         // Other inputs.
+        bool paused;
         bytes32 recommendedProtocolVersion;
         bytes32 requiredProtocolVersion;
     }
@@ -38,6 +39,7 @@ contract DeploySuperchain2 is Script {
         address protocolVersionsOwner;
         address superchainProxyAdminOwner;
         // Other inputs.
+        bool paused;
         ProtocolVersion recommendedProtocolVersion;
         ProtocolVersion requiredProtocolVersion;
     }
@@ -289,6 +291,7 @@ contract DeploySuperchain2 is Script {
             _input.guardian,
             _input.protocolVersionsOwner,
             _input.superchainProxyAdminOwner,
+            _input.paused,
             ProtocolVersion.wrap(uint256(_input.recommendedProtocolVersion)),
             ProtocolVersion.wrap(uint256(_input.requiredProtocolVersion))
         );

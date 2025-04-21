@@ -26,6 +26,7 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 			Guardian:                   common.BigToAddress(big.NewInt(1)),
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
+			Paused:                     true,
 			RecommendedProtocolVersion: params.ProtocolVersion{1},
 			RequiredProtocolVersion:    params.ProtocolVersion{2},
 		})
@@ -43,6 +44,7 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 			Guardian:                   common.BigToAddress(big.NewInt(1)),
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
+			Paused:                     true,
 			RecommendedProtocolVersion: params.ProtocolVersion{1},
 			RequiredProtocolVersion:    params.ProtocolVersion{2},
 		})

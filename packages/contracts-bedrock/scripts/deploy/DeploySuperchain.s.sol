@@ -84,6 +84,7 @@ contract DeploySuperchainInput is BaseDeployIO {
     address internal _superchainProxyAdminOwner;
 
     // Other inputs.
+    bool internal _paused;
     ProtocolVersion internal _recommendedProtocolVersion;
     ProtocolVersion internal _requiredProtocolVersion;
 
@@ -97,16 +98,16 @@ contract DeploySuperchainInput is BaseDeployIO {
         else revert("DeploySuperchainInput: unknown selector");
     }
 
-    function set(bytes4 _sel, uint256 _value) public {
-        if (_sel == this.recommendedProtocolVersion.selector) {
-            require(_value != 0, "DeploySuperchainInput: cannot set null protocol version");
-            _recommendedProtocolVersion = ProtocolVersion.wrap(_value);
-        } else if (_sel == this.requiredProtocolVersion.selector) {
-            require(_value != 0, "DeploySuperchainInput: cannot set null protocol version");
-            _requiredProtocolVersion = ProtocolVersion.wrap(_value);
-        } else {
-            revert("DeploySuperchainInput: unknown selector");
-        }
+    function set(bytes4 _sel, bool _value) public {
+        if (_sel == this.paused.selector) _paused = _value;
+        else revert("DeploySuperchainInput: unknown selector");
+    }
+
+    function set(bytes4 _sel, ProtocolVersion _value) public {
+        require(ProtocolVersion.unwrap(_value) != 0, "DeploySuperchainInput: cannot set null protocol version");
+        if (_sel == this.recommendedProtocolVersion.selector) _recommendedProtocolVersion = _value;
+        else if (_sel == this.requiredProtocolVersion.selector) _requiredProtocolVersion = _value;
+        else revert("DeploySuperchainInput: unknown selector");
     }
 
     // Each input field is exposed via it's own getter method. Using public storage variables here
@@ -127,6 +128,13 @@ contract DeploySuperchainInput is BaseDeployIO {
     function guardian() public view returns (address) {
         require(_guardian != address(0), "DeploySuperchainInput: guardian not set");
         return _guardian;
+    }
+
+    /// @dev Paused input is unused in the deploy script, but is kept to minimize the changes
+    ///      needed to the existing deploy pipeline. Value will be ignored as of U16. May be
+    ///      removed entirely in another PR before U16 is released.
+    function paused() public view returns (bool) {
+        return _paused;
     }
 
     function requiredProtocolVersion() public view returns (ProtocolVersion) {
@@ -252,7 +260,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
         // Implementation checks
         superchainConfig = superchainConfigImpl();
         require(superchainConfig.guardian() == address(0), "SUPCON-50");
-        require(superchainConfig.paused(address(0)) == false, "SUPCON-60");
     }
 
     function assertValidProtocolVersions(DeploySuperchainInput _dsi) internal {
