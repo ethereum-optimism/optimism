@@ -6,7 +6,7 @@ import (
 )
 
 // backwards compatibility
-var NamespaceRPC = sources.NamespaceRPC
+var NamespaceRPC = sources.P2PNamespaceRPC
 
 type API = apis.P2PClient
 type PeerInfo = apis.PeerInfo
