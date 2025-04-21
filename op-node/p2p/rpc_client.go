@@ -10,6 +10,7 @@ type Client struct {
 	c sources.P2PClient
 }
 
+// Legacy for supporting backwards compatibility
 func NewClient(c *rpc.Client) *Client {
 	return &Client{c: *sources.NewP2PClient(client.NewBaseRPCClient(c))}
 }
