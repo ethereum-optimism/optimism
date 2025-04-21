@@ -12,9 +12,9 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title L1ERC721Bridge

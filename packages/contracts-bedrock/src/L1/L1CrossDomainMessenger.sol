@@ -10,9 +10,9 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title L1CrossDomainMessenger

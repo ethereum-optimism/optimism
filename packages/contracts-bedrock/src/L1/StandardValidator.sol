@@ -187,7 +187,7 @@ contract StandardValidatorBase {
         _errors = internalRequire(outputConfig.systemTxMaxGas == 1_000_000, "SYSCON-80", _errors);
         _errors = internalRequire(outputConfig.minimumBaseFee == 1 gwei, "SYSCON-90", _errors);
         _errors = internalRequire(outputConfig.maximumBaseFee == type(uint128).max, "SYSCON-100", _errors);
-        //PEP: _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-110", _errors);
+        _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-110", _errors);
         return _errors;
     }
 
