@@ -1371,7 +1371,11 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         emit WithdrawalFinalized(_withdrawalHash, false);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
 
-        assert(address(bob).balance == bobBalanceBefore);
+        // Bob's balance should not have changed.
+        assertEq(address(bob).balance, bobBalanceBefore);
+
+        // OptimismPortal2 should not have any stuck ETH.
+        assertEq(address(optimismPortal2).balance, 0);
     }
 
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the withdrawal has already been
@@ -1590,7 +1594,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
                 && uint160(_target) > 9 // No precompiles (or zero address)
         );
 
-        // Bound to prevent changes in respectedGameTypeUpdatedAt
+        // Bound to prevent changes in retirementTimestamp
         _newGameType = GameType.wrap(uint32(bound(_newGameType.raw(), 0, type(uint32).max - 1)));
 
         // Total ETH supply is currently about 120M ETH.
@@ -1735,7 +1739,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Warp past the dispute game finality delay.
         vm.warp(block.timestamp + optimismPortal2.disputeGameFinalityDelaySeconds() + 1);
 
-        // Set respectedGameTypeUpdatedAt.
+        // Set retirement timestamp.
         vm.prank(optimismPortal2.guardian());
         anchorStateRegistry.updateRetirementTimestamp();
 

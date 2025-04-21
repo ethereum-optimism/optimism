@@ -493,11 +493,6 @@
   },
   {
     "inputs": [],
-    "name": "AnchorStateRegistry_AnchorGameBlacklisted",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "AnchorStateRegistry_InvalidAnchorGame",
     "type": "error"
   },

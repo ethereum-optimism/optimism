@@ -9,7 +9,6 @@ import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IAnchorStateRegistry {
-    error AnchorStateRegistry_AnchorGameBlacklisted();
     error AnchorStateRegistry_InvalidAnchorGame();
     error AnchorStateRegistry_Unauthorized();
 

@@ -1685,9 +1685,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.0.0
+    /// @custom:semver 2.0.1
     function version() public pure virtual returns (string memory) {
-        return "2.0.0";
+        return "2.0.1";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1839,6 +1839,8 @@ contract OPContractsManager is ISemver {
     /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
     /// @param _prestateUpdateInputs The new prestate hash to use
     function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) public {
+        if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
+
         bytes memory data = abi.encodeWithSelector(
             OPContractsManagerGameTypeAdder.updatePrestate.selector, _prestateUpdateInputs, superchainConfig
         );

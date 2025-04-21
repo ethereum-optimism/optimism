@@ -4,8 +4,8 @@
     "sourceCodeHash": "0xe772f7db8033e4a738850cb28ac4849d3a454c93732135a8a10d4f7cb498088e"
   },
   "src/L1/ETHLockbox.sol:ETHLockbox": {
-    "initCodeHash": "0x8d798ff57198a7275f4bdf6475cb008f7c835331378fa25aefd63dd2ab730a03",
-    "sourceCodeHash": "0x156a3fa0583e2d1c2bb469b6b784e797231a4ce310bd5063a8580ac73d537a18"
+    "initCodeHash": "0xf77e7b7a132ad5709fffbc8737759e1437db5a0ffec89da787ad5eeac508d64d",
+    "sourceCodeHash": "0x968b49f3c543a1676d840d5af21b337f082ed936d9a3d93c1fb4e2449bd414e4"
   },
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger": {
     "initCodeHash": "0x0f12146498d5d90648678a8182dfe9c1b48fa8d1bb75b9cae7be19c0e7a19c1e",
@@ -20,12 +20,12 @@
     "sourceCodeHash": "0xc1c4ef5d0e5e310d496b183307f0d5bf4bcae7adf94d774ec450b243f05e15a1"
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
-    "initCodeHash": "0x9ef5513f3351c5714aadd01cde998f657a08b6edb21f7a1cdefb1ebaa0b3ad73",
-    "sourceCodeHash": "0xe99a5c8071ab650bd16efe77ef581ae26238c2194e6f8f9a4e7b7faa7359f4a5"
+    "initCodeHash": "0x79ce06922146af2018e46e287076eef59286a5aa8776556c62f3aac536b01b8c",
+    "sourceCodeHash": "0x28c9ef682d58416e5c4379e2677b6b57f797a9c8dfd4482ba9bb386de46f2a55"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0x107c8c056ab5546c9cd079dd7132c3a3d60a139d4c4cb021071b09e4b49ccd27",
-    "sourceCodeHash": "0x13772015db03e8d46c1f23e54b3a84008a8e7f13f95f5812baf56a9183a48258"
+    "initCodeHash": "0x88a3e4e9d20d7a3b9d917975b0a1ebd061f39fdd51aeb72a0ba43c9cec881769",
+    "sourceCodeHash": "0x40a8f80652c73691d38c3dea737806fc3f6c2ba31a3b4fce967a22064c1dff79"
   },
   "src/L1/ProtocolVersions.sol:ProtocolVersions": {
     "initCodeHash": "0x5a76c8530cb24cf23d3baacc6eefaac226382af13f1e2a35535d2ec2b0573b29",
@@ -140,8 +140,8 @@
     "sourceCodeHash": "0x03c160168986ffc8d26a90c37366e7ad6da03f49d83449e1f8b3de0f4b590f6f"
   },
   "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry": {
-    "initCodeHash": "0x9d2d08caea429c165fd24c6d79ca3721705fe93dab746dba845b6740b6752bc0",
-    "sourceCodeHash": "0xc9422d3fd9cee8a331fab84e3bb19de7db8d9e684149e0c1f89cbdf68a0cda31"
+    "initCodeHash": "0x6afcd1aede56ab6f0d0b6f222b7f6141f9fa7dd09cc46f09e09d556815dc280e",
+    "sourceCodeHash": "0x53d2079d813ebaa11f28ba69a592047d8920967f15c0ec20d52ee2680c9b6db2"
   },
   "src/dispute/DelayedWETH.sol:DelayedWETH": {
     "initCodeHash": "0x6fb455d4c9d5d57135c19929b170f0d027edca31d478c33ddb88367a5d5652c2",

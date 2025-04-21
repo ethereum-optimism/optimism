@@ -66,6 +66,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     )
         external
         payable;
+    function disputeGameBlacklist(IDisputeGame _disputeGame) external view returns (bool);
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function donateETH() external payable;
