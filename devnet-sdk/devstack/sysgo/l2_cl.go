@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -268,8 +269,8 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 		p2pClient1, p2pClient2 := getP2PClient(l2CL1), getP2PClient(l2CL2)
 
 		// get peer info per L2CL
-		getPeerInfo := func(p2pClient *sources.P2PClient) *p2p.PeerInfo {
-			peerInfo, err := retry.Do(ctx, 3, retry.Exponential(), func() (*p2p.PeerInfo, error) {
+		getPeerInfo := func(p2pClient *sources.P2PClient) *apis.PeerInfo {
+			peerInfo, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerInfo, error) {
 				return p2pClient.Self(ctx)
 			})
 			require.NoError(err, "failed to get peer info")
@@ -290,15 +291,15 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 		connectPeer(p2pClient2, peer1MultiAddress)
 
 		// sanity check that peers are registered
-		getPeers := func(p2pClient *sources.P2PClient) *p2p.PeerDump {
-			peerDump, err := retry.Do(ctx, 3, retry.Exponential(), func() (*p2p.PeerDump, error) {
+		getPeers := func(p2pClient *sources.P2PClient) *apis.PeerDump {
+			peerDump, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerDump, error) {
 				return p2pClient.Peers(ctx, true)
 			})
 			require.NoError(err, "failed to get peers")
 			return peerDump
 		}
 		peerDump1, peerDump2 := getPeers(p2pClient1), getPeers(p2pClient2)
-		check := func(peerDump *p2p.PeerDump, peerInfo *p2p.PeerInfo) {
+		check := func(peerDump *apis.PeerDump, peerInfo *apis.PeerInfo) {
 			multiAddress := peerInfo.PeerID.String()
 			_, ok := peerDump.Peers[multiAddress]
 			require.True(ok, "peer register invalid")

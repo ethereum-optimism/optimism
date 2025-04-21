@@ -4,7 +4,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -16,7 +16,7 @@ type P2PClient struct {
 
 var NamespaceRPC = "opp2p"
 
-var _ p2p.API = (*P2PClient)(nil)
+var _ apis.P2PClient = (*P2PClient)(nil)
 
 func prefixRPC(method string) string {
 	return NamespaceRPC + "_" + method
@@ -28,20 +28,20 @@ func NewP2PClient(client client.RPC) *P2PClient {
 	}
 }
 
-func (pc *P2PClient) Self(ctx context.Context) (*p2p.PeerInfo, error) {
-	output := &p2p.PeerInfo{}
+func (pc *P2PClient) Self(ctx context.Context) (*apis.PeerInfo, error) {
+	output := &apis.PeerInfo{}
 	err := pc.client.CallContext(ctx, output, prefixRPC("self"))
 	return output, err
 }
 
-func (pc *P2PClient) Peers(ctx context.Context, connected bool) (*p2p.PeerDump, error) {
-	output := &p2p.PeerDump{}
+func (pc *P2PClient) Peers(ctx context.Context, connected bool) (*apis.PeerDump, error) {
+	output := &apis.PeerDump{}
 	err := pc.client.CallContext(ctx, &output, prefixRPC("peers"), connected)
 	return output, err
 }
 
-func (pc *P2PClient) PeerStats(ctx context.Context) (*p2p.PeerStats, error) {
-	output := &p2p.PeerStats{}
+func (pc *P2PClient) PeerStats(ctx context.Context) (*apis.PeerStats, error) {
+	output := &apis.PeerStats{}
 	err := pc.client.CallContext(ctx, output, prefixRPC("peerStats"))
 	return output, err
 }

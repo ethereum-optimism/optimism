@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
-	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
@@ -208,12 +207,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		return errors.Wrap(err, "failed to create node rpc client")
 	}
 	node := sources.NewRollupClient(nc)
-
-	pc, err := rpc.DialContext(ctx, c.cfg.NodeRPC)
-	if err != nil {
-		return errors.Wrap(err, "failed to create p2p rpc client")
-	}
-	p2p := opp2p.NewClient(pc)
+	p2p := sources.NewP2PClient(nc)
 
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
