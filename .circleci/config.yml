@@ -1853,6 +1853,7 @@ workflows:
             op-node
             op-proposer
             op-challenger
+            op-faucet
             op-dispute-mon
             op-conductor
             op-program
