@@ -45,6 +45,7 @@ type L2CLNode interface {
 	ID() L2CLNodeID
 
 	RollupAPI() apis.RollupClient
+	P2PAPI() apis.P2PClient
 
 	// ELs returns the engine(s) that this L2CLNode is connected to.
 	// This may be empty, if the L2CL is not connected to any.

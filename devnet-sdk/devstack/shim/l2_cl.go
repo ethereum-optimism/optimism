@@ -19,6 +19,7 @@ type rpcL2CLNode struct {
 	id           stack.L2CLNodeID
 	client       client.RPC
 	rollupClient apis.RollupClient
+	p2pClient    apis.P2PClient
 	els          locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
 }
 
@@ -32,6 +33,7 @@ func NewL2CLNode(cfg L2CLNodeConfig) stack.L2CLNode {
 		id:           cfg.ID,
 		client:       cfg.Client,
 		rollupClient: sources.NewRollupClient(cfg.Client),
+		p2pClient:    sources.NewP2PClient(cfg.Client),
 	}
 }
 
@@ -41,6 +43,10 @@ func (r *rpcL2CLNode) ID() stack.L2CLNodeID {
 
 func (r *rpcL2CLNode) RollupAPI() apis.RollupClient {
 	return r.rollupClient
+}
+
+func (r *rpcL2CLNode) P2PAPI() apis.P2PClient {
+	return r.p2pClient
 }
 
 func (r *rpcL2CLNode) LinkEL(el stack.L2ELNode) {
