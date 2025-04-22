@@ -1,0 +1,64 @@
+name: Documentation Issue
+description: Report missing, unclear, or incorrect documentation
+title: "[Docs]: "
+labels: ["A-docs", "C-documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to improve our documentation!
+
+  - type: dropdown
+    id: team
+    attributes:
+      label: Team
+      description: Which team would likely be responsible for this documentation?
+      options:
+        - Node (T-node)
+        - Protocol (T-protocol)
+        - Smart Contracts (T-smart-contracts)
+        - Platforms (T-platforms)
+        - Community (T-community)
+        - DevEx (T-devex)
+        - Not Sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Issue Type
+      description: What type of documentation issue is this?
+      options:
+        - Missing Documentation
+        - Unclear Documentation
+        - Incorrect Information
+        - Outdated Content
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the problematic documentation? Provide links if available.
+      placeholder: https://community.optimism.io/docs/...
+    validations:
+      required: false
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What's the issue?
+      description: Please describe the problem with the current documentation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: How would you improve this documentation?
+    validations:
+      required: false
