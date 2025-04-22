@@ -504,7 +504,6 @@ contract SystemConfig_Getters_Test is SystemConfig_Init {
     }
 
     /// @dev Tests that `paused()` returns the correct value after pausing.
-
     function test_paused_afterPause_succeeds() external {
         // Initially not paused
         assertFalse(systemConfig.paused());
