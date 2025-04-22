@@ -1,0 +1,175 @@
+name: Issue Form Labeler
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  apply-labels:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Apply Area Label
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body;
+
+            // Extract values from issue form
+            function getFormValue(name) {
+              const regex = new RegExp(`### ${name}\\s+([^\\n]+)`);
+              const match = body.match(regex);
+              return match ? match[1].trim() : null;
+            }
+
+            // Get area selection
+            const area = getFormValue('Area');
+            if (area) {
+              // Extract the area code from the selection
+              if (area.includes('Node')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-node']
+                });
+              } else if (area.includes('Batcher')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-batcher']
+                });
+              } else if (area.includes('Proposer')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-proposer']
+                });
+              } else if (area.includes('Challenger')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-challenger']
+                });
+              } else if (area.includes('Devnet')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-devnet']
+                });
+              } else if (area.includes('Smart Contracts')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-contracts']
+                });
+              } else if (area.includes('Operations')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-ops']
+                });
+              } else if (area.includes('Documentation')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['A-docs']
+                });
+              }
+            }
+
+            // Get team selection
+            const team = getFormValue('Team');
+            if (team) {
+              if (team.includes('Node')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['T-node']
+                });
+              } else if (team.includes('Protocol')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['T-protocol']
+                });
+              } else if (team.includes('Smart Contracts')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['T-smart-contracts']
+                });
+              } else if (team.includes('Platforms')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['T-platforms']
+                });
+              } else if (team.includes('Community')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['T-community']
+                });
+              } else if (team.includes('DevEx')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['T-devex']
+                });
+              }
+            }
+
+            // Add impact label for feature requests
+            const impact = getFormValue('Community Impact');
+            if (impact) {
+              if (impact.includes('High')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['M-high-impact']
+                });
+              } else if (impact.includes('Medium')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['M-medium-impact']
+                });
+              } else if (impact.includes('Low')) {
+                await github.rest.issues.addLabels({
+                  issue_number: issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['M-low-impact']
+                });
+              }
+            }
+
+            // Add complexity label for feature requests
+            const complexity = getFormValue('Implementation Complexity');
+            if (complexity && complexity.includes('Simple')) {
+              await github.rest.issues.addLabels({
+                issue_number: issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ['C-good first issue', 'help wanted']
+              });
+            }
