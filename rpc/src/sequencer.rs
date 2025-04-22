@@ -90,7 +90,7 @@ impl SequencerClient {
     }
 
     /// Sends a [`alloy_rpc_client::RpcCall`] request to the sequencer endpoint.
-    async fn send_rpc_call<Params: RpcSend, Resp: RpcRecv>(
+    pub async fn request<Params: RpcSend, Resp: RpcRecv>(
         &self,
         method: &str,
         params: Params,
@@ -112,7 +112,7 @@ impl SequencerClient {
     pub async fn forward_raw_transaction(&self, tx: &[u8]) -> Result<B256, SequencerClientError> {
         let rlp_hex = hex::encode_prefixed(tx);
         let tx_hash =
-            self.send_rpc_call("eth_sendRawTransaction", (rlp_hex,)).await.inspect_err(|err| {
+            self.request("eth_sendRawTransaction", (rlp_hex,)).await.inspect_err(|err| {
                 warn!(
                     target: "rpc::eth",
                     %err,
@@ -131,7 +131,7 @@ impl SequencerClient {
     ) -> Result<B256, SequencerClientError> {
         let rlp_hex = hex::encode_prefixed(tx);
         let tx_hash = self
-            .send_rpc_call("eth_sendRawTransactionConditional", (rlp_hex, condition))
+            .request("eth_sendRawTransactionConditional", (rlp_hex, condition))
             .await
             .inspect_err(|err| {
                 warn!(
