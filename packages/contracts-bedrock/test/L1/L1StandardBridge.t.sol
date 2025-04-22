@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -730,5 +731,58 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is CommonTest {
         vm.prank(messenger);
         vm.expectRevert("StandardBridge: cannot send to messenger");
         l1StandardBridge.finalizeBridgeETH{ value: 100 }(alice, messenger, 100, hex"");
+    }
+}
+
+/// @title L1StandardBridge_upgrade_Test
+/// @notice Reusable test for the current upgrade() function in the L1StandardBridge contract. If
+///         the upgrade() function is changed, tests inside of this contract should be updated to
+///         reflect the new function. If the upgrade() function is removed, remove the
+///         corresponding tests but leave this contract in place so it's easy to add tests back
+///         in the future.
+contract L1StandardBridge_Upgrade_Test is CommonTest {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial systemConfig slot is non-zero.
+        StorageSlot memory systemConfigSlot = ForgeArtifacts.getSlot("L1StandardBridge", "systemConfig");
+        vm.store(address(l1StandardBridge), bytes32(systemConfigSlot.slot), bytes32(uint256(1)));
+        assertNotEq(address(l1StandardBridge.systemConfig()), address(0));
+        assertNotEq(vm.load(address(l1StandardBridge), bytes32(systemConfigSlot.slot)), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger upgrade().
+        l1StandardBridge.upgrade(newSystemConfig);
+
+        // Verify that the systemConfig was updated.
+        assertEq(address(l1StandardBridge.systemConfig()), address(newSystemConfig));
+
+        // Verify that the spacer was cleared.
+        StorageSlot memory spacerSlot = ForgeArtifacts.getSlot("L1StandardBridge", "spacer_50_0_20");
+        assertEq(vm.load(address(l1StandardBridge), bytes32(spacerSlot.slot)), bytes32(0));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger first upgrade.
+        l1StandardBridge.upgrade(newSystemConfig);
+
+        // Try to trigger second upgrade.
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1StandardBridge.upgrade(newSystemConfig);
     }
 }

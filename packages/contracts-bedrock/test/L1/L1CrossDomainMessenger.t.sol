@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter, GasBurner } from "test/mocks/Callers.sol";
 import { stdError } from "forge-std/StdError.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -946,5 +947,59 @@ contract L1CrossDomainMessenger_ReinitReentryTest is CommonTest {
         assertEq(address(this).balance, balanceBeforeThis);
         // The balance of the messenger contract is unchanged.
         assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
+    }
+}
+
+/// @title L1CrossDomainMessenger_upgrade_Test
+/// @notice Reusable test for the current upgrade() function in the L1CrossDomainMessenger contract. If
+///         the upgrade() function is changed, tests inside of this contract should be updated to
+///         reflect the new function. If the upgrade() function is removed, remove the
+///         corresponding tests but leave this contract in place so it's easy to add tests back
+///         in the future.
+contract L1CrossDomainMessenger_Upgrade_Test is CommonTest {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initial.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial systemConfig slot is non-zero.
+        StorageSlot memory systemConfigSlot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "systemConfig");
+        vm.store(address(l1CrossDomainMessenger), bytes32(systemConfigSlot.slot), bytes32(uint256(1)));
+        assertNotEq(address(l1CrossDomainMessenger.systemConfig()), address(0));
+        assertNotEq(vm.load(address(l1CrossDomainMessenger), bytes32(systemConfigSlot.slot)), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger upgrade().
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+
+        // Verify that the systemConfig was updated.
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(newSystemConfig));
+
+        // Verify that the spacer was cleared.
+        StorageSlot memory spacerSlot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "spacer_251_0_20");
+        assertEq(vm.load(address(l1CrossDomainMessenger), bytes32(spacerSlot.slot)), bytes32(0));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Create a new SystemConfig contract
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger first upgrade.
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+
+        // Try to trigger second upgrade.
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
     }
 }

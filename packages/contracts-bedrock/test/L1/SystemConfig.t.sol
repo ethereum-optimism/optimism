@@ -487,13 +487,46 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     }
 }
 
+contract SystemConfig_Getters_Test is SystemConfig_Init {
+    /// @dev Tests that `superchainConfig()` returns the correct address.
+    function test_superchainConfig_succeeds() external view {
+        assertEq(address(systemConfig.superchainConfig()), address(superchainConfig));
+    }
+
+    /// @dev Tests that `guardian()` returns the correct address.
+    function test_guardian_succeeds() external view {
+        assertEq(systemConfig.guardian(), superchainConfig.guardian());
+    }
+
+    /// @dev Tests that `paused()` returns the correct value.
+    function test_paused_succeeds() external view {
+        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
+    }
+
+    /// @dev Tests that `paused()` returns the correct value after pausing.
+
+    function test_paused_afterPause_succeeds() external {
+        // Initially not paused
+        assertFalse(systemConfig.paused());
+        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
+
+        // Pause the system
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        // Verify paused state
+        assertTrue(systemConfig.paused());
+        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
+    }
+}
+
 /// @title SystemConfig_upgrade_Test
 /// @notice Reusable test for the current upgrade() function in the SystemConfig contract. If
 ///         the upgrade() function is changed, tests inside of this contract should be updated to
 ///         reflect the new function. If the upgrade() function is removed, remove the
 ///         corresponding tests but leave this contract in place so it's easy to add tests back
 ///         in the future.
-contract SystemConfig_upgrade_Test is SystemConfig_Init {
+contract SystemConfig_Upgrade_Test is SystemConfig_Init {
     /// @notice Tests that the upgrade() function succeeds.
     function test_upgrade_succeeds() external {
         // Get the slot for _initialized.
