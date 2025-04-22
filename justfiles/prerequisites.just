@@ -35,6 +35,7 @@ _check_mise:
         else
             echo "Please install mise and ensure it's properly configured"
             echo "Visit https://mise.jdx.dev/getting-started.html for installation instructions"
+            return
         fi
     fi
 
@@ -45,7 +46,14 @@ _check_mise:
             mise activate >/dev/null
         else
             echo "Please run 'mise activate' first to activate the mise environment"
+            return
         fi
+    fi
+
+    if [ "$RUN_AUTOFIX" = "true" ]; then
+        echo "Automatically running mise doctor..."
+        # This will exit if mise is outdated, so better run it only if AUTOFIX is true
+        mise doctor --silent
     fi
 
     if mise ls | grep -q "outdated"; then
