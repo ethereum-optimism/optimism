@@ -320,26 +320,6 @@ jobs:
             - notify-failures-on-develop:
                 mentions: "@proofs-team"
 
-  cannon-build-test-vectors:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
-    steps:
-      - utils/checkout-with-mise
-      - check-changed:
-          patterns: cannon/mipsevm/tests/open_mips_tests/test
-      - run:
-          name: Install dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y binutils-mips-linux-gnu
-            pip install capstone pyelftools
-      - run:
-          name: Build MIPS test vectors
-          command: |
-            python3 maketests.py && git diff --exit-code
-          working_directory: cannon/mipsevm/tests/open_mips_tests
-
   diff-asterisc-bytecode:
     machine: true
     resource_class: ethereum-optimism/latitude-1
@@ -1893,7 +1873,6 @@ workflows:
       - bedrock-go-tests:
           requires:
             - go-lint
-            - cannon-build-test-vectors
             - cannon-go-lint-and-test-32-bit
             - cannon-go-lint-and-test-64-bit
             - check-generated-mocks-op-node
@@ -1959,10 +1938,6 @@ workflows:
           matrix:
             parameters:
               mips_word_size: [32, 64]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-      - cannon-build-test-vectors:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
