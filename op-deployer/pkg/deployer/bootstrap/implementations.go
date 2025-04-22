@@ -75,8 +75,8 @@ func (c *ImplementationsConfig) Check() error {
 	} else {
 		c.L1ContractsRelease = "dev"
 	}
-	if c.MIPSVersion != 1 && c.MIPSVersion != 2 {
-		return errors.New("MIPS version must be specified as either 1 or 2")
+	if c.MIPSVersion != 1 && c.MIPSVersion != 6 {
+		return errors.New("MIPS version must be specified as either 1 or 6")
 	}
 	if c.WithdrawalDelaySeconds == 0 {
 		return errors.New("withdrawal delay in seconds must be specified")

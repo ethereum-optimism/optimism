@@ -25,7 +25,7 @@ const (
 	ChallengePeriodSeconds          uint64 = 86400
 	ProofMaturityDelaySeconds       uint64 = 604800
 	DisputeGameFinalityDelaySeconds uint64 = 302400
-	MIPSVersion                     uint64 = 2
+	MIPSVersion                     uint64 = 6
 	DisputeGameType                 uint32 = 1 // PERMISSIONED game type
 	DisputeMaxGameDepth             uint64 = 73
 	DisputeSplitDepth               uint64 = 30
