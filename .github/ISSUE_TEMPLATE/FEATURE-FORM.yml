@@ -1,0 +1,102 @@
+name: Feature Request
+description: Suggest an idea for this project
+title: "[Feature]: "
+labels: ["C-feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature!
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: What area of the Optimism stack is this feature related to?
+      options:
+        - Node (op-node)
+        - Batcher (op-batcher)
+        - Proposer (op-proposer)
+        - Challenger (op-challenger)
+        - Devnet
+        - Smart Contracts
+        - Operations (ops)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: team
+    attributes:
+      label: Team
+      description: Which team would likely be responsible for this?
+      options:
+        - Node (T-node)
+        - Protocol (T-protocol)
+        - Smart Contracts (T-smart-contracts)
+        - Platforms (T-platforms)
+        - Community (T-community)
+        - DevEx (T-devex)
+        - Not Sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Community Impact
+      description: What's the potential impact of this feature for the community?
+      options:
+        - High (M-high-impact)
+        - Medium (M-medium-impact)
+        - Low (M-low-impact)
+        - Not Sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Implementation Complexity
+      description: How complex do you think this feature would be to implement?
+      options:
+        - Simple (C-good first issue)
+        - Moderate
+        - Complex
+        - Not Sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem?
+      description: A clear and concise description of what the problem is.
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the solution you'd like
+      description: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Describe alternatives you've considered
+      description: A clear and concise description of any alternative solutions or features you've considered.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the feature request here.
+    validations:
+      required: false
