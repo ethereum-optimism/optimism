@@ -863,7 +863,7 @@ contract OPContractsManager_TestInit is Test {
     IOPContractsManager.DeployOutput internal chainDeployOutput2;
 
     function setUp() public virtual {
-        ISuperchainConfig superchainConfig = ISuperchainConfig(makeAddr("superchainConfig"));
+        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
         bytes32 salt = hex"01";
@@ -944,7 +944,7 @@ contract OPContractsManager_TestInit is Test {
             })
         });
 
-        vm.etch(address(superchainConfig), hex"01");
+        vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         IOPContractsManagerContractsContainer container = IOPContractsManagerContractsContainer(
@@ -1000,7 +1000,7 @@ contract OPContractsManager_TestInit is Test {
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
                             ),
-                            ISuperchainConfig(superchainConfig),
+                            superchainConfigProxy,
                             protocolVersionsProxy,
                             superchainProxyAdmin,
                             "dev",
@@ -1673,8 +1673,8 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         );
     }
 
-    /// @notice Tests that the migration function reverts when the SystemConfig addresses are mismatched.
-    function test_migrate_mismatchedSystemConfig_reverts() public {
+    /// @notice Tests that the migration function reverts when the SuperchainConfig addresses are mismatched.
+    function test_migrate_mismatchedSuperchainConfig_reverts() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
         // Mock out the SuperchainConfig addresses to be different.

@@ -2077,8 +2077,11 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         // Prevent overflow on an upgrade context
         _balance = bound(_balance, 0, type(uint256).max - address(ethLockbox).balance);
 
-        // Set the initialize state of the portal to false.
-        vm.store(address(optimismPortal2), bytes32(uint256(0)), bytes32(uint256(0)));
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
 
         // Set the balance of the portal and get the lockbox balance before the upgrade.
         deal(address(optimismPortal2), _balance);
@@ -2092,6 +2095,10 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         optimismPortal2.upgrade(
             IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox), ISystemConfig(_newSystemConfig)
         );
+
+        // Verify that the initialized slot was updated.
+        bytes32 initializedSlotAfter = vm.load(address(optimismPortal2), bytes32(slot.slot));
+        assertEq(initializedSlotAfter, bytes32(uint256(2)));
 
         // Assert the portal is properly upgraded.
         assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
@@ -2139,6 +2146,9 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         // Slot value should be set to 2 (already initialized).
         bytes32 initializedSlotBefore = vm.load(address(optimismPortal2), bytes32(slot.slot));
         assertEq(initializedSlotBefore, bytes32(uint256(2)));
+
+        // AnchorStateRegistry address should be non-zero.
+        assertNotEq(address(optimismPortal2.anchorStateRegistry()), address(0));
 
         // SystemConfig address should be non-zero.
         assertNotEq(address(optimismPortal2.systemConfig()), address(0));

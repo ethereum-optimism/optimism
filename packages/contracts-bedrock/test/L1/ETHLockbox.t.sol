@@ -335,6 +335,28 @@ contract ETHLockboxTest is CommonTest {
         ethLockbox.authorizePortal(_portal);
     }
 
+    /// @notice Tests the authorizePortal function reverts when the portal has a different
+    ///         SuperchainConfig than the one configured in the lockbox.
+    /// @param _portal The portal to authorize.
+    function testFuzz_authorizePortal_differentSuperchainConfig_reverts(IOptimismPortal2 _portal) public {
+        assumeNotForgeAddress(address(_portal));
+
+        // Mock the portal to have the right proxyAdminOwner.
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+        );
+
+        // Mock the portal to have the wrong SuperchainConfig.
+        vm.mockCall(address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(address(0)));
+
+        // Expect the revert with `DifferentSuperchainConfig` selector
+        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentSuperchainConfig.selector);
+
+        // Call the `authorizePortal` function
+        vm.prank(proxyAdminOwner);
+        ethLockbox.authorizePortal(_portal);
+    }
+
     /// @notice Tests the `authorizeLockbox` function succeeds using the `optimismPortal2` address as the portal.
     function test_authorizePortal_succeeds() public {
         // Calculate the correct storage slot for the mapping value
