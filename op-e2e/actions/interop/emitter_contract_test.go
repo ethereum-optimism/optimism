@@ -45,7 +45,7 @@ func TestEmitterContract(gt *testing.T) {
 		actors = is.CreateActors()
 		aliceA = setupUser(t, is, actors.ChainA, 0)
 		aliceB = setupUser(t, is, actors.ChainB, 0)
-		actors.PrepareChainState(t)
+		actors.PrepareAndVerifyInitialState(t)
 		emitTx = initializeEmitterContractTest(t, aliceA, actors)
 	}
 
