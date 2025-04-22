@@ -9,7 +9,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type operatorTestCase struct {
