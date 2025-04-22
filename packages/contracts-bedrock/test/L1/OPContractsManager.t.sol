@@ -306,17 +306,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         IOPCMImplementationsWithoutLockbox.Implementations memory impls =
             IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
 
-        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
-
-        // If the delegate caller is not the mainnet PAO, we need to call upgrade as the mainnet PAO first.
-        if (_delegateCaller != mainnetPAO) {
-            IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
-            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
-
-            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-            DelegateCaller(opmUpgrader).dcForward(OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (opmChain)));
+        // Always trigger U13 once with an empty opChainConfig array to ensure that the
+        // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
+        {
+            ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+            address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+            DelegateCaller(superchainPAO).dcForward(
+                OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+            );
         }
 
         // Cache the old L1xDM address so we can look for it in the AddressManager's event
@@ -504,6 +502,17 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
     function runUpgrade15UpgradeAndChecks(address _delegateCaller) public {
         IOPContractsManager.Implementations memory impls = opcm.implementations();
+
+        // Always trigger U15 once with an empty opChainConfig array to ensure that the
+        // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
+        {
+            ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+            address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+            DelegateCaller(superchainPAO).dcForward(
+                address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+            );
+        }
 
         // Predict the address of the new AnchorStateRegistry proxy.
         // Subcontext to avoid stack too deep.
