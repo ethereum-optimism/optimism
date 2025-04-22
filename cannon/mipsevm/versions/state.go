@@ -1,7 +1,6 @@
 package versions
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -98,13 +97,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 }
 
 // MarshalJSON marshals the underlying state without adding version prefix.
-// JSON states are always assumed to be single threaded
+// JSON states are always assumed to be single threaded (state version 0) which is not supported anymore.
 func (s *VersionedState) MarshalJSON() ([]byte, error) {
-	if s.Version != VersionSingleThreaded {
-		return nil, fmt.Errorf("%w for type %T", ErrJsonNotSupported, s.FPVMState)
-	}
-	if !arch.IsMips32 {
-		return nil, ErrUnsupportedMipsArch
-	}
-	return json.Marshal(s.FPVMState)
+	return nil, fmt.Errorf("%w for type %T", ErrJsonNotSupported, s.FPVMState)
 }
