@@ -351,7 +351,15 @@ contract StandardValidatorBase {
         }
 
         _errors = assertValidDisputeGame(
-            _errors, _game, _factory, _absolutePrestate, _l2ChainID, _admin, GameTypes.PERMISSIONED_CANNON, "PDDG"
+            _errors,
+            _sysCfg,
+            _game,
+            _factory,
+            _absolutePrestate,
+            _l2ChainID,
+            _admin,
+            GameTypes.PERMISSIONED_CANNON,
+            "PDDG"
         );
         _errors = internalRequire(_game.challenger() == challenger, "PDDG-120", _errors);
 
@@ -380,7 +388,7 @@ contract StandardValidatorBase {
         }
 
         _errors = assertValidDisputeGame(
-            _errors, _game, _factory, _absolutePrestate, _l2ChainID, _admin, GameTypes.CANNON, "PLDG"
+            _errors, _sysCfg, _game, _factory, _absolutePrestate, _l2ChainID, _admin, GameTypes.CANNON, "PLDG"
         );
 
         return _errors;
@@ -388,6 +396,7 @@ contract StandardValidatorBase {
 
     function assertValidDisputeGame(
         string memory _errors,
+        ISystemConfig _sysCfg,
         IPermissionedDisputeGame _game,
         IDisputeGameFactory _factory,
         bytes32 _absolutePrestate,
@@ -424,8 +433,8 @@ contract StandardValidatorBase {
             Duration.unwrap(_game.maxClockDuration()) == 302400, string.concat(_errorPrefix, "-110"), _errors
         );
 
-        _errors = assertValidDelayedWETH(_errors, _game.weth(), _admin, _errorPrefix);
-        _errors = assertValidAnchorStateRegistry(_errors, _factory, _asr, _admin, _gameType, _errorPrefix);
+        _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _errorPrefix);
+        _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _gameType, _errorPrefix);
 
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
         // the contract is likely to revert.
@@ -438,6 +447,7 @@ contract StandardValidatorBase {
 
     function assertValidDelayedWETH(
         string memory _errors,
+        ISystemConfig _sysCfg,
         IDelayedWETH _weth,
         IProxyAdmin _admin,
         string memory _errorPrefix
@@ -457,11 +467,13 @@ contract StandardValidatorBase {
         );
         _errors = internalRequire(_weth.proxyAdminOwner() == l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
+        _errors = internalRequire(_weth.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-50"), _errors);
         return _errors;
     }
 
     function assertValidAnchorStateRegistry(
         string memory _errors,
+        ISystemConfig _sysCfg,
         IDisputeGameFactory _dgf,
         IAnchorStateRegistry _asr,
         IProxyAdmin,
@@ -484,9 +496,7 @@ contract StandardValidatorBase {
         (Hash actualRoot,) = _asr.anchors(_gameType);
         bytes32 expectedRoot = 0xdead000000000000000000000000000000000000000000000000000000000000;
         _errors = internalRequire(Hash.unwrap(actualRoot) == expectedRoot, string.concat(_errorPrefix, "-40"), _errors);
-        //PEP: _errors = internalRequire(
-        //    address(_asr.systemConfig()) == address(systemConfigImpl), string.concat(_errorPrefix, "-50"), _errors
-        //);
+        _errors = internalRequire(_asr.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-50"), _errors);
         return _errors;
     }
 
@@ -597,6 +607,7 @@ contract StandardValidatorV200 is StandardValidatorBase {
 
     function assertValidAnchorStateRegistry(
         string memory _errors,
+        ISystemConfig _sysCfg,
         IDisputeGameFactory _dgf,
         IAnchorStateRegistry _asr,
         IProxyAdmin _admin,
@@ -608,7 +619,7 @@ contract StandardValidatorV200 is StandardValidatorBase {
         override
         returns (string memory)
     {
-        _errors = super.assertValidAnchorStateRegistry(_errors, _dgf, _asr, _admin, _gameType, _errorPrefix);
+        _errors = super.assertValidAnchorStateRegistry(_errors, _sysCfg, _dgf, _asr, _admin, _gameType, _errorPrefix);
         _errors = internalRequire(
             _admin.getProxyImplementation(address(_asr)) == anchorStateRegistryImpl,
             string.concat(_errorPrefix, "-ANCHORP-20"),
@@ -714,6 +725,7 @@ contract StandardValidatorV300 is StandardValidatorBase {
 
     function assertValidAnchorStateRegistry(
         string memory _errors,
+        ISystemConfig _sysCfg,
         IDisputeGameFactory _dgf,
         IAnchorStateRegistry _asr,
         IProxyAdmin _admin,
@@ -725,7 +737,7 @@ contract StandardValidatorV300 is StandardValidatorBase {
         override
         returns (string memory)
     {
-        _errors = super.assertValidAnchorStateRegistry(_errors, _dgf, _asr, _admin, _gameType, _errorPrefix);
+        _errors = super.assertValidAnchorStateRegistry(_errors, _sysCfg, _dgf, _asr, _admin, _gameType, _errorPrefix);
         _errors = internalRequire(
             _admin.getProxyImplementation(address(_asr)) == anchorStateRegistryImpl,
             string.concat(_errorPrefix, "-ANCHORP-20"),

@@ -623,6 +623,9 @@ abstract contract StandardValidatorTest is Test {
             abi.encodeCall(ISystemConfig.optimismMintableERC20Factory, ()),
             abi.encode(optimismMintableERC20Factory)
         );
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.superchainConfig, ()), abi.encode(superchainConfig)
+        );
 
         // Mock proxy implementations
         vm.mockCall(
@@ -918,6 +921,7 @@ abstract contract StandardValidatorTest is Test {
         vm.mockCall(address(_weth), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.0"));
         vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(l1PAOMultisig));
         vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1 weeks / 2));
+        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(systemConfig));
     }
 }
 

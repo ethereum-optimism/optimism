@@ -842,6 +842,7 @@ contract Specification_Test is CommonTest {
 
         // DeputyPauseModule
         _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("version()") });
+        _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("guardianSafe()") });
         _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("foundationSafe()") });
         _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "DeputyPauseModule", _sel: _getSel("deputy()") });

@@ -15,6 +15,7 @@ import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
+import { GameTypes } from "src/dispute/lib/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -277,10 +278,20 @@ contract Setup {
         proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
         proxyAdminOwner = proxyAdmin.owner();
 
+        if (isForkTest()) {
+            // Fork tests might replace the DelayedWETH contract with a new proxy in the upgrade
+            // function. We therefore pull this address directly from the PermissionedDisputeGame
+            // so we're guaranteed to get the right contract, rather than potentially having the
+            // old one inside the artifacts.
+            address pdg = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
+            delayedWeth = IPermissionedDisputeGame(pdg).weth();
+        }
+
         if (deploy.cfg().useAltDA()) {
             dataAvailabilityChallenge =
                 IDataAvailabilityChallenge(artifacts.mustGetAddress("DataAvailabilityChallengeProxy"));
         }
+
         console.log("Setup: registered L1 deployments");
     }
 
