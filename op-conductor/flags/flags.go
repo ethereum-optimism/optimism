@@ -168,6 +168,8 @@ var optionalFlags = []cli.Flag{
 	RaftTrailingLogs,
 	RaftHeartbeatTimeout,
 	RaftLeaderLeaseTimeout,
+	RollupBoostEnabled,
+	RollupBoostHealthcheckTimeout,
 }
 
 func init() {
