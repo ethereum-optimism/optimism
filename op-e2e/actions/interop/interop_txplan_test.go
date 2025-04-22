@@ -961,7 +961,7 @@ func TestCycleInBlock(gt *testing.T) {
 	// include init message X last in block
 	{
 		submitIntent(init, nonce)
-		nonce += 1
+		// no need to increment nonce since this is the last tx
 	}
 	actors.ChainA.Sequencer.ActL2EndBlock(t)
 
