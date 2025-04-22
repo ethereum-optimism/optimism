@@ -68,7 +68,7 @@ contract L1ERC721Bridge is ERC721Bridge, ReinitializableBase, ISemver {
         return systemConfig.superchainConfig();
     }
 
-    /// @notice Upgrades the L1ERC721Bridge contract to have a reference to the SystemConfig.
+    /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig SystemConfig contract.
     function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
         systemConfig = _systemConfig;

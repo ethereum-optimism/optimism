@@ -125,7 +125,7 @@ contract L1StandardBridge is StandardBridge, ReinitializableBase, ISemver {
         return systemConfig.superchainConfig();
     }
 
-    /// @notice Upgrades the L1StandardBridge contract to have a reference to the SystemConfig.
+    /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig SystemConfig contract.
     function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
         systemConfig = _systemConfig;

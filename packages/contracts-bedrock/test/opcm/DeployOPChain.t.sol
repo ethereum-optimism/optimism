@@ -347,9 +347,8 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
-        // TODO: Add pause expiry
-        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.unwrap(requiredProtocolVersion));
-        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.unwrap(recommendedProtocolVersion));
+        dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
+        dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
         deploySuperchain.run(dsi, dso);
 

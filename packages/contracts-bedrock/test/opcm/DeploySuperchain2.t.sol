@@ -14,6 +14,7 @@ contract DeploySuperchain2_Test is Test {
     address defaultProxyAdminOwner = makeAddr("defaultProxyAdminOwner");
     address defaultProtocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address defaultGuardian = makeAddr("defaultGuardian");
+    bool defaultPaused = false;
     bytes32 defaultRequiredProtocolVersion = bytes32(uint256(1));
     bytes32 defaultRecommendedProtocolVersion = bytes32(uint256(2));
 
@@ -33,6 +34,7 @@ contract DeploySuperchain2_Test is Test {
         address _superchainProxyAdminOwner,
         address _protocolVersionsOwner,
         address _guardian,
+        bool _paused,
         bytes32 _recommendedProtocolVersion,
         bytes32 _requiredProtocolVersion
     )
@@ -48,6 +50,7 @@ contract DeploySuperchain2_Test is Test {
             _guardian,
             _protocolVersionsOwner,
             _superchainProxyAdminOwner,
+            _paused,
             _recommendedProtocolVersion,
             _requiredProtocolVersion
         );
@@ -123,6 +126,7 @@ contract DeploySuperchain2_Test is Test {
             defaultGuardian,
             defaultProtocolVersionsOwner,
             defaultProxyAdminOwner,
+            defaultPaused,
             defaultRecommendedProtocolVersion,
             defaultRequiredProtocolVersion
         );

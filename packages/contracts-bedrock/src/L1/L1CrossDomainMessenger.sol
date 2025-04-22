@@ -55,7 +55,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ReinitializableBase, IS
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
-    /// @notice Upgrades the SystemConfig contract.
+    /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig The new SystemConfig contract.
     function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
         systemConfig = _systemConfig;

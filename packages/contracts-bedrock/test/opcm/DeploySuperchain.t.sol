@@ -160,8 +160,8 @@ contract DeploySuperchain_Test is Test {
         dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
-        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.unwrap(requiredProtocolVersion));
-        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.unwrap(recommendedProtocolVersion));
+        dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
+        dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
         // Run the deployment script.
         deploySuperchain.run(dsi, dso);
@@ -195,8 +195,8 @@ contract DeploySuperchain_Test is Test {
         dsi.set(dsi.superchainProxyAdminOwner.selector, defaultProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, defaultProtocolVersionsOwner);
         dsi.set(dsi.guardian.selector, defaultGuardian);
-        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.unwrap(defaultRequiredProtocolVersion));
-        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.unwrap(defaultRecommendedProtocolVersion));
+        dsi.set(dsi.requiredProtocolVersion.selector, defaultRequiredProtocolVersion);
+        dsi.set(dsi.recommendedProtocolVersion.selector, defaultRecommendedProtocolVersion);
 
         // Assert over each role being set to the zero address. We aren't allowed to use the setter
         // methods to set the zero address, so we use StdStorage. We can't use the `checked_write`

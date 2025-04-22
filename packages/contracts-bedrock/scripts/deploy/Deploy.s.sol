@@ -37,6 +37,7 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IDataAvailabilityChallenge } from "interfaces/L1/IDataAvailabilityChallenge.sol";
+import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -220,8 +221,8 @@ contract Deploy is Deployer {
         dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.superchainProxyAdminOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
-        dsi.set(dsi.requiredProtocolVersion.selector, cfg.requiredProtocolVersion());
-        dsi.set(dsi.recommendedProtocolVersion.selector, cfg.recommendedProtocolVersion());
+        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.wrap(cfg.requiredProtocolVersion()));
+        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
 
         // Run the deployment script.
         ds.run(dsi, dso);
