@@ -43,7 +43,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 			L1ERC721BridgeProxy:         chainState.L1ERC721BridgeProxyAddress,
 			SystemConfigProxy:           chainState.SystemConfigProxyAddress,
 			OptimismPortalProxy:         chainState.OptimismPortalProxyAddress,
-			ProtocolVersionsProxy:       state.SuperchainDeployment.ProtocolVersionsProxyAddress,
+			ProtocolVersionsProxy:       state.SuperchainDeployment.ProtocolVersionsProxy,
 		},
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			DevDeployConfig: genesis.DevDeployConfig{

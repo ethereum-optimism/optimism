@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -91,10 +92,10 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			opcmAddr, err := standard.ManagerImplementationAddrFor(l1ChainID, intent.L1ContractsLocator.Tag)
 			require.NoError(t, err)
 
-			expDeployment := &state.SuperchainDeployment{
-				ProxyAdminAddress:            proxyAdmin,
-				ProtocolVersionsProxyAddress: superCfg.ProtocolVersionsAddr,
-				SuperchainConfigProxyAddress: superCfg.SuperchainConfigAddr,
+			expDeployment := &addresses.SuperchainContracts{
+				SuperchainProxyAdminImpl: proxyAdmin,
+				ProtocolVersionsProxy:    superCfg.ProtocolVersionsAddr,
+				SuperchainConfigProxy:    superCfg.SuperchainConfigAddr,
 			}
 
 			// Tagged locator will reuse the existing superchain and OPCM

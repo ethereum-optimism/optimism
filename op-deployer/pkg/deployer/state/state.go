@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -41,7 +42,7 @@ type State struct {
 	// SuperchainDeployment contains the addresses of the Superchain
 	// deployment. It only contains the proxies because the implementations
 	// can be looked up on chain.
-	SuperchainDeployment *SuperchainDeployment `json:"superchainDeployment"`
+	SuperchainDeployment *addresses.SuperchainContracts `json:"superchainDeployment"`
 
 	// ImplementationsDeployment contains the addresses of the common implementation
 	// contracts required for the Superchain to function.
@@ -75,14 +76,6 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 		}
 	}
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
-}
-
-type SuperchainDeployment struct {
-	ProxyAdminAddress            common.Address `json:"proxyAdminAddress"`
-	SuperchainConfigProxyAddress common.Address `json:"superchainConfigProxyAddress"`
-	SuperchainConfigImplAddress  common.Address `json:"superchainConfigImplAddress"`
-	ProtocolVersionsProxyAddress common.Address `json:"protocolVersionsProxyAddress"`
-	ProtocolVersionsImplAddress  common.Address `json:"protocolVersionsImplAddress"`
 }
 
 type ImplementationsDeployment struct {

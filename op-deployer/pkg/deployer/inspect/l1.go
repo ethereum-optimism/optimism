@@ -2,7 +2,6 @@ package inspect
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 
@@ -19,39 +18,6 @@ type L1Contracts struct {
 	SuperchainDeployment      SuperchainDeployment      `json:"superchainDeployment"`
 	OpChainDeployment         OpChainDeployment         `json:"opChainDeployment"`
 	ImplementationsDeployment ImplementationsDeployment `json:"implementationsDeployment"`
-}
-
-const (
-	SuperchainBundle      = "superchain"
-	ImplementationsBundle = "implementations"
-	OpChainBundle         = "opchain"
-)
-
-var ContractBundles = []string{
-	SuperchainBundle,
-	ImplementationsBundle,
-	OpChainBundle,
-}
-
-func (l L1Contracts) GetContractAddress(name string, bundleName string) (common.Address, error) {
-	var bundle interface{}
-	switch bundleName {
-	case SuperchainBundle:
-		bundle = l.SuperchainDeployment
-	case ImplementationsBundle:
-		bundle = l.ImplementationsDeployment
-	case OpChainBundle:
-		bundle = l.OpChainDeployment
-	default:
-		return common.Address{}, fmt.Errorf("invalid contract bundle type: %s", bundleName)
-	}
-
-	field := reflect.ValueOf(bundle).FieldByName(name)
-	if !field.IsValid() {
-		return common.Address{}, fmt.Errorf("contract %s not found in %s bundle", name, bundleName)
-	}
-
-	return field.Interface().(common.Address), nil
 }
 
 func (l L1Contracts) AsL1Deployments() *genesis.L1Deployments {
@@ -158,11 +124,11 @@ func L1(globalState *state.State, chainID common.Hash) (*L1Contracts, error) {
 
 	l1Contracts := L1Contracts{
 		SuperchainDeployment: SuperchainDeployment{
-			ProxyAdminAddress:            globalState.SuperchainDeployment.ProxyAdminAddress,
-			SuperchainConfigProxyAddress: globalState.SuperchainDeployment.SuperchainConfigProxyAddress,
-			SuperchainConfigImplAddress:  globalState.SuperchainDeployment.SuperchainConfigImplAddress,
-			ProtocolVersionsProxyAddress: globalState.SuperchainDeployment.ProtocolVersionsProxyAddress,
-			ProtocolVersionsImplAddress:  globalState.SuperchainDeployment.ProtocolVersionsImplAddress,
+			ProxyAdminAddress:            globalState.SuperchainDeployment.SuperchainProxyAdminImpl,
+			SuperchainConfigProxyAddress: globalState.SuperchainDeployment.SuperchainConfigProxy,
+			SuperchainConfigImplAddress:  globalState.SuperchainDeployment.SuperchainConfigImpl,
+			ProtocolVersionsProxyAddress: globalState.SuperchainDeployment.ProtocolVersionsProxy,
+			ProtocolVersionsImplAddress:  globalState.SuperchainDeployment.ProtocolVersionsImpl,
 		},
 		OpChainDeployment: OpChainDeployment{
 			ProxyAdminAddress:                        chainState.ProxyAdminAddress,

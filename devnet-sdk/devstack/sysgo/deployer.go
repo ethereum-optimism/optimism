@@ -232,8 +232,8 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 		}
 	}
 	wb.outSuperchainDeployment = &SuperchainDeployment{
-		protocolVersionsAddr: wb.output.SuperchainDeployment.ProtocolVersionsProxyAddress,
-		superchainConfigAddr: wb.output.SuperchainDeployment.SuperchainConfigProxyAddress,
+		protocolVersionsAddr: wb.output.SuperchainDeployment.ProtocolVersionsProxy,
+		superchainConfigAddr: wb.output.SuperchainDeployment.SuperchainConfigProxy,
 	}
 }
 

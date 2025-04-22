@@ -744,17 +744,17 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter, 
 		addr common.Address
 	}
 	addrs := []addrTuple{
-		{"SuperchainProxyAdmin", st.SuperchainDeployment.ProxyAdminAddress},
-		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
-		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
+		{"SuperchainProxyAdminImpl", st.SuperchainDeployment.SuperchainProxyAdminImpl},
+		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxy},
+		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxy},
 		{"Opcm", st.ImplementationsDeployment.OpcmAddress},
 		{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
 		{"MipsSingleton", st.ImplementationsDeployment.MipsSingletonAddress},
 	}
 
 	if includeSuperchainImpls {
-		addrs = append(addrs, addrTuple{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress})
-		addrs = append(addrs, addrTuple{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress})
+		addrs = append(addrs, addrTuple{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImpl})
+		addrs = append(addrs, addrTuple{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImpl})
 	}
 
 	for _, addr := range addrs {

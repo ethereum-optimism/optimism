@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -61,10 +62,11 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 				return fmt.Errorf("error getting superchain proxy admin address: %w", err)
 			}
 
-			st.SuperchainDeployment = &state.SuperchainDeployment{
-				ProxyAdminAddress:            proxyAdmin,
-				ProtocolVersionsProxyAddress: superCfg.ProtocolVersionsAddr,
-				SuperchainConfigProxyAddress: superCfg.SuperchainConfigAddr,
+			st.SuperchainDeployment = &addresses.SuperchainContracts{
+				SuperchainProxyAdminImpl: proxyAdmin,
+				ProtocolVersionsProxy:    superCfg.ProtocolVersionsAddr,
+				SuperchainConfigProxy:    superCfg.SuperchainConfigAddr,
+				SuperchainConfigImpl:     superCfg.SuperchainConfigAddr,
 			}
 
 			st.ImplementationsDeployment = &state.ImplementationsDeployment{
