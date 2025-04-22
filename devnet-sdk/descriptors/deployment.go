@@ -64,6 +64,8 @@ type Wallet struct {
 // WalletMap is a map of wallet names to wallets.
 type WalletMap map[string]*Wallet
 
+type DepSet = json.RawMessage
+
 // DevnetEnvironment exposes the relevant information to interact with a devnet.
 type DevnetEnvironment struct {
 	Name string `json:"name"`
@@ -73,6 +75,6 @@ type DevnetEnvironment struct {
 	L1 *Chain     `json:"l1"`
 	L2 []*L2Chain `json:"l2"`
 
-	Features []string        `json:"features,omitempty"`
-	DepSet   json.RawMessage `json:"dep_set,omitempty"`
+	Features []string `json:"features,omitempty"`
+	DepSets  []DepSet `json:"dep_sets,omitempty"`
 }

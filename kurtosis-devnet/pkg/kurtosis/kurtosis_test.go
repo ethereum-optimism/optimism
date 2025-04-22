@@ -2,7 +2,6 @@ package kurtosis
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -119,11 +118,11 @@ func (f *fakeJWTExtractor) ExtractData(ctx context.Context, enclave string) (*jw
 }
 
 type fakeDepsetExtractor struct {
-	data json.RawMessage
+	data []descriptors.DepSet
 	err  error
 }
 
-func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) (json.RawMessage, error) {
+func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) ([]descriptors.DepSet, error) {
 	return f.data, f.err
 }
 
@@ -346,7 +345,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 							},
 						},
 					},
-					DepSet: nil,
+					DepSets: nil,
 				},
 			},
 		},
@@ -428,7 +427,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						},
 					},
 					Features: spec.FeatureList{spec.FeatureInterop},
-					DepSet:   json.RawMessage(`{}`),
+					DepSets:  []descriptors.DepSet{descriptors.DepSet(`{}`)},
 				},
 			},
 		},
@@ -489,7 +488,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						},
 					},
 					Features: spec.FeatureList{},
-					DepSet:   nil,
+					DepSets:  nil,
 				},
 			},
 		},
@@ -503,9 +502,9 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			}
 
 			// Create depset data based on whether interop is enabled
-			var depsetData json.RawMessage
+			var depsets []descriptors.DepSet
 			if tt.spec != nil && tt.spec.Features.Contains(spec.FeatureInterop) {
-				depsetData = json.RawMessage(`{}`)
+				depsets = []descriptors.DepSet{descriptors.DepSet(`{}`)}
 			}
 
 			deployer, err := NewKurtosisDeployer(
@@ -523,7 +522,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 					err:  tt.err,
 				}),
 				WithKurtosisDepsetExtractor(&fakeDepsetExtractor{
-					data: depsetData,
+					data: depsets,
 					err:  tt.err,
 				}),
 			)

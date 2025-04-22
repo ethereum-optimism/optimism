@@ -2,9 +2,9 @@ package interfaces
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/deployer"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/jwt"
@@ -28,5 +28,5 @@ type JWTExtractor interface {
 }
 
 type DepsetExtractor interface {
-	ExtractData(context.Context, string) (json.RawMessage, error)
+	ExtractData(context.Context, string) ([]descriptors.DepSet, error)
 }

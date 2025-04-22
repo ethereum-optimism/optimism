@@ -26,14 +26,18 @@ func (o *Orchestrator) hydrateClusterMaybe(sys stack.ExtensibleSystem) {
 	require := sys.T().Require()
 	env := o.env
 
-	var depSet depset.StaticConfigDependencySet
-	require.NoError(json.Unmarshal(o.env.Env.DepSet, &depSet))
+	depsets := o.env.Env.DepSets
 
-	sys.AddCluster(shim.NewCluster(shim.ClusterConfig{
-		CommonConfig:  shim.NewCommonConfig(sys.T()),
-		ID:            stack.ClusterID(env.Env.Name),
-		DependencySet: &depSet,
-	}))
+	for _, d := range depsets {
+		var depSet depset.StaticConfigDependencySet
+		require.NoError(json.Unmarshal(d, &depSet))
+
+		sys.AddCluster(shim.NewCluster(shim.ClusterConfig{
+			CommonConfig:  shim.NewCommonConfig(sys.T()),
+			ID:            stack.ClusterID(env.Env.Name),
+			DependencySet: &depSet,
+		}))
+	}
 }
 
 func (o *Orchestrator) hydrateSupervisorMaybe(sys stack.ExtensibleSystem) {

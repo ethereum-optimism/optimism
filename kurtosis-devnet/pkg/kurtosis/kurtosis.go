@@ -3,7 +3,6 @@ package kurtosis
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -175,9 +174,9 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 	}
 
 	// Get dependency set
-	var depsetData json.RawMessage
+	var depsets []descriptors.DepSet
 	if s.Features.Contains(spec.FeatureInterop) {
-		depsetData, err = d.depsetExtractor.ExtractData(ctx, d.enclave)
+		depsets, err = d.depsetExtractor.ExtractData(ctx, d.enclave)
 		if err != nil {
 			return nil, fmt.Errorf("failed to extract dependency set: %w", err)
 		}
@@ -190,7 +189,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 
 			L2:       make([]*descriptors.L2Chain, 0, len(s.Chains)),
 			Features: s.Features,
-			DepSet:   depsetData,
+			DepSets:  depsets,
 		},
 	}
 
