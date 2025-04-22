@@ -9,14 +9,45 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+// About the provided chain specs from `res/superchain-configs.tar`:
+// The provided `OpChainSpec` structs are built from config files read from
+// `superchain-configs.tar`. This `superchain-configs.tar` file contains the chain configs and
+// genesis files for all chains. It is created by the `fetch_superchain_config.sh` script in
+// the `res` directory. Where all configs are where initial loaded from
+// <https://github.com/ethereum-optimism/superchain-registry>. See the script for more details.
+//
+// The file is a tar archive containing the following files:
+// - `genesis/<environment>/<chain_name>.json.zz`: The genesis file compressed with deflate. It
+//   contains the initial accounts, etc.
+// - `configs/<environment>/<chain_name>.json`: The chain metadata file containing the chain id,
+//   hard forks, etc.
+//
+// For example, for `UNICHAIN_MAINNET`, the `genesis/mainnet/unichain.json.zz` and
+// `configs/mainnet/base.json` is loaded and combined into the `OpChainSpec` struct.
+// See `read_superchain_genesis` in `configs.rs` for more details.
+//
+// To update the chain specs, run the `fetch_superchain_config.sh` script in the `res` directory.
+// This will fetch the latest chain configs from the superchain registry and create a new
+// `superchain-configs.tar` file. See the script for more details.
+
 extern crate alloc;
 
 mod base;
 mod base_sepolia;
+
 pub mod constants;
 mod dev;
 mod op;
 mod op_sepolia;
+
+#[cfg(feature = "superchain-configs")]
+mod superchain;
+#[cfg(feature = "superchain-configs")]
+pub use superchain::*;
+
+pub use dev::OP_DEV;
+pub use op::OP_MAINNET;
+pub use op_sepolia::OP_SEPOLIA;
 
 use alloc::{boxed::Box, vec, vec::Vec};
 use alloy_chains::Chain;
@@ -28,9 +59,6 @@ use alloy_primitives::{B256, U256};
 pub use base::BASE_MAINNET;
 pub use base_sepolia::BASE_SEPOLIA;
 use derive_more::{Constructor, Deref, From, Into};
-pub use dev::OP_DEV;
-pub use op::OP_MAINNET;
-pub use op_sepolia::OP_SEPOLIA;
 use reth_chainspec::{
     BaseFeeParams, BaseFeeParamsKind, ChainSpec, ChainSpecBuilder, DepositContract,
     DisplayHardforks, EthChainSpec, EthereumHardforks, ForkFilter, ForkId, Hardforks, Head,
@@ -466,6 +494,7 @@ pub fn make_op_genesis_header(genesis: &Genesis, hardforks: &ChainHardforks) -> 
 
 #[cfg(test)]
 mod tests {
+    use alloc::string::String;
     use alloy_genesis::{ChainConfig, Genesis};
     use alloy_primitives::b256;
     use reth_chainspec::{test_fork_ids, BaseFeeParams, BaseFeeParamsKind};
@@ -1062,7 +1091,6 @@ mod tests {
         ];
 
         for (expected, actual) in expected_hardforks.iter().zip(hardforks.iter()) {
-            println!("got {expected:?}, {actual:?}");
             assert_eq!(&**expected, &**actual);
         }
         assert_eq!(expected_hardforks.len(), hardforks.len());
