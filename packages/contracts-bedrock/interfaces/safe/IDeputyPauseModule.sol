@@ -33,12 +33,14 @@ interface IDeputyPauseModule is ISemver {
 
     function version() external view returns (string memory);
     function __constructor__(
+        Safe _guardianSafe,
         Safe _foundationSafe,
         ISuperchainConfig _superchainConfig,
         address _deputy,
         bytes memory _deputySignature
     )
         external;
+    function guardianSafe() external view returns (Safe guardianSafe_);
     function foundationSafe() external view returns (Safe foundationSafe_);
     function superchainConfig() external view returns (ISuperchainConfig superchainConfig_);
     function deputy() external view returns (address);

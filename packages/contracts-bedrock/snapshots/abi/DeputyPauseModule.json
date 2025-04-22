@@ -3,6 +3,11 @@
     "inputs": [
       {
         "internalType": "contract GnosisSafe",
+        "name": "_guardianSafe",
+        "type": "address"
+      },
+      {
+        "internalType": "contract GnosisSafe",
         "name": "_foundationSafe",
         "type": "address"
       },
@@ -101,6 +106,19 @@
       {
         "internalType": "contract GnosisSafe",
         "name": "foundationSafe_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "guardianSafe",
+    "outputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "guardianSafe_",
         "type": "address"
       }
     ],

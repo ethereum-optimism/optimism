@@ -24,6 +24,7 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
 
     IDeputyPauseModule deputyPauseModule;
     SafeInstance foundationSafeInstance;
+    SafeInstance guardianSafeInstance;
     address deputy;
     uint256 deputyKey;
     bytes deputyAuthSignature;
@@ -37,18 +38,27 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
         super.setUp();
 
         // Set up 10 keys for the Foundation Safe.
-        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("DeputyPauseModule_test_", 10);
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("DeputyPauseModule_test_fnd_", 10);
 
         // Create a Foundation Safe with 10 owners.
         foundationSafeInstance = _setupSafe(keys, 10);
 
+        // Set up 10 keys for the Guardian Safe.
+        (, uint256[] memory keys2) = SafeTestLib.makeAddrsAndKeys("DeputyPauseModule_test_guardian_", 10);
+
+        // Create a Guardian Safe with 10 owners.
+        guardianSafeInstance = _setupSafe(keys2, 10);
+
+        // Set the Guardian Safe as the guardian of the SuperchainConfig.
         vm.store(
             address(superchainConfig),
             bytes32(0),
-            bytes32(uint256(uint160(address(foundationSafeInstance.safe)))) << (2 * 8)
+            bytes32(uint256(uint160(address(guardianSafeInstance.safe)))) << (2 * 8)
         );
 
-        assertEq(superchainConfig.guardian(), address(foundationSafeInstance.safe));
+        // Make sure that the Guardian Safe is the guardian of the SuperchainConfig.
+        assertEq(superchainConfig.guardian(), address(guardianSafeInstance.safe));
+
         // Create the deputy for the DeputyPauseModule.
         (deputy, deputyKey) = makeAddrAndKey("deputy");
 
@@ -62,14 +72,20 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, superchainConfig, deputy, deputyAuthSignature)
+                        (
+                            guardianSafeInstance.safe,
+                            foundationSafeInstance.safe,
+                            superchainConfig,
+                            deputy,
+                            deputyAuthSignature
+                        )
                     )
                 )
             })
         );
 
-        // Enable the DeputyPauseModule on the Foundation Safe.
-        foundationSafeInstance.enableModule(address(deputyPauseModule));
+        // Enable the DeputyPauseModule on the Guardian Safe.
+        guardianSafeInstance.enableModule(address(deputyPauseModule));
     }
 
     /// @notice Generates a signature to authenticate as the deputy.
@@ -205,7 +221,7 @@ contract DeputyPauseModule_Constructor_Test is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -232,7 +248,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -255,7 +271,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -281,7 +297,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -304,7 +320,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -324,7 +340,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -337,6 +353,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
 contract DeputyPauseModule_Getters_Test is DeputyPauseModule_TestInit {
     /// @notice Tests that the getters work.
     function test_getters_works() external view {
+        assertEq(address(deputyPauseModule.guardianSafe()), address(guardianSafeInstance.safe));
         assertEq(address(deputyPauseModule.foundationSafe()), address(foundationSafeInstance.safe));
         assertEq(address(deputyPauseModule.superchainConfig()), address(superchainConfig));
         assertEq(deputyPauseModule.deputy(), deputy);
@@ -355,7 +372,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
         vm.expectEmit(address(superchainConfig));
         emit Paused(LibString.toHexString(_identifier));
 
-        vm.expectEmit(address(foundationSafeInstance.safe));
+        vm.expectEmit(address(guardianSafeInstance.safe));
         emit ExecutionFromModuleSuccess(address(deputyPauseModule));
 
         vm.expectEmit(address(deputyPauseModule));

@@ -16,10 +16,9 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title DeputyPauseModule
-/// @notice Safe Module designed to be installed in the Foundation Safe which allows a specific
-///         deputy address to act as the Foundation Safe for the sake of triggering the
-///         Superchain-wide pause functionality. Significantly simplifies the process of triggering
-///         a Superchain-wide pause without changing the existing security model.
+/// @notice Safe Module designed to be installed into the Guardian Safe which allows a specific
+///         deputy address to act as the Guardian Safe for the sake of triggering a pause within
+///         the SuperchainConfig contract.
 contract DeputyPauseModule is ISemver, EIP712 {
     /// @notice Error message for deputy being invalid.
     error DeputyPauseModule_InvalidDeputy();
@@ -59,6 +58,9 @@ contract DeputyPauseModule is ISemver, EIP712 {
     /// @notice Event emitted when the pause is triggered.
     event PauseTriggered(address indexed deputy, bytes32 nonce, address identifier);
 
+    /// @notice Guardian Safe.
+    Safe internal immutable GUARDIAN_SAFE;
+
     /// @notice Foundation Safe.
     Safe internal immutable FOUNDATION_SAFE;
 
@@ -81,11 +83,13 @@ contract DeputyPauseModule is ISemver, EIP712 {
     /// @custom:semver 2.0.0-beta.0
     string public constant version = "2.0.0-beta.0";
 
+    /// @param _guardianSafe Address of the Guardian Safe.
     /// @param _foundationSafe Address of the Foundation Safe.
     /// @param _superchainConfig Address of the SuperchainConfig contract.
     /// @param _deputy Address of the deputy account.
     /// @param _deputySignature Signature from the deputy verifying that the account is an EOA.
     constructor(
+        Safe _guardianSafe,
         Safe _foundationSafe,
         ISuperchainConfig _superchainConfig,
         address _deputy,
@@ -94,8 +98,15 @@ contract DeputyPauseModule is ISemver, EIP712 {
         EIP712("DeputyPauseModule", "1")
     {
         _setDeputy(_deputy, _deputySignature);
+        GUARDIAN_SAFE = _guardianSafe;
         FOUNDATION_SAFE = _foundationSafe;
         SUPERCHAIN_CONFIG = _superchainConfig;
+    }
+
+    /// @notice Getter function for the Guardian Safe address.
+    /// @return guardianSafe_ Guardian Safe address.
+    function guardianSafe() public view returns (Safe guardianSafe_) {
+        guardianSafe_ = GUARDIAN_SAFE;
     }
 
     /// @notice Getter function for the Foundation Safe address.
@@ -157,7 +168,7 @@ contract DeputyPauseModule is ISemver, EIP712 {
         usedNonces[_nonce] = true;
 
         // Attempt to trigger the call.
-        (bool success, bytes memory returnData) = FOUNDATION_SAFE.execTransactionFromModuleReturnData(
+        (bool success, bytes memory returnData) = GUARDIAN_SAFE.execTransactionFromModuleReturnData(
             address(SUPERCHAIN_CONFIG), 0, abi.encodeCall(ISuperchainConfig.pause, (_identifier)), Enum.Operation.Call
         );
 

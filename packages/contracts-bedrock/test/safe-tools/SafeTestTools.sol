@@ -82,7 +82,7 @@ library SafeTestLib {
         keys = new uint256[](num);
         addrs = new address[](num);
         for (uint256 i; i < num; i++) {
-            uint256 key = uint256(keccak256(abi.encodePacked(i)));
+            uint256 key = uint256(keccak256(abi.encodePacked(prefix, i)));
             keys[i] = key;
         }
 

@@ -361,7 +361,6 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         require(address(portal.anchorStateRegistry()) == address(0), "PORTAL-10");
         require(address(portal.systemConfig()) == address(0), "PORTAL-20");
-        //PEP: HERE require(address(portal.superchainConfig()) == address(0), "PORTAL-30");
         require(portal.l2Sender() == address(0), "PORTAL-40");
 
         // This slot is the custom gas token _balance and this check ensures
