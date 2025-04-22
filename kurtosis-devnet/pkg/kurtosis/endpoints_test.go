@@ -295,6 +295,12 @@ func TestServiceTag(t *testing.T) {
 			wantTag:   "multi-part-name",
 			wantIndex: 1,
 		},
+		{
+			name:      "service with multiple numbers",
+			input:     "node-42-1",
+			wantTag:   "node",
+			wantIndex: 1,
+		},
 	}
 
 	for _, tt := range tests {

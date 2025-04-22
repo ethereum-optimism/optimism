@@ -141,23 +141,46 @@ func (f *ServiceFinder) findRPCEndpoints(matchService func(string) (string, int,
 
 // serviceTag returns the shorthand service tag and index if it's a service with multiple instances
 func (f *ServiceFinder) serviceTag(serviceName string) (string, int) {
-	// Find start of number sequence
-	start := strings.IndexFunc(serviceName, func(r rune) bool {
-		return r >= '0' && r <= '9'
-	})
-	if start == -1 {
+	// Find last occurrence of a number sequence
+	lastStart := -1
+	lastEnd := -1
+
+	// Scan through the string to find number sequences
+	for i := 0; i < len(serviceName); i++ {
+		if serviceName[i] >= '0' && serviceName[i] <= '9' {
+			start := i
+			// Find end of this number sequence
+			for i < len(serviceName) && serviceName[i] >= '0' && serviceName[i] <= '9' {
+				i++
+			}
+			lastStart = start
+			lastEnd = i
+		}
+	}
+
+	if lastStart == -1 {
 		return serviceName, 0
 	}
 
-	// Find end of number sequence
-	end := start + 1
-	for end < len(serviceName) && serviceName[end] >= '0' && serviceName[end] <= '9' {
-		end++
-	}
-
-	idx, err := strconv.Atoi(serviceName[start:end])
+	idx, err := strconv.Atoi(serviceName[lastStart:lastEnd])
 	if err != nil {
 		return serviceName, 0
 	}
-	return serviceName[:start-1], idx
+
+	// If there are multiple numbers, return just the base name
+	// Find the first number sequence
+	firstStart := strings.IndexFunc(serviceName, func(r rune) bool {
+		return r >= '0' && r <= '9'
+	})
+	if firstStart != lastStart {
+		// Multiple numbers found, return just the base name
+		tag := serviceName[:firstStart]
+		tag = strings.TrimRight(tag, "-")
+		return tag, idx
+	}
+
+	// Single number case
+	tag := serviceName[:lastStart]
+	tag = strings.TrimRight(tag, "-")
+	return tag, idx
 }
