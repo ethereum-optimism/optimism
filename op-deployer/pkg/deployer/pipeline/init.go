@@ -66,7 +66,6 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 				SuperchainProxyAdminImpl: proxyAdmin,
 				ProtocolVersionsProxy:    superCfg.ProtocolVersionsAddr,
 				SuperchainConfigProxy:    superCfg.SuperchainConfigAddr,
-				SuperchainConfigImpl:     superCfg.SuperchainConfigAddr,
 			}
 
 			st.ImplementationsDeployment = &state.ImplementationsDeployment{
