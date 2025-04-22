@@ -41,9 +41,15 @@ func WithDockerManager(dockerMgr DockerManager) KurtosisEnclaveManagerOptions {
 }
 
 func NewKurtosisEnclaveManager(opts ...KurtosisEnclaveManagerOptions) (*KurtosisEnclaveManager, error) {
-	manager := &KurtosisEnclaveManager{
-		dockerMgr: &DefaultDockerManager{},
+	manager := &KurtosisEnclaveManager{}
+
+	// Try to create Docker manager, but don't fail if it doesn't work
+	if _, err := util.NewDockerClient(); err == nil {
+		manager.dockerMgr = &DefaultDockerManager{}
+	} else {
+		fmt.Printf("Warning: Docker not available: %v", err)
 	}
+
 	for _, opt := range opts {
 		opt(manager)
 	}
@@ -96,15 +102,15 @@ func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) 
 		// Remove the enclave
 		err := mgr.kurtosisCtx.DestroyEnclave(ctx, enclave)
 		if err != nil {
-			return fmt.Errorf("failed to destroy enclave: %w", err)
+			fmt.Printf("failed to destroy enclave: %v", err)
 		} else {
 			fmt.Printf("Destroyed enclave: %s\n", enclave)
 		}
-		errDocker := nil
+		var errDocker error
 		if mgr.dockerMgr != nil {
 			errDocker = mgr.dockerMgr.DestroyDockerResources(ctx, enclave)
 			if errDocker != nil {
-				return fmt.Errorf("failed to destroy docker resources: %w", errDocker)
+				fmt.Printf("failed to destroy docker resources: %v", errDocker)
 			} else {
 				fmt.Printf("Destroyed docker resources for enclave: %s\n", enclave)
 			}
@@ -123,18 +129,18 @@ func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) 
 func (mgr *KurtosisEnclaveManager) Nuke(ctx context.Context) error {
 	enclaves, err := mgr.kurtosisCtx.Clean(ctx, true)
 	if err != nil {
-		fmt.Errorf("failed to clean enclaves: %w", err)
+		fmt.Printf("failed to clean enclaves: %v", err)
 	} else {
 		fmt.Printf("Cleaned enclaves\n")
 	}
 	for _, enclave := range enclaves {
 		fmt.Printf("Nuked enclave: %s\n", enclave.GetName())
 	}
-	errDocker := nil
+	var errDocker error
 	if mgr.dockerMgr != nil {
 		errDocker = mgr.dockerMgr.DestroyDockerResources(ctx)
 		if errDocker != nil {
-			fmt.Errorf("failed to destroy docker resources: %w", errDocker)
+			fmt.Printf("failed to destroy docker resources: %v", errDocker)
 		} else {
 			fmt.Printf("Destroyed docker resources\n")
 		}
