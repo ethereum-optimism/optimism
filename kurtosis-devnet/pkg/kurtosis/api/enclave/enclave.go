@@ -81,23 +81,39 @@ func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) 
 	status, err := mgr.kurtosisCtx.GetEnclaveStatus(ctx, enclave)
 	if err != nil {
 		// Means the enclave doesn't exist, so we're good
+		fmt.Printf("Enclave '%s' does not exist, skipping autofix\n", enclave)
 		return nil
 	}
 	switch status {
 	case interfaces.EnclaveStatusRunning:
+		fmt.Printf("Enclave '%s' is running, skipping autofix\n", enclave)
 		return nil
 	case interfaces.EnclaveStatusStopped:
+		fmt.Printf("Enclave '%s' is stopped, removing\n", enclave)
 		fallthrough
 	case interfaces.EnclaveStatusEmpty:
+		fmt.Printf("Enclave '%s' is empty, removing\n", enclave)
 		// Remove the enclave
 		err := mgr.kurtosisCtx.DestroyEnclave(ctx, enclave)
 		if err != nil {
 			return fmt.Errorf("failed to destroy enclave: %w", err)
+		} else {
+			fmt.Printf("Destroyed enclave: %s\n", enclave)
 		}
-		fmt.Printf("Destroyed enclave: %s\n", enclave)
-		err = mgr.dockerMgr.DestroyDockerResources(ctx, enclave)
+		errDocker := nil
+		if mgr.dockerMgr != nil {
+			errDocker = mgr.dockerMgr.DestroyDockerResources(ctx, enclave)
+			if errDocker != nil {
+				return fmt.Errorf("failed to destroy docker resources: %w", errDocker)
+			} else {
+				fmt.Printf("Destroyed docker resources for enclave: %s\n", enclave)
+			}
+		}
 		if err != nil {
-			return fmt.Errorf("failed to destroy enclave: %w", err)
+			return err
+		}
+		if errDocker != nil {
+			return errDocker
 		}
 		return nil
 	}
@@ -107,14 +123,27 @@ func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) 
 func (mgr *KurtosisEnclaveManager) Nuke(ctx context.Context) error {
 	enclaves, err := mgr.kurtosisCtx.Clean(ctx, true)
 	if err != nil {
-		return fmt.Errorf("failed to clean enclaves: %w", err)
+		fmt.Errorf("failed to clean enclaves: %w", err)
+	} else {
+		fmt.Printf("Cleaned enclaves\n")
 	}
 	for _, enclave := range enclaves {
 		fmt.Printf("Nuked enclave: %s\n", enclave.GetName())
 	}
-	err = mgr.dockerMgr.DestroyDockerResources(ctx)
+	errDocker := nil
+	if mgr.dockerMgr != nil {
+		errDocker = mgr.dockerMgr.DestroyDockerResources(ctx)
+		if errDocker != nil {
+			fmt.Errorf("failed to destroy docker resources: %w", errDocker)
+		} else {
+			fmt.Printf("Destroyed docker resources\n")
+		}
+	}
 	if err != nil {
-		return fmt.Errorf("failed to destroy docker resources: %w", err)
+		return err
+	}
+	if errDocker != nil {
+		return errDocker
 	}
 	return nil
 }
