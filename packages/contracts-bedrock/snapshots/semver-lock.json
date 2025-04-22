@@ -48,8 +48,8 @@
     "sourceCodeHash": "0xa7d5540afd6bc0712d907ad675bd1621c2a2afee8febd0d04f5f168c38e94f17"
   },
   "src/L2/ETHLiquidity.sol:ETHLiquidity": {
-    "initCodeHash": "0x0ada742cc59d927979b0e56dba10f3816a542e46cc6481c9e811fd6660c121a8",
-    "sourceCodeHash": "0xab297d42ef5dda4cd4e15a6b2268a1b1211aa4ce27ede9fa8bc41d33da781570"
+    "initCodeHash": "0xd4a8b5b95e29bdad905637c4007af161b28224f350f54508e66299f56cffcef0",
+    "sourceCodeHash": "0x6d137fef431d75a8bf818444915fc39c8b1d93434a9af9971d96fb3170bc72b7"
   },
   "src/L2/GasPriceOracle.sol:GasPriceOracle": {
     "initCodeHash": "0x38ef70b2783dd45ad807afcf57972c7df4abaaeb5d16d17cdb451b9e931a9cbb",

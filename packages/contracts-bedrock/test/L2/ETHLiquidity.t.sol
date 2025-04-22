@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Error imports
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
+import { InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
 
 /// @title ETHLiquidity_Test
 /// @notice Contract for testing the ETHLiquidity contract.
@@ -15,6 +16,9 @@ contract ETHLiquidity_Test is CommonTest {
 
     /// @notice Emitted when an address mints ETH liquidity.
     event LiquidityMinted(address indexed caller, uint256 value);
+
+    /// @notice Emitted when an address funds the contract.
+    event LiquidityFunded(address indexed funder, uint256 amount);
 
     /// @notice The starting balance of the ETHLiquidity contract.
     uint256 public constant STARTING_LIQUIDITY_BALANCE = type(uint248).max;
@@ -134,5 +138,45 @@ contract ETHLiquidity_Test is CommonTest {
         assertEq(_caller.balance, 0);
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
         assertEq(address(superchainETHBridge).balance, 0);
+    }
+
+    /// @notice Tests that the fund function succeeds when called with a non-zero value.
+    /// @param _amount Amount of ETH (in wei) to call the fund function with.
+    /// @param _caller Address of the caller to call the fund function with.
+    function testFuzz_fund_succeeds(uint256 _amount, address _caller) public {
+        // Assume
+        vm.assume(_amount > 0); // Fund amount must be greater than 0
+        // Bound amount reasonably, e.g., up to 1 million ETH
+        _amount = bound(_amount, 1, STARTING_LIQUIDITY_BALANCE);
+        vm.assume(_caller != address(0));
+        vm.assume(_caller != address(ethLiquidity)); // Prevent contract from calling itself
+
+        // Arrange
+        uint256 initialContractBalance = address(ethLiquidity).balance;
+        vm.deal(_caller, _amount);
+
+        // Act
+        vm.expectEmit(address(ethLiquidity));
+        emit LiquidityFunded(_caller, _amount);
+        vm.prank(_caller);
+        ethLiquidity.fund{ value: _amount }();
+
+        // Assert
+        // Caller should have 0 balance after funding the exact amount they were dealt
+        assertEq(_caller.balance, 0);
+        assertEq(address(ethLiquidity).balance, initialContractBalance + _amount);
+    }
+
+    /// @notice Tests that the fund function reverts when called with zero value.
+    function test_fund_zeroAmount_reverts() public {
+        // Arrange
+        // Nothing to arrange.
+
+        // Act
+        vm.expectRevert(InvalidAmount.selector);
+        ethLiquidity.fund{ value: 0 }();
+
+        // Assert
+        assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
     }
 }
