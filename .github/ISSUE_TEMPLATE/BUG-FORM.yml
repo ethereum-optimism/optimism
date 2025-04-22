@@ -1,0 +1,78 @@
+name: Bug Report
+description: File a bug report
+title: "[Bug]: "
+labels: ["C-bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: What area of the Optimism stack is this bug related to?
+      options:
+        - Node (op-node)
+        - Batcher (op-batcher)
+        - Proposer (op-proposer)
+        - Challenger (op-challenger)
+        - Devnet
+        - Smart Contracts
+        - Operations (ops)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: team
+    attributes:
+      label: Team
+      description: Which team would likely be responsible for this?
+      options:
+        - Node (T-node)
+        - Protocol (T-protocol)
+        - Smart Contracts (T-smart-contracts)
+        - Platforms (T-platforms)
+        - Community (T-community)
+        - DevEx (T-devex)
+        - Not Sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Version
+      description: What version of our software are you running?
+      placeholder: v1.0.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.
+    validations:
+      required: false
