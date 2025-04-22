@@ -902,3 +902,80 @@ func TestCycleInTx(gt *testing.T) {
 	unsafeHeadNumAfterReorg := targetNum - 1
 	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
 }
+
+// TestCycleInBlock tests below scenario:
+// Transaction executes message, then initiates it: cycle in block
+// To elaborate, single block contains txs in below order:
+// {exec message X tx, dummy tx, ..., dummy tx, init message X tx}
+func TestCycleInBlock(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	alice := setupUser(t, is, actors.ChainA, 0)
+
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
+
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+
+	// assume every tx including target exec message and init message land in block number 2
+	// all other txs are dummy tx to make block include multiple tx
+	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
+	targetNum := uint64(2)
+
+	// attempt to include multiple txs in a single L2 block
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+
+	nonce := uint64(0)
+
+	// speculatively build exec message by knowing necessary info to build Message
+	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
+	logIndexX := uint(0)
+	exec, err := interop.ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	require.NoError(t, err)
+
+	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
+	submitIntent := func(trigger txintent.Call, nonce uint64) {
+		opts, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, nonce)
+		intent := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](opts)
+		intent.Content.Set(trigger)
+		_, err := intent.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+		intents = append(intents, intent)
+	}
+	txCount := 2 + rng.Intn(15)
+	// include exec message X tx first in block
+	{
+		submitIntent(exec, nonce)
+		nonce += 1
+	}
+	// include dummy txs in block
+	for range txCount - 2 {
+		randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
+		submitIntent(randomInitTrigger, nonce)
+		nonce += 1
+	}
+	// include init message X last in block
+	{
+		submitIntent(init, nonce)
+		nonce += 1
+	}
+	actors.ChainA.Sequencer.ActL2EndBlock(t)
+
+	// Make sure tx in block sealed at expected time
+	for _, intent := range intents {
+		included, err := intent.PlannedTx.IncludedBlock.Eval(t.Ctx())
+		require.NoError(t, err)
+		require.Equal(t, included.Time, targetTime)
+		require.Equal(t, included.Number, targetNum)
+	}
+
+	// Make batcher happy by advancing at least a single block
+	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
+
+	unsafeHeadNumAfterReorg := targetNum - 1
+	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
+}
