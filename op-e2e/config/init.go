@@ -520,10 +520,8 @@ type prestateFile struct {
 
 var cannonPrestateMT common.Hash
 var cannonPrestateMTNext common.Hash
-var cannonPrestateST common.Hash
 var cannonPrestateMTOnce sync.Once
 var cannonPrestateMTNextOnce sync.Once
-var cannonPrestateSTOnce sync.Once
 
 func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var filename string
@@ -531,11 +529,7 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var once *sync.Once
 	var cacheVar *common.Hash
 	cannonVmType := cannonVMType(allocType)
-	if cannonVmType == state.VMTypeCannon1 {
-		filename = "prestate-proof.json"
-		once = &cannonPrestateSTOnce
-		cacheVar = &cannonPrestateST
-	} else if cannonVmType == state.VMTypeCannon2 || cannonVmType == state.VMTypeCannon6 {
+	if cannonVmType == state.VMTypeCannon2 || cannonVmType == state.VMTypeCannon6 {
 		filename = "prestate-proof-mt64.json"
 		once = &cannonPrestateMTOnce
 		cacheVar = &cannonPrestateMT
