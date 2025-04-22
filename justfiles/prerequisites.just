@@ -44,7 +44,7 @@ _check_mise:
             echo "Automatically activating mise shell and continuing command..."
             mise activate >/dev/null
         else
-            echo "Please run 'mise shell' first to activate the mise environment"
+            echo "Please run 'mise activate' first to activate the mise environment"
         fi
     fi
 
