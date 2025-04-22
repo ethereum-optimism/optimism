@@ -2,16 +2,9 @@
 package tests
 
 import (
-	"encoding/binary"
 	"fmt"
 	"os"
-	"slices"
 	"testing"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
@@ -20,6 +13,9 @@ import (
 	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/stretchr/testify/require"
 )
 
 type Word = arch.Word
@@ -196,49 +192,6 @@ func TestEVM_MT_SC(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestEVM_MT_SysRead_Preimage32(t *testing.T) {
-	testutil.Cannon32OnlyTest(t, "These tests are fully covered for 64-bits in TestEVM_MT_SysRead_Preimage64")
-
-	t.Parallel()
-	preimageValue := make([]byte, 0, 8)
-	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x12_34_56_78)
-	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x98_76_54_32)
-	cases := []testMTSysReadPreimageTestCase{
-		{name: "Aligned addr, write 1 byte", addr: 0x00_00_FF_00, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_FF_FF_FF},
-		{name: "Aligned addr, write 2 byte", addr: 0x00_00_FF_00, count: 2, writeLen: 2, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_FF_FF},
-		{name: "Aligned addr, write 3 byte", addr: 0x00_00_FF_00, count: 3, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_FF},
-		{name: "Aligned addr, write 4 byte", addr: 0x00_00_FF_00, count: 4, writeLen: 4, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_78},
-		{name: "1-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_01, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_FF_FF},
-		{name: "1-byte misaligned addr, write 2 byte", addr: 0x00_00_FF_01, count: 2, writeLen: 2, preimageOffset: 9, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_34_56_FF},
-		{name: "1-byte misaligned addr, write 3 byte", addr: 0x00_00_FF_01, count: 3, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_34_56},
-		{name: "2-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_02, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_12_FF},
-		{name: "2-byte misaligned addr, write 2 byte", addr: 0x00_00_FF_02, count: 2, writeLen: 2, preimageOffset: 12, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_98_76},
-		{name: "3-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_03, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_12},
-		{name: "Count of 0", addr: 0x00_00_FF_03, count: 0, writeLen: 0, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF},
-		{name: "Count greater than 4", addr: 0x00_00_FF_00, count: 15, writeLen: 4, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_78},
-		{name: "Count greater than 4, unaligned", addr: 0x00_00_FF_01, count: 15, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_34_56},
-		{name: "Offset at last byte", addr: 0x00_00_FF_00, count: 4, writeLen: 1, preimageOffset: 15, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x32_FF_FF_FF},
-		{name: "Offset just out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 16, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF, shouldPanic: true},
-		{name: "Offset out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 17, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF, shouldPanic: true},
-	}
-
-	testMTSysReadPreimage(t, preimageValue, cases)
-}
-
-func TestEVM_MT_StoreOpsClearMemReservation32(t *testing.T) {
-	t.Parallel()
-	testutil.Cannon32OnlyTest(t, "These tests are fully covered for 64-bits in TestEVM_MT_StoreOpsClearMemReservation64")
-
-	cases := []testMTStoreOpsClearMemReservationTestCase{
-		{name: "Store byte", opcode: 0b10_1000, base: 0xFF_00_00_04, offset: 0x08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x78_FF_FF_FF},
-		{name: "Store halfword", opcode: 0b10_1001, base: 0xFF_00_00_04, offset: 0x08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x56_78_FF_FF},
-		{name: "Store word left", opcode: 0b10_1010, base: 0xFF_00_00_04, offset: 0x08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x12_34_56_78},
-		{name: "Store word", opcode: 0b10_1011, base: 0xFF_00_00_04, offset: 0x08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x12_34_56_78},
-		{name: "Store word right", opcode: 0b10_1110, base: 0xFF_00_00_04, offset: 0x08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x78_FF_FF_FF},
-	}
-	testMTStoreOpsClearMemReservation(t, cases)
 }
 
 func TestEVM_SysClone_FlagHandling(t *testing.T) {
@@ -1016,29 +969,6 @@ var NoopSyscalls = map[string]uint32{
 	"SysTimerCreate":   4257,
 	"SysTimerSetTime":  4258,
 	"SysTimerDelete":   4261,
-}
-
-func TestEVM_NoopSyscall32(t *testing.T) {
-	testutil.Cannon32OnlyTest(t, "These tests are fully covered for 64-bits in TestEVM_NoopSyscall64")
-	testNoopSyscall(t, GetMultiThreadedTestCase(t, versions.VersionMultiThreaded_v2), NoopSyscalls)
-}
-
-func TestEVM_UnsupportedSyscall32(t *testing.T) {
-	testutil.Cannon32OnlyTest(t, "These tests are fully covered for 64-bits in TestEVM_UnsupportedSyscall64")
-	t.Parallel()
-
-	var noopSyscallNums = maps.Values(NoopSyscalls)
-	var supportedSyscalls = []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid}
-	unsupportedSyscalls := make([]uint32, 0, 400)
-	for i := 4000; i < 4400; i++ {
-		candidate := uint32(i)
-		if slices.Contains(supportedSyscalls, candidate) || slices.Contains(noopSyscallNums, candidate) {
-			continue
-		}
-		unsupportedSyscalls = append(unsupportedSyscalls, candidate)
-	}
-
-	testUnsupportedSyscall(t, GetMultiThreadedTestCase(t, versions.VersionMultiThreaded), unsupportedSyscalls)
 }
 
 func TestEVM_EmptyThreadStacks(t *testing.T) {
