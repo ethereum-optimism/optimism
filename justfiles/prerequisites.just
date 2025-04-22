@@ -35,18 +35,18 @@ _check_mise:
         else
             echo "Please install mise and ensure it's properly configured"
             echo "Visit https://mise.jdx.dev/getting-started.html for installation instructions"
-            return
+            exit 0
         fi
     fi
 
     if [ -z "$MISE_SHELL" ]; then
         echo "Warning: Not running in a mise-configured shell"
         if [ "$RUN_AUTOFIX" = "true" ]; then
-            echo "Automatically activating mise shell and continuing command..."
-            mise activate >/dev/null
+            # We're running in a shebang subshell, so we can't activate mise
+            exit 0
         else
             echo "Please run 'mise activate' first to activate the mise environment"
-            return
+            exit 0
         fi
     fi
 
@@ -77,7 +77,7 @@ _check_docker:
             echo "You can install Docker from https://docs.docker.com/get-docker/"
         fi
         echo "Note: Some features may require Docker to be installed"
-        return
+        exit 0
     fi
     
     DOCKER_CLIENT_VERSION=$(docker version --format '{{{{.Client.Version}}')
@@ -85,13 +85,13 @@ _check_docker:
     if [ -z "$DOCKER_CLIENT_VERSION" ]; then
         echo "Warning: Could not determine Docker client version"
         echo "Note: Some features may not work correctly"
-        return
+        exit 0
     fi
     
     if [ "$(printf '%s\n' "{{MIN_DOCKER_VERSION}}" "$DOCKER_CLIENT_VERSION" | sort -V | head -n1)" = "$DOCKER_CLIENT_VERSION" ]; then
         echo "Warning: Docker client version $DOCKER_CLIENT_VERSION is older than recommended version {{MIN_DOCKER_VERSION}}"
         echo "Note: Some features may not work correctly with older Docker versions"
-        return
+        exit 0
     fi
 
 # Check if mise and docker are installed and if not, install them
