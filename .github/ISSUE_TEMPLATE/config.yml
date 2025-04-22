@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Optimism Documentation
+    url: https://community.optimism.io/docs/
+    about: Please check the documentation before opening an issue
+  - name: Optimism Community
+    url: https://discord.optimism.io/
+    about: Join the Optimism Discord for questions and community support
