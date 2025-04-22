@@ -97,8 +97,8 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 	}
 }
 
-func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], doPatchGo bool) {
-	state, meta := LoadELFProgram(t, ProgramPath("hello"), initState, doPatchGo)
+func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T]) {
+	state, meta := LoadELFProgram(t, ProgramPath("hello"), initState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), CreateLogger(), meta)
@@ -119,8 +119,8 @@ func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.Create
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
 }
 
-func RunVMTest_Claim[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], doPatchGo bool) {
-	state, meta := LoadELFProgram(t, ProgramPath("claim"), initState, doPatchGo)
+func RunVMTest_Claim[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T]) {
+	state, meta := LoadELFProgram(t, ProgramPath("claim"), initState)
 
 	oracle, expectedStdOut, expectedStdErr := ClaimTestOracle(t)
 

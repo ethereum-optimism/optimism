@@ -27,12 +27,12 @@ func TestInstrumentedState_OpenMips(t *testing.T) {
 
 func TestInstrumentedState_Hello(t *testing.T) {
 	t.Parallel()
-	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory, false)
+	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory)
 }
 
 func TestInstrumentedState_Claim(t *testing.T) {
 	t.Parallel()
-	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory, false)
+	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory)
 }
 
 func TestInstrumentedState_UtilsCheck(t *testing.T) {
@@ -50,7 +50,7 @@ func TestInstrumentedState_UtilsCheck(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(c.name), CreateInitialState, false)
+			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(c.name), CreateInitialState)
 			oracle := testutil.StaticOracle(t, []byte{})
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
@@ -183,7 +183,7 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(test.programName), CreateInitialState, false)
+			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(test.programName), CreateInitialState)
 			oracle := testutil.StaticOracle(t, []byte{})
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
@@ -229,7 +229,7 @@ func TestInstrumentedState_Alloc(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("alloc"), CreateInitialState, false)
+			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("alloc"), CreateInitialState)
 			oracle := testutil.AllocOracle(t, test.numAllocs, test.allocSize)
 
 			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), meta, allFeaturesEnabled())
