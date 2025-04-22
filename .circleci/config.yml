@@ -2321,6 +2321,18 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+            # KURTOSIS (Isthmus)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-interop
+          devnet: interop
+          gate: interop
+
+          # CircleCI params
+          no_output_timeout: 60m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
   close-issue-workflow:
     when:
       and:
