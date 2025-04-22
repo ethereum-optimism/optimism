@@ -5,6 +5,7 @@
   "op_proposer" (localDockerImage "op-proposer")
   "op_deployer" (localDockerImage "op-deployer")
   "op_supervisor" (localDockerImage "op-supervisor")
+  "op_faucet" (localDockerImage "op-faucet")
 -}}
 {{- $urls := dict
   "prestate" (localPrestate.URL)
@@ -16,6 +17,9 @@
 -}}
 ---
 optimism_package:
+  faucet:
+    enabled: true
+    image: {{ $local_images.op_faucet }}
   interop:
     enabled: true
     supervisor_params:
