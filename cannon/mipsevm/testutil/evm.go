@@ -63,20 +63,10 @@ func TestContractsSetup(t require.TestingT, version MipsVersion, stateVersion ui
 // loadArtifacts loads the Cannon contracts, from the contracts package.
 func loadArtifacts(version MipsVersion) (*Artifacts, error) {
 	artifactFS := foundry.OpenArtifactsDir("../../../packages/contracts-bedrock/forge-artifacts")
-	var mips *foundry.Artifact
-	var err error
-	switch version {
-	case MipsSingleThreaded:
-		mips, err = artifactFS.ReadArtifact("MIPS.sol", "MIPS")
-	case MipsMultithreaded:
-		if arch.IsMips32 {
-			mips, err = artifactFS.ReadArtifact("MIPS2.sol", "MIPS2")
-		} else {
-			mips, err = artifactFS.ReadArtifact("MIPS64.sol", "MIPS64")
-		}
-	default:
-		return nil, fmt.Errorf("Unknown MipsVersion supplied: %v", version)
+	if arch.IsMips32 || version != MipsMultithreaded {
+		return nil, fmt.Errorf("unknown MipsVersion supplied: %v", version)
 	}
+	mips, err := artifactFS.ReadArtifact("MIPS64.sol", "MIPS64")
 	if err != nil {
 		return nil, err
 	}
