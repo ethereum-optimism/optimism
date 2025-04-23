@@ -1008,7 +1008,8 @@ func TestCycleInTx(gt *testing.T) {
 
 // submitIntent method submits txintent to a chain.
 // Useful when building blocks with transactions, without block sealing.
-// It receives nonce because chain does not hold updated pending nonce yet because block sealing was not done.
+// It receives nonce because chain does not hold updated pending nonce yet because the method assumes
+// block sealing is not done yet.
 var submitIntent = func(
 	t helpers.StatefulTesting,
 	trigger txintent.Call,
