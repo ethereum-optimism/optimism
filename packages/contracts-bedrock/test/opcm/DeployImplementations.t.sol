@@ -279,7 +279,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.withdrawalDelaySeconds.selector, 1);
         dii.set(dii.minProposalSizeBytes.selector, 1);
         dii.set(dii.challengePeriodSeconds.selector, 1);
-        dii.set(dii.mipsVersion.selector, 1);
+        dii.set(dii.mipsVersion.selector, 6);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
         dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
@@ -386,7 +386,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
         dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
-        dii.set(dii.mipsVersion.selector, 1);
+        dii.set(dii.mipsVersion.selector, 6);
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
@@ -423,7 +423,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
         dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
-        dii.set(dii.mipsVersion.selector, 1);
+        dii.set(dii.mipsVersion.selector, 6);
         string memory release = "dev-release";
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
@@ -446,7 +446,7 @@ contract DeployImplementations_Test is Test {
 
     function test_run_deployMipsV1OnMainnetOrSepolia_reverts() public {
         setDefaults();
-        dii.set(dii.mipsVersion.selector, 1);
+        dii.set(dii.mipsVersion.selector, 6);
 
         vm.chainId(Chains.Mainnet);
         vm.expectRevert("DeployImplementations: Only Mips64 should be deployed on Mainnet or Sepolia");
