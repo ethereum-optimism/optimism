@@ -1685,6 +1685,18 @@ jobs:
             MESSAGE: << parameters.message >>
             LABEL_NAME: << parameters.label_name >>
 
+  devnet-metrics-collect-authorship:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    steps:
+      - utils/checkout-with-mise
+      - run:
+          name: Collect devnet metrics for op-acceptance-tests
+          command: ./devnet-sdk/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
+      - store_artifacts:
+          path: .metrics--authorship--op-acceptance-tests
+          destination: metrics--authorship--op-acceptance-tests
+
 workflows:
   main:
     when:
@@ -2336,3 +2348,16 @@ workflows:
                 This issue will be closed now."
          context:
           - circleci-repo-optimism
+
+  devnet-metrics-collect:
+    when:
+      and:
+        # FIXME change to develop after testing
+        - equal: ["jan/metrics--authors", <<pipeline.git.branch>>]
+        - not:
+            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+
+    jobs:
+      - devnet-metrics-collect-authorship:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
