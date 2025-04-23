@@ -838,7 +838,6 @@ contract DeployImplementations is Script {
     }
 
     function deployMipsSingleton(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public virtual {
-        IMIPS singleton;
         uint256 mipsVersion = _dii.mipsVersion();
         IPreimageOracle preimageOracle = IPreimageOracle(address(_dio.preimageOracleSingleton()));
 
@@ -849,25 +848,15 @@ contract DeployImplementations is Script {
             }
         }
 
-        if (mipsVersion == 1) {
-            singleton = IMIPS(
-                DeployUtils.createDeterministic({
-                    _name: "MIPS",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (preimageOracle))),
-                    _salt: DeployUtils.DEFAULT_SALT
-                })
-            );
-        } else {
-            singleton = IMIPS(
-                DeployUtils.createDeterministic({
-                    _name: "MIPS64",
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(IMIPS2.__constructor__, (preimageOracle, mipsVersion))
-                    ),
-                    _salt: DeployUtils.DEFAULT_SALT
-                })
-            );
-        }
+        IMIPS singleton = IMIPS(
+            DeployUtils.createDeterministic({
+                _name: "MIPS64",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IMIPS2.__constructor__, (preimageOracle, mipsVersion))
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
         vm.label(address(singleton), "MIPSSingleton");
         _dio.set(_dio.mipsSingleton.selector, address(singleton));
     }

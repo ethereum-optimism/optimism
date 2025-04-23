@@ -34,28 +34,17 @@ contract DeployMIPS2 is Script {
     }
 
     function deployMipsSingleton(Input memory _input, Output memory _output) internal {
-        IMIPS singleton;
         uint256 mipsVersion = _input.mipsVersion;
 
-        if (mipsVersion == 1) {
-            singleton = IMIPS(
-                DeployUtils.createDeterministic({
-                    _name: "MIPS",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (_input.preimageOracle))),
-                    _salt: DeployUtils.DEFAULT_SALT
-                })
-            );
-        } else {
-            singleton = IMIPS(
-                DeployUtils.createDeterministic({
-                    _name: "MIPS64",
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(IMIPS2.__constructor__, (_input.preimageOracle, mipsVersion))
-                    ),
-                    _salt: DeployUtils.DEFAULT_SALT
-                })
-            );
-        }
+        IMIPS singleton = IMIPS(
+            DeployUtils.createDeterministic({
+                _name: "MIPS64",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IMIPS2.__constructor__, (_input.preimageOracle, mipsVersion))
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
 
         vm.label(address(singleton), "MIPSSingleton");
         _output.mipsSingleton = singleton;
@@ -64,7 +53,7 @@ contract DeployMIPS2 is Script {
     function assertValidInput(Input memory _input) public pure {
         require(address(_input.preimageOracle) != address(0), "DeployMIPS: preimageOracle not set");
         require(_input.mipsVersion != 0, "DeployMIPS: mipsVersion not set");
-        require(_input.mipsVersion == 1 || _input.mipsVersion == 6, "DeployMIPS: unknown mips version");
+        require(_input.mipsVersion == 6, "DeployMIPS: unknown mips version");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) public view {

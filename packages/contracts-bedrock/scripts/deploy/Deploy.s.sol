@@ -261,7 +261,7 @@ contract Deploy is Deployer {
         dii.set(dii.challengePeriodSeconds.selector, cfg.preimageOracleChallengePeriod());
         dii.set(dii.proofMaturityDelaySeconds.selector, cfg.proofMaturityDelaySeconds());
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, cfg.disputeGameFinalityDelaySeconds());
-        dii.set(dii.mipsVersion.selector, Config.useMultithreadedCannon() ? 6 : 1);
+        dii.set(dii.mipsVersion.selector, 6);
         string memory release = "dev";
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.protocolVersionsProxy.selector, artifacts.mustGetAddress("ProtocolVersionsProxy"));
@@ -595,11 +595,7 @@ contract Deploy is Deployer {
     /// @notice Load the appropriate mips absolute prestate for devenets depending on config environment.
     function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
         if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            if (Config.useMultithreadedCannon()) {
-                return _loadDevnetMtMipsAbsolutePrestate();
-            } else {
-                return _loadDevnetStMipsAbsolutePrestate();
-            }
+            return _loadDevnetMtMipsAbsolutePrestate();
         } else {
             console.log(
                 "[Cannon Dispute Game] Using absolute prestate from config: %x", cfg.faultGameAbsolutePrestate()
