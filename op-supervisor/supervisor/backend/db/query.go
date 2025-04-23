@@ -442,11 +442,17 @@ func (db *ChainsDB) WithReadHandle(chainID eth.ChainID, blockNum uint64, fn func
 	// Execute the function
 	fnErr := fn(handle)
 	if fnErr != nil {
+		db.logger.Error("Failed to execute function with read handle", "chainID", chainID, "blockNum", blockNum, "error", fnErr)
 		return fnErr
 	}
 
 	// Final validation
-	return handle.Validate()
+	validationErr := handle.Validate()
+	if validationErr != nil {
+		db.logger.Error("Failed to validate read handle", "chainID", chainID, "blockNum", blockNum, "error", validationErr)
+		return validationErr
+	}
+	return nil
 }
 
 // Ensures cross-chain operations maintain consistency
