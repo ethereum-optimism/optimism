@@ -1097,3 +1097,82 @@ func TestCycleInBlock(gt *testing.T) {
 	unsafeHeadNumAfterReorg := targetNum - 1
 	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
 }
+
+// TestCycleAcrossChainsSameTimestamp tests below scenario:
+// Transaction B0 exec chain A1, A0 exec B1: cycle across chains: within same timestamp
+// Four transactions happen in same timestamp:
+// tx0: chainA: alice executes message X
+// tx1: chainB: bob executes message Y
+// tx2: chainB: bob initiates message X
+// tx3: chainA: alice initiates message Y
+// cycle: tx0 depends on tx3 (init exec relation) && tx3 depends on tx0 (tx order)
+// cycle: tx1 depends on tx2 (init exec relation) && tx2 depends on tx1 (tx order)
+func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	alice := setupUser(t, is, actors.ChainA, 0)
+	bob := setupUser(t, is, actors.ChainB, 0)
+
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
+	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
+
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 1, 0, 0, 0)
+
+	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
+	targetNum := uint64(2)
+
+	// open blocks on both chains
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
+	// speculatively build exec message by knowing necessary info to build Message
+	logIndexX, logIndexY := uint(0), uint(0)
+	initX := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
+	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	require.NoError(t, err)
+	initY := interop.RandomInitTrigger(rng, eventLoggerAddressB, 7, 15)
+	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainB.ChainID)
+	require.NoError(t, err)
+
+	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
+
+	nonceA, nonceB := uint64(0), uint64(0)
+	// tx0: Intent to execute message X at chain A
+	submitIntent(t, execX, &nonceA, alice, actors.ChainA, &intents)
+	// tx1: Intent to execute message Y at chain B
+	submitIntent(t, execY, &nonceB, bob, actors.ChainB, &intents)
+	// tx2: Intent to initiate message X at chain B
+	submitIntent(t, initX, &nonceB, bob, actors.ChainB, &intents)
+	// tx3: Intent to initiate message Y at chain A
+	submitIntent(t, initY, &nonceA, alice, actors.ChainA, &intents)
+	require.Equal(t, uint64(2), nonceA)
+	require.Equal(t, uint64(2), nonceB)
+
+	actors.ChainA.Sequencer.ActL2EndBlock(t)
+	actors.ChainB.Sequencer.ActL2EndBlock(t)
+
+	// Make sure tx in block sealed at expected time
+	includedBlocks := []eth.BlockRef{}
+	for _, intent := range intents {
+		included, err := intent.PlannedTx.IncludedBlock.Eval(t.Ctx())
+		require.NoError(t, err)
+		require.Equal(t, included.Time, targetTime)
+		require.Equal(t, included.Number, targetNum)
+		includedBlocks = append(includedBlocks, included)
+	}
+	// tx0 and tx3 land in same block at chain A
+	require.Equal(t, includedBlocks[0], includedBlocks[3])
+	// tx1 and tx2 land in same block at chain B
+	require.Equal(t, includedBlocks[1], includedBlocks[2])
+
+	unsafeHeadNumAfterReorg := targetNum - 1
+	reorgOutUnsafeAndConsolidateToSafeBothChain(t, actors, actors.ChainA, actors.ChainB, 0, 0, targetNum, targetNum, unsafeHeadNumAfterReorg)
+}
