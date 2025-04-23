@@ -197,8 +197,7 @@ func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context)
 			finalizedTime := finalizedHeader.Time
 
 			// Fetch parent of finalized block
-			parentNumBig := new(big.Int).Sub(finalizedHeader.Number, big.NewInt(1))
-			parentHeader, err := client.HeaderByNumber(ctx, parentNumBig)
+			parentHeader, err := client.HeaderByHash(ctx, finalizedHeader.ParentHash)
 			if err != nil {
 				return fmt.Errorf("failed to get parent of finalized block for %s: %w", url, err)
 			} else if parentHeader == nil {
@@ -237,13 +236,12 @@ func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context)
 				return fmt.Errorf("reached genesis block 0 for %s, but its time %d is still after anchor %d", url, currentHeader.Time, m.anchorTimestamp)
 			}
 
-			parentNumBig := new(big.Int).Sub(currentHeader.Number, big.NewInt(1))
-			parentHeader, err := client.HeaderByNumber(ctx, parentNumBig)
+			parentHeader, err := client.HeaderByHash(ctx, currentHeader.ParentHash)
 			if err != nil {
-				return fmt.Errorf("failed to get parent block %d for %s during search: %w", parentNumBig.Uint64(), url, err)
+				return fmt.Errorf("failed to get parent block for %s during search: %w", url, err)
 			}
 			if parentHeader == nil {
-				return fmt.Errorf("received nil parent block %d for %s during search", parentNumBig.Uint64(), url)
+				return fmt.Errorf("received nil parent block for %s during search", url)
 			}
 
 			// Basic check to prevent infinite loops if timestamps are weird (e.g., constant or decreasing going down)
