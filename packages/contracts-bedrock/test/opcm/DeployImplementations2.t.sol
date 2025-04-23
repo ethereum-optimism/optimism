@@ -162,7 +162,7 @@ contract DeployImplementations2_Test is Test {
 
     function test_run_deployMipsV1OnMainnetOrSepolia_reverts() public {
         DeployImplementations2.Input memory input = defaultInput();
-        input.mipsVersion = 6;
+        input.mipsVersion = 1;
 
         vm.chainId(Chains.Mainnet);
         vm.expectRevert("DeployImplementations: Only Mips64 should be deployed on Mainnet or Sepolia");
