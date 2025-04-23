@@ -176,20 +176,10 @@ func MarkdownTracer() *tracing.Hooks {
 
 func SourceMapTracer(t require.TestingT, version MipsVersion, mips *foundry.Artifact, oracle *foundry.Artifact, addrs *Addresses) *tracing.Hooks {
 	srcFS := foundry.NewSourceMapFS(os.DirFS("../../../packages/contracts-bedrock"))
-	var mipsSrcMap *srcmap.SourceMap
-	var err error
-	switch version {
-	case MipsSingleThreaded:
-		mipsSrcMap, err = srcFS.SourceMap(mips, "MIPS")
-	case MipsMultithreaded:
-		if arch.IsMips32 {
-			mipsSrcMap, err = srcFS.SourceMap(mips, "MIPS2")
-		} else {
-			mipsSrcMap, err = srcFS.SourceMap(mips, "MIPS64")
-		}
-	default:
+	if arch.IsMips32 || version != MipsMultithreaded {
 		require.Fail(t, "invalid mips version")
 	}
+	mipsSrcMap, err := srcFS.SourceMap(mips, "MIPS64")
 	require.NoError(t, err)
 	oracleSrcMap, err := srcFS.SourceMap(oracle, "PreimageOracle")
 	require.NoError(t, err)
