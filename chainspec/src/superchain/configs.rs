@@ -87,7 +87,7 @@ fn read_file(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::AVAILABLE_CHAINS;
+    use crate::superchain::Superchain;
     use reth_optimism_primitives::ADDRESS_L2_TO_L1_MESSAGE_PASSER;
     use tar_no_std::TarArchiveRef;
 
@@ -140,13 +140,13 @@ mod tests {
 
     #[test]
     fn test_genesis_exists_for_all_available_chains() {
-        for chain in AVAILABLE_CHAINS.as_ref() {
-            let genesis = read_superchain_genesis(&chain.name, &chain.environment);
+        for &chain in Superchain::ALL {
+            let genesis = read_superchain_genesis(chain.name(), chain.environment());
             assert!(
                 genesis.is_ok(),
                 "Genesis not found for chain: {}-{}",
-                chain.name,
-                chain.environment
+                chain.name(),
+                chain.environment()
             );
         }
     }

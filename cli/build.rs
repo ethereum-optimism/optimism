@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use reth_optimism_chainspec::AVAILABLE_CHAINS;
+use reth_optimism_chainspec::Superchain;
 use std::{fs::File, io::Write, path::Path};
 
 // Generate Rust code to list supported chains and a function to parse chain spec based on chain
@@ -17,11 +17,11 @@ fn main() {
         "base-sepolia".to_string(),
     ];
 
-    for chain in AVAILABLE_CHAINS.iter() {
-        if chain.environment == "mainnet" {
-            supported_chains.push(chain.name.clone());
+    for &chain in Superchain::ALL {
+        if chain.environment() == "mainnet" {
+            supported_chains.push(chain.name().to_string());
         } else {
-            supported_chains.push(format!("{}-{}", chain.name, chain.environment));
+            supported_chains.push(format!("{}-{}", chain.name(), chain.environment()));
         }
     }
 
@@ -41,16 +41,16 @@ fn main() {
 // Generate Rust match statement code to load chain spec based on chain name and environment
 fn generate_chain_value_parser_fn() -> String {
     let mut match_arms: String = String::new();
-    for chain in AVAILABLE_CHAINS.iter() {
-        let chain_name = if chain.environment == "mainnet" {
-            chain.name.clone()
+    for &chain in Superchain::ALL {
+        let chain_name = if chain.environment() == "mainnet" {
+            chain.name().to_string()
         } else {
-            format!("{}-{}", chain.name, chain.environment)
+            format!("{}-{}", chain.name(), chain.environment())
         };
         let chain_spec = format!(
             "Some(reth_optimism_chainspec::{}_{}.clone())",
-            chain.name.to_uppercase(),
-            chain.environment.to_uppercase()
+            chain.name().to_uppercase(),
+            chain.environment().to_uppercase()
         )
         .replace('-', "_");
 
