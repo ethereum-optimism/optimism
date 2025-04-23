@@ -153,7 +153,7 @@ func TestReadHandleChainsDBMultipleChains(t *testing.T) {
 			return nil
 		})
 	assert.Error(t, err)
-	assert.Equal(t, ErrInvalidHandle, err)
+	assert.ErrorIs(t, err, ErrInvalidHandle)
 }
 
 func TestReadHandleValidateAccessList(t *testing.T) {
