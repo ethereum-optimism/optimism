@@ -176,7 +176,6 @@ commands:
             fi
           when: on_fail
 
-
   run-contracts-check:
     parameters:
       command:
@@ -765,7 +764,7 @@ jobs:
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
     docker:
-        - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     parameters:
       test_flags:
@@ -963,6 +962,8 @@ jobs:
           command: unused-imports-check-no-build
       - run-contracts-check:
           command: validate-spacers-no-build
+      - run-contracts-check:
+          command: opcm-upgrade-checks-no-build
 
   todo-issues:
     parameters:
@@ -1236,7 +1237,7 @@ jobs:
                 path: ./op-acceptance-tests/logs
       # Notification step
       - notify-failures-on-develop:
-          channel: "C03N11M0BBN"  # #notify-ci-failures
+          channel: "C03N11M0BBN" # #notify-ci-failures
           mentions: "@protocol-devx-pod"
 
   sanitize-op-program:
@@ -1260,7 +1261,6 @@ jobs:
           name: Sanitize op-program client
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client.elf
           working_directory: cannon
-
 
   cannon-prestate-quick:
     machine: true
@@ -1442,10 +1442,10 @@ jobs:
             sudo apt-get install -y build-essential cmake ninja-build python3 curl git clang lld libc++-dev libc++abi-dev
 
       - run:
-           name: Install LLVM Objdump via Mise
-           command: |
-             CC=clang CXX=clang++ mise install llvm-objdump@20.1.0
-             mise use -g llvm-objdump@20.1.0
+          name: Install LLVM Objdump via Mise
+          command: |
+            CC=clang CXX=clang++ mise install llvm-objdump@20.1.0
+            mise use -g llvm-objdump@20.1.0
 
       - run:
           name: Install vm-compat via Mise
@@ -1607,19 +1607,18 @@ jobs:
             echo "✅ Checked-in forge artifacts match the ci build"
 
   stale-check:
-      machine:
-        image: ubuntu-2204:2024.08.1
-      steps:
-        - utils/github-stale:
-            stale-issue-message: 'This issue has been automatically marked as stale and will be closed in 5 days if no updates'
-            stale-pr-message: 'This pr has been automatically marked as stale and will be closed in 5 days if no updates'
-            close-issue-message: 'This issue was closed as stale.  Please reopen if this is a mistake'
-            close-pr-message: 'This PR was closed as stale.  Please reopen if this is a mistake'
-            days-before-issue-stale: 999
-            days-before-pr-stale: 14
-            days-before-issue-close: 5
-            days-before-pr-close: 5
-
+    machine:
+      image: ubuntu-2204:2024.08.1
+    steps:
+      - utils/github-stale:
+          stale-issue-message: "This issue has been automatically marked as stale and will be closed in 5 days if no updates"
+          stale-pr-message: "This pr has been automatically marked as stale and will be closed in 5 days if no updates"
+          close-issue-message: "This issue was closed as stale.  Please reopen if this is a mistake"
+          close-pr-message: "This PR was closed as stale.  Please reopen if this is a mistake"
+          days-before-issue-stale: 999
+          days-before-pr-stale: 14
+          days-before-issue-close: 5
+          days-before-pr-close: 5
 
 workflows:
   main:
