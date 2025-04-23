@@ -401,7 +401,7 @@ contract DeployImplementations_Test is Test {
         assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
         assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "400");
         assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "500");
-        assertEq(1, dii.mipsVersion(), "512");
+        assertEq(6, dii.mipsVersion(), "512");
         assertEq(release, dii.l1ContractsRelease(), "525");
         assertEq(address(superchainConfigProxy), address(dii.superchainConfigProxy()), "550");
         assertEq(address(protocolVersionsProxy), address(dii.protocolVersionsProxy()), "575");

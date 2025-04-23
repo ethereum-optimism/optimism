@@ -116,7 +116,7 @@ contract DeployImplementations2_Test is Test {
             uint256(_challengePeriodSeconds),
             _proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds,
-            1, // mipsVersion
+            6, // mipsVersion
             _l1ContractsRelease,
             superchainConfigProxy,
             protocolVersionsProxy,
@@ -162,7 +162,7 @@ contract DeployImplementations2_Test is Test {
 
     function test_run_deployMipsV1OnMainnetOrSepolia_reverts() public {
         DeployImplementations2.Input memory input = defaultInput();
-        input.mipsVersion = 1;
+        input.mipsVersion = 6;
 
         vm.chainId(Chains.Mainnet);
         vm.expectRevert("DeployImplementations: Only Mips64 should be deployed on Mainnet or Sepolia");
@@ -249,7 +249,7 @@ contract DeployImplementations2_Test is Test {
             challengePeriodSeconds,
             proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds,
-            1, // mipsVersion
+            6, // mipsVersion
             "dev-release", // l1ContractsRelease
             superchainConfigProxy,
             protocolVersionsProxy,
