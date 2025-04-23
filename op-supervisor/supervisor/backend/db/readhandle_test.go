@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -137,7 +138,8 @@ func (m *mockLogDB) rewind(num uint64) {
 }
 
 func TestReadHandle_Basic(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Acquire a handle
 	handle := registry.AcquireHandle(100)
@@ -161,7 +163,8 @@ func TestReadHandle_Basic(t *testing.T) {
 }
 
 func TestReadHandle_MultipleHandles(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Acquire multiple handles
 	handle1 := registry.AcquireHandle(100)
@@ -329,7 +332,7 @@ func TestChainsDB_ValidateAccessList(t *testing.T) {
 }
 
 func setupTestDB(t *testing.T) *ChainsDB {
-	logger := log.New()
+	logger := testlog.Logger(t, log.LvlTrace)
 	db := NewChainsDB(logger, nil, nil)
 
 	// Add mock LogDBs for testing
@@ -448,7 +451,8 @@ func (m *mockDerivationDB) RewindToFirstDerived(v eth.BlockID, revision types.Re
 
 // TestConcurrentReadHandles demonstrates the concurrency control mechanism
 func TestConcurrentReadHandles(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 	logDB := newMockLogDB()
 
 	// Add some test blocks
@@ -508,7 +512,8 @@ func TestConcurrentReadHandles(t *testing.T) {
 // TestReadHandleSimple verifies the basic functionality of ReadHandle
 func TestReadHandleSimple(t *testing.T) {
 	// Create a test registry
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Create a handle for block 5
 	handle := registry.AcquireHandle(5)
@@ -528,7 +533,8 @@ func TestReadHandleSimple(t *testing.T) {
 
 // TestReadHandleUpdateBlock tests the UpdateBlock method of ReadHandle
 func TestReadHandleUpdateBlock(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Create a handle for block 10
 	handle := registry.AcquireHandle(10)
@@ -552,7 +558,8 @@ func TestReadHandleUpdateBlock(t *testing.T) {
 
 // TestMultipleHandles tests handling multiple read handles simultaneously
 func TestMultipleHandles(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Create multiple handles at different block numbers
 	handles := make([]*ReadHandle, 5)
@@ -586,7 +593,8 @@ func TestMultipleHandles(t *testing.T) {
 
 // TestRegistryLifecycle tests the lifecycle of a registry including creation, handle acquisition, and registry cleanup
 func TestRegistryLifecycle(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Acquire and release 100 handles
 	for i := 0; i < 100; i++ {
@@ -615,7 +623,8 @@ func TestRegistryLifecycle(t *testing.T) {
 
 // TestHighVolumeHandles tests the performance and correctness when dealing with a large number of handles
 func TestHighVolumeHandles(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 	const numHandles = 10000
 
 	// Create many handles
@@ -664,7 +673,8 @@ func TestHighVolumeHandles(t *testing.T) {
 // TestInvalidationBoundaries tests the semantics of InvalidateHandlesAfter
 // to confirm that it includes the specified block number (not just blocks after it)
 func TestInvalidationBoundaries(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Create handles at precise boundaries
 	handle0 := registry.AcquireHandle(0)
@@ -684,7 +694,7 @@ func TestInvalidationBoundaries(t *testing.T) {
 	assert.False(t, handle10.IsValid(), "Handle for block 10 should be invalid")
 
 	// Test with InvalidateHandlesAfter(0) which should invalidate all handles
-	registry = NewReadRegistry()
+	registry = NewReadRegistry(logger)
 
 	handle0 = registry.AcquireHandle(0)
 	handle1 = registry.AcquireHandle(1)
@@ -704,7 +714,8 @@ func TestInvalidationBoundaries(t *testing.T) {
 
 // TestConcurrentHandleOperations tests concurrent acquisition and release of handles
 func TestConcurrentHandleOperations(t *testing.T) {
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 	const numHandles = 1000
 	const numGoroutines = 10
 
@@ -872,7 +883,8 @@ func TestTransactionRetryLogic(t *testing.T) {
 // TestUpdateRewindConcurrency tests handling concurrent updates and rewinds
 func TestUpdateRewindConcurrency(t *testing.T) {
 	// For this test, let's use a direct ReadRegistry to avoid mock complexity
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 
 	// Create a barrier to ensure all goroutines are blocked at the same point
 	barrier := make(chan struct{}, 5) // buffered to avoid deadlock
@@ -1034,7 +1046,8 @@ func TestCrossChainConsistency(t *testing.T) {
 	assert.NoError(t, err, "WithReadHandles should succeed with valid blocks")
 
 	// To test with a clean registry, create a new one and test directly
-	registry := NewReadRegistry()
+	logger := testlog.Logger(t, log.LvlTrace)
+	registry := NewReadRegistry(logger)
 	handle1 := registry.AcquireHandle(50) // This should stay valid
 	handle2 := registry.AcquireHandle(75) // This should be invalidated
 

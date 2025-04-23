@@ -245,8 +245,7 @@ func (db *ChainsDB) Close() error {
 func (db *ChainsDB) AcquireReadHandle(chainID eth.ChainID, blockNum uint64) (*ReadHandle, error) {
 	registry, ok := db.readRegistries.Get(chainID)
 	if !ok {
-		// Initialize registry if it doesn't exist
-		registry = NewReadRegistry()
+		registry = NewReadRegistry(db.logger)
 		db.readRegistries.Set(chainID, registry)
 	}
 
