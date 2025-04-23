@@ -137,7 +137,7 @@ func (m *mockLogDB) rewind(num uint64) {
 	m.rewindNum = num
 }
 
-func TestReadHandle_Basic(t *testing.T) {
+func TestReadHandleBasic(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 
@@ -162,7 +162,7 @@ func TestReadHandle_Basic(t *testing.T) {
 	handle.Release()
 }
 
-func TestReadHandle_MultipleHandles(t *testing.T) {
+func TestReadHandleMultipleHandles(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 
@@ -190,7 +190,7 @@ func TestReadHandle_MultipleHandles(t *testing.T) {
 	handle3.Release()
 }
 
-func TestChainsDB_WithReadHandle(t *testing.T) {
+func TestReadHandleChainsDB(t *testing.T) {
 	db := setupTestDB(t)
 	chainID := eth.ChainID{1}
 
@@ -238,7 +238,7 @@ func TestChainsDB_WithReadHandle(t *testing.T) {
 	wg.Wait()
 }
 
-func TestChainsDB_WithReadHandles(t *testing.T) {
+func TestReadHandleChainsDBMultipleChains(t *testing.T) {
 	db := setupTestDB(t)
 	chain1 := eth.ChainID{1}
 	chain2 := eth.ChainID{2}
@@ -278,7 +278,7 @@ func TestChainsDB_WithReadHandles(t *testing.T) {
 	assert.Equal(t, ErrInvalidHandle, err)
 }
 
-func TestChainsDB_ValidateAccessList(t *testing.T) {
+func TestReadHandleValidateAccessList(t *testing.T) {
 	db := setupTestDB(t)
 	chain1 := eth.ChainID{1}
 	chain2 := eth.ChainID{2}
@@ -374,7 +374,6 @@ func setupTestDB(t *testing.T) *ChainsDB {
 	return db
 }
 
-// mockDerivationDB is a simple mock implementation of DerivationStorage
 type mockDerivationDB struct{}
 
 func (m *mockDerivationDB) First() (pair types.DerivedBlockSealPair, err error) {
@@ -449,8 +448,7 @@ func (m *mockDerivationDB) RewindToFirstDerived(v eth.BlockID, revision types.Re
 	return nil
 }
 
-// TestConcurrentReadHandles demonstrates the concurrency control mechanism
-func TestConcurrentReadHandles(t *testing.T) {
+func TestReadHandleConcurrentHandles(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 	logDB := newMockLogDB()
@@ -509,7 +507,6 @@ func TestConcurrentReadHandles(t *testing.T) {
 	handle.Release()
 }
 
-// TestReadHandleSimple verifies the basic functionality of ReadHandle
 func TestReadHandleSimple(t *testing.T) {
 	// Create a test registry
 	logger := testlog.Logger(t, log.LvlTrace)
@@ -531,7 +528,6 @@ func TestReadHandleSimple(t *testing.T) {
 	assert.Equal(t, ErrInvalidHandle, handle.Validate())
 }
 
-// TestReadHandleUpdateBlock tests the UpdateBlock method of ReadHandle
 func TestReadHandleUpdateBlock(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
@@ -556,8 +552,7 @@ func TestReadHandleUpdateBlock(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestMultipleHandles tests handling multiple read handles simultaneously
-func TestMultipleHandles(t *testing.T) {
+func TestReadHandleMultiple(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 
@@ -591,8 +586,7 @@ func TestMultipleHandles(t *testing.T) {
 	}
 }
 
-// TestRegistryLifecycle tests the lifecycle of a registry including creation, handle acquisition, and registry cleanup
-func TestRegistryLifecycle(t *testing.T) {
+func TestReadHandleRegistryLifecycle(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 
@@ -621,8 +615,7 @@ func TestRegistryLifecycle(t *testing.T) {
 	})
 }
 
-// TestHighVolumeHandles tests the performance and correctness when dealing with a large number of handles
-func TestHighVolumeHandles(t *testing.T) {
+func TestReadHandleHighVolume(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 	const numHandles = 10000
@@ -670,9 +663,7 @@ func TestHighVolumeHandles(t *testing.T) {
 	assert.Equal(t, 0, count, "activeHandles map should be empty after all handles are released")
 }
 
-// TestInvalidationBoundaries tests the semantics of InvalidateHandlesAfter
-// to confirm that it includes the specified block number (not just blocks after it)
-func TestInvalidationBoundaries(t *testing.T) {
+func TestReadHandleInvalidationBoundaries(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 
@@ -712,8 +703,7 @@ func TestInvalidationBoundaries(t *testing.T) {
 	handle10.Release()
 }
 
-// TestConcurrentHandleOperations tests concurrent acquisition and release of handles
-func TestConcurrentHandleOperations(t *testing.T) {
+func TestReadHandleConcurrentOperations(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
 	const numHandles = 1000
@@ -755,8 +745,7 @@ func TestConcurrentHandleOperations(t *testing.T) {
 	assert.Equal(t, uint64(numHandles), registry.nextHandleID.Load())
 }
 
-// TestSafeContainsMethods tests the SafeContains method with reorg scenarios
-func TestSafeContainsMethods(t *testing.T) {
+func TestReadHandleSafeContains(t *testing.T) {
 	db := setupTestDB(t)
 	chainID := eth.ChainID{1}
 
@@ -808,8 +797,7 @@ func TestSafeContainsMethods(t *testing.T) {
 	assert.Equal(t, uint64(25), seal.Number)
 }
 
-// TestTransactionRetryLogic tests the WithRetry helper function
-func TestTransactionRetryLogic(t *testing.T) {
+func TestReadHandleTransactionRetryLogic(t *testing.T) {
 	db := setupTestDB(t)
 	chainID := eth.ChainID{1}
 
@@ -880,8 +868,7 @@ func TestTransactionRetryLogic(t *testing.T) {
 	assert.Equal(t, 1, attemptCount, "Should have attempted exactly once")
 }
 
-// TestUpdateRewindConcurrency tests handling concurrent updates and rewinds
-func TestUpdateRewindConcurrency(t *testing.T) {
+func TestReadHandleUpdateRewindConcurrency(t *testing.T) {
 	// For this test, let's use a direct ReadRegistry to avoid mock complexity
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
@@ -953,9 +940,7 @@ func TestUpdateRewindConcurrency(t *testing.T) {
 	assert.Equal(t, numGoroutines, errCount, "All goroutines should have received ErrInvalidHandle")
 }
 
-// TestCrossChainConsistency tests that cross-chain dependencies are properly maintained
-// especially when a reorg occurs on one chain that affects operations on another
-func TestCrossChainConsistency(t *testing.T) {
+func TestReadHandleCrossChainConsistency(t *testing.T) {
 	db := setupTestDB(t)
 	chain1 := eth.ChainID{1}
 	chain2 := eth.ChainID{2}
