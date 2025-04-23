@@ -39,8 +39,7 @@ func (b *L2Batcher) hydrate(system stack.ExtensibleSystem) {
 		ID:           b.id,
 		Client:       rpcCl,
 	})
-	l2ID := system.L2NetworkID(b.id.ChainID)
-	l2Net := system.L2Network(l2ID)
+	l2Net := system.L2Network(stack.L2NetworkID(b.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2Batcher(bFrontend)
 }
 
@@ -78,7 +77,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		batcherCLIConfig := &bss.CLIConfig{
 			L1EthRpc:                 l1EL.userRPC,
 			L2EthRpc:                 l2EL.userRPC,
-			RollupRpc:                l2CL.rpc,
+			RollupRpc:                l2CL.userRPC,
 			MaxPendingTransactions:   1,
 			MaxChannelDuration:       1,
 			MaxL1TxSize:              120_000,
@@ -117,7 +116,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			service: batcher,
 			rpc:     batcher.HTTPEndpoint(),
 			l1RPC:   l1EL.userRPC,
-			l2CLRPC: l2CL.rpc,
+			l2CLRPC: l2CL.userRPC,
 			l2ELRPC: l2EL.userRPC,
 		}
 		orch.batchers.Set(batcherID, b)

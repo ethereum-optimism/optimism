@@ -19,12 +19,12 @@ func (e *ErrContractNotFound) Error() string {
 
 // ContractsRegistry provides access to all supported contract instances
 type ContractsRegistry interface {
-	SuperchainWETH(address types.Address) (SuperchainWETH, error)
+	WETH(address types.Address) (WETH, error)
 	L2ToL2CrossDomainMessenger(address types.Address) (L2ToL2CrossDomainMessenger, error)
 }
 
-// SuperchainWETH represents the interface for interacting with the SuperchainWETH contract
-type SuperchainWETH interface {
+// WETH represents the interface for interacting with the WETH contract
+type WETH interface {
 	BalanceOf(user types.Address) types.ReadInvocation[types.Balance]
 }
 

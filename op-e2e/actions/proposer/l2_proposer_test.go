@@ -62,6 +62,7 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 			ProposerKey:            dp.Secrets.Proposer,
 			AllowNonFinalized:      true,
 			AllocType:              allocType,
+			ChainID:                eth.ChainIDFromBig(sd.L1Cfg.Config.ChainID),
 		}, miner.EthClient(), rollupSeqCl)
 	} else {
 		proposer = actionsHelpers.NewL2Proposer(t, log, &actionsHelpers.ProposerCfg{
@@ -70,6 +71,7 @@ func runProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64, allocType c
 			ProposalRetryInterval: 3 * time.Second,
 			AllowNonFinalized:     false,
 			AllocType:             allocType,
+			ChainID:               eth.ChainIDFromBig(sd.L1Cfg.Config.ChainID),
 		}, miner.EthClient(), rollupSeqCl)
 	}
 

@@ -23,6 +23,18 @@ func SortL2ELNodeIDs(ids []L2ELNodeID) []L2ELNodeID {
 	})
 }
 
+func SortL2ELNodes(elems []L2ELNode) []L2ELNode {
+	return copyAndSort(elems, func(a, b L2ELNode) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ L2ELMatcher = L2ELNodeID{}
+
+func (id L2ELNodeID) Match(elems []L2ELNode) []L2ELNode {
+	return findByID(id, elems)
+}
+
 // L2ELNode is a L2 ethereum execution-layer node
 type L2ELNode interface {
 	ID() L2ELNodeID

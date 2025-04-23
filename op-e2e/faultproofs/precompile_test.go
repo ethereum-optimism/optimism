@@ -133,7 +133,8 @@ func testPrecompiles(t *testing.T, allocType e2e_config.AllocType) {
 			// Now the honest challenger is positioned as the defender of the execution game
 			// We then move to challenge it to induce a preimage load
 			preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-			game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, utils.FirstPreimageLoadOfType("precompile"), preimageLoadCheck, false)
+			providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+			game.ChallengeToPreimageLoad(ctx, providerFunc, utils.FirstPreimageLoadOfType("precompile"), preimageLoadCheck, false)
 			// The above method already verified the image was uploaded and step called successfully
 			// So we don't waste time resolving the game - that's tested elsewhere.
 			require.NoError(t, honestChallenger.Close())

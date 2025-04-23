@@ -3,6 +3,7 @@ package faultproofs
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	oppreimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -219,7 +221,8 @@ func testOutputCannonStepWithLargePreimage(t *testing.T, allocType config.AllocT
 	// execution game. We then move to challenge it to induce a large preimage load.
 	sender := sys.Cfg.Secrets.Addresses().Alice
 	preimageLoadCheck := game.CreateStepLargePreimageLoadCheck(ctx, sender)
-	game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, utils.PreimageLargerThan(preimage.MinPreimageSize), preimageLoadCheck, false)
+	providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	game.ChallengeToPreimageLoad(ctx, providerFunc, utils.PreimageLargerThan(preimage.MinPreimageSize), preimageLoadCheck, false)
 	// The above method already verified the image was uploaded and step called successfully
 	// So we don't waste time resolving the game - that's tested elsewhere.
 }
@@ -234,7 +237,7 @@ func TestOutputCannonStepWithPreimage_Multithreaded(t *testing.T) {
 
 func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	testPreimageStep := func(t *testing.T, preimageType utils.PreimageOpt, preloadPreimage bool) {
+	testPreimageStep := func(t *testing.T, preimageOptConfig utils.PreimageOptConfig, preloadPreimage bool, opts ...disputegame.FindPreimageStepOpt) {
 		op_e2e.InitParallel(t, op_e2e.UsesCannon)
 
 		ctx := context.Background()
@@ -255,22 +258,53 @@ func testOutputCannonStepWithPreimage(t *testing.T, allocType config.AllocType) 
 
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
-		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, preimageType, preimageLoadCheck, preloadPreimage)
+		// Check that the preimage is loaded into the oracle with data matching our expectation
+		getExpectedData := func(p *types.PreimageOracleData) (bool, [32]byte) { return true, game.GetPreimageAtOffset(p) }
+		preimageLoadCheck := game.CreateStepPreimageLoadStrictCheck(ctx, getExpectedData)
+		// We need the honest challenger to step-defend the STF from A -> B such that A loads the preimage
+		// The ChallengeToPreimageLoadAtTarget method will induce a step-defend on odd numbered trace index from the honest challenger.
+		providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+		step := game.FindOddStepForPreimageLoad(ctx, providerFunc, preimageOptConfig, opts...)
+		game.ChallengeToPreimageLoadAtTarget(ctx, providerFunc, step, preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
+
+		// Finally, validate that we can manually invoke step at this point in the game and produce the expected post-state
+		game.VerifyPreimageAtTarget(ctx, providerFunc, step, game.GetOracleKeyPrefixValidator(preimageOptConfig.KeyPrefix), false)
 	}
 
-	preimageConditions := []string{"keccak", "sha256", "blob"}
-	for _, preimageType := range preimageConditions {
-		preimageType := preimageType
-		t.Run("non-existing preimage-"+preimageType, func(t *testing.T) {
-			testPreimageStep(t, utils.FirstPreimageLoadOfType(preimageType), false)
-		})
+	t.Run("non-existing preimage-keccak", func(t *testing.T) {
+		conf := utils.PreimageOptConfigForType(oppreimage.Keccak256KeyType)
+		testPreimageStep(t, conf, false)
+	})
+	t.Run("non-existing preimage-sha256", func(t *testing.T) {
+		conf := utils.PreimageOptConfigForType(oppreimage.Sha256KeyType)
+		// Sha256 preimages are relatively rare, so allow fallback to even step to avoid flakes
+		testPreimageStep(t, conf, false, disputegame.AllowEvenFallback())
+	})
+
+	// Include non-zero offset to induce a load of the part of the preimage after the length prefix
+	blobOffsets := []uint32{0, 8, 16, 24, 32}
+	skipCounts := []int{0, 1, 2, 11}
+	for _, offset := range blobOffsets {
+		for _, skip := range skipCounts {
+			testName := fmt.Sprintf("non-existing preimage-blob-%v skip-%v", strconv.Itoa(int(offset)), skip)
+			t.Run(testName, func(t *testing.T) {
+				conf := utils.PreimageOptConfigForType(oppreimage.BlobKeyType)
+				conf.Offset = offset
+
+				// In order to target non-zero blob field indices, skip some preimage load steps.
+				// Because field elements are retrieved sequentially, this should ensure we advance to
+				// a field element at an index >= skip
+				testPreimageStep(t, conf, false, disputegame.SkipNPreimageLoads(skip))
+			})
+		}
 	}
+
 	// Only test pre-existing images with one type to save runtime
 	t.Run("preimage already exists", func(t *testing.T) {
-		testPreimageStep(t, utils.FirstKeccakPreimageLoad(), true)
+		conf := utils.PreimageOptConfigForType(oppreimage.Keccak256KeyType)
+		testPreimageStep(t, conf, true)
 	})
 }
 
@@ -317,7 +351,8 @@ func testOutputCannonStepWithKzgPointEvaluation(t *testing.T, allocType config.A
 		// Now the honest challenger is positioned as the defender of the execution game
 		// We then move to challenge it to induce a preimage load
 		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-		game.ChallengeToPreimageLoad(ctx, outputRootClaim, sys.Cfg.Secrets.Alice, utils.FirstPrecompilePreimageLoad(), preimageLoadCheck, preloadPreimage)
+		providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+		game.ChallengeToPreimageLoad(ctx, providerFunc, utils.FirstPrecompilePreimageLoad(), preimageLoadCheck, preloadPreimage)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
 	}
@@ -330,99 +365,44 @@ func testOutputCannonStepWithKzgPointEvaluation(t *testing.T, allocType config.A
 	})
 }
 
-func TestOutputCannonProposedOutputRootValid_Standard(t *testing.T) {
-	testOutputCannonProposedOutputRootValid(t, config.AllocTypeStandard)
+func TestOutputCannonProposedOutputRootValid_AttackWithCorrectTrace_Standard(t *testing.T) {
+	testOutputCannonProposedOutputRootValid_AttackWithCorrectTrace(t, config.AllocTypeStandard)
 }
 
 func TestOutputCannonProposedOutputRootValid_Multithreaded(t *testing.T) {
-	testOutputCannonProposedOutputRootValid(t, config.AllocTypeMTCannon)
+	testOutputCannonProposedOutputRootValid_AttackWithCorrectTrace(t, config.AllocTypeMTCannon)
 }
 
-func testOutputCannonProposedOutputRootValid(t *testing.T, allocType config.AllocType) {
+func testOutputCannonProposedOutputRootValid_AttackWithCorrectTrace(t *testing.T, allocType config.AllocType) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
-	honestStepsFail := func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64) {
-		// Attack step should fail
-		correctTrace.StepFails(ctx, parentClaimIdx, true)
-		// Defending should fail too
-		correctTrace.StepFails(ctx, parentClaimIdx, false)
-	}
-	tests := []struct {
-		// name is the name of the test
-		name string
+	ctx := context.Background()
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	t.Cleanup(sys.Close)
 
-		// performMove is called to respond to each claim posted by the honest op-challenger.
-		// It should either attack or defend the claim at parentClaimIdx
-		performMove func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonProposalValid_AttackWithCorrectTrace(t, ctx, arena, &game.SplitGameHelper)
+}
 
-		// performStep is called once the maximum game depth is reached. It should perform a step to counter the
-		// claim at parentClaimIdx. Since the proposed output root is invalid, the step call should always revert.
-		performStep func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, parentClaimIdx int64)
-	}{
-		{
-			name: "AttackWithCorrectTrace",
-			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-				// Attack everything but oddly using the correct hash.
-				// Except the root of the cannon game must have an invalid VM status code.
-				if claim.IsOutputRootLeaf(ctx) {
-					return claim.Attack(ctx, common.Hash{0x01})
-				}
-				return correctTrace.AttackClaim(ctx, claim)
-			},
-			performStep: honestStepsFail,
-		},
-		{
-			name: "DefendWithCorrectTrace",
-			performMove: func(ctx context.Context, game *disputegame.OutputCannonGameHelper, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-				// Can only attack the root claim or the first cannon claim
-				if claim.IsRootClaim() {
-					return correctTrace.AttackClaim(ctx, claim)
-				}
-				// The root of the cannon game must have an invalid VM status code
-				// Attacking ensure we're running the cannon trace between two different blocks
-				// instead of being in the trace extension of the output root bisection
-				if claim.IsOutputRootLeaf(ctx) {
-					return claim.Attack(ctx, common.Hash{0x01})
-				}
-				// Otherwise, defend everything using the correct hash.
-				return correctTrace.DefendClaim(ctx, claim)
-			},
-			performStep: honestStepsFail,
-		},
-	}
+func TestOutputCannonProposedOutputRootValid_DefendWithCorrectTrace_Standard(t *testing.T) {
+	testOutputCannonProposedOutputRootValid_DefendWithCorrectTrace(t, config.AllocTypeStandard)
+}
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UsesCannon)
+func TestOutputCannonProposedOutputRootValid_DefendWithCorrectTrace_Multithreaded(t *testing.T) {
+	testOutputCannonProposedOutputRootValid_DefendWithCorrectTrace(t, config.AllocTypeMTCannon)
+}
 
-			ctx := context.Background()
-			sys, l1Client := StartFaultDisputeSystem(t, WithAllocType(allocType))
-			t.Cleanup(sys.Close)
+func testOutputCannonProposedOutputRootValid_DefendWithCorrectTrace(t *testing.T, allocType config.AllocType) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	sys, _ := StartFaultDisputeSystem(t, WithAllocType(allocType))
+	t.Cleanup(sys.Close)
 
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-			game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
-			correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory))
-
-			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-			// Now maliciously play the game and it should be impossible to win
-			game.ChallengeClaim(ctx,
-				game.RootClaim(ctx),
-				func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
-					return test.performMove(ctx, game, correctTrace, claim)
-				},
-				func(parentClaimIdx int64) {
-					test.performStep(ctx, game, correctTrace, parentClaimIdx)
-				})
-
-			// Time travel past when the game will be resolvable.
-			sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
-			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-			game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
-		})
-	}
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
+	arena := createOutputGameArena(t, sys, game)
+	testCannonProposalValid_DefendWithCorrectTrace(t, ctx, arena, &game.SplitGameHelper)
 }
 
 func TestOutputCannonPoisonedPostState_Standard(t *testing.T) {

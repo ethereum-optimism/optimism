@@ -41,6 +41,9 @@ type Config struct {
 
 	Datadir             string
 	DatadirSyncEndpoint string
+
+	// RPCVerificationWarnings enables asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric
+	RPCVerificationWarnings bool
 }
 
 func (c *Config) Check() error {

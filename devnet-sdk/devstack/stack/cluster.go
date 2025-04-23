@@ -25,6 +25,16 @@ func SortClusterIDs(ids []ClusterID) []ClusterID {
 	return copyAndSortCmp(ids)
 }
 
+func SortClusters(elems []Cluster) []Cluster {
+	return copyAndSort(elems, lessElemOrdered[ClusterID, Cluster])
+}
+
+var _ ClusterMatcher = ClusterID("")
+
+func (id ClusterID) Match(elems []Cluster) []Cluster {
+	return findByID(id, elems)
+}
+
 // Cluster represents a set of chains that interop with each other.
 // This may include L1 chains (although potentially not two-way interop due to consensus-layer limitations).
 type Cluster interface {

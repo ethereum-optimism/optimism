@@ -50,6 +50,15 @@ parameters:
   acceptance_tests_dispatch:
     type: boolean
     default: false
+  github-event-type:
+    type: string
+    default: "__not_set__"
+  github-event-action:
+    type: string
+    default: "__not_set__"
+  github-event-base64:
+    type: string
+    default: "__not_set__"
 
 orbs:
   go: circleci/go@1.8.0
@@ -57,8 +66,9 @@ orbs:
   slack: circleci/slack@5.1.1
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.13
+  utils: ethereum-optimism/circleci-utils@1.0.19
   docker: circleci/docker@2.8.2
+  github-cli: circleci/github-cli@2.7.0
 
 commands:
   gcp-oidc-authenticate:
@@ -142,6 +152,7 @@ commands:
             git submodule update --init --recursive --force -j 8
           working_directory: packages/contracts-bedrock
 
+  # Notifies us on Slack and Discord when a build fails on develop
   notify-failures-on-develop:
     description: "Notify Slack & Discord"
     parameters:
@@ -173,6 +184,36 @@ commands:
               curl -X POST -H "Content-Type: application/json" \
                 -d "{\"content\": \"${DISCORD_MESSAGE}\"}" \
                 "${notify_ci}"
+            fi
+          when: on_fail
+
+  # Notifies us on Discord when a build fails on develop
+  discord-notification-failures-on-develop:
+    description: "Notify Discord"
+    parameters:
+      mentions:
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: "Notify Discord"
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
+              # Format message for Discord with better structure and formatting
+              DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
+
+              # Add mentions if provided
+              if [ ! -z "<< parameters.mentions >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
+              fi
+
+              # Post to Discord webhook
+              curl -X POST -H "Content-Type: application/json" \
+                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
             fi
           when: on_fail
 
@@ -433,7 +474,7 @@ jobs:
         type: boolean
         default: false
       resource_class:
-        description: Docker resoruce class
+        description: Docker resource class
         type: string
         default: medium
     machine:
@@ -1185,7 +1226,7 @@ jobs:
       - run:
           name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
-          no_output_timeout: 60m
+          no_output_timeout: 2h
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
@@ -1216,7 +1257,7 @@ jobs:
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
-            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log
+            gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
           when: always
       # Save the module cache for future runs
       - save_cache:
@@ -1235,9 +1276,8 @@ jobs:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
       # Notification step
-      - notify-failures-on-develop:
-          channel: "C03N11M0BBN"  # #notify-ci-failures
-          mentions: "@protocol-devx-pod"
+      - discord-notification-failures-on-develop:
+          mentions: "@_ftw_" # temporarily just mention Stefano until the acceptance tests are more stable (was: @protocol-devx-pod)
 
   sanitize-op-program:
     docker:
@@ -1620,6 +1660,30 @@ jobs:
             days-before-issue-close: 5
             days-before-pr-close: 5
 
+  close-issue:
+    machine:
+      image: ubuntu-2204:2024.08.1
+    parameters:
+      label_name:
+        type: string
+      message:
+        type: string
+    steps:
+      - github-cli/install
+      - utils/github-event-handler-setup:
+          github_event_base64: << pipeline.parameters.github-event-base64 >>
+          env_prefix: "github_"
+      - run:
+          name: Close issue if label is added
+          command: |
+            echo "Closing issue $github_pull_request_number if label $github_label_name is added on repository ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
+            if [ ! -z "$github_pull_request_number" ] && [ "$github_label_name" = "$LABEL_NAME" ]; then
+                export GH_TOKEN=$GITHUB_TOKEN_GOVERNANCE
+                gh issue close --repo "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" "$github_pull_request_number" --comment "$MESSAGE"
+            fi
+          environment:
+            MESSAGE: << parameters.message >>
+            LABEL_NAME: << parameters.label_name >>
 
 workflows:
   main:
@@ -1735,11 +1799,15 @@ workflows:
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - go-lint:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -1785,6 +1853,7 @@ workflows:
             op-node
             op-proposer
             op-challenger
+            op-faucet
             op-dispute-mon
             op-conductor
             op-program
@@ -1815,10 +1884,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-      - op-program-compat:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
+      # TODO(#15353) - Need to regenerate data used in op-program-compat and then reenable this test
+      #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
+#      - op-program-compat:
+#          context:
+#            - circleci-repo-readonly-authenticated-github-token
+#            - discord
       - bedrock-go-tests:
           requires:
             - go-lint
@@ -1827,13 +1898,14 @@ workflows:
             - cannon-go-lint-and-test-64-bit
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
-            - op-program-compat
+            # TODO(#15353) - Need to regenerate data used in op-program-compat
+            #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
+            # - op-program-compat # Temporarily disable this requirement
             # Not needed for the devnet but we want to make sure they build successfully
             - cannon-docker-build
             - op-dispute-mon-docker-build
             - op-program-docker-build
             - op-supervisor-docker-build
-            - proofs-tools-docker-build
             - go-tests
             - sanitize-op-program
           context:
@@ -1851,7 +1923,6 @@ workflows:
                 - op-program
                 - op-proposer
                 - op-challenger
-                - proofs-tools
                 - op-dispute-mon
                 - op-conductor
                 - da-server
@@ -1906,6 +1977,8 @@ workflows:
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs: ./packages/contracts-bedrock/lib
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   go-release-deployer:
     jobs:
@@ -1930,7 +2003,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|proofs-tools|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       # Standard (medium) cross-platform docker images go here
@@ -1995,35 +2068,19 @@ workflows:
             - op-supervisor-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
-      # Standard (xlarge) AMD-only docker images go here
-      - docker-build:
-          matrix:
-            parameters:
-              docker_name:
-                - proofs-tools
-          name: <<matrix.docker_name>>-docker-release
-          resource_class: xlarge
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          filters:
-            tags:
-              only: /^<<matrix.docker_name>>\/v.*/
-            branches:
-              ignore: /.*/
           context:
-            - oplabs-gcr-release
-            - discord
-          requires:
-            - hold
+            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
           filters:
             tags:
               only: /^op-program\/v.*/
             branches:
               ignore: /.*/
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - publish-cannon-prestates:
           context:
+            - circleci-repo-readonly-authenticated-github-token
             - slack
             - oplabs-network-optimism-io-bucket
           requires:
@@ -2087,7 +2144,7 @@ workflows:
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 60m
-          test_timeout: 59m
+          test_timeout: 75m
           resource_class: ethereum-optimism/latitude-fps-1
           environment_overrides: |
             export OP_E2E_CANNON_ENABLED="true"
@@ -2105,6 +2162,7 @@ workflows:
           context:
             - slack
             - oplabs-network-optimism-io-bucket
+            - circleci-repo-readonly-authenticated-github-token
             - discord
           requires:
             - cannon-prestate
@@ -2202,6 +2260,8 @@ workflows:
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   scheduled-preimage-reproducibility:
     when:
@@ -2249,7 +2309,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-            - slack
       # KURTOSIS (Isthmus)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2262,4 +2321,18 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-            - slack
+  close-issue-workflow:
+    when:
+      and:
+        - equal: [<< pipeline.trigger_source >>, "api"]
+        - equal: [<< pipeline.parameters.github-event-type >>, "pull_request"]
+        - equal: [<< pipeline.parameters.github-event-action >>, "labeled"]
+    jobs:
+      - close-issue:
+         label_name: "auto-close-trivial-contribution"
+         message: "Thank you for your interest in contributing!
+                At this time, we are not accepting contributions that primarily fix spelling, stylistic, or grammatical errors in documentation, code, or elsewhere.
+                Please check our [contribution guidelines](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md#contributions-related-to-spelling-and-grammar) for more information.
+                This issue will be closed now."
+         context:
+          - circleci-repo-optimism

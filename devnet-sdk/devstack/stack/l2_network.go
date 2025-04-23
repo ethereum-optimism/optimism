@@ -37,6 +37,18 @@ func SortL2NetworkIDs(ids []L2NetworkID) []L2NetworkID {
 	})
 }
 
+func SortL2Networks(elems []L2Network) []L2Network {
+	return copyAndSort(elems, func(a, b L2Network) bool {
+		return lessIDOnlyChainID(idOnlyChainID(a.ID()), idOnlyChainID(b.ID()))
+	})
+}
+
+var _ L2NetworkMatcher = L2NetworkID{}
+
+func (id L2NetworkID) Match(elems []L2Network) []L2Network {
+	return findByID(id, elems)
+}
+
 type L2Deployment interface {
 	SystemConfigProxyAddr() common.Address
 	DisputeGameFactoryProxyAddr() common.Address
@@ -61,17 +73,23 @@ type L2Network interface {
 	L1() L1Network
 	Cluster() Cluster
 
-	L2Batcher(id L2BatcherID) L2Batcher
-	L2Proposer(id L2ProposerID) L2Proposer
-	L2Challenger(id L2ChallengerID) L2Challenger
-	L2CLNode(id L2CLNodeID) L2CLNode
-	L2ELNode(id L2ELNodeID) L2ELNode
+	L2Batcher(m L2BatcherMatcher) L2Batcher
+	L2Proposer(m L2ProposerMatcher) L2Proposer
+	L2Challenger(m L2ChallengerMatcher) L2Challenger
+	L2CLNode(m L2CLMatcher) L2CLNode
+	L2ELNode(m L2ELMatcher) L2ELNode
 
-	L2Batchers() []L2BatcherID
-	L2Proposers() []L2ProposerID
-	L2Challengers() []L2ChallengerID
-	L2CLNodes() []L2CLNodeID
-	L2ELNodes() []L2ELNodeID
+	L2BatcherIDs() []L2BatcherID
+	L2ProposerIDs() []L2ProposerID
+	L2ChallengerIDs() []L2ChallengerID
+	L2CLNodeIDs() []L2CLNodeID
+	L2ELNodeIDs() []L2ELNodeID
+
+	L2Batchers() []L2Batcher
+	L2Proposers() []L2Proposer
+	L2Challengers() []L2Challenger
+	L2CLNodes() []L2CLNode
+	L2ELNodes() []L2ELNode
 }
 
 // ExtensibleL2Network is an optional extension interface for L2Network,

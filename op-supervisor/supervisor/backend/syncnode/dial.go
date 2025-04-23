@@ -35,8 +35,6 @@ func (r *RPCDialSetup) Setup(ctx context.Context, logger log.Logger, m opmetrics
 	if err != nil {
 		return nil, err
 	}
-	return &RPCSyncNode{
-		name: fmt.Sprintf("RPCSyncSource(%s)", r.Endpoint),
-		cl:   rpcCl,
-	}, nil
+	name := fmt.Sprintf("RPCSyncSource(%s)", r.Endpoint)
+	return NewRPCSyncNode(name, rpcCl, opts, logger, r), nil
 }

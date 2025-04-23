@@ -77,7 +77,7 @@ Versioning for monorepo releases works as follows:
 
 ## Optimism Contracts Manager (OPCM) Versioning
 
-The [OPCM](https://github.com/ethereum-optimism/optimism/blob/main/packages/contracts-bedrock/src/L1/OPContractsManager.sol) is the contract that manages the deployment of all contracts on L1.
+The [OPCM](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/L1/OPContractsManager.sol) is the contract that manages the deployment of all contracts on L1.
 
 The `OPCM` is the source of truth for the contracts that belong in a release, available as on-chain addresses by querying [the `getImplementations` function](https://github.com/ethereum-optimism/optimism/blob/4c8764f0453e141555846d8c9dd2af9edbc1d014/packages/contracts-bedrock/src/L1/OPContractsManager.sol#L1061).
 
@@ -148,4 +148,3 @@ Now there are two scenarios for the PR that merges the release branch back into 
     - In practice, this one unlikely to occur when using inheritance for feature development, as specified in [Smart Contract Feature Development](https://github.com/ethereum-optimism/design-docs/blob/main/smart-contract-feature-development.md) architecture. It's more likely that (1) is the case, and we merge the version change into the base contract.
 
 This flow also provides a dedicated branch for each release, making it easy to deploy a patch or bug fix, regardless of other changes that may have occurred on develop since the release.
-

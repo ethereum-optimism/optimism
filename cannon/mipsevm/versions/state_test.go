@@ -4,7 +4,9 @@
 package versions
 
 import (
+	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,55 +18,103 @@ import (
 )
 
 func TestNewFromState(t *testing.T) {
-	t.Run("singlethreaded-latestVersion", func(t *testing.T) {
-		actual, err := NewFromState(singlethreaded.CreateEmptyState())
-		require.NoError(t, err)
-		require.IsType(t, &singlethreaded.State{}, actual.FPVMState)
-		require.Equal(t, GetCurrentSingleThreaded(), actual.Version)
-	})
-
-	t.Run("multithreaded-latestVersion", func(t *testing.T) {
-		actual, err := NewFromState(multithreaded.CreateEmptyState())
-		require.NoError(t, err)
-		require.IsType(t, &multithreaded.State{}, actual.FPVMState)
-		require.Equal(t, GetCurrentMultiThreaded(), actual.Version)
-	})
+	for _, version := range StateVersionTypes {
+		if IsSupportedSingleThreaded(version) {
+			t.Run(version.String(), func(t *testing.T) {
+				actual, err := NewFromState(version, singlethreaded.CreateEmptyState())
+				require.NoError(t, err)
+				require.IsType(t, &singlethreaded.State{}, actual.FPVMState)
+				require.Equal(t, version, actual.Version)
+			})
+			t.Run(version.String()+"-mt-unsupported", func(t *testing.T) {
+				_, err := NewFromState(version, multithreaded.CreateEmptyState())
+				require.ErrorIs(t, err, ErrUnsupportedVersion)
+			})
+		} else if IsSupportedMultiThreaded(version) {
+			t.Run(version.String(), func(t *testing.T) {
+				actual, err := NewFromState(version, multithreaded.CreateEmptyState())
+				require.NoError(t, err)
+				require.IsType(t, &multithreaded.State{}, actual.FPVMState)
+				require.Equal(t, version, actual.Version)
+			})
+			t.Run(version.String()+"-st-unsupported", func(t *testing.T) {
+				_, err := NewFromState(version, singlethreaded.CreateEmptyState())
+				require.ErrorIs(t, err, ErrUnsupportedVersion)
+			})
+		} else {
+			t.Run(version.String()+"-unsupported", func(t *testing.T) {
+				_, err := NewFromState(version, multithreaded.CreateEmptyState())
+				require.ErrorIs(t, err, ErrUnsupportedVersion)
+			})
+		}
+	}
 }
 
 func TestLoadStateFromFile(t *testing.T) {
-	t.Run("SinglethreadedFromBinary", func(t *testing.T) {
-		expected, err := NewFromState(singlethreaded.CreateEmptyState())
-		require.NoError(t, err)
+	for _, version := range StateVersionTypes {
+		if IsSupportedSingleThreaded(version) {
+			t.Run(version.String(), func(t *testing.T) {
+				expected, err := NewFromState(version, singlethreaded.CreateEmptyState())
+				require.NoError(t, err)
 
-		path := writeToFile(t, "state.bin.gz", expected)
-		actual, err := LoadStateFromFile(path)
-		require.NoError(t, err)
-		require.Equal(t, expected, actual)
-	})
+				path := writeToFile(t, "state.bin.gz", expected)
+				actual, err := LoadStateFromFile(path)
+				require.NoError(t, err)
+				require.Equal(t, expected, actual)
+			})
+		}
+		if IsSupportedMultiThreaded(version) {
+			t.Run(version.String(), func(t *testing.T) {
+				expected, err := NewFromState(version, multithreaded.CreateEmptyState())
+				require.NoError(t, err)
 
-	t.Run("MultithreadedFromBinary", func(t *testing.T) {
-		expected, err := NewFromState(multithreaded.CreateEmptyState())
-		require.NoError(t, err)
+				path := writeToFile(t, "state.bin.gz", expected)
+				actual, err := LoadStateFromFile(path)
+				require.NoError(t, err)
+				require.Equal(t, expected, actual)
+			})
+		}
+	}
 
-		path := writeToFile(t, "state.bin.gz", expected)
-		actual, err := LoadStateFromFile(path)
+	t.Run("JSONUnsupported", func(t *testing.T) {
+		filename := strconv.Itoa(int(VersionSingleThreaded)) + ".json"
+		dir := t.TempDir()
+		path := filepath.Join(dir, filename)
+		in, err := historicStates.ReadFile(filepath.Join(statesPath, filename))
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.NoError(t, os.WriteFile(path, in, 0o644))
+
+		_, err = LoadStateFromFile(path)
+		require.ErrorIs(t, err, ErrUnsupportedVersion)
 	})
 }
 
+type versionAndStateCreator struct {
+	version     StateVersion
+	createState func() mipsevm.FPVMState
+}
+
 func TestVersionsOtherThanZeroDoNotSupportJSON(t *testing.T) {
-	tests := []struct {
+	var tests []struct {
 		version     StateVersion
 		createState func() mipsevm.FPVMState
-	}{
-		{GetCurrentSingleThreaded(), func() mipsevm.FPVMState { return singlethreaded.CreateEmptyState() }},
-		{GetCurrentMultiThreaded(), func() mipsevm.FPVMState { return multithreaded.CreateEmptyState() }},
+	}
+	for _, version := range StateVersionTypes {
+		if !IsSupportedSingleThreaded(version) {
+			continue
+		}
+		tests = append(tests, versionAndStateCreator{version: version, createState: func() mipsevm.FPVMState { return singlethreaded.CreateEmptyState() }})
+	}
+	for _, version := range StateVersionTypes {
+		if !IsSupportedMultiThreaded(version) {
+			continue
+		}
+		tests = append(tests, versionAndStateCreator{version: version, createState: func() mipsevm.FPVMState { return multithreaded.CreateEmptyState() }})
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.version.String(), func(t *testing.T) {
-			state, err := NewFromState(test.createState())
+			state, err := NewFromState(test.version, test.createState())
 			require.NoError(t, err)
 
 			dir := t.TempDir()

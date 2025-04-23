@@ -95,9 +95,9 @@ func (p *presetL2Network) Cluster() stack.Cluster {
 	return p.cluster
 }
 
-func (p *presetL2Network) L2Batcher(id stack.L2BatcherID) stack.L2Batcher {
-	v, ok := p.batchers.Get(id)
-	p.require().True(ok, "l2 batcher %s must exist", id)
+func (p *presetL2Network) L2Batcher(m stack.L2BatcherMatcher) stack.L2Batcher {
+	v, ok := findMatch(m, p.batchers.Get, p.L2Batchers)
+	p.require().True(ok, "must find L2 batcher %s", m)
 	return v
 }
 
@@ -107,9 +107,9 @@ func (p *presetL2Network) AddL2Batcher(v stack.L2Batcher) {
 	p.require().True(p.batchers.SetIfMissing(id, v), "l2 batcher %s must not already exist", id)
 }
 
-func (p *presetL2Network) L2Proposer(id stack.L2ProposerID) stack.L2Proposer {
-	v, ok := p.proposers.Get(id)
-	p.require().True(ok, "l2 proposer %s must exist", id)
+func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer {
+	v, ok := findMatch(m, p.proposers.Get, p.L2Proposers)
+	p.require().True(ok, "must find L2 proposer %s", m)
 	return v
 }
 
@@ -119,9 +119,9 @@ func (p *presetL2Network) AddL2Proposer(v stack.L2Proposer) {
 	p.require().True(p.proposers.SetIfMissing(id, v), "l2 proposer %s must not already exist", id)
 }
 
-func (p *presetL2Network) L2Challenger(id stack.L2ChallengerID) stack.L2Challenger {
-	v, ok := p.challengers.Get(id)
-	p.require().True(ok, "l2 challenger %s must exist", id)
+func (p *presetL2Network) L2Challenger(m stack.L2ChallengerMatcher) stack.L2Challenger {
+	v, ok := findMatch(m, p.challengers.Get, p.L2Challengers)
+	p.require().True(ok, "must find L2 challenger %s", m)
 	return v
 }
 
@@ -131,9 +131,9 @@ func (p *presetL2Network) AddL2Challenger(v stack.L2Challenger) {
 	p.require().True(p.challengers.SetIfMissing(id, v), "l2 challenger %s must not already exist", id)
 }
 
-func (p *presetL2Network) L2CLNode(id stack.L2CLNodeID) stack.L2CLNode {
-	v, ok := p.cls.Get(id)
-	p.require().True(ok, "l2 CL node %s must exist", id)
+func (p *presetL2Network) L2CLNode(m stack.L2CLMatcher) stack.L2CLNode {
+	v, ok := findMatch(m, p.cls.Get, p.L2CLNodes)
+	p.require().True(ok, "must find L2 CL %s", m)
 	return v
 }
 
@@ -143,9 +143,9 @@ func (p *presetL2Network) AddL2CLNode(v stack.L2CLNode) {
 	p.require().True(p.cls.SetIfMissing(id, v), "l2 CL node %s must not already exist", id)
 }
 
-func (p *presetL2Network) L2ELNode(id stack.L2ELNodeID) stack.L2ELNode {
-	v, ok := p.els.Get(id)
-	p.require().True(ok, "l2 EL node %s must exist", id)
+func (p *presetL2Network) L2ELNode(m stack.L2ELMatcher) stack.L2ELNode {
+	v, ok := findMatch(m, p.els.Get, p.L2ELNodes)
+	p.require().True(ok, "must find L2 EL %s", m)
 	return v
 }
 
@@ -155,22 +155,42 @@ func (p *presetL2Network) AddL2ELNode(v stack.L2ELNode) {
 	p.require().True(p.els.SetIfMissing(id, v), "l2 EL node %s must not already exist", id)
 }
 
-func (p *presetL2Network) L2Batchers() []stack.L2BatcherID {
+func (p *presetL2Network) L2BatcherIDs() []stack.L2BatcherID {
 	return stack.SortL2BatcherIDs(p.batchers.Keys())
 }
 
-func (p *presetL2Network) L2Proposers() []stack.L2ProposerID {
+func (p *presetL2Network) L2Batchers() []stack.L2Batcher {
+	return stack.SortL2Batchers(p.batchers.Values())
+}
+
+func (p *presetL2Network) L2ProposerIDs() []stack.L2ProposerID {
 	return stack.SortL2ProposerIDs(p.proposers.Keys())
 }
 
-func (p *presetL2Network) L2Challengers() []stack.L2ChallengerID {
+func (p *presetL2Network) L2Proposers() []stack.L2Proposer {
+	return stack.SortL2Proposers(p.proposers.Values())
+}
+
+func (p *presetL2Network) L2ChallengerIDs() []stack.L2ChallengerID {
 	return stack.SortL2ChallengerIDs(p.challengers.Keys())
 }
 
-func (p *presetL2Network) L2CLNodes() []stack.L2CLNodeID {
+func (p *presetL2Network) L2Challengers() []stack.L2Challenger {
+	return stack.SortL2Challengers(p.challengers.Values())
+}
+
+func (p *presetL2Network) L2CLNodeIDs() []stack.L2CLNodeID {
 	return stack.SortL2CLNodeIDs(p.cls.Keys())
 }
 
-func (p *presetL2Network) L2ELNodes() []stack.L2ELNodeID {
+func (p *presetL2Network) L2CLNodes() []stack.L2CLNode {
+	return stack.SortL2CLNodes(p.cls.Values())
+}
+
+func (p *presetL2Network) L2ELNodeIDs() []stack.L2ELNodeID {
 	return stack.SortL2ELNodeIDs(p.els.Keys())
+}
+
+func (p *presetL2Network) L2ELNodes() []stack.L2ELNode {
+	return stack.SortL2ELNodes(p.els.Values())
 }

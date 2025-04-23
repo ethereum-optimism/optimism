@@ -431,6 +431,9 @@ func WithoutWaitingForStep() DefendClaimOpt {
 	}
 }
 
+// SupportClaim uses the supplied Mover to perform moves in an attempt to support the supplied claim.
+// It is assumed that the specified claim is valid and that an honest op-challenger is already running.
+// When the game has reached the maximum depth it uses the specified stepper to counter the leaf claim.
 func (g *SplitGameHelper) SupportClaim(ctx context.Context, claim *ClaimHelper, performMove Mover, attemptStep Stepper) {
 	g.T.Logf("Supporting claim %v at depth %v", claim.Index, claim.Depth())
 	for !claim.IsMaxDepth(ctx) {

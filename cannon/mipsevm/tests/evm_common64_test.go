@@ -144,36 +144,38 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 		{name: "dsra32", funct: 0x3f, rd: Word(0xAA_BB_CC_DD_A1_B1_C1_D1), rt: Word(0x7F_FF_FF_FF_FF_FF_FF_FF), sa: 31, expectRes: Word(0x0)},                      // dsra32 t8, s2, 1
 	}
 
-	v := GetMultiThreadedTestCase(t)
 	for i, tt := range cases {
-		testName := fmt.Sprintf("%v %v", v.Name, tt.name)
-		t.Run(testName, func(t *testing.T) {
-			pc := Word(0x0)
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(pc))
-			state := goVm.GetState()
-			var insn uint32
-			var rtReg uint32
-			var rdReg uint32
-			rtReg = 18
-			rdReg = 8
-			insn = rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
-			state.GetRegistersRef()[rdReg] = tt.rd
-			state.GetRegistersRef()[rtReg] = tt.rt
-			testutil.StoreInstruction(state.GetMemory(), pc, insn)
-			step := state.GetStep()
+		for _, v := range GetMultiThreadedTestCases(t) {
+			v := v
+			testName := fmt.Sprintf("%v %v", v.Name, tt.name)
+			t.Run(testName, func(t *testing.T) {
+				pc := Word(0x0)
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(pc))
+				state := goVm.GetState()
+				var insn uint32
+				var rtReg uint32
+				var rdReg uint32
+				rtReg = 18
+				rdReg = 8
+				insn = rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
+				state.GetRegistersRef()[rdReg] = tt.rd
+				state.GetRegistersRef()[rtReg] = tt.rt
+				testutil.StoreInstruction(state.GetMemory(), pc, insn)
+				step := state.GetStep()
 
-			// Setup expectations
-			expected := testutil.NewExpectedState(state)
-			expected.ExpectStep()
-			expected.Registers[rdReg] = tt.expectRes
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				expected.Registers[rdReg] = tt.expectRes
 
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
 
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-		})
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+			})
+		}
 	}
 }
 

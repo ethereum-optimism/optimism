@@ -60,8 +60,7 @@ func LoadELF(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	switch ver {
-	case versions.GetCurrentSingleThreaded():
+	if versions.IsSupportedSingleThreaded(ver) {
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -72,11 +71,11 @@ func LoadELF(ctx *cli.Context) error {
 			}
 			return program.PatchStack(state)
 		}
-	case versions.GetCurrentMultiThreaded(), versions.GetCurrentMultiThreaded64():
+	} else if versions.IsSupportedMultiThreaded(ver) || versions.IsSupportedMultiThreaded64(ver) {
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}
-	default:
+	} else {
 		return fmt.Errorf("unsupported state version: %d (%s)", ver, ver.String())
 	}
 
@@ -97,7 +96,7 @@ func LoadELF(ctx *cli.Context) error {
 	}
 
 	// Ensure the state is written with appropriate version information
-	versionedState, err := versions.NewFromState(state)
+	versionedState, err := versions.NewFromState(ver, state)
 	if err != nil {
 		return fmt.Errorf("failed to create versioned state: %w", err)
 	}

@@ -34,6 +34,7 @@ const (
 	methodProposalBlocksLen          = "proposalBlocksLen"
 	methodProposalBlocks             = "proposalBlocks"
 	methodPreimagePartOk             = "preimagePartOk"
+	methodPreimageParts              = "preimageParts"
 	methodMinProposalSize            = "minProposalSize"
 	methodChallengeFirstLPP          = "challengeFirstLPP"
 	methodChallengeLPP               = "challengeLPP"
@@ -126,7 +127,7 @@ func (c *PreimageOracleContractLatest) AddGlobalDataTx(data *types.PreimageOracl
 		return call.ToTxCandidate()
 	case preimage.BlobKeyType:
 		call := c.contract.Call(methodLoadBlobPreimagePart,
-			new(big.Int).SetUint64(data.BlobFieldIndex),
+			new(big.Int).SetBytes(data.ZPoint[:]),
 			new(big.Int).SetBytes(data.GetPreimageWithoutSize()),
 			data.BlobCommitment,
 			data.BlobProof,
@@ -344,6 +345,15 @@ func (c *PreimageOracleContractLatest) GlobalDataExists(ctx context.Context, dat
 	return results.GetBool(0), nil
 }
 
+func (c *PreimageOracleContractLatest) GetGlobalData(ctx context.Context, data *types.PreimageOracleData) ([32]byte, error) {
+	call := c.contract.Call(methodPreimageParts, common.Hash(data.OracleKey), new(big.Int).SetUint64(uint64(data.OracleOffset)))
+	results, err := c.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("failed to get preimageParts: %w", err)
+	}
+	return results.GetBytes32(0), nil
+}
+
 func (c *PreimageOracleContractLatest) ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error) {
 	var call *batching.ContractCall
 	if challenge.Prestate == (keccakTypes.Leaf{}) {
@@ -484,6 +494,7 @@ type PreimageOracleContract interface {
 	GetInputDataBlocks(ctx context.Context, block rpcblock.Block, ident keccakTypes.LargePreimageIdent) ([]uint64, error)
 	DecodeInputData(data []byte) (*big.Int, keccakTypes.InputData, error)
 	GlobalDataExists(ctx context.Context, data *types.PreimageOracleData) (bool, error)
+	GetGlobalData(ctx context.Context, data *types.PreimageOracleData) ([32]byte, error)
 	ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error)
 	GetMinBondLPP(ctx context.Context) (*big.Int, error)
 }

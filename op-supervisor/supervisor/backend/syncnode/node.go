@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
+	"github.com/gorilla/websocket"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
@@ -156,6 +157,15 @@ func (m *ManagedNode) SubscribeToNodeEvents() {
 			if prevErr != nil {
 				// This is the RPC runtime error, not the setup error we have logging for below.
 				m.log.Error("RPC subscription failed, restarting now", "err", prevErr)
+				var closeErr *websocket.CloseError
+				if errors.As(prevErr, &closeErr) {
+					m.log.Warn("RPC websocket connection closed")
+					if err := m.Node.ReconnectRPC(m.ctx); err != nil {
+						m.log.Warn("RPC websocket reconnection failed", "err", err)
+					} else {
+						m.log.Info("RPC websocket connection reopened")
+					}
+				}
 				// When the subscription fails, the channel may have been immediately closed
 				m.nodeEvents = make(chan *types.ManagedEvent, 10)
 			}
@@ -206,8 +216,10 @@ func (m *ManagedNode) Start() {
 				return
 			case ev, ok := <-m.nodeEvents: // nil, indefinitely blocking, if no node-events subscriber is set up.
 				if !ok {
-					m.log.Info("Node events channel closed, stopping")
-					return
+					m.log.Info("Node events channel closed")
+					// indefinitely loop until node-event channel is reinitialized.
+					time.Sleep(500 * time.Millisecond)
+					continue
 				}
 				m.onNodeEvent(ev)
 			}

@@ -28,6 +28,8 @@ type cmdRunner interface {
 	Run() error
 	// SetOutput sets the writers for stdout and stderr.
 	SetOutput(stdout, stderr *bytes.Buffer)
+	Dir() string
+	SetDir(dir string)
 }
 
 // defaultCmdRunner is the default implementation that uses exec.Command
@@ -59,6 +61,14 @@ func (r *defaultCmdRunner) SetOutput(stdout, stderr *bytes.Buffer) {
 
 func (r *defaultCmdRunner) Run() error {
 	return r.Cmd.Run()
+}
+
+func (r *defaultCmdRunner) Dir() string {
+	return r.Cmd.Dir
+}
+
+func (r *defaultCmdRunner) SetDir(dir string) {
+	r.Cmd.Dir = dir
 }
 
 // cmdFactory creates commands
@@ -191,20 +201,6 @@ func WithDockerConcurrency(limit int) DockerBuilderOptions {
 	}
 }
 
-// withDockerProvider is a package-private option for testing
-func withDockerProvider(provider dockerProvider) DockerBuilderOptions {
-	return func(b *DockerBuilder) {
-		b.dockerProvider = provider
-	}
-}
-
-// withCmdFactory is a package-private option for testing
-func withCmdFactory(factory cmdFactory) DockerBuilderOptions {
-	return func(b *DockerBuilder) {
-		b.cmdFactory = factory
-	}
-}
-
 // NewDockerBuilder creates a new DockerBuilder instance
 func NewDockerBuilder(opts ...DockerBuilderOptions) *DockerBuilder {
 	b := &DockerBuilder{
@@ -233,15 +229,17 @@ type templateData struct {
 // Build ensures the docker image for the given project is built, respecting concurrency limits.
 // It blocks until the specific requested build is complete. Other builds may run concurrently.
 func (b *DockerBuilder) Build(projectName, imageTag string) (string, error) {
+	b.mu.Lock()
 	state, exists := b.buildStates[projectName]
 	if !exists {
 		state = &buildState{
 			done: make(chan struct{}),
 		}
-		b.mu.Lock()
 		b.buildStates[projectName] = state
-		b.mu.Unlock()
+	}
+	b.mu.Unlock()
 
+	if !exists {
 		state.once.Do(func() {
 			err := b.executeBuild(projectName, imageTag, state)
 			if err != nil {

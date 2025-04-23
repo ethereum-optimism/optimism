@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -51,7 +51,7 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 	tp := &timeProvider{now: now}
 	if mockP2P == nil {
 		mockP2P = &p2pMocks.API{}
-		ps1 := &p2p.PeerStats{
+		ps1 := &apis.PeerStats{
 			Connected: healthyPeerCount,
 		}
 		mockP2P.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
@@ -85,7 +85,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
 	rc.ExpectSyncStatus(ss1, nil)
 
 	pc := &p2pMocks.API{}
-	ps1 := &p2p.PeerStats{
+	ps1 := &apis.PeerStats{
 		Connected: unhealthyPeerCount,
 	}
 	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil).Times(1)

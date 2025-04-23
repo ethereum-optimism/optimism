@@ -78,7 +78,7 @@ ALLOWED_FILES=(
   "src/L2/SequencerFeeVault.sol:SequencerFeeVault"
   "src/L2/SuperchainERC20.sol:SuperchainERC20"
   "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge"
-  "src/L2/SuperchainWETH.sol:SuperchainWETH"
+  "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge"
   "src/L2/WETH.sol:WETH"
   # "src/cannon/MIPS.sol:MIPS"
   # "src/cannon/MIPS2.sol:MIPS2"

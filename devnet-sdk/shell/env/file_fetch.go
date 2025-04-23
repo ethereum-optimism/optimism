@@ -1,27 +1,24 @@
 package env
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
+
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/spf13/afero"
 )
 
-type osInterface interface {
-	ReadFile(name string) ([]byte, error)
-}
-
-type defaultOS struct{}
-
-func (d *defaultOS) ReadFile(name string) ([]byte, error) {
-	return os.ReadFile(name)
+type fileFetcher struct {
+	fs afero.Fs
 }
 
 // fetchFileData reads data from a local file
-func fetchFileDataFromOS(u *url.URL, os osInterface) (string, []byte, error) {
-	body, err := os.ReadFile(u.Path)
+func (f *fileFetcher) fetchFileData(u *url.URL) (*descriptors.DevnetEnvironment, error) {
+	body, err := afero.ReadFile(f.fs, u.Path)
 	if err != nil {
-		return "", nil, fmt.Errorf("error reading file: %w", err)
+		return nil, fmt.Errorf("error reading file: %w", err)
 	}
 
 	basename := u.Path
@@ -31,9 +28,19 @@ func fetchFileDataFromOS(u *url.URL, os osInterface) (string, []byte, error) {
 	if lastDot := strings.LastIndex(basename, "."); lastDot >= 0 {
 		basename = basename[:lastDot]
 	}
-	return basename, body, nil
+
+	var config descriptors.DevnetEnvironment
+	if err := json.Unmarshal(body, &config); err != nil {
+		return nil, fmt.Errorf("error parsing JSON: %w", err)
+	}
+	config.Name = basename
+
+	return &config, nil
 }
 
-func fetchFileData(u *url.URL) (string, []byte, error) {
-	return fetchFileDataFromOS(u, &defaultOS{})
+func fetchFileData(u *url.URL) (*descriptors.DevnetEnvironment, error) {
+	fetcher := &fileFetcher{
+		fs: afero.NewOsFs(),
+	}
+	return fetcher.fetchFileData(u)
 }

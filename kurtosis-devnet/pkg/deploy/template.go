@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/build"
@@ -81,25 +80,21 @@ func (f *Templater) localDockerImageOption() tmpl.TemplateContextOptions {
 }
 
 func (f *Templater) localContractArtifactsOption() tmpl.TemplateContextOptions {
-	contractsBundle := fmt.Sprintf("contracts-bundle-%s.tar.gz", f.enclave)
-	contractsBundlePath := func(_ string) string {
-		return filepath.Join(f.buildDir, contractsBundle)
-	}
-	contractsURL := f.urlBuilder(contractsBundle)
-
 	contractBuilder := build.NewContractBuilder(
 		build.WithContractBaseDir(f.baseDir),
 		build.WithContractDryRun(f.dryRun),
+		build.WithContractEnclave(f.enclave),
 	)
 
 	return tmpl.WithFunction("localContractArtifacts", func(layer string) (string, error) {
-		bundlePath := contractsBundlePath(layer)
-		if err := contractBuilder.Build(layer, bundlePath); err != nil {
+		url, err := contractBuilder.Build(layer)
+
+		if err != nil {
 			return "", err
 		}
 
-		log.Printf("%s: contract artifacts available at: %s\n", layer, contractsURL)
-		return contractsURL, nil
+		log.Printf("%s: contract artifacts available at: %s\n", layer, url)
+		return url, nil
 	})
 }
 

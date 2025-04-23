@@ -23,6 +23,18 @@ func SortL2BatcherIDs(ids []L2BatcherID) []L2BatcherID {
 	})
 }
 
+func SortL2Batchers(elems []L2Batcher) []L2Batcher {
+	return copyAndSort(elems, func(a, b L2Batcher) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ L2BatcherMatcher = L2BatcherID{}
+
+func (id L2BatcherID) Match(elems []L2Batcher) []L2Batcher {
+	return findByID(id, elems)
+}
+
 // L2Batcher represents an L2 batch-submission service, posting L2 data of an L2 to L1.
 type L2Batcher interface {
 	Common

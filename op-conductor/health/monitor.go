@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 )
 
@@ -35,7 +35,7 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p p2p.API) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient) HealthMonitor {
 	return &SequencerHealthMonitor{
 		log:            log,
 		metrics:        metrics,
@@ -72,7 +72,7 @@ type SequencerHealthMonitor struct {
 	timeProviderFn func() uint64
 
 	node dial.RollupClientInterface
-	p2p  p2p.API
+	p2p  apis.P2PClient
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)

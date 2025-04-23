@@ -50,31 +50,42 @@ func TestDetectVersion_fromFile(t *testing.T) {
 
 // Check that the latest supported versions write new states in a way that is detected correctly
 func TestDetectVersion_singleThreadedBinary(t *testing.T) {
-	targetVersion := GetCurrentSingleThreaded()
 	if !arch.IsMips32 {
 		t.Skip("Single-threaded states are not supported for 64-bit VMs")
 	}
-
-	state, err := NewFromState(singlethreaded.CreateEmptyState())
-	require.NoError(t, err)
-	path := writeToFile(t, "state.bin.gz", state)
-	version, err := DetectVersion(path)
-	require.NoError(t, err)
-	require.Equal(t, targetVersion, version)
+	for _, version := range StateVersionTypes {
+		version := version
+		if !IsSupportedSingleThreaded(version) {
+			continue
+		}
+		t.Run(version.String(), func(t *testing.T) {
+			state, err := NewFromState(version, singlethreaded.CreateEmptyState())
+			require.NoError(t, err)
+			path := writeToFile(t, "state.bin.gz", state)
+			version, err := DetectVersion(path)
+			require.NoError(t, err)
+			require.Equal(t, version, version)
+		})
+	}
 }
 
 func TestDetectVersion_multiThreadedBinary(t *testing.T) {
-	targetVersion := GetCurrentMultiThreaded()
-	if !arch.IsMips32 {
-		targetVersion = GetCurrentMultiThreaded64()
+	for _, version := range StateVersionTypes {
+		version := version
+		if arch.IsMips32 && !IsSupportedMultiThreaded(version) {
+			continue
+		} else if !arch.IsMips32 && !IsSupportedMultiThreaded64(version) {
+			continue
+		}
+		t.Run(version.String(), func(t *testing.T) {
+			state, err := NewFromState(version, multithreaded.CreateEmptyState())
+			require.NoError(t, err)
+			path := writeToFile(t, "state.bin.gz", state)
+			version, err := DetectVersion(path)
+			require.NoError(t, err)
+			require.Equal(t, version, version)
+		})
 	}
-
-	state, err := NewFromState(multithreaded.CreateEmptyState())
-	require.NoError(t, err)
-	path := writeToFile(t, "state.bin.gz", state)
-	version, err := DetectVersion(path)
-	require.NoError(t, err)
-	require.Equal(t, targetVersion, version)
 }
 
 func TestDetectVersion_invalid(t *testing.T) {

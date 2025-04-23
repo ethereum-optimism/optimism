@@ -12,7 +12,7 @@ import { DelegateCaller } from "test/mocks/Callers.sol";
 import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
-
+import { Config } from "scripts/libraries/Config.sol";
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
@@ -253,7 +253,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim absolutePrestate;
-    string public opChain = vm.envOr("FORK_OP_CHAIN", string("op"));
+    string public opChain = Config.forkOpChain();
 
     function setUp() public virtual override {
         super.disableUpgradedFork();

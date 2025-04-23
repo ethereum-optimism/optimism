@@ -26,6 +26,9 @@ import (
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+// funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
+const funderMnemonicIndex = 10_000
+
 type DeployerOption func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder)
 
 func WithDeployer(opts ...DeployerOption) stack.Option {
@@ -135,6 +138,10 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		l1Config.WithPragueOffset(0) // activate pectra on L1
 
+		faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+		p.Require().NoError(err, "need funder addr")
+		l1Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
+
 		// We use the L1 chain ID to identify the superchain-wide roles.
 		addrFor := intentbuilder.RoleToAddrProvider(p, keys, l1ChainID)
 		_, superCfg := builder.WithSuperchain()
@@ -152,11 +159,10 @@ func WithPrefundedL2(chainID eth.ChainID) DeployerOption {
 
 		intentbuilder.WithDevkeyVaults(p, keys, l2Config)
 		intentbuilder.WithDevkeyRoles(p, keys, l2Config)
-
 		{
-			addrFor := intentbuilder.KeyToAddrProvider(p, keys)
-			// unique key for this L2
-			l2Config.WithPrefundedAccount(addrFor(devkeys.ChainUserKeys(chainID.ToBig())(0)), *millionEth)
+			faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
+			p.Require().NoError(err, "need funder addr")
+			l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
 		}
 		{
 			addrFor := intentbuilder.RoleToAddrProvider(p, keys, chainID)

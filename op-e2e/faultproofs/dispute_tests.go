@@ -292,6 +292,70 @@ func testDisputeRootChangeClaimedRoot(t *testing.T, ctx context.Context, arena g
 	game.LogGameData(ctx)
 }
 
+func testCannonProposalValid_AttackWithCorrectTrace(t *testing.T, ctx context.Context, arena gameArena, game *disputegame.SplitGameHelper) {
+	require.True(t, rootIsCorrect(t, ctx, arena, game), "This test must be run with a correct proposal root")
+	correctTrace := arena.CreateHonestActor(ctx)
+
+	performMove := func(ctx context.Context, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+		// Attack everything but oddly using the correct hash.
+		// Except the root of the cannon game must have an invalid VM status code.
+		if claim.IsOutputRootLeaf(ctx) {
+			return claim.Attack(ctx, common.Hash{0x01})
+		}
+		return correctTrace.AttackClaim(ctx, claim)
+	}
+
+	arena.CreateChallenger(ctx)
+
+	rootAttack := performMove(ctx, correctTrace, game.RootClaim(ctx))
+	game.SupportClaim(ctx,
+		rootAttack,
+		func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+			return performMove(ctx, correctTrace, claim)
+		},
+		verifyFinalStepper(t, ctx, arena, game),
+	)
+
+	arena.AdvanceTime(game.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, arena.L1Client()))
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
+}
+
+func testCannonProposalValid_DefendWithCorrectTrace(t *testing.T, ctx context.Context, arena gameArena, game *disputegame.SplitGameHelper) {
+	require.True(t, rootIsCorrect(t, ctx, arena, game), "This test must be run with a correct proposal root")
+	correctTrace := arena.CreateHonestActor(ctx)
+
+	performMove := func(ctx context.Context, correctTrace *disputegame.OutputHonestHelper, claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+		// Can only attack the root claim or the first cannon claim
+		if claim.IsRootClaim() {
+			return correctTrace.AttackClaim(ctx, claim)
+		}
+		// The root of the cannon game must have an invalid VM status code
+		// Attacking ensure we're running the cannon trace between two different blocks
+		// instead of being in the trace extension of the output root bisection
+		if claim.IsOutputRootLeaf(ctx) {
+			return claim.Attack(ctx, common.Hash{0x01})
+		}
+		// Otherwise, defend everything using the correct hash.
+		return correctTrace.DefendClaim(ctx, claim)
+	}
+
+	arena.CreateChallenger(ctx)
+
+	rootAttack := performMove(ctx, correctTrace, game.RootClaim(ctx))
+	game.SupportClaim(ctx,
+		rootAttack,
+		func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+			return performMove(ctx, correctTrace, claim)
+		},
+		verifyFinalStepper(t, ctx, arena, game),
+	)
+
+	arena.AdvanceTime(game.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, arena.L1Client()))
+	game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
+}
+
 func rootIsCorrect(t *testing.T, ctx context.Context, arena gameArena, game *disputegame.SplitGameHelper) bool {
 	root, err := game.Game.GetClaim(ctx, 0)
 	require.NoError(t, err)

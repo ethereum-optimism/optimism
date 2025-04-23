@@ -170,39 +170,40 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	baseReg := uint32(9)
 	rtReg := uint32(8)
 
-	v := GetMultiThreadedTestCase(t)
-	for i, tt := range cases {
-		testName := fmt.Sprintf("%v %v", v.Name, tt.name)
-		t.Run(testName, func(t *testing.T) {
-			addr := tt.base + Word(tt.imm)
-			effAddr := arch.AddressMask & addr
+	for _, v := range GetMultiThreadedTestCases(t) {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v %v", v.Name, tt.name)
+			t.Run(testName, func(t *testing.T) {
+				addr := tt.base + Word(tt.imm)
+				effAddr := arch.AddressMask & addr
 
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(0))
-			state := goVm.GetState()
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(0))
+				state := goVm.GetState()
 
-			insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
-			state.GetRegistersRef()[rtReg] = tt.rt
-			state.GetRegistersRef()[baseReg] = tt.base
+				insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
+				state.GetRegistersRef()[rtReg] = tt.rt
+				state.GetRegistersRef()[baseReg] = tt.base
 
-			testutil.StoreInstruction(state.GetMemory(), 0, insn)
-			state.GetMemory().SetWord(effAddr, tt.memVal)
-			step := state.GetStep()
+				testutil.StoreInstruction(state.GetMemory(), 0, insn)
+				state.GetMemory().SetWord(effAddr, tt.memVal)
+				step := state.GetStep()
 
-			// Setup expectations
-			expected := testutil.NewExpectedState(state)
-			expected.ExpectStep()
-			if tt.expectMemVal != 0 {
-				expected.ExpectMemoryWriteWord(effAddr, tt.expectMemVal)
-			} else {
-				expected.Registers[rtReg] = tt.expectRes
-			}
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.expectMemVal != 0 {
+					expected.ExpectMemoryWriteWord(effAddr, tt.expectMemVal)
+				} else {
+					expected.Registers[rtReg] = tt.expectRes
+				}
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
 
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-		})
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+			})
+		}
 	}
 }
 
@@ -425,11 +426,11 @@ func testMTSysReadPreimage(t *testing.T, preimageValue []byte, cases []testMTSys
 	}
 }
 
-func testNoopSyscall(t *testing.T, syscalls map[string]uint32) {
+func testNoopSyscall(t *testing.T, version VersionedVMTestCase, syscalls map[string]uint32) {
 	for noopName, noopVal := range syscalls {
-		t.Run(noopName, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%v-%v", version.Name, noopName), func(t *testing.T) {
 			t.Parallel()
-			goVm, state, contracts := setup(t, int(noopVal), nil)
+			goVm, state, contracts := setupWithTestCase(t, version, int(noopVal), nil)
 
 			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = Word(noopVal) // Set syscall number
@@ -452,14 +453,14 @@ func testNoopSyscall(t *testing.T, syscalls map[string]uint32) {
 	}
 }
 
-func testUnsupportedSyscall(t *testing.T, unsupportedSyscalls []uint32) {
+func testUnsupportedSyscall(t *testing.T, version VersionedVMTestCase, unsupportedSyscalls []uint32) {
 	for i, syscallNum := range unsupportedSyscalls {
-		testName := fmt.Sprintf("Unsupported syscallNum %v", syscallNum)
+		testName := fmt.Sprintf("%v Unsupported syscallNum %v", version.Name, syscallNum)
 		i := i
 		syscallNum := syscallNum
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			goVm, state, contracts := setup(t, i*3434, nil)
+			goVm, state, contracts := setupWithTestCase(t, version, i*3434, nil)
 			// Setup basic getThreadId syscall instruction
 			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = Word(syscallNum)

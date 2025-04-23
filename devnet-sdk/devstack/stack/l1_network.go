@@ -29,16 +29,31 @@ func SortL1NetworkIDs(ids []L1NetworkID) []L1NetworkID {
 	})
 }
 
+func SortL1Networks(elems []L1Network) []L1Network {
+	return copyAndSort(elems, func(a, b L1Network) bool {
+		return lessIDOnlyChainID(idOnlyChainID(a.ID()), idOnlyChainID(b.ID()))
+	})
+}
+
+var _ L1NetworkMatcher = L1NetworkID{}
+
+func (id L1NetworkID) Match(elems []L1Network) []L1Network {
+	return findByID(id, elems)
+}
+
 // L1Network represents a L1 chain, a collection of configuration and node resources.
 type L1Network interface {
 	Network
 	ID() L1NetworkID
 
-	L1ELNode(id L1ELNodeID) L1ELNode
-	L1CLNode(id L1CLNodeID) L1CLNode
+	L1ELNode(m L1ELMatcher) L1ELNode
+	L1CLNode(m L1CLMatcher) L1CLNode
 
-	L1ELNodes() []L1ELNodeID
-	L1CLNodes() []L1CLNodeID
+	L1ELNodeIDs() []L1ELNodeID
+	L1CLNodeIDs() []L1CLNodeID
+
+	L1ELNodes() []L1ELNode
+	L1CLNodes() []L1CLNode
 }
 
 type ExtensibleL1Network interface {

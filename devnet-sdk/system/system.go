@@ -27,7 +27,7 @@ func NewSystemFromURL(url string) (System, error) {
 		return nil, fmt.Errorf("failed to load devnet from URL: %w", err)
 	}
 
-	sys, err := systemFromDevnet(devnetEnv.Config, devnetEnv.Name)
+	sys, err := systemFromDevnet(devnetEnv.Env)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create system from devnet: %w", err)
 	}
@@ -46,7 +46,7 @@ func (s *system) Identifier() string {
 	return s.identifier
 }
 
-func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (System, error) {
+func systemFromDevnet(dn *descriptors.DevnetEnvironment) (System, error) {
 	l1, err := newChainFromDescriptor(dn.L1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add L1 chain: %w", err)
@@ -61,7 +61,7 @@ func systemFromDevnet(dn descriptors.DevnetEnvironment, identifier string) (Syst
 	}
 
 	sys := &system{
-		identifier: identifier,
+		identifier: dn.Name,
 		l1:         l1,
 		l2s:        l2s,
 	}

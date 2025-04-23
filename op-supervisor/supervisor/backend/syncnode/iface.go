@@ -24,6 +24,7 @@ type SyncNodeSetup interface {
 }
 
 type SyncSource interface {
+	Contains(ctx context.Context, query types.ContainsQuery) (includedIn types.BlockSeal, err error)
 	BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error)
 	ChainID(ctx context.Context) (eth.ChainID, error)
@@ -48,6 +49,8 @@ type SyncControl interface {
 	Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error
 	ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error
 	AnchorPoint(ctx context.Context) (types.DerivedBlockRefPair, error)
+
+	ReconnectRPC(ctx context.Context) error
 
 	fmt.Stringer
 }

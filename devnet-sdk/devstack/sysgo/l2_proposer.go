@@ -37,8 +37,7 @@ func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
 		ID:           p.id,
 		Client:       rpcCl,
 	})
-	l2ID := system.L2NetworkID(p.id.ChainID)
-	l2Net := system.L2Network(l2ID)
+	l2Net := system.L2Network(stack.L2NetworkID(p.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2Proposer(bFrontend)
 }
 
@@ -91,7 +90,7 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 			require.NotNil(*l2CLID, "need L2 CL to connect to pre-interop")
 			l2CL, ok := orch.l2CLs.Get(*l2CLID)
 			require.True(ok)
-			proposerCLIConfig.RollupRpc = l2CL.rpc
+			proposerCLIConfig.RollupRpc = l2CL.userRPC
 		}
 
 		proposer, err := ps.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, logger)

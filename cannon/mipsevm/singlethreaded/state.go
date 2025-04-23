@@ -70,7 +70,7 @@ func CreateInitialState(pc, heapStart Word) *State {
 	return state
 }
 
-func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata, _ mipsevm.FeatureToggles) mipsevm.FPVM {
 	return NewInstrumentedState(s, po, stdOut, stdErr, meta)
 }
 

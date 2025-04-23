@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -74,12 +75,17 @@ type SupervisorBackend struct {
 
 	// Rewinder for handling reorgs
 	rewinder *rewinder.Rewinder
+
+	// rpcVerificationWarnings enables asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric
+	rpcVerificationWarnings bool
 }
 
 var _ event.AttachEmitter = (*SupervisorBackend)(nil)
 var _ frontend.Backend = (*SupervisorBackend)(nil)
 
 var errAlreadyStopped = errors.New("already stopped")
+
+var verifyAccessWithRPCTimeout = 10 * time.Second
 
 func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 	m Metrics, cfg *config.Config, eventExec event.Executor) (*SupervisorBackend, error) {
@@ -134,6 +140,8 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		sysContext:            sysCtx,
 
 		rewinder: rewinder.New(logger, chainsDBs, l1Accessor),
+
+		rpcVerificationWarnings: cfg.RPCVerificationWarnings,
 	}
 	eventSys.Register("backend", super, event.DefaultRegisterOpts())
 	eventSys.Register("rewinder", super.rewinder, event.DefaultRegisterOpts())
@@ -423,14 +431,8 @@ func (su *SupervisorBackend) DependencySet() depset.DependencySet {
 // Query methods
 // ----------------------------
 
-// checkAccess checks message timestamp invariants and inclusion in the chain.
 // If the initiating message exists, the block it is included in is returned.
-func (su *SupervisorBackend) checkAccess(acc types.Access, execAt types.ExecutingDescriptor) (eth.BlockID, error) {
-	// Check if message passes time checks
-	if err := execAt.AccessCheck(su.depSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
-		return eth.BlockID{}, err
-	}
-
+func (su *SupervisorBackend) checkAccessWithDB(acc types.Access) (eth.BlockID, error) {
 	// Check if message exists
 	bl, err := su.chainDBs.Contains(acc.ChainID, types.ContainsQuery{
 		Timestamp: acc.Timestamp,
@@ -441,7 +443,48 @@ func (su *SupervisorBackend) checkAccess(acc types.Access, execAt types.Executin
 	if err != nil {
 		return eth.BlockID{}, err
 	}
+
 	return bl.ID(), nil
+}
+
+func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc types.Access, msgBlockFromDB eth.BlockID) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, verifyAccessWithRPCTimeout)
+	defer cancel()
+	msgBlockFromRPC, err := su.checkAccessWithRPC(timeoutCtx, acc)
+	if errors.Is(err, types.ErrConflict) {
+		su.logger.Error("RPC access checksum failed", "err", err, "access", acc)
+		su.m.RecordAccessListVerifyFailure(acc.ChainID)
+	} else {
+		su.logger.Error("RPC access check failed mechanically", "err", err, "access", acc)
+	}
+	if msgBlockFromDB != msgBlockFromRPC {
+		su.logger.Error("RPC access check failed, DB access check result did not match rpc access check result", "db_block", msgBlockFromDB, "rpc_block", msgBlockFromRPC, "access", acc)
+		su.m.RecordAccessListVerifyFailure(acc.ChainID)
+	}
+}
+
+// checkAccessWithRPC verifies if the initiating log exists by RPC call. Returns
+// an AccessListCheckError if the check succeeds "mechanically" (block header is
+// fetched, receipts are fetched, log exists) but the log checksum does not
+// match. Returns ad-hoc errors for the mechanical failures listed above. Returns
+// the block ID and nil if the log is found and the checksum matches.
+func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc types.Access) (eth.BlockID, error) {
+	src, ok := su.syncSources.Get(acc.ChainID)
+	if !ok {
+		return eth.BlockID{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, acc.ChainID)
+	}
+
+	blockSeal, err := src.Contains(ctx, types.ContainsQuery{
+		Timestamp: acc.Timestamp,
+		BlockNum:  acc.BlockNumber,
+		LogIdx:    acc.LogIndex,
+		Checksum:  acc.Checksum,
+	})
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+
+	return blockSeal.ID(), nil
 }
 
 // checkSafety is a helper method to check if a block has the given safety level.
@@ -488,15 +531,26 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		}
 		entries = remaining
 
-		msgBlock, err := su.checkAccess(acc, executingDescriptor)
+		// Check if message passes time checks
+		if err := executingDescriptor.AccessCheck(su.depSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
+			su.logger.Warn("Access-list time check failed", "err", err)
+			return types.ErrConflict // TODO: Do we want to do this?
+		}
+
+		msgBlockFromDB, err := su.checkAccessWithDB(acc)
 		if err != nil {
 			su.logger.Debug("Access-list inclusion check failed", "err", err)
 			return types.ErrConflict
 		}
-		// TODO(#14800) add msgBlock to rewind lock
+
+		if su.rpcVerificationWarnings {
+			go su.asyncVerifyAccessWithRPC(ctx, acc, msgBlockFromDB)
+		}
+
+		// TODO(#14800) add msgBlockFromDB to rewind lock
 
 		// TODO(#14800): this can be deferred to only check the latest block of all access entries
-		if err := su.checkSafety(acc.ChainID, msgBlock, minSafety); err != nil {
+		if err := su.checkSafety(acc.ChainID, msgBlockFromDB, minSafety); err != nil {
 			su.logger.Debug("Access-list safety check failed", "err", err)
 			return types.ErrConflict
 		}

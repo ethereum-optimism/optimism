@@ -36,9 +36,9 @@ func (p *presetL1Network) ID() stack.L1NetworkID {
 	return p.id
 }
 
-func (p *presetL1Network) L1ELNode(id stack.L1ELNodeID) stack.L1ELNode {
-	v, ok := p.els.Get(id)
-	p.require().True(ok, "l1 EL node %s must exist", id)
+func (p *presetL1Network) L1ELNode(m stack.L1ELMatcher) stack.L1ELNode {
+	v, ok := findMatch(m, p.els.Get, p.L1ELNodes)
+	p.require().True(ok, "must find L1 EL %s", m)
 	return v
 }
 
@@ -48,9 +48,9 @@ func (p *presetL1Network) AddL1ELNode(v stack.L1ELNode) {
 	p.require().True(p.els.SetIfMissing(id, v), "l1 EL node %s must not already exist", id)
 }
 
-func (p *presetL1Network) L1CLNode(id stack.L1CLNodeID) stack.L1CLNode {
-	v, ok := p.cls.Get(id)
-	p.require().True(ok, "l1 CL node %s must exist", id)
+func (p *presetL1Network) L1CLNode(m stack.L1CLMatcher) stack.L1CLNode {
+	v, ok := findMatch(m, p.cls.Get, p.L1CLNodes)
+	p.require().True(ok, "must find L1 CL %s", m)
 	return v
 }
 
@@ -60,10 +60,18 @@ func (p *presetL1Network) AddL1CLNode(v stack.L1CLNode) {
 	p.require().True(p.cls.SetIfMissing(id, v), "l1 CL node %s must not already exist", id)
 }
 
-func (p *presetL1Network) L1ELNodes() []stack.L1ELNodeID {
+func (p *presetL1Network) L1ELNodeIDs() []stack.L1ELNodeID {
 	return stack.SortL1ELNodeIDs(p.els.Keys())
 }
 
-func (p *presetL1Network) L1CLNodes() []stack.L1CLNodeID {
+func (p *presetL1Network) L1ELNodes() []stack.L1ELNode {
+	return stack.SortL1ELNodes(p.els.Values())
+}
+
+func (p *presetL1Network) L1CLNodeIDs() []stack.L1CLNodeID {
 	return stack.SortL1CLNodeIDs(p.cls.Keys())
+}
+
+func (p *presetL1Network) L1CLNodes() []stack.L1CLNode {
+	return stack.SortL1CLNodes(p.cls.Values())
 }
