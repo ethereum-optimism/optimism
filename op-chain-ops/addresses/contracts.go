@@ -25,16 +25,16 @@ type ImplementationsContracts struct {
 	OpcmDeployerImpl                 common.Address
 	OpcmUpgraderImpl                 common.Address
 	OpcmInteropMigratorImpl          common.Address
-	DelayedWETHImpl                  common.Address
+	DelayedWethImpl                  common.Address
 	OptimismPortalImpl               common.Address
-	ETHLockboxImpl                   common.Address
+	EthLockboxImpl                   common.Address
 	PreimageOracleImpl               common.Address
 	MipsImpl                         common.Address
 	SystemConfigImpl                 common.Address
 	L1CrossDomainMessengerImpl       common.Address
-	L1ERC721BridgeImpl               common.Address
+	L1Erc721BridgeImpl               common.Address
 	L1StandardBridgeImpl             common.Address
-	OptimismMintableERC20FactoryImpl common.Address
+	OptimismMintableErc20FactoryImpl common.Address
 	DisputeGameFactoryImpl           common.Address
 	AnchorStateRegistryImpl          common.Address
 }
@@ -50,9 +50,9 @@ type OpChainContracts struct {
 type OpChainCoreContracts struct {
 	OpChainProxyAdminImpl             common.Address
 	AddressManagerImpl                common.Address
-	L1ERC721BridgeProxy               common.Address
+	L1Erc721BridgeProxy               common.Address
 	SystemConfigProxy                 common.Address
-	OptimismMintableERC20FactoryProxy common.Address
+	OptimismMintableErc20FactoryProxy common.Address
 	L1StandardBridgeProxy             common.Address
 	L1CrossDomainMessengerProxy       common.Address
 }
@@ -60,13 +60,13 @@ type OpChainCoreContracts struct {
 // DeployOPChain.s.sol output
 type OpChainFaultProofsContracts struct {
 	OptimismPortalProxy                common.Address
-	ETHLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
+	EthLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address
 	AnchorStateRegistryProxy           common.Address
 	FaultDisputeGameImpl               common.Address
 	PermissionedDisputeGameImpl        common.Address
-	DelayedWETHPermissionedGameProxy   common.Address
-	DelayedWETHPermissionlessGameProxy common.Address
+	DelayedWethPermissionedGameProxy   common.Address
+	DelayedWethPermissionlessGameProxy common.Address
 }
 
 // DeployAltDA.s.sol output
