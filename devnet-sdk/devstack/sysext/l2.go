@@ -18,7 +18,8 @@ func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
 }
 
 func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.ExtensibleSystem) {
-	commonConfig := shim.NewCommonConfig(system.T())
+	t := system.T()
+	commonConfig := shim.NewCommonConfig(t)
 
 	env := o.env
 	l2ID := getL2ID(net)
@@ -36,8 +37,8 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 			L2ChainID: l2ID.ChainID().ToBig(),
 			// TODO this rollup config should be loaded from kurtosis artifacts
 		},
-		Deployment: newL2AddressBook(system.T(), net.L1Addresses),
-		Keys:       o.defineSystemKeys(system.T()),
+		Deployment: newL2AddressBook(t, net.L1Addresses),
+		Keys:       o.defineSystemKeys(t),
 		Superchain: system.Superchain(stack.SuperchainID(env.Env.Name)),
 		L1:         l1,
 	}
@@ -53,6 +54,14 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	o.hydrateBatcherMaybe(net, l2)
 	o.hydrateProposerMaybe(net, l2)
 	o.hydrateChallengerMaybe(net, l2)
+
+	if faucet, ok := net.Services["faucet"]; ok {
+		l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
+			CommonConfig: commonConfig,
+			Client:       o.rpcClient(t, faucet, RPCProtocol),
+			ID:           stack.FaucetID{Key: faucet.Name, ChainID: l2.ChainID()},
+		}))
+	}
 
 	system.AddL2Network(l2)
 }
