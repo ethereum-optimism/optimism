@@ -343,19 +343,19 @@ func setupTestDB(t *testing.T) *ChainsDB {
 	mockDB2 := newMockLogDB()
 
 	// Add some test data
-	mockDB1.AddLog(common.Hash{1}, eth.BlockID{Number: 100}, 1, &types.ExecutingMessage{
+	require.NoError(t, mockDB1.AddLog(common.Hash{1}, eth.BlockID{Number: 100}, 1, &types.ExecutingMessage{
 		BlockNum:  100,
 		LogIdx:    1,
 		Timestamp: 1000,
-	})
-	mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 100, Hash: common.Hash{1}}, 1000)
+	}))
+	require.NoError(t, mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 100, Hash: common.Hash{1}}, 1000))
 
-	mockDB2.AddLog(common.Hash{2}, eth.BlockID{Number: 200}, 2, &types.ExecutingMessage{
+	require.NoError(t, mockDB2.AddLog(common.Hash{2}, eth.BlockID{Number: 200}, 2, &types.ExecutingMessage{
 		BlockNum:  200,
 		LogIdx:    2,
 		Timestamp: 2000,
-	})
-	mockDB2.SealBlock(common.Hash{}, eth.BlockID{Number: 200, Hash: common.Hash{2}}, 2000)
+	}))
+	require.NoError(t, mockDB2.SealBlock(common.Hash{}, eth.BlockID{Number: 200, Hash: common.Hash{2}}, 2000))
 
 	db.AddLogDB(chain1, mockDB1)
 	db.AddLogDB(chain2, mockDB2)
@@ -769,12 +769,12 @@ func TestReadHandleSafeContains(t *testing.T) {
 	if ok {
 		mockDB1, ok = logDB.(*mockLogDB)
 		if ok {
-			mockDB1.AddLog(common.Hash{1}, eth.BlockID{Number: 25}, 1, &types.ExecutingMessage{
+			require.NoError(t, mockDB1.AddLog(common.Hash{1}, eth.BlockID{Number: 25}, 1, &types.ExecutingMessage{
 				BlockNum:  25,
 				LogIdx:    1,
 				Timestamp: 500,
-			})
-			mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 25, Hash: common.Hash{5}}, 500)
+			}))
+			require.NoError(t, mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 25, Hash: common.Hash{5}}, 500))
 		}
 	}
 
@@ -989,12 +989,12 @@ func TestReadHandleCrossChainConsistency(t *testing.T) {
 	require.True(t, found, "Failed to get logDB for chain1")
 	mockDB1, ok := logDB.(*mockLogDB)
 	require.True(t, ok, "Failed to cast logDB to mockLogDB")
-	mockDB1.AddLog(common.Hash{3}, eth.BlockID{Number: 75}, 3, &types.ExecutingMessage{
+	require.NoError(t, mockDB1.AddLog(common.Hash{3}, eth.BlockID{Number: 75}, 3, &types.ExecutingMessage{
 		BlockNum:  75,
 		LogIdx:    3,
 		Timestamp: 1500,
-	})
-	mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 75, Hash: common.Hash{3}}, 1500)
+	}))
+	require.NoError(t, mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 75, Hash: common.Hash{3}}, 1500))
 
 	// Create new access list with the valid block on chain1
 	newAccessList := []types.Access{
