@@ -431,7 +431,8 @@ func (db *ChainsDB) IteratorStartingAt(chain eth.ChainID, sealedNum uint64, logI
 	return logDB.IteratorStartingAt(sealedNum, logIndex)
 }
 
-// Important: If 'fn' performs side effects, those will NOT be rolled back if validation fails
+// WithReadHandle executes a function with a read handle for a specific chain and block number.
+// If 'fn' performs side effects, those will NOT be rolled back if validation fails.
 func (db *ChainsDB) WithReadHandle(chainID eth.ChainID, blockNum uint64, fn func(*ReadHandle) error) error {
 	handle, err := db.AcquireReadHandle(chainID, blockNum)
 	if err != nil {
@@ -455,7 +456,8 @@ func (db *ChainsDB) WithReadHandle(chainID eth.ChainID, blockNum uint64, fn func
 	return nil
 }
 
-// Ensures cross-chain operations maintain consistency
+// WithReadHandles executes a function with read handles for multiple chains and block numbers.
+// If 'fn' performs side effects, those will NOT be rolled back if validation fails.
 func (db *ChainsDB) WithReadHandles(chains []eth.ChainID, blockNums []uint64, fn func([]*ReadHandle) error) error {
 	if len(chains) != len(blockNums) {
 		return fmt.Errorf("mismatched chains and block numbers")
@@ -473,8 +475,6 @@ func (db *ChainsDB) WithReadHandles(chains []eth.ChainID, blockNums []uint64, fn
 		}
 		handles[i] = handle
 	}
-
-	// Ensure all handles are released when done
 	defer func() {
 		for _, handle := range handles {
 			if handle != nil {
@@ -485,13 +485,15 @@ func (db *ChainsDB) WithReadHandles(chains []eth.ChainID, blockNums []uint64, fn
 
 	// Execute the function
 	if err := fn(handles); err != nil {
-		return err
+		db.logger.Error("Failed to execute function with read handles", "error", err)
+		return fmt.Errorf("failed to execute function with read handles: %w", err)
 	}
 
 	// Final validation of all handles
 	for _, handle := range handles {
 		if err := handle.Validate(); err != nil {
-			return err
+			db.logger.Error("Failed to validate read handle", "error", err, "id", handle.handleID)
+			return fmt.Errorf("failed to validate read handle: %w", err)
 		}
 	}
 
