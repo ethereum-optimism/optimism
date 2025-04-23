@@ -43,13 +43,6 @@ func WithDockerManager(dockerMgr DockerManager) KurtosisEnclaveManagerOptions {
 func NewKurtosisEnclaveManager(opts ...KurtosisEnclaveManagerOptions) (*KurtosisEnclaveManager, error) {
 	manager := &KurtosisEnclaveManager{}
 
-	// Try to create Docker manager, but don't fail if it doesn't work
-	if _, err := util.NewDockerClient(); err == nil {
-		manager.dockerMgr = &DefaultDockerManager{}
-	} else {
-		fmt.Printf("Warning: Docker not available: %v", err)
-	}
-
 	for _, opt := range opts {
 		opt(manager)
 	}
@@ -82,6 +75,33 @@ func (mgr *KurtosisEnclaveManager) GetEnclave(ctx context.Context, enclave strin
 	return enclaveCtx, nil
 }
 
+// cleanupEnclave handles the common cleanup logic for both stopped and empty enclaves
+func (mgr *KurtosisEnclaveManager) cleanupEnclave(ctx context.Context, enclave string) error {
+	// Remove the enclave
+	err := mgr.kurtosisCtx.DestroyEnclave(ctx, enclave)
+	if err != nil {
+		fmt.Printf("failed to destroy enclave: %v", err)
+	} else {
+		fmt.Printf("Destroyed enclave: %s\n", enclave)
+	}
+	var errDocker error
+	if mgr.dockerMgr != nil {
+		errDocker = mgr.dockerMgr.DestroyDockerResources(ctx, enclave)
+		if errDocker != nil {
+			fmt.Printf("failed to destroy docker resources: %v", errDocker)
+		} else {
+			fmt.Printf("Destroyed docker resources for enclave: %s\n", enclave)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if errDocker != nil {
+		return errDocker
+	}
+	return nil
+}
+
 func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) error {
 	fmt.Printf("Autofixing enclave '%s'\n", enclave)
 	status, err := mgr.kurtosisCtx.GetEnclaveStatus(ctx, enclave)
@@ -96,32 +116,10 @@ func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) 
 		return nil
 	case interfaces.EnclaveStatusStopped:
 		fmt.Printf("Enclave '%s' is stopped, removing\n", enclave)
-		fallthrough
+		return mgr.cleanupEnclave(ctx, enclave)
 	case interfaces.EnclaveStatusEmpty:
 		fmt.Printf("Enclave '%s' is empty, removing\n", enclave)
-		// Remove the enclave
-		err := mgr.kurtosisCtx.DestroyEnclave(ctx, enclave)
-		if err != nil {
-			fmt.Printf("failed to destroy enclave: %v", err)
-		} else {
-			fmt.Printf("Destroyed enclave: %s\n", enclave)
-		}
-		var errDocker error
-		if mgr.dockerMgr != nil {
-			errDocker = mgr.dockerMgr.DestroyDockerResources(ctx, enclave)
-			if errDocker != nil {
-				fmt.Printf("failed to destroy docker resources: %v", errDocker)
-			} else {
-				fmt.Printf("Destroyed docker resources for enclave: %s\n", enclave)
-			}
-		}
-		if err != nil {
-			return err
-		}
-		if errDocker != nil {
-			return errDocker
-		}
-		return nil
+		return mgr.cleanupEnclave(ctx, enclave)
 	}
 	return fmt.Errorf("unknown enclave status: %s", status)
 }
