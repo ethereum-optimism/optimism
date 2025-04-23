@@ -912,6 +912,23 @@ func TestCycleInTx(gt *testing.T) {
 	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
 }
 
+var submitIntent = func(
+	t helpers.StatefulTesting,
+	trigger txintent.Call,
+	nonce *uint64,
+	user *userWithKeys,
+	chain *dsl.Chain,
+	intents *[]*txintent.IntentTx[txintent.Call, *txintent.InteropOutput],
+) {
+	opts, _ := DefaultTxOptsWithoutBlockSeal(t, user, chain, *nonce)
+	intent := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](opts)
+	intent.Content.Set(trigger)
+	_, err := intent.PlannedTx.Submitted.Eval(t.Ctx())
+	require.NoError(t, err)
+	*intents = append(*intents, intent)
+	*nonce += 1
+}
+
 // TestCycleInBlock tests below scenario:
 // Transaction executes message, then initiates it: cycle in block
 // To elaborate, single block contains txs in below order:
@@ -949,30 +966,18 @@ func TestCycleInBlock(gt *testing.T) {
 	require.NoError(t, err)
 
 	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
-	submitIntent := func(trigger txintent.Call, nonce uint64) {
-		opts, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, nonce)
-		intent := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](opts)
-		intent.Content.Set(trigger)
-		_, err := intent.PlannedTx.Submitted.Eval(t.Ctx())
-		require.NoError(t, err)
-		intents = append(intents, intent)
-	}
+
 	// include exec message X tx first in block
-	{
-		submitIntent(exec, nonce)
-		nonce += 1
-	}
+	submitIntent(t, exec, &nonce, alice, actors.ChainA, &intents)
 	// include dummy txs in block
 	for range txCount - 2 {
 		randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
-		submitIntent(randomInitTrigger, nonce)
-		nonce += 1
+		submitIntent(t, randomInitTrigger, &nonce, alice, actors.ChainA, &intents)
 	}
 	// include init message X last in block
-	{
-		submitIntent(init, nonce)
-		// no need to increment nonce since this is the last tx
-	}
+	submitIntent(t, init, &nonce, alice, actors.ChainA, &intents)
+	require.Equal(t, txCount, nonce)
+
 	actors.ChainA.Sequencer.ActL2EndBlock(t)
 
 	// Make sure tx in block sealed at expected time
