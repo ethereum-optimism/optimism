@@ -1006,6 +1006,9 @@ func TestCycleInTx(gt *testing.T) {
 	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
 }
 
+// submitIntent method submits txintent to a chain.
+// Useful when building blocks with transactions, without block sealing.
+// It receives nonce because chain does not hold updated pending nonce yet because block sealing was not done.
 var submitIntent = func(
 	t helpers.StatefulTesting,
 	trigger txintent.Call,
