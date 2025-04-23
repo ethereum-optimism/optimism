@@ -13,6 +13,17 @@ macro_rules! create_chain_spec {
     };
 }
 
+/// Generates the key string for a given name and environment pair.
+#[macro_export]
+macro_rules! key_for {
+    ($name:expr, "mainnet") => {
+        $name
+    };
+    ($name:expr, $env:expr) => {
+        concat!($name, "-", $env)
+    };
+}
+
 /// Create an enum of every superchain (name, environment) pair.
 #[macro_export]
 macro_rules! create_superchain_enum {
@@ -52,6 +63,36 @@ macro_rules! create_superchain_enum {
                             Self::[<$name:camel _ $env:camel>] => $env,
                         )+
                     }
+                }
+            }
+
+            /// All supported superchains, including both older and newer naming,
+            /// for backwards compatibility
+            pub const SUPPORTED_CHAINS: &'static [&'static str] = &[
+                "dev",
+                "optimism",
+                "optimism_sepolia",
+                "optimism-sepolia",
+                "base",
+                "base_sepolia",
+                "base-sepolia",
+                $(
+                    $crate::key_for!($name, $env),
+                )+
+            ];
+
+            /// Parses the chain into an [`$crate::OpChainSpec`], if recognized.
+            pub fn generated_chain_value_parser(s: &str) -> Option<alloc::sync::Arc<$crate::OpChainSpec>> {
+                match s {
+                    "dev"                                   => Some($crate::OP_DEV.clone()),
+                    "optimism"                              => Some($crate::OP_MAINNET.clone()),
+                    "optimism_sepolia" | "optimism-sepolia" => Some($crate::OP_SEPOLIA.clone()),
+                    "base"                                  => Some($crate::BASE_MAINNET.clone()),
+                    "base_sepolia" | "base-sepolia"         => Some($crate::BASE_SEPOLIA.clone()),
+                    $(
+                        $crate::key_for!($name, $env)        => Some($crate::[<$name:upper _ $env:upper>].clone()),
+                    )+
+                    _                                       => None,
                 }
             }
         }
