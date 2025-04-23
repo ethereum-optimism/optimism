@@ -291,6 +291,100 @@ func reorgOutUnsafeAndConsolidateToSafe(t helpers.Testing, actors *dsl.InteropAc
 	require.Equal(t, unsafeHeadNumAfterReorg+1, replacedBlock.Number)
 }
 
+// reorgOutUnsafeAndConsolidateToSafeBothChain assumes both chainX and chainY are reorged.
+// chain{X|Y} both expected to experience cross-unsafe invalidation and reorging unsafe blocks.
+// Consolidate with steps: unsafe -> cross-unsafe -> local-safe -> safe
+func reorgOutUnsafeAndConsolidateToSafeBothChain(t helpers.Testing, actors *dsl.InteropActors, chainX, chainY *dsl.Chain, startX, startY, endX, endY, unsafeHeadNumAfterReorg uint64) {
+	require.GreaterOrEqual(t, endY, unsafeHeadNumAfterReorg)
+	// Check to make batcher happy
+	require.Positive(t, endY-startY)
+	require.Positive(t, endX-startX)
+
+	chainX.Sequencer.ActL2PipelineFull(t)
+	chainY.Sequencer.ActL2PipelineFull(t)
+	chainX.Sequencer.SyncSupervisor(t)
+	chainY.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	chainX.Sequencer.ActL2PipelineFull(t)
+	chainY.Sequencer.ActL2PipelineFull(t)
+
+	assertHeads(t, chainX, endX, startX, unsafeHeadNumAfterReorg, startX)
+	assertHeads(t, chainY, endY, startY, unsafeHeadNumAfterReorg, startY)
+
+	l2chains := []*dsl.Chain{chainX, chainY}
+
+	// check chains and supervisor views are consistent
+	reorgedOutBlocks := []eth.L2BlockRef{}
+	for _, chain := range l2chains {
+		reorgedOutBlock := chain.Sequencer.SyncStatus().UnsafeL2
+		require.Equal(t, unsafeHeadNumAfterReorg+1, reorgedOutBlock.Number)
+		localUnsafe, err := actors.Supervisor.LocalUnsafe(t.Ctx(), chain.ChainID)
+		require.NoError(t, err)
+		require.Equal(t, reorgedOutBlock.ID(), localUnsafe)
+		reorgedOutBlocks = append(reorgedOutBlocks, reorgedOutBlock)
+	}
+
+	// now try to advance safe heads
+	chainX.Batcher.ActSubmitAll(t)
+	chainY.Batcher.ActSubmitAll(t)
+	actors.L1Miner.ActL1StartBlock(12)(t)
+	actors.L1Miner.ActL1IncludeTx(chainX.BatcherAddr)(t)
+	actors.L1Miner.ActL1IncludeTx(chainY.BatcherAddr)(t)
+	actors.L1Miner.ActL1EndBlock(t)
+
+	actors.Supervisor.SignalLatestL1(t)
+
+	t.Log("awaiting L1-exhaust event")
+	chainX.Sequencer.ActL2PipelineFull(t)
+	chainY.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, chainX, endX, startX, unsafeHeadNumAfterReorg, startX)
+	assertHeads(t, chainY, endY, startY, unsafeHeadNumAfterReorg, startY)
+
+	t.Log("awaiting supervisor to provide L1 data")
+	chainX.Sequencer.SyncSupervisor(t)
+	chainY.Sequencer.SyncSupervisor(t)
+	assertHeads(t, chainX, endX, startX, unsafeHeadNumAfterReorg, startX)
+	assertHeads(t, chainY, endY, startY, unsafeHeadNumAfterReorg, startY)
+
+	t.Log("awaiting node to sync: unsafe to local-safe")
+	chainX.Sequencer.ActL2PipelineFull(t)
+	chainY.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, chainX, endX, endX, unsafeHeadNumAfterReorg, startX)
+	assertHeads(t, chainY, endY, endY, unsafeHeadNumAfterReorg, startY)
+
+	t.Log("expecting supervisor to sync")
+	chainX.Sequencer.SyncSupervisor(t)
+	chainY.Sequencer.SyncSupervisor(t)
+	assertHeads(t, chainX, endX, endX, unsafeHeadNumAfterReorg, startX)
+	assertHeads(t, chainY, endY, endY, unsafeHeadNumAfterReorg, startY)
+
+	t.Log("supervisor promotes cross-unsafe and safe")
+	actors.Supervisor.ProcessFull(t)
+
+	// check supervisor head, expect it to be rewound
+	for _, chain := range l2chains {
+		localUnsafe, err := actors.Supervisor.LocalUnsafe(t.Ctx(), chain.ChainID)
+		require.NoError(t, err)
+		require.Equal(t, unsafeHeadNumAfterReorg, localUnsafe.Number, "unsafe chain needs to be rewound")
+	}
+
+	t.Log("awaiting nodes to sync: local-safe to safe")
+	chainX.Sequencer.ActL2PipelineFull(t)
+	chainY.Sequencer.ActL2PipelineFull(t)
+
+	assertHeads(t, chainX, endX, endX, endX, endX)
+	assertHeads(t, chainY, endY, endY, endY, endY)
+
+	// Make sure the replaced blocks have different blockhash
+	for idx, chain := range l2chains {
+		reorgedOutBlock := reorgedOutBlocks[idx]
+		replacedBlock := chain.Sequencer.SyncStatus().LocalSafeL2
+		require.NotEqual(t, reorgedOutBlock.Hash, replacedBlock.Hash)
+		require.Equal(t, reorgedOutBlock.Number, replacedBlock.Number)
+		require.Equal(t, unsafeHeadNumAfterReorg+1, replacedBlock.Number)
+	}
+}
+
 func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	rng := rand.New(rand.NewSource(1234))
