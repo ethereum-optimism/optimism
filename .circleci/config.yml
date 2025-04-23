@@ -1688,14 +1688,14 @@ jobs:
 workflows:
   main:
     when:
-      and:
-        - or:
-            # Trigger on new commits
-            - equal: [webhook, << pipeline.trigger_source >>]
-              # Trigger on manual triggers if explicitly requested
-            - equal: [true, << pipeline.parameters.main_dispatch >>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.main_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
+          - equal: [<< pipeline.parameters.github-event-type >>, "__not_set__"] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -2106,9 +2106,12 @@ workflows:
   develop-publish-contract-artifacts:
     when:
       or:
-        - equal: ["develop", <<pipeline.git.branch>>]
-        - equal:
-            [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - publish-contract-artifacts:
           context:
@@ -2117,12 +2120,13 @@ workflows:
 
   develop-fault-proofs:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - cannon-prestate:
           context:
@@ -2174,12 +2178,13 @@ workflows:
 
   develop-kontrol-tests:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - kontrol-tests:
           context:
@@ -2290,12 +2295,13 @@ workflows:
 
   acceptance-tests:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       # KURTOSIS (Simple)
       - op-acceptance-tests:
