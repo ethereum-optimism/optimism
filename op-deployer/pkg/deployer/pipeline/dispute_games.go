@@ -69,7 +69,7 @@ func deployDisputeGame(
 		lgr.Info("oracle deployed", "oracleAddr", oracleAddr)
 	} else {
 		lgr.Info("using existing preimage oracle")
-		oracleAddr = st.ImplementationsDeployment.PreimageOracleSingletonAddress
+		oracleAddr = st.ImplementationsDeployment.PreimageOracleImpl
 	}
 
 	lgr.Info("deploying VM", "vmType", game.VMType)

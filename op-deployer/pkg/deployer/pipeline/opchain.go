@@ -56,17 +56,17 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 		return fmt.Errorf("failed to read implementation addresses: %w", err)
 	}
 
-	st.ImplementationsDeployment.DelayedWETHImplAddress = impls.DelayedWETH
-	st.ImplementationsDeployment.OptimismPortalImplAddress = impls.OptimismPortal
-	st.ImplementationsDeployment.ETHLockboxImplAddress = impls.ETHLockbox
-	st.ImplementationsDeployment.SystemConfigImplAddress = impls.SystemConfig
-	st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress = impls.L1CrossDomainMessenger
-	st.ImplementationsDeployment.L1ERC721BridgeImplAddress = impls.L1ERC721Bridge
-	st.ImplementationsDeployment.L1StandardBridgeImplAddress = impls.L1StandardBridge
-	st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress = impls.OptimismMintableERC20Factory
-	st.ImplementationsDeployment.DisputeGameFactoryImplAddress = impls.DisputeGameFactory
-	st.ImplementationsDeployment.MipsSingletonAddress = impls.MipsSingleton
-	st.ImplementationsDeployment.PreimageOracleSingletonAddress = impls.PreimageOracleSingleton
+	st.ImplementationsDeployment.DelayedWethImpl = impls.DelayedWETH
+	st.ImplementationsDeployment.OptimismPortalImpl = impls.OptimismPortal
+	st.ImplementationsDeployment.EthLockboxImpl = impls.ETHLockbox
+	st.ImplementationsDeployment.SystemConfigImpl = impls.SystemConfig
+	st.ImplementationsDeployment.L1CrossDomainMessengerImpl = impls.L1CrossDomainMessenger
+	st.ImplementationsDeployment.L1Erc721BridgeImpl = impls.L1ERC721Bridge
+	st.ImplementationsDeployment.L1StandardBridgeImpl = impls.L1StandardBridge
+	st.ImplementationsDeployment.OptimismMintableErc20FactoryImpl = impls.OptimismMintableERC20Factory
+	st.ImplementationsDeployment.DisputeGameFactoryImpl = impls.DisputeGameFactory
+	st.ImplementationsDeployment.MipsImpl = impls.MipsSingleton
+	st.ImplementationsDeployment.PreimageOracleImpl = impls.PreimageOracleSingleton
 
 	return nil
 }
@@ -98,7 +98,7 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		BasefeeScalar:                standard.BasefeeScalar,
 		BlobBaseFeeScalar:            standard.BlobBaseFeeScalar,
 		L2ChainId:                    chainID.Big(),
-		Opcm:                         st.ImplementationsDeployment.OpcmAddress,
+		Opcm:                         st.ImplementationsDeployment.OpcmImpl,
 		SaltMixer:                    st.Create2Salt.String(), // passing through salt generated at state initialization
 		GasLimit:                     standard.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,

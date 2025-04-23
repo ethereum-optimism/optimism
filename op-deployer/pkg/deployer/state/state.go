@@ -42,11 +42,11 @@ type State struct {
 	// SuperchainDeployment contains the addresses of the Superchain
 	// deployment. It only contains the proxies because the implementations
 	// can be looked up on chain.
-	SuperchainDeployment *addresses.SuperchainContracts `json:"superchainDeployment"`
+	SuperchainDeployment *addresses.SuperchainContracts `json:"superchainContracts"`
 
 	// ImplementationsDeployment contains the addresses of the common implementation
 	// contracts required for the Superchain to function.
-	ImplementationsDeployment *ImplementationsDeployment `json:"implementationsDeployment"`
+	ImplementationsDeployment *addresses.ImplementationsContracts `json:"implementationsDeployment"`
 
 	// Chains contains data about L2 chain deployments.
 	Chains []*ChainState `json:"opChainDeployments"`
@@ -76,26 +76,6 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 		}
 	}
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
-}
-
-type ImplementationsDeployment struct {
-	OpcmAddress                             common.Address `json:"opcmAddress"`
-	OpcmGameTypeAdderAddress                common.Address `json:"opcmGameTypeAdderAddress"`
-	OpcmDeployerAddress                     common.Address `json:"opcmDeployerAddress"`
-	OpcmUpgraderAddress                     common.Address `json:"opcmUpgraderAddress"`
-	OpcmInteropMigratorAddress              common.Address `json:"opcmInteropMigratorAddress"`
-	DelayedWETHImplAddress                  common.Address `json:"delayedWETHImplAddress"`
-	OptimismPortalImplAddress               common.Address `json:"optimismPortalImplAddress"`
-	ETHLockboxImplAddress                   common.Address `json:"ethLockboxImplAddress"`
-	PreimageOracleSingletonAddress          common.Address `json:"preimageOracleSingletonAddress"`
-	MipsSingletonAddress                    common.Address `json:"mipsSingletonAddress"`
-	SystemConfigImplAddress                 common.Address `json:"systemConfigImplAddress"`
-	L1CrossDomainMessengerImplAddress       common.Address `json:"l1CrossDomainMessengerImplAddress"`
-	L1ERC721BridgeImplAddress               common.Address `json:"l1ERC721BridgeImplAddress"`
-	L1StandardBridgeImplAddress             common.Address `json:"l1StandardBridgeImplAddress"`
-	OptimismMintableERC20FactoryImplAddress common.Address `json:"optimismMintableERC20FactoryImplAddress"`
-	DisputeGameFactoryImplAddress           common.Address `json:"disputeGameFactoryImplAddress"`
-	AnchorStateRegistryImplAddress          common.Address `json:"anchorStateRegistryImplAddress"`
 }
 
 type AdditionalDisputeGameState struct {

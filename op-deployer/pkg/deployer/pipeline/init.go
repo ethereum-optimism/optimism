@@ -68,8 +68,8 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 				SuperchainConfigProxy:    superCfg.SuperchainConfigAddr,
 			}
 
-			st.ImplementationsDeployment = &state.ImplementationsDeployment{
-				OpcmAddress: opcmAddress,
+			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
+				OpcmImpl: opcmAddress,
 			}
 		}
 	}

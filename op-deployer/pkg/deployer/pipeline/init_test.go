@@ -102,7 +102,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			require.NotNil(t, st.SuperchainDeployment)
 			require.NotNil(t, st.ImplementationsDeployment)
 			require.Equal(t, *expDeployment, *st.SuperchainDeployment)
-			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmAddress)
+			require.Equal(t, opcmAddr, st.ImplementationsDeployment.OpcmImpl)
 		}
 
 		runTest(state.IntentTypeStandard)
