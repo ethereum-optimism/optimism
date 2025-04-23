@@ -8,16 +8,16 @@ import {
     InvalidSecondMemoryProof,
     UnsupportedStateVersion
 } from "src/cannon/libraries/CannonErrors.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
 import { MIPS64Arch as arch } from "src/cannon/libraries/MIPS64Arch.sol";
 import { MIPS64Instructions as ins } from "src/cannon/libraries/MIPS64Instructions.sol";
 import { MIPS64Memory } from "src/cannon/libraries/MIPS64Memory.sol";
-
-// Interfaces
 import { MIPS64State as st } from "src/cannon/libraries/MIPS64State.sol";
 import { MIPS64Syscalls as sys } from "src/cannon/libraries/MIPS64Syscalls.sol";
 import { VMStatuses } from "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title MIPS64
 /// @notice The MIPS64 contract emulates a single MIPS instruction.
