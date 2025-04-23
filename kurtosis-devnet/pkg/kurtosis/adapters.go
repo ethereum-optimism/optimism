@@ -47,7 +47,7 @@ var _ interfaces.JWTExtractor = (*enclaveJWTAdapter)(nil)
 
 type enclaveDepsetAdapter struct{}
 
-func (a *enclaveDepsetAdapter) ExtractData(ctx context.Context, enclave string) ([]descriptors.DepSet, error) {
+func (a *enclaveDepsetAdapter) ExtractData(ctx context.Context, enclave string) (map[string]descriptors.DepSet, error) {
 	return depset.NewExtractor(enclave).ExtractData(ctx)
 }
 

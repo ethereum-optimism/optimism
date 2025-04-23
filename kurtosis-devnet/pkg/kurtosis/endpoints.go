@@ -1,19 +1,29 @@
 package kurtosis
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
+
+type ChainSpec struct {
+	spec.ChainSpec
+	DepSets map[string]descriptors.DepSet
+}
 
 // ServiceFinder is the main entry point for finding services and their endpoints
 type ServiceFinder struct {
 	services        inspect.ServiceMap
 	nodeServices    []string
 	l2ServicePrefix string
-	l2Networks      []string
+	l2Networks      []ChainSpec
+	globalServices  []string
 }
 
 // ServiceFinderOption configures a ServiceFinder
@@ -34,9 +44,16 @@ func WithL2ServicePrefix(prefix string) ServiceFinderOption {
 }
 
 // WithL2Networks sets the L2 networks
-func WithL2Networks(networks []string) ServiceFinderOption {
+func WithL2Networks(networks []ChainSpec) ServiceFinderOption {
 	return func(f *ServiceFinder) {
 		f.l2Networks = networks
+	}
+}
+
+// WithGlobalServices sets the global services
+func WithGlobalServices(services []string) ServiceFinderOption {
+	return func(f *ServiceFinder) {
+		f.globalServices = services
 	}
 }
 
@@ -46,6 +63,7 @@ func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) 
 		services:        services,
 		nodeServices:    []string{"cl", "el"},
 		l2ServicePrefix: "op-",
+		globalServices:  []string{"op-faucet"},
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -56,11 +74,13 @@ func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) 
 // FindL1Services finds L1 nodes.
 func (f *ServiceFinder) FindL1Services() ([]descriptors.Node, descriptors.ServiceMap) {
 	return f.findRPCEndpoints(func(serviceName string) (string, int, bool) {
-		// Only match services that start with one of the node service identifiers.
-		// We might have to change this if we need to support L1 services beyond nodes.
-		for _, service := range f.nodeServices {
+		// Find node services and global services
+		allServices := append(f.nodeServices, f.globalServices...)
+		for _, service := range allServices {
 			if strings.HasPrefix(serviceName, service) {
-				tag, idx := f.serviceTag(serviceName)
+				// strip the L2 prefix if it's there.
+				name := strings.TrimPrefix(serviceName, f.l2ServicePrefix)
+				tag, idx := f.serviceTag(name)
 				return tag, idx, true
 			}
 		}
@@ -69,24 +89,54 @@ func (f *ServiceFinder) FindL1Services() ([]descriptors.Node, descriptors.Servic
 }
 
 // FindL2Services finds L2 nodes and services for a specific network
-func (f *ServiceFinder) FindL2Services(network string) ([]descriptors.Node, descriptors.ServiceMap) {
-	networkSuffix := "-" + network
+func (f *ServiceFinder) FindL2Services(s ChainSpec) ([]descriptors.Node, descriptors.ServiceMap) {
+	network := s.Name
+	networkID := s.NetworkID
 	return f.findRPCEndpoints(func(serviceName string) (string, int, bool) {
-		if strings.HasSuffix(serviceName, networkSuffix) {
-			name := strings.TrimSuffix(serviceName, networkSuffix)
-			tag, idx := f.serviceTag(strings.TrimPrefix(name, f.l2ServicePrefix))
-			return tag, idx, true
+		possibleSuffixes := []string{"-" + network, "-" + networkID}
+		for _, suffix := range possibleSuffixes {
+			if strings.HasSuffix(serviceName, suffix) {
+				name := strings.TrimSuffix(serviceName, suffix)
+				tag, idx := f.serviceTag(strings.TrimPrefix(name, f.l2ServicePrefix))
+				return tag, idx, true
+			}
 		}
 
 		// skip over the other L2 services
 		for _, l2Network := range f.l2Networks {
-			if strings.HasSuffix(serviceName, "-"+l2Network) {
+			if strings.HasSuffix(serviceName, "-"+l2Network.Name) || strings.HasSuffix(serviceName, "-"+l2Network.NetworkID) {
 				return "", 0, false
 			}
 		}
 
+		// supervisor is special: itcovers multiple networks, so we need to
+		// identify the depset this chain belongs to
+		if strings.HasPrefix(serviceName, "op-supervisor") {
+			for dsName, ds := range s.DepSets {
+				suffix := "-" + dsName
+				if !strings.HasSuffix(serviceName, suffix) {
+					// not the right depset for this supervisor, skip it
+					continue
+				}
+				var depSet depset.StaticConfigDependencySet
+				if err := json.Unmarshal(ds, &depSet); err != nil {
+					return "", 0, false
+				}
+				var chainID eth.ChainID
+				if err := chainID.UnmarshalText([]byte(s.NetworkID)); err != nil {
+					return "", 0, false
+				}
+				if depSet.HasChain(chainID) {
+					name := strings.TrimSuffix(serviceName, suffix)
+					tag, idx := f.serviceTag(strings.TrimPrefix(name, f.l2ServicePrefix))
+					return tag, idx, true
+				}
+			}
+			// this supervisor is irrelevant to this chain, skip it
+			return "", 0, false
+		}
+
 		// Some services don't have a network suffix, as they span multiple chains
-		// TODO(14849): ideally we'd need to handle *partial* chain coverage.
 		if strings.HasPrefix(serviceName, f.l2ServicePrefix) {
 			tag, idx := f.serviceTag(strings.TrimPrefix(serviceName, f.l2ServicePrefix))
 			return tag, idx, true

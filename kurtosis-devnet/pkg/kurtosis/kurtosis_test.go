@@ -118,11 +118,11 @@ func (f *fakeJWTExtractor) ExtractData(ctx context.Context, enclave string) (*jw
 }
 
 type fakeDepsetExtractor struct {
-	data []descriptors.DepSet
+	data map[string]descriptors.DepSet
 	err  error
 }
 
-func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) ([]descriptors.DepSet, error) {
+func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) (map[string]descriptors.DepSet, error) {
 	return f.data, f.err
 }
 
@@ -427,7 +427,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						},
 					},
 					Features: spec.FeatureList{spec.FeatureInterop},
-					DepSets:  []descriptors.DepSet{descriptors.DepSet(`{}`)},
+					DepSets:  map[string]descriptors.DepSet{"test-dep-set": descriptors.DepSet(`{}`)},
 				},
 			},
 		},
@@ -502,9 +502,9 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			}
 
 			// Create depset data based on whether interop is enabled
-			var depsets []descriptors.DepSet
+			var depsets map[string]descriptors.DepSet
 			if tt.spec != nil && tt.spec.Features.Contains(spec.FeatureInterop) {
-				depsets = []descriptors.DepSet{descriptors.DepSet(`{}`)}
+				depsets = map[string]descriptors.DepSet{"test-dep-set": descriptors.DepSet(`{}`)}
 			}
 
 			deployer, err := NewKurtosisDeployer(

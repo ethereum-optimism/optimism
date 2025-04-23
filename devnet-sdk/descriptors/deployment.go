@@ -75,6 +75,6 @@ type DevnetEnvironment struct {
 	L1 *Chain     `json:"l1"`
 	L2 []*L2Chain `json:"l2"`
 
-	Features []string `json:"features,omitempty"`
-	DepSets  []DepSet `json:"dep_sets,omitempty"`
+	Features []string          `json:"features,omitempty"`
+	DepSets  map[string]DepSet `json:"dep_sets,omitempty"`
 }

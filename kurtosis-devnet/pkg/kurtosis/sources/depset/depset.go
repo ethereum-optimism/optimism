@@ -27,7 +27,7 @@ func NewExtractor(enclave string) *extractor {
 }
 
 // ExtractData extracts dependency set from its respective artifact
-func (e *extractor) ExtractData(ctx context.Context) ([]descriptors.DepSet, error) {
+func (e *extractor) ExtractData(ctx context.Context) (map[string]descriptors.DepSet, error) {
 	fs, err := ktfs.NewEnclaveFS(ctx, e.enclave)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (e *extractor) ExtractData(ctx context.Context) ([]descriptors.DepSet, erro
 	return extractDepsetsFromArtifacts(ctx, fs)
 }
 
-func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) ([]descriptors.DepSet, error) {
+func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) (map[string]descriptors.DepSet, error) {
 	allArtifacts, err := fs.GetAllArtifactNames(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all artifact names: %w", err)
@@ -49,7 +49,7 @@ func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) ([]des
 		}
 	}
 
-	depsets := make([]descriptors.DepSet, 0)
+	depsets := make(map[string]descriptors.DepSet)
 	for _, artifactName := range depsetArtifacts {
 		a, err := fs.GetArtifact(ctx, artifactName)
 		if err != nil {
@@ -61,7 +61,8 @@ func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) ([]des
 			return nil, fmt.Errorf("failed to extract dependency set: %w", err)
 		}
 
-		depsets = append(depsets, descriptors.DepSet(buffer.Bytes()))
+		depsetName := strings.TrimSuffix(strings.TrimPrefix(artifactName, depsetFileNamePrefix+"-"), ".json")
+		depsets[depsetName] = descriptors.DepSet(buffer.Bytes())
 	}
 
 	return depsets, nil

@@ -174,7 +174,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 	}
 
 	// Get dependency set
-	var depsets []descriptors.DepSet
+	var depsets map[string]descriptors.DepSet
 	if s.Features.Contains(spec.FeatureInterop) {
 		depsets, err = d.depsetExtractor.ExtractData(ctx, d.enclave)
 		if err != nil {
@@ -193,12 +193,12 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 		},
 	}
 
-	// Find L1 endpoint
-	networks := make([]string, len(s.Chains))
-	for idx, chainSpec := range s.Chains {
-		networks[idx] = chainSpec.Name
+	l2Networks := make([]ChainSpec, 0, len(s.Chains))
+	for _, chainSpec := range s.Chains {
+		l2Networks = append(l2Networks, ChainSpec{ChainSpec: chainSpec, DepSets: depsets})
 	}
-	finder := NewServiceFinder(inspectResult.UserServices, WithL2Networks(networks))
+	// Find L1 endpoint
+	finder := NewServiceFinder(inspectResult.UserServices, WithL2Networks(l2Networks))
 	if nodes, services := finder.FindL1Services(); len(nodes) > 0 {
 		chain := &descriptors.Chain{
 			ID:        deployerData.L1ChainID,
@@ -219,7 +219,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 
 	// Find L2 endpoints
 	for _, chainSpec := range s.Chains {
-		nodes, services := finder.FindL2Services(chainSpec.Name)
+		nodes, services := finder.FindL2Services(ChainSpec{ChainSpec: chainSpec, DepSets: depsets})
 
 		chain := &descriptors.L2Chain{
 			Chain: &descriptors.Chain{

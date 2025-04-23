@@ -28,5 +28,5 @@ type JWTExtractor interface {
 }
 
 type DepsetExtractor interface {
-	ExtractData(context.Context, string) ([]descriptors.DepSet, error)
+	ExtractData(context.Context, string) (map[string]descriptors.DepSet, error)
 }
