@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -148,7 +149,7 @@ func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
 
 	for url, client := range m.ethClients {
 		m.log.Debug("Fetching finalized block header", "url", url)
-		header, err := client.HeaderByNumber(ctx, nil)
+		header, err := client.HeaderByNumber(ctx, big.NewInt(rpc.FinalizedBlockNumber.Int64()))
 		if err != nil {
 			return fmt.Errorf("failed to get finalized header from %s: %w", url, err)
 		}
@@ -181,7 +182,7 @@ func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context)
 		client := m.ethClients[url]
 		m.log.Debug("Processing chain", "url", url, "chain_id", settings.ChainID)
 
-		finalizedHeader, err := client.HeaderByNumber(ctx, nil)
+		finalizedHeader, err := client.HeaderByNumber(ctx, big.NewInt(rpc.FinalizedBlockNumber.Int64()))
 		if err != nil {
 			return fmt.Errorf("failed to get finalized block header for %s: %w", url, err)
 		}
