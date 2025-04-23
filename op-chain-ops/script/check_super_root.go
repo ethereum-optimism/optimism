@@ -334,17 +334,9 @@ func (m *SuperRootMigrator) printResults() {
 	fmt.Println("Verification Inputs:")
 	for rpcURL, settings := range m.chainSettings {
 		fmt.Printf("  RPC URL: %s\n", rpcURL)
-		if settings.ChainID != nil {
-			fmt.Printf("    Chain ID: %s\n", settings.ChainID.String())
-		} else {
-			fmt.Println("    Chain ID: <not fetched>")
-		}
-		if settings.TargetBlock != nil {
-			fmt.Printf("    Target Block Number: %d\n", settings.TargetBlock.Number)
-			fmt.Printf("    Target Block Hash: %s\n", settings.TargetBlock.Hash().Hex())
-		} else {
-			fmt.Println("    Target Block: <not found>")
-		}
+		fmt.Printf("    Chain ID: %s\n", settings.ChainID.String())
+		fmt.Printf("    Target Block Number: %d\n", settings.TargetBlock.Number)
+		fmt.Printf("    Target Block Hash: %s\n", settings.TargetBlock.Hash().Hex())
 		fmt.Printf("    Output Root: %s\n", common.Hash(settings.OutputRoot).Hex())
 	}
 }
