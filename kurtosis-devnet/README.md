@@ -1,7 +1,5 @@
 # Getting Started
 
-Welcome to the Kurtosis Devnet! This tool helps you quickly spin up local development networks for testing and development purposes. Whether you're working on simple test networks or complex interoperability scenarios, this devnet environment has you covered.
-
 Running a Kurtosis Devnet has the following prerequisites:
 - Kurtosis must be installed. This is automatically handled by `mise`, same as with other dev tools in this repository
 - Docker Desktop must be installed and running
@@ -154,43 +152,12 @@ In particular, cleaning up a devnet can be achieved using
 
 ## Troubleshooting
 
-### Autofix mode
-
-Autofix mode helps recover from failed devnet deployments by automatically 
-cleaning up the environment. It has two modes:
-
-1. **Normal Mode** (`AUTOFIX=true`)
-   - Sets up the correct shell and updates dependencies
-   - Cleans up dangling networks and stopped devnets
-   - Preserves other running enclaves
-   - Good for fixing minor deployment issues
-
-2. **Nuke Mode** (`AUTOFIX=nuke`)
-   - Sets up the correct shell and updates dependencies
-   - Completely resets the Kurtosis environment
-   - Removes all networks and containers
-   - Use when you need a fresh start
-
-Usage:
-```bash
-# For normal cleanup
-AUTOFIX=true just interop-devnet
-
-# For complete reset
-AUTOFIX=nuke just interop-devnet
-```
-
-Note: Nuke mode will stop all running enclaves, so use it carefully.
-
-### Older kurtosis versions
-
 In some cases, a newer kurtosis client might not be able to handle an
 older kurtosis engine. This typically happens if the kurtosis
 command-line managed by mise gets updated while some enclaves are
 already running.
 
-To help recover, you can either run with `AUTOFIX=nuke` or kill the 
-old engine with:
+To help recover, you can kill the old engine with:
 
 ```shell
 docker rm -f $(docker ps -aqf "name=kurtosis-*")
@@ -201,3 +168,31 @@ Potentially you'll also need to cleanup dangling docker networks:
 ```shell
 docker network rm -f $(docker network ls -qf "name=kt-*")
 ```
+
+## Welcome Messages
+
+Kurtosis Devnet displays a random welcome message at startup, which provides tips and information about new features.
+
+### Customizing Welcome Messages
+
+You can customize the welcome messages by editing the `welcome_messages.txt` file in the kurtosis-devnet directory.
+Each line in this file will be treated as a separate message.
+
+### Disabling Welcome Messages
+
+There are several ways to disable the welcome messages:
+
+1. Use the `NO_WELCOME` parameter when running a devnet:
+   ```
+   just simple-devnet yes
+   ```
+
+2. Create a `.disable-welcome` file in the kurtosis-devnet directory:
+   ```
+   touch .disable-welcome
+   ```
+
+3. Set the environment variable `KURTOSIS_DEVNET_DISABLE_WELCOME`:
+   ```
+   export KURTOSIS_DEVNET_DISABLE_WELCOME=1
+   ```
