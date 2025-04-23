@@ -15,128 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockLogDB struct {
-	mu         sync.RWMutex
-	logs       map[uint64]map[uint32]types.ExecutingMessage
-	blockSeals map[uint64]types.BlockSeal
-	rewindNum  uint64
-}
-
-func newMockLogDB() *mockLogDB {
-	return &mockLogDB{
-		logs:       make(map[uint64]map[uint32]types.ExecutingMessage),
-		blockSeals: make(map[uint64]types.BlockSeal),
-	}
-}
-
-func (m *mockLogDB) Close() error {
-	return nil
-}
-
-func (m *mockLogDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.logs[parentBlock.Number] == nil {
-		m.logs[parentBlock.Number] = make(map[uint32]types.ExecutingMessage)
-	}
-	m.logs[parentBlock.Number][logIdx] = *execMsg
-	return nil
-}
-
-func (m *mockLogDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.blockSeals[block.Number] = types.BlockSeal{
-		Hash:      block.Hash,
-		Number:    block.Number,
-		Timestamp: timestamp,
-	}
-	return nil
-}
-
-func (m *mockLogDB) Rewind(newHead eth.BlockID) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for num := range m.logs {
-		if num > newHead.Number {
-			delete(m.logs, num)
-			delete(m.blockSeals, num)
-		}
-	}
-	return nil
-}
-
-func (m *mockLogDB) LatestSealedBlock() (id eth.BlockID, ok bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var latest uint64
-	for num := range m.blockSeals {
-		if num > latest {
-			latest = num
-		}
-	}
-	if latest == 0 {
-		return eth.BlockID{}, false
-	}
-	seal := m.blockSeals[latest]
-	return eth.BlockID{Hash: seal.Hash, Number: seal.Number}, true
-}
-
-func (m *mockLogDB) FindSealedBlock(number uint64) (types.BlockSeal, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if seal, ok := m.blockSeals[number]; ok {
-		return seal, nil
-	}
-	return types.BlockSeal{}, types.ErrFuture
-}
-
-func (m *mockLogDB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if query.BlockNum > m.rewindNum && m.rewindNum != 0 {
-		return types.BlockSeal{}, types.ErrFuture
-	}
-
-	if blockLogs, ok := m.logs[query.BlockNum]; ok {
-		if _, ok := blockLogs[query.LogIdx]; ok {
-			if seal, ok := m.blockSeals[query.BlockNum]; ok {
-				return seal, nil
-			}
-		}
-	}
-	return types.BlockSeal{}, types.ErrFuture
-}
-
-func (m *mockLogDB) IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error) {
-	return nil, nil // Not needed for these tests
-}
-
-func (m *mockLogDB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
-	return eth.BlockRef{}, 0, nil, nil // Not needed for these tests
-}
-
-func (m *mockLogDB) addBlock(num uint64, hash common.Hash) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.blockSeals[num] = types.BlockSeal{
-		Number: num,
-		Hash:   hash,
-	}
-}
-
-func (m *mockLogDB) rewind(num uint64) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.rewindNum = num
-}
-
 func TestReadHandleBasic(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
@@ -329,123 +207,6 @@ func TestReadHandleValidateAccessList(t *testing.T) {
 	// but in our mock setup, the error is propagated from Contains
 	// which returns ErrFuture because the block was rewound
 	// So we check for any error, since the important part is that validation fails
-}
-
-func setupTestDB(t *testing.T) *ChainsDB {
-	logger := testlog.Logger(t, log.LvlTrace)
-	db := NewChainsDB(logger, nil, nil)
-
-	// Add mock LogDBs for testing
-	chain1 := eth.ChainID{1}
-	chain2 := eth.ChainID{2}
-
-	mockDB1 := newMockLogDB()
-	mockDB2 := newMockLogDB()
-
-	// Add some test data
-	require.NoError(t, mockDB1.AddLog(common.Hash{1}, eth.BlockID{Number: 100}, 1, &types.ExecutingMessage{
-		BlockNum:  100,
-		LogIdx:    1,
-		Timestamp: 1000,
-	}))
-	require.NoError(t, mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 100, Hash: common.Hash{1}}, 1000))
-
-	require.NoError(t, mockDB2.AddLog(common.Hash{2}, eth.BlockID{Number: 200}, 2, &types.ExecutingMessage{
-		BlockNum:  200,
-		LogIdx:    2,
-		Timestamp: 2000,
-	}))
-	require.NoError(t, mockDB2.SealBlock(common.Hash{}, eth.BlockID{Number: 200, Hash: common.Hash{2}}, 2000))
-
-	db.AddLogDB(chain1, mockDB1)
-	db.AddLogDB(chain2, mockDB2)
-
-	// Add mock local and cross DBs for Rewind to work
-	mockLocalDB1 := &mockDerivationDB{}
-	mockLocalDB2 := &mockDerivationDB{}
-	mockCrossDB1 := &mockDerivationDB{}
-	mockCrossDB2 := &mockDerivationDB{}
-
-	db.AddLocalDerivationDB(chain1, mockLocalDB1)
-	db.AddLocalDerivationDB(chain2, mockLocalDB2)
-	db.AddCrossDerivationDB(chain1, mockCrossDB1)
-	db.AddCrossDerivationDB(chain2, mockCrossDB2)
-
-	return db
-}
-
-type mockDerivationDB struct{}
-
-func (m *mockDerivationDB) First() (pair types.DerivedBlockSealPair, err error) {
-	return types.DerivedBlockSealPair{}, nil
-}
-
-func (m *mockDerivationDB) Last() (pair types.DerivedBlockSealPair, err error) {
-	return types.DerivedBlockSealPair{}, nil
-}
-
-func (m *mockDerivationDB) DerivedToFirstSource(derived eth.BlockID, revision types.Revision) (source types.BlockSeal, err error) {
-	return types.BlockSeal{}, nil
-}
-
-func (m *mockDerivationDB) SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, err error) {
-	return types.BlockSeal{}, nil
-}
-
-func (m *mockDerivationDB) NextSource(source eth.BlockID) (nextSource types.BlockSeal, err error) {
-	return types.BlockSeal{}, nil
-}
-
-func (m *mockDerivationDB) Candidate(afterSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error) {
-	return types.DerivedBlockRefPair{}, nil
-}
-
-func (m *mockDerivationDB) PreviousSource(source eth.BlockID) (prevSource types.BlockSeal, err error) {
-	return types.BlockSeal{}, nil
-}
-
-func (m *mockDerivationDB) PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error) {
-	return types.BlockSeal{}, nil
-}
-
-func (m *mockDerivationDB) Invalidated() (pair types.DerivedBlockSealPair, err error) {
-	return types.DerivedBlockSealPair{}, nil
-}
-
-func (m *mockDerivationDB) ContainsDerived(derived eth.BlockID, revision types.Revision) error {
-	return nil
-}
-
-func (m *mockDerivationDB) DerivedToRevision(derived eth.BlockID) (types.Revision, error) {
-	return types.RevisionAny, nil
-}
-
-func (m *mockDerivationDB) LastRevision() (revision types.Revision, err error) {
-	return types.RevisionAny, nil
-}
-
-func (m *mockDerivationDB) SourceToRevision(source eth.BlockID) (types.Revision, error) {
-	return types.RevisionAny, nil
-}
-
-func (m *mockDerivationDB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
-	return nil
-}
-
-func (m *mockDerivationDB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (types.DerivedBlockRefPair, error) {
-	return types.DerivedBlockRefPair{}, nil
-}
-
-func (m *mockDerivationDB) RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error {
-	return nil
-}
-
-func (m *mockDerivationDB) RewindToScope(scope eth.BlockID) error {
-	return nil
-}
-
-func (m *mockDerivationDB) RewindToFirstDerived(v eth.BlockID, revision types.Revision) error {
-	return nil
 }
 
 func TestReadHandleConcurrentHandles(t *testing.T) {
@@ -1055,4 +816,243 @@ func TestReadHandleCrossChainConsistency(t *testing.T) {
 	// In a real-world implementation, the WithReadHandles function would properly
 	// detect invalidated handles from reorgs across chains, but our mock setup
 	// doesn't model the complete cross-chain dependency tracking
+}
+
+func setupTestDB(t *testing.T) *ChainsDB {
+	logger := testlog.Logger(t, log.LvlTrace)
+	db := NewChainsDB(logger, nil, nil)
+
+	// Add mock LogDBs for testing
+	chain1 := eth.ChainID{1}
+	chain2 := eth.ChainID{2}
+
+	mockDB1 := newMockLogDB()
+	mockDB2 := newMockLogDB()
+
+	// Add some test data
+	require.NoError(t, mockDB1.AddLog(common.Hash{1}, eth.BlockID{Number: 100}, 1, &types.ExecutingMessage{
+		BlockNum:  100,
+		LogIdx:    1,
+		Timestamp: 1000,
+	}))
+	require.NoError(t, mockDB1.SealBlock(common.Hash{}, eth.BlockID{Number: 100, Hash: common.Hash{1}}, 1000))
+
+	require.NoError(t, mockDB2.AddLog(common.Hash{2}, eth.BlockID{Number: 200}, 2, &types.ExecutingMessage{
+		BlockNum:  200,
+		LogIdx:    2,
+		Timestamp: 2000,
+	}))
+	require.NoError(t, mockDB2.SealBlock(common.Hash{}, eth.BlockID{Number: 200, Hash: common.Hash{2}}, 2000))
+
+	db.AddLogDB(chain1, mockDB1)
+	db.AddLogDB(chain2, mockDB2)
+
+	// Add mock local and cross DBs for Rewind to work
+	mockLocalDB1 := &mockDerivationDB{}
+	mockLocalDB2 := &mockDerivationDB{}
+	mockCrossDB1 := &mockDerivationDB{}
+	mockCrossDB2 := &mockDerivationDB{}
+
+	db.AddLocalDerivationDB(chain1, mockLocalDB1)
+	db.AddLocalDerivationDB(chain2, mockLocalDB2)
+	db.AddCrossDerivationDB(chain1, mockCrossDB1)
+	db.AddCrossDerivationDB(chain2, mockCrossDB2)
+
+	return db
+}
+
+type mockLogDB struct {
+	mu         sync.RWMutex
+	logs       map[uint64]map[uint32]types.ExecutingMessage
+	blockSeals map[uint64]types.BlockSeal
+	rewindNum  uint64
+}
+
+func newMockLogDB() *mockLogDB {
+	return &mockLogDB{
+		logs:       make(map[uint64]map[uint32]types.ExecutingMessage),
+		blockSeals: make(map[uint64]types.BlockSeal),
+	}
+}
+
+func (m *mockLogDB) Close() error {
+	return nil
+}
+
+func (m *mockLogDB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.logs[parentBlock.Number] == nil {
+		m.logs[parentBlock.Number] = make(map[uint32]types.ExecutingMessage)
+	}
+	m.logs[parentBlock.Number][logIdx] = *execMsg
+	return nil
+}
+
+func (m *mockLogDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.blockSeals[block.Number] = types.BlockSeal{
+		Hash:      block.Hash,
+		Number:    block.Number,
+		Timestamp: timestamp,
+	}
+	return nil
+}
+
+func (m *mockLogDB) Rewind(newHead eth.BlockID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for num := range m.logs {
+		if num > newHead.Number {
+			delete(m.logs, num)
+			delete(m.blockSeals, num)
+		}
+	}
+	return nil
+}
+
+func (m *mockLogDB) LatestSealedBlock() (id eth.BlockID, ok bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var latest uint64
+	for num := range m.blockSeals {
+		if num > latest {
+			latest = num
+		}
+	}
+	if latest == 0 {
+		return eth.BlockID{}, false
+	}
+	seal := m.blockSeals[latest]
+	return eth.BlockID{Hash: seal.Hash, Number: seal.Number}, true
+}
+
+func (m *mockLogDB) FindSealedBlock(number uint64) (types.BlockSeal, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if seal, ok := m.blockSeals[number]; ok {
+		return seal, nil
+	}
+	return types.BlockSeal{}, types.ErrFuture
+}
+
+func (m *mockLogDB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if query.BlockNum > m.rewindNum && m.rewindNum != 0 {
+		return types.BlockSeal{}, types.ErrFuture
+	}
+
+	if blockLogs, ok := m.logs[query.BlockNum]; ok {
+		if _, ok := blockLogs[query.LogIdx]; ok {
+			if seal, ok := m.blockSeals[query.BlockNum]; ok {
+				return seal, nil
+			}
+		}
+	}
+	return types.BlockSeal{}, types.ErrFuture
+}
+
+func (m *mockLogDB) IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error) {
+	return nil, nil // Not needed for these tests
+}
+
+func (m *mockLogDB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
+	return eth.BlockRef{}, 0, nil, nil // Not needed for these tests
+}
+
+func (m *mockLogDB) addBlock(num uint64, hash common.Hash) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.blockSeals[num] = types.BlockSeal{
+		Number: num,
+		Hash:   hash,
+	}
+}
+
+func (m *mockLogDB) rewind(num uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.rewindNum = num
+}
+
+type mockDerivationDB struct{}
+
+func (m *mockDerivationDB) First() (pair types.DerivedBlockSealPair, err error) {
+	return types.DerivedBlockSealPair{}, nil
+}
+
+func (m *mockDerivationDB) Last() (pair types.DerivedBlockSealPair, err error) {
+	return types.DerivedBlockSealPair{}, nil
+}
+
+func (m *mockDerivationDB) DerivedToFirstSource(derived eth.BlockID, revision types.Revision) (source types.BlockSeal, err error) {
+	return types.BlockSeal{}, nil
+}
+
+func (m *mockDerivationDB) SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, err error) {
+	return types.BlockSeal{}, nil
+}
+
+func (m *mockDerivationDB) NextSource(source eth.BlockID) (nextSource types.BlockSeal, err error) {
+	return types.BlockSeal{}, nil
+}
+
+func (m *mockDerivationDB) Candidate(afterSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error) {
+	return types.DerivedBlockRefPair{}, nil
+}
+
+func (m *mockDerivationDB) PreviousSource(source eth.BlockID) (prevSource types.BlockSeal, err error) {
+	return types.BlockSeal{}, nil
+}
+
+func (m *mockDerivationDB) PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error) {
+	return types.BlockSeal{}, nil
+}
+
+func (m *mockDerivationDB) Invalidated() (pair types.DerivedBlockSealPair, err error) {
+	return types.DerivedBlockSealPair{}, nil
+}
+
+func (m *mockDerivationDB) ContainsDerived(derived eth.BlockID, revision types.Revision) error {
+	return nil
+}
+
+func (m *mockDerivationDB) DerivedToRevision(derived eth.BlockID) (types.Revision, error) {
+	return types.RevisionAny, nil
+}
+
+func (m *mockDerivationDB) LastRevision() (revision types.Revision, err error) {
+	return types.RevisionAny, nil
+}
+
+func (m *mockDerivationDB) SourceToRevision(source eth.BlockID) (types.Revision, error) {
+	return types.RevisionAny, nil
+}
+
+func (m *mockDerivationDB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
+	return nil
+}
+
+func (m *mockDerivationDB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (types.DerivedBlockRefPair, error) {
+	return types.DerivedBlockRefPair{}, nil
+}
+
+func (m *mockDerivationDB) RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error {
+	return nil
+}
+
+func (m *mockDerivationDB) RewindToScope(scope eth.BlockID) error {
+	return nil
+}
+
+func (m *mockDerivationDB) RewindToFirstDerived(v eth.BlockID, revision types.Revision) error {
+	return nil
 }
