@@ -61,7 +61,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			ChallengePeriodSeconds:          big.NewInt(3),
 			ProofMaturityDelaySeconds:       big.NewInt(4),
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
-			MipsVersion:                     big.NewInt(1),
+			MipsVersion:                     big.NewInt(6),
 			// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
 			L1ContractsRelease:    "dev-release",
 			SuperchainConfigProxy: proxyAddress,
@@ -89,7 +89,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			ChallengePeriodSeconds:          big.NewInt(3),
 			ProofMaturityDelaySeconds:       big.NewInt(4),
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
-			MipsVersion:                     big.NewInt(1),
+			MipsVersion:                     big.NewInt(6),
 			// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
 			L1ContractsRelease:    "dev-release",
 			SuperchainConfigProxy: proxyAddress,
