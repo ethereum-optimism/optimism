@@ -9,7 +9,7 @@ use reth_node_api::FullNodeComponents;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 use reth_rpc_eth_api::{
     helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking},
-    FromEthApiError, FullEthApiTypes, RpcNodeCore, RpcNodeCoreExt, TransactionCompat,
+    EthApiTypes, FromEthApiError, FullEthApiTypes, RpcNodeCore, RpcNodeCoreExt, TransactionCompat,
 };
 use reth_rpc_eth_types::{utils::recover_raw_transaction, EthApiError};
 use reth_storage_api::{
@@ -21,7 +21,7 @@ use crate::{eth::OpNodeCore, OpEthApi, OpEthApiError, SequencerClient};
 
 impl<N> EthTransactions for OpEthApi<N>
 where
-    Self: LoadTransaction<Provider: BlockReaderIdExt>,
+    Self: LoadTransaction<Provider: BlockReaderIdExt> + EthApiTypes<Error = OpEthApiError>,
     N: OpNodeCore<Provider: BlockReader<Transaction = ProviderTx<Self::Provider>>>,
 {
     fn signers(&self) -> &parking_lot::RwLock<Vec<Box<dyn EthSigner<ProviderTx<Self::Provider>>>>> {
@@ -39,9 +39,19 @@ where
         // blocks that it builds.
         if let Some(client) = self.raw_tx_forwarder().as_ref() {
             tracing::debug!(target: "rpc::eth", hash = %pool_transaction.hash(), "forwarding raw transaction to sequencer");
-            let _ = client.forward_raw_transaction(&tx).await.inspect_err(|err| {
+            let hash = client.forward_raw_transaction(&tx).await.inspect_err(|err| {
                     tracing::debug!(target: "rpc::eth", %err, hash=% *pool_transaction.hash(), "failed to forward raw transaction");
-                });
+                })?;
+
+            // Retain tx in local tx pool after forwarding, for local RPC usage.
+            let _ = self
+                .pool()
+                .add_transaction(TransactionOrigin::Local, pool_transaction)
+                .await.inspect_err(|err| {
+                    tracing::warn!(target: "rpc::eth", %err, %hash, "successfully sent tx to sequencer, but failed to persist in local tx pool");
+            });
+
+            return Ok(hash)
         }
 
         // submit the transaction to the pool with a `Local` origin
