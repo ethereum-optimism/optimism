@@ -10,47 +10,53 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum-optimism/optimism/op-service/serialize"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
 	ErrUnknownVersion      = errors.New("unknown version")
+	ErrUnsupportedVersion  = errors.New("unsupported version")
 	ErrJsonNotSupported    = errors.New("json not supported")
 	ErrUnsupportedMipsArch = errors.New("mips architecture is not supported")
 )
 
 func LoadStateFromFile(path string) (*VersionedState, error) {
 	if !serialize.IsBinaryFile(path) {
-		// Always use singlethreaded for JSON states
-		state, err := jsonutil.LoadJSON[singlethreaded.State](path)
-		if err != nil {
-			return nil, err
-		}
-		return NewFromState(state)
+		// JSON states are always singlethreaded v1 which is no longer supported
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedVersion, VersionSingleThreaded)
 	}
 	return serialize.LoadSerializedBinary[VersionedState](path)
 }
 
-func NewFromState(state mipsevm.FPVMState) (*VersionedState, error) {
+func NewFromState(vers StateVersion, state mipsevm.FPVMState) (*VersionedState, error) {
 	switch state := state.(type) {
 	case *singlethreaded.State:
+		if !IsSupportedSingleThreaded(vers) {
+			return nil, fmt.Errorf("%w: %v", ErrUnsupportedVersion, vers)
+		}
 		if !arch.IsMips32 {
 			return nil, ErrUnsupportedMipsArch
 		}
 		return &VersionedState{
-			Version:   GetCurrentSingleThreaded(),
+			Version:   vers,
 			FPVMState: state,
 		}, nil
 	case *multithreaded.State:
 		if arch.IsMips32 {
+			if !IsSupportedMultiThreaded(vers) {
+				return nil, fmt.Errorf("%w: %v", ErrUnsupportedVersion, vers)
+			}
 			return &VersionedState{
-				Version:   GetCurrentMultiThreaded(),
+				Version:   vers,
 				FPVMState: state,
 			}, nil
 		} else {
+			if !IsSupportedMultiThreaded64(vers) {
+				return nil, fmt.Errorf("%w: %v", ErrUnsupportedVersion, vers)
+			}
 			return &VersionedState{
-				Version:   GetCurrentMultiThreaded64(),
+				Version:   vers,
 				FPVMState: state,
 			}, nil
 		}
@@ -64,6 +70,17 @@ func NewFromState(state mipsevm.FPVMState) (*VersionedState, error) {
 type VersionedState struct {
 	Version StateVersion
 	mipsevm.FPVMState
+}
+
+func (s *VersionedState) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
+	features := FeaturesForVersion(s.Version)
+	return s.FPVMState.CreateVM(logger, po, stdOut, stdErr, meta, features)
+}
+
+func FeaturesForVersion(version StateVersion) mipsevm.FeatureToggles {
+	features := mipsevm.FeatureToggles{}
+	// Set any required feature toggles based on the state version here.
+	return features
 }
 
 func (s *VersionedState) Serialize(w io.Writer) error {
@@ -80,8 +97,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 		return err
 	}
 
-	switch s.Version {
-	case GetCurrentSingleThreaded():
+	if IsSupportedSingleThreaded(s.Version) {
 		if !arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}
@@ -91,7 +107,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 		}
 		s.FPVMState = state
 		return nil
-	case GetCurrentMultiThreaded():
+	} else if IsSupportedMultiThreaded(s.Version) {
 		if !arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}
@@ -101,7 +117,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 		}
 		s.FPVMState = state
 		return nil
-	case GetCurrentMultiThreaded64():
+	} else if IsSupportedMultiThreaded64(s.Version) {
 		if arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}
@@ -111,7 +127,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 		}
 		s.FPVMState = state
 		return nil
-	default:
+	} else {
 		return fmt.Errorf("%w: %d", ErrUnknownVersion, s.Version)
 	}
 }

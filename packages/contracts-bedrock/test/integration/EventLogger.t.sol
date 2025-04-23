@@ -9,8 +9,9 @@ import { EventLogger } from "../../src/integration/EventLogger.sol";
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-import { Identifier as ImplIdentifier } from "src/L2/CrossL2Inbox.sol";
-import { CrossL2InboxWithSlotWarming as CrossL2Inbox } from "test/L2/CrossL2Inbox.t.sol";
+import { ICrossL2Inbox, Identifier as ImplIdentifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { VmSafe } from "forge-std/Vm.sol";
+import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
 contract EventLogger_Initializer is Test {
     event ExecutingMessage(bytes32 indexed msgHash, ImplIdentifier id);
@@ -88,6 +89,7 @@ contract EventLoggerTest is EventLogger_Initializer {
     }
 
     /// @notice It should succeed with any Identifier
+    /// forge-config: default.isolate = true
     function test_validateMessage_succeeds(
         address _origin,
         uint64 _blockNumber,
@@ -115,13 +117,21 @@ contract EventLoggerTest is EventLogger_Initializer {
 
         address emitter = Predeploys.CROSS_L2_INBOX;
 
-        // Warm the slot for the function to succeed
-        bytes32 checksum = CrossL2Inbox(emitter).calculateChecksum(idImpl, _msgHash);
-        CrossL2Inbox(emitter).warmSlot(checksum);
+        // Cool the contract's slots
+        vm.cool(address(emitter));
+
+        // Calculate the checksum and prepare the access list
+        bytes32 checksum = ICrossL2Inbox(emitter).calculateChecksum(idImpl, _msgHash);
+        bytes32[] memory slots = new bytes32[](1);
+        slots[0] = checksum;
+        VmSafe.AccessListItem[] memory accessList = new VmSafe.AccessListItem[](1);
+        accessList[0] = VmSafe.AccessListItem({ target: address(emitter), storageKeys: slots });
 
         vm.expectEmit(false, false, false, true, emitter);
         emit ExecutingMessage(_msgHash, idImpl);
 
+        // Call with access list
+        vm.accessList(accessList);
         eventLogger.validateMessage(idIface, _msgHash);
     }
 }

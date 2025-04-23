@@ -58,7 +58,7 @@ type FPVMState interface {
 	EncodeWitness() (witness []byte, hash common.Hash)
 
 	// CreateVM creates a FPVM that can operate on this state.
-	CreateVM(logger log.Logger, po PreimageOracle, stdOut, stdErr io.Writer, meta Metadata) FPVM
+	CreateVM(logger log.Logger, po PreimageOracle, stdOut, stdErr io.Writer, meta Metadata, features FeatureToggles) FPVM
 }
 
 type SymbolMatcher func(addr arch.Word) bool
@@ -66,6 +66,14 @@ type SymbolMatcher func(addr arch.Word) bool
 type Metadata interface {
 	LookupSymbol(addr arch.Word) string
 	CreateSymbolMatcher(name string) SymbolMatcher
+}
+
+// FeatureToggles defines the set of features which are enabled only on some of the supported state versions.
+// This allows supporting multiple state versions concurrently without needing to create completely separate
+// FPVM implementations and duplicate a lot of code.
+// Toggles here are temporary and should be removed once the newer state version is deployed widely. The older
+// version can then be supported via multicannon pulling in a specific build and support for it dropped in latest code.
+type FeatureToggles struct {
 }
 
 type FPVM interface {

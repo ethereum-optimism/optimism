@@ -120,7 +120,7 @@ prestateHash: {{ (localPrestate).Hashes.prestate }}`
 	assert.NotContains(t, output, "__PLACEHOLDER_DOCKER_IMAGE_")
 
 	// 3. Verify contract artifacts URL is present (uses dry run logic of that builder)
-	assert.Contains(t, output, "contracts: http://fileserver.test/contracts-bundle-"+enclaveName+".tar.gz")
+	assert.Contains(t, output, "contracts: artifact://contracts")
 
 	// 4. Verify prestate hash placeholder is present (dry run for prestate needs specific setup)
 	//    In dry run, the prestate builder might return zero values or specific placeholders.

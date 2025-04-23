@@ -98,6 +98,10 @@ func (m *mockSyncControl) String() string {
 	return "mock"
 }
 
+func (m *mockSyncControl) ReconnectRPC(ctx context.Context) error {
+	return nil
+}
+
 var _ SyncControl = (*mockSyncControl)(nil)
 
 type mockBackend struct {

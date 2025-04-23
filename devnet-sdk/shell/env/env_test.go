@@ -69,8 +69,8 @@ func TestLoadDevnetEnv(t *testing.T) {
 	t.Run("successful load", func(t *testing.T) {
 		env, err := LoadDevnetFromURL(tmpfile.Name())
 		require.NoError(t, err)
-		assert.Equal(t, "l1", env.Config.L1.Name)
-		assert.Equal(t, "op", env.Config.L2[0].Name)
+		assert.Equal(t, "l1", env.Env.L1.Name)
+		assert.Equal(t, "op", env.Env.L2[0].Name)
 	})
 
 	// Test loading non-existent file
@@ -92,7 +92,7 @@ func TestLoadDevnetEnv(t *testing.T) {
 
 func TestGetChain(t *testing.T) {
 	devnet := &DevnetEnv{
-		Config: descriptors.DevnetEnvironment{
+		Env: &descriptors.DevnetEnvironment{
 			L1: &descriptors.Chain{
 				Name: "l1",
 				Nodes: []descriptors.Node{
@@ -116,7 +116,7 @@ func TestGetChain(t *testing.T) {
 			},
 			L2: []*descriptors.L2Chain{
 				{
-					Chain: descriptors.Chain{
+					Chain: &descriptors.Chain{
 						Name: "op",
 						Nodes: []descriptors.Node{
 							{
@@ -141,7 +141,7 @@ func TestGetChain(t *testing.T) {
 						"deployer": common.HexToAddress("0x2345678901234567890123456789012345678901"),
 					},
 					L1Wallets: descriptors.WalletMap{
-						"deployer": descriptors.Wallet{
+						"deployer": &descriptors.Wallet{
 							Address:    common.HexToAddress("0x2345678901234567890123456789012345678901"),
 							PrivateKey: "0x2345678901234567890123456789012345678901",
 						},

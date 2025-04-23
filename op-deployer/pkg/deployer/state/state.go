@@ -3,6 +3,8 @@ package state
 import (
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/core"
+
 	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
@@ -50,6 +52,12 @@ type State struct {
 
 	// L1StateDump contains the complete L1 state dump of the deployment.
 	L1StateDump *GzipData[foundry.ForgeAllocs] `json:"l1StateDump"`
+
+	// L1DevGenesis contains the dev L1 genesis, and may be nil if this is not a genesis-strategy deployment.
+	// Warning: the Allocs part of the genesis is not included. Instead, the stateHash attribute is set.
+	// The allocs are included in L1StateDump.
+	// The stateHash can be used for consistency checks and faster block-hash computation.
+	L1DevGenesis *core.Genesis `json:"-"`
 
 	// DeploymentCalldata contains the calldata of each transaction in the deployment. This is only
 	// populated if apply is called with --deployment-target=calldata.

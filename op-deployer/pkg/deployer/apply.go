@@ -11,24 +11,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
@@ -346,6 +341,39 @@ func ApplyPipeline(
 		})
 	}
 
+	if opts.DeploymentTarget == DeploymentTargetGenesis {
+		for _, chain := range intent.Chains {
+			chainID := chain.ID
+			pline = append(pline, pipelineStage{
+				"prefund-l2-dev-genesis",
+				func() error {
+					return pipeline.PrefundL2DevGenesis(pEnv, intent, st, chainID)
+				},
+			})
+		}
+
+		pline = append(pline, pipelineStage{
+			"prefund-l1-dev-genesis",
+			func() error {
+				return pipeline.PrefundL1DevGenesis(pEnv, intent, st)
+			},
+		})
+
+		pline = append(pline, pipelineStage{
+			"preinstall-l1-dev-genesis",
+			func() error {
+				return pipeline.PreinstallL1DevGenesis(pEnv, intent, st)
+			},
+		})
+
+		pline = append(pline, pipelineStage{
+			"seal-l1-dev-genesis",
+			func() error {
+				return pipeline.SealL1DevGenesis(pEnv, intent, st)
+			},
+		})
+	}
+
 	// Set start block after all OP chains have been deployed, since the
 	// genesis strategy requires all the OP chains to exist in genesis.
 	for _, chain := range intent.Chains {
@@ -384,18 +412,6 @@ func ApplyPipeline(
 		if err := stage.apply(); err != nil {
 			return fmt.Errorf("error in pipeline stage apply: %w", err)
 		}
-
-		// Some steps use the L1StateDump, so we need to apply it to state after every step.
-		if opts.DeploymentTarget == DeploymentTargetGenesis {
-			dump, err := pEnv.L1ScriptHost.StateDump()
-			if err != nil {
-				return fmt.Errorf("failed to dump state: %w", err)
-			}
-			st.L1StateDump = &state.GzipData[foundry.ForgeAllocs]{
-				Data: dump,
-			}
-		}
-
 		if _, err := pEnv.Broadcaster.Broadcast(ctx); err != nil {
 			return fmt.Errorf("failed to broadcast stage %s: %w", stage.name, err)
 		}

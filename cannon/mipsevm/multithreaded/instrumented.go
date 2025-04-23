@@ -24,11 +24,12 @@ type InstrumentedState struct {
 
 	preimageOracle *exec.TrackingPreimageOracleReader
 	meta           mipsevm.Metadata
+	features       mipsevm.FeatureToggles
 }
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, meta mipsevm.Metadata) *InstrumentedState {
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, meta mipsevm.Metadata, features mipsevm.FeatureToggles) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
 		log:            log,
@@ -39,6 +40,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		statsTracker:   NoopStatsTracker(),
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
 		meta:           meta,
+		features:       features,
 	}
 }
 

@@ -340,13 +340,58 @@ func TestDeriveBlockForConsolidateStep(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "ReplaceChainB-BlockNumberTooBig",
+			testCase: consolidationTestCase{
+				logBuilderFn: func(includeBlockNumbers map[supervisortypes.ChainIndex]uint64, config *staticConfigSource) map[supervisortypes.ChainIndex][]*gethTypes.Log {
+					init1 := &gethTypes.Log{
+						Address: initiatingMessageOrigin,
+						Topics:  []common.Hash{initiatingMessageTopic},
+					}
+					init2 := &gethTypes.Log{
+						Address: initiatingMessageOrigin2,
+						Topics:  []common.Hash{initiatingMessageTopic},
+					}
+					exec := createExecMessage(1_000_000, config, chainA)
+					return map[supervisortypes.ChainIndex][]*gethTypes.Log{
+						chainA: {init1, init2},
+						chainB: {convertExecutingMessageToLog(t, exec)},
+					}
+				},
+				expectBlockReplacements: func(config *staticConfigSource) []supervisortypes.ChainIndex {
+					return []supervisortypes.ChainIndex{chainB}
+				},
+			},
+		},
+		{
+			name: "ReplaceChainB-LogIndexTooBig",
+			testCase: consolidationTestCase{
+				logBuilderFn: func(includeBlockNumbers map[supervisortypes.ChainIndex]uint64, config *staticConfigSource) map[supervisortypes.ChainIndex][]*gethTypes.Log {
+					init1 := &gethTypes.Log{
+						Address: initiatingMessageOrigin,
+						Topics:  []common.Hash{initiatingMessageTopic},
+					}
+					init2 := &gethTypes.Log{
+						Address: initiatingMessageOrigin2,
+						Topics:  []common.Hash{initiatingMessageTopic},
+					}
+					exec := createExecMessage(includeBlockNumbers[chainA], config, chainA)
+					exec.Identifier.Origin = init2.Address
+					exec.Identifier.LogIndex = 1_000_000
+					return map[supervisortypes.ChainIndex][]*gethTypes.Log{
+						chainA: {init1, init2},
+						chainB: {convertExecutingMessageToLog(t, exec)},
+					}
+				},
+				expectBlockReplacements: func(config *staticConfigSource) []supervisortypes.ChainIndex {
+					return []supervisortypes.ChainIndex{chainB}
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.name != "ReplaceBothChains-CascadingReorg" {
-				t.Skip()
-			}
 			runConsolidationTestCase(t, tt.testCase)
 		})
 	}

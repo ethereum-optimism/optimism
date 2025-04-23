@@ -4,6 +4,9 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/enclaves"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
 )
 
@@ -30,8 +33,47 @@ func (f *KurtosisContext) GetEnclave(ctx context.Context, name string) (interfac
 
 // EnclaveContext implements interfaces.EnclaveContext for testing
 type EnclaveContext struct {
-	RunErr    error
-	Responses []interfaces.StarlarkResponse
+	RunErr        error
+	Responses     []interfaces.StarlarkResponse
+	ArtifactNames []*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid
+	ArtifactData  []byte
+	UploadErr     error
+
+	Services map[services.ServiceName]interfaces.ServiceContext
+	Files    map[services.FileArtifactName]string
+}
+
+func (f *EnclaveContext) GetEnclaveUuid() enclaves.EnclaveUUID {
+	return enclaves.EnclaveUUID("test-enclave-uuid")
+}
+
+func (f *EnclaveContext) GetServices() (map[services.ServiceName]services.ServiceUUID, error) {
+	if f.Services == nil {
+		return nil, nil
+	}
+	services := make(map[services.ServiceName]services.ServiceUUID)
+	for name, svc := range f.Services {
+		services[name] = svc.GetServiceUUID()
+	}
+	return services, nil
+}
+
+func (f *EnclaveContext) GetService(serviceIdentifier string) (interfaces.ServiceContext, error) {
+	if f.Services == nil {
+		return nil, nil
+	}
+	return f.Services[services.ServiceName(serviceIdentifier)], nil
+}
+
+func (f *EnclaveContext) GetAllFilesArtifactNamesAndUuids(ctx context.Context) ([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, error) {
+	artifacts := make([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, 0, len(f.Files))
+	for name, uuid := range f.Files {
+		artifacts = append(artifacts, &kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid{
+			FileName: string(name),
+			FileUuid: string(uuid),
+		})
+	}
+	return artifacts, nil
 }
 
 func (f *EnclaveContext) RunStarlarkPackage(ctx context.Context, pkg string, params *starlark_run_config.StarlarkRunConfig) (<-chan interfaces.StarlarkResponse, string, error) {
@@ -48,6 +90,45 @@ func (f *EnclaveContext) RunStarlarkPackage(ctx context.Context, pkg string, par
 		}
 	}()
 	return ch, "", nil
+}
+
+func (f *EnclaveContext) RunStarlarkScript(ctx context.Context, script string, params *starlark_run_config.StarlarkRunConfig) error {
+	return f.RunErr
+}
+
+func (f *EnclaveContext) DownloadFilesArtifact(ctx context.Context, name string) ([]byte, error) {
+	return f.ArtifactData, nil
+}
+
+func (f *EnclaveContext) UploadFiles(pathToUpload string, artifactName string) (services.FilesArtifactUUID, services.FileArtifactName, error) {
+	if f.UploadErr != nil {
+		return "", "", f.UploadErr
+	}
+	return "test-uuid", services.FileArtifactName(artifactName), nil
+}
+
+type ServiceContext struct {
+	ServiceUUID  services.ServiceUUID
+	PublicIP     string
+	PrivateIP    string
+	PublicPorts  map[string]*services.PortSpec
+	PrivatePorts map[string]*services.PortSpec
+}
+
+func (f *ServiceContext) GetServiceUUID() services.ServiceUUID {
+	return f.ServiceUUID
+}
+
+func (f *ServiceContext) GetMaybePublicIPAddress() string {
+	return f.PublicIP
+}
+
+func (f *ServiceContext) GetPublicPorts() map[string]*services.PortSpec {
+	return f.PublicPorts
+}
+
+func (f *ServiceContext) GetPrivatePorts() map[string]*services.PortSpec {
+	return f.PrivatePorts
 }
 
 // StarlarkResponse implements interfaces.StarlarkResponse for testing

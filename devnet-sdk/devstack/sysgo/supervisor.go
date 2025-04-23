@@ -2,7 +2,9 @@ package sysgo
 
 import (
 	"context"
+	"sync"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
@@ -20,9 +22,19 @@ import (
 )
 
 type Supervisor struct {
+	mu sync.Mutex
+
 	id      stack.SupervisorID
 	userRPC string
+
+	cfg    *supervisorConfig.Config
+	p      devtest.P
+	logger log.Logger
+
+	service *supervisor.SupervisorService
 }
+
+var _ stack.Lifecycle = (*Supervisor)(nil)
 
 func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
 	tlog := sys.Logger().New("id", s.id)
@@ -35,6 +47,49 @@ func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
 		ID:           s.id,
 		Client:       supClient,
 	}))
+}
+
+func (s *Supervisor) rememberPort() {
+	port, err := s.service.Port()
+	s.p.Require().NoError(err)
+	s.cfg.RPC.ListenPort = port
+}
+
+func (s *Supervisor) Start() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.service != nil {
+		s.logger.Warn("Supervisor already started")
+		return
+	}
+	super, err := supervisor.SupervisorFromConfig(context.Background(), s.cfg, s.logger)
+	s.p.Require().NoError(err)
+
+	s.service = super
+	s.logger.Info("Starting supervisor")
+	err = super.Start(context.Background())
+	s.p.Require().NoError(err, "supervisor failed to start")
+	s.logger.Info("Started supervisor")
+
+	s.userRPC = super.RPC()
+
+	s.rememberPort()
+}
+
+func (s *Supervisor) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.service == nil {
+		s.logger.Warn("Supervisor already stopped")
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // force-quit
+	s.logger.Info("Closing supervisor")
+	closeErr := s.service.Stop(ctx)
+	s.logger.Info("Closed supervisor", "err", closeErr)
+
+	s.service = nil
 }
 
 func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option {
@@ -60,12 +115,16 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 				Format: oplog.FormatText,
 			},
 			RPC: oprpc.CLIConfig{
-				ListenAddr:  "127.0.0.1",
+				ListenAddr: "127.0.0.1",
+				// When supervisor starts, store its RPC port here
+				// given by the os, to reclaim when restart.
 				ListenPort:  0,
 				EnableAdmin: true,
 			},
-			SyncSources:           &syncnode.CLISyncNodes{}, // no sync-sources
-			L1RPC:                 l1EL.userRPC,
+			SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
+			L1RPC:       l1EL.userRPC,
+			// Note: datadir is created here,
+			// persistent across stop/start, for the duration of the package execution.
 			Datadir:               orch.p.TempDir(),
 			Version:               "dev",
 			DependencySetSource:   cluster.depset,
@@ -76,25 +135,17 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 
 		plog := orch.P().Logger().New("id", supervisorID)
 
-		super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, plog)
-		require.NoError(err)
-
-		err = super.Start(context.Background())
-		require.NoError(err)
-
-		orch.p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel() // force-quit
-			plog.Info("Closing supervisor")
-			closeErr := super.Stop(ctx)
-			plog.Info("Closed supervisor", "err", closeErr)
-		})
-
 		supervisorNode := &Supervisor{
 			id:      supervisorID,
-			userRPC: super.RPC(),
+			userRPC: "", // set on start
+			cfg:     cfg,
+			p:       o.P(),
+			logger:  plog,
+			service: nil, // set on start
 		}
 		orch.supervisors.Set(supervisorID, supervisorNode)
+		supervisorNode.Start()
+		orch.p.Cleanup(supervisorNode.Stop)
 	}
 }
 

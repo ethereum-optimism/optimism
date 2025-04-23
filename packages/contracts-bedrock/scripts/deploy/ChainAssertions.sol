@@ -491,8 +491,6 @@ library ChainAssertions {
         require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
 
-        require(bytes(_opcm.l1ContractsRelease()).length > 0, "CHECK-OPCM-40");
-
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();
         require(impls.l1ERC721BridgeImpl == _impls.L1ERC721Bridge, "CHECK-OPCM-50");
@@ -511,25 +509,25 @@ library ChainAssertions {
         IOPContractsManager.Blueprints memory blueprints = _opcm.blueprints();
         Blueprint.Preamble memory addressManagerPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.addressManager).code);
-        require(keccak256(addressManagerPreamble.initcode) == keccak256(vm.getCode("AddressManager")), "CHECK-OPCM-140");
+        require(keccak256(addressManagerPreamble.initcode) == keccak256(vm.getCode("AddressManager")), "CHECK-OPCM-160");
 
         Blueprint.Preamble memory proxyPreamble = Blueprint.parseBlueprintPreamble(address(blueprints.proxy).code);
-        require(keccak256(proxyPreamble.initcode) == keccak256(vm.getCode("Proxy")), "CHECK-OPCM-150");
+        require(keccak256(proxyPreamble.initcode) == keccak256(vm.getCode("Proxy")), "CHECK-OPCM-170");
 
         Blueprint.Preamble memory proxyAdminPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.proxyAdmin).code);
-        require(keccak256(proxyAdminPreamble.initcode) == keccak256(vm.getCode("ProxyAdmin")), "CHECK-OPCM-160");
+        require(keccak256(proxyAdminPreamble.initcode) == keccak256(vm.getCode("ProxyAdmin")), "CHECK-OPCM-180");
 
         Blueprint.Preamble memory l1ChugSplashProxyPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.l1ChugSplashProxy).code);
         require(
             keccak256(l1ChugSplashProxyPreamble.initcode) == keccak256(vm.getCode("L1ChugSplashProxy")),
-            "CHECK-OPCM-170"
+            "CHECK-OPCM-190"
         );
 
         Blueprint.Preamble memory rdProxyPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.resolvedDelegateProxy).code);
-        require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-180");
+        require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-200");
 
         Blueprint.Preamble memory pdg1Preamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame1).code);
@@ -540,7 +538,7 @@ library ChainAssertions {
             abi.encodePacked(pdg1Preamble.initcode, pdg2Preamble.initcode);
         require(
             keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
-            "CHECK-OPCM-200"
+            "CHECK-OPCM-210"
         );
     }
 }

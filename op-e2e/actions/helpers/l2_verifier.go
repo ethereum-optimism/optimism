@@ -234,11 +234,14 @@ func (v *L2Verifier) InteropSyncNode(t Testing) syncnode.SyncNode {
 	require.NotNil(t, v.interopSys, "interop sub-system must be running")
 	m, ok := v.interopSys.(*managed.ManagedMode)
 	require.True(t, ok, "Interop sub-system must be in managed-mode if used as sync-node")
-	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret())))
+	auth := rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret()))
+	opts := []client.RPCOption{client.WithGethRPCOptions(auth)}
+	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), auth)
 	require.NoError(t, err)
 	t.Cleanup(cl.Close)
 	bCl := client.NewBaseRPCClient(cl)
-	return syncnode.NewRPCSyncNode("action-tests-l2-verifier", bCl)
+	dialSetup := &syncnode.RPCDialSetup{JWTSecret: m.JWTSecret(), Endpoint: m.WSEndpoint()}
+	return syncnode.NewRPCSyncNode("action-tests-l2-verifier", bCl, opts, v.log, dialSetup)
 }
 
 type l2VerifierBackend struct {

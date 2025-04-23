@@ -813,12 +813,24 @@ func (n *OpNode) HTTPEndpoint() string {
 	return fmt.Sprintf("http://%s", n.server.Endpoint())
 }
 
+func (n *OpNode) HTTPPort() (int, error) {
+	return n.server.Port()
+}
+
 func (n *OpNode) InteropRPC() (rpcEndpoint string, jwtSecret eth.Bytes32) {
 	m, ok := n.interopSys.(*managed.ManagedMode)
 	if !ok {
 		return "", [32]byte{}
 	}
 	return m.WSEndpoint(), m.JWTSecret()
+}
+
+func (n *OpNode) InteropRPCPort() (int, error) {
+	m, ok := n.interopSys.(*managed.ManagedMode)
+	if !ok {
+		return 0, fmt.Errorf("failed to fetch interop port for op-node")
+	}
+	return m.WSPort()
 }
 
 func (n *OpNode) getP2PNodeIfEnabled() *p2p.NodeP2P {

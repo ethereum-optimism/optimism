@@ -25,6 +25,16 @@ func SortSupervisorIDs(ids []SupervisorID) []SupervisorID {
 	return copyAndSortCmp(ids)
 }
 
+func SortSupervisors(elems []Supervisor) []Supervisor {
+	return copyAndSort(elems, lessElemOrdered[SupervisorID, Supervisor])
+}
+
+var _ SupervisorMatcher = SupervisorID("")
+
+func (id SupervisorID) Match(elems []Supervisor) []Supervisor {
+	return findByID(id, elems)
+}
+
 // Supervisor is an interop service, used to cross-verify messages between chains.
 type Supervisor interface {
 	Common

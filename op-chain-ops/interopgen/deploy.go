@@ -8,11 +8,8 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/interop"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -20,8 +17,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen/deployers"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/interop"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -152,7 +151,7 @@ func CreateL2(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceM
 func PrepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error) {
 	l1Host.SetTxOrigin(sysGenesisDeployer)
 
-	if err := deployers.InsertPreinstalls(l1Host); err != nil {
+	if err := opcm.InsertPreinstalls(l1Host); err != nil {
 		return nil, fmt.Errorf("failed to install preinstalls in L1: %w", err)
 	}
 	// No global contracts inserted at this point.
@@ -305,6 +304,9 @@ func CompleteL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
 				L1ChainID: cfg.ChainID.Uint64(),
+			},
+			UpgradeScheduleDeployConfig: genesis.UpgradeScheduleDeployConfig{
+				L1CancunTimeOffset: new(hexutil.Uint64),
 			},
 		},
 		DevL1DeployConfig: cfg.DevL1DeployConfig,

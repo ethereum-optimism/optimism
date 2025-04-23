@@ -175,4 +175,63 @@ library Config {
             revert(string.concat("Config: unknown fork: ", forkStr));
         }
     }
+
+    /// @notice Returns the address of the L1CrossDomainMessengerProxy to use for the L2 genesis usage.
+    function l2Genesis_L1CrossDomainMessengerProxy() internal view returns (address payable) {
+        return payable(vm.envAddress("L2GENESIS_L1CrossDomainMessengerProxy"));
+    }
+
+    /// @notice Returns the address of the L1StandardBridgeProxy to use for the L2 genesis usage.
+    function l2Genesis_L1StandardBridgeProxy() internal view returns (address payable) {
+        return payable(vm.envAddress("L2GENESIS_L1StandardBridgeProxy"));
+    }
+
+    /// @notice Returns the address of the L1ERC721BridgeProxy to use for the L2 genesis usage.
+    function l2Genesis_L1ERC721BridgeProxy() internal view returns (address payable) {
+        return payable(vm.envAddress("L2GENESIS_L1ERC721BridgeProxy"));
+    }
+
+    /// @notice Returns the string identifier of the OP chain use for forking.
+    ///         If not set, "op" is returned.
+    function forkOpChain() internal view returns (string memory) {
+        return vm.envOr("FORK_OP_CHAIN", string("op"));
+    }
+
+    /// @notice Returns the string identifier of the base chain to use for forking.
+    ///         if not set, "mainnet" is returned.
+    function forkBaseChain() internal view returns (string memory) {
+        return vm.envOr("FORK_BASE_CHAIN", string("mainnet"));
+    }
+
+    /// @notice Returns the RPC URL of the mainnet.
+    ///         If not set, an empty string is returned.
+    function mainnetRpcUrl() internal view returns (string memory) {
+        return vm.envOr("MAINNET_RPC_URL", string(""));
+    }
+
+    /// @notice Returns the RPC URL to use for forking.
+    function forkRpcUrl() internal view returns (string memory) {
+        return vm.envString("FORK_RPC_URL");
+    }
+
+    /// @notice Returns the block number to use for forking.
+    function forkBlockNumber() internal view returns (uint256) {
+        return vm.envUint("FORK_BLOCK_NUMBER");
+    }
+
+    /// @notice Returns the profile to use for the foundry commands.
+    ///         If not set, "default" is returned.
+    function foundryProfile() internal view returns (string memory) {
+        return vm.envOr("FOUNDRY_PROFILE", string("default"));
+    }
+
+    /// @notice Returns the path to the superchain ops allocs.
+    function superchainOpsAllocsPath() internal view returns (string memory) {
+        return vm.envOr("SUPERCHAIN_OPS_ALLOCS_PATH", string(""));
+    }
+
+    /// @notice Returns true if the fork is a test fork.
+    function forkTest() internal view returns (bool) {
+        return vm.envOr("FORK_TEST", false);
+    }
 }

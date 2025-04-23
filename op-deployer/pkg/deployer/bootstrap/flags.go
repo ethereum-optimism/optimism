@@ -108,11 +108,6 @@ var (
 		Usage:   "Recommended protocol version (semver)",
 		EnvVars: deployer.PrefixEnvVar("RECOMMENDED_PROTOCOL_VERSION"),
 	}
-	L1ContractsReleaseFlag = &cli.StringFlag{
-		Name:    L1ContractsReleaseFlagName,
-		Usage:   "Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.",
-		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
-	}
 	SuperchainConfigProxyFlag = &cli.StringFlag{
 		Name:    "superchain-config-proxy",
 		Usage:   "Superchain config proxy.",
@@ -145,7 +140,6 @@ var ImplementationsFlags = []cli.Flag{
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
 	deployer.ArtifactsLocatorFlag,
-	L1ContractsReleaseFlag,
 	MIPSVersionFlag,
 	WithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,

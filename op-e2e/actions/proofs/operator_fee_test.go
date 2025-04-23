@@ -372,7 +372,7 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
 		}
 
-		env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
+		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[testCase]()

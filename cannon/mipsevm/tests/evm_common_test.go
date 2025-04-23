@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/stretchr/testify/require"
 
@@ -27,21 +28,13 @@ func TestEVM_OpenMIPS(t *testing.T) {
 	require.NoError(t, err)
 
 	cases := GetMipsVersionTestCases(t)
-	skippedTests := map[string][]string{
-		"multi-threaded":  {"clone.bin"},
-		"single-threaded": {},
-	}
 
 	for _, c := range cases {
-		skipped, exists := skippedTests[c.Name]
-		require.True(t, exists)
 		for _, f := range testFiles {
 			testName := fmt.Sprintf("%v (%v)", f.Name(), c.Name)
 			t.Run(testName, func(t *testing.T) {
-				for _, skipped := range skipped {
-					if f.Name() == skipped {
-						t.Skipf("Skipping explicitly excluded open_mips testcase: %v", f.Name())
-					}
+				if !versions.IsSupportedSingleThreaded(c.Version) && f.Name() == "clone.bin" {
+					t.Skipf("%v only supported for singlethreaded VMs", f.Name())
 				}
 
 				oracle := testutil.SelectOracleFixture(t, f.Name())

@@ -215,6 +215,13 @@ func (p *Lazy[V]) invalidate() {
 	p.depInvalidate(reasonGen.Add(1))
 }
 
+// Invalidate exposes invalidation with mutex
+func (p *Lazy[V]) Invalidate() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.invalidate()
+}
+
 type Fn[V any] func(ctx context.Context) (V, error)
 
 // Fn sets what makes this Lazy lazily compute the value.

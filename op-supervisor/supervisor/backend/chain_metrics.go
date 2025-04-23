@@ -18,6 +18,8 @@ type Metrics interface {
 	RecordDBEntryCount(chainID eth.ChainID, kind string, count int64)
 	RecordDBSearchEntriesRead(chainID eth.ChainID, count int64)
 
+	RecordAccessListVerifyFailure(chainID eth.ChainID)
+
 	opmetrics.RPCMetricer
 	event.Metrics
 }
@@ -58,6 +60,10 @@ func (c *chainMetrics) RecordDBEntryCount(kind string, count int64) {
 
 func (c *chainMetrics) RecordDBSearchEntriesRead(count int64) {
 	c.delegate.RecordDBSearchEntriesRead(c.chainID, count)
+}
+
+func (c *chainMetrics) RecordAccessListVerifyFailure() {
+	c.delegate.RecordAccessListVerifyFailure(c.chainID)
 }
 
 var _ caching.Metrics = (*chainMetrics)(nil)

@@ -22,11 +22,11 @@ func TestNewSystemFromEnv(t *testing.T) {
 		L1: &descriptors.Chain{
 			ID: "1",
 			Nodes: []descriptors.Node{{
-				Services: map[string]descriptors.Service{
+				Services: map[string]*descriptors.Service{
 					"el": {
 						Name: "geth",
 						Endpoints: descriptors.EndpointMap{
-							"rpc": descriptors.PortInfo{
+							"rpc": &descriptors.PortInfo{
 								Host: "localhost",
 								Port: 8545,
 							},
@@ -35,7 +35,7 @@ func TestNewSystemFromEnv(t *testing.T) {
 				},
 			}},
 			Wallets: descriptors.WalletMap{
-				"default": descriptors.Wallet{
+				"default": &descriptors.Wallet{
 					Address:    common.HexToAddress("0x123"),
 					PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 				},
@@ -46,14 +46,14 @@ func TestNewSystemFromEnv(t *testing.T) {
 		},
 		L2: []*descriptors.L2Chain{
 			{
-				Chain: descriptors.Chain{
+				Chain: &descriptors.Chain{
 					ID: "2",
 					Nodes: []descriptors.Node{{
-						Services: map[string]descriptors.Service{
+						Services: map[string]*descriptors.Service{
 							"el": {
 								Name: "geth",
 								Endpoints: descriptors.EndpointMap{
-									"rpc": descriptors.PortInfo{
+									"rpc": &descriptors.PortInfo{
 										Host: "localhost",
 										Port: 8546,
 									},
@@ -62,7 +62,7 @@ func TestNewSystemFromEnv(t *testing.T) {
 						},
 					}},
 					Wallets: descriptors.WalletMap{
-						"default": descriptors.Wallet{
+						"default": &descriptors.Wallet{
 							Address:    common.HexToAddress("0x123"),
 							PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 						},
@@ -75,7 +75,7 @@ func TestNewSystemFromEnv(t *testing.T) {
 					"defaultl1": common.HexToAddress("0x123"),
 				},
 				L1Wallets: descriptors.WalletMap{
-					"default": descriptors.Wallet{
+					"default": &descriptors.Wallet{
 						Address:    common.HexToAddress("0x123"),
 						PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 					},
@@ -96,11 +96,11 @@ func TestNewSystemFromEnv(t *testing.T) {
 
 func TestSystemFromDevnet(t *testing.T) {
 	testNode := descriptors.Node{
-		Services: map[string]descriptors.Service{
+		Services: map[string]*descriptors.Service{
 			"el": {
 				Name: "geth",
 				Endpoints: descriptors.EndpointMap{
-					"rpc": descriptors.PortInfo{
+					"rpc": &descriptors.PortInfo{
 						Host: "localhost",
 						Port: 8545,
 					},
@@ -109,20 +109,20 @@ func TestSystemFromDevnet(t *testing.T) {
 		},
 	}
 
-	testWallet := descriptors.Wallet{
+	testWallet := &descriptors.Wallet{
 		Address:    common.HexToAddress("0x123"),
 		PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 	}
 
 	tests := []struct {
 		name      string
-		devnet    descriptors.DevnetEnvironment
+		devnet    *descriptors.DevnetEnvironment
 		wantErr   bool
 		isInterop bool
 	}{
 		{
 			name: "basic system",
-			devnet: descriptors.DevnetEnvironment{
+			devnet: &descriptors.DevnetEnvironment{
 				L1: &descriptors.Chain{
 					ID:    "1",
 					Nodes: []descriptors.Node{testNode},
@@ -135,7 +135,7 @@ func TestSystemFromDevnet(t *testing.T) {
 				},
 				L2: []*descriptors.L2Chain{
 					{
-						Chain: descriptors.Chain{
+						Chain: &descriptors.Chain{
 							ID:    "2",
 							Nodes: []descriptors.Node{testNode},
 							Wallets: descriptors.WalletMap{
@@ -156,7 +156,7 @@ func TestSystemFromDevnet(t *testing.T) {
 		},
 		{
 			name: "interop system",
-			devnet: descriptors.DevnetEnvironment{
+			devnet: &descriptors.DevnetEnvironment{
 				L1: &descriptors.Chain{
 					ID:    "1",
 					Nodes: []descriptors.Node{testNode},
@@ -169,11 +169,22 @@ func TestSystemFromDevnet(t *testing.T) {
 				},
 				L2: []*descriptors.L2Chain{
 					{
-						Chain: descriptors.Chain{
+						Chain: &descriptors.Chain{
 							ID:    "2",
 							Nodes: []descriptors.Node{testNode},
 							Wallets: descriptors.WalletMap{
 								"default": testWallet,
+							},
+							Services: descriptors.ServiceMap{
+								"supervisor": &descriptors.Service{
+									Name: "supervisor",
+									Endpoints: descriptors.EndpointMap{
+										"rpc": &descriptors.PortInfo{
+											Host: "localhost",
+											Port: 8545,
+										},
+									},
+								},
 							},
 						},
 						L1Addresses: descriptors.AddressMap{
@@ -192,7 +203,7 @@ func TestSystemFromDevnet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sys, err := systemFromDevnet(tt.devnet, "test")
+			sys, err := systemFromDevnet(tt.devnet)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

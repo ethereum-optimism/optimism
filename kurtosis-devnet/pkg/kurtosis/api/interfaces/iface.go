@@ -3,6 +3,9 @@ package interfaces
 import (
 	"context"
 
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/enclaves"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
 )
 
@@ -47,8 +50,27 @@ type StarlarkResponse interface {
 	GetInstructionResult() InstructionResult
 }
 
+type PortSpec interface {
+	GetNumber() uint16
+}
+
+type ServiceContext interface {
+	GetServiceUUID() services.ServiceUUID
+	GetMaybePublicIPAddress() string
+	GetPublicPorts() map[string]PortSpec
+	GetPrivatePorts() map[string]PortSpec
+}
+
 type EnclaveContext interface {
+	GetEnclaveUuid() enclaves.EnclaveUUID
+
+	GetService(serviceIdentifier string) (ServiceContext, error)
+	GetServices() (map[services.ServiceName]services.ServiceUUID, error)
+
+	GetAllFilesArtifactNamesAndUuids(ctx context.Context) ([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, error)
+
 	RunStarlarkPackage(context.Context, string, *starlark_run_config.StarlarkRunConfig) (<-chan StarlarkResponse, string, error)
+	RunStarlarkScript(context.Context, string, *starlark_run_config.StarlarkRunConfig) error
 }
 
 type KurtosisContextInterface interface {

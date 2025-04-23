@@ -16,6 +16,10 @@ ARG UBUNTU_TARGET_BASE_IMAGE=ubuntu:22.04
 # The only build that uses this is `op-challenger-target`.
 ARG KONA_VERSION=none
 
+# The version of asterisc to use.
+# The only build that uses this is `op-challenger-target`.
+ARG ASTERISC_VERSION=none
+
 # We may be cross-building for another platform. Specify which platform we need as builder.
 FROM --platform=$BUILDPLATFORM golang:1.22.7-alpine3.20 AS builder
 
@@ -158,8 +162,10 @@ FROM $TARGET_BASE_IMAGE AS op-node-target
 COPY --from=op-node-builder /app/op-node/bin/op-node /usr/local/bin/
 CMD ["op-node"]
 
-# Make the kona docker image published by upstream available as a source to copy kona and asterisc from.
-FROM ghcr.io/op-rs/kona/kona-fpp-asterisc:$KONA_VERSION AS kona
+# Make the kona docker image published by upstream available as a source to copy kona from.
+FROM ghcr.io/op-rs/kona/kona-host:$KONA_VERSION AS kona
+# Make the asterisc docker image published by upstream available as a source to copy asterisc from.
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/asterisc:$ASTERISC_VERSION AS asterisc
 
 # Also produce an op-challenger loaded with kona and asterisc using ubuntu
 FROM $UBUNTU_TARGET_BASE_IMAGE AS op-challenger-target
@@ -173,7 +179,7 @@ ENV OP_CHALLENGER_CANNON_BIN=/usr/local/bin/cannon
 # Copy in kona and asterisc
 COPY --from=kona /kona-host /usr/local/bin/
 ENV OP_CHALLENGER_ASTERISC_KONA_SERVER=/usr/local/bin/kona-host
-COPY --from=kona /asterisc /usr/local/bin/
+COPY --from=asterisc /usr/local/bin/asterisc /usr/local/bin/
 ENV OP_CHALLENGER_ASTERISC_BIN=/usr/local/bin/asterisc
 CMD ["op-challenger"]
 

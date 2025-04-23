@@ -3,14 +3,15 @@ package depset
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 )
 
 const (
-	depsetFileName = "dependency_set.json"
+	depsetFileNamePrefix = "dependency_set"
 )
 
 // extractor implements the interfaces.DepsetExtractor interface
@@ -26,25 +27,42 @@ func NewExtractor(enclave string) *extractor {
 }
 
 // ExtractData extracts dependency set from its respective artifact
-func (e *extractor) ExtractData(ctx context.Context) (json.RawMessage, error) {
+func (e *extractor) ExtractData(ctx context.Context) ([]descriptors.DepSet, error) {
 	fs, err := ktfs.NewEnclaveFS(ctx, e.enclave)
 	if err != nil {
 		return nil, err
 	}
 
-	return extractDepsetFromArtifact(ctx, fs, depsetFileName)
+	return extractDepsetsFromArtifacts(ctx, fs)
 }
 
-func extractDepsetFromArtifact(ctx context.Context, fs *ktfs.EnclaveFS, artifactName string) (json.RawMessage, error) {
-	a, err := fs.GetArtifact(ctx, artifactName)
+func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) ([]descriptors.DepSet, error) {
+	allArtifacts, err := fs.GetAllArtifactNames(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get artifact: %w", err)
+		return nil, fmt.Errorf("failed to get all artifact names: %w", err)
 	}
 
-	buffer := &bytes.Buffer{}
-	if err := a.ExtractFiles(ktfs.NewArtifactFileWriter(depsetFileName, buffer)); err != nil {
-		return nil, fmt.Errorf("failed to extract dependency set: %w", err)
+	depsetArtifacts := make([]string, 0)
+	for _, artifactName := range allArtifacts {
+		if strings.HasPrefix(artifactName, depsetFileNamePrefix) {
+			depsetArtifacts = append(depsetArtifacts, artifactName)
+		}
 	}
 
-	return json.RawMessage(buffer.Bytes()), nil
+	depsets := make([]descriptors.DepSet, 0)
+	for _, artifactName := range depsetArtifacts {
+		a, err := fs.GetArtifact(ctx, artifactName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get artifact: %w", err)
+		}
+
+		buffer := &bytes.Buffer{}
+		if err := a.ExtractFiles(ktfs.NewArtifactFileWriter(artifactName, buffer)); err != nil {
+			return nil, fmt.Errorf("failed to extract dependency set: %w", err)
+		}
+
+		depsets = append(depsets, descriptors.DepSet(buffer.Bytes()))
+	}
+
+	return depsets, nil
 }

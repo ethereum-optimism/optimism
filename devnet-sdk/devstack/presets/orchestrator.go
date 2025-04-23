@@ -3,6 +3,8 @@ package presets
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -27,10 +29,16 @@ var lockedOrchestrator locks.RWValue[stack.Orchestrator]
 func DoMain(m *testing.M, opts ...stack.Option) {
 	// nest the function, so we can defer-recover and defer-cleanup, before os.Exit
 	code := func() (errCode int) {
+		failed := new(atomic.Bool)
+		defer func() {
+			if failed.Load() {
+				errCode = 1
+			}
+		}()
 		defer func() {
 			if x := recover(); x != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
-				errCode = 1
+				failed.Store(true)
 			}
 		}()
 
@@ -41,7 +49,11 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 			Format: oplog.FormatTerminal,
 			Pid:    false,
 		})
-		p := devtest.NewP(logger)
+		p := devtest.NewP(logger, func() {
+			debug.PrintStack()
+			failed.Store(true)
+			panic("setup fail")
+		})
 		defer p.Close()
 
 		p.Require().NotEmpty(opts, "Expecting orchestrator options")
@@ -57,6 +69,7 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 		errCode = m.Run()
 		return
 	}()
+	_, _ = fmt.Fprintf(os.Stderr, "\nExiting, code: %d\n", code)
 	os.Exit(code)
 }
 

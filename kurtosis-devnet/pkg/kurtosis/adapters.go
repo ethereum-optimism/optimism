@@ -2,9 +2,9 @@ package kurtosis
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/deployer"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/depset"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
@@ -47,7 +47,7 @@ var _ interfaces.JWTExtractor = (*enclaveJWTAdapter)(nil)
 
 type enclaveDepsetAdapter struct{}
 
-func (a *enclaveDepsetAdapter) ExtractData(ctx context.Context, enclave string) (json.RawMessage, error) {
+func (a *enclaveDepsetAdapter) ExtractData(ctx context.Context, enclave string) ([]descriptors.DepSet, error) {
 	return depset.NewExtractor(enclave).ExtractData(ctx)
 }
 

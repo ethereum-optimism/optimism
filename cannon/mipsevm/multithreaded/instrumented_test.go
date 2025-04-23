@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -16,7 +17,7 @@ import (
 )
 
 func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, meta *program.Metadata) mipsevm.FPVM {
-	return NewInstrumentedState(state, po, stdOut, stdErr, log, meta)
+	return NewInstrumentedState(state, po, stdOut, stdErr, log, meta, allFeaturesEnabled())
 }
 
 func TestInstrumentedState_OpenMips(t *testing.T) {
@@ -53,7 +54,7 @@ func TestInstrumentedState_UtilsCheck(t *testing.T) {
 			oracle := testutil.StaticOracle(t, []byte{})
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta)
+			us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta, allFeaturesEnabled())
 
 			for i := 0; i < 1_000_000; i++ {
 				if us.GetState().GetExited() {
@@ -186,7 +187,7 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 			oracle := testutil.StaticOracle(t, []byte{})
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta)
+			us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta, allFeaturesEnabled())
 
 			for i := 0; i < test.steps; i++ {
 				if us.GetState().GetExited() {
@@ -231,7 +232,7 @@ func TestInstrumentedState_Alloc(t *testing.T) {
 			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("alloc"), CreateInitialState, false)
 			oracle := testutil.AllocOracle(t, test.numAllocs, test.allocSize)
 
-			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), meta)
+			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), meta, allFeaturesEnabled())
 			require.NoError(t, us.InitDebug())
 			// emulation shouldn't take more than 20 B steps
 			for i := 0; i < 20_000_000_000; i++ {
@@ -251,4 +252,16 @@ func TestInstrumentedState_Alloc(t *testing.T) {
 			require.Less(t, memUsage, test.maxMemoryUsageCheck, "memory allocation is too large")
 		})
 	}
+}
+
+// allFeaturesEnabled returns a FeatureToggles with all toggles enabled.
+// We can't use versions.FeaturesForVersion to test the specific toggles for each version because it creates a
+// dependency loop, so we just cover the everything enabled case as that should be the upcoming version.
+func allFeaturesEnabled() mipsevm.FeatureToggles {
+	toggles := mipsevm.FeatureToggles{}
+	tRef := reflect.ValueOf(toggles)
+	for i := 0; i < tRef.NumField(); i++ {
+		tRef.Field(i).Set(reflect.ValueOf(true))
+	}
+	return toggles
 }

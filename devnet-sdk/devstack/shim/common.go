@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/locks"
 )
 
 // CommonConfig provides common inputs for creating a new component
@@ -28,9 +29,10 @@ func NewCommonConfig(t devtest.T) CommonConfig {
 }
 
 type commonImpl struct {
-	log log.Logger
-	t   devtest.T
-	req *require.Assertions
+	log    log.Logger
+	t      devtest.T
+	req    *require.Assertions
+	labels *locks.RWMap[string, string]
 }
 
 var _ interface {
@@ -41,9 +43,10 @@ var _ interface {
 // newCommon creates an object to hold on to common component data, safe to embed in other structs
 func newCommon(cfg CommonConfig) commonImpl {
 	return commonImpl{
-		log: cfg.T.Logger(),
-		t:   cfg.T,
-		req: cfg.T.Require(),
+		log:    cfg.T.Logger(),
+		t:      cfg.T,
+		req:    cfg.T.Require(),
+		labels: new(locks.RWMap[string, string]),
 	}
 }
 
@@ -57,4 +60,13 @@ func (c *commonImpl) Logger() log.Logger {
 
 func (c *commonImpl) require() *require.Assertions {
 	return c.req
+}
+
+func (c *commonImpl) Label(key string) string {
+	out, _ := c.labels.Get(key)
+	return out
+}
+
+func (c *commonImpl) SetLabel(key, value string) {
+	c.labels.Set(key, value)
 }

@@ -259,3 +259,7 @@ func (su *SupervisorService) RPC() string {
 	// the RPC endpoint is assumed to be HTTP
 	return "http://" + su.rpcServer.Endpoint()
 }
+
+func (su *SupervisorService) Port() (int, error) {
+	return su.rpcServer.Port()
+}

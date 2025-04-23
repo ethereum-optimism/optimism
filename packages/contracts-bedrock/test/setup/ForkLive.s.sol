@@ -10,6 +10,7 @@ import { DelegateCaller } from "test/mocks/Callers.sol";
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
@@ -48,13 +49,13 @@ contract ForkLive is Deployer {
     /// @notice Returns the base chain name to use for forking
     /// @return The base chain name as a string
     function baseChain() internal view returns (string memory) {
-        return vm.envOr("FORK_BASE_CHAIN", string("mainnet"));
+        return Config.forkBaseChain();
     }
 
     /// @notice Returns the OP chain name to use for forking
     /// @return The OP chain name as a string
     function opChain() internal view returns (string memory) {
-        return vm.envOr("FORK_OP_CHAIN", string("op"));
+        return Config.forkOpChain();
     }
 
     /// @dev This function sets up the system to test it as follows:
@@ -64,7 +65,7 @@ contract ForkLive is Deployer {
     ///      4. If the environment variable wasn't set, deploy the updated OPCM and implementations of the contracts.
     ///      5. Upgrade the system using the OPCM.upgrade() function if useUpgradedFork is true.
     function run() public {
-        string memory superchainOpsAllocsPath = vm.envOr("SUPERCHAIN_OPS_ALLOCS_PATH", string(""));
+        string memory superchainOpsAllocsPath = Config.superchainOpsAllocsPath();
 
         useOpsRepo = bytes(superchainOpsAllocsPath).length > 0;
         if (useOpsRepo) {

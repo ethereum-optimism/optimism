@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
 
 type VMType string
@@ -35,6 +37,12 @@ type AdditionalDisputeGame struct {
 	MakeRespected                bool
 }
 
+type L2DevGenesisParams struct {
+	// Prefund is a map of addresses to balances (in wei), to prefund in the L2 dev genesis state.
+	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.
+	Prefund map[common.Address]*hexutil.U256 `json:"prefund" toml:"prefund"`
+}
+
 type ChainIntent struct {
 	ID                         common.Hash               `json:"id" toml:"id"`
 	BaseFeeVaultRecipient      common.Address            `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
@@ -50,6 +58,9 @@ type ChainIntent struct {
 	OperatorFeeScalar          uint32                    `json:"operatorFeeScalar,omitempty" toml:"operatorFeeScalar,omitempty"`
 	OperatorFeeConstant        uint64                    `json:"operatorFeeConstant,omitempty" toml:"operatorFeeConstant,omitempty"`
 	L1StartBlockHash           *common.Hash              `json:"l1StartBlockHash,omitempty" toml:"l1StartBlockHash,omitempty"`
+
+	// Optional. For development purposes only. Only enabled if the operation mode targets a genesis-file output.
+	L2DevGenesisParams *L2DevGenesisParams `json:"l2DevGenesisParams,omitempty" toml:"l2DevGenesisParams,omitempty"`
 }
 
 type ChainRoles struct {

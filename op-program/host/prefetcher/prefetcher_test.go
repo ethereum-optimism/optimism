@@ -9,8 +9,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	hostTypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,6 +17,9 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	hostTypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
@@ -223,7 +224,8 @@ func TestFetchL1Blob(t *testing.T) {
 		fieldElemKey := make([]byte, 80)
 		copy(fieldElemKey[:48], commitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-			binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
+			root := l1.RootsOfUnity[i].Bytes()
+			copy(fieldElemKey[48:], root[:])
 			key := preimage.Keccak256Key(crypto.Keccak256(fieldElemKey)).PreimageKey()
 			actual, err := prefetcher.kvStore.Get(key)
 			require.NoError(t, err)
@@ -956,7 +958,8 @@ func storeBlob(t *testing.T, kv kvstore.KV, commitment eth.Bytes48, blob *eth.Bl
 	blobKeyBuf := make([]byte, 80)
 	copy(blobKeyBuf[:48], commitment[:])
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-		binary.BigEndian.PutUint64(blobKeyBuf[72:], uint64(i))
+		root := l1.RootsOfUnity[i].Bytes()
+		copy(blobKeyBuf[48:], root[:])
 		feKey := crypto.Keccak256Hash(blobKeyBuf)
 
 		err = kv.Put(preimage.BlobKey(feKey).PreimageKey(), blob[i<<5:(i+1)<<5])
