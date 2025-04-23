@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -253,8 +252,6 @@ func TestInterop_EmitLogs(t *testing.T) {
 
 func TestInteropBlockBuilding(t *testing.T) {
 	t.Parallel()
-	logger := testlog.Logger(t, log.LevelInfo)
-	oplog.SetGlobalLogHandler(logger.Handler())
 
 	test := func(t *testing.T, s2 SuperSystem) {
 		ids := s2.L2IDs()
