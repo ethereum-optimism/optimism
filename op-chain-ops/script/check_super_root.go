@@ -112,26 +112,22 @@ func (m *SuperRootMigrator) Run(ctx context.Context) error {
 // and retrieves their chain IDs.
 func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
 	m.log.Info("Initializing clients and fetching chain IDs...")
-	endpointsToRemove := []string{}
 
 	for _, endpoint := range m.rpcEndpoints {
 		m.log.Debug("Dialing RPC endpoint", "url", endpoint)
 		client, err := ethclient.DialContext(ctx, endpoint)
 		if err != nil {
-			m.log.Error("Failed to connect to RPC endpoint, skipping", "url", endpoint, "err", err)
-			endpointsToRemove = append(endpointsToRemove, endpoint)
-			continue
+			return fmt.Errorf("failed to connect to RPC endpoint %s: %w", endpoint, err)
 		}
 		m.ethClients[endpoint] = client
 		m.log.Info("Connected to client", "url", endpoint)
 
 		chainID, err := client.ChainID(ctx)
 		if err != nil {
-			m.log.Error("Failed to get chain ID, closing client and skipping", "url", endpoint, "err", err)
+			// Clean up the client we just created before returning
 			client.Close()
 			delete(m.ethClients, endpoint)
-			endpointsToRemove = append(endpointsToRemove, endpoint)
-			continue
+			return fmt.Errorf("failed to get chain ID from %s: %w", endpoint, err)
 		}
 		m.log.Info("Fetched chain ID", "url", endpoint, "chain_id", chainID)
 
@@ -139,25 +135,6 @@ func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
 			ChainID: chainID,
 			RPCURL:  endpoint,
 		}
-	}
-
-	// Clean up the original rpcEndpoints list if some failed
-	if len(endpointsToRemove) > 0 {
-		removeSet := make(map[string]struct{})
-		for _, ep := range endpointsToRemove {
-			removeSet[ep] = struct{}{}
-		}
-		validEndpoints := []string{}
-		for _, ep := range m.rpcEndpoints {
-			if _, found := removeSet[ep]; !found {
-				validEndpoints = append(validEndpoints, ep)
-			}
-		}
-		m.rpcEndpoints = validEndpoints
-	}
-
-	if len(m.ethClients) == 0 {
-		return errors.New("failed to connect to any RPC endpoints or fetch their chain IDs")
 	}
 
 	m.log.Info("Successfully initialized clients", "count", len(m.ethClients))
