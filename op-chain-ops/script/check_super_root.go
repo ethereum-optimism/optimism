@@ -191,9 +191,7 @@ func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context)
 		}
 		if finalizedHeader.Number.Sign() <= 0 {
 			// Cannot derive block time if finalized is genesis or block 0
-			m.log.Warn("Finalized block is genesis or block 0, cannot derive block time. Using fallback 2s.", "url", url)
-			settings.BlockTime = 2
-			settings.EstimatedGenesisTimestamp = finalizedHeader.Time // Genesis time is finalized time
+			return fmt.Errorf("cannot derive block time for %s: finalized block is genesis or block 0", url)
 		} else {
 			finalizedNum := finalizedHeader.Number.Uint64()
 			finalizedTime := finalizedHeader.Time
@@ -202,23 +200,18 @@ func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context)
 			parentNumBig := new(big.Int).Sub(finalizedHeader.Number, big.NewInt(1))
 			parentHeader, err := client.HeaderByNumber(ctx, parentNumBig)
 			if err != nil {
-				// Fallback if parent fetch fails
-				m.log.Warn("Failed to get parent of finalized block, using fallback block time 2s", "url", url, "err", err)
-				settings.BlockTime = 2
+				return fmt.Errorf("failed to get parent of finalized block for %s: %w", url, err)
 			} else if parentHeader == nil {
-				m.log.Warn("Parent of finalized block is nil, using fallback block time 2s", "url", url)
-				settings.BlockTime = 2
+				return fmt.Errorf("parent of finalized block is nil for %s", url)
 			} else if finalizedTime <= parentHeader.Time {
-				// Timestamps not increasing, indicates issue or maybe 0 block time? Use fallback.
-				m.log.Warn("Finalized block timestamp not greater than parent, using fallback block time 2s", "url", url)
-				settings.BlockTime = 2
+				// Timestamps not increasing, indicates issue or maybe 0 block time
+				return fmt.Errorf("finalized block timestamp not greater than parent for %s: finalized=%d, parent=%d", url, finalizedTime, parentHeader.Time)
 			} else {
 				settings.BlockTime = finalizedTime - parentHeader.Time
 			}
 
-			if settings.BlockTime == 0 { // Avoid division by zero if fallback wasn't used but time diff was 0
-				m.log.Warn("Derived block time is zero, using fallback 2s", "url", url)
-				settings.BlockTime = 2
+			if settings.BlockTime == 0 {
+				return fmt.Errorf("derived block time is zero for %s", url)
 			}
 
 			// Estimate genesis timestamp (assuming genesis block number 0)
