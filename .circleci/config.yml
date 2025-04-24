@@ -1689,9 +1689,7 @@ workflows:
   main:
     when:
       or:
-        - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
-          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.main_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
