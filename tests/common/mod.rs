@@ -36,7 +36,6 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, ImageExt};
 use time::{OffsetDateTime, format_description};
 use tokio::io::AsyncWriteExt as _;
-use tracing::info;
 
 /// Default JWT token for testing purposes
 pub const JWT_SECRET: &str = "688f5d737bad920bdfb2fc2f488d6b6209eebda1dae949a8de91398d932c517a";
@@ -57,11 +56,9 @@ impl LogConsumer for LoggingConsumer {
         async move {
             match record {
                 testcontainers::core::logs::LogFrame::StdOut(bytes) => {
-                    info!(target = self.target, "{}", String::from_utf8_lossy(bytes));
                     self.log_file.lock().await.write_all(bytes).await.unwrap();
                 }
                 testcontainers::core::logs::LogFrame::StdErr(bytes) => {
-                    info!(target = self.target, "{}", String::from_utf8_lossy(bytes));
                     self.log_file.lock().await.write_all(bytes).await.unwrap();
                 }
             }
