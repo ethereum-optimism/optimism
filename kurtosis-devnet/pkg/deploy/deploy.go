@@ -148,7 +148,7 @@ func NewDeployer(opts ...DeployerOption) (*Deployer, error) {
 			enclaveManager, err = enclave.NewKurtosisEnclaveManager()
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to create enclave manager: %v", err)
+			return nil, fmt.Errorf("failed to create enclave manager: %w", err)
 		}
 		d.enclaveManager = enclaveManager
 	} else {
