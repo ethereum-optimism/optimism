@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -291,6 +292,14 @@ func ApplyPipeline(
 		return fmt.Errorf("invalid deployment target: '%s'", opts.DeploymentTarget)
 	}
 
+	// Now that we have the host, we can load the deployment scripts
+	//
+	// This step will error out if the ABIs don't match the Go types
+	opcmScripts, err := opcm.NewScripts(l1Host)
+	if err != nil {
+		return fmt.Errorf("failed to load OPCM script: %w", err)
+	}
+
 	pEnv := &pipeline.Env{
 		StateWriter:  opts.StateWriter,
 		L1ScriptHost: l1Host,
@@ -298,6 +307,7 @@ func ApplyPipeline(
 		Logger:       opts.Logger,
 		Broadcaster:  bcaster,
 		Deployer:     deployer,
+		Scripts:      opcmScripts,
 	}
 
 	pline := []pipelineStage{
