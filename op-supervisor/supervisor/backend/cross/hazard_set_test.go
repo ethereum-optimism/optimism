@@ -63,7 +63,7 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1),
 				makeBlock(1, 100, 2),
 			},
-			expectErr: fmt.Errorf("already depend on"),
+			expectErr: types.ErrConflict,
 		},
 		{
 			name: "Hazards Across Multiple Chains",
