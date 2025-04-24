@@ -8,7 +8,6 @@ type L1Contracts struct {
 	OpChain         *OpChainContracts
 }
 
-// DeploySuperchain.s.sol output
 type SuperchainContracts struct {
 	SuperchainProxyAdminImpl common.Address
 	SuperchainConfigProxy    common.Address
@@ -17,7 +16,6 @@ type SuperchainContracts struct {
 	ProtocolVersionsImpl     common.Address
 }
 
-// DeployImplementations.s.sol output
 type ImplementationsContracts struct {
 	OpcmImpl                         common.Address
 	OpcmContractsContainerImpl       common.Address
@@ -40,15 +38,15 @@ type ImplementationsContracts struct {
 }
 
 type OpChainContracts struct {
-	Core        *OpChainCoreContracts
-	FaultProofs *OpChainFaultProofsContracts
-	AltDA       *OpChainAltDAContracts
-	Legacy      *OpChainLegacyContracts
+	OpChainCoreContracts
+	OpChainFaultProofsContracts
+	OpChainAltDAContracts
+	OpChainLegacyContracts
 }
 
-// DeployOPChain.s.sol output
 type OpChainCoreContracts struct {
 	OpChainProxyAdminImpl             common.Address
+	OptimismPortalProxy               common.Address
 	AddressManagerImpl                common.Address
 	L1Erc721BridgeProxy               common.Address
 	SystemConfigProxy                 common.Address
@@ -57,19 +55,16 @@ type OpChainCoreContracts struct {
 	L1CrossDomainMessengerProxy       common.Address
 }
 
-// DeployOPChain.s.sol output
 type OpChainFaultProofsContracts struct {
-	OptimismPortalProxy                common.Address
-	EthLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address
 	AnchorStateRegistryProxy           common.Address
 	FaultDisputeGameImpl               common.Address
 	PermissionedDisputeGameImpl        common.Address
 	DelayedWethPermissionedGameProxy   common.Address
 	DelayedWethPermissionlessGameProxy common.Address
+	EthLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
 }
 
-// DeployAltDA.s.sol output
 type OpChainAltDAContracts struct {
 	AltDAChallengeProxy common.Address
 	AltDAChallengeImpl  common.Address
