@@ -54,6 +54,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	o.hydrateBatcherMaybe(net, l2)
 	o.hydrateProposerMaybe(net, l2)
 	o.hydrateChallengerMaybe(net, l2)
+	o.hydrateL2ProxydMaybe(net, l2)
 
 	if faucet, ok := net.Services["faucet"]; ok {
 		l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
@@ -107,6 +108,32 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	})
 	l2Net.AddL2CLNode(l2CL)
 	l2CL.(stack.LinkableL2CLNode).LinkEL(l2EL)
+}
+
+func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := getL2ID(net)
+	require.Equal(l2ID, l2Net.ID(), "must match L2 chain descriptor and target L2 net")
+
+	proxydService, ok := net.Services["proxyd"]
+	if !ok {
+		l2Net.Logger().Warn("L2 net is missing a proxyd service")
+		return
+	}
+
+	l2Proxyd := shim.NewL2ELNode(shim.L2ELNodeConfig{
+		ELNodeConfig: shim.ELNodeConfig{
+			CommonConfig: shim.NewCommonConfig(l2Net.T()),
+			Client:       o.rpcClient(l2Net.T(), proxydService, HTTPProtocol),
+			ChainID:      l2ID.ChainID(),
+		},
+		ID: stack.L2ELNodeID{
+			Key:     proxydService.Name,
+			ChainID: l2ID.ChainID(),
+		},
+	})
+	l2Proxyd.SetLabel(match.LabelVendor, string(match.Proxyd))
+	l2Net.AddL2ELNode(l2Proxyd)
 }
 
 func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
