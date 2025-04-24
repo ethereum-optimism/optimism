@@ -3,8 +3,8 @@ package addresses
 import "github.com/ethereum/go-ethereum/common"
 
 type L1Roles struct {
-	Superchain *SuperchainRoles
-	OpChain    *OpChainRoles
+	SuperchainRoles
+	OpChainRoles
 }
 
 type SuperchainRoles struct {
@@ -12,8 +12,8 @@ type SuperchainRoles struct {
 }
 
 type OpChainRoles struct {
-	Core        *OpChainCoreRoles
-	FaultProofs *OpChainFaultProofsRoles
+	OpChainCoreRoles
+	OpChainFaultProofsRoles
 }
 
 type OpChainCoreRoles struct {
