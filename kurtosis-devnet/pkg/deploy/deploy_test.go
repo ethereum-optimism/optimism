@@ -131,3 +131,11 @@ func TestDeploy(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "value", envData["test"])
 }
+
+func TestNewDeployer_DryRun(t *testing.T) {
+	// In dry run mode, we should not create an enclave manager
+	deployer := NewDeployer(
+		WithDryRun(true),
+	)
+	assert.Nil(t, deployer.enclaveManager)
+}

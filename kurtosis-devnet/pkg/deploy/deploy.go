@@ -127,13 +127,33 @@ func NewDeployer(opts ...DeployerOption) *Deployer {
 		d.engineManager = engine.NewEngineManager(engine.WithKurtosisBinary(d.kurtosisBinary))
 	}
 
-	// Try to create enclave manager, but don't fail if it doesn't work
-	// This allows the deployer to work in dry run mode without a running Kurtosis engine
-	enclaveManager, err := enclave.NewKurtosisEnclaveManager()
-	if err != nil {
-		log.Printf("Warning: failed to create enclave manager: %v", err)
-	} else {
+	if !d.dryRun {
+		if err := d.engineManager.EnsureRunning(); err != nil {
+			log.Fatal("error ensuring kurtosis engine is running: %w", err)
+		}
+
+		// Get and log engine info
+		engineType, err := d.engineManager.GetEngineType()
+		if err != nil {
+			log.Printf("Warning: failed to get engine type: %v", err)
+		} else {
+			log.Printf("Kurtosis engine type: %s", engineType)
+		}
+		var enclaveManager *enclave.KurtosisEnclaveManager
+		if engineType == "docker" {
+			enclaveManager, err = enclave.NewKurtosisEnclaveManager(
+				enclave.WithDockerManager(&enclave.DefaultDockerManager{}),
+			)
+		} else {
+			enclaveManager, err = enclave.NewKurtosisEnclaveManager()
+		}
+		if err != nil {
+			log.Fatalf("Failed to create enclave manager: %v", err)
+		}
 		d.enclaveManager = enclaveManager
+	} else {
+		// This allows the deployer to work in dry run mode without a running Kurtosis engine
+		log.Printf("No Kurtosis engine running, skipping enclave manager creation")
 	}
 
 	return d
@@ -201,30 +221,6 @@ func (d *Deployer) renderTemplate(buildDir string, urlBuilder func(path ...strin
 }
 
 func (d *Deployer) Deploy(ctx context.Context, r io.Reader) (*kurtosis.KurtosisEnvironment, error) {
-	if !d.dryRun {
-		if err := d.engineManager.EnsureRunning(); err != nil {
-			return nil, fmt.Errorf("error ensuring kurtosis engine is running: %w", err)
-		}
-
-		// Get and log engine info
-		engineType, err := d.engineManager.GetEngineType()
-		if err != nil {
-			log.Printf("Warning: failed to get engine type: %v", err)
-		} else {
-			log.Printf("Kurtosis engine type: %s", engineType)
-			// Create enclave manager with Docker manager if using Docker engine
-			if engineType == "docker" {
-				enclaveManager, err := enclave.NewKurtosisEnclaveManager(
-					enclave.WithDockerManager(&enclave.DefaultDockerManager{}),
-				)
-				if err != nil {
-					log.Printf("Warning: failed to create enclave manager with Docker support: %v", err)
-				} else {
-					d.enclaveManager = enclaveManager
-				}
-			}
-		}
-	}
 
 	// Clean up the enclave before deploying
 	if d.autofixMode == autofixTypes.AutofixModeNuke {
