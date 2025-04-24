@@ -87,7 +87,7 @@ func deployDisputeGame(
 	case state.VMTypeCannon1, state.VMTypeCannon2:
 		mipsVersion := 1
 		if game.VMType == state.VMTypeCannon2 {
-			mipsVersion = 2
+			mipsVersion = 6
 		}
 
 		out, err := opcm.DeployMIPS(env.L1ScriptHost, opcm.DeployMIPSInput{

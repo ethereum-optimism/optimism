@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path"
@@ -60,7 +61,7 @@ type logger struct {
 	t   Testing
 	l   log.Logger
 	mu  *sync.Mutex
-	buf *bytes.Buffer
+	buf *syncBuffer
 }
 
 // Logger returns a logger which logs to the unit test log of t.
@@ -69,7 +70,9 @@ func Logger(t Testing, level slog.Level) log.Logger {
 }
 
 func LoggerWithHandlerMod(t Testing, level slog.Level, handlerMod func(slog.Handler) slog.Handler) log.Logger {
-	l := &logger{t: t, mu: new(sync.Mutex), buf: new(bytes.Buffer)}
+	// We use a sync wrapper around the buffer because it potentially gets passed into a handler later which can then
+	// be retrieved using `Handler()` so it isn't guaranteed to always be guarded by the logger mutex.
+	l := &logger{t: t, mu: new(sync.Mutex), buf: newSyncBuffer(new(bytes.Buffer))}
 
 	var handler slog.Handler
 	if outdir := os.Getenv("OP_TESTLOG_FILE_LOGGER_OUTDIR"); outdir != "" {
@@ -103,7 +106,10 @@ func fileHandler(t Testing, outdir string, level slog.Level) slog.Handler {
 			return
 		}
 
-		rootHdlr := log.NewTerminalHandlerWithLevel(bufio.NewWriter(f), level, false)
+		// The writer needs to be thread safe as it might be passed through to a different TerminalHandler instance
+		// if rootHdlr.WithAttrs ever winds up being called.
+		writer := newSyncWriter(bufio.NewWriter(f))
+		rootHdlr := log.NewTerminalHandlerWithLevel(writer, level, false)
 		oplog.SetGlobalLogHandler(rootHdlr)
 		t.Logf("redirecting root logger to %s", f.Name())
 	})
@@ -310,4 +316,49 @@ func (w *deferredWriter) Close() error {
 		return err
 	}
 	return w.close()
+}
+
+type buffer interface {
+	io.Writer
+	io.Reader
+	Reset()
+}
+
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func newSyncWriter(w io.Writer) *syncWriter {
+	return &syncWriter{w: w}
+}
+
+func (w *syncWriter) Write(p []byte) (n int, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Write(p)
+}
+
+type syncBuffer struct {
+	syncWriter
+	b buffer
+}
+
+func newSyncBuffer(b buffer) *syncBuffer {
+	return &syncBuffer{
+		syncWriter: syncWriter{w: b},
+		b:          b,
+	}
+}
+
+func (b *syncBuffer) Read(p []byte) (n int, err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Read(p)
+}
+
+func (b *syncBuffer) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.b.Reset()
 }

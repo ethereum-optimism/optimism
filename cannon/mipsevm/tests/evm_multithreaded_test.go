@@ -234,7 +234,6 @@ func TestEVM_MT_StoreOpsClearMemReservation32(t *testing.T) {
 }
 
 func TestEVM_SysClone_FlagHandling(t *testing.T) {
-	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 
 	cases := []struct {
 		name  string
@@ -283,7 +282,7 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 					require.Equal(t, 2, state.ThreadCount())
 				}
 
-				testutil.ValidateEVM(t, stepWitness, curStep, goVm, multithreaded.GetStateHashFn(), contracts)
+				testutil.ValidateEVM(t, stepWitness, curStep, goVm, multithreaded.GetStateHashFn(), version.Contracts)
 			})
 		}
 	}

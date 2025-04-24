@@ -61,8 +61,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.29
-    string public constant version = "1.0.0-beta.29";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -83,7 +83,7 @@ contract MIPS2 is ISemver {
     uint256 internal constant TC_MEM_OFFSET = 0x260;
 
     /// @param _oracle The address of the preimage oracle contract.
-    constructor(IPreimageOracle _oracle) {
+    constructor(IPreimageOracle _oracle, uint256 /*_stateVersion*/ ) {
         ORACLE = _oracle;
     }
 

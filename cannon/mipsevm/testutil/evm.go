@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -42,9 +43,10 @@ type Addresses struct {
 type ContractMetadata struct {
 	Artifacts *Artifacts
 	Addresses *Addresses
+	Version   uint8 // versions.StateVersion can't be used as it causes dependency cycles
 }
 
-func TestContractsSetup(t require.TestingT, version MipsVersion) *ContractMetadata {
+func TestContractsSetup(t require.TestingT, version MipsVersion, stateVersion uint8) *ContractMetadata {
 	artifacts, err := loadArtifacts(version)
 	require.NoError(t, err)
 
@@ -55,7 +57,7 @@ func TestContractsSetup(t require.TestingT, version MipsVersion) *ContractMetada
 		FeeRecipient: common.Address{0xaa},
 	}
 
-	return &ContractMetadata{Artifacts: artifacts, Addresses: addrs}
+	return &ContractMetadata{Artifacts: artifacts, Addresses: addrs, Version: stateVersion}
 }
 
 // loadArtifacts loads the Cannon contracts, from the contracts package.
@@ -116,9 +118,19 @@ func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	// pre-deploy the contracts
 	env.StateDB.SetCode(contracts.Addresses.Oracle, contracts.Artifacts.Oracle.DeployedBytecode.Object)
 
-	var mipsCtorArgs [32]byte
-	copy(mipsCtorArgs[12:], contracts.Addresses.Oracle[:])
-	mipsDeploy := append(bytes.Clone(contracts.Artifacts.MIPS.Bytecode.Object), mipsCtorArgs[:]...)
+	var ctorArgs []byte
+	if contracts.Version == 0 { // Old MIPS.sol doesn't specify the state version in the constructor
+		var mipsCtorArgs [32]byte
+		copy(mipsCtorArgs[12:], contracts.Addresses.Oracle[:])
+		ctorArgs = mipsCtorArgs[:]
+	} else {
+		var mipsCtorArgs [64]byte
+		copy(mipsCtorArgs[12:], contracts.Addresses.Oracle[:])
+		vers := uint256.NewInt(uint64(contracts.Version)).Bytes32()
+		copy(mipsCtorArgs[32:], vers[:])
+		ctorArgs = mipsCtorArgs[:]
+	}
+	mipsDeploy := append(bytes.Clone(contracts.Artifacts.MIPS.Bytecode.Object), ctorArgs...)
 	startingGas := uint64(30_000_000)
 	_, deployedMipsAddr, leftOverGas, err := env.Create(contracts.Addresses.Sender, mipsDeploy, startingGas, common.U2560)
 	if err != nil {

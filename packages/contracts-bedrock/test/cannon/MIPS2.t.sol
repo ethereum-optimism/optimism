@@ -144,7 +144,7 @@ contract MIPS2_Test is CommonTest {
             DeployUtils.create1({
                 _name: "MIPS2",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IMIPS2.__constructor__, (IPreimageOracle(address(oracle))))
+                    abi.encodeCall(IMIPS2.__constructor__, (IPreimageOracle(address(oracle)), 6))
                 )
             })
         );
