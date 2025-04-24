@@ -154,13 +154,13 @@ contract L2Genesis is Script {
             return;
         }
 
-        if (!shouldApplyFork(_fork, Fork.JOVIAN)) {
+        if (forkEquals(_fork, Fork.JOVIAN)) {
             return;
         }
     }
 
-    function shouldApplyFork(Fork _latest, Fork _current) internal pure returns (bool) {
-        return _latest != _current;
+    function forkEquals(Fork _latest, Fork _current) internal pure returns (bool) {
+        return _latest == _current;
     }
 
     /// @notice Give all of the precompiles 1 wei
