@@ -341,7 +341,7 @@ contract ETHLockboxTest is CommonTest {
     /// @param _portal The portal to authorize.
     function testFuzz_authorizePortal_differentSuperchainConfig_reverts(IOptimismPortal2 _portal) public {
         assumeNotForgeAddress(address(_portal));
-
+        vm.assume(address(_portal) != address(systemConfig));
         // Mock the portal to have the right proxyAdminOwner.
         vm.mockCall(
             address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
