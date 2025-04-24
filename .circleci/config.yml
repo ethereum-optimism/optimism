@@ -217,6 +217,7 @@ commands:
             fi
           when: on_fail
 
+
   run-contracts-check:
     parameters:
       command:
@@ -805,7 +806,7 @@ jobs:
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+        - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     parameters:
       test_flags:
@@ -1277,9 +1278,8 @@ jobs:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
       # Notification step
-      - notify-failures-on-develop:
-          channel: "C03N11M0BBN" # #notify-ci-failures
-          mentions: "@protocol-devx-pod"
+      - discord-notification-failures-on-develop:
+          mentions: "@_ftw_" # temporarily just mention Stefano until the acceptance tests are more stable (was: @protocol-devx-pod)
 
   sanitize-op-program:
     docker:
@@ -1302,6 +1302,7 @@ jobs:
           name: Sanitize op-program client
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client.elf
           working_directory: cannon
+
 
   cannon-prestate-quick:
     machine: true
@@ -1483,10 +1484,10 @@ jobs:
             sudo apt-get install -y build-essential cmake ninja-build python3 curl git clang lld libc++-dev libc++abi-dev
 
       - run:
-          name: Install LLVM Objdump via Mise
-          command: |
-            CC=clang CXX=clang++ mise install llvm-objdump@20.1.0
-            mise use -g llvm-objdump@20.1.0
+           name: Install LLVM Objdump via Mise
+           command: |
+             CC=clang CXX=clang++ mise install llvm-objdump@20.1.0
+             mise use -g llvm-objdump@20.1.0
 
       - run:
           name: Install vm-compat via Mise
@@ -1648,18 +1649,43 @@ jobs:
             echo "✅ Checked-in forge artifacts match the ci build"
 
   stale-check:
+      machine:
+        image: ubuntu-2204:2024.08.1
+      steps:
+        - utils/github-stale:
+            stale-issue-message: 'This issue has been automatically marked as stale and will be closed in 5 days if no updates'
+            stale-pr-message: 'This pr has been automatically marked as stale and will be closed in 5 days if no updates'
+            close-issue-message: 'This issue was closed as stale.  Please reopen if this is a mistake'
+            close-pr-message: 'This PR was closed as stale.  Please reopen if this is a mistake'
+            days-before-issue-stale: 999
+            days-before-pr-stale: 14
+            days-before-issue-close: 5
+            days-before-pr-close: 5
+
+  close-issue:
     machine:
       image: ubuntu-2204:2024.08.1
+    parameters:
+      label_name:
+        type: string
+      message:
+        type: string
     steps:
-      - utils/github-stale:
-          stale-issue-message: "This issue has been automatically marked as stale and will be closed in 5 days if no updates"
-          stale-pr-message: "This pr has been automatically marked as stale and will be closed in 5 days if no updates"
-          close-issue-message: "This issue was closed as stale.  Please reopen if this is a mistake"
-          close-pr-message: "This PR was closed as stale.  Please reopen if this is a mistake"
-          days-before-issue-stale: 999
-          days-before-pr-stale: 14
-          days-before-issue-close: 5
-          days-before-pr-close: 5
+      - github-cli/install
+      - utils/github-event-handler-setup:
+          github_event_base64: << pipeline.parameters.github-event-base64 >>
+          env_prefix: "github_"
+      - run:
+          name: Close issue if label is added
+          command: |
+            echo "Closing issue $github_pull_request_number if label $github_label_name is added on repository ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
+            if [ ! -z "$github_pull_request_number" ] && [ "$github_label_name" = "$LABEL_NAME" ]; then
+                export GH_TOKEN=$GITHUB_TOKEN_GOVERNANCE
+                gh issue close --repo "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" "$github_pull_request_number" --comment "$MESSAGE"
+            fi
+          environment:
+            MESSAGE: << parameters.message >>
+            LABEL_NAME: << parameters.label_name >>
 
 workflows:
   main:
@@ -1862,10 +1888,10 @@ workflows:
             - discord
       # TODO(#15353) - Need to regenerate data used in op-program-compat and then reenable this test
       #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
-      #      - op-program-compat:
-      #          context:
-      #            - circleci-repo-readonly-authenticated-github-token
-      #            - discord
+#      - op-program-compat:
+#          context:
+#            - circleci-repo-readonly-authenticated-github-token
+#            - discord
       - bedrock-go-tests:
           requires:
             - go-lint
@@ -2305,10 +2331,10 @@ workflows:
         - equal: [<< pipeline.parameters.github-event-action >>, "labeled"]
     jobs:
       - close-issue:
-          label_name: "auto-close-trivial-contribution"
-          message: "Thank you for your interest in contributing!
-            At this time, we are not accepting contributions that primarily fix spelling, stylistic, or grammatical errors in documentation, code, or elsewhere.
-            Please check our [contribution guidelines](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md#contributions-related-to-spelling-and-grammar) for more information.
-            This issue will be closed now."
-          context:
-            - circleci-repo-optimism
+         label_name: "auto-close-trivial-contribution"
+         message: "Thank you for your interest in contributing!
+                At this time, we are not accepting contributions that primarily fix spelling, stylistic, or grammatical errors in documentation, code, or elsewhere.
+                Please check our [contribution guidelines](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md#contributions-related-to-spelling-and-grammar) for more information.
+                This issue will be closed now."
+         context:
+          - circleci-repo-optimism
