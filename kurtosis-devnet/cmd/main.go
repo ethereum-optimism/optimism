@@ -101,7 +101,7 @@ func mainAction(c *cli.Context) error {
 		autofixMode = autofixTypes.AutofixModeNuke
 	}
 
-	deployer := deploy.NewDeployer(
+	deployer, err := deploy.NewDeployer(
 		deploy.WithKurtosisPackage(cfg.kurtosisPackage),
 		deploy.WithEnclave(cfg.enclave),
 		deploy.WithDryRun(cfg.dryRun),
@@ -111,6 +111,9 @@ func mainAction(c *cli.Context) error {
 		deploy.WithBaseDir(cfg.baseDir),
 		deploy.WithAutofixMode(autofixMode),
 	)
+	if err != nil {
+		return fmt.Errorf("error creating deployer: %w", err)
+	}
 
 	env, err := deployer.Deploy(c.Context, nil)
 	if err != nil {

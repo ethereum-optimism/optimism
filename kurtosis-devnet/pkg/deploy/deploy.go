@@ -111,7 +111,7 @@ func WithNewEnclaveFSFunc(newEnclaveFS func(ctx context.Context, enclave string,
 	}
 }
 
-func NewDeployer(opts ...DeployerOption) *Deployer {
+func NewDeployer(opts ...DeployerOption) (*Deployer, error) {
 	d := &Deployer{
 		kurtosisBinary: "kurtosis",
 		ktDeployer: func(opts ...kurtosis.KurtosisDeployerOptions) (deployer, error) {
@@ -129,7 +129,7 @@ func NewDeployer(opts ...DeployerOption) *Deployer {
 
 	if !d.dryRun {
 		if err := d.engineManager.EnsureRunning(); err != nil {
-			log.Fatal("error ensuring kurtosis engine is running: %w", err)
+			return nil, fmt.Errorf("error ensuring kurtosis engine is running: %w", err)
 		}
 
 		// Get and log engine info
@@ -148,7 +148,7 @@ func NewDeployer(opts ...DeployerOption) *Deployer {
 			enclaveManager, err = enclave.NewKurtosisEnclaveManager()
 		}
 		if err != nil {
-			log.Fatalf("Failed to create enclave manager: %v", err)
+			return nil, fmt.Errorf("failed to create enclave manager: %v", err)
 		}
 		d.enclaveManager = enclaveManager
 	} else {
@@ -156,7 +156,7 @@ func NewDeployer(opts ...DeployerOption) *Deployer {
 		log.Printf("No Kurtosis engine running, skipping enclave manager creation")
 	}
 
-	return d
+	return d, nil
 }
 
 func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosis.KurtosisEnvironment, error) {

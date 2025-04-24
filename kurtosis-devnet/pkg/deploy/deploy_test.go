@@ -106,7 +106,7 @@ func TestDeploy(t *testing.T) {
 		return ktfs.NewEnclaveFS(ctx, enclave, ktfs.WithEnclaveCtx(mockCtx))
 	}
 
-	d := NewDeployer(
+	d, err := NewDeployer(
 		WithBaseDir(tmpDir),
 		WithKurtosisDeployer(mockDeployerFunc),
 		WithDryRun(true),
@@ -114,6 +114,7 @@ func TestDeploy(t *testing.T) {
 		WithDataFile(dataPath),
 		WithNewEnclaveFSFunc(mockEnclaveFSFunc),
 	)
+	require.NoError(t, err)
 
 	env, err := d.Deploy(ctx, deployConfig)
 	require.NoError(t, err)
@@ -134,8 +135,9 @@ func TestDeploy(t *testing.T) {
 
 func TestNewDeployer_DryRun(t *testing.T) {
 	// In dry run mode, we should not create an enclave manager
-	deployer := NewDeployer(
+	deployer, err := NewDeployer(
 		WithDryRun(true),
 	)
+	require.NoError(t, err)
 	assert.Nil(t, deployer.enclaveManager)
 }
