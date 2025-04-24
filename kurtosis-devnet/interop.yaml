@@ -173,8 +173,6 @@ ethereum_package:
   participants:
     - el_type: geth
       cl_type: teku
-      cl_extra_env_vars:
-        JAVA_OPTS: "-Dteku.portableBlst=true"
   network_params:
     preset: minimal
     genesis_delay: 5
