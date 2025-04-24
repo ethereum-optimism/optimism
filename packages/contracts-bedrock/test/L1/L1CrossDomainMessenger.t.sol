@@ -869,6 +869,11 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertTrue(l1CrossDomainMessenger.paused());
         assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
     }
+
+    /// @dev Tests that `superchainConfig` returns the correct address.
+    function test_superchainConfig_succeeds() external view {
+        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+    }
 }
 
 /// @dev A regression test against a reentrancy vulnerability in the CrossDomainMessenger contract, which

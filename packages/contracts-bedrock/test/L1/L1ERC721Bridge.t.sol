@@ -89,6 +89,7 @@ contract L1ERC721Bridge_Test is CommonTest {
         assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.systemConfig()), address(systemConfig));
+        assertEq(address(l1ERC721Bridge.superchainConfig()), address(systemConfig.superchainConfig()));
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.

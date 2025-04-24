@@ -29,6 +29,7 @@ contract L1StandardBridge_Getter_Test is CommonTest {
         assert(address(l1StandardBridge.messenger()) == address(l1CrossDomainMessenger));
         assert(address(l1StandardBridge.MESSENGER()) == address(l1CrossDomainMessenger));
         assert(l1StandardBridge.systemConfig() == systemConfig);
+        assert(l1StandardBridge.superchainConfig() == systemConfig.superchainConfig());
     }
 }
 

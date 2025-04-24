@@ -29,6 +29,7 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_Init {
     function test_initialize_succeeds() public view {
         assertEq(delayedWeth.proxyAdminOwner(), proxyAdminOwner);
         assertEq(address(delayedWeth.systemConfig()), address(systemConfig));
+        assertEq(address(delayedWeth.config()), address(systemConfig.superchainConfig()));
     }
 }
 

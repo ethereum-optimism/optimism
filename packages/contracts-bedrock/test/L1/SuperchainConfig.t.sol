@@ -146,3 +146,52 @@ contract SuperchainConfig_Extend_Test is CommonTest {
         superchainConfig.extend(address(this));
     }
 }
+
+contract SuperchainConfig_Getters_Test is CommonTest {
+    /// @dev Tests that `pauseExpiry` returns the correct constant value.
+    function test_pauseExpiry_succeeds() external view {
+        assertEq(superchainConfig.pauseExpiry(), 7_884_000);
+    }
+
+    /// @dev Tests that `pausable` returns true when the identifier is not paused.
+    function test_pausable_notPaused_succeeds() external view {
+        assertTrue(superchainConfig.pausable(address(this)));
+    }
+
+    /// @dev Tests that `pausable` returns false when the identifier is paused.
+    function test_pausable_paused_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(this));
+        assertFalse(superchainConfig.pausable(address(this)));
+    }
+
+    /// @dev Tests that `expiration` returns 0 when the identifier is not paused.
+    function test_expiration_notPaused_succeeds() external view {
+        assertEq(superchainConfig.expiration(address(this)), 0);
+    }
+
+    /// @dev Tests that `expiration` returns the correct timestamp when the identifier is paused.
+    function test_expiration_paused_succeeds() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(this));
+        uint256 expectedExpiration = block.timestamp + superchainConfig.pauseExpiry();
+        assertEq(superchainConfig.expiration(address(this)), expectedExpiration);
+    }
+
+    /// @dev Tests that `expiration` returns the updated timestamp after extending the pause.
+    function test_expiration_afterExtend_succeeds() external {
+        vm.startPrank(superchainConfig.guardian());
+        superchainConfig.pause(address(this));
+        uint256 firstExpiration = superchainConfig.expiration(address(this));
+
+        // Warp forward in time
+        vm.warp(block.timestamp + 100);
+
+        // Extend the pause
+        superchainConfig.extend(address(this));
+        uint256 newExpiration = superchainConfig.expiration(address(this));
+
+        assertTrue(newExpiration > firstExpiration);
+        assertEq(newExpiration, block.timestamp + superchainConfig.pauseExpiry());
+    }
+}

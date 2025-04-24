@@ -38,6 +38,7 @@ contract ETHLockboxTest is CommonTest {
     function test_initialization_succeeds() public view {
         assertEq(address(ethLockbox.systemConfig().superchainConfig()), address(superchainConfig));
         assertEq(ethLockbox.authorizedPortals(optimismPortal2), true);
+        assertEq(address(ethLockbox.superchainConfig()), address(superchainConfig));
     }
 
     /// @notice Tests it reverts when the contract is already initialized.

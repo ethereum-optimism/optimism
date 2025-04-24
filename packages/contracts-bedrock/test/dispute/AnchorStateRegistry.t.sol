@@ -48,6 +48,7 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_Init {
         // Verify contract addresses.
         assert(anchorStateRegistry.systemConfig() == systemConfig);
         assert(anchorStateRegistry.disputeGameFactory() == disputeGameFactory);
+        assert(anchorStateRegistry.superchainConfig() == superchainConfig);
     }
 }
 
