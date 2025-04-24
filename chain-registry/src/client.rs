@@ -32,7 +32,7 @@ impl SuperChainRegistryManager {
 
     /// Get the path to a genesis file for the given network (`mainnet`, `base`).
     pub fn genesis_path(&self, network_type: &str, network: &str) -> PathBuf {
-        self.base_path.join(network_type).join(format!("{}.json.zst", network))
+        self.base_path.join(network_type).join(format!("{network}.json.zst"))
     }
 
     /// Read file from the given path

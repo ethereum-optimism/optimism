@@ -41,10 +41,10 @@ pub(crate) fn read_superchain_genesis(
         .map_err(SuperchainConfigError::CorruptDataError)?;
     // Read and decompress the genesis file.
     let compressed_genesis_file =
-        read_file(&archive, &format!("genesis/{}/{}.json.zz", environment, name))?;
+        read_file(&archive, &format!("genesis/{environment}/{name}.json.zz"))?;
     let genesis_file =
         decompress_to_vec_zlib_with_limit(&compressed_genesis_file, MAX_GENESIS_SIZE)
-            .map_err(|e| SuperchainConfigError::DecompressError(format!("{}", e)))?;
+            .map_err(|e| SuperchainConfigError::DecompressError(format!("{e}")))?;
 
     // Load the genesis file.
     let mut genesis: Genesis = serde_json::from_slice(&genesis_file)?;
@@ -65,7 +65,7 @@ fn read_superchain_metadata(
     environment: &str,
     archive: &TarArchiveRef<'_>,
 ) -> Result<ChainMetadata, SuperchainConfigError> {
-    let config_file = read_file(archive, &format!("configs/{}/{}.json", environment, name))?;
+    let config_file = read_file(archive, &format!("configs/{environment}/{name}.json"))?;
     let config_content = String::from_utf8(config_file)?;
     let chain_config: ChainMetadata = serde_json::from_str(&config_content)?;
     Ok(chain_config)

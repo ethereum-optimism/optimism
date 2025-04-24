@@ -38,8 +38,7 @@ mod tests {
         for &chain in OpChainSpecParser::SUPPORTED_CHAINS {
             assert!(
                 <OpChainSpecParser as ChainSpecParser>::parse(chain).is_ok(),
-                "Failed to parse {}",
-                chain
+                "Failed to parse {chain}"
             );
         }
     }
