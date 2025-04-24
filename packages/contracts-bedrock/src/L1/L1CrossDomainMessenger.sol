@@ -58,8 +58,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ReinitializableBase, IS
     /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig The new SystemConfig contract.
     function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
-        systemConfig = _systemConfig;
         spacer_251_0_20 = address(0);
+        systemConfig = _systemConfig;
     }
 
     /// @inheritdoc CrossDomainMessenger

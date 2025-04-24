@@ -209,6 +209,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     }
 
     /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
+    /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
     /// @param _superchainConfig The SuperchainConfig contract address.
     function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
         // Set the L2 chain ID.

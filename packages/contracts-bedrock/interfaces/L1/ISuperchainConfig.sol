@@ -8,8 +8,8 @@ interface ISuperchainConfig {
 
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
     event Initialized(uint8 version);
-    event Paused(string identifier);
-    event Unpaused(string identifier);
+    event Paused(address identifier);
+    event Unpaused(address identifier);
 
     error SuperchainConfig_OnlyGuardian();
     error SuperchainConfig_AlreadyPaused(address identifier);

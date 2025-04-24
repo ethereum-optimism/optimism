@@ -370,7 +370,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
     /// @param _identifier The identifier to pause.
     function testFuzz_pause_validParameters_succeeds(bytes32 _nonce, address _identifier) external {
         vm.expectEmit(address(superchainConfig));
-        emit Paused(LibString.toHexString(_identifier));
+        emit Paused(_identifier);
 
         vm.expectEmit(address(guardianSafeInstance.safe));
         emit ExecutionFromModuleSuccess(address(deputyPauseModule));

@@ -517,6 +517,32 @@ contract SystemConfig_Getters_Test is SystemConfig_Init {
         assertTrue(systemConfig.paused());
         assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
     }
+
+    /// @dev Tests that `paused()` returns true when the ETHLockbox identifier is set.
+    function test_paused_ethLockboxIdentifier_succeeds() external {
+        // Initially not paused
+        assertFalse(systemConfig.paused());
+
+        // Pause the system with ETHLockbox identifier
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(ethLockbox));
+
+        // Verify paused state
+        assertTrue(systemConfig.paused());
+    }
+
+    /// @dev Tests that `paused()` returns false when any other address is set.
+    function test_paused_otherAddress_false() external {
+        // Initially not paused
+        assertFalse(systemConfig.paused());
+
+        // Pause the system with a different address
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0x1234));
+
+        // Verify still not paused
+        assertFalse(systemConfig.paused());
+    }
 }
 
 /// @title SystemConfig_upgrade_Test

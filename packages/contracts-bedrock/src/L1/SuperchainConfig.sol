@@ -34,7 +34,7 @@ contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
 
     /// @notice The duration after which a pause expires. This value is set to exactly 3 months in
     ///         seconds. Any duration longer than this value is incompatible with Stage 1.
-    uint256 internal constant PAUSE_EXPIRY = 7889238;
+    uint256 internal constant PAUSE_EXPIRY = 7_884_000;
 
     /// @notice The address of the guardian, which can pause withdrawals from the System.
     ///         It can only be modified by an upgrade.
@@ -45,10 +45,10 @@ contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
 
     /// @notice Emitted when the pause is triggered.
     /// @param identifier A string helping to identify provenance of the pause transaction.
-    event Paused(string identifier);
+    event Paused(address identifier);
 
     /// @notice Emitted when the pause is lifted.
-    event Unpaused(string identifier);
+    event Unpaused(address identifier);
 
     /// @notice Emitted when configuration is updated.
     /// @param updateType Type of update.
@@ -91,7 +91,7 @@ contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
         return PAUSE_EXPIRY;
     }
 
-    /// @notice Pauses the system for a specific identifier.
+    /// @notice Pauses the system for a specific superchain cluster identifier.
     /// @param _identifier The address identifier for the pause.
     function pause(address _identifier) external {
         // Only the Guardian can pause the system.
@@ -107,7 +107,7 @@ contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
 
         // Set the pause timestamp.
         pauseTimestamps[_identifier] = block.timestamp;
-        emit Paused(LibString.toHexString(_identifier));
+        emit Paused(_identifier);
     }
 
     /// @notice Unpauses the system for a specific identifier.
@@ -120,7 +120,7 @@ contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
 
         // Unpause the system.
         pauseTimestamps[_identifier] = 0;
-        emit Unpaused(LibString.toHexString(_identifier));
+        emit Unpaused(_identifier);
     }
 
     /// @notice Extends the pause for a specific identifier by resetting the pause timestamp.
@@ -133,7 +133,7 @@ contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
 
         // Reset the pause timestamp.
         pauseTimestamps[_identifier] = block.timestamp;
-        emit Paused(LibString.toHexString(_identifier));
+        emit Paused(_identifier);
     }
 
     /// @notice Checks if the system can be paused for a specific identifier.

@@ -82,7 +82,7 @@ contract SuperchainConfig_Pause_Test is CommonTest {
         assertFalse(superchainConfig.paused(address(this)));
 
         vm.expectEmit(address(superchainConfig));
-        emit Paused(LibString.toHexString(address(this)));
+        emit Paused(address(this));
 
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -116,7 +116,7 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
         assertTrue(superchainConfig.paused(address(this)));
 
         vm.expectEmit(address(superchainConfig));
-        emit Unpaused(LibString.toHexString(address(this)));
+        emit Unpaused(address(this));
         superchainConfig.unpause(address(this));
 
         assertFalse(superchainConfig.paused(address(this)));
