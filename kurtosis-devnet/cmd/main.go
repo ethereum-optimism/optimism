@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/deploy"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/welcome"
 	"github.com/urfave/cli/v2"
 )
 
@@ -21,6 +22,7 @@ type config struct {
 	dryRun          bool
 	baseDir         string
 	kurtosisBinary  string
+	disableWelcome  bool
 }
 
 func newConfig(c *cli.Context) (*config, error) {
@@ -32,6 +34,7 @@ func newConfig(c *cli.Context) (*config, error) {
 		environment:     c.String("environment"),
 		dryRun:          c.Bool("dry-run"),
 		kurtosisBinary:  c.String("kurtosis-binary"),
+		disableWelcome:  c.Bool("disable-welcome"),
 	}
 
 	// Validate required flags
@@ -63,12 +66,34 @@ func writeEnvironment(path string, env *kurtosis.KurtosisEnvironment) error {
 	return nil
 }
 
-func mainAction(c *cli.Context) error {
+func displayWelcomeMessage(basePath string, disableWelcome bool) {
+	// Skip if welcome messages are disabled via flag
+	if disableWelcome {
+		return
+	}
 
+	// Try to get and display welcome message
+	msg, err := welcome.GetWelcomeMessage(basePath)
+	if err != nil {
+		// Just log the error, but don't fail the whole process
+		log.Printf("Warning: could not display welcome message: %v", err)
+		return
+	}
+
+	// If message is not empty, print it
+	if msg != "" {
+		fmt.Println(msg)
+	}
+}
+
+func mainAction(c *cli.Context) error {
 	cfg, err := newConfig(c)
 	if err != nil {
 		return fmt.Errorf("error parsing config: %w", err)
 	}
+
+	// Display welcome message
+	displayWelcomeMessage(cfg.baseDir, cfg.disableWelcome)
 
 	deployer := deploy.NewDeployer(
 		deploy.WithKurtosisPackage(cfg.kurtosisPackage),
@@ -121,6 +146,10 @@ func getFlags() []cli.Flag {
 			Name:  "kurtosis-binary",
 			Usage: "Path to kurtosis binary (optional)",
 			Value: "kurtosis",
+		},
+		&cli.BoolFlag{
+			Name:  "disable-welcome",
+			Usage: "Disable welcome message (optional)",
 		},
 	}
 }

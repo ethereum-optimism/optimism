@@ -1,0 +1,10 @@
+Welcome to Kurtosis Devnet! The easiest way to run a local Optimism development environment.
+NEW FEATURE: All chains now support separate fileserver artifact archives for improved isolation.
+TIP: You can use 'just enter-devnet DEVNET_NAME CHAIN_NAME' to get a shell inside a devnet container.
+Did you know? Kurtosis Devnet supports multiple L2 chains with different configurations in the same environment.
+NEW FEATURE: Support for Isthmus upgrade is now available - try 'just isthmus-devnet'.
+TIP: Check out 'kurtosis-devnet/pkg/kurtosis/sources/spec/spec.go' to see all available configuration options.
+TROUBLESHOOTING: If you encounter issues, try stopping the kurtosis engine with 'kurtosis engine stop' and try again.
+NEW FEATURE: The op-program service now supports multiple execution modes for testing fault proofs.
+TIP: Use 'kurtosis enclave ls' to see all running devnets on your system.
+Did you know? You can customize your devnet by creating a user yaml file and running 'just user-devnet YOUR_FILE.json'.
