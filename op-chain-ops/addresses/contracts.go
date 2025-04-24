@@ -78,7 +78,7 @@ type OpChainFaultProofsContracts struct {
 	PermissionedDisputeGameImpl        common.Address
 	DelayedWethPermissionedGameProxy   common.Address
 	DelayedWethPermissionlessGameProxy common.Address
-	EthLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
+	EthLockboxProxy                    common.Address
 }
 
 type OpChainAltDAContracts struct {
