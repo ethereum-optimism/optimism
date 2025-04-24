@@ -151,7 +151,7 @@ func singleRoundConsolidation(
 	if err != nil {
 		return fmt.Errorf("failed to get dependency set: %w", err)
 	}
-	deps, err := newConsolidateCheckDeps(depset, bootInfo, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle, consolidateState)
+	deps, err := newConsolidateCheckDeps(depset, bootInfo.Configs, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle, consolidateState)
 	if err != nil {
 		return fmt.Errorf("failed to create consolidate check deps: %w", err)
 	}
@@ -265,7 +265,7 @@ type consolidateCheckDeps struct {
 
 func newConsolidateCheckDeps(
 	depset depset.DependencySet,
-	bootInfo *boot.BootInfoInterop,
+	configSource boot.ConfigSource,
 	transitionState *types.TransitionState,
 	chains []eth.ChainIDAndOutput,
 	oracle l2.Oracle,
@@ -281,7 +281,7 @@ func newConsolidateCheckDeps(
 		blockByHash := func(hash common.Hash) *ethtypes.Block {
 			return oracle.BlockByHash(hash, chain.ChainID)
 		}
-		l2ChainConfig, err := bootInfo.Configs.ChainConfig(chain.ChainID)
+		l2ChainConfig, err := configSource.ChainConfig(chain.ChainID)
 		if err != nil {
 			return nil, fmt.Errorf("no chain config available for chain ID %v: %w", chain.ChainID, err)
 		}
