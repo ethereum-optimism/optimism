@@ -5,7 +5,7 @@ SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 COMPAT_DIR="${SCRIPTS_DIR}/../temp/compat"
 
 TESTNAME="${1?Must specify compat file to run}"
-BASEURL="${2:-https://github.com/ethereum-optimism/chain-test-data/releases/download/2024-09-01}"
+BASEURL="${2:-https://github.com/ethereum-optimism/chain-test-data/releases/download/2025-04-24}"
 
 URL="${BASEURL}/${TESTNAME}.tar.bz"
 
