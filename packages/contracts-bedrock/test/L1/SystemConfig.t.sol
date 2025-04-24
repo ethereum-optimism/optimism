@@ -532,7 +532,7 @@ contract SystemConfig_Getters_Test is SystemConfig_Init {
     }
 
     /// @dev Tests that `paused()` returns false when any other address is set.
-    function test_paused_otherAddress_false() external {
+    function test_paused_otherAddress_works() external {
         // Initially not paused
         assertFalse(systemConfig.paused());
 

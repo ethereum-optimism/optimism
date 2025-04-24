@@ -9,7 +9,6 @@ import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 // Libraries
-import { LibString } from "@solady/utils/LibString.sol";
 import { Storage } from "src/libraries/Storage.sol";
 
 /// @custom:proxied true

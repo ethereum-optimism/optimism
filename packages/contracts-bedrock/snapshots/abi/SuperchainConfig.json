@@ -228,9 +228,9 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "string",
+        "internalType": "address",
         "name": "identifier",
-        "type": "string"
+        "type": "address"
       }
     ],
     "name": "Paused",
@@ -241,9 +241,9 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "string",
+        "internalType": "address",
         "name": "identifier",
-        "type": "string"
+        "type": "address"
       }
     ],
     "name": "Unpaused",
