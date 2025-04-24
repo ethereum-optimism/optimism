@@ -12,12 +12,14 @@ type UserDepositSource struct {
 	LogIndex    uint64
 }
 
+// NOTE: Source domain `3` is deprecated and unused in the protocol. In an early version of the interop feature,
+// it was used to signify the source domain of "deposit context window" transactions. This has since been removed
+// in favor of access-list based checks in the `CrossL2Inbox` predeploy.
 const (
-	UserDepositSourceDomain       = 0
-	L1InfoDepositSourceDomain     = 1
-	UpgradeDepositSourceDomain    = 2
-	AfterForceIncludeSourceDomain = 3
-	InvalidatedBlockSourceDomain  = 4
+	UserDepositSourceDomain      = 0
+	L1InfoDepositSourceDomain    = 1
+	UpgradeDepositSourceDomain   = 2
+	InvalidatedBlockSourceDomain = 4
 )
 
 func (dep *UserDepositSource) SourceHash() common.Hash {
@@ -63,24 +65,6 @@ func (dep *UpgradeDepositSource) SourceHash() common.Hash {
 	var domainInput [32 * 2]byte
 	binary.BigEndian.PutUint64(domainInput[32-8:32], UpgradeDepositSourceDomain)
 	copy(domainInput[32:], intentHash[:])
-	return crypto.Keccak256Hash(domainInput[:])
-}
-
-// AfterForceIncludeSource identifies the DepositsComplete post-user-deposits deposit-transaction.
-type AfterForceIncludeSource struct {
-	L1BlockHash common.Hash
-	SeqNumber   uint64 // without this the Deposit tx would have the same tx hash for every time the L1 info repeats.
-}
-
-func (dep *AfterForceIncludeSource) SourceHash() common.Hash {
-	var input [32 * 2]byte
-	copy(input[:32], dep.L1BlockHash[:])
-	binary.BigEndian.PutUint64(input[32*2-8:], dep.SeqNumber)
-	depositIDHash := crypto.Keccak256Hash(input[:])
-
-	var domainInput [32 * 2]byte
-	binary.BigEndian.PutUint64(domainInput[32-8:32], AfterForceIncludeSourceDomain)
-	copy(domainInput[32:], depositIDHash[:])
 	return crypto.Keccak256Hash(domainInput[:])
 }
 
