@@ -20,8 +20,7 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 
 	lgr.Info("deploying superchain")
 
-	dso, err := opcm.DeploySuperchain(
-		env.L1ScriptHost,
+	dso, err := env.Scripts.DeploySuperchain.Run(
 		opcm.DeploySuperchainInput{
 			SuperchainProxyAdminOwner:  intent.SuperchainRoles.SuperchainProxyAdminOwner,
 			ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
