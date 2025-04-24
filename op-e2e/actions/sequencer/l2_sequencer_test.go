@@ -1,20 +1,26 @@
 package sequencer
 
 import (
+	"bytes"
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
-
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -155,4 +161,70 @@ func TestL2Sequencer_SequencerOnlyReorg(gt *testing.T) {
 	// Can build new L2 blocks with good L1 origin
 	sequencer.ActBuildToL1HeadUnsafe(t)
 	require.Equal(t, newStatus.HeadL1.Hash, sequencer.SyncStatus().UnsafeL2.L1Origin.Hash, "build L2 chain with new correct L1 origins")
+}
+
+func TestL2SequencerAPI(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
+	logger, logCapt := testlog.CaptureLogger(t, log.LevelDebug)
+
+	// Create L1 and L2 actors
+	miner, seqEng, sequencer := helpers.SetupSequencerTest(t, sd, logger)
+	sequencer.ActL2PipelineFull(t)
+
+	// Create RPC stack
+	cl := sources.NewOPStackClient(sequencer.RPCClient())
+	cfg := sequencer.RollupCfg
+	l1Cl := miner.L1Client(t, cfg)
+	l2Cl := seqEng.EngineClient(t, cfg)
+
+	// Prepare a block
+	fb := derive.NewFetchingAttributesBuilder(cfg, l1Cl, l2Cl)
+	parent, err := l2Cl.L2BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	l1Origin := parent.L1Origin // repeat the L1 origin
+	attr, err := fb.PreparePayloadAttributes(t.Ctx(), parent, l1Origin)
+	require.NoError(t, err)
+
+	// Use the API, instead of regular action-test utils, to build the block.
+	payloadInfo, err := cl.OpenBlock(t.Ctx(), parent.ID(), attr)
+	require.NoError(t, err)
+	payload, err := cl.SealBlock(t.Ctx(), payloadInfo)
+	require.NoError(t, err)
+
+	// Sign the block
+	signer := opsigner.NewLocalSigner(dp.Secrets.SequencerP2P)
+	var buf bytes.Buffer
+	_, err = payload.MarshalSSZ(&buf)
+	require.NoError(t, err)
+	payloadHash := opsigner.PayloadHash(buf.Bytes())
+	signature, err := signer.SignBlockV1(t.Ctx(), eth.ChainIDFromBig(cfg.L2ChainID), payloadHash)
+	require.NoError(t, err)
+	signed := &opsigner.SignedExecutionPayloadEnvelope{Envelope: payload, Signature: signature}
+
+	// Commit
+	require.NoError(t, cl.CommitBlock(t.Ctx(), signed))
+	// The block should be canonical after processing
+	sequencer.ActL2PipelineFull(t)
+	require.Equal(t, payload.ExecutionPayload.BlockHash, sequencer.SyncStatus().UnsafeL2.Hash)
+
+	// Publish
+	require.NoError(t, cl.PublishBlock(t.Ctx(), signed))
+	require.NotNil(t, logCapt.FindLog(testlog.NewMessageFilter("Publish block")))
+
+	// Start a second block
+	parent = sequencer.SyncStatus().UnsafeL2
+	attr2, err := fb.PreparePayloadAttributes(t.Ctx(), parent, l1Origin)
+	require.NoError(t, err)
+	payloadInfo2, err := cl.OpenBlock(t.Ctx(), parent.ID(), attr2)
+	require.NoError(t, err)
+
+	// Cancel the block
+	require.NoError(t, cl.CancelBlock(t.Ctx(), payloadInfo2))
+	// See if it was really cancelled
+	_, err = cl.SealBlock(t.Ctx(), payloadInfo)
+	var got rpc.Error
+	require.ErrorAs(t, err, &got)
+	require.Equal(t, apis.BuildErrCodeUnknownPayload, got.ErrorCode())
 }

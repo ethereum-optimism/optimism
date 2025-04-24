@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/closer"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -15,39 +16,16 @@ import (
 
 type Config struct {
 	// L1 execution-layer RPC endpoint
-	L1EL endpoint.MustRPC `yaml:"l1EL,omitempty"`
+	L1EL endpoint.MustRPC `yaml:"l1EL"`
 
 	// L2 execution-layer RPC endpoint
-	L2EL endpoint.MustRPC `yaml:"l2EL,omitempty"`
+	L2EL endpoint.MustRPC `yaml:"l2EL"`
 	// L2 consensus-layer RPC endpoint
-	L2CL endpoint.MustRPC `yaml:"l2CL,omitempty"`
-}
-
-type CloseFn func()
-
-func (fn *CloseFn) Prepend(other func()) {
-	self := *fn
-	*fn = func() {
-		other()
-		self()
-	}
-}
-
-func (fn CloseFn) Maybe() (cancel func(), close func()) {
-	do := true
-	cancel = func() {
-		do = false
-	}
-	close = func() {
-		if do {
-			fn()
-		}
-	}
-	return
+	L2CL endpoint.MustRPC `yaml:"l2CL"`
 }
 
 func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.ServiceOpts) (work.Builder, error) {
-	onClose := CloseFn(func() {
+	onClose := closer.CloseFn(func() {
 		opts.Log.Info("Closed")
 	})
 	cancelCloseEarly, closeEarly := onClose.Maybe()
@@ -57,17 +35,17 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	if err != nil {
 		return nil, err
 	}
-	onClose.Prepend(l2CLRPCClient.Close)
+	onClose.Stack(l2CLRPCClient.Close)
 	l2ELRPCClient, err := client.NewRPC(ctx, opts.Log, c.L2EL.Value.RPC(), client.WithLazyDial())
 	if err != nil {
 		return nil, err
 	}
-	onClose.Prepend(l2ELRPCClient.Close)
+	onClose.Stack(l2ELRPCClient.Close)
 	l1ELRPCClient, err := client.NewRPC(ctx, opts.Log, c.L1EL.Value.RPC(), client.WithLazyDial())
 	if err != nil {
 		return nil, err
 	}
-	onClose.Prepend(l1ELRPCClient.Close)
+	onClose.Stack(l1ELRPCClient.Close)
 
 	rolCl := sources.NewRollupClient(l2CLRPCClient)
 	cfg, err := retry.Do(ctx, 0, retry.Exponential(), func() (*rollup.Config, error) {

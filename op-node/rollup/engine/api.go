@@ -44,13 +44,25 @@ func (ec *EngineController) OpenBlock(ctx context.Context, parent eth.BlockID, a
 		switch errTyp {
 		case BlockInsertTemporaryErr:
 			// RPC errors are not persistent block processing errors
-			return eth.PayloadInfo{}, fmt.Errorf("temporarily cannot insert new safe block: %w", err)
+			return eth.PayloadInfo{}, &rpc.JsonError{
+				Code:    apis.BuildErrCodeTemporary,
+				Message: fmt.Sprintf("temporarily cannot insert new safe block: %v", err),
+			}
 		case BlockInsertPrestateErr:
-			return eth.PayloadInfo{}, fmt.Errorf("need reset to resolve pre-state problem: %w", err)
+			return eth.PayloadInfo{}, &rpc.JsonError{
+				Code:    apis.BuildErrCodePrestate,
+				Message: fmt.Sprintf("need reset to resolve pre-state problem: %v", err),
+			}
 		case BlockInsertPayloadErr:
-			return eth.PayloadInfo{}, fmt.Errorf("invalid payload attributes")
+			return eth.PayloadInfo{}, &rpc.JsonError{
+				Code:    apis.BuildErrCodePrestate,
+				Message: fmt.Sprintf("invalid payload attributes: %v", err),
+			}
 		default:
-			return eth.PayloadInfo{}, fmt.Errorf("unknown error type %d: %w", errTyp, err)
+			return eth.PayloadInfo{}, &rpc.JsonError{
+				Code:    apis.BuildErrCodeOther,
+				Message: fmt.Sprintf("unknown error type %d: %v", errTyp, err),
+			}
 		}
 	}
 	return eth.PayloadInfo{
@@ -67,11 +79,14 @@ func (ec *EngineController) CancelBlock(ctx context.Context, id eth.PayloadInfo)
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
 			return &rpc.JsonError{ // unwrap error, to serve opstack RPC
-				Code:    int(eth.UnknownPayload),
+				Code:    apis.BuildErrCodeUnknownPayload,
 				Message: "unknown payload",
 			}
 		}
-		return fmt.Errorf("failed to cancel payload: %w", err)
+		return &rpc.JsonError{
+			Code:    apis.BuildErrCodeOther,
+			Message: fmt.Sprintf("failed to cancel payload: %v", err),
+		}
 	}
 	return nil
 }
@@ -84,11 +99,14 @@ func (ec *EngineController) SealBlock(ctx context.Context, id eth.PayloadInfo) (
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
 			return nil, &rpc.JsonError{ // unwrap error, to serve opstack RPC
-				Code:    int(eth.UnknownPayload),
+				Code:    apis.BuildErrCodeUnknownPayload,
 				Message: "unknown payload",
 			}
 		}
-		return nil, fmt.Errorf("failed to cancel payload: %w", err)
+		return nil, &rpc.JsonError{
+			Code:    apis.BuildErrCodeOther,
+			Message: fmt.Sprintf("failed to seal payload: %v", err),
+		}
 	}
 	return envelope, nil
 }
@@ -110,7 +128,10 @@ func (ec *EngineController) CommitBlock(ctx context.Context, signed *opsigner.Si
 
 	switch status.Status {
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
-		return fmt.Errorf("execution invalid: %w", err)
+		return &rpc.JsonError{
+			Code:    apis.BuildErrCodeInvalidInput,
+			Message: fmt.Sprintf("execution invalid: %v", err),
+		}
 	case eth.ExecutionValid:
 		break
 	}

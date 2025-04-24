@@ -51,7 +51,6 @@ func (s *Signer) Sign(ctx context.Context, v work.Block) (work.SignedBlock, erro
 	if _, err := envelope.MarshalSSZ(&buf); err != nil {
 		return nil, fmt.Errorf("failed to encode execution payload: %w", err)
 	}
-
 	payloadHash := opsigner.PayloadHash(buf.Bytes())
 	sig, err := s.signer.SignBlockV1(ctx, s.chainID, payloadHash)
 	if err != nil {

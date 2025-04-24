@@ -32,12 +32,35 @@ type Builder struct {
 	l2       L2BlockRefByHash
 	attrPrep derive.AttributesBuilder
 	cl       apis.BuildAPI
-	onClose  func()
+
+	onClose func() // always non-nil
 
 	registry work.Jobs
 }
 
 var _ work.Builder = (*Builder)(nil)
+
+func NewBuilder(id seqtypes.BuilderID,
+	log log.Logger,
+	m metrics.Metricer,
+	l1 L1BlockRefByHash,
+	l2 L2BlockRefByHash,
+	attrPrep derive.AttributesBuilder,
+	cl apis.BuildAPI,
+	registry work.Jobs) *Builder {
+
+	return &Builder{
+		id:       id,
+		log:      log,
+		m:        m,
+		l1:       l1,
+		l2:       l2,
+		attrPrep: attrPrep,
+		cl:       cl,
+		onClose:  func() {},
+		registry: registry,
+	}
+}
 
 func (b *Builder) NewJob(ctx context.Context, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
 	parentRef, err := b.l2.L2BlockRefByHash(ctx, opts.Parent)
@@ -68,7 +91,7 @@ func (b *Builder) NewJob(ctx context.Context, opts *seqtypes.BuildOpts) (work.Bu
 	if err := b.registry.RegisterJob(job); err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return job, nil
 }
 
 func (b *Builder) Close() error {

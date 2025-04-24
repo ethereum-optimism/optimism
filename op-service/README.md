@@ -12,6 +12,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── cliapp          - Flag and lifecycle handling for a Urfave v2 CLI app.
 ├── client          - RPC and HTTP client utils
 ├── clock           - Clock interface, system clock, tickers, mock/test time utils
+├── closer          - Convenience methods / patterns for closing resources
 ├── crypto          - Cryptography utils, complements geth crypto package
 ├── ctxinterrupt    - Blocking/Interrupt handling
 ├── dial            - Dialing util functions for RPC clients

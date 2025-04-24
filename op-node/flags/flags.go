@@ -445,10 +445,10 @@ var (
 	}
 
 	ExperimentalOPStackAPI = &cli.BoolFlag{
-		Name:     "experimental.opstack-api",
-		Usage:    "Enables experimental opstack RPC namespace",
+		Name:     "experimental.sequencer-api",
+		Usage:    "Enables experimental test sequencer RPC functionality",
 		Required: false,
-		EnvVars:  prefixEnvVars("EXPERIMENTAL_OPSTACK_API"),
+		EnvVars:  prefixEnvVars("EXPERIMENTAL_SEQUENCER_API"),
 		Category: MiscCategory,
 	}
 )
