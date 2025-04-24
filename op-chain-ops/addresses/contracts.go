@@ -2,12 +2,19 @@ package addresses
 
 import "github.com/ethereum/go-ethereum/common"
 
+// This file contains the standard structs and contract names for all L1 contracts involved in an OpChain
+//   - structs are namespaced by deployment contract bundle (Superchain, Implementations and OpChain), then
+//     by feature set (e.g. FaultProofs has its own set of contracts nested within the OpChainContracts struct)
+//   - all contract field names are suffixed with "Impl" or "Proxy" to indicate the type of contract
+
 type L1Contracts struct {
 	Superchain      *SuperchainContracts
 	Implementations *ImplementationsContracts
 	OpChain         *OpChainContracts
 }
 
+// SuperchainContracts struct contains all the superchain-level contracts
+//   - these contracts are shared by all OpChains that are members of the same superchain
 type SuperchainContracts struct {
 	SuperchainProxyAdminImpl common.Address
 	SuperchainConfigProxy    common.Address
@@ -16,6 +23,9 @@ type SuperchainContracts struct {
 	ProtocolVersionsImpl     common.Address
 }
 
+// ImplementationsContracts struct contains all the implementation contracts for a superchain
+//   - these contracts are shared by all OpChains that are members of the same superchain
+//   - these contracts are not upgradable, but can be replaced by new contract releases/deployments
 type ImplementationsContracts struct {
 	OpcmImpl                         common.Address
 	OpcmContractsContainerImpl       common.Address
@@ -37,6 +47,11 @@ type ImplementationsContracts struct {
 	AnchorStateRegistryImpl          common.Address
 }
 
+// OpChainContracts struct contains all the contracts for a specific L2 OpChain
+//   - these contracts are not shared by any other OpChains
+//   - these contracts are mostly proxies, which point to ImplementationContracts
+//   - feature sets are represented by nested structs, which are inlined so that individual contracts
+//     can be accessed directly on the OpChainContracts struct (i.e. no leaky abstraction)
 type OpChainContracts struct {
 	OpChainCoreContracts
 	OpChainFaultProofsContracts
@@ -44,6 +59,7 @@ type OpChainContracts struct {
 	OpChainLegacyContracts
 }
 
+// OpChainCoreContracts struct contains contracts that all L2s need, regardless of feature set
 type OpChainCoreContracts struct {
 	OpChainProxyAdminImpl             common.Address
 	OptimismPortalProxy               common.Address
