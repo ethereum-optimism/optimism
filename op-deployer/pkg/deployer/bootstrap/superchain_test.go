@@ -24,6 +24,8 @@ var networks = []string{"mainnet", "sepolia"}
 var versions = []string{"v1.6.0", "v1.8.0-rc.4"}
 
 func TestSuperchain(t *testing.T) {
+	t.Skipf("The regression tests for the legacy artifacts have been disabled until new artifacts are released")
+
 	for _, network := range networks {
 		for _, version := range versions {
 			t.Run(network+"-"+version, func(t *testing.T) {
