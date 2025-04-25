@@ -6,7 +6,8 @@ use alloy_primitives::{hex, B256};
 use alloy_rpc_client::{BuiltInConnectionString, ClientBuilder, RpcClient as Client};
 use alloy_rpc_types_eth::erc4337::TransactionConditional;
 use alloy_transport_http::Http;
-use std::{str::FromStr, sync::Arc};
+use reth_optimism_txpool::supervisor::metrics::SequencerMetrics;
+use std::{str::FromStr, sync::Arc, time::Instant};
 use thiserror::Error;
 use tracing::warn;
 
@@ -41,6 +42,14 @@ pub struct SequencerClient {
     inner: Arc<SequencerClientInner>,
 }
 
+impl SequencerClientInner {
+    /// Creates a new instance with the given endpoint and client.
+    pub(crate) fn new(sequencer_endpoint: String, client: Client) -> Self {
+        let metrics = SequencerMetrics::default();
+        Self { sequencer_endpoint, client, metrics }
+    }
+}
+
 impl SequencerClient {
     /// Creates a new [`SequencerClient`] for the given URL.
     ///
@@ -56,7 +65,7 @@ impl SequencerClient {
             Self::with_http_client(url, client)
         } else {
             let client = ClientBuilder::default().connect_with(endpoint).await?;
-            let inner = SequencerClientInner { sequencer_endpoint, client };
+            let inner = SequencerClientInner::new(sequencer_endpoint, client);
             Ok(Self { inner: Arc::new(inner) })
         }
     }
@@ -75,7 +84,7 @@ impl SequencerClient {
         let is_local = http_client.guess_local();
         let client = ClientBuilder::default().transport(http_client, is_local);
 
-        let inner = SequencerClientInner { sequencer_endpoint, client };
+        let inner = SequencerClientInner::new(sequencer_endpoint, client);
         Ok(Self { inner: Arc::new(inner) })
     }
 
@@ -87,6 +96,11 @@ impl SequencerClient {
     /// Returns the client
     pub fn client(&self) -> &Client {
         &self.inner.client
+    }
+
+    /// Returns a reference to the [`SequencerMetrics`] for tracking client metrics.
+    fn metrics(&self) -> &SequencerMetrics {
+        &self.inner.metrics
     }
 
     /// Sends a [`alloy_rpc_client::RpcCall`] request to the sequencer endpoint.
@@ -110,6 +124,7 @@ impl SequencerClient {
 
     /// Forwards a transaction to the sequencer endpoint.
     pub async fn forward_raw_transaction(&self, tx: &[u8]) -> Result<B256, SequencerClientError> {
+        let start = Instant::now();
         let rlp_hex = hex::encode_prefixed(tx);
         let tx_hash =
             self.request("eth_sendRawTransaction", (rlp_hex,)).await.inspect_err(|err| {
@@ -119,7 +134,7 @@ impl SequencerClient {
                     "Failed to forward transaction to sequencer",
                 );
             })?;
-
+        self.metrics().record_forward_latency(start.elapsed());
         Ok(tx_hash)
     }
 
@@ -129,6 +144,7 @@ impl SequencerClient {
         tx: &[u8],
         condition: TransactionConditional,
     ) -> Result<B256, SequencerClientError> {
+        let start = Instant::now();
         let rlp_hex = hex::encode_prefixed(tx);
         let tx_hash = self
             .request("eth_sendRawTransactionConditional", (rlp_hex, condition))
@@ -140,6 +156,7 @@ impl SequencerClient {
                     "Failed to forward transaction conditional for sequencer",
                 );
             })?;
+        self.metrics().record_forward_latency(start.elapsed());
         Ok(tx_hash)
     }
 }
@@ -150,6 +167,8 @@ struct SequencerClientInner {
     sequencer_endpoint: String,
     /// The client
     client: Client,
+    // Metrics for tracking sequencer forwarding
+    metrics: SequencerMetrics,
 }
 
 #[cfg(test)]
