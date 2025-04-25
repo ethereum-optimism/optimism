@@ -126,6 +126,16 @@ func (b *Handler) AddHandler(path string, handler http.Handler) {
 // Once the route is added, RPC namespaces can be registered with AddAPIToRPC.
 // The route must not have a "/" suffix, since the trailing "/" is ambiguous.
 func (b *Handler) AddRPC(route string) error {
+	return b.AddRPCWithAuthentication(route, nil)
+}
+
+// AddRPCWithAuthentication creates a default RPC handler at the given route,
+// with explicit authentication settings:
+// 1. If isAuthenticated is nil, the global presence of a JWT secret will be used to determine
+// if the RPC is authenticated.
+// 2. If isAuthenticated is false, no authentication will be used.
+// 3. If isAuthenticated is true, the RPC will be authenticated, provided a global JWT secret has been set.
+func (b *Handler) AddRPCWithAuthentication(route string, isAuthenticated *bool) error {
 	b.rpcRoutesLock.Lock()
 	defer b.rpcRoutesLock.Unlock()
 	if strings.HasSuffix(route, "/") {
@@ -153,12 +163,23 @@ func (b *Handler) AddRPC(route string) error {
 		http.NotFound(writer, request)
 	})
 
+	// conditionaly set the jwt secret from global jwt secret, based on the authentication setting
+	var jwtSecret []byte
+	if isAuthenticated == nil {
+		jwtSecret = b.jwtSecret
+	} else if *isAuthenticated {
+		if len(b.jwtSecret) == 0 {
+			b.log.Warn("JWT secret is not set, but authentication is explicitly required for this RPC")
+		}
+		jwtSecret = b.jwtSecret
+	}
+
 	// serve RPC on configured RPC path (but not on arbitrary paths)
-	handler = b.newHttpRPCMiddleware(srv, handler)
+	handler = b.newHttpRPCMiddleware(srv, handler, jwtSecret)
 
 	// Conditionally enable Websocket support.
 	if b.wsEnabled { // prioritize WS RPC, if it's an upgrade request
-		handler = b.newWsMiddleWare(srv, handler)
+		handler = b.newWsMiddleWare(srv, handler, jwtSecret)
 	}
 
 	// Apply user middlewares
@@ -189,10 +210,10 @@ func (b *Handler) newHealthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (b *Handler) newHttpRPCMiddleware(server *rpc.Server, next http.Handler) http.Handler {
-	// Only allow RPC handlers behind the appropriate CORS / vhost / JWT (optional) setup.
+func (b *Handler) newHttpRPCMiddleware(server *rpc.Server, next http.Handler, jwtSecret []byte) http.Handler {
+	// Only allow RPC handlers behind the appropriate CORS / vhost / JWT setup.
 	// Note that websockets have their own handler-stack, also configured with CORS and JWT, separately.
-	httpHandler := node.NewHTTPHandlerStack(server, b.corsHosts, b.vHosts, b.jwtSecret)
+	httpHandler := node.NewHTTPHandlerStack(server, b.corsHosts, b.vHosts, jwtSecret)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// URL is already stripped with http.StripPrefix
 		if r.URL.Path == "" {
@@ -203,8 +224,8 @@ func (b *Handler) newHttpRPCMiddleware(server *rpc.Server, next http.Handler) ht
 	})
 }
 
-func (b *Handler) newWsMiddleWare(server *rpc.Server, next http.Handler) http.Handler {
-	wsHandler := node.NewWSHandlerStack(server.WebsocketHandler(b.corsHosts), b.jwtSecret)
+func (b *Handler) newWsMiddleWare(server *rpc.Server, next http.Handler, jwtSecret []byte) http.Handler {
+	wsHandler := node.NewWSHandlerStack(server.WebsocketHandler(b.corsHosts), jwtSecret)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// URL is already stripped with http.StripPrefix
 		if isWebsocket(r) && (r.URL.Path == "" || r.URL.Path == "ws" || r.URL.Path == "ws/") {
