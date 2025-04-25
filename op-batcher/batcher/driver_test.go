@@ -166,60 +166,48 @@ func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
 	require.GreaterOrEqual(t, candidateOut.GasLimit, expectedFloorDataGas)
 }
 
+// createHTTPHandler creates a mock HTTP handler for testing, it accepts a callback which
+// is invoked when the expected request is received.
+func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			var req struct {
+				JSONRPC string        `json:"jsonrpc"`
+				Method  string        `json:"method"`
+				Params  []interface{} `json:"params"`
+				ID      interface{}   `json:"id"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+
+				if alwaysFails {
+					http.Error(w, "Simulated failure", http.StatusInternalServerError)
+					cb()
+					return
+				}
+				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
+					cb()
+					w.Header().Set("Content-Type", "application/json")
+					_, err := w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":true}`))
+					if err != nil {
+						t.Logf("Error writing response: %v", err)
+					}
+					return
+				}
+			}
+		}
+		http.Error(w, "Unexpected request", http.StatusBadRequest)
+	}
+}
+
 func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 	// Track request counts for verification
 	var server1Calls, server2Calls int64
 
 	// Create mock HTTP servers
-	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify this is a JSON-RPC call to miner_setMaxDASize with expected params
-		if r.Method == "POST" {
-			var req struct {
-				JSONRPC string        `json:"jsonrpc"`
-				Method  string        `json:"method"`
-				Params  []interface{} `json:"params"`
-				ID      interface{}   `json:"id"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
-					// Successfully handled the expected RPC call
-					server1Calls++
-					w.Header().Set("Content-Type", "application/json")
-					_, err := w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":true}`))
-					if err != nil {
-						t.Logf("Error writing response: %v", err)
-					}
-					return
-				}
-			}
-		}
-		http.Error(w, "Unexpected request", http.StatusBadRequest)
-	}))
+	server1 := httptest.NewServer(createHTTPHandler(t, func() { server1Calls++ }, false))
 	defer server1.Close()
 
-	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Same handler as server1
-		if r.Method == "POST" {
-			var req struct {
-				JSONRPC string        `json:"jsonrpc"`
-				Method  string        `json:"method"`
-				Params  []interface{} `json:"params"`
-				ID      interface{}   `json:"id"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
-					server2Calls++
-					w.Header().Set("Content-Type", "application/json")
-					_, err := w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":true}`))
-					if err != nil {
-						t.Logf("Error writing response: %v", err)
-					}
-					return
-				}
-			}
-		}
-		http.Error(w, "Unexpected request", http.StatusBadRequest)
-	}))
+	server2 := httptest.NewServer(createHTTPHandler(t, func() { server2Calls++ }, false))
 	defer server2.Close()
 
 	// Setup test context
@@ -264,28 +252,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 	var defaultCalls int64
 
 	// Create a mock server for the default endpoint
-	defaultServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			var req struct {
-				JSONRPC string        `json:"jsonrpc"`
-				Method  string        `json:"method"`
-				Params  []interface{} `json:"params"`
-				ID      interface{}   `json:"id"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
-					defaultCalls++
-					w.Header().Set("Content-Type", "application/json")
-					_, err := w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":true}`))
-					if err != nil {
-						t.Logf("Error writing response: %v", err)
-					}
-					return
-				}
-			}
-		}
-		http.Error(w, "Unexpected request", http.StatusBadRequest)
-	}))
+	defaultServer := httptest.NewServer(createHTTPHandler(t, func() { defaultCalls++ }, false))
 	defer defaultServer.Close()
 
 	// Create new context for the second test
@@ -342,49 +309,11 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 	)
 
 	// Server that always fails
-	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			var req struct {
-				JSONRPC string        `json:"jsonrpc"`
-				Method  string        `json:"method"`
-				Params  []interface{} `json:"params"`
-				ID      interface{}   `json:"id"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
-					failureCalls++
-					http.Error(w, "Simulated failure", http.StatusInternalServerError)
-					return
-				}
-			}
-		}
-		http.Error(w, "Unexpected request", http.StatusBadRequest)
-	}))
+	failingServer := httptest.NewServer(createHTTPHandler(t, func() { failureCalls++ }, true))
 	defer failingServer.Close()
 
 	// Server that always succeeds
-	successServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			var req struct {
-				JSONRPC string        `json:"jsonrpc"`
-				Method  string        `json:"method"`
-				Params  []interface{} `json:"params"`
-				ID      interface{}   `json:"id"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
-				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
-					successCalls++
-					w.Header().Set("Content-Type", "application/json")
-					_, err := w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":true}`))
-					if err != nil {
-						t.Logf("Error writing response: %v", err)
-					}
-					return
-				}
-			}
-		}
-		http.Error(w, "Unexpected request", http.StatusBadRequest)
-	}))
+	successServer := httptest.NewServer(createHTTPHandler(t, func() { successCalls++ }, false))
 	defer successServer.Close()
 
 	// Create new context for the third test
