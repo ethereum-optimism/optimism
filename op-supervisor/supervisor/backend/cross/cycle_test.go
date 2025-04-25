@@ -353,45 +353,6 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			},
 			msg: "expected no cycle found first log is exec",
 		},
-		{
-			name: "cycle through older timestamp",
-			chainBlocks: map[string]chainBlockDef{
-				"1": {
-					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
-						0: execMsg("2", 0),
-						1: execMsgWithTimestamp("2", 1, 101),
-					},
-				},
-				"2": {
-					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
-						0: execMsg("1", 1),
-					},
-				},
-			},
-			msg: "expected no cycle detection error for cycle through messages with different timestamps",
-		},
-		// This should be caught by earlier validations, but included for completeness.
-		{
-			name: "cycle through younger timestamp",
-			chainBlocks: map[string]chainBlockDef{
-				"1": {
-					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
-						0: execMsg("2", 0),
-						1: execMsgWithTimestamp("2", 1, 99),
-					},
-				},
-				"2": {
-					logCount: 2,
-					messages: map[uint32]*types.ExecutingMessage{
-						0: execMsg("1", 1),
-					},
-				},
-			},
-			msg: "expected no cycle detection error for cycle through messages with different timestamps",
-		},
 	}
 	runHazardCycleChecksTestCaseGroup(t, "NoCycle", tests)
 }
@@ -527,6 +488,51 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			},
 			msg: "expected cycle detection error for cycle through executing messages",
 		},
+		{
+			name: "cycle through single chain, exec message prior to init and adjacent",
+			chainBlocks: map[string]chainBlockDef{
+				"1": {
+					logCount: 2,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsg("1", 1),
+					},
+				},
+			},
+			expectErr: ErrCycle,
+			msg:       "expected cycle detection error",
+		},
+		{
+			name: "cycle through single chain, exec message prior to init and not adjacent",
+			chainBlocks: map[string]chainBlockDef{
+				"1": {
+					logCount: 3,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsg("1", 2),
+					},
+				},
+			},
+			expectErr: ErrCycle,
+			msg:       "expected cycle detection error",
+		},
+		{
+			name: "3-cycle across chains",
+			chainBlocks: map[string]chainBlockDef{
+				"1": {
+					logCount: 2,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsg("2", 0),
+					},
+				},
+				"2": {
+					logCount: 2,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsg("1", 1),
+					},
+				},
+			},
+			expectErr: ErrCycle,
+			msg:       "expected cycle detection error",
+		},
 	}
 	runHazardCycleChecksTestCaseGroup(t, "Cycle", tests)
 }
@@ -571,7 +577,6 @@ func TestHazardCycleChecksLargeGraphCycle(t *testing.T) {
 	chainBlocks := make(map[string]chainBlockDef)
 	for i := 1; i <= largeGraphChains; i++ {
 		msgs := make(map[uint32]*types.ExecutingMessage)
-
 		// Create a chain of dependencies across chains
 		if i > 1 {
 			for j := uint32(0); j < largeGraphLogsPerChain; j++ {

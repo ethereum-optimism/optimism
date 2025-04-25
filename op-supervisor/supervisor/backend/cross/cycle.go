@@ -173,15 +173,6 @@ func buildGraph(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 				return nil, ErrExecMsgUnknownChain
 			}
 
-			// Check if we care about the init message
-			initChainMsgs, ok := execMsgs[m.Chain]
-			if !ok {
-				continue
-			}
-			if _, ok := initChainMsgs[m.LogIdx]; !ok {
-				continue
-			}
-
 			// Check if the init message exists
 			if logCount, ok := logCounts[m.Chain]; !ok || m.LogIdx >= logCount {
 				return nil, fmt.Errorf("%w: initiating message log index out of bounds", types.ErrConflict)
