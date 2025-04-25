@@ -110,6 +110,9 @@ func RandomTopicAndData(rng *rand.Rand, cnt, len int) ([][32]byte, []byte) {
 }
 
 func RandomInitTrigger(rng *rand.Rand, eventLoggerAddress common.Address, cnt, len int) *txintent.InitTrigger {
+	if cnt >= 5 {
+		panic(fmt.Sprintf("log holds at most 4 topics, got %d", cnt))
+	}
 	topics, data := RandomTopicAndData(rng, cnt, len)
 	return &txintent.InitTrigger{
 		Emitter:    eventLoggerAddress,
