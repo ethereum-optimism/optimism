@@ -1054,7 +1054,7 @@ func TestCycleInBlock(gt *testing.T) {
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
 
 	nonce := uint64(0)
-	txCount := 2 + rng.Intn(20)
+	txCount := uint64(2 + rng.Intn(20))
 
 	// speculatively build exec message by knowing necessary info to build Message
 	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
