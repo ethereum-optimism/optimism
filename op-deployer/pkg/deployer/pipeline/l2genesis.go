@@ -2,8 +2,9 @@ package pipeline
 
 import (
 	"fmt"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"math/big"
+
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 

@@ -25,7 +25,7 @@ var (
 	l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
 
 	VaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
-	
+
 	GovernanceTokenOwner = common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad")
 )
 
