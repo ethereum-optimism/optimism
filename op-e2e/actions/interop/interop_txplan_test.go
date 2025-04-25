@@ -361,12 +361,20 @@ func reorgOutUnsafeAndConsolidateToSafeBothChain(t helpers.Testing, actors *dsl.
 	t.Log("supervisor promotes cross-unsafe and safe")
 	actors.Supervisor.ProcessFull(t)
 
-	// check supervisor head, expect it to be rewound
-	for _, chain := range l2chains {
-		localUnsafe, err := actors.Supervisor.LocalUnsafe(t.Ctx(), chain.ChainID)
-		require.NoError(t, err)
-		require.Equal(t, unsafeHeadNumAfterReorg, localUnsafe.Number, "unsafe chain needs to be rewound")
-	}
+	t.Log("awaiting nodes to sync: local-safe to safe")
+	chainX.Sequencer.ActL2PipelineFull(t)
+	chainY.Sequencer.ActL2PipelineFull(t)
+	assertHeads(t, chainX, endX, endX, endX, endX)
+	assertHeads(t, chainY, endY, endY, unsafeHeadNumAfterReorg, unsafeHeadNumAfterReorg)
+
+	t.Log("expecting supervisor to sync")
+	chainX.Sequencer.SyncSupervisor(t)
+	chainY.Sequencer.SyncSupervisor(t)
+	assertHeads(t, chainX, endX, endX, endX, endX)
+	assertHeads(t, chainY, endY, endY, unsafeHeadNumAfterReorg, unsafeHeadNumAfterReorg)
+
+	t.Log("supervisor promotes cross-unsafe and safe")
+	actors.Supervisor.ProcessFull(t)
 
 	t.Log("awaiting nodes to sync: local-safe to safe")
 	chainX.Sequencer.ActL2PipelineFull(t)
@@ -1109,8 +1117,11 @@ func TestCycleInBlock(gt *testing.T) {
 // tx1: chainB: bob executes message Y
 // tx2: chainB: bob initiates message X
 // tx3: chainA: alice initiates message Y
-// cycle: tx0 depends on tx3 (init exec relation) && tx3 depends on tx0 (tx order)
-// cycle: tx1 depends on tx2 (init exec relation) && tx2 depends on tx1 (tx order)
+// tx0 depends on tx2 (init exec relation)
+// tx3 depends on tx0 (tx order)
+// tx1 depends on tx3 (init exec relation)
+// tx2 depends on tx1 (tx order)
+// cycle: tx0 -> tx3 -> tx1 -> tx2 -> tx0
 func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	rng := rand.New(rand.NewSource(1234))
@@ -1138,12 +1149,13 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	actors.ChainB.Sequencer.ActL2StartBlock(t)
 
 	// speculatively build exec message by knowing necessary info to build Message
-	logIndexX, logIndexY := uint(0), uint(0)
-	initX := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
-	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	// log index of init messages are 1, not 0 because exec message will firstly executed, emitting a single log
+	logIndexX, logIndexY := uint(1), uint(1)
+	initX := interop.RandomInitTrigger(rng, eventLoggerAddressB, 3, 10)
+	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainB.ChainID)
 	require.NoError(t, err)
-	initY := interop.RandomInitTrigger(rng, eventLoggerAddressB, 7, 15)
-	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainB.ChainID)
+	initY := interop.RandomInitTrigger(rng, eventLoggerAddressA, 2, 15)
+	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainA.ChainID)
 	require.NoError(t, err)
 
 	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
@@ -1176,6 +1188,22 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	require.Equal(t, includedBlocks[0], includedBlocks[3])
 	// tx1 and tx2 land in same block at chain B
 	require.Equal(t, includedBlocks[1], includedBlocks[2])
+
+	// confirm speculatively built exec message by rebuilding after tx inclusion
+	tx2 := intents[2]
+	_, err = tx2.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	// log index is 0 because tx emitted a single log
+	execX2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx2.Result, 0)(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, execX2, execX)
+	tx3 := intents[3]
+	_, err = tx3.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	// log index is 0 because tx emitted a single log
+	execY2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx3.Result, 0)(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, execY2, execY)
 
 	unsafeHeadNumAfterReorg := targetNum - 1
 	reorgOutUnsafeAndConsolidateToSafeBothChain(t, actors, actors.ChainA, actors.ChainB, 0, 0, targetNum, targetNum, unsafeHeadNumAfterReorg)
