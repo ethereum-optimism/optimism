@@ -126,7 +126,12 @@ func ExecTriggerFromInitTrigger(init *txintent.InitTrigger, logIndex uint, targe
 	}
 	log := &types.Log{Address: init.Emitter, Topics: topics,
 		Data: init.OpaqueData, BlockNumber: targetNum, Index: logIndex}
-	logs := []*types.Log{log}
+	logs := make([]*types.Log, logIndex+1)
+	for i := range logs {
+		// dummy logs to fit in log index
+		logs[i] = &types.Log{}
+	}
+	logs[logIndex] = log
 	rec := &types.Receipt{Logs: logs}
 	includedIn := eth.BlockRef{Time: targetTime}
 	output := &txintent.InteropOutput{}
