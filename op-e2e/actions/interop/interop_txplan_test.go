@@ -878,8 +878,10 @@ func TestCycleInTx(gt *testing.T) {
 
 	// speculatively build exec message by knowing necessary info to build Message
 	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
-	logIndexX := uint(0)
+	// log index of init message is 1, not 0 because exec message will firstly executed, emiting a single log
+	logIndexX := uint(1)
 	exec, err := interop.ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+
 	require.NoError(t, err)
 
 	// tx includes cycle with self
@@ -895,6 +897,13 @@ func TestCycleInTx(gt *testing.T) {
 	// Make sure tx in block sealed at expected time
 	require.Equal(t, included.Time, targetTime)
 	require.Equal(t, included.Number, targetNum)
+
+	// confirm speculatively built exec message by rebuilding after tx inclusion
+	_, err = tx.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	exec2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx.Result, int(logIndexX))(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, exec2, exec)
 
 	// Make batcher happy by advancing at least a single block
 	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
@@ -930,10 +939,12 @@ func TestCycleInBlock(gt *testing.T) {
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
 
 	nonce := uint64(0)
+	txCount := 2 + rng.Intn(20)
 
 	// speculatively build exec message by knowing necessary info to build Message
 	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
-	logIndexX := uint(0)
+	// log index of init message is txCount - 1, not 0 because each tx before init message X emits a single log
+	logIndexX := uint(txCount - 1)
 	exec, err := interop.ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
 	require.NoError(t, err)
 
@@ -946,7 +957,6 @@ func TestCycleInBlock(gt *testing.T) {
 		require.NoError(t, err)
 		intents = append(intents, intent)
 	}
-	txCount := 2 + rng.Intn(15)
 	// include exec message X tx first in block
 	{
 		submitIntent(exec, nonce)
@@ -972,6 +982,15 @@ func TestCycleInBlock(gt *testing.T) {
 		require.Equal(t, included.Time, targetTime)
 		require.Equal(t, included.Number, targetNum)
 	}
+
+	// confirm speculatively built exec message by rebuilding after tx inclusion
+	tx := intents[txCount-1]
+	_, err = tx.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	// log index is 0 because tx emitted a single log
+	exec2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx.Result, 0)(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, exec2, exec)
 
 	// Make batcher happy by advancing at least a single block
 	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
