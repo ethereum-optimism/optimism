@@ -300,7 +300,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 		ThrottleThreshold:   10000,
 		ThrottleTxSize:      5000,
 		ThrottleBlockSize:   20000,
-		ThrottlingEndpoints: []string{}, // Empty - should use default endpoint
+		ThrottlingEndpoints: []string{defaultServer.URL}, // this is populated during init if no throttling endpoints are provided
 	}
 
 	// Create RPC client for our test server
@@ -446,13 +446,6 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			ThrottleBlockSize: 20000,
 		}
 
-		// Create clients for the servers
-		successClient, err := rpc.Dial(successServer.URL)
-		require.NoError(t, err)
-
-		failClient, err := rpc.Dial(failingServer.URL)
-		require.NoError(t, err)
-
 		// Create channels for endpoint updates
 		successUpdates := make(chan int64, 1)
 		failureUpdates := make(chan int64, 1)
@@ -461,8 +454,8 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 
 		// Start the throttlers
 		wg.Add(2)
-		go testBS.singleEndpointThrottler(&wg, successUpdates, successServer.URL, successClient)
-		go testBS.singleEndpointThrottler(&wg, failureUpdates, failingServer.URL, failClient)
+		go testBS.singleEndpointThrottler(&wg, successUpdates, successServer.URL)
+		go testBS.singleEndpointThrottler(&wg, failureUpdates, failingServer.URL)
 
 		// Send updates to trigger throttling
 		successUpdates <- 20000 // Over threshold
