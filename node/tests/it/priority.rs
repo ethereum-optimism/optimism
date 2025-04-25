@@ -111,12 +111,12 @@ where
     ComponentsBuilder::default()
         .node_types::<Node>()
         .pool(OpPoolBuilder::default())
+        .executor(OpExecutorBuilder::default())
         .payload(BasicPayloadServiceBuilder::new(
             OpPayloadBuilder::new(compute_pending_block)
                 .with_transactions(CustomTxPriority { chain_id }),
         ))
         .network(OpNetworkBuilder { disable_txpool_gossip, disable_discovery_v4: !discovery_v4 })
-        .executor(OpExecutorBuilder::default())
         .consensus(OpConsensusBuilder::default())
 }
 
