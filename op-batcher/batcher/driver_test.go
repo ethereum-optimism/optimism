@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -200,206 +199,73 @@ func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFu
 }
 
 func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
-	// Track request counts for verification
-	var server1Calls, server2Calls int64
 
-	// Create mock HTTP servers
-	server1 := httptest.NewServer(createHTTPHandler(t, func() { server1Calls++ }, false))
-	defer server1.Close()
+	testThrottlingEndpoints := func(numHealthyServers, numUnhealthyServers int) func(t *testing.T) {
 
-	server2 := httptest.NewServer(createHTTPHandler(t, func() { server2Calls++ }, false))
-	defer server2.Close()
+		return func(t *testing.T) {
+			healthyCalls := make([]int, numHealthyServers)
+			unHealthyCalls := make([]int, numUnhealthyServers)
 
-	// Setup test context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+			healthyServers := make([]*httptest.Server, numHealthyServers)
+			unhealthyServers := make([]*httptest.Server, numUnhealthyServers)
 
-	// Create test BatchSubmitter using the setup function
-	bs, _ := setup(t)
-	bs.shutdownCtx = ctx
-	bs.Config = BatcherConfig{
-		NetworkTimeout:      time.Second,
-		ThrottleThreshold:   10000,
-		ThrottleTxSize:      5000,
-		ThrottleBlockSize:   20000,
-		ThrottlingEndpoints: []string{server1.URL, server2.URL},
-	}
+			urls := make([]string, 0, numHealthyServers+numUnhealthyServers)
 
-	// Test the throttling loop
-	pendingBytesUpdated := make(chan int64, 1)
-	var wg sync.WaitGroup
-	wg.Add(1)
+			for i := range healthyCalls {
+				healthyServers[i] = httptest.NewServer(createHTTPHandler(t, func() { healthyCalls[i]++ }, false))
+				urls = append(urls, healthyServers[i].URL)
+				defer healthyServers[i].Close()
+			}
+			for i := range unHealthyCalls {
+				unhealthyServers[i] = httptest.NewServer(createHTTPHandler(t, func() { unHealthyCalls[i]++ }, true))
+				urls = append(urls, unhealthyServers[i].URL)
+				defer unhealthyServers[i].Close()
+			}
 
-	// Start throttling loop in a goroutine
-	go bs.throttlingLoop(&wg, pendingBytesUpdated)
+			// Setup test context
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	// Send test data to trigger throttling
-	pendingBytesUpdated <- 20000 // Over threshold, should trigger throttling
+			// Create test BatchSubmitter using the setup function
+			bs, _ := setup(t)
+			bs.shutdownCtx = ctx
+			bs.Config = BatcherConfig{
+				NetworkTimeout:      time.Second,
+				ThrottleThreshold:   10000,
+				ThrottleTxSize:      5000,
+				ThrottleBlockSize:   20000,
+				ThrottlingEndpoints: urls,
+			}
 
-	// Allow time for processing
-	time.Sleep(time.Millisecond * 200)
+			// Test the throttling loop
+			pendingBytesUpdated := make(chan int64, 1)
+			var wg sync.WaitGroup
+			wg.Add(1)
 
-	// Check that both endpoints were called
-	require.Greater(t, server1Calls, int64(0), "Server 1 should have been called")
-	require.Greater(t, server2Calls, int64(0), "Server 2 should have been called")
+			// Start throttling loop in a goroutine
+			go bs.throttlingLoop(&wg, pendingBytesUpdated)
 
-	// Clean up previous test
-	close(pendingBytesUpdated)
-	cancel()
-	wg.Wait()
+			// Send test data to trigger throttling
+			pendingBytesUpdated <- 20000 // Over threshold, should trigger throttling
 
-	// Test fallback to L2 client when no throttling endpoints provided
-	var defaultCalls int64
+			// Allow time for processing
+			time.Sleep(time.Millisecond * 200)
 
-	// Create a mock server for the default endpoint
-	defaultServer := httptest.NewServer(createHTTPHandler(t, func() { defaultCalls++ }, false))
-	defer defaultServer.Close()
+			// Check that both endpoints were called
+			for i := range healthyCalls {
+				require.Greater(t, healthyCalls[i], 0, "Healthy Server %d should have been called", i)
+			}
+			for i := range unHealthyCalls {
+				require.Greater(t, unHealthyCalls[i], 0, "Unhealthy Server %d should have been called", i)
+			}
 
-	// Create new context for the second test
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	defer cancel2()
-
-	// Setup for default endpoint test
-	bs2, ep2 := setup(t)
-	bs2.shutdownCtx = ctx2
-	bs2.Config = BatcherConfig{
-		NetworkTimeout:      time.Second,
-		ThrottleThreshold:   10000,
-		ThrottleTxSize:      5000,
-		ThrottleBlockSize:   20000,
-		ThrottlingEndpoints: []string{defaultServer.URL}, // this is populated during init if no throttling endpoints are provided
-	}
-
-	// Create RPC client for our test server
-	rpcClient, err := rpc.Dial(defaultServer.URL)
-	require.NoError(t, err)
-
-	// Setup the mock L2 client to return our rpc client
-	mockL2Client := new(testutils.MockL2Client)
-	mockL2Client.On("Client").Return(rpcClient)
-
-	// Configure endpoint provider to return our mock client
-	ep2.ethClient = mockL2Client
-
-	pendingBytesUpdated2 := make(chan int64, 1)
-	var wg2 sync.WaitGroup
-	wg2.Add(1)
-
-	// Start throttling loop with default endpoint
-	go bs2.throttlingLoop(&wg2, pendingBytesUpdated2)
-
-	// Send test data
-	pendingBytesUpdated2 <- 20000 // Over threshold
-
-	// Allow time for processing
-	time.Sleep(time.Millisecond * 200)
-
-	// Check that default endpoint was called
-	require.Greater(t, defaultCalls, int64(0), "Default endpoint should have been called")
-
-	// Clean up
-	close(pendingBytesUpdated2)
-	cancel2()
-	wg2.Wait()
-
-	// Test independent endpoint behavior with partial endpoint failure
-	var (
-		successCalls int64
-		failureCalls int64
-	)
-
-	// Server that always fails
-	failingServer := httptest.NewServer(createHTTPHandler(t, func() { failureCalls++ }, true))
-	defer failingServer.Close()
-
-	// Server that always succeeds
-	successServer := httptest.NewServer(createHTTPHandler(t, func() { successCalls++ }, false))
-	defer successServer.Close()
-
-	// Create new context for the third test
-	ctx3, cancel3 := context.WithCancel(context.Background())
-	defer cancel3()
-
-	// Setup for partial failure test
-	bs3, _ := setup(t)
-	bs3.shutdownCtx = ctx3
-	bs3.Config = BatcherConfig{
-		NetworkTimeout:      time.Second,
-		ThrottleThreshold:   10000,
-		ThrottleTxSize:      5000,
-		ThrottleBlockSize:   20000,
-		ThrottlingEndpoints: []string{failingServer.URL, successServer.URL},
-	}
-
-	pendingBytesUpdated3 := make(chan int64, 1)
-	var wg3 sync.WaitGroup
-	wg3.Add(1)
-
-	// Start throttling loop with partial failure
-	go bs3.throttlingLoop(&wg3, pendingBytesUpdated3)
-
-	// Send test data
-	pendingBytesUpdated3 <- 20000 // Over threshold
-
-	// Allow time for processing
-	time.Sleep(time.Millisecond * 200)
-
-	// With independent endpoint throttling:
-	// 1. The failing endpoint should have been called at least once
-	require.Greater(t, failureCalls, int64(0), "Failing endpoint should have been called")
-
-	// 2. The success endpoint should also have been called and should succeed independently
-	require.Greater(t, successCalls, int64(0), "Success endpoint should have been called")
-
-	// Clean up
-	close(pendingBytesUpdated3)
-	cancel3()
-	wg3.Wait()
-
-	// Test direct singleEndpointThrottler function
-	t.Run("TestSingleEndpointThrottler", func(t *testing.T) {
-		// Reset counters
-		successCalls = 0
-		failureCalls = 0
-
-		// Create a new BatchSubmitter with specific throttling config and a valid shutdown context
-		testBS, _ := setup(t)
-		testCtx, testCancel := context.WithCancel(context.Background())
-		defer testCancel()
-
-		testBS.shutdownCtx = testCtx
-		testBS.Config = BatcherConfig{
-			NetworkTimeout:    time.Second,
-			ThrottleThreshold: 10000,
-			ThrottleTxSize:    5000,
-			ThrottleBlockSize: 20000,
+			// Clean up
+			close(pendingBytesUpdated)
+			cancel()
+			wg.Wait()
 		}
-
-		// Create channels for endpoint updates
-		successUpdates := make(chan int64, 1)
-		failureUpdates := make(chan int64, 1)
-
-		var wg sync.WaitGroup
-
-		// Start the throttlers
-		wg.Add(2)
-		go testBS.singleEndpointThrottler(&wg, successUpdates, successServer.URL)
-		go testBS.singleEndpointThrottler(&wg, failureUpdates, failingServer.URL)
-
-		// Send updates to trigger throttling
-		successUpdates <- 20000 // Over threshold
-		failureUpdates <- 20000 // Over threshold
-
-		// Allow time for processing
-		time.Sleep(time.Millisecond * 300)
-
-		// Verify the endpoints were called
-		require.Greater(t, successCalls, int64(0), "Success endpoint should have been called at least once")
-		require.Greater(t, failureCalls, int64(0), "Failing endpoint should have been called at least once")
-
-		// Clean up
-		close(successUpdates)
-		close(failureUpdates)
-		wg.Wait()
-	})
+	}
+	t.Run("two normal endpoints", testThrottlingEndpoints(2, 0))
+	t.Run("two failing endpoints", testThrottlingEndpoints(0, 2))
+	t.Run("one normal endpoint, one failing endpoint", testThrottlingEndpoints(1, 1))
 }
