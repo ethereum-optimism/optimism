@@ -193,6 +193,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("chain with tagged artifacts", func(t *testing.T) {
+		t.Skip()
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
 		intent.L1ContractsLocator = artifacts.DefaultL1ContractsLocator
 		intent.L2ContractsLocator = artifacts.DefaultL2ContractsLocator

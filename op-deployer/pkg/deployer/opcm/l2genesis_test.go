@@ -1,8 +1,13 @@
 package opcm
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"fmt"
+	"io"
 	"math/big"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -12,32 +17,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestL2Genesis2Differential(t *testing.T) {
+func TestL2Genesis(t *testing.T) {
 	tests := []struct {
 		name    string
-		mutator func(*genesis.L2InitializationConfig, *L2Genesis2Input)
+		mutator func(*genesis.L2InitializationConfig, *L2GenesisInput)
 	}{
 		{
-			name:    "no changes",
-			mutator: func(initCfg *genesis.L2InitializationConfig, input *L2Genesis2Input) {},
+			name:    "basic",
+			mutator: func(initCfg *genesis.L2InitializationConfig, input *L2GenesisInput) {},
 		},
 		{
 			"interop",
-			func(initCfg *genesis.L2InitializationConfig, input *L2Genesis2Input) {
+			func(initCfg *genesis.L2InitializationConfig, input *L2GenesisInput) {
 				initCfg.UseInterop = true
 				input.UseInterop = true
 			},
 		},
 		{
 			"no dev account",
-			func(initCfg *genesis.L2InitializationConfig, input *L2Genesis2Input) {
+			func(initCfg *genesis.L2InitializationConfig, input *L2GenesisInput) {
 				initCfg.DevDeployConfig.FundDevAccounts = false
 				input.FundDevAccounts = false
 			},
 		},
 		{
 			"no governance",
-			func(initCfg *genesis.L2InitializationConfig, input *L2Genesis2Input) {
+			func(initCfg *genesis.L2InitializationConfig, input *L2GenesisInput) {
 				initCfg.GovernanceDeployConfig.EnableGovernance = false
 				input.EnableGovernance = false
 			},
@@ -77,18 +82,12 @@ func TestL2Genesis2Differential(t *testing.T) {
 			}
 			initCfg.UpgradeScheduleDeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
 
-			l1Deps := L1Deployments{
-				L1CrossDomainMessengerProxy: common.Address{'M'},
-				L1StandardBridgeProxy:       common.Address{'B'},
-				L1ERC721BridgeProxy:         common.Address{'E'},
-			}
-
-			newInput := L2Genesis2Input{
+			newInput := L2GenesisInput{
 				L1ChainID:                                new(big.Int).SetUint64(initCfg.L1ChainID),
 				L2ChainID:                                new(big.Int).SetUint64(initCfg.L2ChainID),
-				L1CrossDomainMessengerProxy:              l1Deps.L1CrossDomainMessengerProxy,
-				L1StandardBridgeProxy:                    l1Deps.L1StandardBridgeProxy,
-				L1ERC721BridgeProxy:                      l1Deps.L1ERC721BridgeProxy,
+				L1CrossDomainMessengerProxy:              common.Address{'M'},
+				L1StandardBridgeProxy:                    common.Address{'B'},
+				L1ERC721BridgeProxy:                      common.Address{'E'},
 				L2ProxyAdminOwner:                        initCfg.OwnershipDeployConfig.ProxyAdminOwner,
 				SequencerFeeVaultRecipient:               initCfg.L2VaultsDeployConfig.SequencerFeeVaultRecipient,
 				SequencerFeeVaultMinimumWithdrawalAmount: (*big.Int)(initCfg.L2VaultsDeployConfig.SequencerFeeVaultMinimumWithdrawalAmount),
@@ -108,29 +107,27 @@ func TestL2Genesis2Differential(t *testing.T) {
 
 			tt.mutator(&initCfg, &newInput)
 
-			hostOld := createTestHost(t)
-			require.NoError(t, L2Genesis(hostOld, &L2GenesisInput{
-				L1Deployments: l1Deps,
-				L2Config:      initCfg,
-			}))
-
 			hostNew := createTestHost(t)
-			script, err := NewL2Genesis2Script(hostNew)
+			script, err := NewL2GenesisScript(hostNew)
 			require.NoError(t, err)
 
 			require.NoError(t, script.Run(newInput))
 
-			dumpOld, err := hostOld.StateDump()
-			require.NoError(t, err)
 			dumpNew, err := hostNew.StateDump()
 			require.NoError(t, err)
 
-			dumpOldJSON, err := json.MarshalIndent(dumpOld, "", "  ")
-			require.NoError(t, err)
 			dumpNewJSON, err := json.MarshalIndent(dumpNew, "", "  ")
 			require.NoError(t, err)
 
-			require.JSONEq(t, string(dumpOldJSON), string(dumpNewJSON))
+			fname := fmt.Sprintf("testdata/l2genesis/%s.json.gz", strings.ReplaceAll(tt.name, " ", "-"))
+			f, err := os.OpenFile(fname, os.O_RDONLY, 0o644)
+			require.NoError(t, err)
+			gzr, err := gzip.NewReader(f)
+			require.NoError(t, err)
+			fixture, err := io.ReadAll(gzr)
+			require.NoError(t, err)
+			require.NoError(t, f.Close())
+			require.JSONEq(t, string(fixture), string(dumpNewJSON))
 		})
 	}
 }

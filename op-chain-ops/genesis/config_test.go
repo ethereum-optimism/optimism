@@ -175,3 +175,15 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 		}
 	})
 }
+
+func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
+	for i, fork := range scheduleableForks[2:] {
+		if fork == "interop" {
+			continue
+		}
+
+		var d UpgradeScheduleDeployConfig
+		d.ActivateForkAtOffset(fork, 0)
+		require.Equal(t, i+1, d.SolidityForkNumber(uint64(42)))
+	}
+}

@@ -555,6 +555,23 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 	}
 }
 
+// SolidityForkNumber converts a genesis time to a fork number suitable for use with
+// the Fork enum in ForkUtils.sol.
+func (d *UpgradeScheduleDeployConfig) SolidityForkNumber(genesisTime uint64) int64 {
+	forks := d.forks()
+	for i := len(forks) - 1; i >= 0; i-- {
+		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
+			// Add 1 since Solidity has a "none" fork type
+			return int64(i - 1)
+		}
+		// the oldest L2AllocsMode is delta
+		if forks[i].Name == string(L2AllocsDelta) {
+			return 1
+		}
+	}
+	panic("should never reach here")
+}
+
 func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {

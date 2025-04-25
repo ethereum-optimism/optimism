@@ -24,7 +24,9 @@ import (
 var (
 	l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
 
-	vaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
+	VaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
+	
+	GovernanceTokenOwner = common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad")
 )
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
@@ -57,9 +59,9 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				BaseFeeVaultWithdrawalNetwork:            "local",
 				L1FeeVaultWithdrawalNetwork:              "local",
 				SequencerFeeVaultWithdrawalNetwork:       "local",
-				SequencerFeeVaultMinimumWithdrawalAmount: vaultMinWithdrawalAmount,
-				BaseFeeVaultMinimumWithdrawalAmount:      vaultMinWithdrawalAmount,
-				L1FeeVaultMinimumWithdrawalAmount:        vaultMinWithdrawalAmount,
+				SequencerFeeVaultMinimumWithdrawalAmount: VaultMinWithdrawalAmount,
+				BaseFeeVaultMinimumWithdrawalAmount:      VaultMinWithdrawalAmount,
+				L1FeeVaultMinimumWithdrawalAmount:        VaultMinWithdrawalAmount,
 				BaseFeeVaultRecipient:                    chainIntent.BaseFeeVaultRecipient,
 				L1FeeVaultRecipient:                      chainIntent.L1FeeVaultRecipient,
 				SequencerFeeVaultRecipient:               chainIntent.SequencerFeeVaultRecipient,
