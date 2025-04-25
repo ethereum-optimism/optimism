@@ -580,7 +580,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, endpointUpd
 			l.Log.Error("SetMaxDASize RPC method unavailable on endpoint, shutting down. Either enable it or disable throttling.",
 				"endpoint", endpoint, "err", err)
 
-			// We keep the strict throttling requirement behavior - shut down if RPC not available
+			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint, and shut down if this RPC method is not available
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			// Call StopBatchSubmitting in another goroutine to avoid deadlock.
