@@ -535,10 +535,14 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 }
 
 // singleEndpointThrottler handles throttling for a specific endpoint
-// This is almost identical to the original throttlingLoop but operates on a specific endpoint
-func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, endpointUpdates chan int64, endpoint string, client *rpc.Client) {
+func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, endpointUpdates chan int64, endpoint string) {
 	defer wg.Done()
 	l.Log.Info("Starting endpoint throttling loop", "endpoint", endpoint)
+
+	client, err := rpc.Dial(endpoint)
+	if err != nil {
+		panic(err) // TODO
+	}
 
 	retryInterval := 10 * time.Second
 	retryTimer := time.NewTimer(retryInterval)
@@ -619,145 +623,46 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, endpointUpd
 	}
 }
 
-// throttlingLoop acts as a distributor that manages individual throttling loops for each endpoint
+// throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
+// and fans out the pending bytes updates to each endpoint
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop")
 
-	// Map to track individual endpoint channels
-	type endpointState struct {
-		client     *rpc.Client
-		updateChan chan int64
-	}
-	endpointStates := make(map[string]endpointState)
+	// Get configured endpoints
+	configuredEndpoints := l.Config.ThrottlingEndpoints
 
-	// Function to connect to endpoints and start throttling loops
-	connectToEndpoints := func() {
-		// Get configured endpoints
-		configuredEndpoints := l.Config.ThrottlingEndpoints
+	updateChans := make([]chan int64, len(configuredEndpoints))
 
-		// If no throttling endpoints are configured, try to use the default L2 endpoint
-		if len(configuredEndpoints) == 0 {
-			ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
-			cl, err := l.EndpointProvider.EthClient(ctx)
-			cancel()
+	innerWg := sync.WaitGroup{}
 
-			if err != nil {
-				l.Log.Warn("Failed to get default L2 endpoint", "err", err)
-			} else {
-				// If we're not already connected to the default endpoint
-				if _, exists := endpointStates["default"]; !exists {
-					// Create channel for this endpoint
-					updateChan := make(chan int64, 1)
+	// For each configured endpoint
+	for i, endpoint := range configuredEndpoints {
+		// Create channel for this endpoint
+		updateChans[i] = make(chan int64, 1)
 
-					// Store client and channel
-					endpointStates["default"] = endpointState{
-						client:     cl.Client(),
-						updateChan: updateChan,
-					}
-
-					// Start throttling loop for this endpoint
-					wg.Add(1)
-					go l.singleEndpointThrottler(wg, updateChan, "default L2 endpoint", cl.Client())
-					l.Log.Info("Started throttling loop for default L2 endpoint")
-				}
-			}
-		}
-
-		// For each configured endpoint
-		for _, endpoint := range configuredEndpoints {
-			// Skip if already connected
-			if _, exists := endpointStates[endpoint]; exists {
-				continue
-			}
-
-			// Connect to endpoint
-			client, err := rpc.Dial(endpoint)
-			if err != nil {
-				l.Log.Warn("Failed to connect to throttling endpoint", "endpoint", endpoint, "err", err)
-				continue
-			}
-
-			// Create channel for this endpoint
-			updateChan := make(chan int64, 1)
-
-			// Store client and channel
-			endpointStates[endpoint] = endpointState{
-				client:     client,
-				updateChan: updateChan,
-			}
-
-			// Start throttling loop for this endpoint
-			wg.Add(1)
-			go l.singleEndpointThrottler(wg, updateChan, endpoint, client)
-			l.Log.Info("Started throttling loop for endpoint", "endpoint", endpoint)
-		}
+		// Start throttling loop for this endpoint
+		innerWg.Add(1)
+		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
+		l.Log.Info("Started throttling loop for endpoint", "endpoint", endpoint)
 	}
 
-	// Try initial connection
-	connectToEndpoints()
-
-	// Set up reconnection timer
-	reconnectInterval := 30 * time.Second
-	reconnectTimer := time.NewTimer(reconnectInterval)
-	defer reconnectTimer.Stop()
-
-	// Track last pending bytes update
-	var lastPendingBytes int64
-
-	// Main loop
-	for {
-		select {
-		case pendingBytes, ok := <-pendingBytesUpdated:
-			if !ok {
-				// Channel closed, shut down all endpoint loops
-				l.Log.Info("Throttling distributor shutting down")
-				for endpoint, state := range endpointStates {
-					close(state.updateChan)
-					l.Log.Debug("Closed channel for endpoint", "endpoint", endpoint)
-				}
-				return
+	// fan out events
+	for pb := range pendingBytesUpdated {
+		for i, updateChan := range updateChans {
+			// Send pending bytes to each endpoint's channel
+			select {
+			case updateChan <- pb:
+			default:
+				l.Log.Warn("Throttling loop: channel full, skipping update", "endpoint", configuredEndpoints[i])
 			}
-
-			// If we have no endpoints, try to connect
-			if len(endpointStates) == 0 {
-				connectToEndpoints()
-			}
-
-			// Distribute update to all endpoints
-			for endpoint, state := range endpointStates {
-				select {
-				case state.updateChan <- pendingBytes:
-					// Update sent successfully
-				default:
-					// Channel is full, endpoint throttling loop is backed up
-					l.Log.Warn("Endpoint throttling loop is backed up, skipping update", "endpoint", endpoint)
-				}
-			}
-
-			lastPendingBytes = pendingBytes
-
-		case <-reconnectTimer.C:
-			// Periodically try to connect to any configured endpoints we're not connected to
-			connectToEndpoints()
-
-			// Send latest update to any newly connected endpoints
-			if lastPendingBytes > 0 {
-				for endpoint, state := range endpointStates {
-					select {
-					case state.updateChan <- lastPendingBytes:
-						// Update sent successfully
-					default:
-						// Channel is full, skip
-						l.Log.Warn("Endpoint throttling loop is backed up during reconnect", "endpoint", endpoint)
-					}
-				}
-			}
-
-			// Reset timer
-			reconnectTimer.Reset(reconnectInterval)
 		}
 	}
+	for _, updateChan := range updateChans {
+		// Close each endpoint's channel
+		close(updateChan)
+	}
+	innerWg.Wait()
 }
 
 func (l *BatchSubmitter) waitNodeSyncAndClearState() {
