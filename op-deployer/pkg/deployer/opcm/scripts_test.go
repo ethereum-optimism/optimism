@@ -1,9 +1,8 @@
-package opcm_test
+package opcm
 
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +14,7 @@ func TestNewScripts(t *testing.T) {
 		// Then we load the scripts
 		//
 		// This would raise an error if the Go types didn't match the ABI
-		scripts, err := opcm.NewScripts(host)
+		scripts, err := NewScripts(host)
 		require.NoError(t, err)
 
 		// And we just make sure we have all the scripts loaded
