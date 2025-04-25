@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -60,6 +62,20 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		}
 		schedule.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
 		schedule.UseInterop = true
+	}
+
+	if len(intent.GlobalDeployOverrides) > 0 {
+		schedule, err = jsonutil.MergeJSON(schedule, intent.GlobalDeployOverrides)
+		if err != nil {
+			return fmt.Errorf("failed to merge global deploy overrides: %w", err)
+		}
+	}
+
+	if len(thisIntent.DeployOverrides) > 0 {
+		schedule, err = jsonutil.MergeJSON(schedule, thisIntent.DeployOverrides)
+		if err != nil {
+			return fmt.Errorf("failed to merge L2 deploy overrides: %w", err)
+		}
 	}
 
 	if err := script.Run(opcm.L2GenesisInput{
