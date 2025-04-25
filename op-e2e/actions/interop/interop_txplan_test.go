@@ -878,7 +878,7 @@ func TestCycleInTx(gt *testing.T) {
 
 	// speculatively build exec message by knowing necessary info to build Message
 	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
-	// log index of init message is 1, not 0 because exec message will firstly executed, emiting a single log
+	// log index of init message is 1, not 0 because exec message will firstly executed, emitting a single log
 	logIndexX := uint(1)
 	exec, err := interop.ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
 
