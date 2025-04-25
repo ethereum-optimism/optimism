@@ -20,11 +20,11 @@ type OpChainCoreRoles struct {
 	SystemConfigOwner      common.Address
 	OpChainProxyAdminOwner common.Address
 	Guardian               common.Address
-	Proposer               common.Address
 	UnsafeBlockSigner      common.Address
 	BatchSubmitter         common.Address
 }
 
 type OpChainFaultProofsRoles struct {
+	Proposer   common.Address
 	Challenger common.Address
 }
