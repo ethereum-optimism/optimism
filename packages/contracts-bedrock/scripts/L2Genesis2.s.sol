@@ -124,33 +124,33 @@ contract L2Genesis is Script {
 
         Fork _fork = Fork(_input.fork);
 
-        if (!shouldApplyFork(_fork, Fork.DELTA)) {
+        if (forkEquals(_fork, Fork.DELTA)) {
             return;
         }
 
         activateEcotone();
 
-        if (!shouldApplyFork(_fork, Fork.ECOTONE)) {
+        if (forkEquals(_fork, Fork.ECOTONE)) {
             return;
         }
 
         activateFjord();
 
-        if (!shouldApplyFork(_fork, Fork.FJORD)) {
+        if (forkEquals(_fork, Fork.FJORD)) {
             return;
         }
 
-        if (!shouldApplyFork(_fork, Fork.GRANITE)) {
+        if (forkEquals(_fork, Fork.GRANITE)) {
             return;
         }
 
-        if (!shouldApplyFork(_fork, Fork.HOLOCENE)) {
+        if (forkEquals(_fork, Fork.HOLOCENE)) {
             return;
         }
 
         activateIsthmus();
 
-        if (!shouldApplyFork(_fork, Fork.ISTHMUS)) {
+        if (forkEquals(_fork, Fork.ISTHMUS)) {
             return;
         }
 
