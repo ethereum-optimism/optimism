@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+const testDefaultTimestamp = 100
+
 type testDepSet struct {
 	mapping map[types.ChainIndex]eth.ChainID
 }
@@ -101,7 +103,7 @@ func runHazardCycleChecksTestCase(t *testing.T, tc hazardCycleChecksTestCase) {
 		depSet.mapping[index] = eth.ChainIDFromUInt64(uint64(index))
 	}
 	// Run the test
-	err := HazardCycleChecks(depSet, deps, 100, NewHazardSetFromEntries(hazards))
+	err := HazardCycleChecks(depSet, deps, testDefaultTimestamp, NewHazardSetFromEntries(hazards))
 
 	// No error expected
 	if tc.expectErr == nil {
@@ -127,7 +129,7 @@ func chainIndex(s string) types.ChainIndex {
 }
 
 func execMsg(chain string, logIdx uint32) *types.ExecutingMessage {
-	return execMsgWithTimestamp(chain, logIdx, 100)
+	return execMsgWithTimestamp(chain, logIdx, testDefaultTimestamp)
 }
 
 func execMsgWithTimestamp(chain string, logIdx uint32, timestamp uint64) *types.ExecutingMessage {
@@ -353,6 +355,18 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 			},
 			msg: "expected no cycle found first log is exec",
 		},
+		{
+			name: "no cycle using different timestamp",
+			chainBlocks: map[string]chainBlockDef{
+				"1": {
+					logCount: 2,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsgWithTimestamp("1", 1, testDefaultTimestamp+1),
+					},
+				},
+			},
+			msg: "expected no cycle for different timestamp",
+		},
 	}
 	runHazardCycleChecksTestCaseGroup(t, "NoCycle", tests)
 }
@@ -360,7 +374,23 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 func TestHazardCycleChecksCycle(t *testing.T) {
 	tests := []hazardCycleChecksTestCase{
 		{
-			name: "2-cycle in single chain with first log",
+			// 0->1->2->0
+			name: "3-cycle in single chain",
+			chainBlocks: map[string]chainBlockDef{
+				"1": {
+					logCount: 3,
+					messages: map[uint32]*types.ExecutingMessage{
+						0: execMsg("1", 2),
+					},
+				},
+			},
+			expectErr: ErrCycle,
+			msg:       "expected cycle detection error",
+		},
+		{
+			// 0->1->2->0
+			// 0->2->0
+			name: "3-cycle in single chain, 2-cycle in single chain with first log",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
 					logCount: 3,
@@ -374,6 +404,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
+			// 0->1->0
 			name: "2-cycle in single chain with first log, adjacent",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -388,6 +419,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
+			// 1->2->1
 			name: "2-cycle in single chain, not first, adjacent",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -402,7 +434,9 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
-			name: "2-cycle in single chain, not first, not adjacent",
+			// 1->3->1
+			// 1->2->3->1
+			name: "2,3-cycle in single chain, not first, not adjacent",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
 					logCount: 4,
@@ -416,6 +450,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
+			// A1->B0->A1
 			name: "2-cycle across chains",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -435,7 +470,10 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error for cycle through executing messages",
 		},
 		{
-			name: "3-cycle in single chain",
+			// 1->2->1
+			// 2->3->2
+			// 1->3->2->1
+			name: "2,2,3-cycle in single chain",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
 					logCount: 4,
@@ -450,6 +488,8 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error for 3-node cycle",
 		},
 		{
+			// 1->2->3->4->5->1
+			// 1->2->5->1
 			name: "cycle through adjacency dependency",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -464,6 +504,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error for when cycle goes through adjacency dependency",
 		},
 		{
+			// A1->B1->A1
 			name: "2-cycle across chains with 3 hazard chains",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -489,6 +530,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg: "expected cycle detection error for cycle through executing messages",
 		},
 		{
+			// 0->1->0
 			name: "cycle through single chain, exec message prior to init and adjacent",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -502,6 +544,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
+			// 0->1->2->0
 			name: "cycle through single chain, exec message prior to init and not adjacent",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -515,6 +558,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
+			// A1->B0->A0->A1
 			name: "3-cycle across chains",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
