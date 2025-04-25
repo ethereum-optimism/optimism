@@ -169,10 +169,16 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 			return fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
 		}
 		endpointProvider = provider
+		if len(bs.ThrottlingEndpoints) == 0 {
+			bs.ThrottlingEndpoints = ethUrls
+		}
 	} else {
 		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
 		if err != nil {
 			return fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
+		}
+		if len(bs.ThrottlingEndpoints) == 0 {
+			bs.ThrottlingEndpoints = []string{cfg.L2EthRpc}
 		}
 	}
 	bs.EndpointProvider = endpointProvider
