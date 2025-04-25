@@ -1,7 +1,6 @@
 package cross
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -10,10 +9,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+// These error must be considered as ErrConflict to trigger a reorg.
 var (
-	ErrCycle                  = errors.New("cycle detected")
-	ErrExecMsgHasInvalidIndex = errors.New("executing message has invalid log index")
-	ErrExecMsgUnknownChain    = errors.New("executing message references unknown chain")
+	ErrCycle                  = fmt.Errorf("%w: cycle detected", types.ErrConflict)
+	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", types.ErrConflict)
+	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", types.ErrConflict)
 )
 
 // CycleCheckDeps is an interface for checking cyclical dependencies between logs.

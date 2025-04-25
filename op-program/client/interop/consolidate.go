@@ -228,11 +228,7 @@ func singleRoundConsolidation(
 }
 
 func isInvalidMessageError(err error) bool {
-	// TODO(#14011): Create an error category for InvalidExecutingMessage errors in the cross package for easier maintenance.
-	return errors.Is(err, supervisortypes.ErrConflict) ||
-		errors.Is(err, cross.ErrExecMsgHasInvalidIndex) ||
-		errors.Is(err, cross.ErrExecMsgUnknownChain) ||
-		errors.Is(err, cross.ErrCycle) || errors.Is(err, supervisortypes.ErrUnknownChain)
+	return errors.Is(err, supervisortypes.ErrConflict) || errors.Is(err, supervisortypes.ErrUnknownChain)
 }
 
 type ConsolidateCheckDeps interface {
