@@ -2321,7 +2321,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-            # KURTOSIS (Isthmus)
+        # KURTOSIS (Interop)
       - op-acceptance-tests:
           # Acceptance Testing params
           name: kurtosis-interop
