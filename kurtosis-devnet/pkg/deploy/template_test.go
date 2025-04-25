@@ -157,14 +157,14 @@ func TestLocalPrestateOption(t *testing.T) {
 		dryRun:   true,
 		baseDir:  tmpDir,
 		buildDir: buildDir,
-		buildWg:  &sync.WaitGroup{},
 		urlBuilder: func(path ...string) string {
 			return "http://localhost:8080/" + strings.Join(path, "/")
 		},
 	}
+	buildWg := &sync.WaitGroup{}
 
 	// Get the localPrestate option
-	option := templater.localPrestateOption()
+	option := templater.localPrestateOption(buildWg)
 
 	// Create a template context with the option
 	ctx := tmpl.NewTemplateContext(option)
@@ -177,7 +177,7 @@ func TestLocalPrestateOption(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the async goroutine to complete
-	templater.buildWg.Wait()
+	buildWg.Wait()
 
 	// In dry run mode, we should get a placeholder prestate with the correct URL
 	expectedURL := "http://localhost:8080/proofs/op-program/cannon"
@@ -216,14 +216,13 @@ func TestLocalContractArtifactsOption(t *testing.T) {
 		dryRun:         true,
 		baseDir:        tmpDir,
 		enclaveManager: mockEnclaveManager,
-		buildWg:        &sync.WaitGroup{},
 		urlBuilder: func(path ...string) string {
 			return "http://localhost:8080/" + strings.Join(path, "/")
 		},
 	}
-
+	buildWg := &sync.WaitGroup{}
 	// Get the localContractArtifacts option
-	option := templater.localContractArtifactsOption()
+	option := templater.localContractArtifactsOption(buildWg)
 
 	// Create a template context with the option
 	ctx := tmpl.NewTemplateContext(option)

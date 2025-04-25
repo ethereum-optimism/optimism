@@ -208,13 +208,14 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 
 func (d *Deployer) renderTemplate(buildDir string, urlBuilder func(path ...string) string) (*bytes.Buffer, error) {
 	t := &Templater{
-		baseDir:      d.baseDir,
-		dryRun:       d.dryRun,
-		enclave:      d.enclave,
-		templateFile: d.templateFile,
-		dataFile:     d.dataFile,
-		buildDir:     buildDir,
-		urlBuilder:   urlBuilder,
+		baseDir:        d.baseDir,
+		dryRun:         d.dryRun,
+		enclave:        d.enclave,
+		templateFile:   d.templateFile,
+		dataFile:       d.dataFile,
+		enclaveManager: d.enclaveManager,
+		buildDir:       buildDir,
+		urlBuilder:     urlBuilder,
 	}
 
 	return t.Render()

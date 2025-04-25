@@ -49,14 +49,14 @@ _prestate-build target:
 				baseDir:  tmpDir,
 				dryRun:   tt.dryRun,
 				buildDir: tmpDir,
-				buildWg:  &sync.WaitGroup{},
 				urlBuilder: func(path ...string) string {
 					return "http://fileserver/" + strings.Join(path, "/")
 				},
 			}
 
+			buildWg := &sync.WaitGroup{}
 			// Create template context with just the prestate function
-			tmplCtx := tmpl.NewTemplateContext(templater.localPrestateOption())
+			tmplCtx := tmpl.NewTemplateContext(templater.localPrestateOption(buildWg))
 
 			// Test template with multiple calls to localPrestate
 			template := `first:
@@ -79,7 +79,7 @@ second:
 			require.NoError(t, err)
 
 			// Wait for the async goroutine to complete
-			templater.buildWg.Wait()
+			buildWg.Wait()
 
 			// Verify the output is valid YAML and contains the static path
 			output := buf.String()
