@@ -188,9 +188,16 @@ commands:
           when: on_fail
 
   # Notifies us on Discord when a build fails on develop
+  # For Discord to properly trigger notifications, mentions need to be in the format:
+  # User mentions: <@USER_ID>
+  # Role mentions: <@&ROLE_ID>
+  # Example: <@&1346448413172170807> is how we'd tag the Protocol DevX Pod
   discord-notification-failures-on-develop:
     description: "Notify Discord"
     parameters:
+      message:
+        type: string
+        default: ""
       mentions:
         type: string
         default: ""
@@ -205,6 +212,11 @@ commands:
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
+
+              # Add failure reason if provided
+              if [ ! -z "<< parameters.message >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
+              fi
 
               # Add mentions if provided
               if [ ! -z "<< parameters.mentions >>" ]; then
@@ -1163,6 +1175,25 @@ jobs:
             kurtosis engine status || true
 
             echo "Kurtosis setup complete"
+      # Start our devnet
+      - run:
+          name: Start devnet (<<parameters.devnet>>)
+          working_directory: kurtosis-devnet
+          command: |
+            echo "Starting <<parameters.devnet>> devnet..."
+            just <<parameters.devnet>>-devnet
+
+            echo "<<parameters.devnet>> devnet started successfully"
+
+            # Print devnet info for debugging
+            kurtosis enclave inspect <<parameters.devnet>>-devnet || true
+      # Notify us of a devnet failure
+      - when:
+          condition: on_fail
+          steps:
+            - discord-notification-failures-on-develop:
+                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
+                message: "Devnet <<parameters.devnet>>-devnet failed to start"
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1178,22 +1209,33 @@ jobs:
           name: Prepare test environment (compile tests and cache results)
           working_directory: op-acceptance-tests
           command: go test -v ./... || true # ignore failures; we're just compiling the tests
-      # Run the actual acceptance tests with optimized settings
       - run:
-          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
+          name: Stop the job if the devnet failed to start
+          command: circleci-agent step halt
+          when: on_fail
+      # Run the acceptance tests (if the devnet is running)
+      - run:
+          name: Run acceptance tests (gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
-          no_output_timeout: 2h
+          no_output_timeout: 1h
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
-          command: just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+          command: |
+            # Check if the devnet is running before attempting to run tests
+            if ! kurtosis enclave ls | grep -q "<<parameters.devnet>>-devnet"; then
+              echo "Devnet <<parameters.devnet>>-devnet is not running. Skipping tests."
+              exit 1
+            fi
+
+            # Run the tests
+            just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/summary.log" || true
-          when: always
       - run:
           name: Print results (failures)
           working_directory: op-acceptance-tests
@@ -1207,14 +1249,12 @@ jobs:
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/all.log" || true
-          when: always
       - run:
           name: Generate JUnit XML test report for CircleCI
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
-          when: always
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
@@ -1231,9 +1271,12 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      # Notification step
-      - discord-notification-failures-on-develop:
-          mentions: "@_ftw_" # temporarily just mention Stefano until the acceptance tests are more stable (was: @protocol-devx-pod)
+      - when:
+          condition: on_fail
+          steps:
+            - discord-notification-failures-on-develop:
+                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
+                message: "Acceptance tests failed for gate <<parameters.gate>> on devnet <<parameters.devnet>>"
 
   sanitize-op-program:
     docker:
