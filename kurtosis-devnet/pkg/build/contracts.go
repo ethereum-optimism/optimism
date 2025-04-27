@@ -74,6 +74,12 @@ func WithContractEnclave(enclave string) ContractBuilderOptions {
 	}
 }
 
+func WithContractEnclaveManager(manager *enclave.KurtosisEnclaveManager) ContractBuilderOptions {
+	return func(b *ContractBuilder) {
+		b.enclaveManager = manager
+	}
+}
+
 func WithContractFS(fs afero.Fs) ContractBuilderOptions {
 	return func(b *ContractBuilder) {
 		b.fs = fs
@@ -141,6 +147,17 @@ func (b *ContractBuilder) Build(_ string) (string, error) {
 	return url, nil
 }
 
+func (b *ContractBuilder) GetContractUrl() string {
+	if b.dryRun {
+		return "artifact://contracts"
+	}
+	return fmt.Sprintf("artifact://%s", b.getBuiltContractName())
+}
+
+func (b *ContractBuilder) getBuiltContractName() string {
+	return fmt.Sprintf("contracts-%s", b.buildHash())
+}
+
 func (b *ContractBuilder) buildHash() string {
 	// the solidity cache file contains up-to-date information about the current
 	// state of the build, so it's suitable to provide a unique hash.
@@ -158,15 +175,12 @@ func (b *ContractBuilder) buildHash() string {
 
 func (b *ContractBuilder) createContractsArtifact() (name string, retErr error) {
 	ctx := context.TODO()
-	name = fmt.Sprintf("contracts-%s", b.buildHash())
+	name = b.getBuiltContractName()
 
 	// Ensure the enclave exists
 	var err error
 	if b.enclaveManager == nil {
-		b.enclaveManager, err = enclave.NewKurtosisEnclaveManager()
-		if err != nil {
-			return "", fmt.Errorf("failed to create enclave manager: %w", err)
-		}
+		return "", fmt.Errorf("enclave manager not set")
 	}
 
 	// TODO: this is not ideal, we should feed the resulting enclave into the

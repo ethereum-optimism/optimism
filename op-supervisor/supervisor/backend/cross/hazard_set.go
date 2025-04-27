@@ -103,6 +103,15 @@ func (h *HazardSet) checkMessageWithCurrentTimestamp(msg *types.ExecutingMessage
 	return ok, nil
 }
 
+// checkMessageForExpiry checks that a message has not expired.
+func (h *HazardSet) checkMessageForExpiry(deps HazardDeps, msg *types.ExecutingMessage, initChainID eth.ChainID, candidateTimestamp uint64) error {
+	expiresAt := msg.Timestamp + deps.DependencySet().MessageExpiryWindow()
+	if expiresAt < candidateTimestamp {
+		return fmt.Errorf("timestamp of message %s (chain %s) has expired: %d < %d: %w", msg, initChainID, expiresAt, candidateTimestamp, types.ErrConflict)
+	}
+	return nil
+}
+
 // build adds a block to the hazard set and recursively adds any blocks that it depends on.
 // Warning for future: If we have sub-second distinct blocks (different block number),
 // we need to increase precision on the above timestamp invariant.
@@ -145,6 +154,10 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 				return err
 			}
 			if err := h.checkChainCanInitiate(depSet, srcChainID, candidate, msg); err != nil {
+				return err
+			}
+			// performance: short-circuit inclusion checks if the message has expired
+			if err := h.checkMessageForExpiry(deps, msg, srcChainID, candidate.Timestamp); err != nil {
 				return err
 			}
 			q := types.ChecksumArgs{

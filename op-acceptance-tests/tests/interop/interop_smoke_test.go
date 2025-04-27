@@ -28,23 +28,21 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 		logger = logger.With("chain", chain.ID())
 		logger.Info("starting test")
 
-		funds := sdktypes.NewBalance(big.NewInt(0.5 * constants.ETH))
+		funds := sdktypes.NewBalance(big.NewInt(1 * constants.ETH))
 		user := walletGetter(ctx)
 
-		bridgeAddr := constants.SuperchainETHBridge
-		bridge, err := chain.Nodes()[0].ContractsRegistry().SuperchainWETH(bridgeAddr)
+		wethAddr := constants.WETH
+		weth, err := chain.Nodes()[0].ContractsRegistry().WETH(wethAddr)
 		require.NoError(t, err)
-		logger.Info("using SuperchainWETH", "contract", bridgeAddr)
-
-		initialBalance, err := bridge.BalanceOf(user.Address()).Call(ctx)
+		initialBalance, err := weth.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
 		logger = logger.With("user", user.Address())
 		logger.Info("initial balance retrieved", "balance", initialBalance)
 
 		logger.Info("sending ETH to contract", "amount", funds)
-		require.NoError(t, user.SendETH(bridgeAddr, funds).Send(ctx).Wait())
+		require.NoError(t, user.SendETH(wethAddr, funds).Send(ctx).Wait())
 
-		balance, err := bridge.BalanceOf(user.Address()).Call(ctx)
+		balance, err := weth.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
 		logger.Info("final balance retrieved", "balance", balance)
 

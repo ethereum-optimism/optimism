@@ -5,15 +5,19 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/noopbuilder"
+	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/builders/standardbuilder"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
 
 type BuilderEntry struct {
-	Noop *noopbuilder.Config `yaml:"noop,omitempty"`
+	Standard *standardbuilder.Config `yaml:"standard,omitempty"`
+	Noop     *noopbuilder.Config     `yaml:"noop,omitempty"`
 }
 
 func (b *BuilderEntry) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.ServiceOpts) (work.Builder, error) {
 	switch {
+	case b.Standard != nil:
+		return b.Standard.Start(ctx, id, opts)
 	case b.Noop != nil:
 		return b.Noop.Start(ctx, id, opts)
 	default:

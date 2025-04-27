@@ -57,6 +57,13 @@ do
       VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"cannon64\"}]")
       echo "Built cannon64 ${VERSION}: ${HASH}"
     fi
+
+    if [ -f "${BIN_DIR}/prestate-proof-interop.json" ]; then
+      HASH=$(cat "${BIN_DIR}/prestate-proof-interop.json" | jq -r .pre)
+      cp "${BIN_DIR}/prestate-interop.bin.gz" "${STATES_DIR}/${HASH}.interop.bin.gz"
+      VERSIONS_JSON=$(echo "${VERSIONS_JSON}" | jq ". += [{\"version\": \"${SHORT_VERSION}\", \"hash\": \"${HASH}\", \"type\": \"interop\"}]")
+      echo "Built cannon-interop ${VERSION}: ${HASH}"
+    fi
 done
 echo "${VERSIONS_JSON}" > "${VERSIONS_FILE}"
 

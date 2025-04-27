@@ -2,19 +2,22 @@
 pragma solidity 0.8.15;
 
 // Libraries
-import { MIPS64Memory } from "src/cannon/libraries/MIPS64Memory.sol";
-import { MIPS64Syscalls as sys } from "src/cannon/libraries/MIPS64Syscalls.sol";
-import { MIPS64State as st } from "src/cannon/libraries/MIPS64State.sol";
-import { MIPS64Instructions as ins } from "src/cannon/libraries/MIPS64Instructions.sol";
-import { MIPS64Arch as arch } from "src/cannon/libraries/MIPS64Arch.sol";
-import { VMStatuses } from "src/dispute/lib/Types.sol";
 import {
-    InvalidMemoryProof, InvalidRMWInstruction, InvalidSecondMemoryProof
+    InvalidMemoryProof,
+    InvalidRMWInstruction,
+    InvalidSecondMemoryProof,
+    UnsupportedStateVersion
 } from "src/cannon/libraries/CannonErrors.sol";
+import { MIPS64Arch as arch } from "src/cannon/libraries/MIPS64Arch.sol";
+import { MIPS64Instructions as ins } from "src/cannon/libraries/MIPS64Instructions.sol";
+import { MIPS64Memory } from "src/cannon/libraries/MIPS64Memory.sol";
+import { MIPS64State as st } from "src/cannon/libraries/MIPS64State.sol";
+import { MIPS64Syscalls as sys } from "src/cannon/libraries/MIPS64Syscalls.sol";
+import { VMStatuses } from "src/dispute/lib/Types.sol";
 
 // Interfaces
-import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title MIPS64
 /// @notice The MIPS64 contract emulates a single MIPS instruction.
@@ -63,11 +66,14 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
+
+    /// @notice The state version implemented. This identifies the specific state transition rules applied.
+    uint256 internal immutable STATE_VERSION;
 
     // The offset of the start of proof calldata (_threadWitness.offset) in the step() function
     uint256 internal constant THREAD_PROOF_OFFSET = 356;
@@ -85,14 +91,25 @@ contract MIPS64 is ISemver {
     uint256 internal constant TC_MEM_OFFSET = 0x260;
 
     /// @param _oracle The address of the preimage oracle contract.
-    constructor(IPreimageOracle _oracle) {
+    constructor(IPreimageOracle _oracle, uint256 _stateVersion) {
+        // Supports VersionMultiThreaded64_v3 (v6)
+        if (_stateVersion != 6) {
+            revert UnsupportedStateVersion();
+        }
         ORACLE = _oracle;
+        STATE_VERSION = _stateVersion;
     }
 
     /// @notice Getter for the pre-image oracle contract.
     /// @return oracle_ The IPreimageOracle contract.
     function oracle() external view returns (IPreimageOracle oracle_) {
         oracle_ = ORACLE;
+    }
+
+    /// @notice Getter for the state version.
+    /// @return stateVersion_ The state version implemented by this contract.
+    function stateVersion() external view returns (uint256 stateVersion_) {
+        stateVersion_ = STATE_VERSION;
     }
 
     /// @notice Executes a single step of the multi-threaded vm.

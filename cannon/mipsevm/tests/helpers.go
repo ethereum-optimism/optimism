@@ -99,7 +99,7 @@ type VersionedVMTestCase struct {
 func GetSingleThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 	return VersionedVMTestCase{
 		Name:           "single-threaded",
-		Contracts:      testutil.TestContractsSetup(t, testutil.MipsSingleThreaded),
+		Contracts:      testutil.TestContractsSetup(t, testutil.MipsSingleThreaded, 0),
 		StateHashFn:    singlethreaded.GetStateHashFn(),
 		VMFactory:      singleThreadedVmFactory,
 		ElfVMFactory:   singleThreadElfVmFactory,
@@ -112,7 +112,7 @@ func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion)
 	features := versions.FeaturesForVersion(version)
 	return VersionedVMTestCase{
 		Name:        version.String(),
-		Contracts:   testutil.TestContractsSetup(t, testutil.MipsMultithreaded),
+		Contracts:   testutil.TestContractsSetup(t, testutil.MipsMultithreaded, uint8(version)),
 		StateHashFn: multithreaded.GetStateHashFn(),
 		VMFactory: func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) mipsevm.FPVM {
 			return multiThreadedVmFactory(po, stdOut, stdErr, log, features, opts...)

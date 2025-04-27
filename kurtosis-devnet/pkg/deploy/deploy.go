@@ -13,10 +13,12 @@ import (
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/engine"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"
 )
 
 type EngineManager interface {
 	EnsureRunning() error
+	GetEngineType() (string, error)
 }
 
 type deployer interface {
@@ -40,6 +42,7 @@ type Deployer struct {
 	dataFile       string
 	newEnclaveFS   func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error)
 	enclaveManager *enclave.KurtosisEnclaveManager
+	autofixMode    autofixTypes.AutofixMode
 }
 
 func WithKurtosisDeployer(ktDeployer DeployerFunc) DeployerOption {
@@ -96,13 +99,19 @@ func WithEnclave(enclave string) DeployerOption {
 	}
 }
 
+func WithAutofixMode(autofixMode autofixTypes.AutofixMode) DeployerOption {
+	return func(d *Deployer) {
+		d.autofixMode = autofixMode
+	}
+}
+
 func WithNewEnclaveFSFunc(newEnclaveFS func(ctx context.Context, enclave string, opts ...ktfs.EnclaveFSOption) (*ktfs.EnclaveFS, error)) DeployerOption {
 	return func(d *Deployer) {
 		d.newEnclaveFS = newEnclaveFS
 	}
 }
 
-func NewDeployer(opts ...DeployerOption) *Deployer {
+func NewDeployer(opts ...DeployerOption) (*Deployer, error) {
 	d := &Deployer{
 		kurtosisBinary: "kurtosis",
 		ktDeployer: func(opts ...kurtosis.KurtosisDeployerOptions) (deployer, error) {
@@ -118,16 +127,36 @@ func NewDeployer(opts ...DeployerOption) *Deployer {
 		d.engineManager = engine.NewEngineManager(engine.WithKurtosisBinary(d.kurtosisBinary))
 	}
 
-	// Try to create enclave manager, but don't fail if it doesn't work
-	// This allows the deployer to work in dry run mode without a running Kurtosis engine
-	enclaveManager, err := enclave.NewKurtosisEnclaveManager()
-	if err != nil {
-		log.Printf("Warning: failed to create enclave manager: %v", err)
-	} else {
+	if !d.dryRun {
+		if err := d.engineManager.EnsureRunning(); err != nil {
+			return nil, fmt.Errorf("error ensuring kurtosis engine is running: %w", err)
+		}
+
+		// Get and log engine info
+		engineType, err := d.engineManager.GetEngineType()
+		if err != nil {
+			log.Printf("Warning: failed to get engine type: %v", err)
+		} else {
+			log.Printf("Kurtosis engine type: %s", engineType)
+		}
+		var enclaveManager *enclave.KurtosisEnclaveManager
+		if engineType == "docker" {
+			enclaveManager, err = enclave.NewKurtosisEnclaveManager(
+				enclave.WithDockerManager(&enclave.DefaultDockerManager{}),
+			)
+		} else {
+			enclaveManager, err = enclave.NewKurtosisEnclaveManager()
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to create enclave manager: %w", err)
+		}
 		d.enclaveManager = enclaveManager
+	} else {
+		// This allows the deployer to work in dry run mode without a running Kurtosis engine
+		log.Printf("No Kurtosis engine running, skipping enclave manager creation")
 	}
 
-	return d
+	return d, nil
 }
 
 func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosis.KurtosisEnvironment, error) {
@@ -146,6 +175,7 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 		kurtosis.WithKurtosisDryRun(d.dryRun),
 		kurtosis.WithKurtosisPackageName(d.kurtosisPkg),
 		kurtosis.WithKurtosisEnclave(d.enclave),
+		kurtosis.WithKurtosisAutofixMode(d.autofixMode),
 	}
 
 	ktd, err := d.ktDeployer(opts...)
@@ -178,22 +208,35 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 
 func (d *Deployer) renderTemplate(buildDir string, urlBuilder func(path ...string) string) (*bytes.Buffer, error) {
 	t := &Templater{
-		baseDir:      d.baseDir,
-		dryRun:       d.dryRun,
-		enclave:      d.enclave,
-		templateFile: d.templateFile,
-		dataFile:     d.dataFile,
-		buildDir:     buildDir,
-		urlBuilder:   urlBuilder,
+		baseDir:        d.baseDir,
+		dryRun:         d.dryRun,
+		enclave:        d.enclave,
+		templateFile:   d.templateFile,
+		dataFile:       d.dataFile,
+		enclaveManager: d.enclaveManager,
+		buildDir:       buildDir,
+		urlBuilder:     urlBuilder,
 	}
 
 	return t.Render()
 }
 
 func (d *Deployer) Deploy(ctx context.Context, r io.Reader) (*kurtosis.KurtosisEnvironment, error) {
-	if !d.dryRun {
-		if err := d.engineManager.EnsureRunning(); err != nil {
-			return nil, fmt.Errorf("error ensuring kurtosis engine is running: %w", err)
+
+	// Clean up the enclave before deploying
+	if d.autofixMode == autofixTypes.AutofixModeNuke {
+		if d.enclaveManager != nil {
+			// Remove all the enclaves and destroy all the docker resources related to kurtosis
+			err := d.enclaveManager.Nuke(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error nuking enclave: %w", err)
+			}
+		}
+	} else if d.autofixMode == autofixTypes.AutofixModeNormal {
+		if d.enclaveManager != nil {
+			if err := d.enclaveManager.Autofix(ctx, d.enclave); err != nil {
+				return nil, fmt.Errorf("error autofixing enclave: %w", err)
+			}
 		}
 	}
 

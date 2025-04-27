@@ -273,20 +273,25 @@ func (c *Intent) checkL2Prod() error {
 	return err
 }
 
-func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
+func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash) (intent Intent, err error) {
 	switch configType {
 	case IntentTypeCustom:
-		return NewIntentCustom(l1ChainId, l2ChainIds)
+		intent, err = NewIntentCustom(l1ChainId, l2ChainIds)
 
 	case IntentTypeStandard:
-		return NewIntentStandard(l1ChainId, l2ChainIds)
+		intent, err = NewIntentStandard(l1ChainId, l2ChainIds)
 
 	case IntentTypeStandardOverrides:
-		return NewIntentStandardOverrides(l1ChainId, l2ChainIds)
+		intent, err = NewIntentStandardOverrides(l1ChainId, l2ChainIds)
 
 	default:
 		return Intent{}, fmt.Errorf("intent type not supported: %s (valid types: %s, %s, %s)", configType, IntentTypeStandard, IntentTypeCustom, IntentTypeStandardOverrides)
 	}
+	if err != nil {
+		return
+	}
+	intent.ConfigType = configType
+	return
 }
 
 // Sets all Intent fields to their zero value with the expectation that the

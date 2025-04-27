@@ -16,7 +16,7 @@ type mockNetwork struct {
 	reqs []*eth.ExecutionPayloadEnvelope
 }
 
-func (m *mockNetwork) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
+func (m *mockNetwork) SignAndPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	m.reqs = append(m.reqs, payload)
 	return nil
 }
@@ -115,7 +115,7 @@ func TestAsyncGossiperLoop(t *testing.T) {
 // failingNetwork is a mock network that always fails to publish
 type failingNetwork struct{}
 
-func (f *failingNetwork) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
+func (f *failingNetwork) SignAndPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
 	return errors.New("failed to publish")
 }
 

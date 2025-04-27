@@ -1,8 +1,8 @@
-set shell := ["/bin/bash", "-c"]
+import '../justfiles/prerequisites.just'
 
 KURTOSIS_PACKAGE := "./optimism-package-trampoline/"
 
-test:
+test: _prerequisites
     go test --tags=testonly ./...
 
 _kurtosis-run PACKAGE_NAME ARG_FILE ENCLAVE:
@@ -11,7 +11,7 @@ _kurtosis-run PACKAGE_NAME ARG_FILE ENCLAVE:
 _prestate-build PATH='.':
     docker buildx build --output {{PATH}} --progress plain -f ../op-program/Dockerfile.repro ../
 
-_docker_build TAG TARGET CONTEXT DOCKERFILE *ARGS:
+_docker_build TAG TARGET CONTEXT DOCKERFILE *ARGS: _prerequisites
     #!/usr/bin/env bash
     # --load is needed to ensure the image ends up in the local registry
     # --provenance=false is needed to make the build idempotent
@@ -43,13 +43,14 @@ op-program-image TAG='op-program:devnet': (_docker_build_stack TAG "op-program-t
 op-proposer-image TAG='op-proposer:devnet': (_docker_build_stack TAG "op-proposer-target")
 op-supervisor-image TAG='op-supervisor:devnet': (_docker_build_stack TAG "op-supervisor-target")
 op-wheel-image TAG='op-wheel:devnet': (_docker_build_stack TAG "op-wheel-target")
+op-faucet-image TAG='op-faucet:devnet': (_docker_build_stack TAG "op-faucet-target")
 
-op-program-builder-image TAG='op-program-builder:devnet':
+op-program-builder-image TAG='op-program-builder:devnet': _prerequisites
     just op-program-svc/op-program-svc {{TAG}}
 
 
 # Devnet template recipe
-devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE:
+devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE: _prerequisites
     #!/usr/bin/env bash
     export DEVNET_NAME={{NAME}}
     if [ -z "{{NAME}}" ]; then
@@ -67,7 +68,7 @@ devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE:
         -enclave "$ENCL_NAME" \
     && cat "tests/$ENCL_NAME.json"
 
-devnet-test DEVNET *TEST:
+devnet-test DEVNET *TEST: _prerequisites
     #!/usr/bin/env bash
     export TESTS=({{TEST}})
     # we need a timestamp in there to force kurtosis to not cache the test solely based on its name!
@@ -96,5 +97,5 @@ pectra-devnet: (devnet "pectra.yaml")
 isthmus-devnet: (devnet "isthmus.yaml")
 
 # subshells
-enter-devnet DEVNET CHAIN='Ethereum' NODE_INDEX='0':
-    exec go run ../devnet-sdk/shell/cmd/enter/main.go --devnet kt://{{DEVNET}} --chain {{CHAIN}} --node-index {{NODE_INDEX}}
+enter-devnet DEVNET CHAIN='Ethereum' NODE_INDEX='0': _prerequisites
+    go run ../devnet-sdk/shell/cmd/enter/main.go --devnet kt://{{DEVNET}} --chain {{CHAIN}} --node-index {{NODE_INDEX}}

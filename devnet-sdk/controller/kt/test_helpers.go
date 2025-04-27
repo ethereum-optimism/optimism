@@ -127,3 +127,15 @@ func (m *mockKurtosisContext) GetEnclave(ctx context.Context, name string) (inte
 	}
 	return nil, nil
 }
+
+func (m *mockKurtosisContext) Clean(ctx context.Context, destroyAll bool) ([]interfaces.EnclaveNameAndUuid, error) {
+	return []interfaces.EnclaveNameAndUuid{}, nil
+}
+
+func (m *mockKurtosisContext) GetEnclaveStatus(ctx context.Context, name string) (interfaces.EnclaveStatus, error) {
+	return interfaces.EnclaveStatusRunning, nil
+}
+
+func (m *mockKurtosisContext) DestroyEnclave(ctx context.Context, name string) error {
+	return nil
+}

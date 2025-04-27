@@ -22,6 +22,7 @@ type L2ELVendor string
 const (
 	OpReth L2ELVendor = "op-reth"
 	OpGeth L2ELVendor = "op-geth"
+	Proxyd L2ELVendor = "proxyd"
 )
 
 func (v L2ELVendor) Match(elems []stack.L2ELNode) []stack.L2ELNode {

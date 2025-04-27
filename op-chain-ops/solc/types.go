@@ -180,6 +180,7 @@ type AstNode struct {
 	StateMutability  string            `json:"stateMutability,omitempty"`
 	Virtual          bool              `json:"virtual,omitempty"`
 	Visibility       string            `json:"visibility,omitempty"`
+	FunctionSelector string            `json:"functionSelector,omitempty"`
 
 	// Variable specific
 	Constant         bool                 `json:"constant,omitempty"`
@@ -195,6 +196,9 @@ type AstNode struct {
 	IsLValue        bool        `json:"isLValue,omitempty"`
 	IsPure          bool        `json:"isPure,omitempty"`
 	LValueRequested bool        `json:"lValueRequested,omitempty"`
+	ExternalCall    *AstNode    `json:"externalCall,omitempty"`
+	TryCall         bool        `json:"tryCall,omitempty"`
+	Clauses         []Clauses   `json:"clauses,omitempty"`
 
 	// Literal specific
 	HexValue string      `json:"hexValue,omitempty"`
@@ -202,13 +206,22 @@ type AstNode struct {
 	Value    interface{} `json:"value,omitempty"`
 
 	// Other fields
-	ModifierName *Expression  `json:"modifierName,omitempty"`
-	Modifiers    []AstNode    `json:"modifiers,omitempty"`
-	Arguments    []Expression `json:"arguments,omitempty"`
-	Condition    *Expression  `json:"condition,omitempty"`
-	TrueBody     *AstBlock    `json:"trueBody,omitempty"`
-	FalseBody    *AstBlock    `json:"falseBody,omitempty"`
-	Operator     string       `json:"operator,omitempty"`
+	ModifierName    *Expression  `json:"modifierName,omitempty"`
+	Modifiers       []AstNode    `json:"modifiers,omitempty"`
+	Arguments       []Expression `json:"arguments,omitempty"`
+	Condition       *Expression  `json:"condition,omitempty"`
+	TrueBody        *AstNode     `json:"trueBody,omitempty"`
+	FalseBody       *AstNode     `json:"falseBody,omitempty"`
+	TrueExpression  *AstNode     `json:"trueExpression,omitempty"`
+	FalseExpression *AstNode     `json:"falseExpression,omitempty"`
+	Operator        string       `json:"operator,omitempty"`
+	Statements      *[]AstNode   `json:"statements,omitempty"`
+}
+
+type Clauses struct {
+	Block     *AstBlock `json:"block,omitempty"`
+	ErrorName string    `json:"errorName,omitempty"`
+	NodeType  string    `json:"nodeType,omitempty"`
 }
 
 type AstBaseContract struct {
@@ -263,8 +276,12 @@ type Expression struct {
 	ReferencedDeclaration  int                   `json:"referencedDeclaration,omitempty"`
 	ArgumentTypes          []AstTypeDescriptions `json:"argumentTypes,omitempty"`
 	Value                  interface{}           `json:"value,omitempty"`
+	MemberName             string                `json:"memberName,omitempty"`
 	Kind                   string                `json:"kind,omitempty"`
 	Expression             *Expression           `json:"expression,omitempty"`
+	TrueExpression         *AstNode              `json:"trueExpression,omitempty"`
+	FalseExpression        *AstNode              `json:"falseExpression,omitempty"`
+	Arguments              []Expression          `json:"arguments,omitempty"`
 }
 
 type ForgeArtifact struct {

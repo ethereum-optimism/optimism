@@ -145,6 +145,12 @@ ARG OP_DRIPPER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-dripper && make op-dripper  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DRIPPER_VERSION"
 
+FROM --platform=$BUILDPLATFORM builder AS op-faucet-builder
+ARG OP_FAUCET_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build just \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_FAUCET_VERSION" \
+  op-faucet/op-faucet
+
 FROM $TARGET_BASE_IMAGE AS cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 COPY --from=cannon-builder /app/cannon/multicannon/embeds/* /usr/local/bin/
@@ -214,3 +220,7 @@ CMD ["op-deployer"]
 FROM $TARGET_BASE_IMAGE AS op-dripper-target
 COPY --from=op-dripper-builder /app/op-dripper/bin/op-dripper /usr/local/bin/
 CMD ["op-dripper"]
+
+FROM $TARGET_BASE_IMAGE AS op-faucet-target
+COPY --from=op-faucet-builder /app/op-faucet/bin/op-faucet /usr/local/bin/
+CMD ["op-faucet"]

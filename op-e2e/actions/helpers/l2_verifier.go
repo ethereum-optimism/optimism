@@ -225,6 +225,10 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 			Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
 			Authenticated: false,
 		},
+		{
+			Namespace: "opstack",
+			Service:   node.NewOpstackAPI(ec, &testutils.FakePublishAPI{Log: log}),
+		},
 	}
 	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")
 	return rollupNode

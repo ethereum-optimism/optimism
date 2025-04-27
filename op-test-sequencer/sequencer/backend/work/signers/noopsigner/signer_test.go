@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
@@ -23,4 +24,6 @@ func TestNoopSigner(t *testing.T) {
 	require.NoError(t, x.Close())
 	require.Equal(t, "noop-signer-foo", x.String())
 	require.Equal(t, id, x.ID())
+
+	require.Equal(t, eth.ChainID{}, x.ChainID())
 }

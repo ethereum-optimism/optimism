@@ -2,7 +2,6 @@ package kurtosis
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -119,11 +118,11 @@ func (f *fakeJWTExtractor) ExtractData(ctx context.Context, enclave string) (*jw
 }
 
 type fakeDepsetExtractor struct {
-	data json.RawMessage
+	data map[string]descriptors.DepSet
 	err  error
 }
 
-func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) (json.RawMessage, error) {
+func (f *fakeDepsetExtractor) ExtractData(ctx context.Context, enclave string) (map[string]descriptors.DepSet, error) {
 	return f.data, f.err
 }
 
@@ -132,6 +131,8 @@ type mockKurtosisContext struct {
 	enclaveCtx interfaces.EnclaveContext
 	getErr     error
 	createErr  error
+	cleanErr   error
+	destroyErr error
 }
 
 func (m *mockKurtosisContext) GetEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
@@ -141,11 +142,32 @@ func (m *mockKurtosisContext) GetEnclave(ctx context.Context, name string) (inte
 	return m.enclaveCtx, nil
 }
 
+func (m *mockKurtosisContext) GetEnclaveStatus(ctx context.Context, name string) (interfaces.EnclaveStatus, error) {
+	if m.getErr != nil {
+		return "", m.getErr
+	}
+	return interfaces.EnclaveStatusRunning, nil
+}
+
 func (m *mockKurtosisContext) CreateEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
 	if m.createErr != nil {
 		return nil, m.createErr
 	}
 	return m.enclaveCtx, nil
+}
+
+func (m *mockKurtosisContext) Clean(ctx context.Context, destroyAll bool) ([]interfaces.EnclaveNameAndUuid, error) {
+	if m.cleanErr != nil {
+		return nil, m.cleanErr
+	}
+	return []interfaces.EnclaveNameAndUuid{}, nil
+}
+
+func (m *mockKurtosisContext) DestroyEnclave(ctx context.Context, name string) error {
+	if m.destroyErr != nil {
+		return m.destroyErr
+	}
+	return nil
 }
 
 func TestDeploy(t *testing.T) {
@@ -346,7 +368,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 							},
 						},
 					},
-					DepSet: nil,
+					DepSets: nil,
 				},
 			},
 		},
@@ -428,7 +450,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						},
 					},
 					Features: spec.FeatureList{spec.FeatureInterop},
-					DepSet:   json.RawMessage(`{}`),
+					DepSets:  map[string]descriptors.DepSet{"test-dep-set": descriptors.DepSet(`{}`)},
 				},
 			},
 		},
@@ -489,7 +511,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						},
 					},
 					Features: spec.FeatureList{},
-					DepSet:   nil,
+					DepSets:  nil,
 				},
 			},
 		},
@@ -503,9 +525,9 @@ func TestGetEnvironmentInfo(t *testing.T) {
 			}
 
 			// Create depset data based on whether interop is enabled
-			var depsetData json.RawMessage
+			var depsets map[string]descriptors.DepSet
 			if tt.spec != nil && tt.spec.Features.Contains(spec.FeatureInterop) {
-				depsetData = json.RawMessage(`{}`)
+				depsets = map[string]descriptors.DepSet{"test-dep-set": descriptors.DepSet(`{}`)}
 			}
 
 			deployer, err := NewKurtosisDeployer(
@@ -523,7 +545,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 					err:  tt.err,
 				}),
 				WithKurtosisDepsetExtractor(&fakeDepsetExtractor{
-					data: depsetData,
+					data: depsets,
 					err:  tt.err,
 				}),
 			)

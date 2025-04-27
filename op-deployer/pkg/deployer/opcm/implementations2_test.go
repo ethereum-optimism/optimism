@@ -1,4 +1,4 @@
-package opcm_test
+package opcm
 
 import (
 	"math/big"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -52,11 +51,11 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 		// We'll need some contracts already deployed for this to work
 		proxyAdminAddress, proxyAddress, protocolVersionsAddress := deployDependencies(host1)
 
-		deployImplementations, err := opcm.NewDeployImplementationsScript(host1)
+		deployImplementations, err := NewDeployImplementationsScript(host1)
 		require.NoError(t, err)
 
 		// Now we run the deploy script
-		output, err := deployImplementations.Run(opcm.DeployImplementations2Input{
+		output, err := deployImplementations.Run(DeployImplementations2Input{
 			WithdrawalDelaySeconds:          big.NewInt(1),
 			MinProposalSizeBytes:            big.NewInt(2),
 			ChallengePeriodSeconds:          big.NewInt(3),
@@ -84,7 +83,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 		// We'll need some contracts already deployed for this to work
 		proxyAdminAddress, proxyAddress, protocolVersionsAddress = deployDependencies(host2)
 
-		deprecatedOutput, err := opcm.DeployImplementations(host2, opcm.DeployImplementationsInput{
+		deprecatedOutput, err := DeployImplementations(host2, DeployImplementationsInput{
 			WithdrawalDelaySeconds:          big.NewInt(1),
 			MinProposalSizeBytes:            big.NewInt(2),
 			ChallengePeriodSeconds:          big.NewInt(3),

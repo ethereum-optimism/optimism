@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/build"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
 )
 
@@ -28,6 +29,25 @@ type Templater struct {
 	// Common state across template functions
 	buildJobsMux sync.Mutex
 	buildJobs    map[string]*dockerBuildJob
+
+	contracts contractStateBuildJob
+	prestate  prestateStateBuildJob
+
+	enclaveManager *enclave.KurtosisEnclaveManager
+}
+
+// prestateStateBuildJob helps track the state of the prestate build
+type prestateStateBuildJob struct {
+	info    *PrestateInfo
+	err     error
+	started bool
+}
+
+// contractStateBuildJob helps track the state of the contract build
+type contractStateBuildJob struct {
+	url     string
+	err     error
+	started bool
 }
 
 // dockerBuildJob helps collect and group build jobs
@@ -79,26 +99,34 @@ func (f *Templater) localDockerImageOption() tmpl.TemplateContextOptions {
 	})
 }
 
-func (f *Templater) localContractArtifactsOption() tmpl.TemplateContextOptions {
+func (f *Templater) localContractArtifactsOption(buildWg *sync.WaitGroup) tmpl.TemplateContextOptions {
 	contractBuilder := build.NewContractBuilder(
 		build.WithContractBaseDir(f.baseDir),
 		build.WithContractDryRun(f.dryRun),
 		build.WithContractEnclave(f.enclave),
+		build.WithContractEnclaveManager(f.enclaveManager),
 	)
 
 	return tmpl.WithFunction("localContractArtifacts", func(layer string) (string, error) {
-		url, err := contractBuilder.Build(layer)
-
-		if err != nil {
-			return "", err
+		if f.dryRun {
+			return "artifact://contracts", nil
 		}
-
-		log.Printf("%s: contract artifacts available at: %s\n", layer, url)
-		return url, nil
+		if !f.contracts.started {
+			f.contracts.started = true
+			buildWg.Add(1)
+			go func() {
+				url, err := contractBuilder.Build("")
+				f.contracts.url = url
+				f.contracts.err = err
+				buildWg.Done()
+			}()
+			return contractBuilder.GetContractUrl(), nil
+		}
+		return f.contracts.url, f.contracts.err
 	})
 }
 
-func (f *Templater) localPrestateOption() tmpl.TemplateContextOptions {
+func (f *Templater) localPrestateOption(buildWg *sync.WaitGroup) tmpl.TemplateContextOptions {
 	holder := &localPrestateHolder{
 		baseDir:  f.baseDir,
 		buildDir: f.buildDir,
@@ -111,7 +139,28 @@ func (f *Templater) localPrestateOption() tmpl.TemplateContextOptions {
 	}
 
 	return tmpl.WithFunction("localPrestate", func() (*PrestateInfo, error) {
-		return holder.GetPrestateInfo()
+		if !f.prestate.started {
+			f.prestate.started = true
+			buildWg.Add(1)
+			go func() {
+				info, err := holder.GetPrestateInfo()
+				f.prestate.info = info
+				f.prestate.err = err
+				buildWg.Done()
+			}()
+		}
+		if f.prestate.info == nil {
+			prestatePath := []string{"proofs", "op-program", "cannon"}
+			return &PrestateInfo{
+				URL: f.urlBuilder(prestatePath...),
+				Hashes: map[string]string{
+					"prestate":         "dry_run_placeholder",
+					"prestate_mt64":    "dry_run_placeholder",
+					"prestate_interop": "dry_run_placeholder",
+				},
+			}, nil
+		}
+		return f.prestate.info, f.prestate.err
 	})
 }
 
@@ -121,10 +170,12 @@ func (f *Templater) Render() (*bytes.Buffer, error) {
 		f.buildJobs = make(map[string]*dockerBuildJob)
 	}
 
+	buildWg := &sync.WaitGroup{}
+
 	opts := []tmpl.TemplateContextOptions{
 		f.localDockerImageOption(),
-		f.localContractArtifactsOption(),
-		f.localPrestateOption(),
+		f.localContractArtifactsOption(buildWg),
+		f.localPrestateOption(buildWg),
 		tmpl.WithBaseDir(f.baseDir),
 	}
 
@@ -176,17 +227,16 @@ func (f *Templater) Render() (*bytes.Buffer, error) {
 		)
 
 		// Start all the builds
-		var wg sync.WaitGroup
-		wg.Add(len(dockerJobs))
+		buildWg.Add(len(dockerJobs))
 		for _, job := range dockerJobs {
 			go func(j *dockerBuildJob) {
-				defer wg.Done()
+				defer buildWg.Done()
 				log.Printf("Starting build for %s (tag: %s)", j.projectName, j.imageTag)
 				j.result, j.err = dockerBuilder.Build(j.projectName, j.imageTag)
 				close(j.done) // Mark this job as done
 			}(job)
 		}
-		wg.Wait() // Wait for all builds to complete
+		buildWg.Wait() // Wait for all builds to complete
 
 		// Check for any build errors
 		for _, job := range dockerJobs {
@@ -202,6 +252,8 @@ func (f *Templater) Render() (*bytes.Buffer, error) {
 			return nil, fmt.Errorf("error reopening template file: %w", err)
 		}
 		defer tmplFile.Close()
+	} else {
+		buildWg.Wait()
 	}
 
 	// Second pass: Render with actual build results

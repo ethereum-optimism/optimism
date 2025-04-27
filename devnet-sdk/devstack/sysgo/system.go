@@ -79,12 +79,8 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
 
 	opt.Add(WithSupervisor(ids.Supervisor, ids.Cluster, ids.L1EL))
 
-	// TODO(#15027): create L1 Faucet
-
 	opt.Add(WithL2ELNode(ids.L2AEL, &ids.Supervisor))
 	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor))
-
-	// TODO(#15027): create L2 faucet
 
 	opt.Add(WithL2CLNode(ids.L2ACL, true, ids.L1CL, ids.L1EL, ids.L2AEL))
 	opt.Add(WithL2CLNode(ids.L2BCL, true, ids.L1CL, ids.L1EL, ids.L2BEL))

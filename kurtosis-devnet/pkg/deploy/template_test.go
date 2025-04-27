@@ -4,8 +4,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -136,4 +139,105 @@ prestateHash: {{ (localPrestate).Hashes.prestate }}`
 	assert.Contains(t, templater.buildJobs, "project-b")
 	assert.Len(t, templater.buildJobs, 2, "Should only have jobs for unique project names")
 	templater.buildJobsMux.Unlock()
+}
+
+func TestLocalPrestateOption(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir, err := os.MkdirTemp("", "prestate-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a test build directory
+	buildDir := filepath.Join(tmpDir, "build")
+	require.NoError(t, os.MkdirAll(buildDir, 0755))
+
+	// Create a Templater instance
+	templater := &Templater{
+		enclave:  "test-enclave",
+		dryRun:   true,
+		baseDir:  tmpDir,
+		buildDir: buildDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+	buildWg := &sync.WaitGroup{}
+
+	// Get the localPrestate option
+	option := templater.localPrestateOption(buildWg)
+
+	// Create a template context with the option
+	ctx := tmpl.NewTemplateContext(option)
+
+	// Test the localPrestate function
+	localPrestateFn, ok := ctx.Functions["localPrestate"].(func() (*PrestateInfo, error))
+	require.True(t, ok)
+
+	prestate, err := localPrestateFn()
+	require.NoError(t, err)
+
+	// Wait for the async goroutine to complete
+	buildWg.Wait()
+
+	// In dry run mode, we should get a placeholder prestate with the correct URL
+	expectedURL := "http://localhost:8080/proofs/op-program/cannon"
+	assert.Equal(t, expectedURL, prestate.URL)
+	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate"])
+	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate_mt64"])
+	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate_interop"])
+
+	// Call it again to test caching
+	prestate2, err := localPrestateFn()
+	require.NoError(t, err)
+	assert.Equal(t, prestate, prestate2)
+}
+
+func TestLocalContractArtifactsOption(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir, err := os.MkdirTemp("", "contract-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create the contracts directory structure
+	contractsDir := filepath.Join(tmpDir, "packages", "contracts-bedrock")
+	require.NoError(t, os.MkdirAll(contractsDir, 0755))
+
+	// Create a mock solidity cache file
+	cacheDir := filepath.Join(contractsDir, "cache")
+	require.NoError(t, os.MkdirAll(cacheDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "solidity-files-cache.json"), []byte("test cache"), 0644))
+
+	// Create a mock enclave manager
+	mockEnclaveManager := &enclave.KurtosisEnclaveManager{}
+
+	// Create a Templater instance
+	templater := &Templater{
+		enclave:        "test-enclave",
+		dryRun:         true,
+		baseDir:        tmpDir,
+		enclaveManager: mockEnclaveManager,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+	buildWg := &sync.WaitGroup{}
+	// Get the localContractArtifacts option
+	option := templater.localContractArtifactsOption(buildWg)
+
+	// Create a template context with the option
+	ctx := tmpl.NewTemplateContext(option)
+
+	// Test the localContractArtifacts function
+	localContractArtifactsFn, ok := ctx.Functions["localContractArtifacts"].(func(string) (string, error))
+	require.True(t, ok)
+
+	// Test with L1 layer
+	artifacts, err := localContractArtifactsFn("l1")
+	require.NoError(t, err)
+	assert.Equal(t, "artifact://contracts", artifacts)
+
+	// Test with L2 layer
+	artifacts, err = localContractArtifactsFn("l2")
+	require.NoError(t, err)
+	assert.Equal(t, "artifact://contracts", artifacts)
 }

@@ -47,6 +47,19 @@ contract ETHLiquidity_User is StdUtils {
         vm.prank(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         liquidity.burn{ value: _amount }();
     }
+
+    /// @notice Fund ETH liquidity.
+    /// @param _amount The amount of ETH to fund.
+    function fund(uint256 _amount) public {
+        // Anyone can fund
+        // Bound amount by actor's current balance
+        _amount = bound(_amount, 0, address(this).balance);
+        if (_amount == 0) {
+            // Cannot fund with 0
+            return;
+        }
+        try liquidity.fund{ value: _amount }() { } catch { /* Ignore reverts */ }
+    }
 }
 
 /// @title ETHLiquidity_MintBurn_Invariant
@@ -71,9 +84,10 @@ contract ETHLiquidity_MintBurn_Invariant is CommonTest {
         targetContract(address(actor));
 
         // Set the target selectors.
-        bytes4[] memory selectors = new bytes4[](2);
+        bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = actor.mint.selector;
         selectors[1] = actor.burn.selector;
+        selectors[2] = actor.fund.selector;
         FuzzSelector memory selector = FuzzSelector({ addr: address(actor), selectors: selectors });
         targetSelector(selector);
     }

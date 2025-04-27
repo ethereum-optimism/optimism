@@ -352,7 +352,7 @@ func TestProofParamOverrides(t *testing.T) {
 		"preimageOracleChallengePeriod":           standard.ChallengePeriodSeconds + 1,
 		"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
 		"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
-		"mipsVersion":                             standard.MIPSVersion + 1,
+		"mipsVersion":                             6,                        // Contract enforces a valid value be used
 		"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
 		"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
 		"faultGameMaxDepth":                       standard.DisputeMaxGameDepth + 1,

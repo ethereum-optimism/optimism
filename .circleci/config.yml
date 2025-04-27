@@ -1004,6 +1004,8 @@ jobs:
           command: unused-imports-check-no-build
       - run-contracts-check:
           command: validate-spacers-no-build
+      - run-contracts-check:
+          command: opcm-upgrade-checks-no-build
 
   todo-issues:
     parameters:
@@ -1676,8 +1678,8 @@ jobs:
       - run:
           name: Close issue if label is added
           command: |
-            echo "Closing issue $github_pull_request_number if label $github_label_name is added on repository ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}"
             if [ ! -z "$github_pull_request_number" ] && [ "$github_label_name" = "$LABEL_NAME" ]; then
+                echo "Closing issue $github_pull_request_number as label $LABEL_NAME is added on repository ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME} "
                 export GH_TOKEN=$GITHUB_TOKEN_GOVERNANCE
                 gh issue close --repo "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" "$github_pull_request_number" --comment "$MESSAGE"
             fi
@@ -1688,14 +1690,12 @@ jobs:
 workflows:
   main:
     when:
-      and:
-        - or:
-            # Trigger on new commits
-            - equal: [webhook, << pipeline.trigger_source >>]
-              # Trigger on manual triggers if explicitly requested
-            - equal: [true, << pipeline.parameters.main_dispatch >>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.main_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
+          - equal: [<< pipeline.parameters.github-event-type >>, "__not_set__"] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -2106,9 +2106,12 @@ workflows:
   develop-publish-contract-artifacts:
     when:
       or:
-        - equal: ["develop", <<pipeline.git.branch>>]
-        - equal:
-            [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - publish-contract-artifacts:
           context:
@@ -2117,12 +2120,13 @@ workflows:
 
   develop-fault-proofs:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - cannon-prestate:
           context:
@@ -2174,12 +2178,13 @@ workflows:
 
   develop-kontrol-tests:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - kontrol-tests:
           context:
@@ -2290,12 +2295,13 @@ workflows:
 
   acceptance-tests:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       # KURTOSIS (Simple)
       - op-acceptance-tests:

@@ -12,9 +12,15 @@ import (
 
 // KurtosisContext implements interfaces.KurtosisContextInterface for testing
 type KurtosisContext struct {
-	EnclaveCtx *EnclaveContext
-	GetErr     error
-	CreateErr  error
+	EnclaveCtx    *EnclaveContext
+	GetErr        error
+	CreateErr     error
+	CleanErr      error
+	DestroyErr    error
+	Status        interfaces.EnclaveStatus
+	StatusErr     error
+	DestroyCalled bool
+	CleanCalled   bool
 }
 
 func (f *KurtosisContext) CreateEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
@@ -29,6 +35,29 @@ func (f *KurtosisContext) GetEnclave(ctx context.Context, name string) (interfac
 		return nil, f.GetErr
 	}
 	return f.EnclaveCtx, nil
+}
+
+func (f *KurtosisContext) GetEnclaveStatus(ctx context.Context, name string) (interfaces.EnclaveStatus, error) {
+	if f.StatusErr != nil {
+		return "", f.StatusErr
+	}
+	return f.Status, nil
+}
+
+func (f *KurtosisContext) Clean(ctx context.Context, destroyAll bool) ([]interfaces.EnclaveNameAndUuid, error) {
+	f.CleanCalled = true
+	if f.CleanErr != nil {
+		return nil, f.CleanErr
+	}
+	return []interfaces.EnclaveNameAndUuid{}, nil
+}
+
+func (f *KurtosisContext) DestroyEnclave(ctx context.Context, name string) error {
+	f.DestroyCalled = true
+	if f.DestroyErr != nil {
+		return f.DestroyErr
+	}
+	return nil
 }
 
 // EnclaveContext implements interfaces.EnclaveContext for testing

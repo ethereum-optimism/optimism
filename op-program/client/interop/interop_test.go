@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/cross"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +34,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTwoChains() (*staticConfigSource, *eth.SuperV1, *stubTasks) {
+type chainSetupOpts struct {
+	expiryWindow uint64
+}
+
+func WithExpiryWindow(window uint64) func(*chainSetupOpts) {
+	return func(opts *chainSetupOpts) {
+		opts.expiryWindow = window
+	}
+}
+
+func setupTwoChains(opts ...func(*chainSetupOpts)) (*staticConfigSource, *eth.SuperV1, *stubTasks) {
+	chainSetupOpts := &chainSetupOpts{}
+	for _, opt := range opts {
+		opt(chainSetupOpts)
+	}
+
 	rollupCfg1 := chaincfg.OPSepolia()
 	chainCfg1 := chainconfig.OPSepoliaChainConfig()
 
@@ -49,14 +65,23 @@ func setupTwoChains() (*staticConfigSource, *eth.SuperV1, *stubTasks) {
 			{ChainID: eth.ChainIDFromBig(rollupCfg2.L2ChainID), Output: eth.OutputRoot(&eth.OutputV0{BlockHash: common.Hash{0x22}})},
 		},
 	}
-	depset, _ := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		eth.ChainIDFromBig(rollupCfg1.L2ChainID): {ChainIndex: chainA, ActivationTime: 0, HistoryMinTime: 0},
-		eth.ChainIDFromBig(rollupCfg2.L2ChainID): {ChainIndex: chainB, ActivationTime: 0, HistoryMinTime: 0},
-	})
+
+	var ds *depset.StaticConfigDependencySet
+	if chainSetupOpts.expiryWindow > 0 {
+		ds, _ = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(map[eth.ChainID]*depset.StaticConfigDependency{
+			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {ChainIndex: chainA, ActivationTime: 0, HistoryMinTime: 0},
+			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {ChainIndex: chainB, ActivationTime: 0, HistoryMinTime: 0},
+		}, chainSetupOpts.expiryWindow)
+	} else {
+		ds, _ = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {ChainIndex: chainA, ActivationTime: 0, HistoryMinTime: 0},
+			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {ChainIndex: chainB, ActivationTime: 0, HistoryMinTime: 0},
+		})
+	}
 	configSource := &staticConfigSource{
 		rollupCfgs:   []*rollup.Config{rollupCfg1, &rollupCfg2},
 		chainConfigs: []*params.ChainConfig{chainCfg1, &chainCfg2},
-		depset:       depset,
+		depset:       ds,
 	}
 	tasksStub := &stubTasks{
 		l2SafeHead: eth.L2BlockRef{Number: 918429823450218}, // Past the claimed block
@@ -575,6 +600,94 @@ func TestPanicIfAgreedPrestateIsAfterGameTimestamp(t *testing.T) {
 	require.PanicsWithValue(t, fmt.Sprintf("agreed prestate timestamp %v is after the game timestamp %v", agreedSuperRoot.Timestamp, agreedSuperRoot.Timestamp-1), func() {
 		verifyResult(t, logger, tasksStub, configSource, l2PreimageOracle, agreedPrestatehash, agreedSuperRoot.Timestamp-1, expectedClaim)
 	})
+}
+
+func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
+	// This test is also covered by safe_update_test.go in op-supervisor.
+	// However, since this short-circuit behavior is critical for fault proofs, we doubly assert the desired behavior here to prevent a regression.
+
+	runTest := func(t *testing.T, expiryWindow uint64, expectInclusionCheck bool) {
+		logger := testlog.Logger(t, log.LevelError)
+		configSource, agreedSuperRoot, tasksStub := setupTwoChains(WithExpiryWindow(expiryWindow))
+		defer tasksStub.AssertExpectations(t)
+		rng := rand.New(rand.NewSource(123))
+
+		configA := configSource.rollupCfgs[0]
+		configB := configSource.rollupCfgs[1]
+
+		initLog := &gethTypes.Log{Address: initiatingMessageOrigin, Topics: []common.Hash{initiatingMessageTopic}}
+		block1A, _ := createBlock(rng, configA, 1, gethTypes.Receipts{{Logs: []*gethTypes.Log{initLog}}})
+
+		exec := interoptypes.Message{
+			Identifier: interoptypes.Identifier{
+				Origin:      initiatingMessageOrigin,
+				BlockNumber: 1,
+				Timestamp:   block1A.Time(),
+				ChainID:     uint256.Int(eth.ChainIDFromBig(configB.L2ChainID)),
+			},
+			PayloadHash: initPayloadHash,
+		}
+		logA := convertExecutingMessageToLog(t, exec)
+		block2A, block2AReceipts := createBlock(rng, configA, 2, gethTypes.Receipts{{Logs: []*gethTypes.Log{logA}}})
+		block2B, block2BReceipts := createBlock(rng, configB, 2, nil)
+
+		pendingOutputs := [2]*eth.OutputV0{0: createOutput(block2A.Hash()), 1: createOutput(block2B.Hash())}
+		transitionState := &types.TransitionState{
+			SuperRoot: agreedSuperRoot.Marshal(),
+			PendingProgress: []types.OptimisticBlock{
+				{BlockHash: block2A.Hash(), OutputRoot: eth.OutputRoot(pendingOutputs[0])},
+				{BlockHash: block2B.Hash(), OutputRoot: eth.OutputRoot(pendingOutputs[1])},
+			},
+			Step: ConsolidateStep,
+		}
+		l2PreimageOracle, _ := test.NewStubOracle(t)
+		l2PreimageOracle.Blocks[block2A.Hash()] = block2A
+		l2PreimageOracle.Blocks[block2B.Hash()] = block2B
+		l2PreimageOracle.Receipts[block2A.Hash()] = block2AReceipts
+		l2PreimageOracle.Receipts[block2B.Hash()] = block2BReceipts
+
+		consolidateState := newConsolidateState(transitionState)
+		consolidateDeps, err := newConsolidateCheckDeps(configSource.depset, configSource, transitionState, agreedSuperRoot.Chains, l2PreimageOracle, consolidateState)
+		require.NoError(t, err)
+
+		mockConsolidateDeps := &mockConsolidateDeps{consolidateCheckDeps: consolidateDeps}
+		mockConsolidateDeps.
+			On("Contains", mock.Anything, mock.Anything).Return(supervisortypes.BlockSeal{}, supervisortypes.ErrConflict).
+			Maybe()
+
+		deps := &cross.UnsafeHazardDeps{UnsafeStartDeps: mockConsolidateDeps}
+		candidate := supervisortypes.BlockSeal{
+			Hash:      block2A.Hash(),
+			Number:    block2A.NumberU64(),
+			Timestamp: block2A.Time(),
+		}
+		_, err = cross.NewHazardSet(deps, logger, eth.ChainIDFromBig(configA.L2ChainID), candidate)
+		require.ErrorIs(t, err, supervisortypes.ErrConflict)
+
+		if expectInclusionCheck {
+			mockConsolidateDeps.AssertCalled(t, "Contains", mock.Anything, mock.Anything)
+		} else {
+			mockConsolidateDeps.AssertNotCalled(t, "Contains", mock.Anything, mock.Anything)
+		}
+		mockConsolidateDeps.AssertExpectations(t)
+	}
+
+	t.Run("expired message short-circuits inclusion check", func(t *testing.T) {
+		runTest(t, 1, false)
+	})
+	t.Run("message not expired does not short-circuit inclusion check", func(t *testing.T) {
+		runTest(t, 2, true)
+	})
+}
+
+type mockConsolidateDeps struct {
+	mock.Mock
+	*consolidateCheckDeps
+}
+
+func (m *mockConsolidateDeps) Contains(chainID eth.ChainID, query supervisortypes.ContainsQuery) (supervisortypes.BlockSeal, error) {
+	out := m.Mock.Called(chainID, query)
+	return out.Get(0).(supervisortypes.BlockSeal), out.Error(1)
 }
 
 func verifyResult(t *testing.T, logger log.Logger, tasks *stubTasks, configSource *staticConfigSource, l2PreimageOracle *test.StubBlockOracle, agreedPrestate common.Hash, gameTimestamp uint64, expectedClaim common.Hash) {

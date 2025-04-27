@@ -118,6 +118,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 		IgnoreMissingPectraBlobSchedule: ctx.Bool(flags.IgnoreMissingPectraBlobSchedule.Name),
 		FetchWithdrawalRootFromState:    ctx.Bool(flags.FetchWithdrawalRootFromState.Name),
+
+		ExperimentalOPStackAPI: ctx.Bool(flags.ExperimentalOPStackAPI.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

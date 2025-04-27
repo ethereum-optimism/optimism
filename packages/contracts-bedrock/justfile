@@ -222,6 +222,16 @@ snapshots-check: build snapshots-check-no-build
 interfaces-check-no-build:
   go run ./scripts/checks/interfaces
 
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+# Build the contracts first.
+opcm-upgrade-checks: clean build-dev opcm-upgrade-checks-no-build
+
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+opcm-upgrade-checks-no-build:
+  go run ./scripts/checks/opcm-upgrade-checks/
+
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
 # artifacts can cause the script to detect issues incorrectly.
