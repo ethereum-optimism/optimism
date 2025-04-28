@@ -27,12 +27,7 @@ op-program-client:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client ./client/cmd/main.go
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-interop ./client/interopcmd/main.go
 
-op-program-client-mips: op-program-client-mips32 op-program-client-mips64 op-program-client-mips64-interop
-
-op-program-client-mips32:
-	env GO111MODULE=on GOOS=linux GOARCH=mips GOMIPS=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client.elf ./client/cmd/main.go
-	# verify output with: readelf -h bin/op-program-client.elf
-	# result is mips32, big endian, R3000
+op-program-client-mips: op-program-client-mips64 op-program-client-mips64-interop
 
 op-program-client-mips64:
 	env GO111MODULE=on GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client64.elf ./client/cmd/main.go
@@ -122,7 +117,6 @@ analyze-op-program-client-cannon-multithreaded-64:
 	op-program-host \
 	op-program-client \
 	op-program-client-mips \
-	op-program-client-mips32 \
 	op-program-client-mips64 \
 	op-program-client-riscv \
 	clean \
