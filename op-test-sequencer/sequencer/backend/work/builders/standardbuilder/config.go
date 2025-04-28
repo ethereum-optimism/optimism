@@ -72,7 +72,6 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	}
 	fb := derive.NewFetchingAttributesBuilder(cfg, l1Cl, l2Cl)
 
-	// TODO: understand why this is needed
 	fb.TestSkipL1OriginCheck()
 
 	cl := sources.NewOPStackClient(l2CLRPCClient)

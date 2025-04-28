@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 type L2Batcher struct {
@@ -85,7 +86,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			TargetNumFrames:          1,
 			ApproxComprRatio:         0.4,
 			SubSafetyMargin:          4,
-			PollInterval:             30 * time.Second,
+			PollInterval:             500 * time.Millisecond,
 			TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), batcherSecret),
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LevelInfo,
@@ -96,6 +97,9 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			MaxBlocksPerSpanBatch: 10,
 			DataAvailabilityType:  batcherFlags.CalldataType,
 			CompressionAlgo:       derive.Brotli,
+			RPC: oprpc.CLIConfig{
+				EnableAdmin: true,
+			},
 		}
 
 		batcher, err := bss.BatcherServiceFromCLIConfig(

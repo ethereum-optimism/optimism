@@ -129,7 +129,6 @@ var (
 	ErrConflictingJob         = &rpc.JsonError{Code: -38511, Message: "conflicting job"}
 	ErrNotSealed              = &rpc.JsonError{Code: -38520, Message: "block not yet sealed"}
 	ErrAlreadySealed          = &rpc.JsonError{Code: -38521, Message: "block already sealed"}
-	ErrAlreadyOpened          = &rpc.JsonError{Code: -38522, Message: "block already opened"}
 	ErrUnsigned               = &rpc.JsonError{Code: -38530, Message: "block not yet signed"}
 	ErrAlreadySigned          = &rpc.JsonError{Code: -38531, Message: "block already signed"}
 	ErrUncommitted            = &rpc.JsonError{Code: -38540, Message: "block not yet committed"}

@@ -2,7 +2,6 @@ package standardbuilder
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -75,8 +74,8 @@ func (b *Builder) NewJob(ctx context.Context, opts seqtypes.BuildOpts) (work.Bui
 	var l1OriginRefBlkID eth.BlockID
 
 	if opts.L1Origin != nil {
+		b.log.Debug("Builder NewJob about to get BlockRefByHash for L1 origin", "opts", opts)
 
-		b.log.Debug("About to get block ref by hash for l1 origin", "opts", opts)
 		l1OriginRef, err := b.l1.L1BlockRefByHash(ctx, *opts.L1Origin)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve L1 origin: %w", err)
@@ -125,14 +124,4 @@ func (b *Builder) String() string {
 
 func (b *Builder) ID() seqtypes.BuilderID {
 	return b.id
-}
-
-func randomAddress() (common.Address, error) {
-	var b [20]byte
-	_, err := rand.Read(b[:])
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	return common.BytesToAddress(b[:]), nil
 }

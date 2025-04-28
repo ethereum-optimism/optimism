@@ -30,7 +30,6 @@ type Sequencer struct {
 	signed     work.SignedBlock
 	committed  bool
 	published  bool
-	opened     bool
 
 	// active is true when it's currently running through block-building automatically
 	active bool
@@ -248,7 +247,6 @@ func (s *Sequencer) reset() {
 	s.signed = nil
 	s.committed = false
 	s.published = false
-	s.opened = false
 }
 
 func (s *Sequencer) Start(ctx context.Context, head common.Hash) error {

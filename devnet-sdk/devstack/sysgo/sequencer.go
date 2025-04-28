@@ -2,6 +2,7 @@ package sysgo
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -32,9 +34,10 @@ import (
 )
 
 type Sequencer struct {
-	id        stack.SequencerID
-	userRPC   string
-	jwtSecret [32]byte
+	id           stack.SequencerID
+	userRPC      string
+	jwtSecret    [32]byte
+	l2sequencers map[eth.ChainID]seqtypes.SequencerID
 }
 
 func (s *Sequencer) hydrate(sys stack.ExtensibleSystem) {
@@ -49,16 +52,20 @@ func (s *Sequencer) hydrate(sys stack.ExtensibleSystem) {
 	sys.T().Require().NoError(err)
 	sys.T().Cleanup(sqClient.Close)
 
-	// TODO: fix hardcoded sequencer name and convert to collection
-	indClient, err := client.NewRPC(sys.T().Ctx(), tlog, s.userRPC+"/sequencers/test-full-sequencer", opts...)
-	sys.T().Require().NoError(err)
-	sys.T().Cleanup(indClient.Close)
+	l2sequencersRpcs := make(map[eth.ChainID]client.RPC)
+	for chainID, seqID := range s.l2sequencers {
+		seqRpc, err := client.NewRPC(sys.T().Ctx(), tlog, s.userRPC+"/sequencers/"+seqID.String(), opts...)
+		sys.T().Require().NoError(err)
+		sys.T().Cleanup(seqRpc.Close)
+
+		l2sequencersRpcs[chainID] = seqRpc
+	}
 
 	sys.AddSequencer(shim.NewSequencer(shim.SequencerConfig{
-		CommonConfig: shim.NewCommonConfig(sys.T()),
-		ID:           s.id,
-		Client:       sqClient,
-		IndClient:    indClient,
+		CommonConfig:       shim.NewCommonConfig(sys.T()),
+		ID:                 s.id,
+		Client:             sqClient,
+		L2SequencerClients: l2sequencersRpcs,
 	}))
 }
 
@@ -83,10 +90,11 @@ func WithSequencer(sequencerID stack.SequencerID, l2CLID stack.L2CLNodeID, l1ELI
 		signerID := seqtypes.SignerID("test-local-signer")
 		publisherID := seqtypes.PublisherID("test-standard-publisher")
 
-		//signer key
 		p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID.ToBig()))
 		require.NoError(err, "need p2p key for sequencer")
 		raw := hexutil.Bytes(crypto.FromECDSA(p2pKey))
+
+		l2SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2CLID.ChainID))
 
 		v := &config.Ensemble{
 			Endpoints: nil,
@@ -132,7 +140,7 @@ func WithSequencer(sequencerID stack.SequencerID, l2CLID stack.L2CLNodeID, l1ELI
 				},
 			},
 			Sequencers: map[seqtypes.SequencerID]*config.SequencerEntry{
-				"test-full-sequencer": {
+				l2SequencerID: {
 					Full: &fullseq.Config{
 						ChainID: l2CLID.ChainID,
 
@@ -200,6 +208,9 @@ func WithSequencer(sequencerID stack.SequencerID, l2CLID stack.L2CLNodeID, l1ELI
 			id:        sequencerID,
 			userRPC:   sq.RPC(),
 			jwtSecret: jwtSecret,
+			l2sequencers: map[eth.ChainID]seqtypes.SequencerID{
+				l2CLID.ChainID: l2SequencerID,
+			},
 		}
 		logger.Info("Sequencer User RPC", "http_endpoint", sequencerNode.userRPC)
 		orch.sequencers.Set(sequencerID, sequencerNode)

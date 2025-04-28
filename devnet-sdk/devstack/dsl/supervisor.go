@@ -85,3 +85,18 @@ func (s *Supervisor) fetchSyncStatus() eth.SupervisorSyncStatus {
 		"finalizedTimestamp", syncStatus.FinalizedTimestamp)
 	return syncStatus
 }
+
+func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
+	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	defer cancel()
+	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
+		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)
+		if errors.Is(err, status.ErrStatusTrackerNotReady) {
+			s.log.Debug("Sync status not ready from supervisor")
+		}
+		return syncStatus, err
+	})
+	s.require.NoError(err, "Failed to fetch sync status")
+
+	return syncStatus.Chains[chainID].Safe
+}
