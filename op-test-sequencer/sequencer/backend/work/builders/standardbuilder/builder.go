@@ -96,14 +96,6 @@ func (b *Builder) NewJob(ctx context.Context, opts seqtypes.BuildOpts) (work.Bui
 	}
 	b.log.Debug("Builder NewJob prepared payload attrs", "attrs", attrs)
 
-	address, err := randomAddress()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate random address: %w", err)
-	}
-	attrs.SuggestedFeeRecipient = address
-
-	b.log.Debug("Adding random SuggestedFeeRecipient, so that block is certainly new and not known", "addr", address)
-
 	id := seqtypes.RandomJobID()
 	job := &Job{
 		logger:    b.log,

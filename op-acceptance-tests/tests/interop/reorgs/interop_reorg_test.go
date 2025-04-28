@@ -44,8 +44,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	bob.VerifyBalanceExact(eth.ZeroWei)
 
 	transferred := eth.OneEther
-	tx := alice.Transfer(bob.Address(), transferred)
-	_ = tx
+	alice.Transfer(bob.Address(), transferred)
 
 	alice.VerifyBalanceLessThan(pre.Sub(transferred))
 	bob.VerifyBalanceExact(transferred)
@@ -57,8 +56,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	l.Info("Wait for a L1 block")
 	l1Network.WaitForBlock()
 
-	l.Info("Wait for two L2 blocks")
-	l2Anet.WaitForBlock()
+	l.Info("Wait for a L2 block")
 	l2Anet.WaitForBlock()
 
 	unsafeHead, err := rapi.StopSequencer(ctx)
@@ -122,7 +120,6 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	require.NoError(t, err, "Expected to be able to evaluate a planned transaction on op-test-sequencer, but got error")
 	txdata, err := signed_tx.MarshalBinary()
 	require.NoError(t, err, "Expected to be able to marshal a signed transaction on op-test-sequencer, but got error")
-
 	l.Info("Calling IncludeTx() on op-test-sequencer")
 	err = ia.IncludeTx(ctx, txdata)
 	require.NoError(t, err, "Expected to be able to include a signed transaction on op-test-sequencer, but got error")
@@ -180,4 +177,8 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	l.Info("Reorged chain on divergence block number (after the reorg)", "number", divergenceBlockNumber, "head", reorgedRef.Hash, "parent", reorgedRef.ParentID().Hash)
 	require.NotEqual(t, oldHash, reorgedRef.Hash, "Expected to get different heads on divergence block number, but got the same hash, so no reorg happened")
 	require.Equal(t, oldParentHash, reorgedRef.ParentHash, "Expected to get same parent hashes on divergence block number, but got different hashes")
+
+	time.Sleep(105 * time.Second)
+
+	l2Anet.PrintChain()
 }

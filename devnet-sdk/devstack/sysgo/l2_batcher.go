@@ -85,7 +85,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			TargetNumFrames:          1,
 			ApproxComprRatio:         0.4,
 			SubSafetyMargin:          4,
-			PollInterval:             500 * time.Millisecond,
+			PollInterval:             30 * time.Second,
 			TxMgrConfig:              setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), batcherSecret),
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LevelInfo,
