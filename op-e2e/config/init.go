@@ -506,12 +506,10 @@ func decompressGzipJSON(p string, thing any) {
 }
 
 func cannonVMType(allocType AllocType) state.VMType {
-	if allocType == AllocTypeMTCannon {
-		return state.VMTypeCannon6
-	} else if allocType == AllocTypeMTCannonNext {
-		return state.VMTypeCannon7
+	if allocType == AllocTypeMTCannonNext {
+		return state.VMTypeCannonNext
 	}
-	return state.VMTypeCannon6
+	return state.VMTypeCannon
 }
 
 type prestateFile struct {
@@ -529,11 +527,11 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var once *sync.Once
 	var cacheVar *common.Hash
 	cannonVmType := cannonVMType(allocType)
-	if cannonVmType == state.VMTypeCannon2 || cannonVmType == state.VMTypeCannon6 {
+	if cannonVmType == state.VMTypeCannon {
 		filename = "prestate-proof-mt64.json"
 		once = &cannonPrestateMTOnce
 		cacheVar = &cannonPrestateMT
-	} else if cannonVmType == state.VMTypeCannon7 {
+	} else if cannonVmType == state.VMTypeCannonNext {
 		filename = "prestate-proof-mt64Next.json"
 		once = &cannonPrestateMTNextOnce
 		cacheVar = &cannonPrestateMTNext

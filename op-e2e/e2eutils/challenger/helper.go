@@ -35,7 +35,6 @@ import (
 type PrestateVariant string
 
 const (
-	STCannonVariant     PrestateVariant = ""
 	MTCannonVariant     PrestateVariant = "mt64"
 	MTCannonNextVariant PrestateVariant = "mt64Next"
 	InteropVariant      PrestateVariant = "interop"
