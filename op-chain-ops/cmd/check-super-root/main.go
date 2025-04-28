@@ -37,10 +37,6 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 	var targetTimestamp *uint64
 	if ctx.IsSet(TimestampFlagName) {
 		ts := ctx.Uint64(TimestampFlagName)
-		if ts == 0 {
-			// Allow explicit 0, but maybe log a warning?
-			// For now, just use it.
-		}
 		targetTimestamp = &ts
 	}
 
@@ -58,11 +54,9 @@ func Main(cfg *Config, ctx *cli.Context) error {
 	migrator, err := script.NewSuperRootMigrator(cfg.Logger, cfg.RPCEndpoints, cfg.TargetTimestamp)
 	if err != nil {
 		cfg.Logger.Crit("Failed to create SuperRootMigrator", "err", err)
-		// Crit already exits, but return error for good measure
 		return err
 	}
 
-	// Run the migrator logic using the application context
 	if err := migrator.Run(ctx.Context); err != nil {
 		cfg.Logger.Error("Super root calculation failed", "err", err)
 		return err
