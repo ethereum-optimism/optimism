@@ -21,7 +21,7 @@ UNSUPPORTED_OPCODES := (dclo|dclz|madd|maddu|seb|seh|wsbh|dsbh|dshd|ins|dins|din
 CANNON64_FUZZTIME := 20s
 
 cannon64-impl:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build --tags=cannon64 -v $(LDFLAGS) -o ./bin/cannon64-impl .
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon64-impl .
 
 # Note: This target is used by ./scripts/build-legacy-cannons.sh
 # It should build the individual versions of cannons and copy them into place in hte multicannon/embeds directory
