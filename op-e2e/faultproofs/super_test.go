@@ -32,7 +32,7 @@ func TestCreateSuperCannonGame(t *testing.T) {
 		sys.L2IDs()
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		game.LogGameData(ctx)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonGame(t *testing.T) {
@@ -41,7 +41,7 @@ func TestSuperCannonGame(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {
@@ -50,7 +50,7 @@ func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testCannonChallengeAllZeroClaim(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonPublishCannonRootClaim(t *testing.T) {
@@ -99,7 +99,7 @@ func TestSuperCannonPublishCannonRootClaim(t *testing.T) {
 		require.True(t, bottomRootClaim != types.Claim{}, "Failed to find bottom root claim")
 		t.Logf("Bottom root claim: %v", bottomRootClaim.Value)
 		vmStatusCh <- bottomRootClaim.Value[0]
-	}, WithMultithreading[TestCase](), WithTestName[TestCase](testName))
+	}, WithNextVMOnly[TestCase](), WithTestName[TestCase](testName))
 
 	// Cleanup ensures that the subtests run to completion before asserting the VM statuses
 	t.Cleanup(func() {
@@ -163,7 +163,7 @@ func TestSuperCannonDisputeGame(t *testing.T) {
 
 		game.LogGameData(ctx)
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
-	}, WithMultithreading[TestCase](), WithTestName(testName))
+	}, WithNextVMOnly[TestCase](), WithTestName(testName))
 }
 
 func TestSuperCannonDefendStep(t *testing.T) {
@@ -172,7 +172,7 @@ func TestSuperCannonDefendStep(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testCannonDefendStep(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonStepWithLargePreimage(t *testing.T) {
@@ -218,7 +218,7 @@ func TestSuperCannonStepWithLargePreimage(t *testing.T) {
 		game.ChallengeToPreimageLoad(ctx, topGameLeaf, aliceKey(t), utils.PreimageLargerThan(preimage.MinPreimageSize), preimageLoadCheck, false)
 		// The above method already verified the image was uploaded and step called successfully
 		// So we don't waste time resolving the game - that's tested elsewhere.
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonStepWithPreimage_nonExistingPreimage(t *testing.T) {
@@ -232,14 +232,14 @@ func TestSuperCannonStepWithPreimage_nonExistingPreimage(t *testing.T) {
 			t.Skip("TODO(#15311): Add blob preimage test case. sha256 is also used for blobs")
 		}
 		testSuperPreimageStep(t, utils.FirstPreimageLoadOfType(preimageType), false, allocType)
-	}, WithMultithreading[string](), WithTestName(testName))
+	}, WithNextVMOnly[string](), WithTestName(testName))
 }
 
 func TestSuperCannonStepWithPreimage_existingPreimage(t *testing.T) {
 	// Only test pre-existing images with one type to save runtime
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		testSuperPreimageStep(t, utils.FirstKeccakPreimageLoad(), true, allocType)
-	}, WithMultithreading[any](), WithTestNamePrefix[any]("preimage already exists"))
+	}, WithNextVMOnly[any](), WithTestNamePrefix[any]("preimage already exists"))
 }
 
 func testSuperPreimageStep(t *testing.T, preimageType utils.PreimageOpt, preloadPreimage bool, allocType config.AllocType) {
@@ -274,7 +274,7 @@ func TestSuperCannonProposalValid_AttackWithCorrectTrace(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGameWithCorrectRoot(ctx)
 		testCannonProposalValid_AttackWithCorrectTrace(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonProposalValid_DefendWithCorrectTrace(t *testing.T) {
@@ -283,7 +283,7 @@ func TestSuperCannonProposalValid_DefendWithCorrectTrace(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGameWithCorrectRoot(ctx)
 		testCannonProposalValid_DefendWithCorrectTrace(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonPoisonedPostState(t *testing.T) {
@@ -292,7 +292,7 @@ func TestSuperCannonPoisonedPostState(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testCannonPoisonedPostState(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonRootBeyondProposedBlock_ValidRoot(t *testing.T) {
@@ -301,7 +301,7 @@ func TestSuperCannonRootBeyondProposedBlock_ValidRoot(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGameWithCorrectRoot(ctx)
 		testDisputeRootBeyondProposedBlockValidOutputRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonRootBeyondProposedBlock_InvalidRoot(t *testing.T) {
@@ -310,7 +310,7 @@ func TestSuperCannonRootBeyondProposedBlock_InvalidRoot(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testDisputeRootBeyondProposedBlockInvalidOutputRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
@@ -319,7 +319,7 @@ func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testDisputeRootChangeClaimedRoot(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperInvalidateUnsafeProposal(t *testing.T) {
@@ -405,7 +405,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 		game.LogGameData(ctx)
-	}, WithMultithreading[TestCase](), WithTestName(testName))
+	}, WithNextVMOnly[TestCase](), WithTestName(testName))
 }
 
 func TestSuperInvalidateProposalForFutureBlock(t *testing.T) {
@@ -467,7 +467,7 @@ func TestSuperInvalidateProposalForFutureBlock(t *testing.T) {
 
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 		game.LogGameData(ctx)
-	}, WithMultithreading[TestCase](), WithTestName(testName))
+	}, WithNextVMOnly[TestCase](), WithTestName(testName))
 }
 
 func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
@@ -544,7 +544,7 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 		game.LogGameData(ctx)
-	}, WithMultithreading[TestCase](), WithTestName(testName))
+	}, WithNextVMOnly[TestCase](), WithTestName(testName))
 }
 
 func TestSuperCannonHonestSafeTraceExtensionValidRoot(t *testing.T) {
@@ -597,7 +597,7 @@ func TestSuperCannonHonestSafeTraceExtensionValidRoot(t *testing.T) {
 		require.NoError(t, wait.ForNextBlock(ctx, sys.L1GethClient()))
 
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonHonestSafeTraceExtensionInvalidRoot(t *testing.T) {
@@ -656,7 +656,7 @@ func TestSuperCannonHonestSafeTraceExtensionInvalidRoot(t *testing.T) {
 		require.NoError(t, wait.ForNextBlock(ctx, sys.L1GethClient()))
 
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperCannonGame_HonestCallsSteps(t *testing.T) {
@@ -692,7 +692,7 @@ func TestSuperCannonGame_HonestCallsSteps(t *testing.T) {
 		sys.AdvanceL1Time(game.MaxClockDuration(ctx))
 		require.NoError(t, wait.ForNextBlock(ctx, sys.L1GethClient()))
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusDefenderWon)
-	}, WithMultithreading[any]())
+	}, WithNextVMOnly[any]())
 }
 
 func createSuperRoot(t *testing.T, ctx context.Context, sys interop.SuperSystem, timestamp uint64) *eth.SuperV1 {

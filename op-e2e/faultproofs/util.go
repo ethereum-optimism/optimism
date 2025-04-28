@@ -140,9 +140,9 @@ func defaultVmTestOptions[T any]() vmTestOptions[T] {
 
 type VMTestOption[T any] func(*vmTestOptions[T])
 
-func WithMultithreading[T any]() VMTestOption[T] {
+func WithNextVMOnly[T any]() VMTestOption[T] {
 	return func(o *vmTestOptions[T]) {
-		o.allocTypes = []config.AllocType{config.AllocTypeMTCannon, config.AllocTypeMTCannonNext}
+		o.allocTypes = []config.AllocType{config.AllocTypeMTCannonNext}
 	}
 }
 
