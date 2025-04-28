@@ -528,7 +528,7 @@ contract Deploy is Deployer {
         uint256 daResolverRefundPercentage = cfg.daResolverRefundPercentage();
 
         IProxyAdmin proxyAdmin = IProxyAdmin(payable(artifacts.mustGetAddress("ProxyAdmin")));
-        vm.prank(finalSystemOwner);
+        vm.prank(proxyAdmin.owner());
         proxyAdmin.upgradeAndCall({
             _proxy: payable(dataAvailabilityChallengeProxy),
             _implementation: dataAvailabilityChallenge,
