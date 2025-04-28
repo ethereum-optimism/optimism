@@ -14,13 +14,8 @@ optimism_package:
         fjord_time_offset: 0
         granite_time_offset: 0
         isthmus_time_offset: 5
-        fund_dev_accounts: true
       mev_params:
         rollup_boost_image: "flashbots/rollup-boost:develop"
       additional_services: 
         - rollup-boost
         - blockscout
-ethereum_package:
-  participants:
-  - el_type: geth
-    cl_type: teku

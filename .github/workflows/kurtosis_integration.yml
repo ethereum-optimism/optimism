@@ -42,13 +42,74 @@ jobs:
           sudo apt-get install -y libsqlite3-dev libfontconfig1-dev libfontconfig
           ./scripts/ci/stress.sh install-contender
 
-      - name: Install Kurtosis
-        run: ./scripts/ci/stress.sh install
-      
-      - name: Deploy Devnet
+      - name: Setup Kurtosis
+        shell: bash
         run: |
+          echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
+          sudo apt update
+          sudo apt install kurtosis-cli
+              
           kurtosis analytics disable
+          echo "$(dirname $(which kurtosis))" >> $GITHUB_PATH
+  
+      - name: Setup K8s
+        uses: medyagh/setup-minikube@latest
+
+      - name: Get Kubeconfig
+        id: kubeconfig
+        shell: bash
+        run: |
+          cat ~/.kube/config > kubeconfig
+          echo "kubeconfig=$(cat kubeconfig | base64 -w 0)" >> $GITHUB_OUTPUT
+
+      - name: Configure K8s Backend
+        shell: bash
+        run: |
+          kubectl config use-context minikube
+          kubectl get nodes
+          echo "Kubernetes engine is ready!"
+
+          kurtosis_config=$(kurtosis config path)
+          echo "config-version: 2" > $kurtosis_config
+          echo "should-send-metrics: false" >> $kurtosis_config
+          echo "kurtosis-clusters:" >> $kurtosis_config
+          echo "  docker:" >> $kurtosis_config
+          echo "    type: \"docker\"" >> $kurtosis_config
+          echo "  minikube:" >> $kurtosis_config
+          echo "    type: \"kubernetes\"" >> $kurtosis_config
+          echo "    config:" >> $kurtosis_config
+          echo "      kubernetes-cluster-name: \"minikube\"" >> $kurtosis_config
+          echo "      storage-class: \"standard\"" >> $kurtosis_config
+          echo "      enclave-size-in-megabytes: 200" >> $kurtosis_config
+
+          cat $kurtosis_config
+
+          kurtosis cluster set minikube
+
+      - name: Run kurtosis gateway in background
+        uses: JarvusInnovations/background-action@v1
+        with:
+          run: |
+            kurtosis gateway
+          wait-on: |
+            tcp:localhost:9710
+
+      - name: Check kurtosis engine in kubernetes cluster
+        shell: bash
+        run: |
+          kurtosis engine status
+          kurtosis enclave ls || ( kurtosis engine restart && kurtosis enclave ls )
+
+      - name: Devnet Up
+        run: |
+          eval $(minikube -p minikube docker-env)
           just devnet-up
 
-      - name: Run Integration Tests
-        run: just stress-test
+      - name: Stress Tests
+        run: |
+          rm -rf ~/.contender/contender.db
+          just stress-test
+    
+      - name: Devnet Down
+        run: |
+          just devnet-down
