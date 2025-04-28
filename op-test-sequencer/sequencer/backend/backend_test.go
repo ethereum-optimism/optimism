@@ -39,6 +39,13 @@ func (n noopRouter) AddAPIToRPC(route string, api rpc.API) error {
 	return nil
 }
 
+func (n noopRouter) AddRPCWithAuthentication(route string, isAuthenticated *bool) error {
+	n.log.Debug("Adding RPC route with authentication",
+		"route", route,
+		"isAuthenticated", isAuthenticated)
+	return nil
+}
+
 var _ APIRouter = (*noopRouter)(nil)
 
 func TestBackend(t *testing.T) {
