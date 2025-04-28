@@ -516,7 +516,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the DataAvailabilityChallenge
-    function initializeDataAvailabilityChallenge() public broadcast {
+    function initializeDataAvailabilityChallenge() public {
         console.log("Upgrading and initializing DataAvailabilityChallenge proxy");
         address dataAvailabilityChallengeProxy = artifacts.mustGetAddress("DataAvailabilityChallengeProxy");
         address dataAvailabilityChallenge = artifacts.mustGetAddress("DataAvailabilityChallengeImpl");
@@ -528,6 +528,7 @@ contract Deploy is Deployer {
         uint256 daResolverRefundPercentage = cfg.daResolverRefundPercentage();
 
         IProxyAdmin proxyAdmin = IProxyAdmin(payable(artifacts.mustGetAddress("ProxyAdmin")));
+        vm.prank(finalSystemOwner);
         proxyAdmin.upgradeAndCall({
             _proxy: payable(dataAvailabilityChallengeProxy),
             _implementation: dataAvailabilityChallenge,
