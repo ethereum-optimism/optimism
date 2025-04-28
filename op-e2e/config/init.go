@@ -511,7 +511,7 @@ func cannonVMType(allocType AllocType) state.VMType {
 	} else if allocType == AllocTypeMTCannonNext {
 		return state.VMTypeCannon7
 	}
-	return state.VMTypeCannon1
+	return state.VMTypeCannon6
 }
 
 type prestateFile struct {
