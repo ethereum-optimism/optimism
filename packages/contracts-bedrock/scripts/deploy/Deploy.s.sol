@@ -700,27 +700,39 @@ contract Deploy is Deployer {
     }
 
     /// @notice Sets the implementation for the `CANNON` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation() public broadcast {
+    function setCannonFaultGameImplementation() public {
         console.log("Setting Cannon FaultDisputeGame implementation");
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
+        address opcm = artifacts.mustGetAddress("OPContractsManager");
+        IProxyAdmin proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
 
-        // Set the Cannon FaultDisputeGame implementation in the factory.
-        _setFaultGameImplementation({
-            _factory: factory,
-            _params: IFaultDisputeGame.GameConstructorParams({
-                gameType: GameTypes.CANNON,
-                absolutePrestate: loadMipsAbsolutePrestate(),
-                maxGameDepth: cfg.faultGameMaxDepth(),
-                splitDepth: cfg.faultGameSplitDepth(),
-                clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
-                weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
-                l2ChainId: cfg.l2ChainID()
-            })
+        transferProxyAdminOwnership();
+        transferDisputeGameFactoryOwnership();
+
+        IOPContractsManager.AddGameInput[] memory addGameInput = new IOPContractsManager.AddGameInput[](1);
+        addGameInput[0] = IOPContractsManager.AddGameInput({
+            saltMixer: "AlphabetVM2",
+            systemConfig: ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy")),
+            proxyAdmin: proxyAdmin,
+            delayedWETH: IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy")),
+            disputeGameType: GameType.wrap(uint32(cfg.respectedGameType())),
+            disputeAbsolutePrestate: loadMipsAbsolutePrestate(),
+            disputeMaxGameDepth: cfg.faultGameMaxDepth(),
+            disputeSplitDepth: cfg.faultGameSplitDepth(),
+            disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
+            disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
+            initialBond: 0 ether,
+            vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
+            permissioned: false
         });
+
+        vm.prank(cfg.finalSystemOwner(), true);
+        (bool success,) = opcm.delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (addGameInput)));
+        require(success, "Deploy: Cannon FaultDisputeGame implementation not set");
+
+        vm.startPrank(cfg.finalSystemOwner());
+        proxyAdmin.transferOwnership(address(this));
+        IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy")).transferOwnership(address(this));
+        vm.stopPrank();
     }
 
     /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
