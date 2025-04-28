@@ -16,12 +16,15 @@ import (
 const (
 	// RPCEndpointsFlagName defines the flag name for the RPC endpoints.
 	RPCEndpointsFlagName = "rpc-endpoints"
+	// TimestampFlagName defines the flag name for the optional target timestamp.
+	TimestampFlagName = "timestamp"
 )
 
 // Config holds the configuration for the check-super-root command.
 type Config struct {
-	Logger       log.Logger
-	RPCEndpoints []string
+	Logger          log.Logger
+	RPCEndpoints    []string
+	TargetTimestamp *uint64 // Optional target timestamp
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -30,9 +33,21 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 	if len(rpcs) == 0 {
 		return nil, fmt.Errorf("flag %s is required", RPCEndpointsFlagName)
 	}
+
+	var targetTimestamp *uint64
+	if ctx.IsSet(TimestampFlagName) {
+		ts := ctx.Uint64(TimestampFlagName)
+		if ts == 0 {
+			// Allow explicit 0, but maybe log a warning?
+			// For now, just use it.
+		}
+		targetTimestamp = &ts
+	}
+
 	return &Config{
-		Logger:       oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)),
-		RPCEndpoints: rpcs,
+		Logger:          oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)),
+		RPCEndpoints:    rpcs,
+		TargetTimestamp: targetTimestamp,
 	}, nil
 }
 
@@ -40,7 +55,7 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 func Main(cfg *Config, ctx *cli.Context) error {
 	cfg.Logger.Info("Initializing Super Root Check Tool")
 
-	migrator, err := script.NewSuperRootMigrator(cfg.Logger, cfg.RPCEndpoints)
+	migrator, err := script.NewSuperRootMigrator(cfg.Logger, cfg.RPCEndpoints, cfg.TargetTimestamp)
 	if err != nil {
 		cfg.Logger.Crit("Failed to create SuperRootMigrator", "err", err)
 		// Crit already exits, but return error for good measure
@@ -64,6 +79,11 @@ var Flags = []cli.Flag{
 		Usage:    "Required: List of L2 execution client RPC endpoints (e.g., http://host:port).",
 		Required: true,
 		EnvVars:  []string{"CHECK_SUPER_ROOT_RPC_ENDPOINTS"},
+	},
+	&cli.Uint64Flag{
+		Name:    TimestampFlagName,
+		Usage:   "Optional: Target timestamp for super root calculation. If not set, uses the latest common finalized block timestamp.",
+		EnvVars: []string{"CHECK_SUPER_ROOT_TIMESTAMP"},
 	},
 }
 

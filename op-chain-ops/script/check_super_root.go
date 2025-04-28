@@ -50,7 +50,10 @@ type SuperRootMigrator struct {
 	// chainSettings maps RPC URLs to their derived settings and state
 	chainSettings map[string]*ChainSettings
 	// anchorTimestamp is the latest timestamp common to all chains' finalized blocks
+	// or the user-provided target timestamp.
 	anchorTimestamp uint64
+	// TargetTimestamp is the optional user-provided timestamp to use for the anchor.
+	TargetTimestamp *uint64
 	// superRoot is the final calculated super root hash
 	superRoot common.Hash
 	// chainOutputs holds the calculated output root for each chain, ready for super root calculation
@@ -58,8 +61,9 @@ type SuperRootMigrator struct {
 }
 
 // NewSuperRootMigrator creates a new instance of the SuperRootMigrator.
-// It requires a logger and a list of L2 execution client RPC endpoints.
-func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string) (*SuperRootMigrator, error) {
+// It requires a logger, a list of L2 execution client RPC endpoints,
+// and an optional target timestamp.
+func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string, targetTimestamp *uint64) (*SuperRootMigrator, error) {
 	if logger == nil {
 		// Default logger if none provided
 		logger = log.New("service", "super-root-migrator")
@@ -69,10 +73,11 @@ func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string) (*SuperRootM
 	}
 
 	return &SuperRootMigrator{
-		log:           logger,
-		rpcEndpoints:  rpcEndpoints,
-		ethClients:    make(map[string]*ethclient.Client),
-		chainSettings: make(map[string]*ChainSettings),
+		log:             logger,
+		rpcEndpoints:    rpcEndpoints,
+		ethClients:      make(map[string]*ethclient.Client),
+		chainSettings:   make(map[string]*ChainSettings),
+		TargetTimestamp: targetTimestamp, // Store the provided timestamp
 	}, nil
 }
 
@@ -141,9 +146,17 @@ func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
 	return nil
 }
 
-// findAnchorTimestamp finds the minimum finalized block timestamp across all connected chains.
+// findAnchorTimestamp finds the minimum finalized block timestamp across all connected chains
+// if no target timestamp is provided, otherwise uses the target timestamp.
 func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
-	m.log.Info("Finding common anchor timestamp across all chains...")
+	// Check if a target timestamp was provided by the user
+	if m.TargetTimestamp != nil {
+		m.anchorTimestamp = *m.TargetTimestamp
+		m.log.Info("Using user-provided target timestamp as anchor", "timestamp", m.anchorTimestamp)
+		return nil // Skip finalized block check if timestamp is provided
+	}
+
+	m.log.Info("Finding common anchor timestamp across all chains based on finalized blocks...")
 	var minTimestamp *uint64
 
 	for url, client := range m.ethClients {
