@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -293,11 +292,6 @@ func (m *SuperRootMigrator) calculateOutputRoots(ctx context.Context) error {
 		})
 	}
 
-	// Ensure chainOutputs are sorted by ChainID for deterministic super root calculation
-	sort.SliceStable(m.chainOutputs, func(i, j int) bool {
-		// Use ChainID's Cmp method for comparison since it's a wrapper around uint256.Int
-		return m.chainOutputs[i].ChainID.Cmp(m.chainOutputs[j].ChainID) < 0
-	})
 	m.log.Info("Calculated and sorted all chain output roots", "count", len(m.chainOutputs))
 
 	return nil
