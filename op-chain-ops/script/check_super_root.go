@@ -182,45 +182,41 @@ func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context)
 		client := m.ethClients[url]
 		m.log.Debug("Processing chain", "url", url, "chain_id", settings.ChainID)
 
-		finalizedHeader, err := client.HeaderByNumber(ctx, big.NewInt(rpc.FinalizedBlockNumber.Int64()))
+		latestHeader, err := client.HeaderByNumber(ctx, big.NewInt(rpc.LatestBlockNumber.Int64()))
 		if err != nil {
 			return fmt.Errorf("failed to get finalized block header for %s: %w", url, err)
 		}
-		if finalizedHeader == nil || finalizedHeader.Number == nil {
+		if latestHeader == nil || latestHeader.Number == nil {
 			return fmt.Errorf("received invalid finalized header for %s", url)
 		}
-		if finalizedHeader.Number.Sign() <= 0 {
+		if latestHeader.Number.Sign() <= 0 {
 			// Cannot derive block time if finalized is genesis or block 0
 			return fmt.Errorf("cannot derive block time for %s: finalized block is genesis or block 0", url)
 		} else {
-			finalizedNum := finalizedHeader.Number.Uint64()
-			finalizedTime := finalizedHeader.Time
+			latestBlockNumber := latestHeader.Number.Uint64()
+			latestBlocktime := latestHeader.Time
 
 			// Fetch parent of finalized block
-			parentHeader, err := client.HeaderByHash(ctx, finalizedHeader.ParentHash)
+			parentHeader, err := client.HeaderByHash(ctx, latestHeader.ParentHash)
 			if err != nil {
 				return fmt.Errorf("failed to get parent of finalized block for %s: %w", url, err)
 			} else if parentHeader == nil {
 				return fmt.Errorf("parent of finalized block is nil for %s", url)
-			} else if finalizedTime <= parentHeader.Time {
+			} else if latestBlocktime <= parentHeader.Time {
 				// Timestamps not increasing, indicates issue or maybe 0 block time
-				return fmt.Errorf("finalized block timestamp not greater than parent for %s: finalized=%d, parent=%d", url, finalizedTime, parentHeader.Time)
+				return fmt.Errorf("finalized block timestamp not greater than parent for %s: finalized=%d, parent=%d", url, latestBlocktime, parentHeader.Time)
 			} else {
-				settings.BlockTime = finalizedTime - parentHeader.Time
-			}
-
-			if settings.BlockTime == 0 {
-				return fmt.Errorf("derived block time is zero for %s", url)
+				settings.BlockTime = latestBlocktime - parentHeader.Time
 			}
 
 			// Estimate genesis timestamp (assuming genesis block number 0)
 			// Clamp estimated genesis time to be <= finalized time
-			estGenesisTime := int64(finalizedTime) - int64(finalizedNum*settings.BlockTime)
+			estGenesisTime := int64(latestBlocktime) - int64(latestBlockNumber*settings.BlockTime)
 			if estGenesisTime < 0 {
 				estGenesisTime = 0 // Genesis time cannot be negative
 			}
-			if uint64(estGenesisTime) > finalizedTime {
-				settings.EstimatedGenesisTimestamp = finalizedTime
+			if uint64(estGenesisTime) > latestBlocktime {
+				settings.EstimatedGenesisTimestamp = latestBlocktime
 			} else {
 				settings.EstimatedGenesisTimestamp = uint64(estGenesisTime)
 			}
@@ -228,7 +224,7 @@ func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context)
 		m.log.Debug("Derived parameters", "url", url, "block_time", settings.BlockTime, "est_genesis_time", settings.EstimatedGenesisTimestamp)
 
 		// Start search from finalized block, walking backwards
-		currentHeader := finalizedHeader
+		currentHeader := latestHeader
 		for currentHeader.Time > m.anchorTimestamp {
 			m.log.Debug("Searching for target block", "url", url, "current_num", currentHeader.Number, "current_time", currentHeader.Time, "anchor_time", m.anchorTimestamp)
 			if currentHeader.Number == nil || currentHeader.Number.Sign() <= 0 {
