@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type Job struct {
@@ -28,6 +29,9 @@ func (job *Job) Open(ctx context.Context) error {
 
 func (job *Job) Seal(ctx context.Context) (work.Block, error) {
 	return nil, ErrNoBuild
+}
+
+func (job *Job) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
 }
 
 func (job *Job) String() string {

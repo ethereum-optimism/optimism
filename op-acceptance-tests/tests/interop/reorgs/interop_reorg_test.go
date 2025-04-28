@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/presets"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/stretchr/testify/require"
 )
@@ -30,11 +31,24 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 	l1Network := sys.L1Network
 	l2Anet := sys.L2ChainA
-	elNode := l2Anet.Escape().L2ELNodes()[0]
+	elNode := sys.L2ELA.Escape()
 	rapi := l2Anet.Escape().L2CLNodes()[0].RollupAPI()
 	l2RefClient := l2Anet.Escape().L2CLNodes()[0].L2BlockRefByHash()
 
 	l1Client := l1Network.Escape().L1ELNode(match.FirstL1EL).EthClient()
+
+	pre := eth.ThousandEther
+	alice := sys.FunderA.NewFundedEOA(pre)
+
+	bob := sys.Wallet.NewEOA(sys.L2ELA)
+	bob.VerifyBalanceExact(eth.ZeroWei)
+
+	transferred := eth.OneEther
+	tx := alice.Transfer(bob.Address(), transferred)
+	_ = tx
+
+	alice.VerifyBalanceLessThan(pre.Sub(transferred))
+	bob.VerifyBalanceExact(transferred)
 
 	active, err := rapi.SequencerActive(ctx)
 	require.NoError(t, err, "Expected to be able to call SequencerActive API, but got error")
@@ -101,6 +115,18 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	err = ia.New(ctx, opts)
 	require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
 
+	to := alice.PlanTransfer(bob.Address(), eth.OneEther)
+	opt := txplan.Combine(to)
+	ptx := txplan.NewPlannedTx(opt)
+	signed_tx, err := ptx.Signed.Eval(ctx)
+	require.NoError(t, err, "Expected to be able to evaluate a planned transaction on op-test-sequencer, but got error")
+	txdata, err := signed_tx.MarshalBinary()
+	require.NoError(t, err, "Expected to be able to marshal a signed transaction on op-test-sequencer, but got error")
+
+	l.Info("Calling IncludeTx() on op-test-sequencer")
+	err = ia.IncludeTx(ctx, txdata)
+	require.NoError(t, err, "Expected to be able to include a signed transaction on op-test-sequencer, but got error")
+
 	l.Info("Calling Next() on op-test-sequencer")
 	err = ia.Next(ctx)
 	require.NoError(t, err, "Expected to be able to call Next() after New() on op-test-sequencer, but got error")
@@ -140,6 +166,10 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	l.Info("Rollup node sequencer", "active", active)
 	l.Info("Wait for a L2 block")
 	l2Anet.WaitForBlock()
+
+	totalTransferred := eth.Ether(2)
+	alice.VerifyBalanceLessThan(pre.Sub(totalTransferred))
+	bob.VerifyBalanceExact(totalTransferred)
 
 	reorgedRef, err := elNode.EthClient().BlockRefByNumber(ctx, divergenceBlockNumber)
 	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")

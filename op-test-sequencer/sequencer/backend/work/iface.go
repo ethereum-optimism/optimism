@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -41,6 +42,7 @@ type BuildJob interface {
 	Seal(ctx context.Context) (Block, error)
 	String() string
 	Close() // cleans up and unregisters the job
+	IncludeTx(ctx context.Context, tx hexutil.Bytes)
 }
 
 // Jobs tracks block-building jobs by ID, so the jobs can be inspected and updated.

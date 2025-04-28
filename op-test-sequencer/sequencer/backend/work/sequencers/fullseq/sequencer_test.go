@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -74,6 +75,9 @@ func (m *mockBuildJob) String() string {
 }
 
 func (m *mockBuildJob) Close() {}
+
+func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
+}
 
 var _ work.BuildJob = (*mockBuildJob)(nil)
 

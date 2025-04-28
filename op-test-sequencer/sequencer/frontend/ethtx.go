@@ -22,6 +22,7 @@ func (etf *EthTxFrontend) SendRawTransaction(ctx context.Context, tx hexutil.Byt
 	if !ok {
 		return &rpc.JsonError{Code: -39990, Message: "no tx inclusion supported"}
 	}
+	incl.IncludeTx(ctx, tx)
 
-	return toJsonError(incl.IncludeTx(ctx, tx))
+	return nil
 }
