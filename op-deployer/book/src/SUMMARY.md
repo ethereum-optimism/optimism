@@ -10,6 +10,7 @@
   - [init](user-guide/init.md)
   - [apply](user-guide/apply.md)
   - [verify](user-guide/verify.md)
+  - [upgrade](user-guide/upgrade.md)
 - [Known Limitations](user-guide/known-limitations.md)
 
 # Reference Guide
