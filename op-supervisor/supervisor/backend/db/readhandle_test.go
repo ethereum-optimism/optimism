@@ -109,10 +109,7 @@ func TestReadHandleChainsDB(t *testing.T) {
 	registry, _ := db.readRegistries.Get(chainID)
 	registry.InvalidateHandlesAfter(50)
 
-	// Signal operation to continue
 	close(invalidationComplete)
-
-	// Wait for test to complete
 	wg.Wait()
 }
 
@@ -202,11 +199,6 @@ func TestReadHandleValidateAccessList(t *testing.T) {
 	// This should fail because chain1/block100 is now invalid
 	err = db.ValidateAccessList(accessList)
 	assert.Error(t, err)
-
-	// Note: In real code, the error would typically be ErrInvalidHandle,
-	// but in our mock setup, the error is propagated from Contains
-	// which returns ErrFuture because the block was rewound
-	// So we check for any error, since the important part is that validation fails
 }
 
 func TestReadHandleConcurrentHandles(t *testing.T) {
@@ -328,7 +320,7 @@ func TestReadHandleMultiple(t *testing.T) {
 		require.NoError(t, h.Validate())
 	}
 
-	// Invalidate handles at block 3 and after
+	// Invalidate handles at block 3
 	registry.InvalidateHandlesAfter(3)
 
 	// Verify handles for blocks 1-2 are still valid
@@ -341,7 +333,6 @@ func TestReadHandleMultiple(t *testing.T) {
 		assert.Equal(t, ErrInvalidHandle, handles[i].Validate())
 	}
 
-	// Clean up
 	for _, h := range handles {
 		h.Release()
 	}
@@ -543,9 +534,7 @@ func TestReadHandleSafeContains(t *testing.T) {
 	err = db.Rewind(chainID, eth.BlockID{Number: 50})
 	assert.NoError(t, err)
 
-	// The next call should fail with some error
-	// In a real system it would be ErrInvalidHandle, but our mock system
-	// returns ErrFuture from Contains when the block is rewound
+	// The next call should fail
 	_, err = db.SafeContains(chainID, access)
 	assert.Error(t, err)
 
@@ -635,8 +624,7 @@ func TestReadHandleUpdateRewindConcurrency(t *testing.T) {
 	registry := NewReadRegistry(logger)
 
 	// Create a barrier to ensure all goroutines are blocked at the same point
-	barrier := make(chan struct{}, 5) // buffered to avoid deadlock
-	// Create a signal to tell goroutines to proceed with validation
+	barrier := make(chan struct{}, 5)
 	proceed := make(chan struct{})
 
 	// Start multiple goroutines to read with handles
@@ -680,14 +668,10 @@ func TestReadHandleUpdateRewindConcurrency(t *testing.T) {
 	// Now perform a rewind while goroutines are all paused
 	registry.InvalidateHandlesAfter(50)
 
-	// Tell all goroutines to proceed with validation
+	// Stop all goroutines to complete and check if we got the expected errors
 	close(proceed)
-
-	// Wait for all goroutines to complete
 	wg.Wait()
 	close(errors)
-
-	// Check if we got the expected errors
 	errCount := 0
 	for err := range errors {
 		if err == ErrInvalidHandle {
@@ -696,8 +680,6 @@ func TestReadHandleUpdateRewindConcurrency(t *testing.T) {
 			t.Errorf("Unexpected error: %v", err)
 		}
 	}
-
-	// All goroutines should have caught the invalid handle error
 	assert.Equal(t, numGoroutines, errCount, "All goroutines should have received ErrInvalidHandle")
 }
 
@@ -706,7 +688,7 @@ func TestReadHandleCrossChainConsistency(t *testing.T) {
 	chain1 := eth.ChainID{1}
 	chain2 := eth.ChainID{2}
 
-	// Create mock access list that simulates cross-chain dependencies
+	// Create access list that for cross-chain dependencies
 	accessList := []types.Access{
 		{
 			BlockNumber: 100,
@@ -728,7 +710,7 @@ func TestReadHandleCrossChainConsistency(t *testing.T) {
 	err := db.ValidateAccessList(accessList)
 	assert.NoError(t, err, "Access list should be valid before reorg")
 
-	// Now simulate a reorg on chain1, which should invalidate the access list
+	// Simulate a reorg on chain1, which should invalidate the access list
 	// since the second access (on chain2) might depend on data from chain1
 	err = db.Rewind(chain1, eth.BlockID{Number: 50})
 	assert.NoError(t, err, "Rewind should succeed")
@@ -737,15 +719,7 @@ func TestReadHandleCrossChainConsistency(t *testing.T) {
 	err = db.ValidateAccessList(accessList)
 	assert.Error(t, err, "Access list validation should fail after reorg on chain1")
 
-	// In our mock setup, this might not fail with the current implementation
-	// since each chain is independent in the test setup.
-	// In a real system with proper cross-chain dependency tracking, this would fail.
-	// For now, we'll skip this assertion
-	// err = db.ValidateAccessList(accessList[1:])
-	// assert.Error(t, err, "Access to chain2 should fail after reorg on chain1")
-
 	// Set up a new scenario with independent chains
-	// Add block 75 to chain1, which should be valid after the reorg to block 50
 	logDB, found := db.logDBs.Get(chain1)
 	require.True(t, found, "Failed to get logDB for chain1")
 	mockDB1, ok := logDB.(*mockLogDB)
@@ -779,7 +753,7 @@ func TestReadHandleCrossChainConsistency(t *testing.T) {
 	err = db.ValidateAccessList(newAccessList)
 	assert.NoError(t, err, "Access list with valid blocks should succeed after reorg")
 
-	// Finally, test with WithReadHandles to verify concurrent access across chains
+	// Verify concurrent access across chains
 	err = db.WithReadHandles(
 		[]eth.ChainID{chain1, chain2},
 		[]uint64{75, 200},
@@ -791,31 +765,23 @@ func TestReadHandleCrossChainConsistency(t *testing.T) {
 		})
 	assert.NoError(t, err, "WithReadHandles should succeed with valid blocks")
 
-	// To test with a clean registry, create a new one and test directly
+	// Create a new registry
 	logger := testlog.Logger(t, log.LvlTrace)
 	registry := NewReadRegistry(logger)
-	handle1 := registry.AcquireHandle(50) // This should stay valid
-	handle2 := registry.AcquireHandle(75) // This should be invalidated
+	handle1 := registry.AcquireHandle(50)
+	handle2 := registry.AcquireHandle(75)
 
 	// Verify both handles are initially valid
 	assert.True(t, handle1.IsValid(), "Handle1 should be valid initially")
 	assert.True(t, handle2.IsValid(), "Handle2 should be valid initially")
 
-	// Invalidate handles at and after block 70
+	// Invalidate handles at block 70 and assert validity
 	registry.InvalidateHandlesAfter(70)
-
-	// Now check validity after invalidation
 	assert.True(t, handle1.IsValid(), "Handle1 should remain valid after InvalidateHandlesAfter(70)")
 	assert.False(t, handle2.IsValid(), "Handle2 should be invalid after InvalidateHandlesAfter(70)")
 
-	// Clean up
 	handle1.Release()
 	handle2.Release()
-
-	// This completes the test for cross-chain operations
-	// In a real-world implementation, the WithReadHandles function would properly
-	// detect invalidated handles from reorgs across chains, but our mock setup
-	// doesn't model the complete cross-chain dependency tracking
 }
 
 func setupTestDB(t *testing.T) *ChainsDB {
@@ -961,11 +927,11 @@ func (m *mockLogDB) Contains(query types.ContainsQuery) (types.BlockSeal, error)
 }
 
 func (m *mockLogDB) IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error) {
-	return nil, nil // Not needed for these tests
+	return nil, nil
 }
 
 func (m *mockLogDB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
-	return eth.BlockRef{}, 0, nil, nil // Not needed for these tests
+	return eth.BlockRef{}, 0, nil, nil
 }
 
 func (m *mockLogDB) addBlock(num uint64, hash common.Hash) {
