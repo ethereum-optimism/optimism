@@ -512,6 +512,10 @@ func cannonVMType(allocType AllocType) state.VMType {
 	return state.VMTypeCannon
 }
 
+func IsCannonInDevelopment() bool {
+	return cannonVMType(AllocTypeMTCannonNext).MipsVersion() != cannonVMType(AllocTypeMTCannon).MipsVersion()
+}
+
 type prestateFile struct {
 	Pre string `json:"pre"`
 }

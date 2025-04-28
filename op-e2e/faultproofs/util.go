@@ -127,14 +127,17 @@ type vmTestOptions[T any] struct {
 }
 
 func defaultVmTestOptions[T any]() vmTestOptions[T] {
+	allocTypes := []config.AllocType{
+		config.AllocTypeMTCannon,
+	}
+	if config.IsCannonInDevelopment() {
+		allocTypes = append(allocTypes, config.AllocTypeMTCannonNext)
+	}
 	return vmTestOptions[T]{
 		testNameModifier: func(vmName string, testcase T) string {
 			return vmName
 		},
-		allocTypes: []config.AllocType{
-			config.AllocTypeMTCannon,
-			config.AllocTypeMTCannonNext,
-		},
+		allocTypes: allocTypes,
 	}
 }
 
