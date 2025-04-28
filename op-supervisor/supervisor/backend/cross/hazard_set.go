@@ -137,7 +137,7 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 		// Get the block and ensure it's allowed to execute messages.
 		opened, _, execMsgs, err := deps.OpenBlock(destChainID, candidate.Number)
 		if err != nil {
-			return fmt.Errorf("%w: %w", errOpenBlock, err)
+			return fmt.Errorf("failed to open block: %w", err)
 		}
 		if opened.ID() != candidate.ID() {
 			return fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, types.ErrConflict)

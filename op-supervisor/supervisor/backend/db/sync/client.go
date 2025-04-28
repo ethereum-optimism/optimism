@@ -28,8 +28,7 @@ var (
 var (
 	errRootNotDir           = errors.New("root path is not a directory")
 	errUnknownFileAlias     = errors.New("unknown file alias")
-	errHeadRequest          = errors.New("HEAD request failed")
-	errGetRequest           = errors.New("GET request failed")
+	errHTTPRequestFailed    = errors.New("http request failed")
 	errDatabaseCopy         = errors.New("database copy failed")
 	errMissingContentLength = errors.New("missing Content-Length header")
 )
@@ -53,7 +52,7 @@ func NewClient(config Config, serverURL string) (*Client, error) {
 		return nil, fmt.Errorf("cannot access root directory: %w", err)
 	}
 	if !rootInfo.IsDir() {
-		return nil, fmt.Errorf("root path is not a directory: %w", errRootNotDir)
+		return nil, errRootNotDir
 	}
 
 	// Create the HTTP client
@@ -132,7 +131,7 @@ func (c *Client) attemptSync(ctx context.Context, chainID eth.ChainID, database 
 		return fmt.Errorf("HEAD request body failed to close: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w: status %d", errHeadRequest, resp.StatusCode)
+		return fmt.Errorf("HEAD %w: status %d", errHTTPRequestFailed, resp.StatusCode)
 	}
 	totalSize, err := parseContentLength(resp.Header)
 	if err != nil {
@@ -159,7 +158,7 @@ func (c *Client) attemptSync(ctx context.Context, chainID eth.ChainID, database 
 		}
 	}()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		return fmt.Errorf("%w: status %d", errGetRequest, resp.StatusCode)
+		return fmt.Errorf("GET %w: status %d", errHTTPRequestFailed, resp.StatusCode)
 	}
 
 	// Open the output file in the appropriate mode
@@ -196,7 +195,7 @@ func (c *Client) buildURLPath(chainID eth.ChainID, database Database) string {
 func parseContentLength(h http.Header) (int64, error) {
 	v := h.Get("Content-Length")
 	if v == "" {
-		return 0, fmt.Errorf("%w", errMissingContentLength)
+		return 0, errMissingContentLength
 	}
 	return strconv.ParseInt(v, 10, 64)
 }

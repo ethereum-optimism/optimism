@@ -17,7 +17,6 @@ var (
 	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", types.ErrConflict)
 
 	errInconsistentBlockSeal = errors.New("inconsistent block seal")
-	errOpenBlock             = errors.New("failed to open block")
 )
 
 // CycleCheckDeps is an interface for checking cyclical dependencies between logs.
