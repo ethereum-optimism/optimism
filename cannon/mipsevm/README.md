@@ -1,6 +1,6 @@
 # `mipsevm`
 
-Supported 63 instructions:
+Supported instructions:
 | Category             | Instruction   | Description                                  |
 |----------------------|---------------|----------------------------------------------|
 | `Arithmetic`         | `add`         | Add.                                         |
@@ -58,6 +58,7 @@ Supported 63 instructions:
 | `Data Transfer`      | `lw`          | Load word.                                   |
 | `Data Transfer`      | `lwl`         | Load word left.                              |
 | `Data Transfer`      | `lwr`         | Load word right.                             |
+| `Data Transfer`      | `lwu`         | Load word unsigned.                          |
 | `Data Transfer`      | `mfhi`        | Move from HI register.                       |
 | `Data Transfer`      | `mflo`        | Move from LO register.                       |
 | `Data Transfer`      | `movn`        | Move conditional on not zero.                |
