@@ -11,7 +11,6 @@ import (
 )
 
 var OPCM_ARTIFACT_PATH = "forge-artifacts/OPContractsManager.sol/OPContractsManagerUpgrader.json"
-var OPCM_UPGRADE_FUNCTION_SELECTOR = "ff2dd5a1"
 
 type InternalUpgradeFunctionType struct {
 	name     string
@@ -109,7 +108,10 @@ func processFile(artifactPath string) (*common.Void, []error) {
 	}
 
 	// Get the AST of OPCM's upgrade function.
-	opcmUpgradeAst := getOpcmUpgradeFunctionAst(opcmAst)
+	opcmUpgradeAst, err := getOpcmUpgradeFunctionAst(opcmAst)
+	if err != nil {
+		return nil, []error{err}
+	}
 
 	// Check that there is a call to contract.upgrade.
 	contractName := strings.Split(filepath.Base(artifactPath), ".")[0]
@@ -290,26 +292,33 @@ func identifyValidInternalUpgradeCall(expression *solc.Expression, internalFunct
 }
 
 // Get the AST of OPCM's upgrade function.
-func getOpcmUpgradeFunctionAst(opcmArtifact *solc.ForgeArtifact) *solc.AstNode {
-	opcmUpgradeAst := solc.AstNode{}
+// Returns an error if zero or more than one external upgrade function is found.
+func getOpcmUpgradeFunctionAst(opcmArtifact *solc.ForgeArtifact) (*solc.AstNode, error) {
+	opcmUpgradeFunctions := []solc.AstNode{}
 	for _, astNode := range opcmArtifact.Ast.Nodes {
 		if astNode.NodeType == "ContractDefinition" && astNode.Name == "OPContractsManagerUpgrader" {
 			for _, node := range astNode.Nodes {
 				if node.NodeType == "FunctionDefinition" &&
 					node.Name == "upgrade" &&
-					node.Visibility == "external" &&
-					node.FunctionSelector == OPCM_UPGRADE_FUNCTION_SELECTOR {
-					opcmUpgradeAst = node
-					break
+					node.Visibility == "external" {
+					opcmUpgradeFunctions = append(opcmUpgradeFunctions, node)
 				}
 			}
 		}
 	}
 
-	return &opcmUpgradeAst
+	if len(opcmUpgradeFunctions) == 0 {
+		return nil, fmt.Errorf("no external upgrade function found in OPContractsManagerUpgrader")
+	}
+
+	if len(opcmUpgradeFunctions) > 1 {
+		return nil, fmt.Errorf("multiple external upgrade functions found in OPContractsManagerUpgrader, expected 1")
+	}
+
+	return &opcmUpgradeFunctions[0], nil
 }
 
-// Get the first upgrade function from the input artifact.
+// Get the number of upgrade functions from the input artifact.
 func getNumberOfUpgradeFunctions(artifact *solc.ForgeArtifact) int {
 	upgradeFunctions := []solc.AstNode{}
 	for _, astNode := range artifact.Ast.Nodes {
