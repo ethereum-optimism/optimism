@@ -150,6 +150,11 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 									NodeType:   "FunctionDefinition",
 									Name:       "randomFunctionName",
 									Visibility: "external",
+									Nodes: []solc.AstNode{
+										{
+											NodeType: "UniqueNonExistentNodeType",
+										},
+									},
 								},
 							},
 							Name: "OPContractsManagerUpgrader",
