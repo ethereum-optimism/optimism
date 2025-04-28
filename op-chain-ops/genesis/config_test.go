@@ -184,6 +184,6 @@ func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 
 		var d UpgradeScheduleDeployConfig
 		d.ActivateForkAtOffset(fork, 0)
-		require.Equal(t, i+1, d.SolidityForkNumber(uint64(42)))
+		require.EqualValues(t, i+1, d.SolidityForkNumber(uint64(42)))
 	}
 }
