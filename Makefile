@@ -143,13 +143,13 @@ cannon-prestates: cannon-prestate-mt64 cannon-prestate-interop
 .PHONY: cannon-prestates
 
 cannon-prestate-mt64: op-program cannon ## Generates prestate using cannon and op-program in the latest 64-bit multithreaded cannon format
-	./cannon/bin/cannon load-elf --type multithreaded64-3 --path op-program/bin/op-program-client64.elf --out op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json
+	./cannon/bin/cannon load-elf --type multithreaded64-4 --path op-program/bin/op-program-client64.elf --out op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json --proof-fmt 'op-program/bin/%d-mt64.json' --output ""
 	mv op-program/bin/0-mt64.json op-program/bin/prestate-proof-mt64.json
 .PHONY: cannon-prestate-mt64
 
 cannon-prestate-interop: op-program cannon ## Generates interop prestate using cannon and op-program in the latest 64-bit multithreaded cannon format
-	./cannon/bin/cannon load-elf --type multithreaded64-3 --path op-program/bin/op-program-client-interop.elf --out op-program/bin/prestate-interop.bin.gz --meta op-program/bin/meta-interop.json
+	./cannon/bin/cannon load-elf --type multithreaded64-4 --path op-program/bin/op-program-client-interop.elf --out op-program/bin/prestate-interop.bin.gz --meta op-program/bin/meta-interop.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-interop.bin.gz --meta op-program/bin/meta-interop.json --proof-fmt 'op-program/bin/%d-interop.json' --output ""
 	mv op-program/bin/0-interop.json op-program/bin/prestate-proof-interop.json
 .PHONY: cannon-prestate-interop
