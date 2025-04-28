@@ -9,6 +9,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -342,6 +343,8 @@ contract ETHLockboxTest is CommonTest {
     function testFuzz_authorizePortal_differentSuperchainConfig_reverts(IOptimismPortal2 _portal) public {
         assumeNotForgeAddress(address(_portal));
         vm.assume(address(_portal) != address(systemConfig));
+        vm.assume(address(_portal) != EIP1967Helper.getImplementation(address(systemConfig)));
+
         // Mock the portal to have the right proxyAdminOwner.
         vm.mockCall(
             address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
