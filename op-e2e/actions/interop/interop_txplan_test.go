@@ -1208,3 +1208,84 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	unsafeHeadNumAfterReorg := targetNum - 1
 	reorgOutUnsafeAndConsolidateToSafeBothChain(t, actors, actors.ChainA, actors.ChainB, 0, 0, targetNum, targetNum, unsafeHeadNumAfterReorg)
 }
+
+// TestCycleAcrossChainsSameTx tests below scenario:
+// Transaction B0 exec chain A1, A0 exec B1: cycle across chains: within same tx: inter-dependent and cyclic
+// Two transactions happen in same timestamp:
+// tx0: chainA: alice executes message X, then initiates message Y
+// tx1: chainB: bob executes message Y, then initiates message X
+// tx0 depends on tx1 (init exec relation)
+// tx1 depends on tx0 (init exec relation)
+// cycle: tx0 -> tx1 -> tx0
+func TestCycleAcrossChainsSameTx(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	alice := setupUser(t, is, actors.ChainA, 0)
+	bob := setupUser(t, is, actors.ChainB, 0)
+
+	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
+	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
+
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
+	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
+
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 1, 0, 0, 0)
+
+	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
+	targetNum := uint64(2)
+
+	// open blocks on both chains
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
+	// speculatively build exec message by knowing necessary info to build Message
+	initX := interop.RandomInitTrigger(rng, eventLoggerAddressB, 3, 10)
+	initY := interop.RandomInitTrigger(rng, eventLoggerAddressA, 2, 15)
+	// log index of init messages are 1, not 0 because exec message will firstly executed, emitting a single log
+	logIndexX, logIndexY := uint(1), uint(1)
+	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainB.ChainID)
+	require.NoError(t, err)
+	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainA.ChainID)
+	require.NoError(t, err)
+
+	// tx0 executes message X, then initiates message Y
+	tx0 := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsA)
+	tx0.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: []txintent.Call{execX, initY}})
+	// tx1 executes message Y, then initiates message X
+	tx1 := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsB)
+	tx1.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: []txintent.Call{execY, initX}})
+
+	included0, err := tx0.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+	included1, err := tx1.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+
+	// Make sure tx in block sealed at expected time
+	require.Equal(t, included0.Time, targetTime)
+	require.Equal(t, included0.Number, targetNum)
+	require.Equal(t, included1.Time, targetTime)
+	require.Equal(t, included1.Number, targetNum)
+
+	// confirm speculatively built exec message by rebuilding after tx inclusion
+	_, err = tx0.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	execY2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx0.Result, int(logIndexY))(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, execY2, execY)
+	_, err = tx1.Result.Eval(t.Ctx())
+	require.NoError(t, err)
+	execX2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx1.Result, int(logIndexX))(t.Ctx())
+	require.NoError(t, err)
+	require.Equal(t, execX2, execX)
+
+	unsafeHeadNumAfterReorg := targetNum - 1
+	reorgOutUnsafeAndConsolidateToSafeBothChain(t, actors, actors.ChainA, actors.ChainB, 0, 0, targetNum, targetNum, unsafeHeadNumAfterReorg)
+}
