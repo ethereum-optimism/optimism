@@ -6,6 +6,10 @@ high-availability setups, thereby minimizing the risks associated with single po
 It is important to note, however, that this design does not incorporate Byzantine fault tolerance.
 This means it operates under the assumption that all participating nodes are honest.
 
+> [!IMPORTANT]
+> op-conductor does not perform authentication or authorization of RPC requests, and is
+intended to run inside a private network with access restricted to authorized users only.
+
 ## Summary
 
 The design will provide below guarantees:
