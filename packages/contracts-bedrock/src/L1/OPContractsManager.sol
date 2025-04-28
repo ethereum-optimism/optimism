@@ -688,7 +688,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 // Upgrade the L1CrossDomainMessenger contract.
                 upgradeToAndCall(
                     _opChainConfigs[i].proxyAdmin,
-                    address(opChainAddrs.l1CrossDomainMessenger),
+                    address(IL1CrossDomainMessenger(opChainAddrs.l1CrossDomainMessenger)),
                     impls.l1CrossDomainMessengerImpl,
                     abi.encodeCall(IL1CrossDomainMessenger.upgrade, (_opChainConfigs[i].systemConfigProxy))
                 );
@@ -696,7 +696,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 // Upgrade the L1StandardBridge contract.
                 upgradeToAndCall(
                     _opChainConfigs[i].proxyAdmin,
-                    address(opChainAddrs.l1StandardBridge),
+                    address(IL1StandardBridge(payable(opChainAddrs.l1StandardBridge))),
                     impls.l1StandardBridgeImpl,
                     abi.encodeCall(IL1StandardBridge.upgrade, (_opChainConfigs[i].systemConfigProxy))
                 );
@@ -704,7 +704,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 // Upgrade the L1ERC721Bridge contract.
                 upgradeToAndCall(
                     _opChainConfigs[i].proxyAdmin,
-                    address(opChainAddrs.l1ERC721Bridge),
+                    address(IL1ERC721Bridge(opChainAddrs.l1ERC721Bridge)),
                     impls.l1ERC721BridgeImpl,
                     abi.encodeCall(IL1ERC721Bridge.upgrade, (_opChainConfigs[i].systemConfigProxy))
                 );
