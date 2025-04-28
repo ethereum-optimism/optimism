@@ -372,9 +372,12 @@ func TestHazardCycleChecksNoCycle(t *testing.T) {
 }
 
 func TestHazardCycleChecksCycle(t *testing.T) {
+	// Comment cycle notation: `executing message -> corresponding initiating message`
+	// The index of the log itself is used as name of the message.
+	// For different chains, "A" or "B", etc. may be prefixed, to identify the chain with the corresponding chain index. (A=0, B=1, etc.)
 	tests := []hazardCycleChecksTestCase{
 		{
-			// 0->1->2->0
+			// 0->2->1->0  - executing message pointing to the future, cycle completed by regular log ordering
 			name: "3-cycle in single chain",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -388,8 +391,8 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
-			// 0->1->2->0
-			// 0->2->0
+			// 0->2->0   - both the executing messages
+			// 0->2->1->0  - first executing message combined with regular log-ordering dependencies
 			name: "3-cycle in single chain, 2-cycle in single chain with first log",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -434,8 +437,8 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
-			// 1->3->1
-			// 1->2->3->1
+			// 1->3->1  - two executing messages
+			// 1->3->2->1  - one executing message and regular log ordering
 			name: "2,3-cycle in single chain, not first, not adjacent",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -470,9 +473,10 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error for cycle through executing messages",
 		},
 		{
-			// 1->2->1
-			// 2->3->2
-			// 1->3->2->1
+			// 1->2->1  - 1 executes the next log, forming a small cycle
+			// 2->3->2  - 2 executes the next log, forming a small cycle
+			// 3->1->2->3  - (3->1) is a valid executing message, but part of a larger cycle where 2 and 1 depend on the next future log.
+			// 3->2->1->2->3  - we have the regular order of logs, and then multiple logs pointing to the future logs, making an even larger cycle.
 			name: "2,2,3-cycle in single chain",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -488,8 +492,8 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error for 3-node cycle",
 		},
 		{
-			// 1->2->3->4->5->1
-			// 1->2->5->1
+			// 1->5->4->3->2->1  - executing message, and multiple regular log ordering steps
+			// 1->5->2->1 - two executing messages and single regular log ordering dependency
 			name: "cycle through adjacency dependency",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -544,7 +548,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
-			// 0->1->2->0
+			// 0->2->1->0
 			name: "cycle through single chain, exec message prior to init and not adjacent",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
@@ -558,7 +562,7 @@ func TestHazardCycleChecksCycle(t *testing.T) {
 			msg:       "expected cycle detection error",
 		},
 		{
-			// A1->B0->A0->A1
+			// A0->B0->A1->A0  - A may not depend on a log of B that depends on the future of A
 			name: "3-cycle across chains",
 			chainBlocks: map[string]chainBlockDef{
 				"1": {
