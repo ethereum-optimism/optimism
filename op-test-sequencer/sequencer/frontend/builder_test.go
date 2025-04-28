@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -61,6 +62,9 @@ func (m *mockBuildJob) Close() {
 
 func (m *mockBuildJob) Open(ctx context.Context) error {
 	return nil
+}
+
+func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
 }
 
 var _ work.BuildJob = (*mockBuildJob)(nil)

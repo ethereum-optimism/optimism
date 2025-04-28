@@ -73,7 +73,7 @@ func (bf *SequencerFrontend) Stop(ctx context.Context) (last common.Hash, err er
 }
 
 type IncludeTxSupport interface {
-	IncludeTx(ctx context.Context, tx hexutil.Bytes) error
+	IncludeTx(ctx context.Context, tx hexutil.Bytes)
 }
 
 func (bf *SequencerFrontend) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
@@ -86,5 +86,6 @@ func (bf *SequencerFrontend) IncludeTx(ctx context.Context, tx hexutil.Bytes) er
 	if !ok {
 		return &rpc.JsonError{Code: -39000, Message: "not supported"}
 	}
-	return toJsonError(x.IncludeTx(ctx, tx))
+	x.IncludeTx(ctx, tx)
+	return nil
 }

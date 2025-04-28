@@ -21,9 +21,8 @@ type advancedBuildJob struct {
 var _ work.BuildJob = (*advancedBuildJob)(nil)
 var _ IncludeTxSupport = (*advancedBuildJob)(nil)
 
-func (a *advancedBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
+func (a *advancedBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
 	a.txs = append(a.txs, tx)
-	return nil
 }
 
 type mockSequencer struct {
@@ -132,9 +131,6 @@ func TestSequencer(t *testing.T) {
 		require.NotEmpty(t, dest.txs)
 		seq.job = nil
 		require.ErrorIs(t, front.IncludeTx(ctx, []byte("abc")), seqtypes.ErrUnknownJob)
-		seq.job = &mockBuildJob{}
-		require.ErrorContains(t, front.IncludeTx(ctx, []byte("123")), "not supported")
-		seq.job = nil
 	})
 	t.Run("step by step", func(t *testing.T) {
 		seq.action = ""
