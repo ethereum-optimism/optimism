@@ -339,6 +339,10 @@ contract Deploy is Deployer {
         IOPContractsManager.DeployInput memory deployInput = getDeployInput();
         IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
 
+        // Store code in the Final system owner address so that it can be used for prank delegatecalls
+        // Store "fe" opcode so that accidental calls to this address revert
+        vm.etch(cfg.finalSystemOwner(), hex"fe");
+
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
         artifacts.save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
         artifacts.save("AddressManager", address(deployOutput.addressManager));
@@ -705,9 +709,6 @@ contract Deploy is Deployer {
         address opcm = artifacts.mustGetAddress("OPContractsManager");
         IProxyAdmin proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
 
-        transferProxyAdminOwnership();
-        transferDisputeGameFactoryOwnership();
-
         IOPContractsManager.AddGameInput[] memory addGameInput = new IOPContractsManager.AddGameInput[](1);
         addGameInput[0] = IOPContractsManager.AddGameInput({
             saltMixer: "AlphabetVM2",
@@ -728,11 +729,6 @@ contract Deploy is Deployer {
         vm.prank(cfg.finalSystemOwner(), true);
         (bool success,) = opcm.delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (addGameInput)));
         require(success, "Deploy: Cannon FaultDisputeGame implementation not set");
-
-        vm.startPrank(cfg.finalSystemOwner());
-        proxyAdmin.transferOwnership(address(this));
-        IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy")).transferOwnership(address(this));
-        vm.stopPrank();
     }
 
     /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
@@ -937,7 +933,7 @@ contract Deploy is Deployer {
         string memory saltMixer = "salt mixer";
         return IOPContractsManager.DeployInput({
             roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: msg.sender,
+                opChainProxyAdminOwner: cfg.finalSystemOwner(),
                 systemConfigOwner: cfg.finalSystemOwner(),
                 batcher: cfg.batchSenderAddress(),
                 unsafeBlockSigner: cfg.p2pSequencerAddress(),
