@@ -711,7 +711,7 @@ contract Deploy is Deployer {
 
         IOPContractsManager.AddGameInput[] memory addGameInput = new IOPContractsManager.AddGameInput[](1);
         addGameInput[0] = IOPContractsManager.AddGameInput({
-            saltMixer: "AlphabetVM2",
+            saltMixer: "CannonFaultGame",
             systemConfig: ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy")),
             proxyAdmin: proxyAdmin,
             delayedWETH: IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy")),
