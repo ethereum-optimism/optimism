@@ -1,6 +1,9 @@
 package stack
 
-import "github.com/ethereum-optimism/optimism/op-service/apis"
+import (
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
 
 // SequencerID identifies a Sequencer by name and chainID, is type-safe, and can be value-copied and used as map key.
 type SequencerID genericID
@@ -30,5 +33,5 @@ type Sequencer interface {
 
 	AdminAPI() apis.SequencerAdminAPI
 	BuildAPI() apis.SequencerBuildAPI
-	IndividualAPI() apis.SequencerIndividualAPI
+	IndividualAPI(chainID eth.ChainID) apis.SequencerIndividualAPI
 }

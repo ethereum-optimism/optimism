@@ -24,8 +24,14 @@ type SimpleInterop struct {
 	L2ChainA *dsl.L2Network
 	L2ChainB *dsl.L2Network
 
+	L2BatcherA *dsl.L2Batcher
+	L2BatcherB *dsl.L2Batcher
+
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
+
+	L2CLNodeA *dsl.L2CLNode
+	L2CLNodeB *dsl.L2CLNode
 
 	Wallet *dsl.HDWallet
 
@@ -80,9 +86,13 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 		L2ChainB:     dsl.NewL2Network(l2B),
 		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
 		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2CLNodeA:    dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL))),
+		L2CLNodeB:    dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL))),
 		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
 		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
 		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
+		L2BatcherA:   dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2BatcherB:   dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
 	}
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)

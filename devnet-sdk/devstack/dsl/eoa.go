@@ -114,5 +114,4 @@ func (u *EOA) VerifyBalanceLessThan(v eth.ETH) {
 func (u *EOA) VerifyBalanceExact(v eth.ETH) {
 	actual := u.balance()
 	u.t.Require().Equal(v, actual, "must have expected balance")
-	u.t.Logger().Info("Verified balance", "address", u.Address(), "balance", actual)
 }

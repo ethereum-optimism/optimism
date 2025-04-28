@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils/mocknet"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -102,7 +101,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelInfo).New("role", "syncer")
 
 	// Create a peer, and hook up alice and bob
-	h, err := mocknet.NewMockNetPeer(sys.Mocknet)
+	h, err := sys.NewMockNetPeer()
 	require.NoError(t, err)
 	_, err = sys.Mocknet.LinkPeers(sys.RollupNodes["alice"].P2P().Host().ID(), h.ID())
 	require.NoError(t, err)

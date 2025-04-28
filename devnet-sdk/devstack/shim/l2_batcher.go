@@ -2,7 +2,9 @@ package shim
 
 import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type L2BatcherConfig struct {
@@ -14,7 +16,7 @@ type L2BatcherConfig struct {
 type rpcL2Batcher struct {
 	commonImpl
 	id     stack.L2BatcherID
-	client client.RPC
+	client *sources.BatcherAdminClient
 }
 
 var _ stack.L2Batcher = (*rpcL2Batcher)(nil)
@@ -24,10 +26,14 @@ func NewL2Batcher(cfg L2BatcherConfig) stack.L2Batcher {
 	return &rpcL2Batcher{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
-		client:     cfg.Client,
+		client:     sources.NewBatcherAdminClient(cfg.Client),
 	}
 }
 
 func (r *rpcL2Batcher) ID() stack.L2BatcherID {
 	return r.id
+}
+
+func (p *rpcL2Batcher) ActivityAPI() apis.BatcherActivity {
+	return p.client
 }
