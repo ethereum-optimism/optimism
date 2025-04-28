@@ -297,8 +297,8 @@ func reorgOutUnsafeAndConsolidateToSafe(t helpers.Testing, actors *dsl.InteropAc
 func reorgOutUnsafeAndConsolidateToSafeBothChain(t helpers.Testing, actors *dsl.InteropActors, chainX, chainY *dsl.Chain, startX, startY, endX, endY, unsafeHeadNumAfterReorg uint64) {
 	require.GreaterOrEqual(t, endY, unsafeHeadNumAfterReorg)
 	// Check to make batcher happy
-	require.Positive(t, endY-startY)
-	require.Positive(t, endX-startX)
+	require.Less(t, startX, endX)
+	require.Less(t, startY, endY)
 
 	chainX.Sequencer.ActL2PipelineFull(t)
 	chainY.Sequencer.ActL2PipelineFull(t)
