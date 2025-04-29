@@ -382,8 +382,6 @@ contract Deploy is Deployer {
         setSuperPermissionedGameImplementation();
         setFastFaultGameImplementation();
         setCannonFaultGameImplementation();
-
-        transferDisputeGameFactoryOwnership();
     }
 
     /// @notice Add AltDA setup to the OP chain
@@ -572,25 +570,6 @@ contract Deploy is Deployer {
         // Make sure the ProxyAdmin owner is set to the final system owner.
         owner = proxyAdmin.owner();
         require(owner == finalSystemOwner, "Deploy: ProxyAdmin ownership not transferred to final system owner");
-    }
-
-    /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() public broadcast {
-        console.log("Transferring DisputeGameFactory ownership to Safe");
-        IDisputeGameFactory disputeGameFactory =
-            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address owner = disputeGameFactory.owner();
-        address finalSystemOwner = cfg.finalSystemOwner();
-
-        if (owner != finalSystemOwner) {
-            disputeGameFactory.transferOwnership(finalSystemOwner);
-            console.log("DisputeGameFactory ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkDisputeGameFactory({
-            _contracts: _proxies(),
-            _expectedOwner: finalSystemOwner,
-            _isProxy: true
-        });
     }
 
     ///////////////////////////////////////////////////////////
