@@ -542,7 +542,7 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 }
 
 // singleEndpointThrottler handles throttling for a specific endpoint
-func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, pendingBytesUpdated chan int64, endpoint string) {
+func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSignal chan bool, endpoint string) {
 	defer wg.Done()
 	l.Log.Info("Starting endpoint throttling loop", "endpoint", endpoint)
 
@@ -559,7 +559,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, pendingByte
 	retryTimer := time.NewTimer(retryInterval)
 	retryTimer.Stop()
 
-	updateParams := func(pendingBytes int64) {
+	updateParams := func(throttle bool) {
 		retryTimer.Stop()
 
 		ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
@@ -567,8 +567,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, pendingByte
 
 		maxTxSize := uint64(0)
 		maxBlockSize := l.Config.ThrottleAlwaysBlockSize
-		if pendingBytes > int64(l.Config.ThrottleThreshold) {
-			l.Log.Warn("Pending bytes over limit, throttling DA", "endpoint", endpoint, "bytes", pendingBytes, "limit", l.Config.ThrottleThreshold)
+		if throttle {
 			maxTxSize = l.Config.ThrottleTxSize
 			if maxBlockSize == 0 || (l.Config.ThrottleBlockSize != 0 && l.Config.ThrottleBlockSize < maxBlockSize) {
 				maxBlockSize = l.Config.ThrottleBlockSize
@@ -617,19 +616,19 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, pendingByte
 			"max_block_size", maxBlockSize)
 	}
 
-	cachedPendingBytes := int64(0)
+	cachedThrottle := false
 	for {
 		select {
-		case pendingBytes, ok := <-pendingBytesUpdated:
+		case throttle, ok := <-throttleSignal:
 			if !ok {
 				// If the channel was closed, this is our signal to exit
 				l.Log.Info("Endpoint throttling loop shutting down", "endpoint", endpoint)
 				return
 			}
-			updateParams(pendingBytes)
-			cachedPendingBytes = pendingBytes
+			updateParams(throttle)
+			cachedThrottle = throttle
 		case <-retryTimer.C:
-			updateParams(cachedPendingBytes)
+			updateParams(cachedThrottle)
 		}
 	}
 }
@@ -639,21 +638,25 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, pendingByte
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop")
-	updateChans := make([]chan int64, len(l.Config.ThrottlingEndpoints))
+	updateChans := make([]chan bool, len(l.Config.ThrottlingEndpoints))
 
 	innerWg := sync.WaitGroup{}
 
 	for i, endpoint := range l.Config.ThrottlingEndpoints {
-		updateChans[i] = make(chan int64, 1)
+		updateChans[i] = make(chan bool, 1)
 		innerWg.Add(1)
 		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
 		l.Log.Info("Started throttling loop for endpoint", "endpoint", endpoint)
 	}
 
 	for pb := range pendingBytesUpdated {
+		throttle := uint64(pb) > l.Config.ThrottleThreshold
+		if throttle {
+			l.Log.Warn("Throttling loop: pending bytes over threshold, throttling endpoints", "pending_bytes", pb, "threshold", l.Config.ThrottleThreshold)
+		}
 		for i, updateChan := range updateChans {
 			select {
-			case updateChan <- pb:
+			case updateChan <- throttle:
 			default:
 				l.Log.Warn("Throttling loop: channel full, skipping update", "endpoint", l.Config.ThrottlingEndpoints[i])
 			}
