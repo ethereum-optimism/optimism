@@ -304,7 +304,7 @@ func getP2PClientsAndPeers(ctx context.Context, logger log.Logger, require *requ
 	}
 }
 
-// WithL2CLP2PConnection disconnects P2P between two L2CLs
+// WithL2CLP2PConnection connects P2P between two L2CLs
 func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 	return func(o stack.Orchestrator) {
 		orch := o.(*Orchestrator)
