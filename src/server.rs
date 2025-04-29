@@ -30,9 +30,16 @@ use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: u64 = 100;
 
+#[derive(Debug, Clone)]
+pub struct PayloadTrace {
+    pub has_attributes: bool,
+    pub no_tx_pool: bool,
+    pub trace_id: Option<tracing::Id>,
+}
+
 pub struct PayloadTraceContext {
     block_hash_to_payload_ids: Cache<B256, Vec<PayloadId>>,
-    payload_id: Cache<PayloadId, (bool, Option<tracing::Id>)>,
+    payload_id: Cache<PayloadId, PayloadTrace>,
 }
 
 impl PayloadTraceContext {
@@ -48,10 +55,17 @@ impl PayloadTraceContext {
         payload_id: PayloadId,
         parent_hash: B256,
         has_attributes: bool,
+        no_tx_pool: bool,
         trace_id: Option<tracing::Id>,
     ) {
-        self.payload_id
-            .insert(payload_id, (has_attributes, trace_id));
+        self.payload_id.insert(
+            payload_id,
+            PayloadTrace {
+                has_attributes,
+                no_tx_pool,
+                trace_id,
+            },
+        );
         self.block_hash_to_payload_ids
             .entry(parent_hash)
             .and_upsert_with(|o| match o {
@@ -72,19 +86,28 @@ impl PayloadTraceContext {
             .map(|payload_ids| {
                 payload_ids
                     .iter()
-                    .filter_map(|payload_id| self.payload_id.get(payload_id).and_then(|x| x.1))
+                    .filter_map(|payload_id| {
+                        self.payload_id.get(payload_id).and_then(|x| x.trace_id)
+                    })
                     .collect()
             })
     }
 
     fn trace_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
-        self.payload_id.get(payload_id).and_then(|x| x.1)
+        self.payload_id.get(payload_id).and_then(|x| x.trace_id)
     }
 
     fn has_attributes(&self, payload_id: &PayloadId) -> bool {
         self.payload_id
             .get(payload_id)
-            .map(|x| x.0)
+            .map(|x| x.has_attributes)
+            .unwrap_or_default()
+    }
+
+    fn no_tx_pool(&self, payload_id: &PayloadId) -> bool {
+        self.payload_id
+            .get(payload_id)
+            .map(|x| x.no_tx_pool)
             .unwrap_or_default()
     }
 
@@ -308,11 +331,16 @@ impl EngineApiServer for RollupBoostServer {
 
         let execution_mode = self.execution_mode();
         let trace_id = span.id();
+        let no_tx_pool = payload_attributes
+            .as_ref()
+            .is_some_and(|attr| attr.no_tx_pool.unwrap_or_default());
+        let has_attributes = payload_attributes.is_some();
         if let Some(payload_id) = l2_response.payload_id {
             self.payload_trace_context.store(
                 payload_id,
                 fork_choice_state.head_block_hash,
-                payload_attributes.is_some(),
+                has_attributes,
+                no_tx_pool,
                 trace_id,
             );
         }
@@ -588,7 +616,9 @@ impl RollupBoostServer {
                 tracing::Span::current().follows_from(cause);
             }
 
-            if !self.payload_trace_context.has_attributes(&payload_id) {
+            if !self.payload_trace_context.has_attributes(&payload_id)
+                || self.payload_trace_context.no_tx_pool(&payload_id)
+            {
                 // block builder won't build a block without attributes
                 info!(message = "no attributes found, skipping get_payload call to builder");
                 return Ok(None);
@@ -850,6 +880,10 @@ mod tests {
         boost_sync_enabled().await;
         builder_payload_err().await;
         test_local_external_payload_ids_same().await;
+        // has_attributes will result in empty builder payload returned
+        has_attributes().await;
+        // has attributes but no_tx_pool = true will result in empty builder payload returned
+        no_tx_pool().await;
     }
 
     async fn engine_success() {
@@ -1076,7 +1110,7 @@ mod tests {
     }
 
     async fn test_local_external_payload_ids_same() {
-        let same_id = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
+        let same_id: PayloadId = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
 
         let mut l2_mock = MockEngineServer::new();
         l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
@@ -1128,6 +1162,118 @@ mod tests {
             assert_eq!(local_gp_reqs.len(), 1);
             assert_eq!(local_gp_reqs[0], same_id);
         }
+
+        test_harness.cleanup().await;
+    }
+
+    async fn has_attributes() {
+        let payload_id: PayloadId = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
+        let mut l2_mock = MockEngineServer::new();
+        l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Valid,
+        ))
+        .with_payload_id(payload_id));
+        l2_mock.get_payload_response = l2_mock.get_payload_response.clone().map(|mut payload| {
+            payload.block_value = U256::from(10);
+            payload
+        });
+
+        let mut builder_mock = MockEngineServer::new();
+        builder_mock.get_payload_response =
+            builder_mock
+                .get_payload_response
+                .clone()
+                .map(|mut payload| {
+                    payload.block_value = U256::from(15);
+                    payload
+                });
+
+        let test_harness = TestHarness::new(true, Some(l2_mock), Some(builder_mock)).await;
+        let fcu = ForkchoiceState {
+            head_block_hash: FixedBytes::random(),
+            safe_block_hash: FixedBytes::random(),
+            finalized_block_hash: FixedBytes::random(),
+        };
+        let payload_attributes = OpPayloadAttributes {
+            gas_limit: Some(1000000),
+            ..Default::default()
+        };
+        // has attributes so should return builder payload
+        let fcu_response = test_harness
+            .client
+            .fork_choice_updated_v3(fcu, Some(payload_attributes))
+            .await;
+        assert!(fcu_response.is_ok());
+
+        let get_payload_response = test_harness.client.get_payload_v3(payload_id).await;
+        assert!(get_payload_response.is_ok());
+        assert_eq!(get_payload_response.unwrap().block_value, U256::from(15));
+
+        // no attributes so should return l2 payload
+        let fcu_response = test_harness.client.fork_choice_updated_v3(fcu, None).await;
+        assert!(fcu_response.is_ok());
+
+        let get_payload_response = test_harness.client.get_payload_v3(payload_id).await;
+        assert!(get_payload_response.is_ok());
+        assert_eq!(get_payload_response.unwrap().block_value, U256::from(10));
+
+        test_harness.cleanup().await;
+    }
+
+    async fn no_tx_pool() {
+        let payload_id: PayloadId = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
+        let mut l2_mock = MockEngineServer::new();
+        l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Valid,
+        ))
+        .with_payload_id(payload_id));
+        l2_mock.get_payload_response = l2_mock.get_payload_response.clone().map(|mut payload| {
+            payload.block_value = U256::from(10);
+            payload
+        });
+
+        let mut builder_mock = MockEngineServer::new();
+        builder_mock.get_payload_response =
+            builder_mock
+                .get_payload_response
+                .clone()
+                .map(|mut payload| {
+                    payload.block_value = U256::from(15);
+                    payload
+                });
+
+        let test_harness = TestHarness::new(true, Some(l2_mock), Some(builder_mock)).await;
+        let fcu = ForkchoiceState {
+            head_block_hash: FixedBytes::random(),
+            safe_block_hash: FixedBytes::random(),
+            finalized_block_hash: FixedBytes::random(),
+        };
+        let mut payload_attributes = OpPayloadAttributes {
+            gas_limit: Some(1000000),
+            ..Default::default()
+        };
+        let fcu_response = test_harness
+            .client
+            .fork_choice_updated_v3(fcu, Some(payload_attributes.clone()))
+            .await;
+        assert!(fcu_response.is_ok());
+
+        // no tx pool is false so should return the builder payload
+        let get_payload_response = test_harness.client.get_payload_v3(payload_id).await;
+        assert!(get_payload_response.is_ok());
+        assert_eq!(get_payload_response.unwrap().block_value, U256::from(15));
+
+        payload_attributes.no_tx_pool = Some(true);
+        let fcu_response = test_harness
+            .client
+            .fork_choice_updated_v3(fcu, Some(payload_attributes))
+            .await;
+        assert!(fcu_response.is_ok());
+
+        // no tx pool is true so should return the l2 payload
+        let get_payload_response = test_harness.client.get_payload_v3(payload_id).await;
+        assert!(get_payload_response.is_ok());
+        assert_eq!(get_payload_response.unwrap().block_value, U256::from(10));
 
         test_harness.cleanup().await;
     }
