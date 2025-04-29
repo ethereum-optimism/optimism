@@ -226,6 +226,9 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			// Add in an endpoint with no server at all
+			urls = append(urls, "http://invalid/")
+
 			// Create test BatchSubmitter using the setup function
 			bs, _ := setup(t)
 			bs.shutdownCtx = ctx
