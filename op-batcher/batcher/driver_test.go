@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -251,17 +252,16 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			// Send test data to trigger throttling
 			pendingBytesUpdated <- 20000 // Over threshold, should trigger throttling
 
-			// Allow time for processing
-			time.Sleep(time.Millisecond * 200)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				// Check that all endpoints were called
+				for i := range healthyCalls {
 
-			// Check that both endpoints were called
-			for i := range healthyCalls {
-				require.Greater(t, healthyCalls[i], 0, "Healthy Server %d should have been called", i)
-			}
-			for i := range unHealthyCalls {
-				require.Greater(t, unHealthyCalls[i], 0, "Unhealthy Server %d should have been called", i)
-			}
-
+					require.Greater(t, healthyCalls[i], 0, "Healthy Server %d should have been called", i)
+				}
+				for i := range unHealthyCalls {
+					require.Greater(t, unHealthyCalls[i], 0, "Unhealthy Server %d should have been called", i)
+				}
+			}, time.Millisecond*2000, time.Millisecond*10, "All endpoints should have been called within 2s")
 			// Clean up
 			close(pendingBytesUpdated)
 			cancel()
