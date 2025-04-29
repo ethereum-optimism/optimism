@@ -343,7 +343,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Getter for the dispute game blacklist.
     /// @param _disputeGame The dispute game to check.
     /// @return Whether the dispute game is blacklisted.
-
     function disputeGameBlacklist(IDisputeGame _disputeGame) public view returns (bool) {
         return anchorStateRegistry.disputeGameBlacklist(_disputeGame);
     }
