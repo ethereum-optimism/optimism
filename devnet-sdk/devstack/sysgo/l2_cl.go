@@ -283,10 +283,10 @@ type p2pClientsAndPeers struct {
 	peerInfo2 *apis.PeerInfo
 }
 
-func getP2PClientsAndPeers(ctx context.Context, logger log.Logger, require *require.Assertions, l2cl1, l2cl2 *L2CLNode) *p2pClientsAndPeers {
-	p2pClient1, err := GetP2PClient(ctx, logger, l2cl1)
+func getP2PClientsAndPeers(ctx context.Context, logger log.Logger, require *require.Assertions, l2CL1, l2CL2 *L2CLNode) *p2pClientsAndPeers {
+	p2pClient1, err := GetP2PClient(ctx, logger, l2CL1)
 	require.NoError(err)
-	p2pClient2, err := GetP2PClient(ctx, logger, l2cl2)
+	p2pClient2, err := GetP2PClient(ctx, logger, l2CL2)
 	require.NoError(err)
 
 	peerInfo1, err := GetPeerInfo(ctx, p2pClient1)
@@ -310,16 +310,16 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 		orch := o.(*Orchestrator)
 		require := o.P().Require()
 
-		l2cl1, ok := orch.l2CLs.Get(l2CL1ID)
+		l2CL1, ok := orch.l2CLs.Get(l2CL1ID)
 		require.True(ok, "looking for L2 CL node 1 to connect p2p")
-		l2cl2, ok := orch.l2CLs.Get(l2CL2ID)
+		l2CL2, ok := orch.l2CLs.Get(l2CL2ID)
 		require.True(ok, "looking for L2 CL node 2 to connect p2p")
-		require.Equal(l2cl1.cfg.Rollup.L2ChainID, l2cl2.cfg.Rollup.L2ChainID, "must be same l2 chain")
+		require.Equal(l2CL1.cfg.Rollup.L2ChainID, l2CL2.cfg.Rollup.L2ChainID, "must be same l2 chain")
 
 		ctx := o.P().Ctx()
 		logger := o.P().Logger()
 
-		p := getP2PClientsAndPeers(ctx, logger, require, l2cl1, l2cl2)
+		p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
 
 		connectPeer := func(p2pClient *sources.P2PClient, multiAddress string) {
 			err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
@@ -353,16 +353,16 @@ func DisconnectL2CLP2P(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 		orch := o.(*Orchestrator)
 		require := o.P().Require()
 
-		l2cl1, ok := orch.l2CLs.Get(l2CL1ID)
+		l2CL1, ok := orch.l2CLs.Get(l2CL1ID)
 		require.True(ok, "looking for L2 CL node 1 to disconnect p2p")
-		l2cl2, ok := orch.l2CLs.Get(l2CL2ID)
+		l2CL2, ok := orch.l2CLs.Get(l2CL2ID)
 		require.True(ok, "looking for L2 CL node 2 to disconnect p2p")
-		require.Equal(l2cl1.cfg.Rollup.L2ChainID, l2cl2.cfg.Rollup.L2ChainID, "must be same l2 chain")
+		require.Equal(l2CL1.cfg.Rollup.L2ChainID, l2CL2.cfg.Rollup.L2ChainID, "must be same l2 chain")
 
 		ctx := o.P().Ctx()
 		logger := o.P().Logger()
 
-		p := getP2PClientsAndPeers(ctx, logger, require, l2cl1, l2cl2)
+		p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
 
 		disconnectPeer := func(p2pClient *sources.P2PClient, id peer.ID) {
 			err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
