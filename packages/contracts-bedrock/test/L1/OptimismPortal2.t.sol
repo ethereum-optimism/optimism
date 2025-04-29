@@ -442,8 +442,9 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     bytes32 _withdrawalHash;
     bytes[] _withdrawalProof;
     Types.OutputRootProof internal _outputRootProof;
-
+    GameType internal respectedGameType;
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
+
     constructor() {
         super.setUp();
 
@@ -490,7 +491,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         // Warp forward in time to ensure that the game is created after the retirement timestamp.
         vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
 
-        GameType respectedGameType = optimismPortal2.respectedGameType();
+        respectedGameType = optimismPortal2.respectedGameType();
         game = IFaultDisputeGame(
             payable(
                 address(
@@ -735,8 +736,8 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         vm.mockCall(address(game), abi.encodeCall(game.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
 
         // Create a new game to re-prove against
-        disputeGameFactory.create{ value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType()) }(
-            optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
+        disputeGameFactory.create{ value: disputeGameFactory.initBonds(respectedGameType) }(
+            respectedGameType, Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber + 1)
         );
         _proposedGameIndex = disputeGameFactory.gameCount() - 1;
 
@@ -1119,10 +1120,8 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
         IFaultDisputeGame game_noData = IFaultDisputeGame(
             payable(
                 address(
-                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType()) }(
-                        optimismPortal2.respectedGameType(),
-                        Claim.wrap(_outputRoot_noData),
-                        abi.encode(_proposedBlockNumber)
+                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(respectedGameType) }(
+                        respectedGameType, Claim.wrap(_outputRoot_noData), abi.encode(_proposedBlockNumber)
                     )
                 )
             )
