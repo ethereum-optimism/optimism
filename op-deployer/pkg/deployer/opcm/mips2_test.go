@@ -6,6 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 )
 
 func TestNewDeployMIPSScript(t *testing.T) {
@@ -20,9 +22,10 @@ func TestNewDeployMIPSScript(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then we deploy
+		mipsVersion := int64(standard.MIPSVersion)
 		output, err := deploySuperchain.Run(DeployMIPS2Input{
 			PreimageOracle: common.Address{'P'},
-			MipsVersion:    big.NewInt(6),
+			MipsVersion:    big.NewInt(mipsVersion),
 		})
 
 		// And do some simple asserts
@@ -36,7 +39,7 @@ func TestNewDeployMIPSScript(t *testing.T) {
 		host2 := createTestHost(t)
 		deprecatedOutput, err := DeployMIPS(host2, DeployMIPSInput{
 			PreimageOracle: common.Address{'P'},
-			MipsVersion:    6,
+			MipsVersion:    uint64(mipsVersion),
 		})
 
 		// Make sure it succeeded

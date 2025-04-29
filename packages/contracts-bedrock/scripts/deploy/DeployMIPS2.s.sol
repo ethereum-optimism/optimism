@@ -53,7 +53,7 @@ contract DeployMIPS2 is Script {
     function assertValidInput(Input memory _input) public pure {
         require(address(_input.preimageOracle) != address(0), "DeployMIPS: preimageOracle not set");
         require(_input.mipsVersion != 0, "DeployMIPS: mipsVersion not set");
-        require(_input.mipsVersion == 6, "DeployMIPS: unknown mips version");
+        require(_input.mipsVersion == 7, "DeployMIPS: unknown mips version");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) public view {

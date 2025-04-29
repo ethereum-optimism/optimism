@@ -100,3 +100,9 @@ func GetStateVersionStrings() []string {
 func IsSupportedMultiThreaded64(ver StateVersion) bool {
 	return ver == VersionMultiThreaded64_v4
 }
+
+// IsSupported returns true if the state version is currently supported
+func IsSupported(ver int) bool {
+	stateVer := StateVersion(ver)
+	return IsSupportedMultiThreaded64(stateVer)
+}

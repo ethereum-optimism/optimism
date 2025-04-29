@@ -23,7 +23,7 @@ contract DeployMIPSInput is BaseDeployIO {
 
     function set(bytes4 _sel, uint256 _value) public {
         if (_sel == this.mipsVersion.selector) {
-            require(_value == 6, "DeployMIPS: unknown mips version");
+            require(_value == 7, "DeployMIPS: unknown mips version");
             _mipsVersion = _value;
         } else {
             revert("DeployMIPS: unknown selector");
@@ -41,7 +41,7 @@ contract DeployMIPSInput is BaseDeployIO {
 
     function mipsVersion() public view returns (uint256) {
         require(_mipsVersion != 0, "DeployMIPS: mipsVersion not set");
-        require(_mipsVersion == 6, "DeployMIPS: unknown mips version");
+        require(_mipsVersion == 7, "DeployMIPS: unknown mips version");
         return _mipsVersion;
     }
 
