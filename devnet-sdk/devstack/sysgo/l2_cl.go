@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
 
@@ -255,41 +256,71 @@ func GetP2PClient(ctx context.Context, logger log.Logger, l2CLNode *L2CLNode) (*
 	return sources.NewP2PClient(rpcClient), nil
 }
 
-// WithL2CLP2PConnection P2P connects two L2CLs
+func GetPeerInfo(ctx context.Context, p2pClient *sources.P2PClient) (*apis.PeerInfo, error) {
+	peerInfo, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerInfo, error) {
+		return p2pClient.Self(ctx)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get peer info: %w", err)
+	}
+	return peerInfo, nil
+}
+
+func GetPeers(ctx context.Context, p2pClient *sources.P2PClient) (*apis.PeerDump, error) {
+	peerDump, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerDump, error) {
+		return p2pClient.Peers(ctx, true)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get peers: %w", err)
+	}
+	return peerDump, nil
+}
+
+type p2pClientsAndPeers struct {
+	client1   *sources.P2PClient
+	client2   *sources.P2PClient
+	peerInfo1 *apis.PeerInfo
+	peerInfo2 *apis.PeerInfo
+}
+
+func getP2PClientsAndPeers(ctx context.Context, logger log.Logger, require *require.Assertions, l2cl1, l2cl2 *L2CLNode) *p2pClientsAndPeers {
+	p2pClient1, err := GetP2PClient(ctx, logger, l2cl1)
+	require.NoError(err)
+	p2pClient2, err := GetP2PClient(ctx, logger, l2cl2)
+	require.NoError(err)
+
+	peerInfo1, err := GetPeerInfo(ctx, p2pClient1)
+	require.NoError(err)
+	peerInfo2, err := GetPeerInfo(ctx, p2pClient2)
+	require.NoError(err)
+
+	require.True(len(peerInfo1.Addresses) > 0 && len(peerInfo2.Addresses) > 0, "malformed peer info")
+
+	return &p2pClientsAndPeers{
+		client1:   p2pClient1,
+		client2:   p2pClient2,
+		peerInfo1: peerInfo1,
+		peerInfo2: peerInfo2,
+	}
+}
+
+// WithL2CLP2PConnection disconnects P2P between two L2CLs
 func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 	return func(o stack.Orchestrator) {
 		orch := o.(*Orchestrator)
 		require := o.P().Require()
 
-		l2CL1, ok := orch.l2CLs.Get(l2CL1ID)
+		l2cl1, ok := orch.l2CLs.Get(l2CL1ID)
 		require.True(ok, "looking for L2 CL node 1 to connect p2p")
-		l2CL2, ok := orch.l2CLs.Get(l2CL2ID)
+		l2cl2, ok := orch.l2CLs.Get(l2CL2ID)
 		require.True(ok, "looking for L2 CL node 2 to connect p2p")
-
-		require.Equal(l2CL1.cfg.Rollup.L2ChainID, l2CL2.cfg.Rollup.L2ChainID, "must be same l2 chain")
+		require.Equal(l2cl1.cfg.Rollup.L2ChainID, l2cl2.cfg.Rollup.L2ChainID, "must be same l2 chain")
 
 		ctx := o.P().Ctx()
 		logger := o.P().Logger()
 
-		// initialize p2p clients per L2CL
-		p2pClient1, err := GetP2PClient(ctx, logger, l2CL1)
-		require.NoError(err)
-		p2pClient2, err := GetP2PClient(ctx, logger, l2CL2)
-		require.NoError(err)
+		p := getP2PClientsAndPeers(ctx, logger, require, l2cl1, l2cl2)
 
-		// get peer info per L2CL
-		getPeerInfo := func(p2pClient *sources.P2PClient) *apis.PeerInfo {
-			peerInfo, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerInfo, error) {
-				return p2pClient.Self(ctx)
-			})
-			require.NoError(err, "failed to get peer info")
-			return peerInfo
-		}
-		peerInfo1, peerInfo2 := getPeerInfo(p2pClient1), getPeerInfo(p2pClient2)
-		require.True(len(peerInfo1.Addresses) > 0 && len(peerInfo2.Addresses) > 0, "malformed peer info")
-		peer1MultiAddress, peer2MultiAddress := peerInfo1.Addresses[0], peerInfo2.Addresses[0]
-
-		// bidirectional p2p connection
 		connectPeer := func(p2pClient *sources.P2PClient, multiAddress string) {
 			err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
 				return p2pClient.ConnectPeer(ctx, multiAddress)
@@ -297,60 +328,42 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 			require.NoError(err, "failed to connect peer")
 		}
 
-		connectPeer(p2pClient1, peer2MultiAddress)
-		connectPeer(p2pClient2, peer1MultiAddress)
+		connectPeer(p.client1, p.peerInfo2.Addresses[0])
+		connectPeer(p.client2, p.peerInfo1.Addresses[0])
 
-		// sanity check that peers are registered
-		getPeers := func(p2pClient *sources.P2PClient) *apis.PeerDump {
-			peerDump, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerDump, error) {
-				return p2pClient.Peers(ctx, true)
-			})
-			require.NoError(err, "failed to get peers")
-			return peerDump
-		}
-		peerDump1, peerDump2 := getPeers(p2pClient1), getPeers(p2pClient2)
 		check := func(peerDump *apis.PeerDump, peerInfo *apis.PeerInfo) {
 			multiAddress := peerInfo.PeerID.String()
 			_, ok := peerDump.Peers[multiAddress]
 			require.True(ok, "peer register invalid")
 		}
-		check(peerDump1, peerInfo2)
-		check(peerDump2, peerInfo1)
+
+		peerDump1, err := GetPeers(ctx, p.client1)
+		require.NoError(err)
+		peerDump2, err := GetPeers(ctx, p.client2)
+		require.NoError(err)
+
+		check(peerDump1, p.peerInfo2)
+		check(peerDump2, p.peerInfo1)
 	}
 }
 
+// DisconnectL2CLP2P disconnects P2P between two L2CLs
 func DisconnectL2CLP2P(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 	return func(o stack.Orchestrator) {
 		orch := o.(*Orchestrator)
 		require := o.P().Require()
 
-		l2CL1, ok := orch.l2CLs.Get(l2CL1ID)
-		require.True(ok, "looking for L2 CL node 1 to connect p2p")
-		l2CL2, ok := orch.l2CLs.Get(l2CL2ID)
-		require.True(ok, "looking for L2 CL node 2 to connect p2p")
-
-		require.Equal(l2CL1.cfg.Rollup.L2ChainID, l2CL2.cfg.Rollup.L2ChainID, "must be same l2 chain")
+		l2cl1, ok := orch.l2CLs.Get(l2CL1ID)
+		require.True(ok, "looking for L2 CL node 1 to disconnect p2p")
+		l2cl2, ok := orch.l2CLs.Get(l2CL2ID)
+		require.True(ok, "looking for L2 CL node 2 to disconnect p2p")
+		require.Equal(l2cl1.cfg.Rollup.L2ChainID, l2cl2.cfg.Rollup.L2ChainID, "must be same l2 chain")
 
 		ctx := o.P().Ctx()
 		logger := o.P().Logger()
 
-		// initialize p2p clients per L2CL
-		p2pClient1, err := GetP2PClient(ctx, logger, l2CL1)
-		require.NoError(err)
-		p2pClient2, err := GetP2PClient(ctx, logger, l2CL2)
-		require.NoError(err)
+		p := getP2PClientsAndPeers(ctx, logger, require, l2cl1, l2cl2)
 
-		// get peer info per L2CL
-		getPeerInfo := func(p2pClient *sources.P2PClient) *apis.PeerInfo {
-			peerInfo, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerInfo, error) {
-				return p2pClient.Self(ctx)
-			})
-			require.NoError(err, "failed to get peer info")
-			return peerInfo
-		}
-		peerInfo1, peerInfo2 := getPeerInfo(p2pClient1), getPeerInfo(p2pClient2)
-
-		// disconnect bidirectional p2p connection
 		disconnectPeer := func(p2pClient *sources.P2PClient, id peer.ID) {
 			err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
 				return p2pClient.DisconnectPeer(ctx, id)
@@ -358,24 +371,21 @@ func DisconnectL2CLP2P(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option {
 			require.NoError(err, "failed to disconnect peer")
 		}
 
-		disconnectPeer(p2pClient1, peerInfo2.PeerID)
-		disconnectPeer(p2pClient2, peerInfo1.PeerID)
+		disconnectPeer(p.client1, p.peerInfo2.PeerID)
+		disconnectPeer(p.client2, p.peerInfo1.PeerID)
 
-		// sanity check that peers are registered
-		getPeers := func(p2pClient *sources.P2PClient) *apis.PeerDump {
-			peerDump, err := retry.Do(ctx, 3, retry.Exponential(), func() (*apis.PeerDump, error) {
-				return p2pClient.Peers(ctx, true)
-			})
-			require.NoError(err, "failed to get peers")
-			return peerDump
-		}
-		peerDump1, peerDump2 := getPeers(p2pClient1), getPeers(p2pClient2)
 		check := func(peerDump *apis.PeerDump, peerInfo *apis.PeerInfo) {
 			multiAddress := peerInfo.PeerID.String()
 			_, ok := peerDump.Peers[multiAddress]
 			require.False(ok, "peer deregister invalid")
 		}
-		check(peerDump1, peerInfo2)
-		check(peerDump2, peerInfo1)
+
+		peerDump1, err := GetPeers(ctx, p.client1)
+		require.NoError(err)
+		peerDump2, err := GetPeers(ctx, p.client2)
+		require.NoError(err)
+
+		check(peerDump1, p.peerInfo2)
+		check(peerDump2, p.peerInfo1)
 	}
 }
