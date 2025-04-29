@@ -11,6 +11,8 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
 interface ILegacyMintableERC20 is IERC165 {
     function l1Token() external view returns (address);
 
+    function l2Bridge() external view returns (address);
+
     function mint(address _to, uint256 _amount) external;
 
     function burn(address _from, uint256 _amount) external;
