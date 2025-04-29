@@ -551,7 +551,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 	if err != nil {
 		// rpc.Dial returns an error if e.g. the URL is malformed
 		// If the server is unavailable, we will get an error when performing the first call
-		// and retries for that are handled belo. Therefore  we don't need any retry logic here
+		// and retries for that are handled below. Therefore  we don't need any retry logic here
 		l.Log.Error("Failed to Dial endpoint", "endpoint", endpoint, "err", err)
 		return
 	}
