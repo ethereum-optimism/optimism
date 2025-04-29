@@ -242,13 +242,15 @@ library MIPS64Instructions {
 
     /// @notice Execute an instruction.
     function executeMipsInstruction(ExecuteMipsInstructionParams memory _args) internal pure returns (uint64 out_) {
+        uint32 insn = _args.insn;
+        uint32 opcode = _args.opcode;
+        uint32 fun = _args.fun;
+        uint64 rs = _args.rs;
+        uint64 rt = _args.rt;
+        uint64 mem = _args.mem;
+        uint256 stateVersion = _args.stateVersion;
         unchecked {
-            if (
-                _args.opcode == 0 || (_args.opcode >= 8 && _args.opcode < 0xF) || _args.opcode == 0x18
-                    || _args.opcode == 0x19
-            ) {
-                uint32 opcode = _args.opcode;
-                uint32 fun = _args.fun;
+            if (opcode == 0 || (opcode >= 8 && opcode < 0xF) || opcode == 0x18 || opcode == 0x19) {
                 assembly {
                     // transform ArithLogI to SPECIAL
                     switch opcode
@@ -271,356 +273,352 @@ library MIPS64Instructions {
                     // daddiu
                     case 0x19 { fun := 0x2D }
                 }
-                _args.fun = fun;
 
                 // sll
-                if (_args.fun == 0x00) {
-                    uint32 shiftAmt = (_args.insn >> 6) & 0x1F;
-                    return signExtend((_args.rt << shiftAmt) & U32_MASK, 32);
+                if (fun == 0x00) {
+                    uint32 shiftAmt = (insn >> 6) & 0x1F;
+                    return signExtend((rt << shiftAmt) & U32_MASK, 32);
                 }
                 // srl
-                else if (_args.fun == 0x02) {
-                    return signExtend((_args.rt & U32_MASK) >> ((_args.insn >> 6) & 0x1F), 32);
+                else if (fun == 0x02) {
+                    return signExtend((rt & U32_MASK) >> ((insn >> 6) & 0x1F), 32);
                 }
                 // sra
-                else if (_args.fun == 0x03) {
-                    uint32 shamt = (_args.insn >> 6) & 0x1F;
-                    return signExtend((_args.rt & U32_MASK) >> shamt, 32 - shamt);
+                else if (fun == 0x03) {
+                    uint32 shamt = (insn >> 6) & 0x1F;
+                    return signExtend((rt & U32_MASK) >> shamt, 32 - shamt);
                 }
                 // sllv
-                else if (_args.fun == 0x04) {
-                    uint64 shiftAmt = _args.rs & 0x1F;
-                    return signExtend((_args.rt << shiftAmt) & U32_MASK, 32);
+                else if (fun == 0x04) {
+                    uint64 shiftAmt = rs & 0x1F;
+                    return signExtend((rt << shiftAmt) & U32_MASK, 32);
                 }
                 // srlv
-                else if (_args.fun == 0x6) {
-                    return signExtend((_args.rt & U32_MASK) >> (_args.rs & 0x1F), 32);
+                else if (fun == 0x6) {
+                    return signExtend((rt & U32_MASK) >> (rs & 0x1F), 32);
                 }
                 // srav
-                else if (_args.fun == 0x07) {
+                else if (fun == 0x07) {
                     // shamt here is different than the typical shamt which comes from the
                     // instruction itself, here it comes from the rs register
-                    uint64 shamt = _args.rs & 0x1F;
-                    return signExtend((_args.rt & U32_MASK) >> shamt, 32 - shamt);
+                    uint64 shamt = rs & 0x1F;
+                    return signExtend((rt & U32_MASK) >> shamt, 32 - shamt);
                 }
                 // functs in range [0x8, 0x1b] are handled specially by other functions
                 // Explicitly enumerate each funct in range to reduce code diff against Go Vm
                 // jr
-                else if (_args.fun == 0x08) {
-                    return _args.rs;
+                else if (fun == 0x08) {
+                    return rs;
                 }
                 // jalr
-                else if (_args.fun == 0x09) {
-                    return _args.rs;
+                else if (fun == 0x09) {
+                    return rs;
                 }
                 // movz
-                else if (_args.fun == 0x0a) {
-                    return _args.rs;
+                else if (fun == 0x0a) {
+                    return rs;
                 }
                 // movn
-                else if (_args.fun == 0x0b) {
-                    return _args.rs;
+                else if (fun == 0x0b) {
+                    return rs;
                 }
                 // syscall
-                else if (_args.fun == 0x0c) {
-                    return _args.rs;
+                else if (fun == 0x0c) {
+                    return rs;
                 }
                 // 0x0d - break not supported
                 // sync
-                else if (_args.fun == 0x0f) {
-                    return _args.rs;
+                else if (fun == 0x0f) {
+                    return rs;
                 }
                 // mfhi
-                else if (_args.fun == 0x10) {
-                    return _args.rs;
+                else if (fun == 0x10) {
+                    return rs;
                 }
                 // mthi
-                else if (_args.fun == 0x11) {
-                    return _args.rs;
+                else if (fun == 0x11) {
+                    return rs;
                 }
                 // mflo
-                else if (_args.fun == 0x12) {
-                    return _args.rs;
+                else if (fun == 0x12) {
+                    return rs;
                 }
                 // mtlo
-                else if (_args.fun == 0x13) {
-                    return _args.rs;
+                else if (fun == 0x13) {
+                    return rs;
                 }
                 // dsllv
-                else if (_args.fun == 0x14) {
-                    return _args.rt;
+                else if (fun == 0x14) {
+                    return rt;
                 }
                 // dsrlv
-                else if (_args.fun == 0x16) {
-                    return _args.rt;
+                else if (fun == 0x16) {
+                    return rt;
                 }
                 // dsrav
-                else if (_args.fun == 0x17) {
-                    return _args.rt;
+                else if (fun == 0x17) {
+                    return rt;
                 }
                 // mult
-                else if (_args.fun == 0x18) {
-                    return _args.rs;
+                else if (fun == 0x18) {
+                    return rs;
                 }
                 // multu
-                else if (_args.fun == 0x19) {
-                    return _args.rs;
+                else if (fun == 0x19) {
+                    return rs;
                 }
                 // div
-                else if (_args.fun == 0x1a) {
-                    return _args.rs;
+                else if (fun == 0x1a) {
+                    return rs;
                 }
                 // divu
-                else if (_args.fun == 0x1b) {
-                    return _args.rs;
+                else if (fun == 0x1b) {
+                    return rs;
                 }
                 // dmult
-                else if (_args.fun == 0x1c) {
-                    return _args.rs;
+                else if (fun == 0x1c) {
+                    return rs;
                 }
                 // dmultu
-                else if (_args.fun == 0x1d) {
-                    return _args.rs;
+                else if (fun == 0x1d) {
+                    return rs;
                 }
                 // ddiv
-                else if (_args.fun == 0x1e) {
-                    return _args.rs;
+                else if (fun == 0x1e) {
+                    return rs;
                 }
                 // ddivu
-                else if (_args.fun == 0x1f) {
-                    return _args.rs;
+                else if (fun == 0x1f) {
+                    return rs;
                 }
                 // The rest includes transformed R-type arith imm instructions
                 // add
-                else if (_args.fun == 0x20) {
-                    return signExtend(uint64(uint32(_args.rs) + uint32(_args.rt)), 32);
+                else if (fun == 0x20) {
+                    return signExtend(uint64(uint32(rs) + uint32(rt)), 32);
                 }
                 // addu
-                else if (_args.fun == 0x21) {
-                    return signExtend(uint64(uint32(_args.rs) + uint32(_args.rt)), 32);
+                else if (fun == 0x21) {
+                    return signExtend(uint64(uint32(rs) + uint32(rt)), 32);
                 }
                 // sub
-                else if (_args.fun == 0x22) {
-                    return signExtend(uint64(uint32(_args.rs) - uint32(_args.rt)), 32);
+                else if (fun == 0x22) {
+                    return signExtend(uint64(uint32(rs) - uint32(rt)), 32);
                 }
                 // subu
-                else if (_args.fun == 0x23) {
-                    return signExtend(uint64(uint32(_args.rs) - uint32(_args.rt)), 32);
+                else if (fun == 0x23) {
+                    return signExtend(uint64(uint32(rs) - uint32(rt)), 32);
                 }
                 // and
-                else if (_args.fun == 0x24) {
-                    return (_args.rs & _args.rt);
+                else if (fun == 0x24) {
+                    return (rs & rt);
                 }
                 // or
-                else if (_args.fun == 0x25) {
-                    return (_args.rs | _args.rt);
+                else if (fun == 0x25) {
+                    return (rs | rt);
                 }
                 // xor
-                else if (_args.fun == 0x26) {
-                    return (_args.rs ^ _args.rt);
+                else if (fun == 0x26) {
+                    return (rs ^ rt);
                 }
                 // nor
-                else if (_args.fun == 0x27) {
-                    return ~(_args.rs | _args.rt);
+                else if (fun == 0x27) {
+                    return ~(rs | rt);
                 }
                 // slti
-                else if (_args.fun == 0x2a) {
-                    return int64(_args.rs) < int64(_args.rt) ? 1 : 0;
+                else if (fun == 0x2a) {
+                    return int64(rs) < int64(rt) ? 1 : 0;
                 }
                 // sltiu
-                else if (_args.fun == 0x2b) {
-                    return _args.rs < _args.rt ? 1 : 0;
+                else if (fun == 0x2b) {
+                    return rs < rt ? 1 : 0;
                 }
                 // dadd
-                else if (_args.fun == 0x2c) {
-                    return (_args.rs + _args.rt);
+                else if (fun == 0x2c) {
+                    return (rs + rt);
                 }
                 // daddu
-                else if (_args.fun == 0x2d) {
-                    return (_args.rs + _args.rt);
+                else if (fun == 0x2d) {
+                    return (rs + rt);
                 }
                 // dsub
-                else if (_args.fun == 0x2e) {
-                    return (_args.rs - _args.rt);
+                else if (fun == 0x2e) {
+                    return (rs - rt);
                 }
                 // dsubu
-                else if (_args.fun == 0x2f) {
-                    return (_args.rs - _args.rt);
+                else if (fun == 0x2f) {
+                    return (rs - rt);
                 }
                 // dsll
-                else if (_args.fun == 0x38) {
-                    return _args.rt << ((_args.insn >> 6) & 0x1f);
+                else if (fun == 0x38) {
+                    return rt << ((insn >> 6) & 0x1f);
                 }
                 // dsrl
-                else if (_args.fun == 0x3A) {
-                    return _args.rt >> ((_args.insn >> 6) & 0x1f);
+                else if (fun == 0x3A) {
+                    return rt >> ((insn >> 6) & 0x1f);
                 }
                 // dsra
-                else if (_args.fun == 0x3B) {
-                    return uint64(int64(_args.rt) >> ((_args.insn >> 6) & 0x1f));
+                else if (fun == 0x3B) {
+                    return uint64(int64(rt) >> ((insn >> 6) & 0x1f));
                 }
                 // dsll32
-                else if (_args.fun == 0x3c) {
-                    return _args.rt << (((_args.insn >> 6) & 0x1f) + 32);
+                else if (fun == 0x3c) {
+                    return rt << (((insn >> 6) & 0x1f) + 32);
                 }
                 // dsrl32
-                else if (_args.fun == 0x3e) {
-                    return _args.rt >> (((_args.insn >> 6) & 0x1f) + 32);
+                else if (fun == 0x3e) {
+                    return rt >> (((insn >> 6) & 0x1f) + 32);
                 }
                 // dsra32
-                else if (_args.fun == 0x3f) {
-                    return uint64(int64(_args.rt) >> (((_args.insn >> 6) & 0x1f) + 32));
+                else if (fun == 0x3f) {
+                    return uint64(int64(rt) >> (((insn >> 6) & 0x1f) + 32));
                 } else {
                     revert("MIPS64: invalid instruction");
                 }
             } else {
                 // SPECIAL2
-                if (_args.opcode == 0x1C) {
+                if (opcode == 0x1C) {
                     // mul
-                    if (_args.fun == 0x2) {
-                        return signExtend(uint32(int32(uint32(_args.rs)) * int32(uint32(_args.rt))), 32);
+                    if (fun == 0x2) {
+                        return signExtend(uint32(int32(uint32(rs)) * int32(uint32(rt))), 32);
                     }
                     // clz, clo
-                    else if (_args.fun == 0x20 || _args.fun == 0x21) {
-                        if (_args.fun == 0x20) {
-                            _args.rs = ~_args.rs;
+                    else if (fun == 0x20 || fun == 0x21) {
+                        if (fun == 0x20) {
+                            rs = ~rs;
                         }
                         uint32 i = 0;
-                        while (_args.rs & 0x80000000 != 0) {
+                        while (rs & 0x80000000 != 0) {
                             i++;
-                            _args.rs <<= 1;
+                            rs <<= 1;
                         }
                         return i;
                     }
                     // dclz, dclo
-                    else if (
-                        st.featuresForVersion(_args.stateVersion).supportDclzDclo
-                            && (_args.fun == 0x24 || _args.fun == 0x25)
-                    ) {
-                        if (_args.fun == 0x24) {
-                            _args.rs = ~_args.rs;
+                    else if (st.featuresForVersion(stateVersion).supportDclzDclo && (fun == 0x24 || fun == 0x25)) {
+                        if (fun == 0x24) {
+                            rs = ~rs;
                         }
                         uint32 i = 0;
-                        while (_args.rs & 0x80000000_00000000 != 0) {
+                        while (rs & 0x80000000_00000000 != 0) {
                             i++;
-                            _args.rs <<= 1;
+                            rs <<= 1;
                         }
                         return i;
                     }
                 }
                 // lui
-                else if (_args.opcode == 0x0F) {
-                    return signExtend(_args.rt << 16, 32);
+                else if (opcode == 0x0F) {
+                    return signExtend(rt << 16, 32);
                 }
                 // lb
-                else if (_args.opcode == 0x20) {
-                    return selectSubWord(_args.rs, _args.mem, 1, true);
+                else if (opcode == 0x20) {
+                    return selectSubWord(rs, mem, 1, true);
                 }
                 // lh
-                else if (_args.opcode == 0x21) {
-                    return selectSubWord(_args.rs, _args.mem, 2, true);
+                else if (opcode == 0x21) {
+                    return selectSubWord(rs, mem, 2, true);
                 }
                 // lwl
-                else if (_args.opcode == 0x22) {
-                    uint32 w = uint32(selectSubWord(_args.rs, _args.mem, 4, false));
-                    uint32 val = w << uint32((_args.rs & 3) * 8);
-                    uint64 mask = uint64(U32_MASK << uint32((_args.rs & 3) * 8));
-                    return signExtend(((_args.rt & ~mask) | uint64(val)) & U32_MASK, 32);
+                else if (opcode == 0x22) {
+                    uint32 w = uint32(selectSubWord(rs, mem, 4, false));
+                    uint32 val = w << uint32((rs & 3) * 8);
+                    uint64 mask = uint64(U32_MASK << uint32((rs & 3) * 8));
+                    return signExtend(((rt & ~mask) | uint64(val)) & U32_MASK, 32);
                 }
                 // lw
-                else if (_args.opcode == 0x23) {
-                    return selectSubWord(_args.rs, _args.mem, 4, true);
+                else if (opcode == 0x23) {
+                    return selectSubWord(rs, mem, 4, true);
                 }
                 // lbu
-                else if (_args.opcode == 0x24) {
-                    return selectSubWord(_args.rs, _args.mem, 1, false);
+                else if (opcode == 0x24) {
+                    return selectSubWord(rs, mem, 1, false);
                 }
                 //  lhu
-                else if (_args.opcode == 0x25) {
-                    return selectSubWord(_args.rs, _args.mem, 2, false);
+                else if (opcode == 0x25) {
+                    return selectSubWord(rs, mem, 2, false);
                 }
                 //  lwr
-                else if (_args.opcode == 0x26) {
-                    uint32 w = uint32(selectSubWord(_args.rs, _args.mem, 4, false));
-                    uint32 val = w >> (24 - (_args.rs & 3) * 8);
-                    uint32 mask = U32_MASK >> (24 - (_args.rs & 3) * 8);
-                    uint64 lwrResult = (uint32(_args.rt) & ~mask) | val;
-                    if (_args.rs & 3 == 3) {
+                else if (opcode == 0x26) {
+                    uint32 w = uint32(selectSubWord(rs, mem, 4, false));
+                    uint32 val = w >> (24 - (rs & 3) * 8);
+                    uint32 mask = U32_MASK >> (24 - (rs & 3) * 8);
+                    uint64 lwrResult = (uint32(rt) & ~mask) | val;
+                    if (rs & 3 == 3) {
                         // loaded bit 31
                         return signExtend(uint64(lwrResult), 32);
                     } else {
                         // NOTE: cannon64 implementation specific: We leave the upper word untouched
                         uint64 rtMask = 0xFF_FF_FF_FF_00_00_00_00;
-                        return ((_args.rt & rtMask) | uint64(lwrResult));
+                        return ((rt & rtMask) | uint64(lwrResult));
                     }
                 }
                 //  sb
-                else if (_args.opcode == 0x28) {
-                    return updateSubWord(_args.rs, _args.mem, 1, _args.rt);
+                else if (opcode == 0x28) {
+                    return updateSubWord(rs, mem, 1, rt);
                 }
                 //  sh
-                else if (_args.opcode == 0x29) {
-                    return updateSubWord(_args.rs, _args.mem, 2, _args.rt);
+                else if (opcode == 0x29) {
+                    return updateSubWord(rs, mem, 2, rt);
                 }
                 //  swl
-                else if (_args.opcode == 0x2a) {
-                    uint64 sr = (_args.rs & 3) << 3;
-                    uint64 val = ((_args.rt & U32_MASK) >> sr) << (32 - ((_args.rs & 0x4) << 3));
-                    uint64 mask = (uint64(U32_MASK) >> sr) << (32 - ((_args.rs & 0x4) << 3));
-                    return (_args.mem & ~mask) | val;
+                else if (opcode == 0x2a) {
+                    uint64 sr = (rs & 3) << 3;
+                    uint64 val = ((rt & U32_MASK) >> sr) << (32 - ((rs & 0x4) << 3));
+                    uint64 mask = (uint64(U32_MASK) >> sr) << (32 - ((rs & 0x4) << 3));
+                    return (mem & ~mask) | val;
                 }
                 //  sw
-                else if (_args.opcode == 0x2b) {
-                    return updateSubWord(_args.rs, _args.mem, 4, _args.rt);
+                else if (opcode == 0x2b) {
+                    return updateSubWord(rs, mem, 4, rt);
                 }
                 //  swr
-                else if (_args.opcode == 0x2e) {
-                    uint32 w = uint32(selectSubWord(_args.rs, _args.mem, 4, false));
-                    uint64 val = _args.rt << (24 - (_args.rs & 3) * 8);
-                    uint64 mask = U32_MASK << uint32(24 - (_args.rs & 3) * 8);
+                else if (opcode == 0x2e) {
+                    uint32 w = uint32(selectSubWord(rs, mem, 4, false));
+                    uint64 val = rt << (24 - (rs & 3) * 8);
+                    uint64 mask = U32_MASK << uint32(24 - (rs & 3) * 8);
                     uint64 swrResult = (w & ~mask) | uint32(val);
-                    return updateSubWord(_args.rs, _args.mem, 4, swrResult);
+                    return updateSubWord(rs, mem, 4, swrResult);
                 }
                 // MIPS64
                 //  ldl
-                else if (_args.opcode == 0x1a) {
-                    uint64 sl = (_args.rs & 0x7) << 3;
-                    uint64 val = _args.mem << sl;
+                else if (opcode == 0x1a) {
+                    uint64 sl = (rs & 0x7) << 3;
+                    uint64 val = mem << sl;
                     uint64 mask = U64_MASK << sl;
-                    return (val | (_args.rt & ~mask));
+                    return (val | (rt & ~mask));
                 }
                 //  ldr
-                else if (_args.opcode == 0x1b) {
-                    uint64 sr = 56 - ((_args.rs & 0x7) << 3);
-                    uint64 val = _args.mem >> sr;
+                else if (opcode == 0x1b) {
+                    uint64 sr = 56 - ((rs & 0x7) << 3);
+                    uint64 val = mem >> sr;
                     uint64 mask = U64_MASK << (64 - sr);
-                    return (val | (_args.rt & mask));
+                    return (val | (rt & mask));
                 }
                 //  lwu
-                else if (_args.opcode == 0x27) {
-                    return ((_args.mem >> (32 - ((_args.rs & 0x4) << 3))) & U32_MASK);
+                else if (opcode == 0x27) {
+                    return ((mem >> (32 - ((rs & 0x4) << 3))) & U32_MASK);
                 }
                 //  sdl
-                else if (_args.opcode == 0x2c) {
-                    uint64 sr = (_args.rs & 0x7) << 3;
-                    uint64 val = _args.rt >> sr;
+                else if (opcode == 0x2c) {
+                    uint64 sr = (rs & 0x7) << 3;
+                    uint64 val = rt >> sr;
                     uint64 mask = U64_MASK >> sr;
-                    return (val | (_args.mem & ~mask));
+                    return (val | (mem & ~mask));
                 }
                 //  sdr
-                else if (_args.opcode == 0x2d) {
-                    uint64 sl = 56 - ((_args.rs & 0x7) << 3);
-                    uint64 val = _args.rt << sl;
+                else if (opcode == 0x2d) {
+                    uint64 sl = 56 - ((rs & 0x7) << 3);
+                    uint64 val = rt << sl;
                     uint64 mask = U64_MASK << sl;
-                    return (val | (_args.mem & ~mask));
+                    return (val | (mem & ~mask));
                 }
                 //  ld
-                else if (_args.opcode == 0x37) {
-                    return _args.mem;
+                else if (opcode == 0x37) {
+                    return mem;
                 }
                 //  sd
-                else if (_args.opcode == 0x3F) {
-                    return _args.rt;
+                else if (opcode == 0x3F) {
+                    return rt;
                 } else {
                     revert("MIPS64: invalid instruction");
                 }
