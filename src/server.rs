@@ -1210,25 +1210,25 @@ mod tests {
             ..Default::default()
         };
         let fcu_response = test_harness
-            .client
+            .rpc_client
             .fork_choice_updated_v3(fcu, Some(payload_attributes.clone()))
             .await;
         assert!(fcu_response.is_ok());
 
         // no tx pool is false so should return the builder payload
-        let get_payload_response = test_harness.client.get_payload_v3(payload_id).await;
+        let get_payload_response = test_harness.rpc_client.get_payload_v3(payload_id).await;
         assert!(get_payload_response.is_ok());
         assert_eq!(get_payload_response.unwrap().block_value, U256::from(15));
 
         payload_attributes.no_tx_pool = Some(true);
         let fcu_response = test_harness
-            .client
+            .rpc_client
             .fork_choice_updated_v3(fcu, Some(payload_attributes))
             .await;
         assert!(fcu_response.is_ok());
 
         // no tx pool is true so should return the l2 payload
-        let get_payload_response = test_harness.client.get_payload_v3(payload_id).await;
+        let get_payload_response = test_harness.rpc_client.get_payload_v3(payload_id).await;
         assert!(get_payload_response.is_ok());
         assert_eq!(get_payload_response.unwrap().block_value, U256::from(10));
 
