@@ -658,6 +658,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		if l.throttling {
 			l.Log.Warn("Throttling loop: pending bytes above threshold, sending throttling updates", "pending_bytes", pb, "threshold", l.Config.ThrottleThreshold, "throttle", l.throttling)
 		}
+		l.mutex.Unlock()
 		for i, updateChan := range updateChans {
 			select {
 			case updateChan <- struct{}{}:
@@ -666,7 +667,6 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 			}
 		}
 	}
-	l.mutex.Unlock()
 
 	for _, updateChan := range updateChans {
 		close(updateChan)
