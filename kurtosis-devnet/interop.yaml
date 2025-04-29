@@ -168,7 +168,7 @@ optimism_package:
     l1_artifacts_locator: {{ $urls.l1_artifacts }}
     l2_artifacts_locator: {{ $urls.l2_artifacts }}
     global_deploy_overrides:
-      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_interop }}
+      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
   global_log_level: "info"
   global_node_selectors: {}
   global_tolerations: []
