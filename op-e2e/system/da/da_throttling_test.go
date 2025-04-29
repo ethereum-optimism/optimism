@@ -153,8 +153,7 @@ func setupTest(t *testing.T, maxTxSize, maxBlockSize uint64) (e2esys.SystemConfi
 	rollupClient := sys.RollupClient("verifier")
 	l2Seq := sys.NodeClient("sequencer")
 	l2Verif := sys.NodeClient("verifier")
-	require.NotEmpty(t, sys.BatchSubmitter.ThrottlingEndpoints, "throttling endpoints should not be empty")
-	require.NotEmpty(t, sys.BatchSubmitter.TestDriver().Config.ThrottlingEndpoints, "throttling endpoints should not be empty in driver")
+
 	batcher := sys.BatchSubmitter.ThrottlingTestDriver()
 	require.NotEmpty(t, batcher.Config.ThrottlingEndpoints, "throttling endpoints should not be empty")
 
