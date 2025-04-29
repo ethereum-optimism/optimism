@@ -80,8 +80,6 @@ type BatcherService struct {
 	stopped         atomic.Bool
 
 	NotSubmittingOnStart bool
-
-	ThrottlingEndpoints []string
 }
 
 type DriverSetupOption func(setup *DriverSetup)
@@ -115,7 +113,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.ThrottleTxSize = cfg.ThrottleTxSize
 	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
 	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
-	bs.ThrottlingEndpoints = cfg.ThrottlingEndpoints
 
 	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
 
