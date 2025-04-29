@@ -288,8 +288,8 @@ func setupBatcher(t *testing.T, sys *e2esys.System, conductors map[string]*condu
 	}, ",")
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].UserRPC().RPC(),
-		L2EthRpc:               l2EthRpc,
-		RollupRpc:              rollupRpc,
+		L2EthRpc:               []string{l2EthRpc},
+		RollupRpc:              []string{rollupRpc},
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
 		MaxL1TxSize:            120_000,

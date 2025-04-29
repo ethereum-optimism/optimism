@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -114,6 +113,9 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
 	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
 
+	// Combine the L2EthRpc and RollupRpc into a single list of endpoints for throttling.
+	bs.ThrottlingEndpoints = append(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints...)
+
 	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
 
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
@@ -158,24 +160,16 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 	bs.L1Client = l1Client
 
 	var endpointProvider dial.L2EndpointProvider
-	if strings.Contains(cfg.RollupRpc, ",") && strings.Contains(cfg.L2EthRpc, ",") {
-		rollupUrls := strings.Split(cfg.RollupRpc, ",")
-		ethUrls := strings.Split(cfg.L2EthRpc, ",")
-		provider, err := dial.NewActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+	if len(cfg.RollupRpc) > 1 && len(cfg.L2EthRpc) > 1 {
+		provider, err := dial.NewActiveL2EndpointProvider(ctx, cfg.L2EthRpc, cfg.RollupRpc, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
 		if err != nil {
 			return fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
 		}
 		endpointProvider = provider
-		if len(bs.ThrottlingEndpoints) == 0 {
-			bs.ThrottlingEndpoints = ethUrls
-		}
 	} else {
-		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
+		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc[0], cfg.RollupRpc[0])
 		if err != nil {
 			return fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
-		}
-		if len(bs.ThrottlingEndpoints) == 0 {
-			bs.ThrottlingEndpoints = []string{cfg.L2EthRpc}
 		}
 	}
 	bs.EndpointProvider = endpointProvider
