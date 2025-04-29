@@ -633,7 +633,7 @@ contract Deploy is Deployer {
             systemConfig: ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy")),
             proxyAdmin: proxyAdmin,
             delayedWETH: IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy")),
-            disputeGameType: GameType.wrap(uint32(cfg.respectedGameType())),
+            disputeGameType: GameTypes.CANNON,
             disputeAbsolutePrestate: loadMipsAbsolutePrestate(),
             disputeMaxGameDepth: cfg.faultGameMaxDepth(),
             disputeSplitDepth: cfg.faultGameSplitDepth(),
