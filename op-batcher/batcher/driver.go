@@ -611,7 +611,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, pendingByte
 			return
 		}
 
-		l.Log.Info("Successfully set max DA size on endpoint",
+		l.Log.Debug("Successfully set max DA size on endpoint",
 			"endpoint", endpoint,
 			"max_tx_size", maxTxSize,
 			"max_block_size", maxBlockSize)
@@ -643,21 +643,15 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 
 	innerWg := sync.WaitGroup{}
 
-	// For each configured endpoint
 	for i, endpoint := range l.Config.ThrottlingEndpoints {
-		// Create channel for this endpoint
 		updateChans[i] = make(chan int64, 1)
-
-		// Start throttling loop for this endpoint
 		innerWg.Add(1)
 		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
 		l.Log.Info("Started throttling loop for endpoint", "endpoint", endpoint)
 	}
 
-	// fan out events
 	for pb := range pendingBytesUpdated {
 		for i, updateChan := range updateChans {
-			// Send pending bytes to each endpoint's channel
 			select {
 			case updateChan <- pb:
 			default:
@@ -666,7 +660,6 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		}
 	}
 	for _, updateChan := range updateChans {
-		// Close each endpoint's channel
 		close(updateChan)
 	}
 	innerWg.Wait()
