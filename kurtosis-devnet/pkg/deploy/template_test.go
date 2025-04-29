@@ -69,7 +69,7 @@ imageA1: {{ localDockerImage "project-a" }}
 imageB: {{ localDockerImage "project-b" }}
 imageA2: {{ localDockerImage "project-a" }}
 contracts: {{ localContractArtifacts "l1" }}
-prestateHash: {{ (localPrestate).Hashes.prestate }}`
+prestateHash: {{ (localPrestate).Hashes.prestate_mt64 }}`
 
 	templatePath := filepath.Join(tmpDir, "template.yaml")
 	err = os.WriteFile(templatePath, []byte(templateContent), 0644)
@@ -182,7 +182,6 @@ func TestLocalPrestateOption(t *testing.T) {
 	// In dry run mode, we should get a placeholder prestate with the correct URL
 	expectedURL := "http://localhost:8080/proofs/op-program/cannon"
 	assert.Equal(t, expectedURL, prestate.URL)
-	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate"])
 	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate_mt64"])
 	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate_interop"])
 
