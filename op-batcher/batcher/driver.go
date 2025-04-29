@@ -639,16 +639,12 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, endpointUpd
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop")
-
-	// Get configured endpoints
-	configuredEndpoints := l.Config.ThrottlingEndpoints
-
-	updateChans := make([]chan int64, len(configuredEndpoints))
+	updateChans := make([]chan int64, len(l.Config.ThrottlingEndpoints))
 
 	innerWg := sync.WaitGroup{}
 
 	// For each configured endpoint
-	for i, endpoint := range configuredEndpoints {
+	for i, endpoint := range l.Config.ThrottlingEndpoints {
 		// Create channel for this endpoint
 		updateChans[i] = make(chan int64, 1)
 
@@ -665,7 +661,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 			select {
 			case updateChan <- pb:
 			default:
-				l.Log.Warn("Throttling loop: channel full, skipping update", "endpoint", configuredEndpoints[i])
+				l.Log.Warn("Throttling loop: channel full, skipping update", "endpoint", l.Config.ThrottlingEndpoints[i])
 			}
 		}
 	}
