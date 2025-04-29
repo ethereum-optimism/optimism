@@ -92,11 +92,12 @@ func (job *Job) Close() {
 	job.unregister()
 }
 
-func (job *Job) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
+func (job *Job) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
 	job.mu.Lock()
 	defer job.mu.Unlock()
 
 	job.attrs.Transactions = append(job.attrs.Transactions, tx)
+	return nil
 }
 
 var _ work.BuildJob = (*Job)(nil)

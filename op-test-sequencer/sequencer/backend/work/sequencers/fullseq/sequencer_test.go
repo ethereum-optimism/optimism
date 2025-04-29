@@ -76,7 +76,8 @@ func (m *mockBuildJob) String() string {
 
 func (m *mockBuildJob) Close() {}
 
-func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
+func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
+	return errors.New("not supported")
 }
 
 var _ work.BuildJob = (*mockBuildJob)(nil)

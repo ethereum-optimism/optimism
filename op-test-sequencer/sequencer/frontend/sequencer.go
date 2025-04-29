@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
@@ -72,20 +71,10 @@ func (bf *SequencerFrontend) Stop(ctx context.Context) (last common.Hash, err er
 	return
 }
 
-type IncludeTxSupport interface {
-	IncludeTx(ctx context.Context, tx hexutil.Bytes)
-}
-
 func (bf *SequencerFrontend) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
 	job := bf.Sequencer.BuildJob()
 	if job == nil {
-		return seqtypes.ErrUnknownJob
+		return toJsonError(seqtypes.ErrUnknownJob)
 	}
-	// Not all build-jobs may support manual forced tx inclusion
-	x, ok := job.(IncludeTxSupport)
-	if !ok {
-		return &rpc.JsonError{Code: -39000, Message: "not supported"}
-	}
-	x.IncludeTx(ctx, tx)
-	return nil
+	return toJsonError(job.IncludeTx(ctx, tx))
 }
