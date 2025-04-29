@@ -542,7 +542,7 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 }
 
 // singleEndpointThrottler handles throttling for a specific endpoint
-func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, endpointUpdates chan int64, endpoint string) {
+func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, pendingBytesUpdated chan int64, endpoint string) {
 	defer wg.Done()
 	l.Log.Info("Starting endpoint throttling loop", "endpoint", endpoint)
 
@@ -620,7 +620,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, endpointUpd
 	cachedPendingBytes := int64(0)
 	for {
 		select {
-		case pendingBytes, ok := <-endpointUpdates:
+		case pendingBytes, ok := <-pendingBytesUpdated:
 			if !ok {
 				// If the channel was closed, this is our signal to exit
 				l.Log.Info("Endpoint throttling loop shutting down", "endpoint", endpoint)
