@@ -28,6 +28,20 @@ While this does not ensure high availability for the builder, the chain will hav
 
 ![rollup-boost-op-conductor](../assets/rollup-boost-op-conductor.png)
 
+### Health Checks
+
+`rollup-boost` supports the standard array of kubernetes probes:
+
+- `/healthz` Returns various status codes to communicate `rollup-boost` health
+    - 200 OK - The builder is producing blocks
+    - 206 Partial Content - The l2 is producing blocks, but the builder is not
+    - 503 Service Unavailable - Neither the l2 or the builder is producing blocks
+`op-conductor` should eventually be able to use this signal to switch to a different sequencer in an HA sequencer setup. In a future upgrade to `op-conductor`, A sequencer leader with a healthy (200 OK) EL (`rollup-boost` in our case) could be selected preferentially over one with an unhealthy (206 or 503) EL. If no ELs are healthy, then we can fallback to an EL which is responding with `206 Partial Content`. 
+
+- `/readyz` Used by kubernetes to determine if the service is ready to accept traffic. Should always respond with `200 OK`
+
+- `/livez` determines wether or not `rollup-boost` is live (running and not deadlocked) and responding to requests. If `rollup-boost` fails to respond, kubernetes can use this as a signal to restart the pod. Should always respond with `200 OK`
+
 ## Observability
 
 To check if the rollup-boost server is running, you can check the health endpoint:

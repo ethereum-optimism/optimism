@@ -17,7 +17,7 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use parking_lot::Mutex;
 use proxy::{ProxyHandler, start_proxy_server};
 use rollup_boost::DebugClient;
-use rollup_boost::{AuthClientLayer, AuthClientService};
+use rollup_boost::{AuthLayer, AuthService};
 use rollup_boost::{EngineApiClient, OpExecutionPayloadEnvelope, Version};
 use rollup_boost::{NewPayload, PayloadSource};
 use services::op_reth::{AUTH_RPC_PORT, OpRethConfig, OpRethImage, OpRethMehods, P2P_PORT};
@@ -36,6 +36,7 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, ImageExt};
 use time::{OffsetDateTime, format_description};
 use tokio::io::AsyncWriteExt as _;
+use tower_http::sensitive_headers::SetSensitiveRequestHeaders;
 
 /// Default JWT token for testing purposes
 pub const JWT_SECRET: &str = "688f5d737bad920bdfb2fc2f488d6b6209eebda1dae949a8de91398d932c517a";
@@ -68,13 +69,13 @@ impl LogConsumer for LoggingConsumer {
 }
 
 pub struct EngineApi {
-    pub engine_api_client: HttpClient<AuthClientService<HttpBackend>>,
+    pub engine_api_client: HttpClient<AuthService<SetSensitiveRequestHeaders<HttpBackend>>>,
 }
 
 // TODO: Use client/rpc.rs instead
 impl EngineApi {
     pub fn new(url: &str, secret: &str) -> eyre::Result<Self> {
-        let secret_layer = AuthClientLayer::new(JwtSecret::from_str(secret)?);
+        let secret_layer = AuthLayer::new(JwtSecret::from_str(secret)?);
         let middleware = tower::ServiceBuilder::default().layer(secret_layer);
         let client = jsonrpsee::http_client::HttpClientBuilder::default()
             .set_http_middleware(middleware)

@@ -32,8 +32,8 @@ run() {
     # the transactions will be included in the canonical blocks and finalized.
 
     # Figure out first the builder's JSON-RPC URL
-    ROLLUP_BOOST_SOCKET=$(kurtosis port print op-rollup-boost op-rollup-boost-1-op-kurtosis rpc)
-    OP_RETH_BUILDER_SOCKET=$(kurtosis port print op-rollup-boost op-el-builder-1-op-reth-op-node-op-kurtosis rpc)
+    ROLLUP_BOOST_SOCKET=$(kurtosis port print op-rollup-boost op-rollup-boost-2151908-1-op-kurtosis rpc)
+    OP_RETH_BUILDER_SOCKET=$(kurtosis port print op-rollup-boost op-el-builder-2151908-1-op-reth-op-node-op-kurtosis rpc)
 
     # Private key with prefunded balance
     PREFUNDED_PRIV_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d

@@ -11,6 +11,7 @@ use crate::{
     DebugClient, PayloadSource, ProxyLayer, RollupBoostServer, RpcClient,
     client::rpc::{BuilderArgs, L2ClientArgs},
     init_metrics, init_tracing,
+    probe::ProbeLayer,
     server::ExecutionMode,
 };
 
@@ -25,6 +26,14 @@ pub struct Args {
 
     #[clap(flatten)]
     pub l2_client: L2ClientArgs,
+
+    /// Duration in seconds between async health checks on the builder
+    #[arg(long, env, default_value = "60")]
+    pub health_check_interval: u64,
+
+    /// Max duration in seconds between the unsafe head block of the builder and the current time
+    #[arg(long, env, default_value = "5")]
+    pub max_unsafe_interval: u64,
 
     /// Disable using the proposer to sync the builder node
     #[arg(long, env, default_value = "false")]
@@ -155,11 +164,16 @@ impl Args {
             info!("Boost sync enabled");
         }
 
+        let (probe_layer, probes) = ProbeLayer::new();
+
         let rollup_boost = RollupBoostServer::new(
             l2_client,
             builder_client,
             boost_sync_enabled,
             self.execution_mode,
+            probes,
+            self.health_check_interval,
+            self.max_unsafe_interval,
         );
 
         // Spawn the debug server
@@ -170,12 +184,15 @@ impl Args {
         // Build and start the server
         info!("Starting server on :{}", self.rpc_port);
 
-        let http_middleware = tower::ServiceBuilder::new().layer(ProxyLayer::new(
-            l2_client_args.l2_url,
-            l2_auth_jwt,
-            builder_args.builder_url,
-            builder_auth_jwt,
-        ));
+        let http_middleware =
+            tower::ServiceBuilder::new()
+                .layer(probe_layer)
+                .layer(ProxyLayer::new(
+                    l2_client_args.l2_url,
+                    l2_auth_jwt,
+                    builder_args.builder_url,
+                    builder_auth_jwt,
+                ));
 
         let server = Server::builder()
             .set_http_middleware(http_middleware)

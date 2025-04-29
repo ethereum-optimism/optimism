@@ -1,3 +1,4 @@
+use crate::client::auth::AuthLayer;
 use crate::server::PayloadSource;
 use alloy_rpc_types_engine::JwtSecret;
 use http::Uri;
@@ -13,11 +14,13 @@ use tower::{Service as _, ServiceBuilder, ServiceExt};
 use tower_http::decompression::{Decompression, DecompressionLayer};
 use tracing::{debug, error, instrument};
 
-use super::auth::{AuthClientLayer, AuthClientService};
+use super::auth::Auth;
+
+pub type HttpClientService = Decompression<Auth<Client<HttpsConnector<HttpConnector>, HttpBody>>>;
 
 #[derive(Clone, Debug)]
 pub struct HttpClient {
-    client: Decompression<AuthClientService<Client<HttpsConnector<HttpConnector>, HttpBody>>>,
+    client: HttpClientService,
     url: Uri,
     target: PayloadSource,
 }
@@ -36,7 +39,7 @@ impl HttpClient {
 
         let client = ServiceBuilder::new()
             .layer(DecompressionLayer::new())
-            .layer(AuthClientLayer::new(secret))
+            .layer(AuthLayer::new(secret))
             .service(client);
 
         Self {

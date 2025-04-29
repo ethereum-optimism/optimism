@@ -10,9 +10,6 @@ pub use cli::*;
 mod debug_api;
 pub use debug_api::*;
 
-mod health;
-pub use health::{HealthLayer, HealthService};
-
 mod metrics;
 pub use metrics::*;
 
@@ -24,3 +21,9 @@ pub use server::*;
 
 mod tracing;
 pub use tracing::*;
+
+mod probe;
+pub use probe::*;
+
+mod health;
+pub use health::*;
