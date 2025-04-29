@@ -55,9 +55,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             vm.warp(1690906994);
         }
 
-        // Set the init bond for the given game type.
-        initBond = disputeGameFactory.initBonds(GAME_TYPE);
-
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
@@ -101,7 +98,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
-        uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
+
+        // Set the init bond for the given game type.
+        initBond = disputeGameFactory.initBonds(GAME_TYPE);
 
         // Warp ahead of the game retirement timestamp if needed.
         if (block.timestamp <= anchorStateRegistry.retirementTimestamp()) {
@@ -110,7 +109,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
         // Create a new game.
         gameProxy = IFaultDisputeGame(
-            payable(address(disputeGameFactory.create{ value: bondAmount }(GAME_TYPE, rootClaim, extraData)))
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, rootClaim, extraData)))
         );
 
         // Check immutables

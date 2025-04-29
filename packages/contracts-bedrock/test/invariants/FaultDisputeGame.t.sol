@@ -37,8 +37,6 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
     function invariant_faultDisputeGame_solvency() public {
         vm.warp(block.timestamp + 7 days + 1 seconds);
 
-        (,,, uint256 rootBond,,,) = gameProxy.claimData(0);
-
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1, 0)));
             assertTrue(success);
@@ -74,14 +72,13 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
 
         if (gameProxy.status() == GameStatus.DEFENDER_WINS) {
             assertEq(address(this).balance, type(uint96).max);
-            assertEq(address(actor).balance, actor.totalBonded() - rootBond);
         } else if (gameProxy.status() == GameStatus.CHALLENGER_WINS) {
-            assertEq(DEFAULT_SENDER.balance, type(uint96).max - rootBond);
-            assertEq(address(actor).balance, actor.totalBonded() + rootBond);
+            assertEq(DEFAULT_SENDER.balance, type(uint96).max);
         } else {
             revert("FaultDisputeGame_Solvency_Invariant: unreachable");
         }
 
+        assertEq(address(actor).balance, actor.totalBonded());
         assertEq(address(gameProxy).balance, 0);
     }
 }
