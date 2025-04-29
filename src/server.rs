@@ -30,9 +30,15 @@ use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: u64 = 100;
 
+#[derive(Debug, Clone)]
+pub struct PayloadTrace {
+    pub builder_has_payload: bool,
+    pub trace_id: Option<tracing::Id>,
+}
+
 pub struct PayloadTraceContext {
     block_hash_to_payload_ids: Cache<B256, Vec<PayloadId>>,
-    payload_id: Cache<PayloadId, (bool, Option<tracing::Id>)>,
+    payload_id: Cache<PayloadId, PayloadTrace>,
 }
 
 impl PayloadTraceContext {
@@ -47,11 +53,16 @@ impl PayloadTraceContext {
         &self,
         payload_id: PayloadId,
         parent_hash: B256,
-        has_attributes: bool,
+        builder_has_payload: bool,
         trace_id: Option<tracing::Id>,
     ) {
-        self.payload_id
-            .insert(payload_id, (has_attributes, trace_id));
+        self.payload_id.insert(
+            payload_id,
+            PayloadTrace {
+                builder_has_payload,
+                trace_id,
+            },
+        );
         self.block_hash_to_payload_ids
             .entry(parent_hash)
             .and_upsert_with(|o| match o {
@@ -66,25 +77,48 @@ impl PayloadTraceContext {
             });
     }
 
+    fn upsert_builder_has_payload(
+        &self,
+        payload_id: PayloadId,
+        trace_id: Option<tracing::Id>,
+        builder_has_payload: bool,
+    ) {
+        self.payload_id
+            .entry(payload_id)
+            .and_upsert_with(|o| match o {
+                Some(e) => {
+                    let mut trace = e.into_value();
+                    trace.builder_has_payload = builder_has_payload;
+                    trace
+                }
+                None => PayloadTrace {
+                    builder_has_payload,
+                    trace_id,
+                },
+            });
+    }
+
     fn trace_ids_from_parent_hash(&self, parent_hash: &B256) -> Option<Vec<tracing::Id>> {
         self.block_hash_to_payload_ids
             .get(parent_hash)
             .map(|payload_ids| {
                 payload_ids
                     .iter()
-                    .filter_map(|payload_id| self.payload_id.get(payload_id).and_then(|x| x.1))
+                    .filter_map(|payload_id| {
+                        self.payload_id.get(payload_id).and_then(|x| x.trace_id)
+                    })
                     .collect()
             })
     }
 
     fn trace_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
-        self.payload_id.get(payload_id).and_then(|x| x.1)
+        self.payload_id.get(payload_id).and_then(|x| x.trace_id)
     }
 
-    fn has_attributes(&self, payload_id: &PayloadId) -> bool {
+    fn has_builder_payload(&self, payload_id: &PayloadId) -> bool {
         self.payload_id
             .get(payload_id)
-            .map(|x| x.0)
+            .map(|x| x.builder_has_payload)
             .unwrap_or_default()
     }
 
@@ -292,18 +326,18 @@ impl EngineApiServer for RollupBoostServer {
             span.record("payload_id", payload_id.to_string());
         }
 
-        // TODO: Use _is_block_building_call to log the correct message during the async call to builder
-        let (should_send_to_builder, _is_block_building_call) =
+        let (should_send_to_builder, has_attributes, use_tx_pool) =
             if let Some(attr) = payload_attributes.as_ref() {
                 // payload attributes are present. It is a FCU call to start block building
                 // Do not send to builder if no_tx_pool is set, meaning that the CL node wants
                 // a deterministic block without txs. We let the fallback EL node compute those.
                 let use_tx_pool = !attr.no_tx_pool.unwrap_or_default();
-                (use_tx_pool, true)
+
+                (use_tx_pool, true, use_tx_pool)
             } else {
                 // no payload attributes. It is a FCU call to lock the head block
                 // previously synced with the new_payload_v3 call. Only send to builder if boost_sync is enabled
-                (self.boost_sync, false)
+                (self.boost_sync, false, false)
             };
 
         let execution_mode = self.execution_mode();
@@ -312,7 +346,7 @@ impl EngineApiServer for RollupBoostServer {
             self.payload_trace_context.store(
                 payload_id,
                 fork_choice_state.head_block_hash,
-                payload_attributes.is_some(),
+                has_attributes && use_tx_pool,
                 trace_id,
             );
         }
@@ -321,13 +355,19 @@ impl EngineApiServer for RollupBoostServer {
             debug!(message = "execution mode is disabled, skipping FCU call to builder", "head_block_hash" = %fork_choice_state.head_block_hash);
         } else if should_send_to_builder {
             let builder_client = self.builder_client.clone();
+            let payload_trace_context = self.payload_trace_context.clone();
+            let payload_id = l2_response.payload_id;
+            let trace_id = span.id();
             tokio::spawn(async move {
-                let _ = builder_client
+                let response = builder_client
                     .fork_choice_updated_v3(fork_choice_state, payload_attributes.clone())
                     .await;
+                if let (Err(_), Some(id)) = (response, payload_id) {
+                    payload_trace_context.upsert_builder_has_payload(id, trace_id, false);
+                }
             });
         } else {
-            info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash);
+            info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash, "payload_id" = %l2_response.payload_id.unwrap_or_default(), "has_attributes" = has_attributes, "use_tx_pool" = use_tx_pool);
         }
 
         Ok(l2_response)
@@ -588,9 +628,9 @@ impl RollupBoostServer {
                 tracing::Span::current().follows_from(cause);
             }
 
-            if !self.payload_trace_context.has_attributes(&payload_id) {
+            if !self.payload_trace_context.has_builder_payload(&payload_id) {
                 // block builder won't build a block without attributes
-                info!(message = "no attributes found, skipping get_payload call to builder");
+                info!(message = "builder has no payload, skipping get_payload call to builder");
                 return Ok(None);
             }
 
@@ -850,6 +890,7 @@ mod tests {
         boost_sync_enabled().await;
         builder_payload_err().await;
         test_local_external_payload_ids_same().await;
+        has_builder_payload().await;
     }
 
     async fn engine_success() {
@@ -1076,7 +1117,7 @@ mod tests {
     }
 
     async fn test_local_external_payload_ids_same() {
-        let same_id = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
+        let same_id: PayloadId = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
 
         let mut l2_mock = MockEngineServer::new();
         l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
@@ -1128,6 +1169,68 @@ mod tests {
             assert_eq!(local_gp_reqs.len(), 1);
             assert_eq!(local_gp_reqs[0], same_id);
         }
+
+        test_harness.cleanup().await;
+    }
+
+    async fn has_builder_payload() {
+        let payload_id: PayloadId = PayloadId::new([0, 0, 0, 0, 0, 0, 0, 42]);
+        let mut l2_mock = MockEngineServer::new();
+        l2_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Valid,
+        ))
+        .with_payload_id(payload_id));
+        l2_mock.get_payload_response = l2_mock.get_payload_response.clone().map(|mut payload| {
+            payload.block_value = U256::from(10);
+            payload
+        });
+
+        let mut builder_mock = MockEngineServer::new();
+        builder_mock.fcu_response = Ok(ForkchoiceUpdated::new(PayloadStatus::from_status(
+            PayloadStatusEnum::Syncing,
+        ))
+        .with_payload_id(payload_id));
+        builder_mock.get_payload_response =
+            builder_mock
+                .get_payload_response
+                .clone()
+                .map(|mut payload| {
+                    payload.block_value = U256::from(15);
+                    payload
+                });
+
+        let test_harness = TestHarness::new(true, Some(l2_mock), Some(builder_mock)).await;
+        let fcu = ForkchoiceState {
+            head_block_hash: FixedBytes::random(),
+            safe_block_hash: FixedBytes::random(),
+            finalized_block_hash: FixedBytes::random(),
+        };
+        let mut payload_attributes = OpPayloadAttributes {
+            gas_limit: Some(1000000),
+            ..Default::default()
+        };
+        let fcu_response = test_harness
+            .rpc_client
+            .fork_choice_updated_v3(fcu, Some(payload_attributes.clone()))
+            .await;
+        assert!(fcu_response.is_ok());
+
+        // no tx pool is false so should return the builder payload
+        let get_payload_response = test_harness.rpc_client.get_payload_v3(payload_id).await;
+        assert!(get_payload_response.is_ok());
+        assert_eq!(get_payload_response.unwrap().block_value, U256::from(15));
+
+        payload_attributes.no_tx_pool = Some(true);
+        let fcu_response = test_harness
+            .rpc_client
+            .fork_choice_updated_v3(fcu, Some(payload_attributes))
+            .await;
+        assert!(fcu_response.is_ok());
+
+        // no tx pool is true so should return the l2 payload
+        let get_payload_response = test_harness.rpc_client.get_payload_v3(payload_id).await;
+        assert!(get_payload_response.is_ok());
+        assert_eq!(get_payload_response.unwrap().block_value, U256::from(10));
 
         test_harness.cleanup().await;
     }
