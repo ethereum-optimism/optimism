@@ -33,6 +33,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
 
+    /// @dev The initial bond for the game.
+    uint256 internal initBond;
+
     /// @dev The implementation of the game.
     IFaultDisputeGame internal gameImpl;
     /// @dev The `Clone` proxy of the game.
@@ -51,6 +54,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         if (!isForkTest()) {
             vm.warp(1690906994);
         }
+
+        // Set the init bond for the given game type.
+        initBond = disputeGameFactory.initBonds(GAME_TYPE);
 
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
@@ -138,7 +144,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev The absolute prestate of the trace.
     Claim internal absolutePrestate;
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
-    uint256 validL2BlockNumber;
+    uint256 internal validL2BlockNumber;
 
     function setUp() public override {
         absolutePrestateData = abi.encode(0);
@@ -152,12 +158,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         ROOT_CLAIM = Claim.wrap(Hash.unwrap(root));
 
-        if (isForkTest()) {
-            // Set the init bond of anchor game type 0 to be 0.
-            vm.store(
-                address(disputeGameFactory), keccak256(abi.encode(GameType.wrap(0), uint256(102))), bytes32(uint256(0))
-            );
-        }
         super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: absolutePrestate, l2BlockNumber: validL2BlockNumber });
     }
 
@@ -458,8 +458,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
-        gameProxy =
-            IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, abi.encode(_blockNumber)))));
+        gameProxy = IFaultDisputeGame(
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, abi.encode(_blockNumber))))
+        );
     }
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
@@ -502,7 +503,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(BadExtraData.selector));
-        gameProxy = IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData))));
+        gameProxy = IFaultDisputeGame(
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, _extraData)))
+        );
     }
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -520,7 +523,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(parentIndex, type(uint32).max);
         assertEq(counteredBy, address(0));
         assertEq(claimant, address(this));
-        assertEq(bond, 0);
+        assertEq(bond, initBond);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
@@ -543,7 +546,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Creation should fail.
         vm.expectRevert(AnchorRootNotFound.selector);
-        gameProxy = IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, _dummyClaim(), hex""))));
+        gameProxy = IFaultDisputeGame(
+            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), hex"")))
+        );
     }
 
     /// @dev Tests that the game cannot be initialized twice.
@@ -925,7 +930,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(parentIndex, type(uint32).max);
         assertEq(counteredBy, address(0));
         assertEq(claimant, address(this));
-        assertEq(bond, 0);
+        assertEq(bond, initBond);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5))).raw());
@@ -992,7 +997,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Create the dispute game with the output root at the wrong L2 block number.
         uint256 wrongL2BlockNumber = bound(vm.randomUint(), _l2BlockNumber + 1, type(uint256).max);
-        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(wrongL2BlockNumber));
+        IDisputeGame game = disputeGameFactory.create{ value: initBond }(
+            GAME_TYPE, Claim.wrap(outputRoot), abi.encode(wrongL2BlockNumber)
+        );
 
         // Challenge the L2 block number.
         IFaultDisputeGame fdg = IFaultDisputeGame(address(game));
@@ -1099,7 +1106,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _generateOutputRootProof(_storageRoot, _withdrawalRoot, abi.encodePacked(_l2BlockNumber));
 
         // Create the dispute game with the output root at the wrong L2 block number.
-        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(_l2BlockNumber));
+        IDisputeGame game =
+            disputeGameFactory.create{ value: initBond }(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(_l2BlockNumber));
 
         // Challenge the L2 block number.
         IFaultDisputeGame fdg = IFaultDisputeGame(address(game));
@@ -1131,7 +1139,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         bytes32 outputRoot = Hashing.hashOutputRootProof(outputRootProof);
 
         // Create the dispute game with the output root at the wrong L2 block number.
-        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(validL2BlockNumber));
+        IDisputeGame game = disputeGameFactory.create{ value: initBond }(
+            GAME_TYPE, Claim.wrap(outputRoot), abi.encode(validL2BlockNumber)
+        );
         IFaultDisputeGame fdg = IFaultDisputeGame(address(game));
 
         vm.expectRevert(InvalidHeaderRLP.selector);
@@ -1144,7 +1154,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _generateOutputRootProof(0, 0, new bytes(64));
 
         // Create the dispute game with the output root at the wrong L2 block number.
-        IDisputeGame game = disputeGameFactory.create(GAME_TYPE, Claim.wrap(outputRoot), abi.encode(validL2BlockNumber));
+        IDisputeGame game = disputeGameFactory.create{ value: initBond }(
+            GAME_TYPE, Claim.wrap(outputRoot), abi.encode(validL2BlockNumber)
+        );
         IFaultDisputeGame fdg = IFaultDisputeGame(address(game));
 
         vm.expectRevert(InvalidHeaderRLP.selector);
@@ -1607,7 +1619,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Ensure we bonded the correct amounts
         assertEq(address(this).balance, bal - totalBonded);
         assertEq(address(gameProxy).balance, 0);
-        assertEq(delayedWeth.balanceOf(address(gameProxy)), totalBonded);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), initBond + totalBonded);
 
         // Resolve all claims
         vm.warp(block.timestamp + 3 days + 12 hours);
@@ -1633,12 +1645,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.claimCredit(address(this));
 
         // Ensure that bonds were paid out correctly.
-        assertEq(address(this).balance, bal);
+        assertEq(address(this).balance, bal + initBond);
         assertEq(address(gameProxy).balance, 0);
         assertEq(delayedWeth.balanceOf(address(gameProxy)), 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), initBond);
     }
 
     /// @dev Static unit test asserting that resolve pays out bonds on step, output bisection, and execution trace
@@ -1707,7 +1719,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(address(this).balance, 1000 ether - thisBonded);
         assertEq(bob.balance, 1000 ether - bobBonded);
         assertEq(address(gameProxy).balance, 0);
-        assertEq(delayedWeth.balanceOf(address(gameProxy)), thisBonded + bobBonded);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), initBond + thisBonded + bobBonded);
 
         // Resolve all claims
         vm.warp(block.timestamp + 3 days + 12 hours);
@@ -1740,13 +1752,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.claimCredit(bob);
 
         // Ensure that bonds were paid out correctly.
-        assertEq(address(this).balance, 1000 ether + bobBonded);
+        assertEq(address(this).balance, 1000 ether + initBond + bobBonded);
         assertEq(bob.balance, 1000 ether - bobBonded);
         assertEq(address(gameProxy).balance, 0);
         assertEq(delayedWeth.balanceOf(address(gameProxy)), 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), initBond);
     }
 
     /// @dev Static unit test asserting that resolve pays out bonds on moves to the leftmost actor
@@ -1817,14 +1829,14 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Ensure that bonds were paid out correctly.
         uint256 aliceLosses = firstBond;
         uint256 charlieLosses = secondBond;
-        assertEq(address(this).balance, bal + aliceLosses, "incorrect this balance");
+        assertEq(address(this).balance, bal + aliceLosses + initBond, "incorrect this balance");
         assertEq(alice.balance, bal - aliceLosses + charlieLosses, "incorrect alice balance");
         assertEq(bob.balance, bal, "incorrect bob balance");
         assertEq(charlie.balance, bal - charlieLosses, "incorrect charlie balance");
         assertEq(address(gameProxy).balance, 0);
 
         // Ensure that the init bond for the game is 0, in case we change it in the test suite in the future.
-        assertEq(disputeGameFactory.initBonds(GAME_TYPE), 0);
+        assertEq(disputeGameFactory.initBonds(GAME_TYPE), initBond);
     }
 
     /// @dev Static unit test asserting that the anchor state updates when the game resolves in
@@ -2005,7 +2017,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Ensure the game proxy has 1 ether in it.
         assertEq(address(gameProxy).balance, 1 ether);
         // Ensure the game has a balance of reenterBond in the delayedWeth contract.
-        assertEq(delayedWeth.balanceOf(address(gameProxy)), reenterBond);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), initBond + reenterBond);
 
         // Resolve the claim at index 2 first so that index 1 can be resolved.
         gameProxy.resolveClaim(2, 0);
@@ -2044,7 +2056,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(reenter.numCalls(), 2);
         assertEq(address(reenter).balance, reenterBond);
         assertEq(address(gameProxy).balance, 1 ether);
-        assertEq(delayedWeth.balanceOf(address(gameProxy)), 0);
+        assertEq(delayedWeth.balanceOf(address(gameProxy)), initBond);
 
         vm.stopPrank();
     }
@@ -2235,7 +2247,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // the leaves in our output bisection test tree, at SPLIT_DEPTH = 2 ** 2
         IFaultDisputeGame game = IFaultDisputeGame(
             address(
-                disputeGameFactory.create(GAME_TYPE, Claim.wrap(bytes32(uint256(0xFF))), abi.encode(validL2BlockNumber))
+                disputeGameFactory.create{ value: initBond }(
+                    GAME_TYPE, Claim.wrap(bytes32(uint256(0xFF))), abi.encode(validL2BlockNumber)
+                )
             )
         );
 

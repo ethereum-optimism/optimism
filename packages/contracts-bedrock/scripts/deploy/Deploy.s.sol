@@ -639,7 +639,7 @@ contract Deploy is Deployer {
             disputeSplitDepth: cfg.faultGameSplitDepth(),
             disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
             disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-            initialBond: 0 ether,
+            initialBond: 0.08 ether,
             vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
             permissioned: false
         });
