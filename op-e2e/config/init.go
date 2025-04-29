@@ -107,6 +107,16 @@ func L1Allocs(allocType AllocType) *foundry.ForgeAllocs {
 	return allocs.Copy()
 }
 
+func L1Deployments(allocType AllocType) *genesis.L1Deployments {
+	mtx.RLock()
+	defer mtx.RUnlock()
+	deployments, ok := l1DeploymentsByType[allocType]
+	if !ok {
+		panic(fmt.Errorf("unknown L1 deployments type: %q", allocType))
+	}
+	return deployments.Copy()
+}
+
 func L2Allocs(allocType AllocType, mode genesis.L2AllocsMode) *foundry.ForgeAllocs {
 	mtx.RLock()
 	defer mtx.RUnlock()
