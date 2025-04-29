@@ -112,6 +112,11 @@ func (f *ServiceFinder) FindL2Services(s ChainSpec) ([]descriptors.Node, descrip
 		// supervisor is special: itcovers multiple networks, so we need to
 		// identify the depset this chain belongs to
 		if strings.HasPrefix(serviceName, "op-supervisor") {
+			// temporary backward-compatible hack for single op-supervisor instance
+			if serviceName == "op-supervisor" {
+				return "supervisor", 0, true
+			}
+
 			for dsName, ds := range s.DepSets {
 				suffix := "-" + dsName
 				if !strings.HasSuffix(serviceName, suffix) {
