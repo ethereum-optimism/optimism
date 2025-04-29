@@ -38,7 +38,7 @@ In the `simple.yaml` configuration, you'll notice several custom template functi
 # Example usage in simple.yaml
 image: {{ localDockerImage "op-node" }}
 l1_artifacts_locator: {{ localContractArtifacts "l1" }}
-faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate }}
+faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
 ```
 
 These template functions map to specific builders in the Go codebase that handle artifact construction.
@@ -78,7 +78,7 @@ The prestate builder manages the generation of fault proof prestates:
 
 ```yaml
 # Usage in YAML:
-faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate }}
+faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
 ```
 
 This builder:
@@ -108,7 +108,7 @@ optimism_package:
     l1_artifacts_locator: {{ localContractArtifacts "l1" }}
     l2_artifacts_locator: {{ localContractArtifacts "l2" }}
     global_deploy_overrides:
-      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate }}
+      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
 ```
 
 This integration system ensures that your devnet can seamlessly use locally built components while maintaining reproducibility and ease of configuration.
