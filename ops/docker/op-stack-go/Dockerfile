@@ -186,7 +186,7 @@ ENV OP_CHALLENGER_CANNON_SERVER=/usr/local/bin/op-program
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 ENV OP_CHALLENGER_CANNON_BIN=/usr/local/bin/cannon
 # Copy in kona and asterisc
-COPY --from=kona /kona-host /usr/local/bin/
+COPY --from=kona /usr/local/bin/kona-host /usr/local/bin/
 ENV OP_CHALLENGER_ASTERISC_KONA_SERVER=/usr/local/bin/kona-host
 COPY --from=asterisc /usr/local/bin/asterisc /usr/local/bin/
 ENV OP_CHALLENGER_ASTERISC_BIN=/usr/local/bin/asterisc
