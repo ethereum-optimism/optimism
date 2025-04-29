@@ -69,6 +69,10 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     ///         efficiently track dispute games.
     GameId[] internal _disputeGameList;
 
+    /// @notice Maps each Game Type to an assosiated configuration to use with it, but because we need to pass them
+    ///         to a clone with immutable args so they have to be stored as arbitrary bytes unfortunately
+    mapping(GameType => bytes) public gameArgs;
+
     /// @notice Constructs a new DisputeGameFactory contract.
     constructor() OwnableUpgradeable() ReinitializableBase(1) {
         _disableInitializers();
@@ -263,9 +267,14 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     /// @dev May only be called by the `owner`.
     /// @param _gameType The type of the DisputeGame.
     /// @param _impl The implementation contract for the given `GameType`.
-    function setImplementation(GameType _gameType, IDisputeGame _impl) external onlyOwner {
+    /// @param _args The constructor args to be passed for each implementation
+    function setImplementation(GameType _gameType, IDisputeGame _impl, bytes calldata _args) external onlyOwner {
         gameImpls[_gameType] = _impl;
+        gameArgs[_gameType] = _args;
+
         emit ImplementationSet(address(_impl), _gameType);
+
+        /// TODO: emit args
     }
 
     /// @notice Sets the bond (in wei) for initializing a game type.

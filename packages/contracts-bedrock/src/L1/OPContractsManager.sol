@@ -177,7 +177,7 @@ abstract contract OPContractsManagerBase {
         virtual
         returns (bytes memory)
     {
-        bytes memory dataWithSelector = abi.encodeCall(IFaultDisputeGame.__constructor__, (_params));
+        bytes memory dataWithSelector = abi.encodeCall(IFaultDisputeGame.__constructor__, ());
         return Bytes.slice(dataWithSelector, 4);
     }
 
@@ -192,7 +192,7 @@ abstract contract OPContractsManagerBase {
         returns (bytes memory)
     {
         bytes memory dataWithSelector =
-            abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
+            abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_proposer, _challenger));
         return Bytes.slice(dataWithSelector, 4);
     }
 
@@ -307,7 +307,8 @@ abstract contract OPContractsManagerBase {
 
     /// @notice Sets a game implementation on the dispute game factory
     function setDGFImplementation(IDisputeGameFactory _dgf, GameType _gameType, IDisputeGame _newGame) internal {
-        _dgf.setImplementation(_gameType, _newGame);
+        _dgf.setImplementation(_gameType, _newGame, "");
+        /// TODO: snevins
     }
 }
 
@@ -1582,7 +1583,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // Register the new SuperPermissionedDisputeGame.
             newDisputeGameFactory.setImplementation(
-                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG))
+                GameTypes.SUPER_PERMISSIONED_CANNON,
+                IDisputeGame(address(newSuperPDG)),
+                "" // TODO: snevins
             );
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
         }
@@ -1633,7 +1636,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             );
 
             // Register the new SuperFaultDisputeGame.
-            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
+            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)), "");
+            /// TODO: snevins
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
         }
     }

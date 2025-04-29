@@ -155,7 +155,7 @@ contract SetDisputeGameImpl_Test is Test {
         script.run(input);
 
         vm.broadcast(address(this));
-        factory.setImplementation(GameType.wrap(gameType), IDisputeGame(address(0)));
+        factory.setImplementation(GameType.wrap(gameType), IDisputeGame(address(0)), "");
 
         vm.expectRevert("SDGI-30");
         script.assertValid(input);

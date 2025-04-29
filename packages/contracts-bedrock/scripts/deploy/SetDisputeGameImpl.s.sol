@@ -60,7 +60,7 @@ contract SetDisputeGameImpl is Script {
         IAnchorStateRegistry anchorStateRegistry = _input.anchorStateRegistry();
 
         vm.broadcast(msg.sender);
-        factory.setImplementation(gameType, impl);
+        factory.setImplementation(gameType, impl, ""); // TODO: use actual args in script
 
         if (address(anchorStateRegistry) != address(0)) {
             require(address(anchorStateRegistry.disputeGameFactory()) == address(factory), "SDGI-20");

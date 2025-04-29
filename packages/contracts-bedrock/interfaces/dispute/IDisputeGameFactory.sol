@@ -67,7 +67,7 @@ interface IDisputeGameFactory is IProxyAdminOwnedBase, IReinitializableBase {
     function initialize(address _owner) external;
     function owner() external view returns (address);
     function renounceOwnership() external;
-    function setImplementation(GameType _gameType, IDisputeGame _impl) external;
+    function setImplementation(GameType _gameType, IDisputeGame _impl, bytes memory gameArgs) external;
     function setInitBond(GameType _gameType, uint256 _initBond) external;
     function transferOwnership(address newOwner) external; // nosemgrep
     function version() external view returns (string memory);

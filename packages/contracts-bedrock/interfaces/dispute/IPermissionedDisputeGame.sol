@@ -133,7 +133,6 @@ interface IPermissionedDisputeGame is IDisputeGame {
     function challenger() external view returns (address challenger_);
 
     function __constructor__(
-        IFaultDisputeGame.GameConstructorParams memory _params,
         address _proposer,
         address _challenger
     )

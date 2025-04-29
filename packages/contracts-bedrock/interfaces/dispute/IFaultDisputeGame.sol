@@ -137,5 +137,5 @@ interface IFaultDisputeGame is IDisputeGame {
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function weth() external view returns (IDelayedWETH weth_);
 
-    function __constructor__(GameConstructorParams memory _params) external;
+    function __constructor__() external;
 }
