@@ -3,6 +3,8 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { LibClone } from "@solady/utils/LibClone.sol";
@@ -19,7 +21,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 ///         mapping and an append only array. The timestamp of the creation time of the dispute game is packed tightly
 ///         into the storage slot with the address of the dispute game to make offchain discoverability of playable
 ///         dispute games easier.
-contract DisputeGameFactory is OwnableUpgradeable, ISemver {
+contract DisputeGameFactory is ProxyAdminOwnedBase, OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
     using LibClone for address;
 
@@ -68,13 +70,13 @@ contract DisputeGameFactory is OwnableUpgradeable, ISemver {
     GameId[] internal _disputeGameList;
 
     /// @notice Constructs a new DisputeGameFactory contract.
-    constructor() OwnableUpgradeable() {
+    constructor() ReinitializableBase(2) {
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
     /// @param _owner The owner of the contract.
-    function initialize(address _owner) external initializer {
+    function initialize(address _owner) external reinitializer(initVersion()) onlyProxyAdmin {
         __Ownable_init();
         _transferOwnership(_owner);
     }

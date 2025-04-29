@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Interfaces
@@ -18,7 +19,7 @@ import { Storage } from "src/libraries/Storage.sol";
 /// @dev WARNING: When upgrading this contract, any active pause states will be lost as the pause state
 ///      is stored in storage variables that are not preserved during upgrades. Therefore, this contract
 ///      should not be upgraded while the system is paused.
-contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
+contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Thrown when a caller is not the guardian but tries to call a guardian-only function
     error SuperchainConfig_OnlyGuardian();
 
@@ -65,12 +66,12 @@ contract SuperchainConfig is Initializable, ReinitializableBase, ISemver {
 
     /// @notice Initializer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
-    function initialize(address _guardian) external reinitializer(initVersion()) {
+    function initialize(address _guardian) external reinitializer(initVersion()) onlyProxyAdmin {
         _setGuardian(_guardian);
     }
 
     /// @notice Upgrades the SuperchainConfig contract.
-    function upgrade() external reinitializer(initVersion()) {
+    function upgrade() external reinitializer(initVersion()) onlyProxyAdmin {
         // Transfer the guardian into the new variable and clear the old storage slot.
         bytes32 guardianSlot = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
         _setGuardian(Storage.getAddress(guardianSlot));

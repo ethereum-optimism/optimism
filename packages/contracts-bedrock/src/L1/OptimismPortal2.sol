@@ -260,6 +260,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         external
         reinitializer(initVersion())
+        onlyProxyAdmin
     {
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
@@ -285,6 +286,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         external
         reinitializer(initVersion())
+        onlyProxyAdmin
     {
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
@@ -383,10 +385,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     ///         ETHLockbox.migrateLiquidity() function within the same transaction.
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
-    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
-        // Make sure the caller is the owner of the ProxyAdmin.
-        if (msg.sender != proxyAdminOwner()) revert OptimismPortal_Unauthorized();
-
+    function migrateToSuperRoots(
+        IETHLockbox _newLockbox,
+        IAnchorStateRegistry _newAnchorStateRegistry
+    )
+        external
+        onlyProxyAdmin
+    {
         // Chains can use this method to swap the proof method from Output Roots to Super Roots
         // without joining the interop set. In this case, the old and new lockboxes will be the
         // same. However, whether or not a chain is joining the interop set, all chains will need a
@@ -706,8 +711,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Migrates the total ETH balance to the ETHLockbox.
-    function migrateLiquidity() public {
-        if (msg.sender != proxyAdminOwner()) revert OptimismPortal_Unauthorized();
+    function migrateLiquidity() public onlyProxyAdmin {
         _migrateLiquidity();
     }
 

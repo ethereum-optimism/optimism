@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
@@ -19,7 +20,7 @@ import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPort
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
-contract L1CrossDomainMessenger is CrossDomainMessenger, ReinitializableBase, ISemver {
+contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
     /// @custom:legacy
     /// @custom:spacer superchainConfig
     /// @notice Spacer taking up the legacy `superchainConfig` slot.
@@ -49,7 +50,14 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ReinitializableBase, IS
     /// @notice Initializes the contract.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
-    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external reinitializer(initVersion()) {
+    function initialize(
+        ISystemConfig _systemConfig,
+        IOptimismPortal _portal
+    )
+        external
+        reinitializer(initVersion())
+        onlyProxyAdmin
+    {
         systemConfig = _systemConfig;
         portal = _portal;
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
@@ -57,7 +65,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ReinitializableBase, IS
 
     /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig The new SystemConfig contract.
-    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) onlyProxyAdmin {
         spacer_251_0_20 = address(0);
         systemConfig = _systemConfig;
     }

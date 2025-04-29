@@ -2,9 +2,10 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
-import { WETH98 } from "src/universal/WETH98.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { WETH98 } from "src/universal/WETH98.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -21,7 +22,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         is meant to sit behind a proxy contract and has an owner address that can pull WETH from any account and
 ///         can recover ETH from the contract itself. Variable and function naming vaguely follows the vibe of WETH9.
 ///         Not the prettiest contract in the world, but it gets the job done.
-contract DelayedWETH is Initializable, ProxyAdminOwnedBase, WETH98, ISemver {
+contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase, WETH98, ISemver {
     /// @notice Represents a withdrawal request.
     struct WithdrawalRequest {
         uint256 amount;
@@ -42,14 +43,14 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, WETH98, ISemver {
     ISystemConfig public systemConfig;
 
     /// @param _delay The delay for withdrawals in seconds.
-    constructor(uint256 _delay) {
+    constructor(uint256 _delay) ReinitializableBase(2) {
         DELAY_SECONDS = _delay;
         _disableInitializers();
     }
 
     /// @notice Initializes the contract.
     /// @param _systemConfig Address of the SystemConfig contract.
-    function initialize(ISystemConfig _systemConfig) external initializer {
+    function initialize(ISystemConfig _systemConfig) external reinitializer(initVersion()) onlyProxyAdmin {
         systemConfig = _systemConfig;
     }
 

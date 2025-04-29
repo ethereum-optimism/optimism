@@ -3,6 +3,8 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
@@ -16,7 +18,7 @@ type ProtocolVersion is uint256;
 /// @custom:proxied true
 /// @title ProtocolVersions
 /// @notice The ProtocolVersions contract is used to manage superchain protocol version information.
-contract ProtocolVersions is OwnableUpgradeable, ISemver {
+contract ProtocolVersions is ProxyAdminOwnedBase, ReinitializableBase, OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value REQUIRED_PROTOCOL_VERSION              Represents an update to the required protocol version.
     /// @custom:value RECOMMENDED_PROTOCOL_VERSION           Represents an update to the recommended protocol version.
@@ -45,7 +47,7 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     string public constant version = "1.1.0";
 
     /// @notice Constructs the ProtocolVersion contract.
-    constructor() {
+    constructor() ReinitializableBase(2) {
         _disableInitializers();
     }
 
@@ -53,7 +55,15 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @param _owner             Initial owner of the contract.
     /// @param _required          Required protocol version to operate on this chain.
     /// @param _recommended       Recommended protocol version to operate on thi chain.
-    function initialize(address _owner, ProtocolVersion _required, ProtocolVersion _recommended) external initializer {
+    function initialize(
+        address _owner,
+        ProtocolVersion _required,
+        ProtocolVersion _recommended
+    )
+        external
+        reinitializer(initVersion())
+        onlyProxyAdmin
+    {
         __Ownable_init();
         transferOwnership(_owner);
         _setRequired(_required);

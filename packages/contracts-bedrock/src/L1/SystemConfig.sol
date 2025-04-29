@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
@@ -20,7 +21,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
+contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value FEE_SCALARS          Represents an update to l1 data fee scalars.
@@ -183,6 +184,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     )
         public
         reinitializer(initVersion())
+        onlyProxyAdmin
     {
         __Ownable_init();
         transferOwnership(_owner);
@@ -211,7 +213,14 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
     /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
     /// @param _superchainConfig The SuperchainConfig contract address.
-    function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
+    function upgrade(
+        uint256 _l2ChainId,
+        ISuperchainConfig _superchainConfig
+    )
+        external
+        reinitializer(initVersion())
+        onlyProxyAdmin
+    {
         // Set the L2 chain ID.
         l2ChainId = _l2ChainId;
 

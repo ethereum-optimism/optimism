@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 
@@ -21,7 +22,7 @@ import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC721 tokens deposited into L2.
-contract L1ERC721Bridge is ERC721Bridge, ReinitializableBase, ISemver {
+contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ReinitializableBase, ISemver {
     /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
@@ -52,9 +53,17 @@ contract L1ERC721Bridge is ERC721Bridge, ReinitializableBase, ISemver {
     )
         external
         reinitializer(initVersion())
+        onlyProxyAdmin
     {
         systemConfig = _systemConfig;
         __ERC721Bridge_init({ _messenger: _messenger, _otherBridge: ERC721Bridge(payable(Predeploys.L2_ERC721_BRIDGE)) });
+    }
+
+    /// @notice Upgrades the contract to have a reference to the SystemConfig.
+    /// @param _systemConfig SystemConfig contract.
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) onlyProxyAdmin {
+        systemConfig = _systemConfig;
+        spacer_50_0_20 = address(0);
     }
 
     /// @inheritdoc ERC721Bridge
@@ -66,13 +75,6 @@ contract L1ERC721Bridge is ERC721Bridge, ReinitializableBase, ISemver {
     /// @return ISuperchainConfig The SuperchainConfig contract.
     function superchainConfig() public view returns (ISuperchainConfig) {
         return systemConfig.superchainConfig();
-    }
-
-    /// @notice Upgrades the contract to have a reference to the SystemConfig.
-    /// @param _systemConfig SystemConfig contract.
-    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
-        systemConfig = _systemConfig;
-        spacer_50_0_20 = address(0);
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
