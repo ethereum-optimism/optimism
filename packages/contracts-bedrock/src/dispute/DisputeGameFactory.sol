@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
@@ -21,7 +21,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 ///         mapping and an append only array. The timestamp of the creation time of the dispute game is packed tightly
 ///         into the storage slot with the address of the dispute game to make offchain discoverability of playable
 ///         dispute games easier.
-contract DisputeGameFactory is ProxyAdminOwnedBase, OwnableUpgradeable, ReinitializableBase, ISemver {
+contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Initializable, ISemver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
     using LibClone for address;
 
@@ -76,7 +76,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitia
 
     /// @notice Initializes the contract.
     /// @param _owner The owner of the contract.
-    function initialize(address _owner) external reinitializer(initVersion()) onlyProxyAdmin {
+    function initialize(address _owner) external reinitializer(initVersion()) {
+        // Initialization transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform initialization logic.
         __Ownable_init();
         _transferOwnership(_owner);
     }
@@ -259,7 +263,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitia
     /// @dev May only be called by the `owner`.
     /// @param _gameType The type of the DisputeGame.
     /// @param _impl The implementation contract for the given `GameType`.
-    function setImplementation(GameType _gameType, IDisputeGame _impl) external onlyOwner {
+    function setImplementation(GameType _gameType, IDisputeGame _impl) external {
+        // Only the ProxyAdmin owner can set implementations.
+        _assertOnlyProxyAdminOwner();
+
+        // Set the implementation.
         gameImpls[_gameType] = _impl;
         emit ImplementationSet(address(_impl), _gameType);
     }
@@ -268,7 +276,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitia
     /// @dev May only be called by the `owner`.
     /// @param _gameType The type of the DisputeGame.
     /// @param _initBond The bond (in wei) for initializing a game type.
-    function setInitBond(GameType _gameType, uint256 _initBond) external onlyOwner {
+    function setInitBond(GameType _gameType, uint256 _initBond) external {
+        // Only the ProxyAdmin owner can set init bonds.
+        _assertOnlyProxyAdminOwner();
+
+        // Set the init bond.
         initBonds[_gameType] = _initBond;
         emit InitBondUpdated(_gameType, _initBond);
     }

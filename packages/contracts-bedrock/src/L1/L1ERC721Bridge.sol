@@ -53,15 +53,22 @@ contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ReinitializableBas
     )
         external
         reinitializer(initVersion())
-        onlyProxyAdmin
     {
+        // Initialization transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform initialization logic.
         systemConfig = _systemConfig;
         __ERC721Bridge_init({ _messenger: _messenger, _otherBridge: ERC721Bridge(payable(Predeploys.L2_ERC721_BRIDGE)) });
     }
 
     /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig SystemConfig contract.
-    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) onlyProxyAdmin {
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+        // Upgrade transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform upgrade logic.
         systemConfig = _systemConfig;
         spacer_50_0_20 = address(0);
     }

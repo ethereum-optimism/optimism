@@ -184,8 +184,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     )
         public
         reinitializer(initVersion())
-        onlyProxyAdmin
     {
+        // Initialization transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform initialization logic.
         __Ownable_init();
         transferOwnership(_owner);
 
@@ -219,8 +222,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     )
         external
         reinitializer(initVersion())
-        onlyProxyAdmin
     {
+        // Upgrade transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform upgrade logic.
         // Set the L2 chain ID.
         l2ChainId = _l2ChainId;
 

@@ -13,6 +13,16 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 ///         be retrieved onchain. Existing Proxy contracts don't have these getters, so we need a
 ///         base contract instead.
 abstract contract ProxyAdminOwnedBase {
+    /// @notice Thrown when the ProxyAdmin owner of the current contract is not the same as the
+    ///         ProxyAdmin owner of the other Proxy address provided.
+    error ProxyAdminOwnedBase_NotSharedProxyAdminOwner();
+
+    /// @notice Thrown when the caller is not the ProxyAdmin owner.
+    error ProxyAdminOwnedBase_NotProxyAdminOwner();
+
+    /// @notice Thrown when the caller is not the ProxyAdmin.
+    error ProxyAdminOwnedBase_NotProxyAdmin();
+
     /// @notice Getter for the owner of the ProxyAdmin.
     function proxyAdminOwner() public view returns (address) {
         return proxyAdmin().owner();
@@ -24,26 +34,26 @@ abstract contract ProxyAdminOwnedBase {
         return IProxyAdmin(Storage.getAddress(Constants.PROXY_OWNER_ADDRESS));
     }
 
-    /// @notice Checks if the ProxyAdmin owner of the current contract is the same as the
-    ///         ProxyAdmin owner of the given proxy.
-    /// @param _proxy The address of the proxy to check.
-    function _sameProxyAdminOwner(address _proxy) internal view returns (bool) {
-        return proxyAdminOwner() == ProxyAdminOwnedBase(_proxy).proxyAdminOwner();
+    /// @notice Reverts if the ProxyAdmin owner of the current contract is not the same as the
+    ///         ProxyAdmin owner of the other Proxy address provided. Useful asserting that both
+    ///         the current contract and the other Proxy share the same security model.+
+    function _assertSharedProxyAdminOwner(address _proxy) internal view returns (bool) {
+        if (proxyAdminOwner() != ProxyAdminOwnedBase(_proxy).proxyAdminOwner()) {
+            revert ProxyAdminOwnedBase_NotSharedProxyAdminOwner();
+        }
     }
 
-    /// @notice Modifier that reverts if the caller is not the ProxyAdmin owner.
-    modifier onlyProxyAdminOwner() {
+    /// @notice Reverts if the caller is not the ProxyAdmin owner.
+    function _assertOnlyProxyAdminOwner() internal view {
         if (proxyAdminOwner() != msg.sender) {
-            revert("ProxyAdminOwnedBase: only the ProxyAdmin owner can call this function");
+            revert ProxyAdminOwnedBase_NotProxyAdminOwner();
         }
-        _;
     }
 
-    /// @notice Modifier that reverts if the caller is not the ProxyAdmin.
-    modifier onlyProxyAdmin() {
+    /// @notice Reverts if the caller is not the ProxyAdmin.
+    function _assertOnlyProxyAdmin() internal view {
         if (address(proxyAdmin()) != msg.sender) {
-            revert("ProxyAdminOwnedBase: only the ProxyAdmin can call this function");
+            revert ProxyAdminOwnedBase_NotProxyAdmin();
         }
-        _;
     }
 }

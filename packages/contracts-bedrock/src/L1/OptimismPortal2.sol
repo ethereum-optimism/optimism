@@ -260,8 +260,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         external
         reinitializer(initVersion())
-        onlyProxyAdmin
     {
+        // Initialization transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform initialization logic.
         systemConfig = _systemConfig;
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
@@ -286,11 +289,20 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         external
         reinitializer(initVersion())
-        onlyProxyAdmin
     {
+        // Check that this transaction is coming from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Set the anchor state registry.
         anchorStateRegistry = _anchorStateRegistry;
+
+        // Set the ETHLockbox.
         ethLockbox = _ethLockbox;
+
+        // Set the system config.
         systemConfig = _systemConfig;
+
+        // Clear out the old superchainConfig slot.
         spacer_53_1_20 = address(0);
     }
 
@@ -373,6 +385,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Intentionally empty.
     }
 
+    /// @notice Migrates the total ETH balance to the ETHLockbox.
+    function migrateLiquidity() public {
+        // Liquidity migration can only be triggered by the ProxyAdmin owner.
+        _assertOnlyProxyAdminOwner();
+
+        // Migrate the liquidity.
+        uint256 ethBalance = address(this).balance;
+        ethLockbox.lockETH{ value: ethBalance }();
+        emit ETHMigrated(address(ethLockbox), ethBalance);
+    }
+
     /// @notice Allows the owner of the ProxyAdmin to migrate the OptimismPortal to use a new
     ///         lockbox, point at a new AnchorStateRegistry, and start to use the Super Roots proof
     ///         method. Primarily used for OptimismPortal instances to join the interop set, but
@@ -390,8 +413,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         IAnchorStateRegistry _newAnchorStateRegistry
     )
         external
-        onlyProxyAdmin
     {
+        // Migration can only be triggered by the ProxyAdmin owner.
+        _assertOnlyProxyAdminOwner();
+
         // Chains can use this method to swap the proof method from Output Roots to Super Roots
         // without joining the interop set. In this case, the old and new lockboxes will be the
         // same. However, whether or not a chain is joining the interop set, all chains will need a
@@ -710,11 +735,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
     }
 
-    /// @notice Migrates the total ETH balance to the ETHLockbox.
-    function migrateLiquidity() public onlyProxyAdmin {
-        _migrateLiquidity();
-    }
-
     /// @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
     ///         deriving deposit transactions. Note that if a deposit is made by a contract, its
     ///         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
@@ -787,14 +807,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
         return _target == address(this) || _target == address(ethLockbox);
-    }
-
-    /// @notice Migrates the total ETH balance to the ETHLockbox.
-    function _migrateLiquidity() internal {
-        uint256 ethBalance = address(this).balance;
-        ethLockbox.lockETH{ value: ethBalance }();
-
-        emit ETHMigrated(address(ethLockbox), ethBalance);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.

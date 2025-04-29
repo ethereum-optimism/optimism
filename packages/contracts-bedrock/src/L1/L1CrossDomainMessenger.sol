@@ -56,8 +56,11 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     )
         external
         reinitializer(initVersion())
-        onlyProxyAdmin
     {
+        // Initialization transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform initialization logic.
         systemConfig = _systemConfig;
         portal = _portal;
         __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
@@ -65,9 +68,13 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
 
     /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig The new SystemConfig contract.
-    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) onlyProxyAdmin {
-        spacer_251_0_20 = address(0);
+    function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
+        // Upgrade transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform upgrade logic.
         systemConfig = _systemConfig;
+        spacer_251_0_20 = address(0);
     }
 
     /// @inheritdoc CrossDomainMessenger

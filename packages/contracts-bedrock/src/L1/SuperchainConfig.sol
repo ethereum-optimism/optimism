@@ -66,12 +66,20 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
 
     /// @notice Initializer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
-    function initialize(address _guardian) external reinitializer(initVersion()) onlyProxyAdmin {
+    function initialize(address _guardian) external reinitializer(initVersion()) {
+        // Initialization transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform initialization logic.
         _setGuardian(_guardian);
     }
 
     /// @notice Upgrades the SuperchainConfig contract.
-    function upgrade() external reinitializer(initVersion()) onlyProxyAdmin {
+    function upgrade() external reinitializer(initVersion()) {
+        // Upgrade transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform upgrade logic.
         // Transfer the guardian into the new variable and clear the old storage slot.
         bytes32 guardianSlot = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
         _setGuardian(Storage.getAddress(guardianSlot));

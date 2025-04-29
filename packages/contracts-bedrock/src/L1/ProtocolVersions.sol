@@ -62,8 +62,11 @@ contract ProtocolVersions is ProxyAdminOwnedBase, ReinitializableBase, OwnableUp
     )
         external
         reinitializer(initVersion())
-        onlyProxyAdmin
     {
+        // Initialization transactions must come from the ProxyAdmin.
+        _assertOnlyProxyAdmin();
+
+        // Now perform initialization logic.
         __Ownable_init();
         transferOwnership(_owner);
         _setRequired(_required);
