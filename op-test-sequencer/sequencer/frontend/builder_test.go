@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -64,7 +65,8 @@ func (m *mockBuildJob) Open(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
+func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
+	return errors.New("not supported")
 }
 
 var _ work.BuildJob = (*mockBuildJob)(nil)

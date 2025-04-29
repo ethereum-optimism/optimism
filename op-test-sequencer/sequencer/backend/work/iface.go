@@ -42,7 +42,7 @@ type BuildJob interface {
 	Seal(ctx context.Context) (Block, error)
 	String() string
 	Close() // cleans up and unregisters the job
-	IncludeTx(ctx context.Context, tx hexutil.Bytes)
+	IncludeTx(ctx context.Context, tx hexutil.Bytes) error
 }
 
 // Jobs tracks block-building jobs by ID, so the jobs can be inspected and updated.

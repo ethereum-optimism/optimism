@@ -2,6 +2,7 @@ package noopbuilder
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -31,7 +32,8 @@ func (job *Job) Seal(ctx context.Context) (work.Block, error) {
 	return nil, ErrNoBuild
 }
 
-func (job *Job) IncludeTx(ctx context.Context, tx hexutil.Bytes) {
+func (job *Job) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
+	return errors.New("not supported")
 }
 
 func (job *Job) String() string {
