@@ -107,16 +107,6 @@ func L1Allocs(allocType AllocType) *foundry.ForgeAllocs {
 	return allocs.Copy()
 }
 
-func L1Deployments(allocType AllocType) *genesis.L1Deployments {
-	mtx.RLock()
-	defer mtx.RUnlock()
-	deployments, ok := l1DeploymentsByType[allocType]
-	if !ok {
-		panic(fmt.Errorf("unknown L1 deployments type: %q", allocType))
-	}
-	return deployments.Copy()
-}
-
 func L2Allocs(allocType AllocType, mode genesis.L2AllocsMode) *foundry.ForgeAllocs {
 	mtx.RLock()
 	defer mtx.RUnlock()
@@ -336,7 +326,6 @@ func initAllocType(root string, allocType AllocType) {
 				if err != nil {
 					panic(fmt.Errorf("failed to inspect L1: %w", err))
 				}
-				l1Deployments := l1Contracts.AsL1Deployments()
 
 				// Set the L1 genesis block timestamp to now
 				dc.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
@@ -344,11 +333,10 @@ func initAllocType(root string, allocType AllocType) {
 				// Speed up the in memory tests
 				dc.L1BlockTime = 2
 				dc.L2BlockTime = 1
-				dc.SetDeployments(l1Deployments)
+				dc.SetContracts(l1Contracts)
 				mtx.Lock()
 				deployConfigsByType[allocType] = dc
 				l1AllocsByType[allocType] = st.L1StateDump.Data
-				l1DeploymentsByType[allocType] = l1Deployments
 				mtx.Unlock()
 			}
 		}(mode)

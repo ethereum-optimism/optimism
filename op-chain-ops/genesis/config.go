@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -998,6 +999,15 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.SystemConfigProxy = deployments.SystemConfigProxy
 	d.OptimismPortalProxy = deployments.OptimismPortalProxy
 	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
+}
+
+func (d *DeployConfig) SetContracts(contracts *addresses.L1Contracts) {
+	d.L1StandardBridgeProxy = contracts.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = contracts.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = contracts.L1Erc721BridgeProxy
+	d.SystemConfigProxy = contracts.SystemConfigProxy
+	d.OptimismPortalProxy = contracts.OptimismPortalProxy
+	d.DAChallengeProxy = contracts.AltDAChallengeProxy
 }
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the

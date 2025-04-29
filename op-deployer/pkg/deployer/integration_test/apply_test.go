@@ -406,27 +406,27 @@ func TestProofParamOverrides(t *testing.T) {
 			func(t *testing.T, val any) common.Hash {
 				return val.(common.Hash)
 			},
-			chainState.PermissionedDisputeGameAddress,
+			chainState.PermissionedDisputeGameImpl,
 		},
 		{
 			"faultGameMaxDepth",
 			uint64Caster,
-			chainState.PermissionedDisputeGameAddress,
+			chainState.PermissionedDisputeGameImpl,
 		},
 		{
 			"faultGameSplitDepth",
 			uint64Caster,
-			chainState.PermissionedDisputeGameAddress,
+			chainState.PermissionedDisputeGameImpl,
 		},
 		{
 			"faultGameClockExtension",
 			uint64Caster,
-			chainState.PermissionedDisputeGameAddress,
+			chainState.PermissionedDisputeGameImpl,
 		},
 		{
 			"faultGameMaxClockDuration",
 			uint64Caster,
-			chainState.PermissionedDisputeGameAddress,
+			chainState.PermissionedDisputeGameImpl,
 		},
 	}
 	for _, tt := range tests {
@@ -456,15 +456,15 @@ func TestAltDADeployment(t *testing.T) {
 	require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 
 	chainState := st.Chains[0]
-	require.NotEmpty(t, chainState.DataAvailabilityChallengeProxyAddress)
-	require.NotEmpty(t, chainState.DataAvailabilityChallengeImplAddress)
+	require.NotEmpty(t, chainState.AltDAChallengeProxy)
+	require.NotEmpty(t, chainState.AltDAChallengeImpl)
 
 	_, rollupCfg, err := pipeline.RenderGenesisAndRollup(st, chainState.ID, nil)
 	require.NoError(t, err)
 	require.EqualValues(t, &rollup.AltDAConfig{
 		CommitmentType:     altda.KeccakCommitmentString,
 		DAChallengeWindow:  altDACfg.DAChallengeWindow,
-		DAChallengeAddress: chainState.DataAvailabilityChallengeProxyAddress,
+		DAChallengeAddress: chainState.AltDAChallengeProxy,
 		DAResolveWindow:    altDACfg.DAResolveWindow,
 	}, rollupCfg.AltDAConfig)
 }
@@ -800,19 +800,19 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 			name string
 			addr common.Address
 		}{
-			{"ProxyAdminAddress", chainState.ProxyAdminAddress},
-			{"AddressManagerAddress", chainState.AddressManagerAddress},
-			{"L1ERC721BridgeProxyAddress", chainState.L1ERC721BridgeProxyAddress},
-			{"SystemConfigProxyAddress", chainState.SystemConfigProxyAddress},
-			{"OptimismMintableERC20FactoryProxyAddress", chainState.OptimismMintableERC20FactoryProxyAddress},
-			{"L1StandardBridgeProxyAddress", chainState.L1StandardBridgeProxyAddress},
-			{"L1CrossDomainMessengerProxyAddress", chainState.L1CrossDomainMessengerProxyAddress},
-			{"OptimismPortalProxyAddress", chainState.OptimismPortalProxyAddress},
-			{"DisputeGameFactoryProxyAddress", chainState.DisputeGameFactoryProxyAddress},
-			{"AnchorStateRegistryProxyAddress", chainState.AnchorStateRegistryProxyAddress},
-			{"FaultDisputeGameAddress", chainState.FaultDisputeGameAddress},
-			{"PermissionedDisputeGameAddress", chainState.PermissionedDisputeGameAddress},
-			{"DelayedWETHPermissionedGameProxyAddress", chainState.DelayedWETHPermissionedGameProxyAddress},
+			{"ProxyAdminAddress", chainState.OpChainContracts.OpChainProxyAdminImpl},
+			{"AddressManagerAddress", chainState.OpChainContracts.AddressManagerImpl},
+			{"L1ERC721BridgeProxyAddress", chainState.OpChainContracts.L1Erc721BridgeProxy},
+			{"SystemConfigProxyAddress", chainState.OpChainContracts.SystemConfigProxy},
+			{"OptimismMintableERC20FactoryProxyAddress", chainState.OpChainContracts.OptimismMintableErc20FactoryProxy},
+			{"L1StandardBridgeProxyAddress", chainState.OpChainContracts.L1StandardBridgeProxy},
+			{"L1CrossDomainMessengerProxyAddress", chainState.OpChainContracts.L1CrossDomainMessengerProxy},
+			{"OptimismPortalProxyAddress", chainState.OpChainContracts.OptimismPortalProxy},
+			{"DisputeGameFactoryProxyAddress", chainState.DisputeGameFactoryProxy},
+			{"AnchorStateRegistryProxyAddress", chainState.OpChainContracts.AnchorStateRegistryProxy},
+			{"FaultDisputeGameAddress", chainState.OpChainContracts.FaultDisputeGameImpl},
+			{"PermissionedDisputeGameAddress", chainState.OpChainContracts.PermissionedDisputeGameImpl},
+			{"DelayedWETHPermissionedGameProxyAddress", chainState.OpChainContracts.DelayedWethPermissionedGameProxy},
 			// {"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
 		}
 		for _, addr := range chainAddrs {

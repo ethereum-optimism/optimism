@@ -3,6 +3,7 @@ package pipeline
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -114,23 +115,26 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 }
 
 func makeChainState(chainID common.Hash, dco opcm.DeployOPChainOutput) *state.ChainState {
+	opChainContracts := addresses.OpChainContracts{}
+	opChainContracts.OpChainProxyAdminImpl = dco.OpChainProxyAdmin
+	opChainContracts.AddressManagerImpl = dco.AddressManager
+	opChainContracts.L1Erc721BridgeProxy = dco.L1ERC721BridgeProxy
+	opChainContracts.SystemConfigProxy = dco.SystemConfigProxy
+	opChainContracts.OptimismMintableErc20FactoryProxy = dco.OptimismMintableERC20FactoryProxy
+	opChainContracts.L1StandardBridgeProxy = dco.L1StandardBridgeProxy
+	opChainContracts.L1CrossDomainMessengerProxy = dco.L1CrossDomainMessengerProxy
+	opChainContracts.OptimismPortalProxy = dco.OptimismPortalProxy
+	opChainContracts.EthLockboxProxy = dco.ETHLockboxProxy
+	opChainContracts.DisputeGameFactoryProxy = dco.DisputeGameFactoryProxy
+	opChainContracts.AnchorStateRegistryProxy = dco.AnchorStateRegistryProxy
+	opChainContracts.FaultDisputeGameImpl = dco.FaultDisputeGame
+	opChainContracts.PermissionedDisputeGameImpl = dco.PermissionedDisputeGame
+	opChainContracts.DelayedWethPermissionedGameProxy = dco.DelayedWETHPermissionedGameProxy
+	opChainContracts.DelayedWethPermissionlessGameProxy = dco.DelayedWETHPermissionlessGameProxy
+
 	return &state.ChainState{
-		ID:                                        chainID,
-		ProxyAdminAddress:                         dco.OpChainProxyAdmin,
-		AddressManagerAddress:                     dco.AddressManager,
-		L1ERC721BridgeProxyAddress:                dco.L1ERC721BridgeProxy,
-		SystemConfigProxyAddress:                  dco.SystemConfigProxy,
-		OptimismMintableERC20FactoryProxyAddress:  dco.OptimismMintableERC20FactoryProxy,
-		L1StandardBridgeProxyAddress:              dco.L1StandardBridgeProxy,
-		L1CrossDomainMessengerProxyAddress:        dco.L1CrossDomainMessengerProxy,
-		OptimismPortalProxyAddress:                dco.OptimismPortalProxy,
-		ETHLockboxProxyAddress:                    dco.ETHLockboxProxy,
-		DisputeGameFactoryProxyAddress:            dco.DisputeGameFactoryProxy,
-		AnchorStateRegistryProxyAddress:           dco.AnchorStateRegistryProxy,
-		FaultDisputeGameAddress:                   dco.FaultDisputeGame,
-		PermissionedDisputeGameAddress:            dco.PermissionedDisputeGame,
-		DelayedWETHPermissionedGameProxyAddress:   dco.DelayedWETHPermissionedGameProxy,
-		DelayedWETHPermissionlessGameProxyAddress: dco.DelayedWETHPermissionlessGameProxy,
+		ID:               chainID,
+		OpChainContracts: opChainContracts,
 	}
 }
 

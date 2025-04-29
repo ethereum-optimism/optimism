@@ -109,8 +109,8 @@ func deployDisputeGame(
 		SplitDepth:               game.DisputeSplitDepth,
 		ClockExtension:           game.DisputeClockExtension,
 		MaxClockDuration:         game.DisputeMaxClockDuration,
-		DelayedWethProxy:         thisState.DelayedWETHPermissionedGameProxyAddress,
-		AnchorStateRegistryProxy: thisState.AnchorStateRegistryProxyAddress,
+		DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+		AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
 		L2ChainId:                thisIntent.ID,
 		Proposer:                 thisIntent.Roles.Proposer,
 		Challenger:               thisIntent.Roles.Challenger,
@@ -122,12 +122,12 @@ func deployDisputeGame(
 
 	lgr.Info("setting dispute game impl on factory", "respected", game.MakeRespected)
 	sdgiInput := opcm.SetDisputeGameImplInput{
-		Factory:  thisState.DisputeGameFactoryProxyAddress,
+		Factory:  thisState.OpChainContracts.DisputeGameFactoryProxy,
 		Impl:     out.DisputeGameImpl,
 		GameType: game.DisputeGameType,
 	}
 	if game.MakeRespected {
-		sdgiInput.AnchorStateRegistry = thisState.AnchorStateRegistryProxyAddress
+		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 	}
 	if err := opcm.SetDisputeGameImpl(
 		env.L1ScriptHost,
