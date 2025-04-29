@@ -989,7 +989,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 computeSalt(_input.l2ChainId, _input.saltMixer, "PermissionedDisputeGame"),
                 encodePermissionedFDGConstructor(
                     IFaultDisputeGame.GameConstructorParams({
-                        gameType: _input.disputeGameType,
+                        gameType: GameTypes.PERMISSIONED_CANNON,
                         absolutePrestate: _input.disputeAbsolutePrestate,
                         maxGameDepth: _input.disputeMaxGameDepth,
                         splitDepth: _input.disputeSplitDepth,

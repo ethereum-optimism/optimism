@@ -238,9 +238,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 4.2.0
+    /// @custom:semver 4.3.0
     function version() public pure virtual returns (string memory) {
-        return "4.2.0";
+        return "4.3.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -342,6 +342,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Getter for the dispute game blacklist.
     /// @param _disputeGame The dispute game to check.
     /// @return Whether the dispute game is blacklisted.
+
     function disputeGameBlacklist(IDisputeGame _disputeGame) public view returns (bool) {
         return anchorStateRegistry.disputeGameBlacklist(_disputeGame);
     }
