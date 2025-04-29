@@ -38,10 +38,7 @@ cannon: cannon-embeds
 clean:
 	rm -rf bin multicannon/embeds/cannon*
 
-elf: elf-go-122 elf-go-123
-
-elf-go-122:
-	make -C ./testdata/go-1-22 elf
+elf: elf-go-123
 
 elf-go-123:
 	make -C ./testdata/go-1-23 elf
@@ -62,12 +59,12 @@ test: elf contract
 	go test -v ./...
 
 
-diff-%-cannon: cannon elf-go-122
+diff-%-cannon: cannon elf
 	# Load an elf file to create a prestate, and check that both cannon versions generate the same prestate
 	@VM=$*; \
 	echo "Running diff for VM type $${VM}"; \
-	$$OTHER_CANNON load-elf --type $$VM --path ./testdata/go-1-22/bin/hello.64.elf --out ./bin/prestate-other.bin.gz --meta ""; \
-	./bin/cannon   load-elf --type $$VM --path ./testdata/go-1-22/bin/hello.64.elf --out ./bin/prestate.bin.gz --meta "";
+	$$OTHER_CANNON load-elf --type $$VM --path ./testdata/go-1-23/bin/hello.64.elf --out ./bin/prestate-other.bin.gz --meta ""; \
+	./bin/cannon   load-elf --type $$VM --path ./testdata/go-1-23/bin/hello.64.elf --out ./bin/prestate.bin.gz --meta "";
 	@cmp ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz;
 	@if [ $$? -eq 0 ]; then \
 		echo "Generated identical prestates"; \
@@ -112,7 +109,6 @@ fuzz:
 	cannon \
 	clean \
 	elf \
-	elf-go-122 \
 	elf-go-123 \
 	test \
 	lint \
