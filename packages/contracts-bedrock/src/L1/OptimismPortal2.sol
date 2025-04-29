@@ -338,11 +338,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     function respectedGameTypeUpdatedAt() external view returns (uint64) {
         return anchorStateRegistry.retirementTimestamp();
     }
+
     /// @custom:legacy
     /// @notice Getter for the dispute game blacklist.
     /// @param _disputeGame The dispute game to check.
     /// @return Whether the dispute game is blacklisted.
-
     function disputeGameBlacklist(IDisputeGame _disputeGame) public view returns (bool) {
         return anchorStateRegistry.disputeGameBlacklist(_disputeGame);
     }
