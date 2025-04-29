@@ -125,7 +125,7 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
         IFaultDisputeGame game = IFaultDisputeGame(
             payable(
                 address(
-                    disputeGameFactory.create(
+                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(optimismPortal2.respectedGameType()) }(
                         optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
                     )
                 )
