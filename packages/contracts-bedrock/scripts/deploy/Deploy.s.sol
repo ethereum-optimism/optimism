@@ -619,24 +619,6 @@ contract Deploy is Deployer {
         );
     }
 
-    /// @notice Loads the singlethreaded mips absolute prestate from the prestate-proof for devnets otherwise
-    ///         from the config.
-    function _loadDevnetStMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
-        // Fetch the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
-        if (bytes(Process.bash(string.concat("[[ -f ", filePath, " ]] && echo \"present\""))).length == 0) {
-            revert(
-                "Deploy: cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root"
-            );
-        }
-        mipsAbsolutePrestate_ =
-            Claim.wrap(abi.decode(bytes(Process.bash(string.concat("cat ", filePath, " | jq -r .pre"))), (bytes32)));
-        console.log(
-            "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
-            vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
-        );
-    }
-
     /// @notice Loads the multithreaded mips absolute prestate from the prestate-proof-mt64 for devnets otherwise
     ///         from the config.
     function _loadDevnetMtMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
