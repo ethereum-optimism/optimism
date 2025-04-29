@@ -8,9 +8,9 @@ import "github.com/ethereum/go-ethereum/common"
 //   - all contract field names are suffixed with "Impl" or "Proxy" to indicate the type of contract
 
 type L1Contracts struct {
-	Superchain      *SuperchainContracts
-	Implementations *ImplementationsContracts
-	OpChain         *OpChainContracts
+	SuperchainContracts
+	ImplementationsContracts
+	OpChainContracts
 }
 
 // SuperchainContracts struct contains all the superchain-level contracts
