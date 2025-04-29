@@ -12,9 +12,21 @@ library MIPS64State {
         uint64 hi;
     }
 
+    struct Features {
+        bool supportNoopSysEventFd2;
+        bool supportDclzDclo;
+    }
+
     function assertExitedIsValid(uint32 _exited) internal pure {
         if (_exited > 1) {
             revert InvalidExitedValue();
+        }
+    }
+
+    function featuresForVersion(uint256 _version) internal pure returns (Features memory features_) {
+        if (_version >= 7) {
+            features_.supportNoopSysEventFd2 = true;
+            features_.supportDclzDclo = true;
         }
     }
 }
