@@ -1144,6 +1144,34 @@ type L1Deployments struct {
 	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
 }
 
+func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
+	return &L1Deployments{
+		AddressManager:                    contracts.AddressManagerImpl,
+		DisputeGameFactory:                contracts.DisputeGameFactoryImpl,
+		DisputeGameFactoryProxy:           contracts.DisputeGameFactoryProxy,
+		L1CrossDomainMessenger:            contracts.L1CrossDomainMessengerImpl,
+		L1CrossDomainMessengerProxy:       contracts.L1CrossDomainMessengerProxy,
+		L1ERC721Bridge:                    contracts.L1Erc721BridgeImpl,
+		L1ERC721BridgeProxy:               contracts.L1Erc721BridgeProxy,
+		L1StandardBridge:                  contracts.L1StandardBridgeImpl,
+		L1StandardBridgeProxy:             contracts.L1StandardBridgeProxy,
+		L2OutputOracleProxy:               contracts.L2OutputOracleProxy,
+		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
+		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
+		OptimismPortal:                    contracts.OptimismPortalImpl,
+		OptimismPortalProxy:               contracts.OptimismPortalProxy,
+		ETHLockbox:                        contracts.EthLockboxImpl,
+		ETHLockboxProxy:                   contracts.EthLockboxProxy,
+		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
+		SystemConfig:                      contracts.SystemConfigImpl,
+		SystemConfigProxy:                 contracts.SystemConfigProxy,
+		ProtocolVersions:                  contracts.ProtocolVersionsImpl,
+		ProtocolVersionsProxy:             contracts.ProtocolVersionsProxy,
+		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
+		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
+	}
+}
+
 // GetName will return the name of the contract given an address.
 func (d *L1Deployments) GetName(addr common.Address) string {
 	val := reflect.ValueOf(d)

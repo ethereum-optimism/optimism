@@ -347,6 +347,9 @@ func initAllocType(root string, allocType AllocType) {
 				mtx.Lock()
 				deployConfigsByType[allocType] = dc
 				l1AllocsByType[allocType] = st.L1StateDump.Data
+
+				l1Deployments := genesis.CreateL1DeploymentsFromContracts(l1Contracts)
+				l1DeploymentsByType[allocType] = l1Deployments
 				mtx.Unlock()
 			}
 		}(mode)
