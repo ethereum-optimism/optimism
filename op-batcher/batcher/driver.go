@@ -167,7 +167,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 		l.wg.Add(1)
 		go l.throttlingLoop(l.wg, pendingBytesUpdated) // ranges over pendingBytesUpdated channel
 	} else {
-		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-interval. This should not be disabled in prod.")
+		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
 	}
 
 	l.wg.Add(3)
@@ -464,6 +464,13 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 			continue
 		}
 		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup)
+	}
+
+	// First wait for all DA requests to finish to prevent new transactions being queued
+	if err := daGroup.Wait(); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			l.Log.Error("error waiting for DA requests to complete", "err", err)
+		}
 	}
 
 	// We _must_ wait for all senders on receiptsCh to finish before we can close it.

@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter, GasBurner } from "test/mocks/Callers.sol";
 import { stdError } from "forge-std/StdError.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -17,6 +18,7 @@ import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 contract Encoding_Harness {
     function encodeCrossDomainMessage(
@@ -56,7 +58,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1CrossDomainMessenger impl = IL1CrossDomainMessenger(addressManager.getAddress("OVM_L1CrossDomainMessenger"));
-        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.systemConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
         assertEq(address(impl.portal()), address(0));
 
@@ -68,7 +70,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
 
     /// @dev Tests that the proxy is initialized correctly.
     function test_initialize_succeeds() external view {
-        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(systemConfig));
         assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
@@ -837,7 +839,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
     ///      successfully by calling the target contract.
     function test_relayMessage_paused_reverts() external {
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
         vm.expectRevert("CrossDomainMessenger: paused");
 
         l1CrossDomainMessenger.relayMessage(
@@ -852,20 +854,25 @@ contract L1CrossDomainMessenger_Test is CommonTest {
 
     /// @dev Tests that the superchain config is called by the messengers paused function
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()));
+        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))));
         l1CrossDomainMessenger.paused();
     }
 
     /// @dev Tests that changing the superchain config paused status changes the return value of the messenger
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1CrossDomainMessenger.paused());
-        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
 
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         assertTrue(l1CrossDomainMessenger.paused());
-        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
+    }
+
+    /// @dev Tests that `superchainConfig` returns the correct address.
+    function test_superchainConfig_succeeds() external view {
+        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
     }
 }
 
@@ -901,7 +908,7 @@ contract L1CrossDomainMessenger_ReinitReentryTest is CommonTest {
             vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
 
             // call the initializer function
-            l1CrossDomainMessenger.initialize(ISuperchainConfig(superchainConfig), IOptimismPortal2(optimismPortal2));
+            l1CrossDomainMessenger.initialize(ISystemConfig(systemConfig), IOptimismPortal2(optimismPortal2));
 
             // attempt to re-replay the withdrawal
             vm.expectEmit(address(l1CrossDomainMessenger));
@@ -945,5 +952,59 @@ contract L1CrossDomainMessenger_ReinitReentryTest is CommonTest {
         assertEq(address(this).balance, balanceBeforeThis);
         // The balance of the messenger contract is unchanged.
         assertEq(address(l1CrossDomainMessenger).balance, balanceBeforeMessenger);
+    }
+}
+
+/// @title L1CrossDomainMessenger_upgrade_Test
+/// @notice Reusable test for the current upgrade() function in the L1CrossDomainMessenger contract. If
+///         the upgrade() function is changed, tests inside of this contract should be updated to
+///         reflect the new function. If the upgrade() function is removed, remove the
+///         corresponding tests but leave this contract in place so it's easy to add tests back
+///         in the future.
+contract L1CrossDomainMessenger_Upgrade_Test is CommonTest {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initial.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial systemConfig slot is non-zero.
+        StorageSlot memory systemConfigSlot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "systemConfig");
+        vm.store(address(l1CrossDomainMessenger), bytes32(systemConfigSlot.slot), bytes32(uint256(1)));
+        assertNotEq(address(l1CrossDomainMessenger.systemConfig()), address(0));
+        assertNotEq(vm.load(address(l1CrossDomainMessenger), bytes32(systemConfigSlot.slot)), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger upgrade().
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+
+        // Verify that the systemConfig was updated.
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(newSystemConfig));
+
+        // Verify that the spacer was cleared.
+        StorageSlot memory spacerSlot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "spacer_251_0_20");
+        assertEq(vm.load(address(l1CrossDomainMessenger), bytes32(spacerSlot.slot)), bytes32(0));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Create a new SystemConfig contract
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger first upgrade.
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+
+        // Try to trigger second upgrade.
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
     }
 }

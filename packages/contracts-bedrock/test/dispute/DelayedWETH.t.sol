@@ -9,6 +9,9 @@ import { Burn } from "src/libraries/Burn.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
+// Interfaces
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+
 contract DelayedWETH_Init is CommonTest {
     event Approval(address indexed src, address indexed guy, uint256 wad);
     event Transfer(address indexed src, address indexed dst, uint256 wad);
@@ -18,18 +21,15 @@ contract DelayedWETH_Init is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-
-        // Transfer ownership of delayed WETH to the test contract.
-        vm.prank(delayedWeth.owner());
-        delayedWeth.transferOwnership(address(this));
     }
 }
 
 contract DelayedWETH_Initialize_Test is DelayedWETH_Init {
     /// @dev Tests that initialization is successful.
     function test_initialize_succeeds() public view {
-        assertEq(delayedWeth.owner(), address(this));
-        assertEq(address(delayedWeth.config()), address(superchainConfig));
+        assertEq(delayedWeth.proxyAdminOwner(), proxyAdminOwner);
+        assertEq(address(delayedWeth.systemConfig()), address(systemConfig));
+        assertEq(address(delayedWeth.config()), address(systemConfig.superchainConfig()));
     }
 }
 
@@ -157,7 +157,7 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_Init {
         // Pause the contract.
         address guardian = optimismPortal2.guardian();
         vm.prank(guardian);
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         // Withdraw fails.
         vm.expectRevert("DelayedWETH: contract is paused");
@@ -261,7 +261,7 @@ contract DelayedWETH_WithdrawFrom_Test is DelayedWETH_Init {
         // Pause the contract.
         address guardian = optimismPortal2.guardian();
         vm.prank(guardian);
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         // Withdraw fails.
         vm.expectRevert("DelayedWETH: contract is paused");
@@ -284,8 +284,8 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
         // Set up the gas burner.
         FallbackGasUser gasUser = new FallbackGasUser(_fallbackGasUsage);
 
-        // Transfer ownership to alice.
-        delayedWeth.transferOwnership(address(gasUser));
+        // Mock owner to return the gas user.
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(gasUser)));
 
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), _amount);
@@ -314,8 +314,8 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
 
     /// @dev Tests that recovering more than the balance recovers what it can.
     function test_recover_moreThanBalance_succeeds() public {
-        // Transfer ownership to alice.
-        delayedWeth.transferOwnership(alice);
+        // Mock owner to return alice.
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(alice));
 
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), 0.5 ether);
@@ -337,8 +337,8 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
         // Set up the reverter.
         FallbackReverter reverter = new FallbackReverter();
 
-        // Transfer ownership to the reverter.
-        delayedWeth.transferOwnership(address(reverter));
+        // Mock owner to return the reverter.
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(reverter)));
 
         // Give the contract some WETH to recover.
         vm.deal(address(delayedWeth), 1 ether);
@@ -360,15 +360,16 @@ contract DelayedWETH_Hold_Test is DelayedWETH_Init {
         delayedWeth.deposit{ value: amount }();
 
         // Get our balance before.
-        uint256 initialBalance = delayedWeth.balanceOf(address(this));
+        uint256 initialBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Hold some WETH.
         vm.expectEmit(true, true, true, false);
-        emit Approval(alice, address(this), amount);
+        emit Approval(alice, address(proxyAdminOwner), amount);
+        vm.prank(proxyAdminOwner);
         delayedWeth.hold(alice, amount);
 
         // Get our balance after.
-        uint256 finalBalance = delayedWeth.balanceOf(address(this));
+        uint256 finalBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Verify the transfer.
         assertEq(finalBalance, initialBalance + amount);
@@ -382,15 +383,16 @@ contract DelayedWETH_Hold_Test is DelayedWETH_Init {
         delayedWeth.deposit{ value: amount }();
 
         // Get our balance before.
-        uint256 initialBalance = delayedWeth.balanceOf(address(this));
+        uint256 initialBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Hold some WETH.
         vm.expectEmit(true, true, true, false);
-        emit Approval(alice, address(this), amount);
+        emit Approval(alice, address(proxyAdminOwner), amount);
+        vm.prank(proxyAdminOwner);
         delayedWeth.hold(alice); // without amount parameter
 
         // Get our balance after.
-        uint256 finalBalance = delayedWeth.balanceOf(address(this));
+        uint256 finalBalance = delayedWeth.balanceOf(address(proxyAdminOwner));
 
         // Verify the transfer.
         assertEq(finalBalance, initialBalance + amount);

@@ -115,7 +115,7 @@ func (s *SignerClient) SignTransaction(ctx context.Context, chainId *big.Int, fr
 	return &signed, nil
 }
 
-func (s *SignerClient) SignBlockPayload(ctx context.Context, args *BlockPayloadArgs) ([65]byte, error) {
+func (s *SignerClient) SignBlockPayload(ctx context.Context, args *BlockPayloadArgs) (eth.Bytes65, error) {
 	var result hexutil.Bytes
 
 	if err := s.client.CallContext(ctx, &result, "opsigner_signBlockPayload", args); err != nil {
@@ -137,4 +137,8 @@ func (s *SignerClient) SignBlockPayloadV2(ctx context.Context, args *BlockPayloa
 		return [65]byte{}, fmt.Errorf("opsigner_signBlockPayloadV2 failed: %w", err)
 	}
 	return result, nil
+}
+
+func (s *SignerClient) Close() {
+	s.client.Close()
 }

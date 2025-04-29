@@ -13,6 +13,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
+	"github.com/spf13/afero"
 )
 
 // EnclaveContextIface abstracts the EnclaveContext for testing
@@ -24,30 +25,55 @@ type EnclaveContextIface interface {
 
 type EnclaveFS struct {
 	enclaveCtx EnclaveContextIface
+	fs         afero.Fs
 }
 
-func NewEnclaveFS(ctx context.Context, enclave string) (*EnclaveFS, error) {
-	kurtosisCtx, err := kurtosis_context.NewKurtosisContextFromLocalEngine()
-	if err != nil {
-		return nil, err
-	}
+type EnclaveFSOption func(*EnclaveFS)
 
-	enclaveCtx, err := kurtosisCtx.GetEnclaveContext(ctx, enclave)
-	if err != nil {
-		return nil, err
+func WithFs(fs afero.Fs) EnclaveFSOption {
+	return func(e *EnclaveFS) {
+		e.fs = fs
 	}
-
-	return &EnclaveFS{enclaveCtx: enclaveCtx}, nil
 }
 
-// NewEnclaveFSWithContext creates an EnclaveFS with a provided context (useful for testing)
-func NewEnclaveFSWithContext(ctx EnclaveContextIface) *EnclaveFS {
-	return &EnclaveFS{enclaveCtx: ctx}
+func WithEnclaveCtx(enclaveCtx EnclaveContextIface) EnclaveFSOption {
+	return func(e *EnclaveFS) {
+		e.enclaveCtx = enclaveCtx
+	}
+}
+
+func NewEnclaveFS(ctx context.Context, enclave string, opts ...EnclaveFSOption) (*EnclaveFS, error) {
+	enclaveFS := &EnclaveFS{}
+
+	for _, opt := range opts {
+		opt(enclaveFS)
+	}
+
+	if enclaveFS.fs == nil {
+		enclaveFS.fs = afero.NewOsFs()
+	}
+
+	if enclaveFS.enclaveCtx == nil {
+		kurtosisCtx, err := kurtosis_context.NewKurtosisContextFromLocalEngine()
+		if err != nil {
+			return nil, err
+		}
+
+		enclaveCtx, err := kurtosisCtx.GetEnclaveContext(ctx, enclave)
+		if err != nil {
+			return nil, err
+		}
+
+		enclaveFS.enclaveCtx = enclaveCtx
+	}
+
+	return enclaveFS, nil
 }
 
 type Artifact struct {
 	rawData []byte
 	reader  *tar.Reader
+	fs      afero.Fs
 }
 
 func (fs *EnclaveFS) GetAllArtifactNames(ctx context.Context) ([]string, error) {
@@ -80,6 +106,7 @@ func (fs *EnclaveFS) GetArtifact(ctx context.Context, name string) (*Artifact, e
 	return &Artifact{
 		rawData: artifact,
 		reader:  tarReader,
+		fs:      fs.fs,
 	}, nil
 }
 
@@ -112,17 +139,17 @@ func (a *Artifact) Download(path string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(fpath, os.FileMode(header.Mode)); err != nil {
+			if err := a.fs.MkdirAll(fpath, os.FileMode(header.Mode)); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", fpath, err)
 			}
 		case tar.TypeReg:
 			// Create parent directories if they don't exist
-			if err := os.MkdirAll(filepath.Dir(fpath), 0755); err != nil {
+			if err := a.fs.MkdirAll(filepath.Dir(fpath), 0755); err != nil {
 				return fmt.Errorf("failed to create directory for %s: %w", fpath, err)
 			}
 
 			// Create the file
-			f, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
+			f, err := a.fs.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
 			if err != nil {
 				return fmt.Errorf("failed to create file %s: %w", fpath, err)
 			}
@@ -176,13 +203,17 @@ func (a *Artifact) ExtractFiles(writers ...*ArtifactFileWriter) error {
 	return nil
 }
 
-func (fs *EnclaveFS) PutArtifact(ctx context.Context, name string, readers ...*ArtifactFileReader) error {
-	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", "artifact-*")
+func (fs *EnclaveFS) PutArtifact(ctx context.Context, name string, readers ...*ArtifactFileReader) (retErr error) {
+	// Create a temporary directory using afero
+	tempDir, err := afero.TempDir(fs.fs, "", "artifact-*")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir) // Clean up temp dir when we're done
+	defer func() {
+		if err := fs.fs.RemoveAll(tempDir); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to cleanup temporary directory: %w", err)
+		}
+	}()
 
 	// Process each reader
 	for _, reader := range readers {
@@ -190,12 +221,12 @@ func (fs *EnclaveFS) PutArtifact(ctx context.Context, name string, readers ...*A
 		fullPath := filepath.Join(tempDir, reader.path)
 
 		// Ensure the parent directory exists
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		if err := fs.fs.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 			return err
 		}
 
 		// Create the file
-		file, err := os.Create(fullPath)
+		file, err := fs.fs.Create(fullPath)
 		if err != nil {
 			return err
 		}
@@ -209,8 +240,11 @@ func (fs *EnclaveFS) PutArtifact(ctx context.Context, name string, readers ...*A
 	}
 
 	// Upload the directory to Kurtosis
-	_, _, err = fs.enclaveCtx.UploadFiles(tempDir, name)
-	return err
+	if _, _, err := fs.enclaveCtx.UploadFiles(tempDir, name); err != nil {
+		return err
+	}
+
+	return
 }
 
 type ArtifactFileReader struct {

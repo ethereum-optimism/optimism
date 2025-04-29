@@ -41,6 +41,10 @@ func (opts *TxOpts) Data() []byte {
 	return opts.data
 }
 
+func (opts *TxOpts) AccessList() types.AccessList {
+	return opts.accessList
+}
+
 // Validate checks that all required fields are set and consistent
 func (opts *TxOpts) Validate() error {
 	// Check mandatory fields
@@ -191,10 +195,33 @@ func (t *EthTx) Data() []byte {
 	return t.tx.Data()
 }
 
+func (t *EthTx) AccessList() types.AccessList {
+	return t.tx.AccessList()
+}
+
 func (t *EthTx) Type() uint8 {
 	return t.txType
 }
 
 func (t *EthTx) Raw() *types.Transaction {
 	return t.tx
+}
+
+// EthReceipt is the default implementation of Receipt that wraps types.Receipt
+type EthReceipt struct {
+	blockNumber *big.Int
+	logs        []*types.Log
+	txHash      common.Hash
+}
+
+func (t *EthReceipt) BlockNumber() *big.Int {
+	return t.blockNumber
+}
+
+func (t *EthReceipt) Logs() []*types.Log {
+	return t.logs
+}
+
+func (t *EthReceipt) TxHash() common.Hash {
+	return t.txHash
 }

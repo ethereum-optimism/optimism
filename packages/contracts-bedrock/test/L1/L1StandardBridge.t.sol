@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -16,9 +17,9 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 contract L1StandardBridge_Getter_Test is CommonTest {
     /// @dev Test that the accessors return the correct initialized values.
@@ -27,7 +28,8 @@ contract L1StandardBridge_Getter_Test is CommonTest {
         assert(address(l1StandardBridge.OTHER_BRIDGE()) == address(l2StandardBridge));
         assert(address(l1StandardBridge.messenger()) == address(l1CrossDomainMessenger));
         assert(address(l1StandardBridge.MESSENGER()) == address(l1CrossDomainMessenger));
-        assert(l1StandardBridge.superchainConfig() == superchainConfig);
+        assert(l1StandardBridge.systemConfig() == systemConfig);
+        assert(l1StandardBridge.superchainConfig() == systemConfig.superchainConfig());
     }
 }
 
@@ -37,7 +39,7 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1StandardBridge impl = IL1StandardBridge(payable(EIP1967Helper.getImplementation(address(l1StandardBridge))));
-        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.systemConfig()), address(0));
 
         // The constructor now uses _disableInitializers, whereas OP Mainnet has these values in storage
         returnIfForkTest("L1StandardBridge_Initialize_Test: impl storage differs on forked network");
@@ -50,7 +52,7 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
 
     /// @dev Test that the initialize function sets the correct values.
     function test_initialize_succeeds() external view {
-        assertEq(address(l1StandardBridge.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1StandardBridge.systemConfig()), address(systemConfig));
         assertEq(address(l1StandardBridge.MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
@@ -63,13 +65,13 @@ contract L1StandardBridge_Pause_Test is CommonTest {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
     ///      `superchainConfig`.
     function test_paused_succeeds() external view {
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
     }
 
     /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the
     ///      `superchainConfig`.
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()));
+        vm.expectCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()));
         l1StandardBridge.paused();
     }
 
@@ -77,13 +79,13 @@ contract L1StandardBridge_Pause_Test is CommonTest {
     ///      it's been changed.
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
 
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         assertTrue(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
     }
 }
 
@@ -92,8 +94,9 @@ contract L1StandardBridge_Pause_TestFail is CommonTest {
     ///      the calls to the xDomainMessageSender so that it returns the correct value.
     function setUp() public override {
         super.setUp();
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        vm.startPrank(systemConfig.guardian());
+        systemConfig.superchainConfig().pause(address(0));
+        vm.stopPrank();
         assertTrue(l1StandardBridge.paused());
 
         vm.deal(address(l1StandardBridge.messenger()), 1 ether);
@@ -729,5 +732,58 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is CommonTest {
         vm.prank(messenger);
         vm.expectRevert("StandardBridge: cannot send to messenger");
         l1StandardBridge.finalizeBridgeETH{ value: 100 }(alice, messenger, 100, hex"");
+    }
+}
+
+/// @title L1StandardBridge_upgrade_Test
+/// @notice Reusable test for the current upgrade() function in the L1StandardBridge contract. If
+///         the upgrade() function is changed, tests inside of this contract should be updated to
+///         reflect the new function. If the upgrade() function is removed, remove the
+///         corresponding tests but leave this contract in place so it's easy to add tests back
+///         in the future.
+contract L1StandardBridge_Upgrade_Test is CommonTest {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial systemConfig slot is non-zero.
+        StorageSlot memory systemConfigSlot = ForgeArtifacts.getSlot("L1StandardBridge", "systemConfig");
+        vm.store(address(l1StandardBridge), bytes32(systemConfigSlot.slot), bytes32(uint256(1)));
+        assertNotEq(address(l1StandardBridge.systemConfig()), address(0));
+        assertNotEq(vm.load(address(l1StandardBridge), bytes32(systemConfigSlot.slot)), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger upgrade().
+        l1StandardBridge.upgrade(newSystemConfig);
+
+        // Verify that the systemConfig was updated.
+        assertEq(address(l1StandardBridge.systemConfig()), address(newSystemConfig));
+
+        // Verify that the spacer was cleared.
+        StorageSlot memory spacerSlot = ForgeArtifacts.getSlot("L1StandardBridge", "spacer_50_0_20");
+        assertEq(vm.load(address(l1StandardBridge), bytes32(spacerSlot.slot)), bytes32(0));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger first upgrade.
+        l1StandardBridge.upgrade(newSystemConfig);
+
+        // Try to trigger second upgrade.
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1StandardBridge.upgrade(newSystemConfig);
     }
 }

@@ -21,11 +21,11 @@ import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal2
@@ -71,8 +71,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Spacer for backwards compatibility.
     bool private spacer_53_0_1;
 
-    /// @notice Address of the SuperchainConfig contract.
-    ISuperchainConfig public superchainConfig;
+    /// @custom:legacy
+    /// @custom:spacer superchainConfig
+    /// @notice Spacer for backwards compatibility.
+    address private spacer_53_1_20;
 
     /// @custom:legacy
     /// @custom:spacer l2Oracle
@@ -239,9 +241,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 4.1.0
+    /// @custom:semver 4.2.0
     function version() public pure virtual returns (string memory) {
-        return "4.1.0";
+        return "4.2.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -252,12 +254,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Initializer.
     /// @param _systemConfig Address of the SystemConfig.
-    /// @param _superchainConfig Address of the SuperchainConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Contract of the ETHLockbox.
     function initialize(
         ISystemConfig _systemConfig,
-        ISuperchainConfig _superchainConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox
     )
@@ -265,7 +265,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         reinitializer(initVersion())
     {
         systemConfig = _systemConfig;
-        superchainConfig = _superchainConfig;
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
 
@@ -278,26 +277,27 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         __ResourceMetering_init();
     }
 
-    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry.
+    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry and SystemConfig
     /// @param _anchorStateRegistry AnchorStateRegistry contract.
     /// @param _ethLockbox ETHLockbox contract.
+    /// @param _systemConfig SystemConfig contract.
     function upgrade(
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox
+        IETHLockbox _ethLockbox,
+        ISystemConfig _systemConfig
     )
         external
         reinitializer(initVersion())
     {
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
-
-        // Migrate the whole ETH balance to the ETHLockbox.
-        _migrateLiquidity();
+        systemConfig = _systemConfig;
+        spacer_53_1_20 = address(0);
     }
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return superchainConfig.paused();
+        return systemConfig.paused();
     }
 
     /// @notice Getter for the proof maturity delay.
@@ -313,7 +313,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
     function guardian() public view returns (address) {
-        return superchainConfig.guardian();
+        return systemConfig.guardian();
     }
 
     /// @custom:legacy
@@ -332,6 +332,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Getter for the timestamp at which the respected game type was updated.
     function respectedGameTypeUpdatedAt() external view returns (uint64) {
         return anchorStateRegistry.retirementTimestamp();
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 
     /// @notice Computes the minimum gas limit for a deposit.

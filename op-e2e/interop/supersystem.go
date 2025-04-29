@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -34,7 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/systemconfig"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -75,6 +75,7 @@ type SuperSystem interface {
 	Proposer(network string) *l2os.ProposerService
 	AddUser(username string)
 	SupervisorClient() *sources.SupervisorClient
+	DependencySet() *depset.StaticConfigDependencySet
 
 	// L2 client specific
 	L2GethEndpoint(id string, name string) endpoint.RPC
@@ -152,9 +153,7 @@ func (s *interopE2ESystem) AdvanceL1Time(duration time.Duration) {
 }
 
 func (s *interopE2ESystem) DisputeGameFactoryAddr() common.Address {
-	// Currently uses the dispute game factory for the first L2 chain.
-	// Ultimately this should be a factory shared by all chains in the dependency set
-	return s.worldDeployment.L2s[s.L2IDs()[0]].DisputeGameFactoryProxy
+	return s.worldDeployment.Interop.DisputeGameFactory
 }
 
 // prepareHDWallet creates a new HD wallet to derive keys from
@@ -174,6 +173,10 @@ func (s *interopE2ESystem) prepareWorld(w WorldResourcePaths) (*interopgen.World
 	// Build the world configuration from the recipe and the HD wallet
 	worldCfg, err := s.recipe.Build(s.hdWallet)
 	require.NoError(s.t, err)
+
+	for _, l2Cfg := range worldCfg.L2s {
+		require.NotNil(s.t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting isthmus fork to be enabled for interop deployments")
+	}
 
 	// create a logger for the world configuration
 	logger := s.logger.New("role", "world")
@@ -291,24 +294,13 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
-		L1RPC:       s.l1.UserRPC().RPC(),
-		Datadir:     path.Join(s.t.TempDir(), "supervisor"),
+		SyncSources:             &syncnode.CLISyncNodes{}, // no sync-sources
+		L1RPC:                   s.l1.UserRPC().RPC(),
+		Datadir:                 path.Join(s.t.TempDir(), "supervisor"),
+		RPCVerificationWarnings: true,
 	}
-	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
 
-	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
-	for _, l2Out := range s.worldOutput.L2s {
-		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-		index, err := chainID.ToUInt32()
-		require.NoError(s.t, err)
-		depSet[chainID] = &depset.StaticConfigDependency{
-			ChainIndex:     supervisortypes.ChainIndex(index),
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
-	}
-	stDepSet, err := depset.NewStaticConfigDependencySet(depSet)
+	stDepSet, err := worldToDepset(s.worldOutput)
 	require.NoError(s.t, err)
 	cfg.DependencySetSource = stDepSet
 
@@ -421,17 +413,11 @@ func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 // prepareContracts prepares contract-bindings for the L2s
 func (s *interopE2ESystem) prepareContracts() {
 	// Add bindings to common contracts for each L2
-	l1GethClient := s.L1GethClient()
-	for id, l2Dep := range s.worldDeployment.L2s {
+	for id := range s.worldDeployment.L2s {
 		{
 			contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, s.L2GethClient(id, "sequencer"))
 			require.NoError(s.t, err)
 			s.l2s[id].contracts["inbox"] = contract
-		}
-		{
-			contract, err := systemconfig.NewSystemconfig(l2Dep.SystemConfigProxy, l1GethClient)
-			require.NoError(s.t, err)
-			s.l2s[id].contracts["systemconfig"] = contract
 		}
 	}
 }
@@ -512,13 +498,14 @@ func (s *interopE2ESystem) ValidateMessage(
 ) (*types.Receipt, error) {
 	secret := s.UserKey(id, sender)
 	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 
 	require.NoError(s.t, err)
 
 	auth.GasLimit = uint64(3000_000)
-	auth.GasPrice = big.NewInt(20_000_000_000)
+	auth.GasFeeCap = big.NewInt(21_000_000_000)
+	auth.GasTipCap = big.NewInt(1_000_000_000)
 
-	contract := s.Contract(id, "inbox").(*inbox.Inbox)
 	identifier := inbox.Identifier{
 		Origin:      msgIdentifier.Origin,
 		BlockNumber: new(big.Int).SetUint64(msgIdentifier.BlockNumber),
@@ -526,6 +513,14 @@ func (s *interopE2ESystem) ValidateMessage(
 		Timestamp:   new(big.Int).SetUint64(msgIdentifier.Timestamp),
 		ChainId:     msgIdentifier.ChainID.ToBig(),
 	}
+	access := msgIdentifier.ChecksumArgs(msgHash).Access()
+	auth.AccessList = []types.AccessTuple{
+		{
+			Address:     predeploys.CrossL2InboxAddr,
+			StorageKeys: supervisortypes.EncodeAccessList([]supervisortypes.Access{access}),
+		},
+	}
+
 	tx, err := contract.InboxTransactor.ValidateMessage(auth, identifier, msgHash)
 	if expectedError != nil {
 		require.ErrorContains(s.t, err, expectedError.Error())
@@ -586,6 +581,12 @@ func (s *interopE2ESystem) Contract(id string, name string) interface{} {
 	return s.l2s[id].contracts[name]
 }
 
+func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
+	stDepSet, err := worldToDepset(s.worldOutput)
+	require.NoError(s.t, err)
+	return stDepSet
+}
+
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
 	return func(v string) *rpc.Client {
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
@@ -603,4 +604,26 @@ func writeDefaultJWT(t testing.TB) string {
 		t.Fatalf("failed to prepare jwt file for geth: %v", err)
 	}
 	return jwtPath
+}
+
+func worldToDepset(world *interopgen.WorldOutput) (*depset.StaticConfigDependencySet, error) {
+	var ids []eth.ChainID
+	for _, l2Out := range world.L2s {
+		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		ids = append(ids, chainID)
+	}
+	eth.SortChainID(ids)
+	depSet := make(map[eth.ChainID]*depset.StaticConfigDependency)
+
+	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
+	for _, l2Out := range world.L2s {
+		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		chainIndex := supervisortypes.ChainIndex(100 + slices.Index(ids, chainID))
+		depSet[chainID] = &depset.StaticConfigDependency{
+			ChainIndex:     chainIndex,
+			ActivationTime: 0,
+			HistoryMinTime: 0,
+		}
+	}
+	return depset.NewStaticConfigDependencySet(depSet)
 }

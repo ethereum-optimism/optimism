@@ -27,12 +27,7 @@ op-program-client:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client ./client/cmd/main.go
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-interop ./client/interopcmd/main.go
 
-op-program-client-mips: op-program-client-mips32 op-program-client-mips64 op-program-client-mips64-interop
-
-op-program-client-mips32:
-	env GO111MODULE=on GOOS=linux GOARCH=mips GOMIPS=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client.elf ./client/cmd/main.go
-	# verify output with: readelf -h bin/op-program-client.elf
-	# result is mips32, big endian, R3000
+op-program-client-mips: op-program-client-mips64 op-program-client-mips64-interop
 
 op-program-client-mips64:
 	env GO111MODULE=on GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client64.elf ./client/cmd/main.go
@@ -47,14 +42,21 @@ op-program-client-mips64-interop:
 op-program-client-riscv:
 	env GO111MODULE=on GOOS=linux GOARCH=riscv64 go build -v -gcflags="all=-d=softfloat" -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-riscv.elf ./client/cmd/main.go
 
-reproducible-prestate:
+check-custom-chains: op-program-host
+	./bin/op-program configs check-custom-chains
+
+reproducible-prestate: check-custom-chains
+	@docker build --output ./bin/ --progress plain -f Dockerfile.repro.next ../
 	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
-	@echo "Cannon Absolute prestate hash: "
-	@cat ./bin/prestate-proof.json | jq -r .pre
-	@echo "Cannon64 Absolute prestate hash: "
+	@echo "-------------------- Production Prestates --------------------\n"
+	@echo "\nCannon64 Absolute prestate hash: "
 	@cat ./bin/prestate-proof-mt64.json | jq -r .pre
+	@echo "\n-------------------- Experimental Prestates --------------------\n"
 	@echo "CannonInterop Absolute prestate hash: "
 	@cat ./bin/prestate-proof-interop.json | jq -r .pre
+	@echo "\nCannon64Next Absolute prestate hash: "
+	@cat ./bin/prestate-proof-mt64Next.json | jq -r .pre
+	@echo
 .PHONY: reproducible-prestate
 
 verify-reproducibility:
@@ -68,12 +70,6 @@ clean:
 
 test:
 	go test -v ./...
-
-verify-sepolia: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir /tmp/test-sepolia
-
-verify-devnet: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/devnet/cmd/devnet.go --l1 http://localhost:8545 --l1.beacon http://localhost:5052 --l2 http://localhost:9545 --datadir /tmp/test-devnet
 
 capture-mainnet-genesis: op-program-host op-program-client
 	rm -rf "$(COMPAT_DIR)/mainnet-genesis" "$(COMPAT_DIR)/mainnet-genesis.tar.bz"
@@ -111,23 +107,27 @@ verify-sepolia-fjord: op-program-host op-program-client
 
 verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesis
 
+analyze-op-program-client: analyze-op-program-client-cannon-multithreaded-64
+
+analyze-op-program-client-cannon-multithreaded-64:
+	./scripts/run-static-analysis.sh cannon-multithreaded-64 ./compatibility-test/baseline-cannon-multithreaded-64.json
+
 .PHONY: \
 	op-program \
 	op-program-host \
 	op-program-client \
 	op-program-client-mips \
-	op-program-client-mips32 \
 	op-program-client-mips64 \
 	op-program-client-riscv \
 	clean \
 	test \
 	capture-goerli-verify \
-	verify-sepolia \
-	verify-devnet \
 	capture-mainnet-genesis \
 	capture-sepolia-delta \
 	capture-sepolia-ecotone \
 	capture-chain-test-data \
 	run-goerli-verify \
 	run-sepolia-verify \
-	run-compat
+	run-compat \
+	analyze-op-program-client \
+	analyze-op-program-client-cannon-multithreaded-64

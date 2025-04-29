@@ -73,6 +73,26 @@
             "internalType": "address",
             "name": "permissionlessDisputeGame2",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame2",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame2",
+            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.Blueprints",
@@ -198,6 +218,16 @@
   {
     "inputs": [
       {
+        "internalType": "contract ISuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IProxyAdmin",
+        "name": "_superchainProxyAdmin",
+        "type": "address"
+      },
+      {
         "components": [
           {
             "internalType": "contract ISystemConfig",
@@ -284,6 +314,16 @@
   {
     "inputs": [],
     "name": "NotABlueprint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerUpgrader_SuperchainConfigMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManager_InvalidGameType",
     "type": "error"
   },
   {

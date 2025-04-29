@@ -71,10 +71,10 @@
   },
   {
     "bytes": "64",
-    "label": "startingOutputRoot",
+    "label": "startingProposal",
     "offset": 0,
     "slot": "7",
-    "type": "struct OutputRoot"
+    "type": "struct Proposal"
   },
   {
     "bytes": "1",

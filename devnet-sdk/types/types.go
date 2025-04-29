@@ -24,6 +24,7 @@ type WriteInvocation[T any] interface {
 type InvocationResult interface {
 	Error() error
 	Wait() error
+	Info() any
 }
 
 type Key = *ecdsa.PrivateKey

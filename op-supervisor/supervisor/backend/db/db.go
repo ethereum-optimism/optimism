@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var errRewindFailed = errors.New("rewind failed")
+
 type LogStorage interface {
 	io.Closer
 
@@ -36,8 +38,6 @@ type LogStorage interface {
 	// returns ErrFuture if the block is too new to be able to tell.
 	FindSealedBlock(number uint64) (block types.BlockSeal, err error)
 
-	IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error)
-
 	// Contains returns no error iff the specified logHash is recorded in the specified blockNum and logIdx.
 	// If the log is out of reach, then ErrFuture is returned.
 	// If the log is determined to conflict with the canonical chain, then ErrConflict is returned.
@@ -45,7 +45,9 @@ type LogStorage interface {
 	// This can be used to check the validity of cross-chain interop events.
 	// The block-seal of the blockNum block, that the log was included in, is returned.
 	// This seal may be fully zeroed, without error, if the block isn't fully known yet.
-	Contains(types.ContainsQuery) (includedIn types.BlockSeal, err error)
+	Contains(query types.ContainsQuery) (includedIn types.BlockSeal, err error)
+
+	IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error)
 
 	// OpenBlock accumulates the ExecutingMessage events for a block and returns them
 	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
@@ -57,28 +59,37 @@ type DerivationStorage interface {
 	Last() (pair types.DerivedBlockSealPair, err error)
 
 	// mapping from source<>derived
-	DerivedToFirstSource(derived eth.BlockID) (source types.BlockSeal, err error)
+	DerivedToFirstSource(derived eth.BlockID, revision types.Revision) (source types.BlockSeal, err error)
 	SourceToLastDerived(source eth.BlockID) (derived types.BlockSeal, err error)
 
 	// traversal
-	Next(pair types.DerivedIDPair) (next types.DerivedBlockSealPair, err error)
 	NextSource(source eth.BlockID) (nextSource types.BlockSeal, err error)
-	NextDerived(derived eth.BlockID) (next types.DerivedBlockSealPair, err error)
+
+	Candidate(afterSource eth.BlockID, afterDerived eth.BlockID, revision types.Revision) (pair types.DerivedBlockRefPair, err error)
+
 	PreviousSource(source eth.BlockID) (prevSource types.BlockSeal, err error)
-	PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal, err error)
+
+	// Warning: only safe to use on cross-DB
+	PreviousDerived(derived eth.BlockID, revision types.Revision) (prevDerived types.BlockSeal, err error)
 
 	// type-specific
 	Invalidated() (pair types.DerivedBlockSealPair, err error)
-	ContainsDerived(derived eth.BlockID) error
+	ContainsDerived(derived eth.BlockID, revision types.Revision) error
+
+	// DerivedToRevision is only safe to use on the cross-safe DB.
+	DerivedToRevision(derived eth.BlockID) (types.Revision, error)
+
+	LastRevision() (revision types.Revision, err error)
+	SourceToRevision(source eth.BlockID) (types.Revision, error)
 
 	// writing
-	AddDerived(source eth.BlockRef, derived eth.BlockRef) error
-	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (types.DerivedBlockSealPair, error)
+	AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error
+	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, err error)
 
-	// rewining
+	// rewinding
 	RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error
 	RewindToScope(scope eth.BlockID) error
-	RewindToFirstDerived(v eth.BlockID) error
+	RewindToFirstDerived(v eth.BlockID, revision types.Revision) error
 }
 
 var _ DerivationStorage = (*fromda.DB)(nil)
@@ -114,6 +125,8 @@ type ChainsDB struct {
 	// It is initially zeroed, and the L2 finality query will return
 	// an error until it has this L1 finality to work with.
 	finalizedL1 locks.RWValue[eth.L1BlockRef]
+
+	readRegistries locks.RWMap[eth.ChainID, *ReadRegistry]
 
 	// depSet is the dependency set, used to determine what may be tracked,
 	// what is missing, and to provide it to DB users.
@@ -208,7 +221,7 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 		}
 		db.logger.Info("Resuming, starting from last sealed block", "head", head)
 		if err := logStore.Rewind(head); err != nil {
-			result = fmt.Errorf("failed to rewind chain %s to sealed block %d", chain, head)
+			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", errRewindFailed, chain, head)
 			return false
 		}
 		return true
@@ -229,4 +242,14 @@ func (db *ChainsDB) Close() error {
 		return true
 	})
 	return combined
+}
+
+func (db *ChainsDB) AcquireReadHandle(chainID eth.ChainID, blockNum uint64) (*ReadHandle, error) {
+	registry, ok := db.readRegistries.Get(chainID)
+	if !ok {
+		registry = NewReadRegistry(db.logger)
+		db.readRegistries.Set(chainID, registry)
+	}
+
+	return registry.AcquireHandle(blockNum), nil
 }

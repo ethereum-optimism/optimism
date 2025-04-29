@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -28,6 +29,8 @@ type L1OriginSelector struct {
 	cfg  *rollup.Config
 	spec *rollup.ChainSpec
 
+	recoverMode atomic.Bool
+
 	l1 L1Blocks
 
 	// Internal cache of L1 origins for faster access.
@@ -45,6 +48,10 @@ func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config
 		spec: rollup.NewChainSpec(cfg),
 		l1:   l1,
 	}
+}
+
+func (los *L1OriginSelector) SetRecoverMode(enabled bool) {
+	los.recoverMode.Store(enabled)
 }
 
 func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
@@ -114,6 +121,23 @@ func (los *L1OriginSelector) CurrentAndNextOrigin(ctx context.Context, l2Head et
 	los.mu.Lock()
 	defer los.mu.Unlock()
 
+	if los.recoverMode.Load() {
+		currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
+		if err != nil {
+			return eth.L1BlockRef{}, eth.L1BlockRef{},
+				derive.NewTemporaryError(fmt.Errorf("failed to fetch current L1 origin: %w", err))
+		}
+		los.currentOrigin = currentOrigin
+		nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
+		if err != nil {
+			return eth.L1BlockRef{}, eth.L1BlockRef{},
+				derive.NewTemporaryError(fmt.Errorf("failed to fetch next L1 origin: %w", err))
+		}
+		los.nextOrigin = nextOrigin
+		los.log.Info("origin selector in recover mode", "current_origin", los.currentOrigin, "next_origin", los.nextOrigin, "l2_head", l2Head)
+		return los.currentOrigin, los.nextOrigin, nil
+	}
+
 	if l2Head.L1Origin == los.currentOrigin.ID() {
 		// Most likely outcome: the L2 head is still on the current origin.
 	} else if l2Head.L1Origin == los.nextOrigin.ID() {
@@ -156,7 +180,7 @@ func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
 
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, unsafeL2Head)
 	if err != nil {
-		log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
+		los.log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
 		return
 	}
 
@@ -178,9 +202,9 @@ func (los *L1OriginSelector) tryFetchNextOrigin(ctx context.Context, currentOrig
 
 	if _, err := los.fetch(ctx, currentOrigin.Number+1); err != nil {
 		if errors.Is(err, ethereum.NotFound) {
-			log.Debug("No next potential L1 origin found")
+			los.log.Debug("No next potential L1 origin found")
 		} else {
-			log.Error("Failed to get next origin", "err", err)
+			los.log.Error("Failed to get next origin", "err", err)
 		}
 	}
 }

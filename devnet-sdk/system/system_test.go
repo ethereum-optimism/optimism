@@ -1,7 +1,6 @@
 package system
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -23,11 +22,11 @@ func TestNewSystemFromEnv(t *testing.T) {
 		L1: &descriptors.Chain{
 			ID: "1",
 			Nodes: []descriptors.Node{{
-				Services: map[string]descriptors.Service{
+				Services: map[string]*descriptors.Service{
 					"el": {
 						Name: "geth",
 						Endpoints: descriptors.EndpointMap{
-							"rpc": descriptors.PortInfo{
+							"rpc": &descriptors.PortInfo{
 								Host: "localhost",
 								Port: 8545,
 							},
@@ -36,34 +35,53 @@ func TestNewSystemFromEnv(t *testing.T) {
 				},
 			}},
 			Wallets: descriptors.WalletMap{
-				"default": descriptors.Wallet{
+				"default": &descriptors.Wallet{
 					Address:    common.HexToAddress("0x123"),
 					PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+				},
+			},
+			Addresses: descriptors.AddressMap{
+				"defaultl1": common.HexToAddress("0x123"),
+			},
+		},
+		L2: []*descriptors.L2Chain{
+			{
+				Chain: &descriptors.Chain{
+					ID: "2",
+					Nodes: []descriptors.Node{{
+						Services: map[string]*descriptors.Service{
+							"el": {
+								Name: "geth",
+								Endpoints: descriptors.EndpointMap{
+									"rpc": &descriptors.PortInfo{
+										Host: "localhost",
+										Port: 8546,
+									},
+								},
+							},
+						},
+					}},
+					Wallets: descriptors.WalletMap{
+						"default": &descriptors.Wallet{
+							Address:    common.HexToAddress("0x123"),
+							PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+						},
+					},
+					Addresses: descriptors.AddressMap{
+						"defaultl2": common.HexToAddress("0x456"),
+					},
+				},
+				L1Addresses: descriptors.AddressMap{
+					"defaultl1": common.HexToAddress("0x123"),
+				},
+				L1Wallets: descriptors.WalletMap{
+					"default": &descriptors.Wallet{
+						Address:    common.HexToAddress("0x123"),
+						PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+					},
 				},
 			},
 		},
-		L2: []*descriptors.Chain{{
-			ID: "2",
-			Nodes: []descriptors.Node{{
-				Services: map[string]descriptors.Service{
-					"el": {
-						Name: "geth",
-						Endpoints: descriptors.EndpointMap{
-							"rpc": descriptors.PortInfo{
-								Host: "localhost",
-								Port: 8546,
-							},
-						},
-					},
-				},
-			}},
-			Wallets: descriptors.WalletMap{
-				"default": descriptors.Wallet{
-					Address:    common.HexToAddress("0x123"),
-					PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-				},
-			},
-		}},
 		Features: []string{},
 	}
 
@@ -78,11 +96,11 @@ func TestNewSystemFromEnv(t *testing.T) {
 
 func TestSystemFromDevnet(t *testing.T) {
 	testNode := descriptors.Node{
-		Services: map[string]descriptors.Service{
+		Services: map[string]*descriptors.Service{
 			"el": {
 				Name: "geth",
 				Endpoints: descriptors.EndpointMap{
-					"rpc": descriptors.PortInfo{
+					"rpc": &descriptors.PortInfo{
 						Host: "localhost",
 						Port: 8545,
 					},
@@ -91,55 +109,91 @@ func TestSystemFromDevnet(t *testing.T) {
 		},
 	}
 
-	testWallet := descriptors.Wallet{
+	testWallet := &descriptors.Wallet{
 		Address:    common.HexToAddress("0x123"),
 		PrivateKey: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 	}
 
 	tests := []struct {
 		name      string
-		devnet    descriptors.DevnetEnvironment
+		devnet    *descriptors.DevnetEnvironment
 		wantErr   bool
 		isInterop bool
 	}{
 		{
 			name: "basic system",
-			devnet: descriptors.DevnetEnvironment{
+			devnet: &descriptors.DevnetEnvironment{
 				L1: &descriptors.Chain{
 					ID:    "1",
 					Nodes: []descriptors.Node{testNode},
 					Wallets: descriptors.WalletMap{
 						"default": testWallet,
 					},
-				},
-				L2: []*descriptors.Chain{{
-					ID:    "2",
-					Nodes: []descriptors.Node{testNode},
-					Wallets: descriptors.WalletMap{
-						"default": testWallet,
+					Addresses: descriptors.AddressMap{
+						"defaultl1": common.HexToAddress("0x123"),
 					},
-				}},
+				},
+				L2: []*descriptors.L2Chain{
+					{
+						Chain: &descriptors.Chain{
+							ID:    "2",
+							Nodes: []descriptors.Node{testNode},
+							Wallets: descriptors.WalletMap{
+								"default": testWallet,
+							},
+						},
+						L1Addresses: descriptors.AddressMap{
+							"defaultl1": common.HexToAddress("0x123"),
+						},
+						L1Wallets: descriptors.WalletMap{
+							"default": testWallet,
+						},
+					},
+				},
 			},
 			wantErr:   false,
 			isInterop: false,
 		},
 		{
 			name: "interop system",
-			devnet: descriptors.DevnetEnvironment{
+			devnet: &descriptors.DevnetEnvironment{
 				L1: &descriptors.Chain{
 					ID:    "1",
 					Nodes: []descriptors.Node{testNode},
 					Wallets: descriptors.WalletMap{
 						"default": testWallet,
 					},
-				},
-				L2: []*descriptors.Chain{{
-					ID:    "2",
-					Nodes: []descriptors.Node{testNode},
-					Wallets: descriptors.WalletMap{
-						"default": testWallet,
+					Addresses: descriptors.AddressMap{
+						"defaultl1": common.HexToAddress("0x123"),
 					},
-				}},
+				},
+				L2: []*descriptors.L2Chain{
+					{
+						Chain: &descriptors.Chain{
+							ID:    "2",
+							Nodes: []descriptors.Node{testNode},
+							Wallets: descriptors.WalletMap{
+								"default": testWallet,
+							},
+							Services: descriptors.ServiceMap{
+								"supervisor": &descriptors.Service{
+									Name: "supervisor",
+									Endpoints: descriptors.EndpointMap{
+										"rpc": &descriptors.PortInfo{
+											Host: "localhost",
+											Port: 8545,
+										},
+									},
+								},
+							},
+						},
+						L1Addresses: descriptors.AddressMap{
+							"defaultl1": common.HexToAddress("0x123"),
+						},
+						L1Wallets: descriptors.WalletMap{
+							"default": testWallet,
+						},
+					}},
 				Features: []string{"interop"},
 			},
 			wantErr:   false,
@@ -149,7 +203,7 @@ func TestSystemFromDevnet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sys, err := systemFromDevnet(tt.devnet, "test")
+			sys, err := systemFromDevnet(tt.devnet)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -164,8 +218,7 @@ func TestSystemFromDevnet(t *testing.T) {
 }
 
 func TestWallet(t *testing.T) {
-	chain := newChain("1", "http://localhost:8545", nil, nil, map[string]types.Address{})
-
+	chain := newChain("1", WalletMap{}, nil, AddressMap{}, []Node{})
 	tests := []struct {
 		name        string
 		privateKey  string
@@ -195,7 +248,7 @@ func TestWallet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w, err := newWallet(tt.privateKey, tt.address, chain)
+			w, err := NewWallet(tt.privateKey, tt.address, chain)
 			assert.Nil(t, err)
 
 			assert.Equal(t, tt.wantAddr, w.Address())
@@ -204,17 +257,16 @@ func TestWallet(t *testing.T) {
 }
 
 func TestChainUser(t *testing.T) {
-	chain := newChain("1", "http://localhost:8545", nil, nil, map[string]types.Address{})
+	chain := newChain("1", WalletMap{}, nil, AddressMap{}, []Node{})
 
-	testWallet, err := newWallet("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", common.HexToAddress("0x123"), chain)
+	testWallet, err := NewWallet("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", common.HexToAddress("0x123"), chain)
 	assert.Nil(t, err)
 
-	chain.users = map[string]Wallet{
+	chain.wallets = WalletMap{
 		"l2Faucet": testWallet,
 	}
 
-	ctx := context.Background()
-	wallets, err := chain.Wallets(ctx)
+	wallets := chain.Wallets()
 	require.NoError(t, err)
 
 	for _, w := range wallets {

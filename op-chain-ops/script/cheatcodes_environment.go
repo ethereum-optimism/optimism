@@ -14,27 +14,27 @@ import (
 
 // Warp implements https://book.getfoundry.sh/cheatcodes/warp
 func (c *CheatCodesPrecompile) Warp(timestamp *big.Int) {
-	c.h.env.Context.Time = timestamp.Uint64()
+	c.h.env.Context().Time = timestamp.Uint64()
 }
 
 // Roll implements https://book.getfoundry.sh/cheatcodes/roll
 func (c *CheatCodesPrecompile) Roll(num *big.Int) {
-	c.h.env.Context.BlockNumber = num
+	c.h.env.Context().BlockNumber = num
 }
 
 // Fee implements https://book.getfoundry.sh/cheatcodes/fee
 func (c *CheatCodesPrecompile) Fee(fee *big.Int) {
-	c.h.env.Context.BaseFee = fee
+	c.h.env.Context().BaseFee = fee
 }
 
 // GetBlockTimestamp implements https://book.getfoundry.sh/cheatcodes/get-block-timestamp
 func (c *CheatCodesPrecompile) GetBlockTimestamp() *big.Int {
-	return new(big.Int).SetUint64(c.h.env.Context.Time)
+	return new(big.Int).SetUint64(c.h.env.Context().Time)
 }
 
 // GetBlockNumber implements https://book.getfoundry.sh/cheatcodes/get-block-number
 func (c *CheatCodesPrecompile) GetBlockNumber() *big.Int {
-	return c.h.env.Context.BlockNumber
+	return c.h.env.Context().BlockNumber
 }
 
 // Difficulty implements https://book.getfoundry.sh/cheatcodes/difficulty
@@ -44,7 +44,7 @@ func (c *CheatCodesPrecompile) Difficulty(_ *big.Int) error {
 
 // Prevrandao implements https://book.getfoundry.sh/cheatcodes/prevrandao
 func (c *CheatCodesPrecompile) Prevrandao(v [32]byte) {
-	c.h.env.Context.Random = (*common.Hash)(&v)
+	c.h.env.Context().Random = (*common.Hash)(&v)
 }
 
 // ChainId implements https://book.getfoundry.sh/cheatcodes/chain-id
@@ -105,7 +105,7 @@ func (c *CheatCodesPrecompile) StopPrank() error {
 
 // ReadCallers implements https://book.getfoundry.sh/cheatcodes/read-callers
 func (c *CheatCodesPrecompile) ReadCallers() (callerMode *big.Int, msgSender common.Address, txOrigin common.Address) {
-	return c.h.CallerMode().Big(), c.h.MsgSender(), c.h.env.TxContext.Origin
+	return c.h.CallerMode().Big(), c.h.MsgSender(), c.h.env.TxContext().Origin
 }
 
 // Record implements https://book.getfoundry.sh/cheatcodes/record
@@ -182,7 +182,7 @@ func (c *CheatCodesPrecompile) ClearMockedCalls() error {
 
 // Coinbase implements https://book.getfoundry.sh/cheatcodes/coinbase
 func (c *CheatCodesPrecompile) Coinbase(addr common.Address) {
-	c.h.env.Context.Coinbase = addr
+	c.h.env.Context().Coinbase = addr
 }
 
 // Broadcast_afc98040 implements https://book.getfoundry.sh/cheatcodes/broadcast
@@ -222,7 +222,7 @@ func (c *CheatCodesPrecompile) ResumeGasMetering() error {
 
 // TxGasPrice implements https://book.getfoundry.sh/cheatcodes/tx-gas-price
 func (c *CheatCodesPrecompile) TxGasPrice(newGasPrice *big.Int) {
-	c.h.env.TxContext.GasPrice = newGasPrice
+	c.h.env.TxContext().GasPrice = newGasPrice
 }
 
 // StartStateDiffRecording implements https://book.getfoundry.sh/cheatcodes/start-state-diff-recording

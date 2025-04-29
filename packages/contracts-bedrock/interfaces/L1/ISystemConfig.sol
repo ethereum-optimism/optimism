@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface ISystemConfig {
     enum UpdateType {
@@ -55,7 +56,8 @@ interface ISystemConfig {
         IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
         Addresses memory _addresses,
-        uint256 _l2ChainId
+        uint256 _l2ChainId,
+        ISuperchainConfig _superchainConfig
     )
         external;
     function initVersion() external view returns (uint8);
@@ -84,8 +86,11 @@ interface ISystemConfig {
     function startBlock() external view returns (uint256 startBlock_);
     function transferOwnership(address newOwner) external; // nosemgrep
     function unsafeBlockSigner() external view returns (address addr_);
-    function upgrade(uint256 _l2ChainId) external;
+    function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external;
     function version() external pure returns (string memory);
+    function paused() external view returns (bool);
+    function superchainConfig() external view returns (ISuperchainConfig);
+    function guardian() external view returns (address);
 
     function __constructor__() external;
 }

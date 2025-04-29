@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/safego"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -130,7 +131,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	var interopSys interop.SubSystem
 	if cfg.InteropTime != nil {
-		interopSys = managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng)
+		interopSys = managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
 		sys.Register("interop", interopSys, opts)
 		require.NoError(t, interopSys.Start(context.Background()))
 		t.Cleanup(func() {
@@ -209,21 +210,24 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	t.Cleanup(rollupNode.rpc.Stop)
 
 	// setup RPC server for rollup node, hooked to the actor as backend
-	m := &testutils.TestRPCMetrics{}
 	backend := &l2VerifierBackend{verifier: rollupNode}
 	apis := []rpc.API{
 		{
 			Namespace:     "optimism",
-			Service:       node.NewNodeAPI(cfg, eng, backend, safeHeadListener, log, m),
+			Service:       node.NewNodeAPI(cfg, eng, backend, safeHeadListener, log),
 			Public:        true,
 			Authenticated: false,
 		},
 		{
 			Namespace:     "admin",
 			Version:       "",
-			Service:       node.NewAdminAPI(backend, m, log),
+			Service:       node.NewAdminAPI(backend, log),
 			Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
 			Authenticated: false,
+		},
+		{
+			Namespace: "opstack",
+			Service:   node.NewOpstackAPI(ec, &testutils.FakePublishAPI{Log: log}),
 		},
 	}
 	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")
@@ -234,11 +238,14 @@ func (v *L2Verifier) InteropSyncNode(t Testing) syncnode.SyncNode {
 	require.NotNil(t, v.interopSys, "interop sub-system must be running")
 	m, ok := v.interopSys.(*managed.ManagedMode)
 	require.True(t, ok, "Interop sub-system must be in managed-mode if used as sync-node")
-	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret())))
+	auth := rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret()))
+	opts := []client.RPCOption{client.WithGethRPCOptions(auth)}
+	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), auth)
 	require.NoError(t, err)
 	t.Cleanup(cl.Close)
 	bCl := client.NewBaseRPCClient(cl)
-	return syncnode.NewRPCSyncNode("action-tests-l2-verifier", bCl)
+	dialSetup := &syncnode.RPCDialSetup{JWTSecret: m.JWTSecret(), Endpoint: m.WSEndpoint()}
+	return syncnode.NewRPCSyncNode("action-tests-l2-verifier", bCl, opts, v.log, dialSetup)
 }
 
 type l2VerifierBackend struct {
@@ -281,6 +288,10 @@ func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth
 
 func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) {
 	return false, nil
+}
+
+func (s *l2VerifierBackend) SetRecoverMode(ctx context.Context, mode bool) error {
+	return errors.New("recover mode unsupported")
 }
 
 func (s *L2Verifier) DerivationMetricsTracer() *testutils.TestDerivationMetrics {

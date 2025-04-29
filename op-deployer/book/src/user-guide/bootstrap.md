@@ -1,34 +1,70 @@
 # The Bootstrap Commands
 
-Bootstrap commands are used to deploy global singletons and implementation contracts for use with future invocations 
-of `apply`. Most users won't need to use these commands, since `op-deployer apply` will automatically use 
-predeployed contracts if they are available. However, you may need to use bootstrap commands if you're deploying 
-chains to an L1 that isn't natively supported by `op-deployer`.
+> Note: if you are joining an existing superchain, you can skip to the `init` and `apply` commands to create your L2 chain(s)
 
-There are several bootstrap commands available, which you can view by running `op-deployer bootstrap --help`. We'll 
-focus on the most important ones below.
+Bootstrap commands are used to deploy global singletons and implementation contracts for new superchains.
+The deployed contract be then be use with future invocations of `apply` so that new L2 chains can join that superchain.
+Most users won't need to use these commands, since `op-deployer apply` will automatically use predeployed contracts if they are available. However, you may need to use bootstrap commands if you're deploying chains to an L1 that isn't natively supported by `op-deployer`.
 
-## Implementations
+There are several bootstrap commands available, which you can view by running `op-deployer bootstrap --help`. We'll
+focus on the most important ones, which should be run in the sequence listed below.
 
-You can bootstrap implementations by running a command like this:
+**It is safe to call these commands from a hot wallet.** None of the contracts deployed by these command are "ownable,"
+so the deployment address has no further control over the system.
+
+# 1. bootstrap superchain
+
+```shell
+op-deployer bootstrap superchain \
+  --l1-rpc-url="<rpc url>" \
+  --private-key="<contract deployer private key>" \
+  --artifacts-locator="<locator>" \
+  --outfile="./.deployer/bootstrap_superchain.json" \
+  --superchain-proxy-admin-owner="<role address>" \
+  --protocol-versions-owner="<role address>" \
+  --guardian="<role address>"
+```
+
+### --required-protocol-version, --recommended-protocol-version (optional)
+Defaults to `OPStackSupport` value read from `op-geth`, but can be overridden by these flags.
+
+### --superchain-proxy-admin-owner, --protocol-versions-owner, --guardian
+In a dev environment, these can all be hot wallet EOAs. In a production environment, `--guardian` should be an HSM (hardward security module) protected hot wallet and the other two should be multisig cold-wallets (e.g. Gnosis Safes).
+
+### Output
+
+This command will deploy several contracts, and output a JSON like the one below:
+
+```json
+{
+  "proxyAdminAddress": "0x269b95a33f48a9055b82ce739b0c105a83edd64a",
+  "superchainConfigImplAddress": "0x2f4c87818d67fc3c365ea10051b94f98893f3c64",
+  "superchainConfigProxyAddress": "0xd0c74806fa114c0ec176c0bf2e1e84ff0a8f91a1",
+  "protocolVersionsImplAddress": "0xbded9e39e497a34a522af74cf018ca9717c5897e",
+  "protocolVersionsProxyAddress": "0x2e8e4b790044c1e7519caac687caffd4cafca2d4"
+}
+```
+
+# 2. bootstrap implementations
 
 ```shell
 op-deployer bootstrap implementations \
-  --artifacts-locator <locator> \ 
-  --l1-contracts-release op-contracts/<your-release> \
-  --l1-rpc-url <rpc url> \
-  --mips-version <1 or 2, for MIPS32 or MIPS64> \
-  --private-key <some private key> \ 
-  --protocol-versions-proxy <protocol versions proxy address> \
-  --superchain-config-proxy <superchain config proxy address> \
-  --upgrade-controller <upgrade controller address>
+  --artifacts-locator="<locator>" \
+  --l1-rpc-url="<rpc url>" \
+  --outfile="./.deployer/bootstrap_implementations.json" \
+  --mips-version="<1 or 2, for MIPS32 or MIPS64>" \
+  --private-key="<contract deployer private key>" \
+  --protocol-versions-proxy="<address output from bootstrap superchain>" \
+  --superchain-config-proxy="<address output from bootstrap superchain>" \
+  --upgrade-controller="<superchain-proxy-admin-owner used in bootstrap superchain>"
 ```
 
-This command will deploy implementations, blueprints, and the OPCM. Deployments are (for the most part) 
-deterministic, so contracts will only be deployed once per chain as long as the implementation and constructor args 
-remain the same. This applies to the `op-deployer apply` pipeline - that is, if someone else ran `op-deployer 
-boostrap implementations` at some point on a given L1 chain, then the `apply` pipeline will re-use those 
-implementations.
+### Output
+
+This command will deploy implementations, blueprints, and the OPCM. Deployments are (for the most part)
+deterministic, so contracts will only be deployed once per chain as long as the implementation and constructor args
+remain the same. This applies to the `op-deployer apply` pipeline - that is, if someone else ran `op-deployer boostrap implementations`
+at some point on a given L1 chain, then the `apply` pipeline will re-use those implementations.
 
 The command will output a JSON like the one below:
 
@@ -50,6 +86,3 @@ The command will output a JSON like the one below:
   "ProtocolVersionsImpl": "0x37e15e4d6dffa9e5e320ee1ec036922e563cb76c"
 }
 ```
-
-**It is safe to call this command from a hot wallet.** None of the contracts deployed by this command are "ownable," 
-so the deployment address has no further control over the system.

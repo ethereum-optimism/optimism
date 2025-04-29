@@ -3,6 +3,7 @@ package depset
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -11,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+var errDuplicateChainIndex = errors.New("duplicate chain index")
 
 type StaticConfigDependency struct {
 	// ChainIndex is the unique short identifier of this chain.
@@ -89,7 +92,7 @@ func (ds *StaticConfigDependencySet) hydrate() error {
 	ds.chainIDs = make([]eth.ChainID, 0, len(ds.dependencies))
 	for id, dep := range ds.dependencies {
 		if existing, ok := ds.indexToID[dep.ChainIndex]; ok {
-			return fmt.Errorf("chain %s cannot have the same index (%d) as chain %s", id, dep.ChainIndex, existing)
+			return fmt.Errorf("%w: chain %s cannot have the same index (%d) as chain %s", errDuplicateChainIndex, id, dep.ChainIndex, existing)
 		}
 		ds.indexToID[dep.ChainIndex] = id
 		ds.chainIDs = append(ds.chainIDs, id)

@@ -499,11 +499,11 @@
   },
   {
     "inputs": [],
-    "name": "l2BlockNumber",
+    "name": "l2SequenceNumber",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "l2BlockNumber_",
+        "name": "l2SequenceNumber_",
         "type": "uint256"
       }
     ],
@@ -740,20 +740,7 @@
   },
   {
     "inputs": [],
-    "name": "startingBlockNumber",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "startingBlockNumber_",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "startingOutputRoot",
+    "name": "startingProposal",
     "outputs": [
       {
         "internalType": "Hash",
@@ -762,7 +749,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "l2BlockNumber",
+        "name": "l2SequenceNumber",
         "type": "uint256"
       }
     ],
@@ -777,6 +764,19 @@
         "internalType": "Hash",
         "name": "startingRootHash_",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "startingSequenceNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "startingSequenceNumber_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",

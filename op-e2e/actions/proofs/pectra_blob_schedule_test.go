@@ -20,14 +20,14 @@ type pectraBlobScheduleTestCfg struct {
 	expectCancunBBF bool
 }
 
-func TestPectraBlobSchedule(gt *testing.T) {
+func Test_ProgramAction_PectraBlobSchedule(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
 	matrix.AddDefaultTestCases(
 		// aligned with an L1 timestamp
 		pectraBlobScheduleTestCfg{ptr(uint64(24)), true},
-		helpers.NewForkMatrix(helpers.Holocene),
+		helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus),
 		testPectraBlobSchedule,
 	).AddDefaultTestCases(
 		// in the middle between two L1 timestamps
@@ -36,7 +36,7 @@ func TestPectraBlobSchedule(gt *testing.T) {
 		testPectraBlobSchedule,
 	).AddDefaultTestCases(
 		pectraBlobScheduleTestCfg{nil, false},
-		helpers.NewForkMatrix(helpers.Holocene),
+		helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus),
 		testPectraBlobSchedule,
 	)
 }
@@ -128,7 +128,7 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
 
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func ptr[T any](v T) *T {

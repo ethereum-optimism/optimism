@@ -21,17 +21,10 @@
     "type": "address"
   },
   {
-    "bytes": "20",
-    "label": "deputyGuardianModule",
-    "offset": 0,
-    "slot": "3",
-    "type": "contract IDeputyGuardianModule"
-  },
-  {
     "bytes": "32",
     "label": "usedNonces",
     "offset": 0,
-    "slot": "4",
+    "slot": "3",
     "type": "mapping(bytes32 => bool)"
   }
 ]

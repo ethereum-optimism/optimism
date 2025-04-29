@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
 
@@ -345,4 +350,125 @@ func setupMockRPC(config forkConfig) *MockRPCClient {
 		}).Return(nil)
 
 	return mockRPC
+}
+
+func TestCallPanicBehavior(t *testing.T) {
+	getHostEVM := func() (*Host, *mockEVM) {
+		evm := new(mockEVM)
+		host := &Host{
+			env:      evm,
+			chainCfg: new(params.ChainConfig),
+		}
+		evm.On("Context").Return(new(vm.BlockContext))
+		evm.On("StateDB").Return(new(state.StateDB))
+		return host, evm
+	}
+
+	t.Run("panic with revision id 1 error", func(t *testing.T) {
+		host, evm := getHostEVM()
+		evm.On(
+			"Call",
+			common.Address{'I'},
+			common.Address{'O'},
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Panic("revision id 1 cannot be reverted")
+
+		ret, gas, err := host.Call(common.Address{'I'}, common.Address{'O'}, []byte{}, 0, nil)
+		require.Nil(t, ret)
+		require.Equal(t, uint64(0), gas)
+		require.ErrorContains(t, err, "execution reverted")
+		evm.AssertExpectations(t)
+	})
+
+	t.Run("panic with some other message", func(t *testing.T) {
+		host, evm := getHostEVM()
+		evm.On(
+			"Call",
+			common.Address{'I'},
+			common.Address{'O'},
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Panic("honk")
+
+		require.PanicsWithValue(t, "honk", func() {
+			_, _, _ = host.Call(common.Address{'I'}, common.Address{'O'}, []byte{}, 0, nil)
+		})
+		evm.AssertExpectations(t)
+	})
+
+	t.Run("preserves evmRevertErrors", func(t *testing.T) {
+		host, evm := getHostEVM()
+		evm.On(
+			"Call",
+			common.Address{'I'},
+			common.Address{'O'},
+			mock.Anything,
+			mock.Anything,
+			mock.Anything,
+		).Panic("revision id 1 cannot be reverted")
+		errMsg := "max code size exceeded"
+		host.evmRevertErr = errors.New(errMsg)
+
+		ret, gas, err := host.Call(common.Address{'I'}, common.Address{'O'}, []byte{}, 0, nil)
+		require.Nil(t, ret)
+		require.Equal(t, uint64(0), gas)
+		require.ErrorContains(t, err, errMsg)
+		evm.AssertExpectations(t)
+	})
+}
+
+func TestScriptErrorHandling(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	af := foundry.OpenArtifactsDir("./testdata/test-artifacts")
+
+	scriptContext := DefaultContext
+	h := NewHost(logger, af, nil, scriptContext)
+	require.NoError(t, h.EnableCheats())
+
+	addr, err := h.LoadContract("ScriptExample.s.sol", "ErrorTester")
+	require.NoError(t, err)
+	h.AllowCheatcodes(addr)
+
+	tests := []struct {
+		name     string
+		method   string
+		expError string
+	}{
+		{
+			"custom error",
+			"customErr()",
+			"0xa1c9aedc",
+		},
+		{
+			"revert message",
+			"revertMsg()",
+			"beep",
+		},
+		{
+			"non existent method",
+			"nonExistentMethod()",
+			": execution reverted",
+		},
+		{
+			"nested call",
+			"nested()",
+			"honk",
+		},
+		{
+			"try/catch",
+			"tryCatch()",
+			"caught",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := bytes4(tt.method)
+			_, _, err := h.Call(scriptContext.Sender, addr, input[:], DefaultFoundryGasLimit, uint256.NewInt(0))
+			require.ErrorContains(t, err, tt.expError)
+			require.Nil(t, h.evmRevertErr)
+		})
+	}
 }

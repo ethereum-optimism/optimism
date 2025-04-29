@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -205,7 +204,6 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data), "the length is same in interop")
-		require.Equal(t, L1InfoFuncInteropBytes4, depTx.Data[:4], "upgrade is active, need interop signature")
 	})
 	t.Run("activation-block interop", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -232,41 +230,5 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoIsthmusLen, len(depTx.Data))
-	})
-}
-
-func TestDepositsCompleteBytes(t *testing.T) {
-	randomSeqNr := func(rng *rand.Rand) uint64 {
-		return rng.Uint64()
-	}
-	t.Run("valid return bytes", func(t *testing.T) {
-		rng := rand.New(rand.NewSource(1234))
-		info := testutils.MakeBlockInfo(nil)(rng)
-		depTxByes, err := DepositsCompleteBytes(randomSeqNr(rng), info)
-		require.NoError(t, err)
-		var depTx types.Transaction
-		require.NoError(t, depTx.UnmarshalBinary(depTxByes))
-		require.Equal(t, uint8(types.DepositTxType), depTx.Type())
-		require.Equal(t, depTx.Data(), DepositsCompleteBytes4)
-		require.Equal(t, DepositsCompleteLen, len(depTx.Data()))
-		require.Equal(t, DepositsCompleteGas, depTx.Gas())
-		require.False(t, depTx.IsSystemTx())
-		require.Equal(t, depTx.Value(), big.NewInt(0))
-		signer := types.LatestSignerForChainID(depTx.ChainId())
-		sender, err := signer.Sender(&depTx)
-		require.NoError(t, err)
-		require.Equal(t, L1InfoDepositerAddress, sender)
-	})
-	t.Run("valid return Transaction", func(t *testing.T) {
-		rng := rand.New(rand.NewSource(1234))
-		info := testutils.MakeBlockInfo(nil)(rng)
-		depTx, err := DepositsCompleteDeposit(randomSeqNr(rng), info)
-		require.NoError(t, err)
-		require.Equal(t, depTx.Data, DepositsCompleteBytes4)
-		require.Equal(t, DepositsCompleteLen, len(depTx.Data))
-		require.Equal(t, DepositsCompleteGas, depTx.Gas)
-		require.False(t, depTx.IsSystemTransaction)
-		require.Equal(t, depTx.Value, big.NewInt(0))
-		require.Equal(t, L1InfoDepositerAddress, depTx.From)
 	})
 }

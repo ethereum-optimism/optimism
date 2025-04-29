@@ -47,7 +47,13 @@ func TestRegisterOracle_AddsOracle(t *testing.T) {
 			vmAddr := common.Address{0xcc}
 			oracleAddr := common.Address{0xdd}
 			rpc := test.NewAbiBasedRpc(t, gameFactoryAddr, snapshots.LoadDisputeGameFactoryABI())
-			rpc.AddContract(gameImplAddr, snapshots.LoadFaultDisputeGameABI())
+			if gameType == faultTypes.CannonGameType {
+				rpc.AddContract(gameImplAddr, snapshots.LoadFaultDisputeGameABI())
+			} else if gameType == faultTypes.SuperCannonGameType {
+				rpc.AddContract(gameImplAddr, snapshots.LoadSuperFaultDisputeGameABI())
+			} else {
+				t.Fatalf("game type %v not supported", gameType)
+			}
 			rpc.AddContract(vmAddr, snapshots.LoadMIPSABI())
 			rpc.AddContract(oracleAddr, snapshots.LoadPreimageOracleABI())
 			m := metrics.NoopMetrics

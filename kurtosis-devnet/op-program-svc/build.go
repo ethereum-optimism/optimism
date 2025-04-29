@@ -147,6 +147,7 @@ func (b *Builder) ExecuteBuild() ([]byte, error) {
 	return output.Bytes(), nil
 }
 
+// This is a convenience hack to natively support the file format of op-deployer
 func (b *Builder) normalizeFilename(filename string) string {
 	// Get just the filename without directories
 	filename = filepath.Base(filename)
@@ -156,8 +157,15 @@ func (b *Builder) normalizeFilename(filename string) string {
 		if numStr := strings.TrimSuffix(parts[1], ".json"); numStr != parts[1] {
 			// Check if the number part is actually numeric
 			if _, err := strconv.Atoi(numStr); err == nil {
-				// It matches the pattern and has a valid number, reorder to NUMBER-PREFIX.json
-				return numStr + "-" + parts[0] + ".json"
+				// Handle specific cases
+				switch parts[0] {
+				case "genesis":
+					return fmt.Sprintf("%s-genesis-l2.json", numStr)
+				case "rollup":
+					return fmt.Sprintf("%s-rollup.json", numStr)
+
+				}
+				// For all other cases, leave the filename unchanged
 			}
 		}
 	}

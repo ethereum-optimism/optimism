@@ -70,11 +70,13 @@ func (c *ImplementationsConfig) Check() error {
 	if c.ArtifactsLocator == nil {
 		return errors.New("artifacts locator must be specified")
 	}
-	if c.L1ContractsRelease == "" {
-		return errors.New("L1 contracts release must be specified")
+	if c.ArtifactsLocator.IsTag() {
+		c.L1ContractsRelease = c.ArtifactsLocator.Tag
+	} else {
+		c.L1ContractsRelease = "dev"
 	}
-	if c.MIPSVersion != 1 && c.MIPSVersion != 2 {
-		return errors.New("MIPS version must be specified as either 1 or 2")
+	if c.MIPSVersion != 1 && c.MIPSVersion != 6 {
+		return errors.New("MIPS version must be specified as either 1 or 6")
 	}
 	if c.WithdrawalDelaySeconds == 0 {
 		return errors.New("withdrawal delay in seconds must be specified")

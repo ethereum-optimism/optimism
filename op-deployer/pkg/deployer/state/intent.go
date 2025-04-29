@@ -7,15 +7,14 @@ import (
 	"net/url"
 	"reflect"
 
-	"github.com/ethereum-optimism/superchain-registry/validation"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/superchain-registry/validation"
 )
 
 type IntentType string
@@ -38,9 +37,32 @@ type SuperchainProofParams struct {
 	MIPSVersion                     uint64 `json:"mipsVersion" toml:"mipsVersion"`
 }
 
+type L1DevGenesisBlockParams struct {
+	// Warning: the genesis timestamp will default to time.Now().
+	Timestamp uint64 `json:"timestamp"`
+	// Gas limit, uses default if 0
+	GasLimit uint64 `json:"gasLimit"`
+	// Optional. Dencun is always active in L1 dev genesis, so 0 is used as-is if not modified.
+	// This may be used to start the chain with high blob fees.
+	ExcessBlobGas uint64 `json:"excessBlobGas"`
+}
+
+type L1DevGenesisParams struct {
+	// BlockParams is the set of genesis-block parameters to use.
+	BlockParams L1DevGenesisBlockParams `json:"blockParams" toml:"blockParams"`
+
+	// PragueTimeOffset configures Prague (aka Pectra) to be activated at the given time after L1 dev genesis time.
+	PragueTimeOffset *uint64 `json:"pragueTimeOffset" toml:"pragueTimeOffset"`
+
+	// Prefund is a map of addresses to balances (in wei), to prefund in the L1 dev genesis state.
+	// This is independent of the "Prefund" functionality that may fund a default 20 test accounts.
+	Prefund map[common.Address]*hexutil.U256 `json:"prefund" toml:"prefund"`
+}
+
 type Intent struct {
 	ConfigType            IntentType         `json:"configType" toml:"configType"`
 	L1ChainID             uint64             `json:"l1ChainID" toml:"l1ChainID"`
+	SuperchainConfigProxy *common.Address    `json:"superchainConfigProxy" toml:"superchainConfigProxy"`
 	SuperchainRoles       *SuperchainRoles   `json:"superchainRoles" toml:"superchainRoles,omitempty"`
 	FundDevAccounts       bool               `json:"fundDevAccounts" toml:"fundDevAccounts"`
 	UseInterop            bool               `json:"useInterop" toml:"useInterop"`
@@ -48,6 +70,10 @@ type Intent struct {
 	L2ContractsLocator    *artifacts.Locator `json:"l2ContractsLocator" toml:"l2ContractsLocator"`
 	Chains                []*ChainIntent     `json:"chains" toml:"chains"`
 	GlobalDeployOverrides map[string]any     `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
+
+	// L1DevGenesisParams is optional. This may be used to customize the L1 genesis when
+	// the deployer output is directed to produce a L1 genesis state for development.
+	L1DevGenesisParams *L1DevGenesisParams `json:"l1DevGenesisParams"`
 }
 
 type SuperchainRoles struct {
@@ -119,6 +145,10 @@ func (c *Intent) validateStandardValues() error {
 	}
 	if err := c.checkL2Prod(); err != nil {
 		return err
+	}
+
+	if c.SuperchainConfigProxy != nil {
+		return ErrNonStandardValue
 	}
 
 	standardSuperchainRoles, err := GetStandardSuperchainRoles(c.L1ChainID)
@@ -243,20 +273,25 @@ func (c *Intent) checkL2Prod() error {
 	return err
 }
 
-func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
+func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash) (intent Intent, err error) {
 	switch configType {
 	case IntentTypeCustom:
-		return NewIntentCustom(l1ChainId, l2ChainIds)
+		intent, err = NewIntentCustom(l1ChainId, l2ChainIds)
 
 	case IntentTypeStandard:
-		return NewIntentStandard(l1ChainId, l2ChainIds)
+		intent, err = NewIntentStandard(l1ChainId, l2ChainIds)
 
 	case IntentTypeStandardOverrides:
-		return NewIntentStandardOverrides(l1ChainId, l2ChainIds)
+		intent, err = NewIntentStandardOverrides(l1ChainId, l2ChainIds)
 
 	default:
 		return Intent{}, fmt.Errorf("intent type not supported: %s (valid types: %s, %s, %s)", configType, IntentTypeStandard, IntentTypeCustom, IntentTypeStandardOverrides)
 	}
+	if err != nil {
+		return
+	}
+	intent.ConfigType = configType
+	return
 }
 
 // Sets all Intent fields to their zero value with the expectation that the

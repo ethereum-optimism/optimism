@@ -152,7 +152,8 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 			if err != nil {
 				return fmt.Errorf("failed to dial supervisor RPC client (%v): %w", url, err)
 			}
-			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc))
+			cl := sources.NewSupervisorClient(client.NewBaseRPCClient(supervisorRpc,
+				client.WithRPCRecorder(ps.Metrics.NewRecorder("supervisor"))))
 			clients = append(clients, cl)
 		}
 		ps.ProposalSource = source.NewSupervisorProposalSource(ps.Log, clients...)
@@ -264,9 +265,10 @@ func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 		cfg.RPCConfig.ListenPort,
 		ps.Version,
 		oprpc.WithLogger(ps.Log),
+		oprpc.WithRPCRecorder(ps.Metrics.NewRecorder("main")),
 	)
 	if cfg.RPCConfig.EnableAdmin {
-		adminAPI := rpc.NewAdminAPI(ps.driver, ps.Metrics, ps.Log)
+		adminAPI := rpc.NewAdminAPI(ps.driver, ps.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		server.AddAPI(ps.TxManager.API())
 		ps.Log.Info("Admin RPC enabled")
@@ -313,7 +315,6 @@ func (ps *ProposerService) Stop(ctx context.Context) error {
 	}
 
 	if ps.rpcServer != nil {
-		// TODO(7685): the op-service RPC server is not built on top of op-service httputil Server, and has poor shutdown
 		if err := ps.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}
@@ -361,4 +362,11 @@ var _ cliapp.Lifecycle = (*ProposerService)(nil)
 // to start/stop/restart the L2Output-submission work, for use in testing.
 func (ps *ProposerService) Driver() rpc.ProposerDriver {
 	return ps.driver
+}
+
+func (ps *ProposerService) HTTPEndpoint() string {
+	if ps.rpcServer == nil {
+		return ""
+	}
+	return "http://" + ps.rpcServer.Endpoint()
 }

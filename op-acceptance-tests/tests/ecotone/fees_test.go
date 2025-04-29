@@ -29,15 +29,13 @@ func TestFees(t *testing.T) {
 	chainIdx := uint64(0)
 
 	// Get validators and getters for accessing the system and wallets
-	lowLevelSystemGetter, lowLevelSystemValidator := validators.AcquireLowLevelSystem()
 	walletGetter, walletValidator := validators.AcquireL2WalletWithFunds(chainIdx, types.NewBalance(big.NewInt(params.Ether)))
 
 	// Run ecotone test
 	_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Ecotone)
 	_, notForkValidator := validators.AcquireL2WithoutFork(chainIdx, rollup.Fjord)
 	systest.SystemTest(t,
-		feesTestScenario(lowLevelSystemGetter, walletGetter, chainIdx),
-		lowLevelSystemValidator,
+		feesTestScenario(walletGetter, chainIdx),
 		walletValidator,
 		forkValidator,
 		notForkValidator,
@@ -86,7 +84,6 @@ func waitForTransaction(ctx context.Context, client *ethclient.Client, hash comm
 
 // feesTestScenario creates a test scenario for verifying fee calculations
 func feesTestScenario(
-	lowLevelSystemGetter validators.LowLevelSystemGetter,
 	walletGetter validators.WalletGetter,
 	chainIdx uint64,
 ) systest.SystemTestFunc {
@@ -94,12 +91,11 @@ func feesTestScenario(
 		ctx := t.Context()
 
 		// Get the low-level system and wallet
-		llsys := lowLevelSystemGetter(ctx)
 		wallet := walletGetter(ctx)
 
 		// Get the L2 client
-		l2Chain := llsys.L2s()[chainIdx]
-		l2Client, err := l2Chain.GethClient()
+		l2Chain := sys.L2s()[chainIdx]
+		l2Client, err := l2Chain.Nodes()[0].GethClient()
 		require.NoError(t, err)
 
 		// TODO: Wait for first block after genesis

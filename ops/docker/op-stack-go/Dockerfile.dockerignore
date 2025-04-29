@@ -3,6 +3,7 @@
 *
 
 !/cannon
+!/devnet-sdk
 !/op-batcher
 !/op-chain-ops
 !/op-deployer
@@ -19,6 +20,7 @@
 !/op-supervisor
 !/op-wheel
 !/op-alt-da
+!/op-faucet
 !/go.mod
 !/go.sum
 !/justfiles

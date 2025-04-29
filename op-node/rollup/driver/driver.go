@@ -79,6 +79,7 @@ type DerivationPipeline interface {
 }
 
 type EngineController interface {
+	engine.RollupAPI
 	engine.LocalEngineControl
 	IsEngineSyncing() bool
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
@@ -122,8 +123,8 @@ type SyncStatusTracker interface {
 }
 
 type Network interface {
-	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
-	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	// SignAndPublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
+	SignAndPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 
 type AltSync interface {
@@ -261,7 +262,6 @@ func NewDriver(
 		driverCancel:     driverCancel,
 		log:              log,
 		sequencer:        sequencer,
-		network:          network,
 		metrics:          metrics,
 		l1HeadSig:        make(chan eth.L1BlockRef, 10),
 		l1SafeSig:        make(chan eth.L1BlockRef, 10),

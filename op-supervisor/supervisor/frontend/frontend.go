@@ -6,46 +6,25 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type Backend interface {
-	sources.SupervisorAdminAPI
-	sources.SupervisorQueryAPI
+	apis.SupervisorAdminAPI
+	apis.SupervisorQueryAPI
 }
 
 type QueryFrontend struct {
-	Supervisor sources.SupervisorQueryAPI
+	Supervisor apis.SupervisorQueryAPI
 }
 
-var _ sources.SupervisorQueryAPI = (*QueryFrontend)(nil)
+var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
 
-// CheckMessage checks the safety-level of an individual message.
-// The payloadHash references the hash of the message-payload of the message.
-func (q *QueryFrontend) CheckMessage(ctx context.Context, identifier types.Identifier, payloadHash common.Hash, executingDescriptor types.ExecutingDescriptor) (types.SafetyLevel, error) {
-	return q.Supervisor.CheckMessage(ctx, identifier, payloadHash, executingDescriptor)
-}
-
-// CheckMessagesV2 checks the safety-level of a collection of messages,
-// and returns if the minimum safety-level is met for all messages.
-func (q *QueryFrontend) CheckMessagesV2(
-	ctx context.Context,
-	messages []types.Message,
-	minSafety types.SafetyLevel,
-	executingDescriptor types.ExecutingDescriptor) error {
-	return q.Supervisor.CheckMessagesV2(ctx, messages, minSafety, executingDescriptor)
-}
-
-// CheckMessages checks the safety-level of a collection of messages,
-// and returns if the minimum safety-level is met for all messages.
-// Deprecated: This method does not check for message expiry.
-func (q *QueryFrontend) CheckMessages(
-	ctx context.Context,
-	messages []types.Message,
-	minSafety types.SafetyLevel) error {
-	return q.Supervisor.CheckMessages(ctx, messages, minSafety)
+func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	return q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 }
 
 func (q *QueryFrontend) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
@@ -90,7 +69,7 @@ type AdminFrontend struct {
 	Supervisor Backend
 }
 
-var _ sources.SupervisorAdminAPI = (*AdminFrontend)(nil)
+var _ apis.SupervisorAdminAPI = (*AdminFrontend)(nil)
 
 // Start starts the service, if it was previously stopped.
 func (a *AdminFrontend) Start(ctx context.Context) error {

@@ -28,7 +28,7 @@ func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inpu
 		"--datadir", dataDir,
 		"--l1.head", inputs.L1Head.Hex(),
 		"--l2.claim", inputs.L2Claim.Hex(),
-		"--l2.blocknumber", inputs.L2BlockNumber.Text(10),
+		"--l2.blocknumber", inputs.L2SequenceNumber.Text(10),
 	}
 	if inputs.L2Head != (common.Hash{}) {
 		args = append(args, "--l2.head", inputs.L2Head.Hex())

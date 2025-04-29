@@ -18,7 +18,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -298,10 +297,11 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		}
 
 		// message starts with compact-encoding secp256k1 encoded signature
-		signatureBytes, payloadBytes := data[:65], data[65:]
+		signature := eth.Bytes65(data[:65])
+		payloadBytes := data[65:]
 
 		// [REJECT] if the signature by the sequencer is not valid
-		result := verifyBlockSignature(log, cfg, runCfg, id, signatureBytes, payloadBytes)
+		result := verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
 		if result != pubsub.ValidationAccept {
 			return result
 		}
@@ -427,30 +427,21 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	}
 }
 
-func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signatureBytes []byte, payloadBytes []byte) pubsub.ValidationResult {
-	signingHash, err := BlockSigningHash(cfg, payloadBytes)
-	if err != nil {
-		log.Warn("failed to compute block signing hash", "err", err, "peer", id)
-		return pubsub.ValidationReject
+func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
+	authCtx := &opsigner.OPStackP2PBlockAuthV1{
+		Allowed: runCfg.P2PSequencerAddress(),
+		Chain:   eth.ChainIDFromBig(cfg.L2ChainID),
 	}
-
-	pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
-	if err != nil {
-		log.Warn("invalid block signature", "err", err, "peer", id)
-		return pubsub.ValidationReject
-	}
-	addr := crypto.PubkeyToAddress(*pub)
-
-	// In the future we may load & validate block metadata before checking the signature.
-	// And then check the signer based on the metadata, to support e.g. multiple p2p signers at the same time.
-	// For now we only have one signer at a time and thus check the address directly.
-	// This means we may drop old payloads upon key rotation,
-	// but this can be recovered from like any other missed unsafe payload.
-	if expected := runCfg.P2PSequencerAddress(); expected == (common.Address{}) {
-		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", addr)
+	if authCtx.Allowed == (common.Address{}) {
+		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", authCtx.Allowed)
 		return pubsub.ValidationIgnore
-	} else if addr != expected {
-		log.Warn("unexpected block author", "err", err, "peer", id, "addr", addr, "expected", expected)
+	}
+	block := opsigner.SignedP2PBlock{
+		Raw:       payloadBytes,
+		Signature: signature,
+	}
+	if err := block.VerifySignature(authCtx); err != nil {
+		log.Warn("invalid block signature", "err", err, "peer", id)
 		return pubsub.ValidationReject
 	}
 	return pubsub.ValidationAccept
@@ -470,7 +461,8 @@ type GossipTopicInfo interface {
 
 type GossipOut interface {
 	GossipTopicInfo
-	PublishL2Payload(ctx context.Context, msg *eth.ExecutionPayloadEnvelope, signer Signer) error
+	SignAndPublishL2Payload(ctx context.Context, msg *eth.ExecutionPayloadEnvelope, signer Signer) error
+	PublishSignedL2Payload(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error
 	Close() error
 }
 
@@ -548,7 +540,32 @@ func (p *publisher) BlocksTopicV4Peers() []peer.ID {
 	return p.blocksV4.topic.ListPeers()
 }
 
-func (p *publisher) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {
+func (p *publisher) PublishSignedL2Payload(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
+	res := msgBufPool.Get().(*[]byte)
+	buf := bytes.NewBuffer((*res)[:0])
+	defer func() {
+		*res = buf.Bytes()
+		defer msgBufPool.Put(res)
+	}()
+
+	buf.Write(signedEnvelope.Signature[:])
+
+	if signedEnvelope.Envelope.ParentBeaconBlockRoot != nil {
+		if _, err := signedEnvelope.Envelope.MarshalSSZ(buf); err != nil {
+			return fmt.Errorf("failed to encoded execution payload envelope to publish: %w", err)
+		}
+	} else {
+		if _, err := signedEnvelope.Envelope.ExecutionPayload.MarshalSSZ(buf); err != nil {
+			return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
+		}
+	}
+
+	data := buf.Bytes()
+	timestamp := uint64(signedEnvelope.Envelope.ExecutionPayload.Timestamp)
+	return p.publishRawSignedPayload(ctx, timestamp, data)
+}
+
+func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {
 	res := msgBufPool.Get().(*[]byte)
 	buf := bytes.NewBuffer((*res)[:0])
 	defer func() {
@@ -567,24 +584,28 @@ func (p *publisher) PublishL2Payload(ctx context.Context, envelope *eth.Executio
 			return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
 		}
 	}
-
 	data := buf.Bytes()
 	payloadData := data[65:]
-	sig, err := signer.Sign(ctx, SigningDomainBlocksV1, eth.ChainIDFromBig(p.cfg.L2ChainID), opsigner.PayloadHash(payloadData))
+	payloadHash := opsigner.PayloadHash(payloadData)
+	chainID := eth.ChainIDFromBig(p.cfg.L2ChainID)
+	sig, err := signer.SignBlockV1(ctx, chainID, payloadHash)
 	if err != nil {
 		return fmt.Errorf("failed to sign execution payload with signer: %w", err)
 	}
 	copy(data[:65], sig[:])
+	return p.publishRawSignedPayload(ctx, uint64(envelope.ExecutionPayload.Timestamp), data)
+}
 
+func (p *publisher) publishRawSignedPayload(ctx context.Context, timestamp uint64, data []byte) error {
 	// compress the full message
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
-	if p.cfg.IsIsthmus(uint64(envelope.ExecutionPayload.Timestamp)) {
+	if p.cfg.IsIsthmus(timestamp) {
 		return p.blocksV4.topic.Publish(ctx, out)
-	} else if p.cfg.IsEcotone(uint64(envelope.ExecutionPayload.Timestamp)) {
+	} else if p.cfg.IsEcotone(timestamp) {
 		return p.blocksV3.topic.Publish(ctx, out)
-	} else if p.cfg.IsCanyon(uint64(envelope.ExecutionPayload.Timestamp)) {
+	} else if p.cfg.IsCanyon(timestamp) {
 		return p.blocksV2.topic.Publish(ctx, out)
 	} else {
 		return p.blocksV1.topic.Publish(ctx, out)

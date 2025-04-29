@@ -83,7 +83,6 @@ func Init(cfg InitConfig) error {
 	if err != nil {
 		return err
 	}
-	intent.ConfigType = cfg.IntentType
 
 	st := &state.State{
 		Version: 1,

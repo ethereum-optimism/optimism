@@ -56,7 +56,6 @@ func testValidator(t *testing.T, forkRPCURL string, loc *artifacts.Locator, rele
 		Release:                          release,
 		SuperchainConfig:                 common.Address{'S'},
 		L1PAOMultisig:                    common.Address{'M'},
-		MIPS:                             common.Address{'I'},
 		Challenger:                       common.Address{'C'},
 		SuperchainConfigImpl:             common.Address{'1'},
 		ProtocolVersionsImpl:             common.Address{'2'},
@@ -71,6 +70,7 @@ func testValidator(t *testing.T, forkRPCURL string, loc *artifacts.Locator, rele
 		AnchorStateRegistryImpl:          common.Address{'A'},
 		DelayedWETHImpl:                  common.Address{'B'},
 		MIPSImpl:                         common.Address{'D'},
+		WithdrawalDelaySeconds:           302400,
 	}
 
 	out, err := Validator(ctx, ValidatorConfig{

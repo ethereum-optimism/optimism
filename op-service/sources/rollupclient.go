@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -15,6 +16,8 @@ import (
 type RollupClient struct {
 	rpc client.RPC
 }
+
+var _ apis.RollupClient = (*RollupClient)(nil)
 
 func NewRollupClient(rpc client.RPC) *RollupClient {
 	return &RollupClient{rpc}
@@ -82,6 +85,10 @@ func (r *RollupClient) ConductorEnabled(ctx context.Context) (bool, error) {
 
 func (r *RollupClient) SetLogLevel(ctx context.Context, lvl slog.Level) error {
 	return r.rpc.CallContext(ctx, nil, "admin_setLogLevel", lvl.String())
+}
+
+func (r *RollupClient) SetRecoverMode(ctx context.Context, mode bool) error {
+	return r.rpc.CallContext(ctx, nil, "admin_setRecoverMode", mode)
 }
 
 func (r *RollupClient) Close() {

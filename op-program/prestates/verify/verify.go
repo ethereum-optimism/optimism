@@ -4,18 +4,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"slices"
 
-	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/op-program/prestates"
 )
-
-// standardPrestatesUrl is the URL to the TOML file in superchain registry that defines the list of standard prestates
-// Note that this explicitly points to the main branch and is not pinned to a specific version. The verification check
-// intends to
-const standardPrestatesUrl = "https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/refs/heads/main/validation/standard/standard-prestates.toml"
 
 func main() {
 	var inputFile string
@@ -47,7 +40,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	expected, err := loadReleases(expectedFile)
+	expected, err := prestates.LoadReleases(expectedFile)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to load expected releases: %v\n", err.Error())
 		os.Exit(2)
@@ -74,7 +67,7 @@ func main() {
 	differs := false
 	report := ""
 	for _, release := range actual {
-		var expectedPrestate Prestate
+		var expectedPrestate prestates.Prestate
 		standardVersion := expected.Prestates[release.Version]
 		for _, prestate := range standardVersion {
 			if prestate.Type == release.Type {
@@ -83,7 +76,7 @@ func main() {
 			}
 		}
 		var expectedStr string
-		if expectedPrestate == (Prestate{}) {
+		if expectedPrestate == (prestates.Prestate{}) {
 			expectedStr = "<missing>"
 		} else {
 			expectedStr = formatRelease(Release{
@@ -135,42 +128,6 @@ func main() {
 
 func formatRelease(release Release) string {
 	return fmt.Sprintf("%-13v %s %-10v", release.Version, release.Hash, release.Type)
-}
-
-func loadReleases(overrideFile string) (*Prestates, error) {
-	var data []byte
-	if overrideFile != "" {
-		d, err := os.ReadFile(overrideFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read override file (%v): %w", overrideFile, err)
-		}
-		data = d
-	} else {
-		resp, err := http.Get(standardPrestatesUrl)
-		if err != nil {
-			return nil, fmt.Errorf("failed to download standard prestates from %v: %w", standardPrestatesUrl, err)
-		}
-		defer resp.Body.Close()
-		data, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read standard prestates from %v: %w", standardPrestatesUrl, err)
-		}
-	}
-	var standardPrestates Prestates
-	err := toml.Unmarshal(data, &standardPrestates)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse standard prestates from %v: %w", standardPrestatesUrl, err)
-	}
-	return &standardPrestates, nil
-}
-
-type Prestates struct {
-	Prestates map[string][]Prestate `toml:"prestates"`
-}
-
-type Prestate struct {
-	Type string `toml:"type"`
-	Hash string `toml:"hash"`
 }
 
 type Release struct {

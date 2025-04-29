@@ -87,7 +87,27 @@ func (db *ChainsDB) IsCrossSafe(chainID eth.ChainID, block eth.BlockID) error {
 	if !ok {
 		return types.ErrUnknownChain
 	}
-	return xdb.ContainsDerived(block)
+	return xdb.ContainsDerived(block, types.RevisionAny)
+}
+
+// findRevision determines what the given block needs as revision for DB lookups.
+// This uses the cross-safe DB as canonical-chain reference.
+// If the block is not in the cross-safe DB (e.g. a newer local-safe block),
+// then the last known revision is used, and kept open-ended, to capture the invalidated-entry block.
+func (db *ChainsDB) findRevision(chainID eth.ChainID, block eth.BlockID) (types.Revision, error) {
+	xdb, ok := db.crossDBs.Get(chainID)
+	if !ok {
+		return types.Revision(0), types.ErrUnknownChain
+	}
+	rev, err := xdb.DerivedToRevision(block)
+	if errors.Is(err, types.ErrFuture) {
+		ldb, ok := db.localDBs.Get(chainID)
+		if !ok {
+			return types.Revision(0), types.ErrUnknownChain
+		}
+		return ldb.LastRevision()
+	}
+	return rev, nil
 }
 
 func (db *ChainsDB) IsLocalSafe(chainID eth.ChainID, block eth.BlockID) error {
@@ -95,7 +115,26 @@ func (db *ChainsDB) IsLocalSafe(chainID eth.ChainID, block eth.BlockID) error {
 	if !ok {
 		return types.ErrUnknownChain
 	}
-	return ldb.ContainsDerived(block)
+	revision, err := db.findRevision(chainID, block)
+	if err != nil {
+		return err
+	}
+	return ldb.ContainsDerived(block, revision)
+}
+
+func (db *ChainsDB) IsFinalized(chainID eth.ChainID, block eth.BlockID) error {
+	finL1 := db.FinalizedL1()
+	if finL1 == (eth.BlockRef{}) {
+		return types.ErrUninitialized
+	}
+	source, err := db.CrossDerivedToSource(chainID, block)
+	if err != nil {
+		return fmt.Errorf("failed to get cross-safe source: %w", err)
+	}
+	if finL1.Number >= source.Number {
+		return nil
+	}
+	return fmt.Errorf("cross-safe source block is not finalized: %w", types.ErrFuture)
 }
 
 func (db *ChainsDB) SafeDerivedAt(chainID eth.ChainID, source eth.BlockID) (types.BlockSeal, error) {
@@ -144,30 +183,22 @@ func (db *ChainsDB) AcceptedBlock(chainID eth.ChainID, id eth.BlockID) error {
 	if !ok {
 		return types.ErrUnknownChain
 	}
-	latest, err := localDB.Last()
+	revision, err := db.findRevision(chainID, id)
 	if err != nil {
-		// If we have invalidated the latest block, figure out what it is.
-		// Only the tip can be invalidated. So if the block we check is older, it still can be accepted.
-		if errors.Is(err, types.ErrAwaitReplacementBlock) {
-			invalidated, err := localDB.Invalidated()
-			if err != nil {
-				return fmt.Errorf("failed to read invalidated block: %w", err)
-			}
-			if id.Number >= invalidated.Derived.Number {
-				return fmt.Errorf("latest unsafe-block was invalidated, cannot accept blocks at or past it: %w",
-					types.ErrAwaitReplacementBlock)
-			}
-			// If it's older, we should check if the local-safe DB matches.
-			return localDB.ContainsDerived(id)
-		} else {
-			return fmt.Errorf("failed to read latest local-safe block: %w", err)
-		}
-	} else if latest.Derived.Number < id.Number {
-		// Optimistically accept blocks that we haven't seen as local-derived yet.
-		return nil
+		return fmt.Errorf("failed to get revision: %w", err)
 	}
-	// If it's older, we should check if the local-safe DB matches.
-	return localDB.ContainsDerived(id)
+	db.logger.Info("Checking if accepted", "chain", chainID, "id", id, "revision", revision)
+	// If the block is not cross-safe, then the revision will be the latest
+	// (assuming the trailing local-safe data only has 1 revision;
+	//  the same or something net-new exactly starting after cross-safe).
+	// If the block was invalidated, then ContainsDerived will error with types.ErrAwaitReplacementBlock.
+	if err := localDB.ContainsDerived(id, revision); err != nil {
+		if errors.Is(err, types.ErrFuture) {
+			return nil // Optimistically accept blocks that we haven't seen as local-derived yet.
+		}
+		return fmt.Errorf("failed to check older local-safe db entry %s: %w", revision, err)
+	}
+	return err
 }
 
 func (db *ChainsDB) LocalSafe(chainID eth.ChainID) (pair types.DerivedBlockSealPair, err error) {
@@ -239,7 +270,7 @@ func (db *ChainsDB) CrossDerivedToSourceRef(chainID eth.ChainID, derived eth.Blo
 	if !ok {
 		return eth.BlockRef{}, types.ErrUnknownChain
 	}
-	res, err := xdb.DerivedToFirstSource(derived)
+	res, err := xdb.DerivedToFirstSource(derived, types.RevisionAny)
 	if err != nil {
 		return eth.BlockRef{}, err
 	}
@@ -281,7 +312,11 @@ func (db *ChainsDB) LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID)
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
 	}
-	return lDB.DerivedToFirstSource(derived)
+	revision, err := db.findRevision(chain, derived)
+	if err != nil {
+		return types.BlockSeal{}, err
+	}
+	return lDB.DerivedToFirstSource(derived, revision)
 }
 
 // CrossDerivedToSource returns the block that the given block was derived from, if it exists in the cross derived-from storage.
@@ -291,7 +326,7 @@ func (db *ChainsDB) CrossDerivedToSource(chain eth.ChainID, derived eth.BlockID)
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
 	}
-	return xDB.DerivedToFirstSource(derived)
+	return xDB.DerivedToFirstSource(derived, types.RevisionAny)
 }
 
 // CandidateCrossSafe returns the candidate local-safe block that may become cross-safe,
@@ -338,49 +373,34 @@ func (db *ChainsDB) CandidateCrossSafe(chain eth.ChainID) (result types.DerivedB
 		return types.DerivedBlockRefPair{}, err
 	}
 
-	candidate, err := lDB.NextDerived(crossSafe.Derived.ID())
+	revision, err := xDB.SourceToRevision(crossSafe.Source.ID())
 	if err != nil {
-		if errors.Is(err, types.ErrAwaitReplacementBlock) {
-			// If we cannot promote due to need for replacement, then abort
-			return types.DerivedBlockRefPair{}, fmt.Errorf("candidate cross-safe block %s is invalidated: %w", crossSafe, err)
-		}
 		return types.DerivedBlockRefPair{}, err
 	}
-	candidateRef := candidate.Derived.MustWithParent(crossSafe.Derived.ID())
+	candidate, err := lDB.Candidate(crossSafe.Source.ID(), crossSafe.Derived.ID(), revision)
+	if err != nil {
+		// forward candidate value, even if error, in case a scope-bump is needed
+		return candidate, err
+	}
+	db.logger.Debug("Determined cross-safe candidate block revision", "crossSafe", crossSafe)
 
-	// attach the parent (or zero-block) to the cross-safe source
-	var crossSafeSourceRef eth.BlockRef
-	parentSource, err := lDB.PreviousSource(crossSafe.Source.ID())
-	if errors.Is(err, types.ErrPreviousToFirst) {
-		// if we are working with the first item in the database, PreviousSource will return ErrPreviousToFirst
-		// in which case we can attach a zero parent to the block, as the parent block is unknown
-		// ForceWithParent will not panic if the parent is not as expected (like a zero-block)
-		crossSafeSourceRef = crossSafe.Source.ForceWithParent(eth.BlockID{})
-	} else if err != nil {
-		return types.DerivedBlockRefPair{}, fmt.Errorf("failed to find parent-block of derived-from %s: %w", crossSafe.Source, err)
-	} else {
-		// if we have a parent, we can attach it to the cross-safe source
-		// MustWithParent will panic if the parent is not the previous block
-		crossSafeSourceRef = crossSafe.Source.MustWithParent(parentSource.ID())
+	if candidate.Source.Number < crossSafe.Source.Number {
+		db.logger.Error("Candidate block has lower source", "crossSafe", crossSafe, "candidate", candidate)
+		return candidate, types.ErrDataCorruption
 	}
-
-	result = types.DerivedBlockRefPair{
-		Source:  crossSafeSourceRef,
-		Derived: candidateRef,
-	}
-	if candidate.Source.Number <= crossSafe.Source.Number {
-		db.logger.Debug("Cross-safe source matches or exceeds candidate source", "crossSafe", crossSafe, "candidate", candidate)
-		return result, nil
-	}
-	return result, types.ErrOutOfScope
+	return candidate, nil
 }
 
-func (db *ChainsDB) PreviousDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
-	lDB, ok := db.localDBs.Get(chain)
+func (db *ChainsDB) PreviousCrossDerived(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
+	xDB, ok := db.crossDBs.Get(chain)
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
 	}
-	return lDB.PreviousDerived(derived)
+	revision, err := db.findRevision(chain, derived)
+	if err != nil {
+		return types.BlockSeal{}, err
+	}
+	return xDB.PreviousDerived(derived, revision)
 }
 
 func (db *ChainsDB) PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource types.BlockSeal, err error) {
@@ -403,45 +423,226 @@ func (db *ChainsDB) NextSource(chain eth.ChainID, source eth.BlockID) (after eth
 	return v.MustWithParent(source), nil
 }
 
-// Safest returns the strongest safety level that can be guaranteed for the given log entry.
-// it assumes the log entry has already been checked and is valid, this function only checks safety levels.
-// Safety levels are assumed to graduate from LocalUnsafe to LocalSafe to CrossUnsafe to CrossSafe, with Finalized as the strongest.
-func (db *ChainsDB) Safest(chainID eth.ChainID, blockNum uint64, index uint32) (safest types.SafetyLevel, err error) {
-	if finalized, err := db.Finalized(chainID); err == nil {
-		if finalized.Number >= blockNum {
-			return types.Finalized, nil
-		}
-	}
-	crossSafe, err := db.CrossSafe(chainID)
-	if err != nil {
-		return types.Invalid, err
-	}
-	if crossSafe.Derived.Number >= blockNum {
-		return types.CrossSafe, nil
-	}
-	crossUnsafe, err := db.CrossUnsafe(chainID)
-	if err != nil {
-		return types.Invalid, err
-	}
-	// TODO(#12425): API: "index" for in-progress block building shouldn't be exposed from DB.
-	//  For now we're not counting anything cross-safe until the block is sealed.
-	if blockNum <= crossUnsafe.Number {
-		return types.CrossUnsafe, nil
-	}
-	localSafe, err := db.LocalSafe(chainID)
-	if err != nil {
-		return types.Invalid, err
-	}
-	if blockNum <= localSafe.Derived.Number {
-		return types.LocalSafe, nil
-	}
-	return types.LocalUnsafe, nil
-}
-
 func (db *ChainsDB) IteratorStartingAt(chain eth.ChainID, sealedNum uint64, logIndex uint32) (logs.Iterator, error) {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
 		return nil, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.IteratorStartingAt(sealedNum, logIndex)
+}
+
+// WithReadHandle executes a function with a read handle for a specific chain and block number.
+// If 'fn' performs side effects, those will NOT be rolled back if validation fails.
+func (db *ChainsDB) WithReadHandle(chainID eth.ChainID, blockNum uint64, fn func(*ReadHandle) error) error {
+	handle, err := db.AcquireReadHandle(chainID, blockNum)
+	if err != nil {
+		return err
+	}
+	defer handle.Release()
+
+	// Execute the function
+	fnErr := fn(handle)
+	if fnErr != nil {
+		db.logger.Error("Failed to execute function with read handle", "chainID", chainID, "blockNum", blockNum, "error", fnErr)
+		return fnErr
+	}
+
+	// Final validation
+	validationErr := handle.Validate()
+	if validationErr != nil {
+		db.logger.Error("Failed to validate read handle", "chainID", chainID, "blockNum", blockNum, "error", validationErr)
+		return validationErr
+	}
+	return nil
+}
+
+// WithReadHandles executes a function with read handles for multiple chains and block numbers.
+// If 'fn' performs side effects, those will NOT be rolled back if validation fails.
+func (db *ChainsDB) WithReadHandles(chains []eth.ChainID, blockNums []uint64, fn func([]*ReadHandle) error) error {
+	if len(chains) != len(blockNums) {
+		return fmt.Errorf("mismatched chains and block numbers")
+	}
+
+	handles := make([]*ReadHandle, len(chains))
+	for i, chainID := range chains {
+		handle, err := db.AcquireReadHandle(chainID, blockNums[i])
+		if err != nil {
+			// Release any handles we've already acquired
+			for j := 0; j < i; j++ {
+				handles[j].Release()
+			}
+			return err
+		}
+		handles[i] = handle
+	}
+	defer func() {
+		for _, handle := range handles {
+			if handle != nil {
+				handle.Release()
+			}
+		}
+	}()
+
+	// Execute the function
+	if err := fn(handles); err != nil {
+		db.logger.Error("Failed to execute function with read handles", "error", err)
+		return fmt.Errorf("failed to execute function with read handles: %w", err)
+	}
+
+	// Final validation of all handles
+	for _, handle := range handles {
+		if err := handle.Validate(); err != nil {
+			db.logger.Error("Failed to validate read handle", "error", err, "id", handle.handleID)
+			return fmt.Errorf("failed to validate read handle: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Follows Go idiom: returns zero BlockSeal on error
+func (db *ChainsDB) SafeContains(chainID eth.ChainID, access types.Access) (types.BlockSeal, error) {
+	var result types.BlockSeal
+
+	err := db.WithReadHandle(chainID, access.BlockNumber, func(handle *ReadHandle) error {
+		logDB, ok := db.logDBs.Get(chainID)
+		if !ok {
+			return fmt.Errorf("cannot get logs DB: %w: %s", types.ErrUnknownChain, chainID)
+		}
+
+		query := types.ContainsQuery{
+			BlockNum:  access.BlockNumber,
+			Timestamp: access.Timestamp,
+			LogIdx:    access.LogIndex,
+			Checksum:  access.Checksum,
+		}
+
+		blockSeal, err := logDB.Contains(query)
+		if err != nil {
+			return err
+		}
+
+		if blockSeal.Number > 0 && blockSeal.Number != access.BlockNumber {
+			if !handle.UpdateBlock(blockSeal.Number) {
+				return ErrInvalidHandle
+			}
+		}
+
+		result = blockSeal
+		return nil
+	})
+
+	if err != nil {
+		return types.BlockSeal{}, err // Return zero value on error
+	}
+	return result, nil
+}
+
+func (db *ChainsDB) ValidateAccessList(accessList []types.Access) error {
+	var chainIDs []eth.ChainID
+	var blockNums []uint64
+
+	for _, item := range accessList {
+		chainIDs = append(chainIDs, item.ChainID)
+		blockNums = append(blockNums, item.BlockNumber)
+	}
+
+	return db.WithReadHandles(chainIDs, blockNums, func(handles []*ReadHandle) error {
+		for i, item := range accessList {
+			query := types.ContainsQuery{
+				BlockNum:  item.BlockNumber,
+				Timestamp: item.Timestamp,
+				LogIdx:    item.LogIndex,
+				Checksum:  item.Checksum,
+			}
+
+			logDB, ok := db.logDBs.Get(item.ChainID)
+			if !ok {
+				return fmt.Errorf("cannot get logs DB: %w: %s", types.ErrUnknownChain, item.ChainID)
+			}
+
+			blockSeal, err := logDB.Contains(query)
+			if err != nil {
+				return fmt.Errorf("failed to check if log exists: %w", err)
+			}
+
+			if blockSeal.Number > 0 && blockSeal.Number != item.BlockNumber {
+				if !handles[i].UpdateBlock(blockSeal.Number) {
+					return ErrInvalidHandle
+				}
+			}
+		}
+
+		return nil
+	})
+}
+
+func (db *ChainsDB) WithRetry(chainID eth.ChainID, blockNum uint64, maxRetries int, fn func(*ReadHandle) error) error {
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		err = db.WithReadHandle(chainID, blockNum, fn)
+
+		if err != ErrInvalidHandle {
+			return err
+		}
+
+		db.logger.Info("Retrying operation due to reorg",
+			"chainID", chainID,
+			"blockNum", blockNum,
+			"attempt", i+1,
+			"maxRetries", maxRetries)
+
+	}
+
+	return err
+}
+
+func (db *ChainsDB) SafeFindSealedBlock(chain eth.ChainID, number uint64) (seal types.BlockSeal, err error) {
+	err = db.WithReadHandle(chain, number, func(handle *ReadHandle) error {
+		logDB, ok := db.logDBs.Get(chain)
+		if !ok {
+			return fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
+		}
+
+		blockSeal, err := logDB.FindSealedBlock(number)
+		if err != nil {
+			return err
+		}
+
+		seal = blockSeal
+		return nil
+	})
+
+	return seal, err
+}
+
+func (db *ChainsDB) SafeLocalUnsafe(chainID eth.ChainID) (types.BlockSeal, error) {
+	var result types.BlockSeal
+
+	err := db.WithReadHandle(chainID, 0, func(handle *ReadHandle) error {
+		eventsDB, ok := db.logDBs.Get(chainID)
+		if !ok {
+			return types.ErrUnknownChain
+		}
+
+		head, ok := eventsDB.LatestSealedBlock()
+		if !ok {
+			return types.ErrFuture
+		}
+
+		if !handle.UpdateBlock(head.Number) {
+			return ErrInvalidHandle
+		}
+
+		seal, err := eventsDB.FindSealedBlock(head.Number)
+		if err != nil {
+			return err
+		}
+
+		result = seal
+		return nil
+	})
+
+	return result, err
 }

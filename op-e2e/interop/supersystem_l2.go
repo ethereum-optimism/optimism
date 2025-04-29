@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -166,7 +167,7 @@ func (s *interopE2ESystem) newNodeForL2(
 		},
 		Rollup: *l2Out.RollupCfg,
 		P2PSigner: &p2p.PreparedSigner{
-			Signer: p2p.NewLocalSigner(&p2pKey)},
+			Signer: opsigner.NewLocalSigner(&p2pKey)},
 		RPC: node.RPCConfig{
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,

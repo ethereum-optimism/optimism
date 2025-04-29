@@ -138,7 +138,7 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
 			return bl, 3, map[uint32]*types.ExecutingMessage{1: em1, 2: em2}, nil
 		}
-		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, logHash common.Hash) (types.BlockSeal, error) {
+		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
 			return types.BlockSeal{Number: 1, Timestamp: 1}, nil
 		}
 		usd.deps = mockDependencySet{}
@@ -167,7 +167,7 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 				Hash: crossUnsafe.Hash,
 			}, 0, nil, nil
 		}
-		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, logHash common.Hash) (types.BlockSeal, error) {
+		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
 			return crossUnsafe, nil
 		}
 		usd.deps = mockDependencySet{}
@@ -193,7 +193,7 @@ type mockCrossUnsafeDeps struct {
 	crossUnsafeFn       func(chainID eth.ChainID) (types.BlockSeal, error)
 	openBlockFn         func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
 	updateCrossUnsafeFn func(chain eth.ChainID, crossUnsafe types.BlockSeal) error
-	checkFn             func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, logHash common.Hash) (types.BlockSeal, error)
+	checkFn             func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error)
 }
 
 func (m *mockCrossUnsafeDeps) CrossUnsafe(chainID eth.ChainID) (derived types.BlockSeal, err error) {
@@ -213,7 +213,7 @@ func (m *mockCrossUnsafeDeps) MessageExpiryWindow() uint64 {
 
 func (m *mockCrossUnsafeDeps) Contains(chainID eth.ChainID, q types.ContainsQuery) (types.BlockSeal, error) {
 	if m.checkFn != nil {
-		return m.checkFn(chainID, q.BlockNum, q.Timestamp, q.LogIdx, q.LogHash)
+		return m.checkFn(chainID, q.BlockNum, q.Timestamp, q.LogIdx, q.Checksum)
 	}
 	return types.BlockSeal{}, nil
 }

@@ -26,6 +26,7 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+	_ = abi.ConvertType
 )
 
 // Identifier is an auto generated low-level Go binding around an user-defined struct.
@@ -39,7 +40,7 @@ type Identifier struct {
 
 // InboxMetaData contains all meta data concerning the Inbox contract.
 var InboxMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"executeMessage\",\"inputs\":[{\"name\":\"_id\",\"type\":\"tuple\",\"internalType\":\"structIdentifier\",\"components\":[{\"name\":\"origin\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"blockNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"name\":\"_target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"validateMessage\",\"inputs\":[{\"name\":\"_id\",\"type\":\"tuple\",\"internalType\":\"structIdentifier\",\"components\":[{\"name\":\"origin\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"blockNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"name\":\"_msgHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"validateMessage\",\"inputs\":[{\"name\":\"_id\",\"type\":\"tuple\",\"internalType\":\"structIdentifier\",\"components\":[{\"name\":\"origin\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"blockNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"name\":\"_msgHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"ExecutingMessage\",\"inputs\":[{\"name\":\"msgHash\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"},{\"name\":\"id\",\"type\":\"tuple\",\"indexed\":false,\"internalType\":\"structIdentifier\",\"components\":[{\"name\":\"origin\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"blockNumber\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"logIndex\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"timestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"BlockNumberTooHigh\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"LogIndexTooHigh\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NoExecutingDeposits\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInAccessList\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"TimestampTooHigh\",\"inputs\":[]}]",
 }
 
 // InboxABI is the input ABI used to generate the binding from.
@@ -143,11 +144,11 @@ func NewInboxFilterer(address common.Address, filterer bind.ContractFilterer) (*
 
 // bindInbox binds a generic wrapper to an already deployed contract.
 func bindInbox(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := abi.JSON(strings.NewReader(InboxABI))
+	parsed, err := InboxMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
@@ -188,6 +189,37 @@ func (_Inbox *InboxTransactorRaw) Transact(opts *bind.TransactOpts, method strin
 	return _Inbox.Contract.contract.Transact(opts, method, params...)
 }
 
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_Inbox *InboxCaller) Version(opts *bind.CallOpts) (string, error) {
+	var out []interface{}
+	err := _Inbox.contract.Call(opts, &out, "version")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_Inbox *InboxSession) Version() (string, error) {
+	return _Inbox.Contract.Version(&_Inbox.CallOpts)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_Inbox *InboxCallerSession) Version() (string, error) {
+	return _Inbox.Contract.Version(&_Inbox.CallOpts)
+}
+
 // ValidateMessage is a paid mutator transaction binding the contract method 0xab4d6f75.
 //
 // Solidity: function validateMessage((address,uint256,uint256,uint256,uint256) _id, bytes32 _msgHash) returns()
@@ -207,4 +239,149 @@ func (_Inbox *InboxSession) ValidateMessage(_id Identifier, _msgHash [32]byte) (
 // Solidity: function validateMessage((address,uint256,uint256,uint256,uint256) _id, bytes32 _msgHash) returns()
 func (_Inbox *InboxTransactorSession) ValidateMessage(_id Identifier, _msgHash [32]byte) (*types.Transaction, error) {
 	return _Inbox.Contract.ValidateMessage(&_Inbox.TransactOpts, _id, _msgHash)
+}
+
+// InboxExecutingMessageIterator is returned from FilterExecutingMessage and is used to iterate over the raw logs and unpacked data for ExecutingMessage events raised by the Inbox contract.
+type InboxExecutingMessageIterator struct {
+	Event *InboxExecutingMessage // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *InboxExecutingMessageIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(InboxExecutingMessage)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(InboxExecutingMessage)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *InboxExecutingMessageIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *InboxExecutingMessageIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// InboxExecutingMessage represents a ExecutingMessage event raised by the Inbox contract.
+type InboxExecutingMessage struct {
+	MsgHash [32]byte
+	Id      Identifier
+	Raw     types.Log // Blockchain specific contextual infos
+}
+
+// FilterExecutingMessage is a free log retrieval operation binding the contract event 0x5c37832d2e8d10e346e55ad62071a6a2f9fa5130614ef2ec6617555c6f467ba7.
+//
+// Solidity: event ExecutingMessage(bytes32 indexed msgHash, (address,uint256,uint256,uint256,uint256) id)
+func (_Inbox *InboxFilterer) FilterExecutingMessage(opts *bind.FilterOpts, msgHash [][32]byte) (*InboxExecutingMessageIterator, error) {
+
+	var msgHashRule []interface{}
+	for _, msgHashItem := range msgHash {
+		msgHashRule = append(msgHashRule, msgHashItem)
+	}
+
+	logs, sub, err := _Inbox.contract.FilterLogs(opts, "ExecutingMessage", msgHashRule)
+	if err != nil {
+		return nil, err
+	}
+	return &InboxExecutingMessageIterator{contract: _Inbox.contract, event: "ExecutingMessage", logs: logs, sub: sub}, nil
+}
+
+// WatchExecutingMessage is a free log subscription operation binding the contract event 0x5c37832d2e8d10e346e55ad62071a6a2f9fa5130614ef2ec6617555c6f467ba7.
+//
+// Solidity: event ExecutingMessage(bytes32 indexed msgHash, (address,uint256,uint256,uint256,uint256) id)
+func (_Inbox *InboxFilterer) WatchExecutingMessage(opts *bind.WatchOpts, sink chan<- *InboxExecutingMessage, msgHash [][32]byte) (event.Subscription, error) {
+
+	var msgHashRule []interface{}
+	for _, msgHashItem := range msgHash {
+		msgHashRule = append(msgHashRule, msgHashItem)
+	}
+
+	logs, sub, err := _Inbox.contract.WatchLogs(opts, "ExecutingMessage", msgHashRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(InboxExecutingMessage)
+				if err := _Inbox.contract.UnpackLog(event, "ExecutingMessage", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseExecutingMessage is a log parse operation binding the contract event 0x5c37832d2e8d10e346e55ad62071a6a2f9fa5130614ef2ec6617555c6f467ba7.
+//
+// Solidity: event ExecutingMessage(bytes32 indexed msgHash, (address,uint256,uint256,uint256,uint256) id)
+func (_Inbox *InboxFilterer) ParseExecutingMessage(log types.Log) (*InboxExecutingMessage, error) {
+	event := new(InboxExecutingMessage)
+	if err := _Inbox.contract.UnpackLog(event, "ExecutingMessage", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
 }

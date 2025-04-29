@@ -91,6 +91,11 @@ var (
 		Usage:   "HTTP provider URL for execution layer",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_RPC"),
 	}
+	SupervisorRPC = &cli.StringFlag{
+		Name:    "supervisor.rpc",
+		Usage:   "HTTP provider URL for supervisor",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "SUPERVISOR_RPC"),
+	}
 	HealthCheckInterval = &cli.Uint64Flag{
 		Name:    "healthcheck.interval",
 		Usage:   "Interval between health checks",
@@ -156,6 +161,7 @@ var optionalFlags = []cli.Flag{
 	RaftTrailingLogs,
 	RaftHeartbeatTimeout,
 	RaftLeaderLeaseTimeout,
+	SupervisorRPC,
 }
 
 func init() {

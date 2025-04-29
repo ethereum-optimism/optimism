@@ -178,10 +178,10 @@ func (f *FaultDisputeGameContractLatest) GetBalanceAndDelay(ctx context.Context,
 	return balance, delay, weth.Addr(), nil
 }
 
-// GetBlockRange returns the block numbers of the absolute pre-state block (typically genesis or the bedrock activation block)
+// GetGameRange returns the block numbers of the absolute pre-state block (typically genesis or the bedrock activation block)
 // and the post-state block (that the proposed output root is for).
-func (f *FaultDisputeGameContractLatest) GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
-	defer f.metrics.StartContractRequest("GetBlockRange")()
+func (f *FaultDisputeGameContractLatest) GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
+	defer f.metrics.StartContractRequest("GetGameRange")()
 	results, err := f.multiCaller.Call(ctx, rpcblock.Latest,
 		f.contract.Call(methodStartingBlockNumber),
 		f.contract.Call(methodL2BlockNumber))
@@ -200,7 +200,7 @@ func (f *FaultDisputeGameContractLatest) GetBlockRange(ctx context.Context) (pre
 
 type GameMetadata struct {
 	L1Head                  common.Hash
-	L2BlockNum              uint64
+	L2SequenceNum           uint64
 	RootClaim               common.Hash
 	Status                  gameTypes.GameStatus
 	MaxClockDuration        uint64
@@ -238,7 +238,7 @@ func (f *FaultDisputeGameContractLatest) GetGameMetadata(ctx context.Context, bl
 	blockChallenger := results[6].GetAddress(0)
 	return GameMetadata{
 		L1Head:                  l1Head,
-		L2BlockNum:              l2BlockNumber,
+		L2SequenceNum:           l2BlockNumber,
 		RootClaim:               rootClaim,
 		Status:                  status,
 		MaxClockDuration:        duration,
@@ -637,7 +637,7 @@ func (f *FaultDisputeGameContractLatest) decodeClaim(result *batching.CallResult
 
 type FaultDisputeGameContract interface {
 	GetBalanceAndDelay(ctx context.Context, block rpcblock.Block) (*big.Int, time.Duration, common.Address, error)
-	GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error)
+	GetGameRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error)
 	GetGameMetadata(ctx context.Context, block rpcblock.Block) (GameMetadata, error)
 	GetResolvedAt(ctx context.Context, block rpcblock.Block) (time.Time, error)
 	GetStartingRootHash(ctx context.Context) (common.Hash, error)

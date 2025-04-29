@@ -46,7 +46,7 @@ func (h *Host) handleCaller(caller common.Address) common.Address {
 				return *parentCallFrame.Prank.Sender
 			}
 			if parentCallFrame.Prank.Origin != nil {
-				h.env.TxContext.Origin = *parentCallFrame.Prank.Origin
+				h.env.TxContext().Origin = *parentCallFrame.Prank.Origin
 			}
 		}
 	}
@@ -77,7 +77,7 @@ func (h *Host) Prank(msgSender *common.Address, txOrigin *common.Address, repeat
 	cf.Prank = &Prank{
 		Sender:     msgSender,
 		Origin:     txOrigin,
-		PrevOrigin: h.env.TxContext.Origin,
+		PrevOrigin: h.env.TxContext().Origin,
 		Repeat:     repeat,
 		Broadcast:  broadcast,
 	}

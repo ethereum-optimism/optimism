@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	gosync "sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -41,6 +42,7 @@ type ExecEngine interface {
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
+	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
 }
 
 type EngineController struct {
@@ -55,6 +57,9 @@ type EngineController struct {
 	clock      clock.Clock
 
 	emitter event.Emitter
+
+	// To lock the engine RPC usage, such that components like the API, which need direct access, can protect their access.
+	mu gosync.RWMutex
 
 	// Block Head State
 	unsafeHead eth.L2BlockRef

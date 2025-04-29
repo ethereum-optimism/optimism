@@ -13,12 +13,18 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+
 	client_mocks "github.com/ethereum-optimism/optimism/op-service/client/mocks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/mocks"
-	"github.com/ethereum/go-ethereum/crypto/kzg4844"
-	"github.com/stretchr/testify/require"
 )
+
+//go:generate mockery --srcpkg=github.com/ethereum-optimism/optimism/op-service/apis --name BlobSideCarsClient --with-expecter=true
+
+//go:generate mockery --srcpkg=github.com/ethereum-optimism/optimism/op-service/apis --name BeaconClient --with-expecter=true
 
 func makeTestBlobSidecar(index uint64) (eth.IndexedBlobHash, *eth.BlobSidecar) {
 	blob := kzg4844.Blob{}
@@ -127,7 +133,7 @@ func TestBeaconClientNoErrorPrimary(t *testing.T) {
 
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
-	f := mocks.NewBlobSideCarsFetcher(t)
+	f := mocks.NewBlobSideCarsClient(t)
 	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)
@@ -151,7 +157,7 @@ func TestBeaconClientFallback(t *testing.T) {
 
 	ctx := context.Background()
 	p := mocks.NewBeaconClient(t)
-	f := mocks.NewBlobSideCarsFetcher(t)
+	f := mocks.NewBlobSideCarsClient(t)
 	c := NewL1BeaconClient(p, L1BeaconClientConfig{}, f)
 	p.EXPECT().BeaconGenesis(ctx).Return(eth.APIGenesisResponse{Data: eth.ReducedGenesisData{GenesisTime: 10}}, nil)
 	p.EXPECT().ConfigSpec(ctx).Return(eth.APIConfigResponse{Data: eth.ReducedConfigData{SecondsPerSlot: 2}}, nil)

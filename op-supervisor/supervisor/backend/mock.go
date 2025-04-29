@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync/atomic"
 
@@ -27,14 +26,14 @@ func NewMockBackend() *MockBackend {
 
 func (m *MockBackend) Start(ctx context.Context) error {
 	if !m.started.CompareAndSwap(false, true) {
-		return errors.New("already started")
+		return errAlreadyStarted
 	}
 	return nil
 }
 
 func (m *MockBackend) Stop(ctx context.Context) error {
 	if !m.started.CompareAndSwap(true, false) {
-		return errors.New("already stopped")
+		return errAlreadyStopped
 	}
 	return nil
 }
@@ -47,15 +46,8 @@ func (m *MockBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.By
 	return nil
 }
 
-func (m *MockBackend) CheckMessage(ctx context.Context, identifier types.Identifier, payloadHash common.Hash, executingDescriptor types.ExecutingDescriptor) (types.SafetyLevel, error) {
-	return types.CrossUnsafe, nil
-}
-
-func (m *MockBackend) CheckMessages(ctx context.Context, messages []types.Message, minSafety types.SafetyLevel) error {
-	return nil
-}
-
-func (m *MockBackend) CheckMessagesV2(ctx context.Context, messages []types.Message, minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+func (m *MockBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
 	return nil
 }
 

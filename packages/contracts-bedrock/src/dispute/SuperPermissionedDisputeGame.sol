@@ -33,9 +33,9 @@ contract SuperPermissionedDisputeGame is SuperFaultDisputeGame {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0-beta.1
+    /// @custom:semver 0.3.0
     function version() public pure override returns (string memory) {
-        return "0.1.0-beta.1";
+        return "0.3.0";
     }
 
     /// @param _params Parameters for creating a new FaultDisputeGame.

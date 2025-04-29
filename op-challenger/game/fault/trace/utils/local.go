@@ -10,12 +10,12 @@ import (
 )
 
 type LocalGameInputs struct {
-	L1Head         common.Hash
-	L2Head         common.Hash
-	L2OutputRoot   common.Hash
-	AgreedPreState []byte
-	L2Claim        common.Hash
-	L2BlockNumber  *big.Int
+	L1Head           common.Hash
+	L2Head           common.Hash
+	L2OutputRoot     common.Hash
+	AgreedPreState   []byte
+	L2Claim          common.Hash
+	L2SequenceNumber *big.Int
 }
 
 type L2HeaderSource interface {
@@ -57,10 +57,10 @@ func FetchLocalInputsFromProposals(ctx context.Context, l1Head common.Hash, l2Cl
 	l2Head := agreedHeader.Hash()
 
 	return LocalGameInputs{
-		L1Head:        l1Head,
-		L2Head:        l2Head,
-		L2OutputRoot:  agreedOutput.OutputRoot,
-		L2Claim:       claimedOutput.OutputRoot,
-		L2BlockNumber: claimedOutput.L2BlockNumber,
+		L1Head:           l1Head,
+		L2Head:           l2Head,
+		L2OutputRoot:     agreedOutput.OutputRoot,
+		L2Claim:          claimedOutput.OutputRoot,
+		L2SequenceNumber: claimedOutput.L2BlockNumber,
 	}, nil
 }

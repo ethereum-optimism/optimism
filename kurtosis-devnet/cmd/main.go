@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/deploy"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
+	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"
 	"github.com/urfave/cli/v2"
 )
 
@@ -21,6 +22,7 @@ type config struct {
 	dryRun          bool
 	baseDir         string
 	kurtosisBinary  string
+	autofix         string
 }
 
 func newConfig(c *cli.Context) (*config, error) {
@@ -32,6 +34,7 @@ func newConfig(c *cli.Context) (*config, error) {
 		environment:     c.String("environment"),
 		dryRun:          c.Bool("dry-run"),
 		kurtosisBinary:  c.String("kurtosis-binary"),
+		autofix:         c.String("autofix"),
 	}
 
 	// Validate required flags
@@ -63,14 +66,42 @@ func writeEnvironment(path string, env *kurtosis.KurtosisEnvironment) error {
 	return nil
 }
 
+func printAutofixMessage() {
+	fmt.Println("Trouble with your devnet? Try Autofix!")
+	fmt.Println("Set AUTOFIX=true to automatically fix common configuration issues.")
+	fmt.Println("If that doesn't work, set AUTOFIX=nuke to start fresh with a clean slate.")
+	fmt.Println()
+}
+
+func printWelcomeMessage() {
+	fmt.Println("Welcome to Kurtosis Devnet!")
+	printAutofixMessage()
+	fmt.Println("Happy hacking!")
+}
+
 func mainAction(c *cli.Context) error {
+	// Only show welcome message if not showing help or version
+	if !c.Bool("help") && !c.Bool("version") && c.NArg() == 0 {
+		printWelcomeMessage()
+	}
 
 	cfg, err := newConfig(c)
 	if err != nil {
 		return fmt.Errorf("error parsing config: %w", err)
 	}
 
-	deployer := deploy.NewDeployer(
+	autofixMode := autofixTypes.AutofixModeDisabled
+	if cfg.autofix == "true" {
+		autofixMode = autofixTypes.AutofixModeNormal
+	} else if cfg.autofix == "nuke" {
+		autofixMode = autofixTypes.AutofixModeNuke
+	} else if os.Getenv("AUTOFIX") == "true" {
+		autofixMode = autofixTypes.AutofixModeNormal
+	} else if os.Getenv("AUTOFIX") == "nuke" {
+		autofixMode = autofixTypes.AutofixModeNuke
+	}
+
+	deployer, err := deploy.NewDeployer(
 		deploy.WithKurtosisPackage(cfg.kurtosisPackage),
 		deploy.WithEnclave(cfg.enclave),
 		deploy.WithDryRun(cfg.dryRun),
@@ -78,10 +109,17 @@ func mainAction(c *cli.Context) error {
 		deploy.WithTemplateFile(cfg.templateFile),
 		deploy.WithDataFile(cfg.dataFile),
 		deploy.WithBaseDir(cfg.baseDir),
+		deploy.WithAutofixMode(autofixMode),
 	)
+	if err != nil {
+		return fmt.Errorf("error creating deployer: %w", err)
+	}
 
 	env, err := deployer.Deploy(c.Context, nil)
 	if err != nil {
+		if autofixMode == autofixTypes.AutofixModeDisabled {
+			printAutofixMessage()
+		}
 		return fmt.Errorf("error deploying environment: %w", err)
 	}
 
@@ -121,6 +159,10 @@ func getFlags() []cli.Flag {
 			Name:  "kurtosis-binary",
 			Usage: "Path to kurtosis binary (optional)",
 			Value: "kurtosis",
+		},
+		&cli.StringFlag{
+			Name:  "autofix",
+			Usage: "Autofix mode (optional, values: true, nuke)",
 		},
 	}
 }

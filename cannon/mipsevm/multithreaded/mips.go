@@ -189,18 +189,26 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysTimerDelete:
 	case arch.SysGetRLimit:
 	case arch.SysLseek:
+	case arch.SysEventFd2:
+		if !m.features.SupportNoopSysEventFd2 {
+			m.handleUnrecognizedSyscall(syscallNum)
+		}
 	default:
 		// These syscalls have the same values on 64-bit. So we use if-stmts here to avoid "duplicate case" compiler error for the cannon64 build
 		if arch.IsMips32 && (syscallNum == arch.SysFstat64 || syscallNum == arch.SysStat64 || syscallNum == arch.SysLlseek) {
 			// noop
 		} else {
-			m.Traceback()
-			panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
+			m.handleUnrecognizedSyscall(syscallNum)
 		}
 	}
 
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 	return nil
+}
+
+func (m *InstrumentedState) handleUnrecognizedSyscall(syscallNum Word) {
+	m.Traceback()
+	panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
 }
 
 func (m *InstrumentedState) syscallYield(thread *ThreadState) {

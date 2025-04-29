@@ -264,13 +264,16 @@ func TestBatcherAutoDA(t *testing.T) {
 	// We set the genesis fee values and block gas limit such that calldata txs are initially cheaper,
 	// but then manipulate the fee markets over the coming L1 blocks such that blobs become cheaper again.
 	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(3000))
-	// The following excess blob gas leads to a blob base fee ~41 times higher than the base fee at genesis,
+	// The following excess blob gas leads to a blob base fee >41 times higher than the base fee at genesis,
 	// so the batcher starts with calldata (equilibrium is ~16x or ~40x under Pectra).
 	cfg.DeployConfig.L1GenesisBlockExcessBlobGas = (*hexutil.Uint64)(u64Ptr(
-		450 * params.BlobTxBlobGasPerBlob))
+		452 * params.BlobTxBlobGasPerBlob))
 	cfg.DeployConfig.L1GenesisBlockBlobGasUsed = (*hexutil.Uint64)(u64Ptr(0))
 	cfg.DeployConfig.L1GenesisBlockGasLimit = 2_500_000
 	cfg.BatcherTargetNumFrames = maxBlobsPerBlock
+	cfg.DisableProposer = true // disable L2 output submission for this test
+	cfg.DisableTxForwarder = true
+	cfg.DisableBatcher = true // disable batcher because we start it manually later
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
 	log := testlog.Logger(t, log.LevelInfo)
@@ -317,6 +320,14 @@ func TestBatcherAutoDA(t *testing.T) {
 	}
 
 	// Check markets are set up as expected.
+	// There is a race condition where the batcher might already
+	// impact the markets before we query the feeRatio. Therefore
+	// the L1GenesisBlockExcessBlobGas above is tuned so that
+	// the feeRatio remains above 41.0 even after the market begins to
+	// change:
+	// initially:     feeRatio = 43.67449956483899
+	// after block 3: feeRatio = 42.65440079562407 (using geth.WaitForBlock(big.NewInt(3), l1Client))
+
 	_, _, _, feeRatio := mustGetFees()
 	require.Greater(t, feeRatio, 41.0, "expected feeRatio to be greater than 41 (calldata should be cheaper, even with Pectra)")
 
@@ -337,6 +348,7 @@ func TestBatcherAutoDA(t *testing.T) {
 
 	// At this point, we didn't wait on any blocks yet, so we can check that
 	// the first batcher tx used calldata.
+	require.NoError(t, sys.BatchSubmitter.TestDriver().StartBatchSubmitting())
 	requireEventualBatcherTxType(types.DynamicFeeTxType, 8*time.Second, true)
 
 	// Now wait for txs to confirm on L1:

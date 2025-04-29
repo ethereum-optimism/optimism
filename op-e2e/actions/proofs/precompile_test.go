@@ -3,12 +3,16 @@ package proofs
 import (
 	"context"
 	"encoding/binary"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	hostcommon "github.com/ethereum-optimism/optimism/op-program/host/common"
 	hostconfig "github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
@@ -21,18 +25,28 @@ import (
 )
 
 func Test_OPProgramAction_Precompiles(gt *testing.T) {
+	matrix := helpers.NewMatrix[any]()
+	defer matrix.Run(gt)
+	// Remove forks unsupported by the fault proof
+	forks := slices.DeleteFunc(helpers.Hardforks, func(hf *helpers.Hardfork) bool {
+		return hf == helpers.Regolith || hf == helpers.Canyon || hf == helpers.Delta
+	})
+
 	for _, test := range PrecompileTestFixtures {
-		gt.Run(test.Name, func(t *testing.T) {
-			runPrecompileTest(t, test)
-		})
+		testCase := test
+		matrix.AddTestCase(
+			test.Name,
+			nil,
+			forks,
+			func(t *testing.T, testCfg *helpers.TestCfg[any]) {
+				runPrecompileTest(t, testCase, testCfg)
+			},
+			helpers.ExpectNoError(),
+		)
 	}
 }
 
-func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture) {
-	testCfg := &helpers.TestCfg[any]{
-		Hardfork:    helpers.LatestFork,
-		CheckResult: helpers.ExpectNoError(),
-	}
+func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
@@ -78,19 +92,29 @@ func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture) {
 	programCfg := helpers.NewOpProgramCfg(&fixtureInputs)
 	// Create an external in-memory kv store so we can inspect the precompile results.
 	kv := kvstore.NewMemKV()
+	var precompileHints *precompileHintCounter
 	withInProcessPrefetcher := hostcommon.WithPrefetcher(func(ctx context.Context, logger log.Logger, _kv kvstore.KV, cfg *hostconfig.Config) (hostcommon.Prefetcher, error) {
-		return helpers.CreateInprocessPrefetcher(t, ctx, logger, env.Miner, kv, cfg, &fixtureInputs)
+		prefetcher, err := helpers.CreateInprocessPrefetcher(t, ctx, logger, env.Miner, kv, cfg, &fixtureInputs)
+		precompileHints = &precompileHintCounter{Prefetcher: prefetcher}
+		return precompileHints, err
 	})
 	ctx, cancel := context.WithTimeout(t.Ctx(), 2*time.Minute)
 	defer cancel()
 	require.NoError(t, hostcommon.FaultProofProgram(ctx, testlog.Logger(t, log.LevelDebug).New("role", "program"), programCfg, withInProcessPrefetcher))
+	require.NotNil(t, precompileHints)
 
 	rules := env.Engine.L2Chain().Config().Rules(l2SafeHead.Number, true, l2SafeHead.Time)
-	precompile := vm.ActivePrecompiledContracts(rules)[testCase.Address]
+	precompile, ok := vm.ActivePrecompiledContracts(rules)[testCase.Address]
+	if !ok {
+		require.Zero(t, precompileHints.GetCount(), "received precompile hints for inactive precompile")
+		return
+	}
+
 	gas := precompile.RequiredGas(testCase.Input)
 	precompileKey := createPrecompileKey(testCase.Address, testCase.Input, gas)
 	// If accelerated, make sure that the precompile was fetched from the host.
 	if testCase.Accelerated {
+		require.Equal(t, 1, precompileHints.GetCount(), "unexpected number of precompile hints for accelerated precompile")
 		programResult, err := kv.Get(precompileKey)
 		require.NoError(t, err)
 
@@ -100,6 +124,7 @@ func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture) {
 		require.NoError(t, err)
 		require.EqualValues(t, expected, programResult)
 	} else {
+		require.Zero(t, precompileHints.GetCount(), "received precompile hints for non-accelerated precompile")
 		_, err := kv.Get(precompileKey)
 		require.ErrorIs(t, kvstore.ErrNotFound, err)
 	}
@@ -108,4 +133,25 @@ func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture) {
 func createPrecompileKey(precompileAddress common.Address, input []byte, gas uint64) common.Hash {
 	hintBytes := append(precompileAddress.Bytes(), binary.BigEndian.AppendUint64(nil, gas)...)
 	return preimage.PrecompileKey(crypto.Keccak256Hash(append(hintBytes, input...))).PreimageKey()
+}
+
+type precompileHintCounter struct {
+	sync.RWMutex
+	count int
+	hostcommon.Prefetcher
+}
+
+func (p *precompileHintCounter) Hint(hint string) error {
+	p.RWMutex.Lock()
+	defer p.RWMutex.Unlock()
+	if strings.HasPrefix(hint, l1.HintL1Precompile) || strings.HasPrefix(hint, l1.HintL1PrecompileV2) {
+		p.count++
+	}
+	return p.Prefetcher.Hint(hint)
+}
+
+func (p *precompileHintCounter) GetCount() int {
+	p.RWMutex.RLock()
+	defer p.RWMutex.RUnlock()
+	return p.count
 }

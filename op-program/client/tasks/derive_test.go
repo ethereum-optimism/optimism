@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errBoom = errors.New("boom")
+
 func TestLoadOutputRoot(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		safeHead := eth.L2BlockRef{Number: 65}
@@ -37,15 +39,14 @@ func TestLoadOutputRoot(t *testing.T) {
 	})
 
 	t.Run("Error-OutputRoot", func(t *testing.T) {
-		expectedErr := errors.New("boom")
 		safeHead := eth.L2BlockRef{Number: 10}
 		l2 := &mockL2{
 			blockHash:     common.Hash{0x24},
 			outputRoot:    eth.Bytes32{0x11},
-			outputRootErr: expectedErr,
+			outputRootErr: errBoom,
 		}
 		_, err := loadOutputRoot(uint64(0), safeHead, l2)
-		require.ErrorIs(t, err, expectedErr)
+		require.ErrorIs(t, err, errBoom)
 	})
 }
 

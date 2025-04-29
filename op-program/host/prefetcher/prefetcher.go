@@ -207,13 +207,8 @@ func (p *Prefetcher) bulkPrefetch(ctx context.Context, hint string) error {
 
 		// ignore keys because we want to rehash all of the values for safety
 		values := make([]hexutil.Bytes, 0, len(result.State)+len(result.Codes))
-		for _, value := range result.State {
-			values = append(values, value)
-		}
-
-		for _, value := range result.Codes {
-			values = append(values, value)
-		}
+		values = append(values, result.State...)
+		values = append(values, result.Codes...)
 
 		return p.storeNodes(values)
 	default:
@@ -348,11 +343,12 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 
 		// Put all of the blob's field elements into the kv store. There should be 4096. The preimage oracle key for
-		// each field element is the keccak256 hash of `abi.encodePacked(sidecar.KZGCommitment, uint256(i))`
+		// each field element is the keccak256 hash of `abi.encodePacked(sidecar.KZGCommitment, RootsOfUnity[i])`
 		blobKey := make([]byte, 80)
 		copy(blobKey[:48], sidecar.KZGCommitment[:])
 		for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
-			binary.BigEndian.PutUint64(blobKey[72:], uint64(i))
+			rootOfUnity := l1.RootsOfUnity[i].Bytes()
+			copy(blobKey[48:], rootOfUnity[:])
 			blobKeyHash := crypto.Keccak256Hash(blobKey)
 			if err := p.kvStore.Put(preimage.Keccak256Key(blobKeyHash).PreimageKey(), blobKey); err != nil {
 				return err

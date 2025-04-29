@@ -25,7 +25,7 @@ const (
 	ChallengePeriodSeconds          uint64 = 86400
 	ProofMaturityDelaySeconds       uint64 = 604800
 	DisputeGameFinalityDelaySeconds uint64 = 302400
-	MIPSVersion                     uint64 = 1
+	MIPSVersion                     uint64 = 6
 	DisputeGameType                 uint32 = 1 // PERMISSIONED game type
 	DisputeMaxGameDepth             uint64 = 73
 	DisputeSplitDepth               uint64 = 30
@@ -39,7 +39,7 @@ const (
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
 	ContractsV170Beta1L2Tag = "op-contracts/v1.7.0-beta.1+l2-contracts"
 	ContractsV200Tag        = "op-contracts/v2.0.0-rc.1"
-	ContractsV300Tag        = "op-contracts/v3.0.0-rc.1"
+	ContractsV300Tag        = "op-contracts/v3.0.0-rc.2"
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
@@ -75,8 +75,8 @@ var taggedReleases = map[string]TaggedRelease{
 		ContentHash:   common.HexToHash("1cec51ed629c0394b8fb17ff2c6fa45c406c30f94ebbd37d4c90ede6c29ad608"),
 	},
 	ContractsV300Tag: {
-		ArtifactsHash: common.HexToHash("497e55cc6d9dfb74615d1bac0f4d05ae5ef995972689adcc036ee3adf4522677"),
-		ContentHash:   common.HexToHash("e2527ea1ddcd47bc60310baea4c3183de1520880561b6c7837213290b925a2e8"),
+		ArtifactsHash: common.HexToHash("40661d078e6efe7106b95d6fc5c4fda8db144487d85a47abd246cb3afcb41ab2"),
+		ContentHash:   common.HexToHash("147b9fae70608da2975a01be3d98948306f89ba1930af7c917eea41a54d87cdb"),
 	},
 }
 
@@ -137,13 +137,21 @@ func SuperchainFor(chainID uint64) (superchain.Superchain, error) {
 func ManagerImplementationAddrFor(chainID uint64, tag string) (common.Address, error) {
 	versionsData, err := L1VersionsFor(chainID)
 	if err != nil {
-		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
+		return common.Address{}, fmt.Errorf("unsupported chainID: %d", chainID)
 	}
 	versionData, ok := versionsData[validation.Semver(tag)]
 	if !ok {
-		return common.Address{}, fmt.Errorf("unsupported tag for chain ID %d: %s", chainID, tag)
+		return common.Address{}, fmt.Errorf("unsupported tag for chainID %d: %s", chainID, tag)
 	}
-	return common.Address(*versionData.OPContractsManager.Address), nil
+	if versionData.OPContractsManager.Address != nil {
+		// op-contracts/v1.8.0 and earlier use proxied opcm
+		return common.Address(*versionData.OPContractsManager.Address), nil
+	}
+	if versionData.OPContractsManager.ImplementationAddress != nil {
+		// op-contracts/v2.0.0-rc.1 and later use non-proxied opcm
+		return common.Address(*versionData.OPContractsManager.ImplementationAddress), nil
+	}
+	return common.Address{}, fmt.Errorf("OPContractsManager address is nil for tag %s", tag)
 }
 
 // SuperchainProxyAdminAddrFor returns the address of the Superchain ProxyAdmin for the given chain ID.
@@ -196,7 +204,11 @@ func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
 func ArtifactsURLForTag(tag string) (*url.URL, error) {
 	release, ok := taggedReleases[tag]
 	if !ok {
-		return nil, fmt.Errorf("unsupported tag: %s", tag)
+		var validTagsStr string
+		for t := range taggedReleases {
+			validTagsStr += fmt.Sprintf("  %s\n", t)
+		}
+		return nil, fmt.Errorf("unsupported tag: %s\nValid tags are:\n%s", tag, validTagsStr)
 	}
 
 	return url.Parse(release.URL())
@@ -227,7 +239,7 @@ func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployCon
 	switch tag {
 	case ContractsV160Tag, ContractsV170Beta1L2Tag:
 		return sched
-	case ContractsV180Tag, ContractsV200Tag:
+	case ContractsV180Tag, ContractsV200Tag, ContractsV300Tag:
 		sched.ActivateForkAtGenesis(rollup.Holocene)
 	default:
 		sched.ActivateForkAtGenesis(rollup.Holocene)

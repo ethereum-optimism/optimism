@@ -113,15 +113,24 @@ func SuperchainCLI(cliCtx *cli.Context) error {
 		Paused:                    paused,
 	}
 
-	if err := cfg.RequiredProtocolVersion.UnmarshalText([]byte(requiredVersionStr)); err != nil {
-		return fmt.Errorf("failed to parse required protocol version: %w", err)
+	// Default to op-geth params.OPStackSupport if not specified for required and recommended protocolversions
+	if requiredVersionStr != "" {
+		if err := cfg.RequiredProtocolVersion.UnmarshalText([]byte(requiredVersionStr)); err != nil {
+			return fmt.Errorf("failed to parse required protocol version: %w", err)
+		}
+	} else {
+		cfg.RequiredProtocolVersion = params.OPStackSupport
 	}
-	if err := cfg.RecommendedProtocolVersion.UnmarshalText([]byte(recommendedVersionStr)); err != nil {
-		return fmt.Errorf("failed to parse required protocol version: %w", err)
+
+	if recommendedVersionStr != "" {
+		if err := cfg.RecommendedProtocolVersion.UnmarshalText([]byte(recommendedVersionStr)); err != nil {
+			return fmt.Errorf("failed to parse recommended protocol version: %w", err)
+		}
+	} else {
+		cfg.RecommendedProtocolVersion = params.OPStackSupport
 	}
 
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
-
 	dso, err := Superchain(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to deploy superchain: %w", err)

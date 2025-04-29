@@ -17,6 +17,11 @@
         "type": "address"
       },
       {
+        "internalType": "contract OPContractsManagerInteropMigrator",
+        "name": "_opcmInteropMigrator",
+        "type": "address"
+      },
+      {
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
@@ -192,6 +197,26 @@
           {
             "internalType": "address",
             "name": "permissionlessDisputeGame2",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame2",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame2",
             "type": "address"
           }
         ],
@@ -524,6 +549,107 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "usePermissionlessGame",
+            "type": "bool"
+          },
+          {
+            "components": [
+              {
+                "internalType": "Hash",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint256",
+                "name": "l2SequenceNumber",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Proposal",
+            "name": "startingAnchorRoot",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "proposer",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "challenger",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "maxGameDepth",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "splitDepth",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "initBond",
+                "type": "uint256"
+              },
+              {
+                "internalType": "Duration",
+                "name": "clockExtension",
+                "type": "uint64"
+              },
+              {
+                "internalType": "Duration",
+                "name": "maxClockDuration",
+                "type": "uint64"
+              }
+            ],
+            "internalType": "struct OPContractsManagerInteropMigrator.GameParameters",
+            "name": "gameParameters",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "contract ISystemConfig",
+                "name": "systemConfigProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "contract IProxyAdmin",
+                "name": "proxyAdmin",
+                "type": "address"
+              },
+              {
+                "internalType": "Claim",
+                "name": "absolutePrestate",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct OPContractsManager.OpChainConfig[]",
+            "name": "opChainConfigs",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct OPContractsManagerInteropMigrator.MigrateInput",
+        "name": "_input",
+        "type": "tuple"
+      }
+    ],
+    "name": "migrate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "opcmDeployer",
     "outputs": [
@@ -542,6 +668,19 @@
     "outputs": [
       {
         "internalType": "contract OPContractsManagerGameTypeAdder",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "opcmInteropMigrator",
+    "outputs": [
+      {
+        "internalType": "contract OPContractsManagerInteropMigrator",
         "name": "",
         "type": "address"
       }

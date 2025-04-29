@@ -9,19 +9,13 @@ import { EventLogger } from "../../src/integration/EventLogger.sol";
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-import { CrossL2Inbox, Identifier as ImplIdentifier } from "src/L2/CrossL2Inbox.sol";
-
-// @title MockL1BlockInfo
-// @notice mock L1 block info to fake a deposit-context.
-contract MockL1BlockInfo {
-    // @notice mock deposit-context that is never active
-    // @return always false
-    function isDeposit() external pure returns (bool isDeposit_) {
-        return false;
-    }
-}
+import { ICrossL2Inbox, Identifier as ImplIdentifier } from "interfaces/L2/ICrossL2Inbox.sol";
+import { VmSafe } from "forge-std/Vm.sol";
+import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 
 contract EventLogger_Initializer is Test {
+    event ExecutingMessage(bytes32 indexed msgHash, ImplIdentifier id);
+
     EventLogger eventLogger;
 
     function setUp() public {
@@ -31,10 +25,6 @@ contract EventLogger_Initializer is Test {
 
         vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2Inbox()).code);
         vm.label(Predeploys.CROSS_L2_INBOX, "CrossL2Inbox");
-
-        // CrossL2Inbox needs this to do the deposit-context check
-        vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, address(new MockL1BlockInfo()).code);
-        vm.label(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
     }
 }
 
@@ -99,11 +89,12 @@ contract EventLoggerTest is EventLogger_Initializer {
     }
 
     /// @notice It should succeed with any Identifier
+    /// forge-config: default.isolate = true
     function test_validateMessage_succeeds(
         address _origin,
-        uint256 _blockNumber,
-        uint256 _logIndex,
-        uint256 _timestamp,
+        uint64 _blockNumber,
+        uint32 _logIndex,
+        uint64 _timestamp,
         uint256 _chainId,
         bytes32 _msgHash
     )
@@ -123,9 +114,24 @@ contract EventLoggerTest is EventLogger_Initializer {
             timestamp: _timestamp,
             chainId: _chainId
         });
+
         address emitter = Predeploys.CROSS_L2_INBOX;
+
+        // Cool the contract's slots
+        vm.cool(address(emitter));
+
+        // Calculate the checksum and prepare the access list
+        bytes32 checksum = ICrossL2Inbox(emitter).calculateChecksum(idImpl, _msgHash);
+        bytes32[] memory slots = new bytes32[](1);
+        slots[0] = checksum;
+        VmSafe.AccessListItem[] memory accessList = new VmSafe.AccessListItem[](1);
+        accessList[0] = VmSafe.AccessListItem({ target: address(emitter), storageKeys: slots });
+
         vm.expectEmit(false, false, false, true, emitter);
-        emit CrossL2Inbox.ExecutingMessage(_msgHash, idImpl);
+        emit ExecutingMessage(_msgHash, idImpl);
+
+        // Call with access list
+        vm.accessList(accessList);
         eventLogger.validateMessage(idIface, _msgHash);
     }
 }

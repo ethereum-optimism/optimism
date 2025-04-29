@@ -38,7 +38,8 @@ func createHash(i int) common.Hash {
 
 func TestErrorOpeningDatabase(t *testing.T) {
 	dir := t.TempDir()
-	_, err := NewFromFile(testlog.Logger(t, log.LvlInfo), &stubMetrics{}, filepath.Join(dir, "missing-dir", "file.db"), false)
+	chainID := eth.ChainIDFromUInt64(123)
+	_, err := NewFromFile(testlog.Logger(t, log.LvlInfo), &stubMetrics{}, chainID, filepath.Join(dir, "missing-dir", "file.db"), false)
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
@@ -47,7 +48,8 @@ func runDBTest(t *testing.T, setup func(t *testing.T, db *DB, m *stubMetrics), a
 		logger := testlog.Logger(t, log.LvlTrace)
 		path := filepath.Join(dir, "test.db")
 		m := &stubMetrics{}
-		db, err := NewFromFile(logger, m, path, false)
+		chainID := eth.ChainIDFromUInt64(123)
+		db, err := NewFromFile(logger, m, chainID, path, false)
 		require.NoError(t, err, "Failed to create database")
 		t.Cleanup(func() {
 			err := db.Close()
@@ -734,6 +736,42 @@ func TestContains(t *testing.T) {
 		})
 }
 
+func TestContainsOutOfRangeLogIndex(t *testing.T) {
+	runDBTest(t,
+		func(t *testing.T, db *DB, m *stubMetrics) {
+			bl10 := eth.BlockID{Hash: createHash(10), Number: 10}
+			require.NoError(t, db.lastEntryContext.forceBlock(bl10, 5000))
+
+			// Create a block with 2 logs
+			require.NoError(t, db.AddLog(createHash(1), bl10, 0, nil))
+			require.NoError(t, db.AddLog(createHash(2), bl10, 1, nil))
+			bl11 := eth.BlockID{Hash: createHash(11), Number: 11}
+			require.NoError(t, db.SealBlock(bl10.Hash, bl11, 5001))
+
+			// Create a block with 0 logs
+			bl12 := eth.BlockID{Hash: createHash(12), Number: 12}
+			require.NoError(t, db.SealBlock(bl11.Hash, bl12, 5002))
+
+			// Create a log for an unsealed block
+			require.NoError(t, db.AddLog(createHash(3), bl12, 0, nil))
+		},
+		func(t *testing.T, db *DB, m *stubMetrics) {
+			// Asking for existing logs should succeed
+			requireContains(t, db, 11, 0, 5001, createHash(1))
+			requireContains(t, db, 11, 1, 5001, createHash(2))
+
+			// Asking for out of range log index should return a conflict
+			requireConflicts(t, db, 11, 2, 5001, createHash(3))
+
+			// Asking for logs in a complete block with no logs should return a conflict
+			requireConflicts(t, db, 12, 0, 5002, createHash(4))
+
+			// Asking for logs in a block that isn't complete yet should return a future
+			requireFuture(t, db, 13, 0, 5003, createHash(6))
+			requireFuture(t, db, 13, 1, 5003, createHash(6))
+		})
+}
+
 func TestExecutes(t *testing.T) {
 	execMsg1 := types.ExecutingMessage{
 		Chain:     33,
@@ -852,12 +890,14 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 	require.LessOrEqual(t, len(execMsg), 1, "cannot have multiple executing messages for a single log")
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		LogHash:   logHash,
-	})
+	q := types.ChecksumArgs{
+		BlockNumber: blockNum,
+		LogIndex:    logIdx,
+		Timestamp:   timestamp,
+		ChainID:     db.chainID,
+		LogHash:     logHash,
+	}.Query()
+	_, err := db.Contains(q)
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
@@ -872,12 +912,14 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, times
 func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		LogHash:   logHash,
-	})
+	q := types.ChecksumArgs{
+		BlockNumber: blockNum,
+		LogIndex:    logIdx,
+		Timestamp:   timestamp,
+		ChainID:     db.chainID,
+		LogHash:     logHash,
+	}.Query()
+	_, err := db.Contains(q)
 	require.ErrorIs(t, err, types.ErrConflict, "canonical chain must not include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
@@ -885,12 +927,14 @@ func requireConflicts(t *testing.T, db *DB, blockNum uint64, logIdx uint32, time
 func requireFuture(t *testing.T, db *DB, blockNum uint64, logIdx uint32, timestamp uint64, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	_, err := db.Contains(types.ContainsQuery{
-		Timestamp: timestamp,
-		BlockNum:  blockNum,
-		LogIdx:    logIdx,
-		LogHash:   logHash,
-	})
+	q := types.ChecksumArgs{
+		BlockNumber: blockNum,
+		LogIndex:    logIdx,
+		Timestamp:   timestamp,
+		ChainID:     db.chainID,
+		LogHash:     logHash,
+	}.Query()
+	_, err := db.Contains(q)
 	require.ErrorIs(t, err, types.ErrFuture, "canonical chain does not yet include this log")
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency*2), "Should not need to read more than between two checkpoints")
 }
@@ -912,10 +956,11 @@ func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint3
 }
 
 func TestRecoverOnCreate(t *testing.T) {
+	chainID := eth.ChainIDFromUInt64(123)
 	createDb := func(t *testing.T, store *entrydb.MemEntryStore[EntryType, Entry]) (*DB, *stubMetrics, error) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		m := &stubMetrics{}
-		db, err := NewFromEntryStore(logger, m, store, true)
+		db, err := NewFromEntryStore(logger, m, chainID, store, true)
 		return db, m, err
 	}
 

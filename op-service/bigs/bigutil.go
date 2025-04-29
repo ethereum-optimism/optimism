@@ -7,13 +7,13 @@ func Equal(a *big.Int, b *big.Int) bool {
 }
 
 func IsZero(val *big.Int) bool {
-	return val.Cmp(big.NewInt(0)) == 0
+	return val.Sign() == 0
 }
 
 func IsPositive(val *big.Int) bool {
-	return val.Cmp(big.NewInt(0)) > 0
+	return val.Sign() > 0
 }
 
 func IsNegative(val *big.Int) bool {
-	return val.Cmp(big.NewInt(0)) < 0
+	return val.Sign() < 0
 }

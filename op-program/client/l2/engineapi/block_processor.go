@@ -18,8 +18,10 @@ import (
 )
 
 var (
-	ErrExceedsGasLimit = errors.New("tx gas exceeds block gas limit")
-	ErrUsesTooMuchGas  = errors.New("action takes too much gas")
+	ErrExceedsGasLimit  = errors.New("tx gas exceeds block gas limit")
+	ErrUsesTooMuchGas   = errors.New("action takes too much gas")
+	errInvalidGasLimit  = errors.New("invalid gas limit")
+	errInvalidTimestamp = errors.New("invalid timestamp")
 )
 
 type BlockDataProvider interface {
@@ -69,11 +71,11 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 	header := types.CopyHeader(h) // Copy to avoid mutating the original header
 
 	if header.GasLimit > params.MaxGasLimit {
-		return nil, fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit, params.MaxGasLimit)
+		return nil, fmt.Errorf("%w: have %v, max %v", errInvalidGasLimit, header.GasLimit, params.MaxGasLimit)
 	}
 	parentHeader := provider.GetHeaderByHash(header.ParentHash)
 	if header.Time <= parentHeader.Time {
-		return nil, errors.New("invalid timestamp")
+		return nil, errInvalidTimestamp
 	}
 	statedb, err := provider.StateAt(parentHeader.Root)
 	if err != nil {

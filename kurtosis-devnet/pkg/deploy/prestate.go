@@ -45,13 +45,15 @@ func (h *localPrestateHolder) GetPrestateInfo() (*PrestateInfo, error) {
 	}
 
 	if h.dryRun {
+		// In dry run, populate with placeholder keys to avoid template errors during first pass
+		info.Hashes["prestate_mt64"] = "dry_run_placeholder"
+		info.Hashes["prestate_interop"] = "dry_run_placeholder"
 		h.info = info
 		return info, nil
 	}
 
 	// Map of known file prefixes to their keys
 	fileToKey := map[string]string{
-		"prestate-proof.json":         "prestate",
 		"prestate-proof-mt64.json":    "prestate_mt64",
 		"prestate-proof-interop.json": "prestate_interop",
 	}

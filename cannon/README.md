@@ -70,7 +70,7 @@ make cannon
 ## Contracts
 
 The Cannon contracts:
-- `MIPS.sol`: A MIPS emulator implementation, to run a single instruction onchain, with merkleized VM memory.
+- `MIPS64.sol`: A MIPS emulator implementation, to run a single instruction onchain, with merkleized VM memory.
 - `PreimageOracle.sol`: implements the pre-image oracle ABI, to support the instruction execution pre-image requests.
 
 The smart-contracts are integrated into the Optimism monorepo contracts:
@@ -80,11 +80,11 @@ The smart-contracts are integrated into the Optimism monorepo contracts:
 
 `mipsevm` is Go tooling to test the onchain MIPS implementation, and generate proof data.
 
-## `example`
+## `testdata`
 
 Example programs that can be run and proven with Cannon.
 Optional dependency, but required for `mipsevm` Go tests.
-See [`testdata/example/Makefile`](./testdata/example/Makefile) for building the example MIPS binaries.
+See [`testdata/Makefile`](testdata/Makefile) for building these MIPS binaries.
 
 ## License
 

@@ -17,7 +17,7 @@ import {
     Duration,
     Timestamp,
     Hash,
-    OutputRoot,
+    Proposal,
     LibClock,
     LocalPreimageKey,
     VMStatuses
@@ -170,9 +170,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.1
+    /// @custom:semver 1.5.0
     function version() public pure virtual returns (string memory) {
-        return "1.4.1";
+        return "1.5.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -213,7 +213,7 @@ contract FaultDisputeGame is Clone, ISemver {
     mapping(uint256 => ResolutionCheckpoint) public resolutionCheckpoints;
 
     /// @notice The latest finalized output root, serving as the anchor for output bisection.
-    OutputRoot public startingOutputRoot;
+    Proposal public startingOutputRoot;
 
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
@@ -302,8 +302,8 @@ contract FaultDisputeGame is Clone, ISemver {
         // Should only happen if this is a new game type that hasn't been set up yet.
         if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
 
-        // Set the starting output root.
-        startingOutputRoot = OutputRoot({ l2BlockNumber: rootBlockNumber, root: root });
+        // Set the starting proposal.
+        startingOutputRoot = Proposal({ l2SequenceNumber: rootBlockNumber, root: root });
 
         // Revert if the calldata size is not the expected length.
         //
@@ -616,7 +616,7 @@ contract FaultDisputeGame is Clone, ISemver {
 
             // We add the index at depth + 1 to the starting block number to get the disputed L2
             // block number.
-            uint256 l2Number = startingOutputRoot.l2BlockNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
+            uint256 l2Number = startingOutputRoot.l2SequenceNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
 
             // Choose the minimum between the `l2BlockNumber` claim and the bisected-to L2 block number.
             l2Number = l2Number < l2BlockNumber() ? l2Number : l2BlockNumber();
@@ -647,9 +647,14 @@ contract FaultDisputeGame is Clone, ISemver {
         l2BlockNumber_ = _getArgUint256(0x54);
     }
 
+    /// @notice The l2SequenceNumber of the disputed output root in the `L2OutputOracle` (in this case - block number).
+    function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
+        l2SequenceNumber_ = l2BlockNumber();
+    }
+
     /// @notice Only the starting block number of the game.
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
-        startingBlockNumber_ = startingOutputRoot.l2BlockNumber;
+        startingBlockNumber_ = startingOutputRoot.l2SequenceNumber;
     }
 
     /// @notice Starting output root and block number of the game.

@@ -5,7 +5,7 @@ pragma solidity ^0.8.15;
 import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
-import { GameType, GameStatus, Hash, Claim, VMStatuses, OutputRoot } from "src/dispute/lib/Types.sol";
+import { GameType, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -46,8 +46,9 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_Init {
         assertEq(l2BlockNumber, 0);
 
         // Verify contract addresses.
-        assert(anchorStateRegistry.superchainConfig() == superchainConfig);
+        assert(anchorStateRegistry.systemConfig() == systemConfig);
         assert(anchorStateRegistry.disputeGameFactory() == disputeGameFactory);
+        assert(anchorStateRegistry.superchainConfig() == superchainConfig);
     }
 }
 
@@ -56,11 +57,11 @@ contract AnchorStateRegistry_Initialize_TestFail is AnchorStateRegistry_Init {
     function test_initialize_twice_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         anchorStateRegistry.initialize(
-            superchainConfig,
+            systemConfig,
             disputeGameFactory,
-            OutputRoot({
+            Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
-                l2BlockNumber: 0
+                l2SequenceNumber: 0
             }),
             GameType.wrap(0)
         );
@@ -79,14 +80,14 @@ contract AnchorStateRegistry_Paused_Test is AnchorStateRegistry_Init {
     function test_paused_succeeds() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Paused should return true.
         assertTrue(anchorStateRegistry.paused());
 
         // Unpause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.unpause();
+        superchainConfig.unpause(address(0));
 
         // Paused should return false.
         assertFalse(anchorStateRegistry.paused());
@@ -123,7 +124,7 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_Init {
         // We should get the anchor root back.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
         assertEq(root.raw(), gameProxy.rootClaim().raw());
-        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
+        assertEq(l2BlockNumber, gameProxy.l2SequenceNumber());
     }
 
     /// @notice Tests that getAnchorRoot will return the latest anchor root even if the superchain
@@ -141,12 +142,12 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_Init {
 
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // We should get the anchor root back.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
         assertEq(root.raw(), gameProxy.rootClaim().raw());
-        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
+        assertEq(l2BlockNumber, gameProxy.l2SequenceNumber());
     }
 
     /// @notice Tests that getAnchorRoot returns even if the anchor game is blacklisted.
@@ -168,7 +169,7 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_Init {
         // Get the anchor root.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
         assertEq(root.raw(), gameProxy.rootClaim().raw());
-        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
+        assertEq(l2BlockNumber, gameProxy.l2SequenceNumber());
     }
 }
 
@@ -339,7 +340,7 @@ contract AnchorStateRegistry_IsGameProper_Test is AnchorStateRegistry_Init {
     function test_isGameProper_superchainPaused_succeeds() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Game should not be proper.
         assertFalse(anchorStateRegistry.isGameProper(gameProxy));
@@ -582,7 +583,7 @@ contract AnchorStateRegistry_IsGameClaimValid_Test is AnchorStateRegistry_Init {
     function test_isGameClaimValid_superchainPaused_succeeds() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Game should not be valid.
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
@@ -602,7 +603,7 @@ contract AnchorStateRegistry_SetAnchorState_Test is AnchorStateRegistry_Init {
         _l2BlockNumber = bound(_l2BlockNumber, validL2BlockNumber, type(uint256).max);
 
         // Mock the l2BlockNumber call.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(_l2BlockNumber));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(_l2BlockNumber));
 
         // Mock the DEFENDER_WINS state.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
@@ -622,7 +623,7 @@ contract AnchorStateRegistry_SetAnchorState_Test is AnchorStateRegistry_Init {
 
         // Confirm that the anchor state is now the same as the game state.
         (root, l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
-        assertEq(l2BlockNumber, gameProxy.l2BlockNumber());
+        assertEq(l2BlockNumber, gameProxy.l2SequenceNumber());
         assertEq(root.raw(), gameProxy.rootClaim().raw());
 
         // Confirm that the anchor game is now set.
@@ -643,7 +644,7 @@ contract AnchorStateRegistry_SetAnchorState_TestFail is AnchorStateRegistry_Init
         _l2BlockNumber = bound(_l2BlockNumber, 0, l2BlockNumber);
 
         // Mock the l2BlockNumber call.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(_l2BlockNumber));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(_l2BlockNumber));
 
         // Mock the DEFENDER_WINS state.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
@@ -676,7 +677,7 @@ contract AnchorStateRegistry_SetAnchorState_TestFail is AnchorStateRegistry_Init
         _l2BlockNumber = bound(_l2BlockNumber, l2BlockNumber, type(uint256).max);
 
         // Mock the l2BlockNumber call.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(_l2BlockNumber));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(_l2BlockNumber));
 
         // Mock the DEFENDER_WINS state.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
@@ -715,7 +716,7 @@ contract AnchorStateRegistry_SetAnchorState_TestFail is AnchorStateRegistry_Init
         _l2BlockNumber = bound(_l2BlockNumber, l2BlockNumber, type(uint256).max);
 
         // Mock the l2BlockNumber call.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(_l2BlockNumber));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(_l2BlockNumber));
 
         // Mock the CHALLENGER_WINS state.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.CHALLENGER_WINS));
@@ -749,7 +750,7 @@ contract AnchorStateRegistry_SetAnchorState_TestFail is AnchorStateRegistry_Init
         _l2BlockNumber = bound(_l2BlockNumber, l2BlockNumber, type(uint256).max);
 
         // Mock the l2BlockNumber call.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(_l2BlockNumber));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(_l2BlockNumber));
 
         // Mock the CHALLENGER_WINS state.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.IN_PROGRESS));
@@ -782,7 +783,7 @@ contract AnchorStateRegistry_SetAnchorState_TestFail is AnchorStateRegistry_Init
         _l2BlockNumber = bound(_l2BlockNumber, l2BlockNumber, type(uint256).max);
 
         // Mock the l2BlockNumber call.
-        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2BlockNumber, ()), abi.encode(_l2BlockNumber));
+        vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.l2SequenceNumber, ()), abi.encode(_l2BlockNumber));
 
         // Mock the DEFENDER_WINS state.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.status, ()), abi.encode(GameStatus.DEFENDER_WINS));
@@ -883,7 +884,7 @@ contract AnchorStateRegistry_SetAnchorState_TestFail is AnchorStateRegistry_Init
     function test_setAnchorState_superchainPaused_fails() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Update the anchor state.
         vm.prank(address(gameProxy));

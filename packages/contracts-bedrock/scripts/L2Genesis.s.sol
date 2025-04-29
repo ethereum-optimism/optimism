@@ -132,9 +132,9 @@ contract L2Genesis is Deployer {
             OutputMode.NONE,
             Config.fork(),
             L1Dependencies({
-                l1CrossDomainMessengerProxy: payable(vm.envAddress("L2GENESIS_L1CrossDomainMessengerProxy")),
-                l1StandardBridgeProxy: payable(vm.envAddress("L2GENESIS_L1StandardBridgeProxy")),
-                l1ERC721BridgeProxy: payable(vm.envAddress("L2GENESIS_L1ERC721BridgeProxy"))
+                l1CrossDomainMessengerProxy: Config.l2Genesis_L1CrossDomainMessengerProxy(),
+                l1StandardBridgeProxy: Config.l2Genesis_L1StandardBridgeProxy(),
+                l1ERC721BridgeProxy: Config.l2Genesis_L1ERC721BridgeProxy()
             })
         );
     }
@@ -187,6 +187,10 @@ contract L2Genesis is Deployer {
         activateIsthmus();
 
         if (writeForkGenesisAllocs(_fork, Fork.ISTHMUS, _mode)) {
+            return;
+        }
+
+        if (writeForkGenesisAllocs(_fork, Fork.JOVIAN, _mode)) {
             return;
         }
     }
@@ -280,7 +284,7 @@ contract L2Genesis is Deployer {
         if (cfg.useInterop()) {
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
-            setSuperchainWETH(); // 24
+            setSuperchainETHBridge(); // 24
             setETHLiquidity(); // 25
             setSuperchainTokenBridge(); // 28
         }
@@ -395,16 +399,9 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL1Block() public {
-        if (cfg.useInterop()) {
-            string memory cname = "L1BlockInterop";
-            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
-            console.log("Setting %s implementation at: %s", cname, impl);
-            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
-        } else {
-            _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
-            // Note: L1 block attributes are set to 0.
-            // Before the first user-tx the state is overwritten with actual L1 attributes.
-        }
+        // Note: L1 block attributes are set to 0.
+        // Before the first user-tx the state is overwritten with actual L1 attributes.
+        _setImplementationCode(Predeploys.L1_BLOCK_ATTRIBUTES);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -583,8 +580,8 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #1.
     ///         This contract has no initializer.
-    function setSuperchainWETH() internal {
-        _setImplementationCode(Predeploys.SUPERCHAIN_WETH);
+    function setSuperchainETHBridge() internal {
+        _setImplementationCode(Predeploys.SUPERCHAIN_ETH_BRIDGE);
     }
 
     /// @notice This predeploy is following the safety invariant #1.

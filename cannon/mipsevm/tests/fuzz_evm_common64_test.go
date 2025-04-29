@@ -1,6 +1,3 @@
-//go:build cannon64
-// +build cannon64
-
 package tests
 
 import (

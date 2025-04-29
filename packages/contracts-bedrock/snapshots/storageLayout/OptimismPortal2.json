@@ -57,10 +57,10 @@
   },
   {
     "bytes": "20",
-    "label": "superchainConfig",
+    "label": "spacer_53_1_20",
     "offset": 1,
     "slot": "53",
-    "type": "contract ISuperchainConfig"
+    "type": "address"
   },
   {
     "bytes": "20",

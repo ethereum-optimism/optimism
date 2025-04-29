@@ -84,14 +84,9 @@ func deployDisputeGame(
 			return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
 		}
 		vmAddr = out.AlphabetVM
-	case state.VMTypeCannon1, state.VMTypeCannon2:
-		mipsVersion := 1
-		if game.VMType == state.VMTypeCannon2 {
-			mipsVersion = 2
-		}
-
+	case state.VMTypeCannon1, state.VMTypeCannon2, state.VMTypeCannon6, state.VMTypeCannon7:
 		out, err := opcm.DeployMIPS(env.L1ScriptHost, opcm.DeployMIPSInput{
-			MipsVersion:    uint64(mipsVersion),
+			MipsVersion:    game.VMType.MipsVersion(),
 			PreimageOracle: oracleAddr,
 		})
 		if err != nil {

@@ -101,7 +101,7 @@ func TestState_EncodeWitness(t *testing.T) {
 }
 
 func TestState_JSONCodec(t *testing.T) {
-	elfProgram, err := elf.Open("../../testdata/example/bin/hello.elf")
+	elfProgram, err := elf.Open("../../testdata/go-1-23/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 	state, err := program.LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
@@ -138,7 +138,7 @@ func TestState_JSONCodec(t *testing.T) {
 }
 
 func TestState_Binary(t *testing.T) {
-	elfProgram, err := elf.Open("../../testdata/example/bin/hello.elf")
+	elfProgram, err := elf.Open("../../testdata/go-1-23/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 	state, err := program.LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")

@@ -32,7 +32,7 @@ l1ChainID = 11155420
 fundDevAccounts = false
 useInterop = false
 l1ContractsLocator = "tag://op-contracts/v1.8.0-rc.4"
-l2ContractsLocator = "op-contracts/v1.7.0-beta.1+l2-contracts"
+l2ContractsLocator = "tag://op-contracts/v1.7.0-beta.1+l2-contracts"
 
 [superchainRoles]
   proxyAdminOwner = "0xeAAA3fd0358F476c86C26AE77B7b89a069730570"
@@ -58,6 +58,22 @@ l2ContractsLocator = "op-contracts/v1.7.0-beta.1+l2-contracts"
 ```
 
 Before you can use your intent file for a deployment, you will need to update all zero values to whatever is
-appropriate for your chain.
+appropriate for your chain. For dev environments, it is ok to use all EOAs/hot-wallets.
+
+## Production Setup
+In production environments, you should use a more secure setup with cold-wallet multisigs (e.g. Gnosis Safes) for the following:
+* `baseFeeVaultRecipient`
+* `l1FeeVaultRecipient`
+* `sequencerFeeVaultRecipient`
+* `l1ProxyAdminOwner`
+* `l2ProxyAdminOwner`
+* `systemConfigOwner`
+
+HSMs (hardware security modules) are recommended for the following hot-wallets:
+* `unsafeBlockSigner`
+* `batcher`
+* `proposer`
+* `challenger`
+
 
 [stages]: ../architecture/pipeline.md

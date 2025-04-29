@@ -101,6 +101,7 @@ func main() {
 		}
 	}
 
+	fmt.Println()
 	color.Green("✓ Contract bytecode matches the artifact (accounting for immutable references).")
 }
 
@@ -499,13 +500,40 @@ func printDifferences(
 	} else {
 		for varName, refs := range immutableRefs {
 			color.Yellow("\n%s:", varName)
-			for i, ref := range refs {
+
+			// Check if all values for this variable are the same
+			allSameValue := true
+			var firstValue string
+			var nonEmptyValueFound bool
+
+			for _, ref := range refs {
 				if ref.Value != "" {
-					fmt.Printf("  [%d] Offset: %d, Length: %d\n", i, ref.Offset, ref.Length)
+					if !nonEmptyValueFound {
+						firstValue = ref.Value
+						nonEmptyValueFound = true
+					} else if ref.Value != firstValue {
+						allSameValue = false
+						break
+					}
+				}
+			}
+
+			// Print each reference position on separate lines
+			for i, ref := range refs {
+				fmt.Printf("  [%d] Offset: %d, Length: %d\n", i, ref.Offset, ref.Length)
+				if ref.Value != "" {
 					fmt.Printf("      Value: 0x%s\n", ref.Value)
 				} else {
-					fmt.Printf("  [%d] Offset: %d, Length: %d\n", i, ref.Offset, ref.Length)
 					fmt.Printf("      Value: (not modified)\n")
+				}
+			}
+
+			// Print consistency status
+			if nonEmptyValueFound {
+				if allSameValue {
+					color.Green("  ✓ All values for this variable are consistent.")
+				} else {
+					color.Red("  ⚠️  WARNING: Different values found for the same immutable variable!")
 				}
 			}
 		}

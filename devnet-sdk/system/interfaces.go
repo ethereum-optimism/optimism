@@ -2,8 +2,10 @@ package system
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
@@ -17,55 +19,47 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-type genSystem[T Chain] interface {
+type System interface {
 	Identifier() string
-	L1() T
-	L2s() []T
+	L1() Chain
+	L2s() []L2Chain
 }
-
-// System represents a complete Optimism system with L1 and L2 chains
-type System = genSystem[Chain]
-
-type LowLevelSystem = genSystem[LowLevelChain]
 
 // Chain represents an Ethereum chain (L1 or L2)
 type Chain interface {
 	ID() types.ChainID
-	// If an instance of an implementation this interface represents an L1 chain,
-	// then then the wallets returned should be either validator wallets or test wallets,
-	// both useful in the context of sending transactions on the L1.
-	//
-	// If an instance of an implementation of this interface represents an L2 chain,
-	// then the wallets returned should be a combination of:
-	// 1. L2 admin wallets: wallets with admin priviledges for administrating an
-	//      L2's bridge contracts, etc on L1. Despite inclusion on the L2 wallet list, these wallets
-	//      are not useful for sending transactions on the L2 and do not control any L2 balance.
-	// 2. L2 test wallets: wallets controlling balance on the L2 for purposes of
-	//      testing. The balance on these wallets will originate unbacked L2 ETH from
-	//      the L2 genesis definition which cannot be withdrawn without maybe "stealing"
-	//      the backing from other deposits.
-	Wallets(ctx context.Context) ([]Wallet, error)
-	ContractsRegistry() interfaces.ContractsRegistry
-	SupportsEIP(ctx context.Context, eip uint64) bool
-	Node() Node
+	Nodes() []Node // The node at index 0 will always be the sequencer node
 	Config() (*params.ChainConfig, error)
-	Addresses() descriptors.AddressMap
+
+	// The wallets and addresses below are for use on the chain that the instance represents.
+	// If the instance also implements L2Chain, then the wallets and addresses below are still for the L2.
+	Wallets() WalletMap
+	Addresses() AddressMap
+}
+
+type L2Chain interface {
+	Chain
+
+	// The wallets and addresses below are for use on the L1 chain that this L2Chain instance settles to.
+	L1Addresses() AddressMap
+	L1Wallets() WalletMap
 }
 
 type Node interface {
+	Name() string
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
 	BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error)
-}
-
-// LowLevelChain is a Chain that gives direct access to the low level RPC client.
-type LowLevelChain interface {
-	Chain
+	ContractsRegistry() interfaces.ContractsRegistry
+	SupportsEIP(ctx context.Context, eip uint64) bool
 	RPCURL() string
 	Client() (*sources.EthClient, error)
 	GethClient() (*ethclient.Client, error)
 }
+
+type WalletMap map[string]Wallet
+type AddressMap descriptors.AddressMap
 
 // Wallet represents a chain wallet.
 // In particular it can process transactions.
@@ -73,10 +67,21 @@ type Wallet interface {
 	PrivateKey() types.Key
 	Address() types.Address
 	SendETH(to types.Address, amount types.Balance) types.WriteInvocation[any]
+	InitiateMessage(chainID types.ChainID, target common.Address, message []byte) types.WriteInvocation[any]
+	ExecuteMessage(identifier bindings.Identifier, sentMessage []byte) types.WriteInvocation[any]
 	Balance() types.Balance
 	Nonce() uint64
 
 	TransactionProcessor
+}
+
+// WalletV2 is a temporary interface for integrating txplan and txintent
+type WalletV2 interface {
+	PrivateKey() *ecdsa.PrivateKey
+	Address() common.Address
+	Client() *sources.EthClient
+	GethClient() *ethclient.Client
+	Ctx() context.Context
 }
 
 // TransactionProcessor is a helper interface for signing and sending transactions.
@@ -93,6 +98,7 @@ type TransactionData interface {
 	To() *common.Address
 	Value() *big.Int
 	Data() []byte
+	AccessList() coreTypes.AccessList
 }
 
 // Transaction is the instantiated transaction object.
@@ -100,6 +106,12 @@ type Transaction interface {
 	Type() uint8
 	Hash() common.Hash
 	TransactionData
+}
+
+type Receipt interface {
+	BlockNumber() *big.Int
+	Logs() []*coreTypes.Log
+	TxHash() common.Hash
 }
 
 // RawTransaction is an optional interface that can be implemented by a Transaction
@@ -121,12 +133,11 @@ type InteropSystem interface {
 
 // InteropSet provides access to L2 chains in an interop environment
 type InteropSet interface {
-	L2s() []Chain
+	L2s() []L2Chain
 }
 
 // Supervisor provides access to the query interface of the supervisor
 type Supervisor interface {
-	CheckMessage(context.Context, supervisorTypes.Identifier, common.Hash, supervisorTypes.ExecutingDescriptor) (supervisorTypes.SafetyLevel, error)
 	LocalUnsafe(context.Context, eth.ChainID) (eth.BlockID, error)
 	CrossSafe(context.Context, eth.ChainID) (supervisorTypes.DerivedIDPair, error)
 	Finalized(context.Context, eth.ChainID) (eth.BlockID, error)

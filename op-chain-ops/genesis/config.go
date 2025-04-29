@@ -359,6 +359,9 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisIsthmusTimeOffset is the number of seconds after genesis block that the Isthmus hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Isthmus.
 	L2GenesisIsthmusTimeOffset *hexutil.Uint64 `json:"l2GenesisIsthmusTimeOffset,omitempty"`
+	// L2GenesisJovianTimeOffset is the number of seconds after genesis block that the Jovian hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Jovian.
+	L2GenesisJovianTimeOffset *hexutil.Uint64 `json:"l2GenesisJovianTimeOffset,omitempty"`
 	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Interop.
 	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
@@ -409,6 +412,8 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 		return (*uint64)(d.L2GenesisHoloceneTimeOffset)
 	case rollup.Isthmus:
 		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
+	case rollup.Jovian:
+		return (*uint64)(d.L2GenesisJovianTimeOffset)
 	case rollup.Interop:
 		return (*uint64)(d.L2GenesisInteropTimeOffset)
 	default:
@@ -434,6 +439,8 @@ func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, of
 		d.L2GenesisHoloceneTimeOffset = (*hexutil.Uint64)(offset)
 	case rollup.Isthmus:
 		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Jovian:
+		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
 	case rollup.Interop:
 		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
 	default:
@@ -506,6 +513,10 @@ func (d *UpgradeScheduleDeployConfig) IsthmusTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisIsthmusTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) JovianTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisJovianTimeOffset, genesisTime)
+}
+
 func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
 }
@@ -539,6 +550,7 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
 		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
 		{L2GenesisTimeOffset: d.L2GenesisIsthmusTimeOffset, Name: string(L2AllocsIsthmus)},
+		{L2GenesisTimeOffset: d.L2GenesisJovianTimeOffset, Name: string(L2AllocsJovian)},
 	}
 }
 
@@ -1047,6 +1059,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHa
 		HoloceneTime:            d.HoloceneTime(l1StartTime),
 		PectraBlobScheduleTime:  d.PectraBlobScheduleTime(l1StartTime),
 		IsthmusTime:             d.IsthmusTime(l1StartTime),
+		JovianTime:              d.JovianTime(l1StartTime),
 		InteropTime:             d.InteropTime(l1StartTime),
 		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
 		AltDAConfig:             altDA,

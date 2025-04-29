@@ -23,7 +23,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
@@ -101,6 +103,9 @@ func (c *EthClientConfig) Check() error {
 	if c.PayloadsCacheSize < 0 {
 		return fmt.Errorf("invalid payloads cache size: %d", c.PayloadsCacheSize)
 	}
+	if c.BlockRefsCacheSize < 0 {
+		return fmt.Errorf("invalid blockrefs cache size: %d", c.BlockRefsCacheSize)
+	}
 	if c.MaxConcurrentRequests < 1 {
 		return fmt.Errorf("expected at least 1 concurrent request, but max is %d", c.MaxConcurrentRequests)
 	}
@@ -141,6 +146,8 @@ type EthClient struct {
 	// common.Hash -> eth.BlockRef
 	blockRefsCache *caching.LRUCache[common.Hash, eth.BlockRef]
 }
+
+var _ apis.EthClient = (*EthClient)(nil)
 
 // NewEthClient returns an [EthClient], wrapping an RPC with bindings to fetch ethereum data with added error logging,
 // metric tracking, and caching. The [EthClient] uses a [LimitRPC] wrapper to limit the number of concurrent RPC requests.
@@ -343,8 +350,8 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	return info, receipts, nil
 }
 
-// FetchReceipt returns a receipt associated with transaction.
-func (s *EthClient) FetchReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+// TransactionReceipt returns a receipt associated with transaction.
+func (s *EthClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	var r *types.Receipt
 	err := s.client.CallContext(ctx, &r, "eth_getTransactionReceipt", txHash)
 	if err == nil && r == nil {
@@ -489,6 +496,9 @@ func ToCallArg(msg ethereum.CallMsg) interface{} {
 	if msg.GasPrice != nil {
 		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
 	}
+	if msg.AccessList != nil {
+		arg["accessList"] = msg.AccessList
+	}
 	return arg
 }
 
@@ -538,14 +548,24 @@ func (s *EthClient) PendingNonceAt(ctx context.Context, account common.Address) 
 	return uint64(result), err
 }
 
+func toBlockNumArg(number *big.Int) string {
+	if number == nil {
+		return "latest"
+	}
+	if number.Sign() >= 0 {
+		return hexutil.EncodeBig(number)
+	}
+	// It's negative.
+	if number.IsInt64() {
+		return rpc.BlockNumber(number.Int64()).String()
+	}
+	// It's negative and large, which is invalid.
+	return fmt.Sprintf("<invalid %d>", number)
+}
+
 // BalanceAt returns the wei balance of the given account.
 func (s *EthClient) BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error) {
 	var result hexutil.Big
-	var err error
-	if blockNumber != nil {
-		err = s.client.CallContext(ctx, &result, "eth_getBalance", account, blockNumber)
-	} else {
-		err = s.client.CallContext(ctx, &result, "eth_getBalance", account, "latest")
-	}
+	err := s.client.CallContext(ctx, &result, "eth_getBalance", account, toBlockNumArg(blockNumber))
 	return (*big.Int)(&result), err
 }

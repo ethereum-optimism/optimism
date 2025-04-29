@@ -22,10 +22,23 @@ From time to time, we may backport bugfixes from develop onto earlier versions o
 as follows:
 
 1. If one doesn't exist already, make a new branch for the version lineage you're patching (e.g. `v0.2.x`). This branch
-   should be based on the latest release of that lineage. The branch should be named as follows: 
+   should be protected (not deletable) and should be based on the latest release of that lineage. The branch should be named as follows:
    `backports/op-deployer/<lineage, i.e. v0.2.0>`.
 2. Open a PR with the backport against that branch. Be sure to reference the original commit in the backport.
 3. Make and push a new tag on that lineage.
+
+Example for backporting fix(es) from `develop` and created a new release `op-deployer/v0.2.1`:
+```
+git checkout -b backports/op-deployer/v0.2.0 op-deployer/v0.2.0
+git push origin backports/op-deployer/v0.2.0
+git checkout -b fixes/deployer-v0.2.0 backports/op-deployer/v0.2.0
+git cherry-pick <commit-hash>
+git push origin fixes/deployer-v0.2.0
+
+1. open pr from fixes/deployer-v0.2.0 targeting backports/op-deployer/v0.2.0
+2. merge the pr
+3. push a new tag for op-deployer/v0.2.1 on backports/op-deployer/v0.2.0 branch (goreleaser will create the release)
+```
 
 ## Adding Support for New Contract Versions
 
@@ -67,7 +80,7 @@ const ContractsVXTag = "op-contracts/vX.Y.Z"
 var taggedReleases = map[string]TaggedRelease{
     // Other releases...
     ContractsVXTag: {
-		ArtifactsHash: common.HexToHash("<the artifacts hash>"), 
+		ArtifactsHash: common.HexToHash("<the artifacts hash>"),
 		ContentHash:   common.HexToHash("<the checksum>"),
 	},
 }

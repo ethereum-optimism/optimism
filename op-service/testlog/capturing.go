@@ -151,6 +151,23 @@ func NewMessageContainsFilter(message string) LogFilter {
 	}
 }
 
+func NewErrContainsFilter(errMessage string) LogFilter {
+	return func(r *CapturedRecord) bool {
+		found := false
+		r.Attrs(func(a slog.Attr) bool {
+			if a.Key != "err" {
+				return true
+			}
+			if err, ok := a.Value.Any().(error); ok && strings.Contains(err.Error(), errMessage) {
+				found = true
+				return false
+			}
+			return true
+		})
+		return found
+	}
+}
+
 type LogFilter func(record *CapturedRecord) bool
 
 func (c *CapturingHandler) FindLog(filters ...LogFilter) *CapturedRecord {

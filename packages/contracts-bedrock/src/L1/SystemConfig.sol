@@ -12,6 +12,8 @@ import { Storage } from "src/libraries/Storage.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -129,6 +131,9 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice The L2 chain ID that this SystemConfig configures.
     uint256 public l2ChainId;
 
+    /// @notice The SuperchainConfig contract that manages the pause state.
+    ISuperchainConfig public superchainConfig;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -136,9 +141,9 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
+    /// @custom:semver 3.1.0
     function version() public pure virtual returns (string memory) {
-        return "3.0.0";
+        return "3.1.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -162,6 +167,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     /// @param _l2ChainId         The L2 chain ID that this SystemConfig configures.
+    /// @param _superchainConfig  The SuperchainConfig contract address.
     function initialize(
         address _owner,
         uint32 _basefeeScalar,
@@ -172,7 +178,8 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
         SystemConfig.Addresses memory _addresses,
-        uint256 _l2ChainId
+        uint256 _l2ChainId,
+        ISuperchainConfig _superchainConfig
     )
         public
         reinitializer(initVersion())
@@ -198,13 +205,18 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         _setResourceConfig(_config);
 
         l2ChainId = _l2ChainId;
+        superchainConfig = ISuperchainConfig(_superchainConfig);
     }
 
-    /// @notice Upgrades the SystemConfig by setting the L2 chain ID variable.
+    /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
     /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
-    function upgrade(uint256 _l2ChainId) external reinitializer(initVersion()) {
+    /// @param _superchainConfig The SuperchainConfig contract address.
+    function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
         // Set the L2 chain ID.
         l2ChainId = _l2ChainId;
+
+        // Set the SuperchainConfig contract.
+        superchainConfig = _superchainConfig;
 
         // Clear out the old dispute game factory address, it's derived now.
         bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
@@ -459,5 +471,19 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this
+    /// chain's ETHLockbox.
+    /// @return bool True if the system is paused, false otherwise.
+    function paused() public view returns (bool) {
+        IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
+        return superchainConfig.paused(address(lockbox)) || superchainConfig.paused(address(0));
+    }
+
+    /// @notice Returns the guardian address of the SuperchainConfig.
+    /// @return address The guardian address.
+    function guardian() public view returns (address) {
+        return superchainConfig.guardian();
     }
 }

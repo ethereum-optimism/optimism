@@ -69,6 +69,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function donateETH() external payable;
+    function superchainConfig() external view returns (ISuperchainConfig);
     function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external;
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external;
     function finalizeWithdrawalTransactionExternalProof(
@@ -80,7 +81,6 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function guardian() external view returns (address);
     function initialize(
         ISystemConfig _systemConfig,
-        ISuperchainConfig _superchainConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox
     )
@@ -118,14 +118,9 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
         returns (IDisputeGame disputeGameProxy, uint64 timestamp);
     function respectedGameType() external view returns (GameType);
     function respectedGameTypeUpdatedAt() external view returns (uint64);
-    function superchainConfig() external view returns (ISuperchainConfig);
     function superRootsActive() external view returns (bool);
     function systemConfig() external view returns (ISystemConfig);
-    function upgrade(
-        IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox
-    )
-        external;
+    function upgrade(IAnchorStateRegistry _anchorStateRegistry, IETHLockbox _ethLockbox, ISystemConfig _systemConfig) external;
     function version() external pure returns (string memory);
     function migrateLiquidity() external;
 

@@ -1,6 +1,7 @@
 package l2
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -19,6 +20,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/triedb"
+)
+
+var (
+	ErrUnsupportedL2Output = errors.New("unsupported l2 output version")
+	ErrUnexpectedBlockHash = errors.New("unexpected block hash")
 )
 
 type OracleBackedL2Chain struct {
@@ -56,7 +62,7 @@ func NewOracleBackedL2Chain(
 	output := oracle.OutputByRoot(l2OutputRoot, chainID)
 	outputV0, ok := output.(*eth.OutputV0)
 	if !ok {
-		return nil, fmt.Errorf("unsupported L2 output version: %d", output.Version())
+		return nil, fmt.Errorf("%w: version: %d", ErrUnsupportedL2Output, output.Version())
 	}
 	head := oracle.BlockByHash(outputV0.BlockHash, chainID)
 	logger.Info("Loaded L2 head", "hash", head.Hash(), "number", head.Number())
@@ -219,7 +225,7 @@ func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block, make
 		return nil, fmt.Errorf("invalid block: %w", err)
 	}
 	if expected.Hash() != block.Hash() {
-		return nil, fmt.Errorf("block root mismatch, expected: %v, actual: %v", expected.Hash(), block.Hash())
+		return nil, fmt.Errorf("%w: expected: %v, actual: %v", ErrUnexpectedBlockHash, expected.Hash(), block.Hash())
 	}
 	return nil, nil
 }

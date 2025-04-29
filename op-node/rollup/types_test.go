@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -185,7 +186,9 @@ func TestRandomConfigDescription(t *testing.T) {
 		config.HoloceneTime = &h
 		i := uint64(1677119341)
 		config.IsthmusTime = &i
-		it := uint64(1677119342)
+		j := uint64(1677119342)
+		config.JovianTime = &j
+		it := uint64(1677119343)
 		config.InteropTime = &it
 
 		out := config.Description(nil)
@@ -198,6 +201,7 @@ func TestRandomConfigDescription(t *testing.T) {
 		require.Contains(t, out, fmt.Sprintf("Fjord: @ %d ~ ", f))
 		require.Contains(t, out, fmt.Sprintf("Holocene: @ %d ~ ", h))
 		require.Contains(t, out, fmt.Sprintf("Isthmus: @ %d ~ ", i))
+		require.Contains(t, out, fmt.Sprintf("Jovian: @ %d ~ ", j))
 		require.Contains(t, out, fmt.Sprintf("Interop: @ %d ~ ", it))
 	})
 	t.Run("holocene & isthmus date", func(t *testing.T) {
@@ -288,6 +292,15 @@ func TestActivations(t *testing.T) {
 			},
 			checkEnabled: func(t uint64, c *Config) bool {
 				return c.IsIsthmus(t)
+			},
+		},
+		{
+			name: "Jovian",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.JovianTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsJovian(t)
 			},
 		},
 		{
@@ -562,7 +575,8 @@ func TestConfig_Check(t *testing.T) {
 				graniteTime := uint64(6)
 				holoceneTime := uint64(7)
 				isthmusTime := uint64(8)
-				interopTime := uint64(9)
+				jovianTime := uint64(9)
+				interopTime := uint64(10)
 				cfg.RegolithTime = &regolithTime
 				cfg.CanyonTime = &canyonTime
 				cfg.DeltaTime = &deltaTime
@@ -571,6 +585,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.GraniteTime = &graniteTime
 				cfg.HoloceneTime = &holoceneTime
 				cfg.IsthmusTime = &isthmusTime
+				cfg.JovianTime = &jovianTime
 				cfg.InteropTime = &interopTime
 			},
 			expectedErr: nil,
@@ -820,6 +835,69 @@ func TestConfigImplementsBlockType(t *testing.T) {
 		test := test
 		t.Run(fmt.Sprintf("TestHasOptimismWithdrawalsRoot_%s", test.name), func(t *testing.T) {
 			assert.Equal(t, config.HasOptimismWithdrawalsRoot(test.blockTime), test.hasOptimismWithdrawalsRoot)
+		})
+	}
+}
+
+func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
+	hol, sep := params.HoleskyChainConfig, params.SepoliaChainConfig
+
+	for _, tt := range []struct {
+		name                   string
+		pectraBlobScheduleTime *uint64
+		l2genesisTime          uint64
+		l1chainID              *big.Int
+		expMissing             bool
+	}{
+		{
+			name:                   "sepolia-ok",
+			pectraBlobScheduleTime: u64ptr(1742486400), // sepolia superchain
+			l2genesisTime:          1691802540,         // op-sepolia
+			l1chainID:              sep.ChainID,
+		},
+		{
+			name:                   "holesky-ok",
+			pectraBlobScheduleTime: u64ptr(1742486400), // sepolia superchain
+			l2genesisTime:          1691802540,         // op-sepolia
+			l1chainID:              hol.ChainID,
+		},
+		{
+			name:          "sepolia-missing",
+			l2genesisTime: 1691802540, // op-sepolia
+			l1chainID:     sep.ChainID,
+			expMissing:    true,
+		},
+		{
+			name:          "holesky-missing",
+			l2genesisTime: 1691802540, // op-sepolia
+			l1chainID:     hol.ChainID,
+			expMissing:    true,
+		},
+		{
+			name:          "sepolia-young-genesis",
+			l2genesisTime: *sep.PragueTime + 1,
+			l1chainID:     sep.ChainID,
+		},
+		{
+			name:          "holesky-young-genesis",
+			l2genesisTime: *hol.PragueTime + 1,
+			l1chainID:     hol.ChainID,
+		},
+		{
+			name:          "other-missing-ok",
+			l2genesisTime: 1691802540,
+			l1chainID:     big.NewInt(1),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Genesis: Genesis{
+					L2Time: tt.l2genesisTime,
+				},
+				PectraBlobScheduleTime: tt.pectraBlobScheduleTime,
+				L1ChainID:              tt.l1chainID,
+			}
+			assert.Equal(t, tt.expMissing, cfg.ProbablyMissingPectraBlobSchedule())
 		})
 	}
 }

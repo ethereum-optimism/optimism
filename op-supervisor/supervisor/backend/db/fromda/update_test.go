@@ -44,7 +44,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on old source before DB start",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(bSource, aSource.Hash), // b is before c
 					toRef(dDerived, cDerived.Hash)), types.ErrSkipped)
 			},
@@ -53,7 +53,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "repeat second latest",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(cSource, bSource.Hash),
 					toRef(cDerived, bDerived.Hash),
 				), types.ErrOutOfOrder)
@@ -63,7 +63,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "repeat latest",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddDerived(
+				require.NoError(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
 					toRef(dDerived, cDerived.Hash),
 				))
@@ -73,11 +73,11 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "repeat latest derived, old source",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddDerived(
+				require.NoError(t, dbAddDerivedAny(db,
 					toRef(eSource, dSource.Hash),   // new L1 block
 					toRef(dDerived, cDerived.Hash), // same L2 block
 				))
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),   // d is old, but was canonically linked like this before
 					toRef(dDerived, cDerived.Hash), // same L2 block
 				), types.ErrIneffective)
@@ -92,11 +92,11 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "repeat latest derived, conflicting old source",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddDerived(
+				require.NoError(t, dbAddDerivedAny(db,
 					toRef(eSource, dSource.Hash),   // new L1 block
 					toRef(dDerived, cDerived.Hash), // same L2 block
 				))
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dAltSource, cSource.Hash), // conflicting old block
 					toRef(dDerived, cDerived.Hash),  // same L2 block
 				), types.ErrConflict)
@@ -111,11 +111,11 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "new derived, old source",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddDerived(
+				require.NoError(t, dbAddDerivedAny(db,
 					toRef(eSource, dSource.Hash),   // new L1 block
 					toRef(dDerived, cDerived.Hash), // same L2 block
 				))
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),   // old L1 block
 					toRef(eDerived, dDerived.Hash), // new L2 block
 				), types.ErrOutOfOrder)
@@ -130,7 +130,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on conflicting source, same height. And new derived value",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(types.BlockSeal{
 						Hash:      common.Hash{0xba, 0xd},
 						Number:    dSource.Number,
@@ -143,7 +143,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "CrossSource with conflicting parent root, same L1 height, new L2: accepted, L1 parent-hash is used only on L1 increments.",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddDerived(
+				require.NoError(t, dbAddDerivedAny(db,
 					toRef(dSource, common.Hash{0x42}),
 					toRef(eDerived, dDerived.Hash)), types.ErrConflict)
 			},
@@ -158,7 +158,7 @@ func TestBadUpdates(t *testing.T) {
 			name: "Conflicting source parent root, new L1 height, same L2",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t,
-					db.AddDerived(
+					dbAddDerivedAny(db,
 						toRef(eSource, common.Hash{0x42}),
 						toRef(dDerived, cDerived.Hash)), types.ErrConflict)
 			},
@@ -168,7 +168,7 @@ func TestBadUpdates(t *testing.T) {
 			name: "add on too new source (even if parent-hash looks correct)",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				require.ErrorIs(t,
-					db.AddDerived(toRef(fSource, dSource.Hash),
+					dbAddDerivedAny(db, toRef(fSource, dSource.Hash),
 						toRef(eDerived, dDerived.Hash)), types.ErrFuture)
 			},
 			assertFn: noChange,
@@ -176,7 +176,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on old source (even if parent-hash looks correct)",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(cSource, bSource.Hash),
 					toRef(cDerived, dDerived.Hash)), types.ErrOutOfOrder)
 			},
@@ -185,7 +185,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on even older source",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(bSource, aSource.Hash),
 					toRef(dDerived, cDerived.Hash)), types.ErrSkipped)
 			},
@@ -194,7 +194,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on conflicting derived, same L2 height, new L1 block",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(eSource, dSource.Hash),
 					toRef(types.BlockSeal{
 						Hash:      common.Hash{0x42},
@@ -207,7 +207,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add derived with conflicting parent hash, new L1 height, same L2 height: accepted, L2 parent-hash is only checked on L2 increments.",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.NoError(t, db.AddDerived(
+				require.NoError(t, dbAddDerivedAny(db,
 					toRef(eSource, dSource.Hash),
 					toRef(dDerived, common.Hash{0x42})), types.ErrConflict)
 			},
@@ -221,7 +221,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add derived with conflicting parent hash, same L1 height, new L2 height",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
 					toRef(eDerived, common.Hash{0x42})), types.ErrConflict)
 			},
@@ -230,7 +230,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on too new derived (even if parent-hash looks correct)",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
 					toRef(fDerived, dDerived.Hash)), types.ErrFuture)
 			},
@@ -239,7 +239,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on old derived (even if parent-hash looks correct)",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
 					toRef(cDerived, bDerived.Hash)), types.ErrOutOfOrder)
 			},
@@ -248,7 +248,7 @@ func TestBadUpdates(t *testing.T) {
 		{
 			name: "add on even older derived",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.AddDerived(
+				require.ErrorIs(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
 					toRef(bDerived, aDerived.Hash)), types.ErrOutOfOrder)
 			},
@@ -258,7 +258,7 @@ func TestBadUpdates(t *testing.T) {
 			name: "repeat self, silent no-op",
 			setupFn: func(t *testing.T, db *DB, m *stubMetrics) {
 				pre := m.DBDerivedEntryCount
-				require.NoError(t, db.AddDerived(
+				require.NoError(t, dbAddDerivedAny(db,
 					toRef(dSource, cSource.Hash),
 					toRef(dDerived, cDerived.Hash)), types.ErrOutOfOrder)
 				require.Equal(t, pre, m.DBDerivedEntryCount)
@@ -272,7 +272,7 @@ func TestBadUpdates(t *testing.T) {
 			runDBTest(t,
 				func(t *testing.T, db *DB, m *stubMetrics) {
 					// Good first entry
-					require.NoError(t, db.AddDerived(
+					require.NoError(t, dbAddDerivedAny(db,
 						toRef(dSource, cSource.Hash),
 						toRef(dDerived, cDerived.Hash)))
 					// apply the test-case setup

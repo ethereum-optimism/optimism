@@ -15,17 +15,17 @@
   },
   {
     "bytes": "20",
-    "label": "mips",
+    "label": "challenger",
     "offset": 0,
     "slot": "2",
     "type": "address"
   },
   {
-    "bytes": "20",
-    "label": "challenger",
+    "bytes": "32",
+    "label": "withdrawalDelaySeconds",
     "offset": 0,
     "slot": "3",
-    "type": "address"
+    "type": "uint256"
   },
   {
     "bytes": "20",

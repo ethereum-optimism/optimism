@@ -32,41 +32,38 @@ func TestERC20Bridge(t *testing.T) {
 		sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)),
 	)
 	l1WalletGetter, l1WalletFundsValidator := validators.AcquireL1WalletWithFunds(sdktypes.NewBalance(big.NewInt(1.0 * constants.ETH)))
-	lowLevelSystemGetter, lowLevelSystemValidator := validators.AcquireLowLevelSystem()
 
 	systest.SystemTest(t,
-		erc20BridgeTestScenario(lowLevelSystemGetter, chainIdx, l1WalletGetter, l2WalletGetter),
+		erc20BridgeTestScenario(chainIdx, l1WalletGetter, l2WalletGetter),
 		l2WalletFundsValidator,
 		l1WalletFundsValidator,
-		lowLevelSystemValidator,
 	)
 }
 
 // erc20BridgeTestScenario tests depositing an ERC20 token from L1 to L2 through the bridge
-func erc20BridgeTestScenario(lowLevelSystemGetter validators.LowLevelSystemGetter, chainIdx uint64, l1WalletGetter validators.WalletGetter, l2WalletGetter validators.WalletGetter) systest.SystemTestFunc {
+func erc20BridgeTestScenario(chainIdx uint64, l1WalletGetter validators.WalletGetter, l2WalletGetter validators.WalletGetter) systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
 		ctx := t.Context()
 
 		// Get the l2User wallet
-		llsys := lowLevelSystemGetter(ctx)
 		l1User := l1WalletGetter(ctx)
 		l2User := l2WalletGetter(ctx)
 
 		// Get the L1 chain
-		l1Chain := llsys.L1()
+		l1Chain := sys.L1()
 
 		// Get the L2 chain
-		l2Chain := llsys.L2s()[chainIdx]
+		l2Chain := sys.L2s()[chainIdx]
 
 		logger := testlog.Logger(t, log.LevelInfo)
 		logger.Info("Started ERC20 bridge test")
 
 		// Connect to L1 and L2
-		l1Client, err := l1Chain.GethClient()
+		l1Client, err := l1Chain.Nodes()[0].GethClient()
 		require.NoError(t, err)
 		t.Cleanup(func() { l1Client.Close() })
 
-		l2Client, err := l2Chain.GethClient()
+		l2Client, err := l2Chain.Nodes()[0].GethClient()
 		require.NoError(t, err)
 		t.Cleanup(func() { l2Client.Close() })
 
@@ -139,7 +136,7 @@ func erc20BridgeTestScenario(lowLevelSystemGetter validators.LowLevelSystemGette
 		require.NoError(t, err)
 		require.True(t, big.NewInt(0).Cmp(initialL2Balance) == 0, "Initial L2 token balance should be 0, actual was %s", initialL2Balance.String())
 
-		l1StandardBridgeAddress, ok := l2Chain.Addresses()["l1StandardBridgeProxy"]
+		l1StandardBridgeAddress, ok := l2Chain.L1Addresses()["l1StandardBridgeProxy"]
 		require.True(t, ok, fmt.Errorf("no L1 proxy address configured for this test"))
 
 		l1StandardBridge, err := bindings.NewL1StandardBridge(l1StandardBridgeAddress, l1Client)
@@ -173,7 +170,7 @@ func erc20BridgeTestScenario(lowLevelSystemGetter validators.LowLevelSystemGette
 		logger.Info("Deposit transaction confirmed on L1", "tx", tx.Hash().Hex())
 
 		// Get the OptimismPortal contract to find the deposit event
-		optimismPortal, err := bindings.NewOptimismPortal(l2Chain.Addresses()["optimismPortalProxy"], l1Client)
+		optimismPortal, err := bindings.NewOptimismPortal(l2Chain.L1Addresses()["optimismPortalProxy"], l1Client)
 		require.NoError(t, err)
 
 		// Find the TransactionDeposited event from the logs

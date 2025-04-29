@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIsthmusExcludedPredeploys(gt *testing.T) {
+func Test_ProgramAction_IsthmusExcludedPredeploys(gt *testing.T) {
 	// Ensures that if EIP-7251, or EIP-7002 predeploys are deployed manually after the fork,
 	// Isthmus block processing still works correctly. Also ensures that if requests are sent to these
 	// contracts, they are not processed and do not show up in the block body or requests hash.
@@ -121,7 +121,7 @@ func TestIsthmusExcludedPredeploys(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "transaction must pass")
 
-	env.RunFaultProofProgram(t, latestBlock.NumberU64()-1, func(t actionsHelpers.Testing, err error) {
+	env.RunFaultProofProgramFromGenesis(t, latestBlock.NumberU64()-1, func(t actionsHelpers.Testing, err error) {
 		require.NoError(t, err, "no error expected running FP program")
 	})
 }

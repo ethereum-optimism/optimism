@@ -12,6 +12,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var (
+	errNotReadyForCanonicalHash = errors.New("not ready for canonical hash entry, already sealed the last block")
+	errLogBeforeLastLogComplete = errors.New("cannot process log before last log completes")
+	errUnexpectedExecutingLink  = errors.New("unexpected executing-link")
+	errNeedAppliedExecutingLink = errors.New("need executing link to be applied before the check part")
+	errUnexpectedExecutingCheck = errors.New("unexpected executing check")
+	errUnknownEntryType         = errors.New("unknown entry type")
+	errNonEmptyState            = errors.New("non-empty state")
+	errIncompleteBlock          = errors.New("incomplete block")
+)
+
 // logContext is a buffer on top of the DB,
 // where blocks and logs can be applied to.
 //
@@ -164,7 +175,7 @@ func (l *logContext) processEntry(entry Entry) error {
 		}
 	case TypeCanonicalHash:
 		if !l.need.Any(FlagCanonicalHash) {
-			return errors.New("not ready for canonical hash entry, already sealed the last block")
+			return errNotReadyForCanonicalHash
 		}
 		canonHash, err := newCanonicalHashFromEntry(entry)
 		if err != nil {
@@ -174,10 +185,10 @@ func (l *logContext) processEntry(entry Entry) error {
 		l.need.Remove(FlagCanonicalHash)
 	case TypeInitiatingEvent:
 		if !l.hasCompleteBlock() {
-			return errors.New("did not complete block seal, cannot add log")
+			return fmt.Errorf("%w: cannot append log before last known block is sealed", errIncompleteBlock)
 		}
 		if l.hasIncompleteLog() {
-			return errors.New("cannot process log before last log completes")
+			return errLogBeforeLastLogComplete
 		}
 		evt, err := newInitiatingEventFromEntry(entry)
 		if err != nil {
@@ -193,7 +204,7 @@ func (l *logContext) processEntry(entry Entry) error {
 		l.need.Remove(FlagInitiatingEvent)
 	case TypeExecutingLink:
 		if !l.need.Any(FlagExecutingLink) {
-			return errors.New("unexpected executing-link")
+			return errUnexpectedExecutingLink
 		}
 		link, err := newExecutingLinkFromEntry(entry)
 		if err != nil {
@@ -210,10 +221,10 @@ func (l *logContext) processEntry(entry Entry) error {
 		l.need.Add(FlagExecutingCheck)
 	case TypeExecutingCheck:
 		if l.need.Any(FlagExecutingLink) {
-			return errors.New("need executing link to be applied before the check part")
+			return errNeedAppliedExecutingLink
 		}
 		if !l.need.Any(FlagExecutingCheck) {
-			return errors.New("unexpected executing check")
+			return errUnexpectedExecutingCheck
 		}
 		link, err := newExecutingCheckFromEntry(entry)
 		if err != nil {
@@ -229,7 +240,7 @@ func (l *logContext) processEntry(entry Entry) error {
 			l.need.Remove(FlagPadding2)
 		}
 	default:
-		return fmt.Errorf("unknown entry type: %s", entry.Type())
+		return fmt.Errorf("%w: %s", errUnknownEntryType, entry.Type())
 	}
 	l.nextEntryIndex += 1
 	return nil
@@ -330,7 +341,7 @@ func (l *logContext) inferFull() error {
 // forceBlock force-overwrites the state, to match the given sealed block as starting point (excl)
 func (l *logContext) forceBlock(upd eth.BlockID, timestamp uint64) error {
 	if l.nextEntryIndex != 0 {
-		return errors.New("can only bootstrap on top of an empty state")
+		return fmt.Errorf("%w: cannot bootstrap on top of non-empty state", errNonEmptyState)
 	}
 	l.blockHash = upd.Hash
 	l.blockNum = upd.Number
@@ -384,7 +395,7 @@ func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash co
 		if l.blockNum == 0 {
 			return fmt.Errorf("%w: should not have logs in block 0", types.ErrOutOfOrder)
 		} else {
-			return errors.New("cannot append log before last known block is sealed")
+			return fmt.Errorf("%w: cannot append log before last known block is sealed", errIncompleteBlock)
 		}
 	}
 	// check parent block

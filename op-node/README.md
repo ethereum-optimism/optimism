@@ -7,9 +7,11 @@ Pull requests:
 [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=is%3Aopen+is%3Apr+label%3AA-op-node)
 
 User docs:
+
 - [How to run a node](https://docs.optimism.io/builders/node-operators/rollup-node)
 
 Specs:
+
 - [rollup-node spec]
 
 The op-node implements the [rollup-node spec].
@@ -130,6 +132,7 @@ and design-choices should aim to improve the trade-off.
 ### Vision
 
 The op-node is changing in two ways:
+
 - [Reliability](#reliability): improve the reliability with improved processing, testing and syncing.
 - [Interoperability](#interoperability): cross-chain messaging support.
 
@@ -162,15 +165,16 @@ See [Interop specs] and [Interop design-docs] for more information about interop
 
 <!-- As a **actor** I want **achievement** so that I **benefit** -->
 
-As *a user* I want *reliability* so that I *don't miss blocks or fall out of sync*.
-As *a RaaS dev* I want *easy configuration and monitoring* so that I *can run more chains*.
-As *a customizoor* I want *clear extensible APIs* so that I *can avoid forking and be a contributor*.
-As *a protocol dev* I want *integration with tests* so that I *assert protocol conformance*
-As *a proof dev* I want *reusable state-transition code* so that I *don't reimplement the same thing*.
+As _a user_ I want _reliability_ so that I _don't miss blocks or fall out of sync_.
+As _a RaaS dev_ I want _easy configuration and monitoring_ so that I _can run more chains_.
+As _a customizoor_ I want _clear extensible APIs_ so that I _can avoid forking and be a contributor_.
+As _a protocol dev_ I want _integration with tests_ so that I _assert protocol conformance_
+As _a proof dev_ I want _reusable state-transition code_ so that I _don't reimplement the same thing_.
 
 ## Design principles
 
 <!-- design choices / trade-offs -->
+
 - Encapsulate the state-transition:
   - Use interfaces to abstract file-IO / concurrency / etc. away from state-transition logic.
   - Ensure code-sharing with action-tests and op-program.
@@ -180,7 +184,7 @@ As *a proof dev* I want *reusable state-transition code* so that I *don't reimpl
 - Keep the tech-stack compatible with ethereum L1:
   - L1 offers well-adopted and battle tested libraries and standards, e.g. LibP2P, DiscV5, JSON-RPC.
   - L1 supports a tech-stack in different languages, ensuring client-diversity, important to L2 as well.
-  - Downstream devs of OP-Stack should be able to pull in *one* instance of a library, that serves both OP-Stack and L1.
+  - Downstream devs of OP-Stack should be able to pull in _one_ instance of a library, that serves both OP-Stack and L1.
 
 ## Failure modes
 
@@ -236,6 +240,16 @@ If the sync-state is far behind, the op-node may need archived blob data to sync
 A faster alternative may be to bootstrap through the execution-layer sync mode,
 where the execution-engine may perform an optimized long-range sync, such as snap-sync.
 
+### Sequencer Window Expiry
+
+If the sequencer window expires (for example, due to extended batcher downtime), some manual intervention is required to help the chain recover.
+By restarting the sequencer with `SEQUENCER_RECOVER=true`,
+or by calling the `optimism_setRecoverMode` admin API method with the boolean parameter set to `true`, the sequencer's behavior is changed.
+While recover mode is enabled, the tx pool is disabled and the l1 origin is progressed steadily: this means blocks are sequenced which are identical to those produced
+by verifiers under autoderivation. To enable the quickest recovery, the batcher should be configured for singular (not span) batches.
+After some time, the l1 origin of the l2 safe head will once again catch up close to the l1 head. Then, the recover mode should be disabled and the chain is
+back in a normal state.
+
 ## Testing
 
 <!-- describe testing methods and approach to test coverage -->
@@ -250,4 +264,3 @@ where the execution-engine may perform an optimized long-range sync, such as sna
 - Long-running devnet: roll-out for experimental features, to ensure sufficient stability for testnet users.
 - Long-running testnet: battle-testing in public environment.
 - Shadow-forks: design phase, testing experiments against shadow copies of real networks.
-

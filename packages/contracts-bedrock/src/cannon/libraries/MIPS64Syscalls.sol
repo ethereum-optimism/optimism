@@ -97,6 +97,7 @@ library MIPS64Syscalls {
     uint32 internal constant SYS_TGKILL = 5225;
     uint32 internal constant SYS_GETRLIMIT = 5095;
     uint32 internal constant SYS_LSEEK = 5008;
+    uint32 internal constant SYS_EVENTFD2 = 5284;
     // profiling-related syscalls - ignored
     uint32 internal constant SYS_SETITIMER = 5036;
     uint32 internal constant SYS_TIMERCREATE = 5216;

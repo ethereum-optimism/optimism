@@ -83,11 +83,6 @@
         "internalType": "struct OPContractsManager.AddGameInput[]",
         "name": "_gameConfigs",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
       }
     ],
     "name": "addGameType",
@@ -175,6 +170,26 @@
           {
             "internalType": "address",
             "name": "permissionlessDisputeGame2",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionedDisputeGame2",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "superPermissionlessDisputeGame2",
             "type": "address"
           }
         ],
@@ -321,11 +336,6 @@
         "internalType": "struct OPContractsManager.OpChainConfig[]",
         "name": "_prestateUpdateInputs",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
       }
     ],
     "name": "updatePrestate",
@@ -403,6 +413,11 @@
   {
     "inputs": [],
     "name": "NotABlueprint",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManager_InvalidGameType",
     "type": "error"
   },
   {

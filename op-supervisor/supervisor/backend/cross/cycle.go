@@ -10,10 +10,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+// These error must be considered as ErrConflict to trigger a reorg.
 var (
-	ErrCycle                  = errors.New("cycle detected")
-	ErrExecMsgHasInvalidIndex = errors.New("executing message has invalid log index")
-	ErrExecMsgUnknownChain    = errors.New("executing message references unknown chain")
+	ErrCycle                  = fmt.Errorf("%w: cycle detected", types.ErrConflict)
+	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", types.ErrConflict)
+	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", types.ErrConflict)
+
+	errInconsistentBlockSeal = errors.New("inconsistent block seal")
 )
 
 // CycleCheckDeps is an interface for checking cyclical dependencies between logs.
@@ -101,7 +104,7 @@ func gatherLogs(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 		}
 
 		if !blockSealMatchesRef(hazardBlock, bl) {
-			return nil, nil, fmt.Errorf("tried to open block %s of chain %s, but got different block %s than expected, use a reorg lock for consistency", hazardBlock, hazardChainID, bl)
+			return nil, nil, fmt.Errorf("tried to open block %s of chain %s, but got different block %s than expected, use a reorg lock for consistency: %w", hazardBlock, hazardChainID, bl, errInconsistentBlockSeal)
 		}
 
 		// Validate executing message indices
@@ -171,15 +174,6 @@ func buildGraph(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 			// Error if the chain is unknown
 			if _, ok := hazardEntries[m.Chain]; !ok {
 				return nil, ErrExecMsgUnknownChain
-			}
-
-			// Check if we care about the init message
-			initChainMsgs, ok := execMsgs[m.Chain]
-			if !ok {
-				continue
-			}
-			if _, ok := initChainMsgs[m.LogIdx]; !ok {
-				continue
 			}
 
 			// Check if the init message exists
