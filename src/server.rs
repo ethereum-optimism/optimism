@@ -326,32 +326,27 @@ impl EngineApiServer for RollupBoostServer {
             span.record("payload_id", payload_id.to_string());
         }
 
-        // TODO: Use _is_block_building_call to log the correct message during the async call to builder
-        let (should_send_to_builder, _is_block_building_call) =
+        let (should_send_to_builder, has_attributes, use_tx_pool) =
             if let Some(attr) = payload_attributes.as_ref() {
                 // payload attributes are present. It is a FCU call to start block building
                 // Do not send to builder if no_tx_pool is set, meaning that the CL node wants
                 // a deterministic block without txs. We let the fallback EL node compute those.
                 let use_tx_pool = !attr.no_tx_pool.unwrap_or_default();
-                (use_tx_pool, true)
+
+                (use_tx_pool, true, use_tx_pool)
             } else {
                 // no payload attributes. It is a FCU call to lock the head block
                 // previously synced with the new_payload_v3 call. Only send to builder if boost_sync is enabled
-                (self.boost_sync, false)
+                (self.boost_sync, false, false)
             };
 
         let execution_mode = self.execution_mode();
         let trace_id = span.id();
-        let no_tx_pool = payload_attributes
-            .as_ref()
-            .is_some_and(|attr| attr.no_tx_pool.unwrap_or_default());
-        let has_attributes = payload_attributes.is_some();
-        let builder_has_payload = has_attributes && !no_tx_pool;
         if let Some(payload_id) = l2_response.payload_id {
             self.payload_trace_context.store(
                 payload_id,
                 fork_choice_state.head_block_hash,
-                builder_has_payload,
+                has_attributes && use_tx_pool,
                 trace_id,
             );
         }
@@ -372,7 +367,7 @@ impl EngineApiServer for RollupBoostServer {
                 }
             });
         } else {
-            info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash, "payload_id" = %l2_response.payload_id.unwrap_or_default(), "has_attributes" = has_attributes, "no_tx_pool" = no_tx_pool);
+            info!(message = "no payload attributes provided or no_tx_pool is set", "head_block_hash" = %fork_choice_state.head_block_hash, "payload_id" = %l2_response.payload_id.unwrap_or_default(), "has_attributes" = has_attributes, "use_tx_pool" = use_tx_pool);
         }
 
         Ok(l2_response)
@@ -1214,11 +1209,6 @@ mod tests {
             gas_limit: Some(1000000),
             ..Default::default()
         };
-        let fcu_response = test_harness
-            .client
-            .fork_choice_updated_v3(fcu, Some(payload_attributes.clone()))
-            .await;
-        assert!(fcu_response.is_ok());
         let fcu_response = test_harness
             .client
             .fork_choice_updated_v3(fcu, Some(payload_attributes.clone()))
