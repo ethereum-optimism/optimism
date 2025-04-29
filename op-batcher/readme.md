@@ -61,7 +61,7 @@ The `receiptsLoop` which
 The `throttlingLoop` which
 
 1. Waits for a signal from the `blockLoadingLoop`
-2. If it detects that the pending data in state is over a threshold, calls (potentially multiple) sequencers over RPC and tells them to throttle the amount of L2 data they produce. See the (section below)[#data-availability-backlog]. Each sequencer is throttled in parallel by a separate sub-goroutine (not shown in the below diagram).
+2. Calls (potentially multiple) sequencers over RPC and tells them to throttle or unthrottle -- that is, to limit (or not) the amount of L2 data they produce. See the (section below)[#data-availability-backlog]. Each sequencer is throttled in parallel by a separate sub-goroutine (not shown in the below diagram). Additional endpoints, such as builders in a rollup-boost setup, may also be configured to be throttled.
 
 The relationships are shown in this diagram:
 
