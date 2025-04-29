@@ -80,8 +80,6 @@ ALLOWED_FILES=(
   "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge"
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge"
   "src/L2/WETH.sol:WETH"
-  "src/cannon/MIPS.sol:MIPS"
-  "src/cannon/MIPS2.sol:MIPS2"
   "src/cannon/MIPS64.sol:MIPS64"
   "src/cannon/PreimageOracle.sol:PreimageOracle"
   # "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry"

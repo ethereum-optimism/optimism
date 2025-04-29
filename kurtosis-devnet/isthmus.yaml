@@ -89,7 +89,7 @@ optimism_package:
     l1_artifacts_locator: {{ localContractArtifacts "l1" }}
     l2_artifacts_locator: {{ localContractArtifacts "l2" }}
     global_deploy_overrides:
-      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate }}
+      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
   global_log_level: "info"
   global_node_selectors: {}
   global_tolerations: []
@@ -110,4 +110,3 @@ ethereum_package:
           "nonce": "1"
         }
       }
-

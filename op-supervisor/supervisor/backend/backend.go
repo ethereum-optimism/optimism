@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -83,7 +84,15 @@ type SupervisorBackend struct {
 var _ event.AttachEmitter = (*SupervisorBackend)(nil)
 var _ frontend.Backend = (*SupervisorBackend)(nil)
 
-var errAlreadyStopped = errors.New("already stopped")
+var (
+	errAlreadyStopped        = errors.New("already stopped")
+	errAlreadyStarted        = errors.New("already started")
+	errAttachProcessorSource = errors.New("cannot attach RPC to processor")
+	errAttachSyncSource      = errors.New("cannot attach RPC to sync source")
+
+	ErrUnexpectedMinSafetyLevel = errors.New("unexpected min-safety level")
+	ErrInternalBackendError     = errors.New("internal backend error")
+)
 
 var verifyAccessWithRPCTimeout = 10 * time.Second
 
@@ -332,7 +341,7 @@ func (su *SupervisorBackend) QueryAnchorpoint(chainID eth.ChainID, src syncnode.
 func (su *SupervisorBackend) AttachProcessorSource(chainID eth.ChainID, src processors.Source) error {
 	proc, ok := su.chainProcessors.Get(chainID)
 	if !ok {
-		return fmt.Errorf("unknown chain %s, cannot attach RPC to processor", chainID)
+		return fmt.Errorf("chain %s: %w", chainID, errAttachProcessorSource)
 	}
 	proc.AddSource(src)
 	return nil
@@ -341,7 +350,7 @@ func (su *SupervisorBackend) AttachProcessorSource(chainID eth.ChainID, src proc
 func (su *SupervisorBackend) AttachSyncSource(chainID eth.ChainID, src syncnode.SyncSource) error {
 	_, ok := su.syncSources.Get(chainID)
 	if !ok {
-		return fmt.Errorf("unknown chain %s, cannot attach RPC to sync source", chainID)
+		return fmt.Errorf("chain %s: %w", chainID, errAttachSyncSource)
 	}
 	su.syncSources.Set(chainID, src)
 	return nil
@@ -378,7 +387,7 @@ func (su *SupervisorBackend) AttachL1Source(source l1access.L1Source) {
 func (su *SupervisorBackend) Start(ctx context.Context) error {
 	// ensure we only start once
 	if !su.started.CompareAndSwap(false, true) {
-		return errors.New("already started")
+		return errAlreadyStarted
 	}
 
 	// initiate "ResumeFromLastSealedBlock" on the chains db,
@@ -512,7 +521,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
 		// valid safety level
 	default:
-		return errors.New("unexpected min-safety level")
+		return ErrUnexpectedMinSafetyLevel
 	}
 
 	su.logger.Debug("Checking access-list",
@@ -637,7 +646,7 @@ func (su *SupervisorBackend) Finalized(ctx context.Context, chainID eth.ChainID)
 func (su *SupervisorBackend) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
 	v := su.chainDBs.FinalizedL1()
 	if v == (eth.BlockRef{}) {
-		return eth.BlockRef{}, errors.New("finality of L1 is not initialized")
+		return eth.BlockRef{}, fmt.Errorf("finality of L1 is not initialized: %w", ethereum.NotFound)
 	}
 	return v, nil
 }
@@ -680,7 +689,7 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 		src, ok := su.syncSources.Get(chainID)
 		if !ok {
 			su.logger.Error("bug: unknown chain %s, cannot get sync source", chainID)
-			return eth.SuperRootResponse{}, fmt.Errorf("unknown chain %s, cannot get sync source", chainID)
+			return eth.SuperRootResponse{}, fmt.Errorf("unknown chain %s, cannot get sync source: %w", chainID, ErrInternalBackendError)
 		}
 		output, err := src.OutputV0AtTimestamp(ctx, uint64(timestamp))
 		if err != nil {

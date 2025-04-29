@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
+	mocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -47,6 +49,7 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 	now, unsafeInterval, safeInterval uint64,
 	mockRollupClient *testutils.MockRollupClient,
 	mockP2P *p2pMocks.API,
+	mockSupervisorHealthAPI SupervisorHealthAPI,
 ) *SequencerHealthMonitor {
 	tp := &timeProvider{now: now}
 	if mockP2P == nil {
@@ -69,6 +72,7 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		timeProviderFn: tp.Now,
 		node:           mockRollupClient,
 		p2p:            mockP2P,
+		supervisor:     mockSupervisorHealthAPI,
 	}
 	err := monitor.Start(context.Background())
 	s.NoError(err)
@@ -90,7 +94,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyLowPeerCount() {
 	}
 	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil).Times(1)
 
-	monitor := s.SetupMonitor(now, 60, 60, rc, pc)
+	monitor := s.SetupMonitor(now, 60, 60, rc, pc, nil)
 
 	healthUpdateCh := monitor.Subscribe()
 	healthFailure := <-healthUpdateCh
@@ -110,7 +114,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 		rc.ExpectSyncStatus(ss1, nil)
 	}
 
-	monitor := s.SetupMonitor(now, uint64(unsafeBlocksInterval), 60, rc, nil)
+	monitor := s.SetupMonitor(now, uint64(unsafeBlocksInterval), 60, rc, nil, nil)
 	healthUpdateCh := monitor.Subscribe()
 
 	// once the unsafe interval is surpassed, we should expect "unsafe head is falling behind the unsafe interval"
@@ -140,7 +144,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthySafeHeadNotProgressing() {
 	rc.ExpectSyncStatus(mockSyncStatus(now+4, 3, now, 1), nil)
 	rc.ExpectSyncStatus(mockSyncStatus(now+4, 3, now, 1), nil)
 
-	monitor := s.SetupMonitor(now, 60, 3, rc, nil)
+	monitor := s.SetupMonitor(now, 60, 3, rc, nil, nil)
 	healthUpdateCh := monitor.Subscribe()
 
 	for i := 0; i < 5; i++ {
@@ -175,7 +179,7 @@ func (s *HealthMonitorTestSuite) TestHealthyWithUnsafeLag() {
 	// in this case now time is behind unsafe head time, this should still be considered healthy.
 	rc.ExpectSyncStatus(mockSyncStatus(now+5, 2, now, 1), nil)
 
-	monitor := s.SetupMonitor(now, 60, 60, rc, nil)
+	monitor := s.SetupMonitor(now, 60, 60, rc, nil, nil)
 	healthUpdateCh := monitor.Subscribe()
 
 	// confirm initial state
@@ -203,6 +207,48 @@ func (s *HealthMonitorTestSuite) TestHealthyWithUnsafeLag() {
 	s.Nil(healthFailure)
 	s.Equal(lastSeenUnsafeTime+2, monitor.lastSeenUnsafeTime)
 	s.Equal(uint64(2), monitor.lastSeenUnsafeNum)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestHealthySupervisor() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+	rc.ExpectSyncStatus(ss1, nil)
+	rc.ExpectSyncStatus(ss1, nil)
+
+	su := &mocks.SupervisorHealthAPI{}
+	su.EXPECT().SyncStatus(mock.Anything).Return(eth.SupervisorSyncStatus{}, nil).Times(1)
+
+	monitor := s.SetupMonitor(now, 60, 60, rc, nil, su)
+
+	healthUpdateCh := monitor.Subscribe()
+	healthFailure := <-healthUpdateCh
+	s.Nil(healthFailure)
+
+	s.NoError(monitor.Stop())
+}
+
+func (s *HealthMonitorTestSuite) TestUnhealthySupervisorConnectionDown() {
+	s.T().Parallel()
+	now := uint64(time.Now().Unix())
+
+	rc := &testutils.MockRollupClient{}
+	ss1 := mockSyncStatus(now-1, 1, now-3, 0)
+	rc.ExpectSyncStatus(ss1, nil)
+	rc.ExpectSyncStatus(ss1, nil)
+
+	su := &mocks.SupervisorHealthAPI{}
+	su.EXPECT().SyncStatus(mock.Anything).Return(eth.SupervisorSyncStatus{}, errors.New("supervisor connection down")).Times(1)
+
+	monitor := s.SetupMonitor(now, 60, 60, rc, nil, su)
+
+	healthUpdateCh := monitor.Subscribe()
+	healthFailure := <-healthUpdateCh
+	s.NotNil(healthFailure)
 
 	s.NoError(monitor.Stop())
 }

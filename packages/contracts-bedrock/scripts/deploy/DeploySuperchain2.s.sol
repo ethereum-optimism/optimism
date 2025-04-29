@@ -123,7 +123,6 @@ contract DeploySuperchain2 is Script {
 
     function deployAndInitializeSuperchainConfig(InternalInput memory _input, Output memory _output) private {
         address guardian = _input.guardian;
-        bool paused = _input.paused;
 
         IProxyAdmin superchainProxyAdmin = _output.superchainProxyAdmin;
         ISuperchainConfig superchainConfigImpl = _output.superchainConfigImpl;
@@ -140,7 +139,7 @@ contract DeploySuperchain2 is Script {
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(ISuperchainConfig.initialize, (guardian, paused))
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian))
         );
         vm.stopBroadcast();
 
@@ -246,7 +245,6 @@ contract DeploySuperchain2 is Script {
             _offset: 0
         });
         require(superchainConfig.guardian() == _input.guardian, "SUPCON-10");
-        require(superchainConfig.paused() == _input.paused, "SUPCON-20");
 
         vm.startPrank(address(0));
         require(
@@ -261,7 +259,6 @@ contract DeploySuperchain2 is Script {
         // Implementation checks
         superchainConfig = _output.superchainConfigImpl;
         require(superchainConfig.guardian() == address(0), "SUPCON-50");
-        require(superchainConfig.paused() == false, "SUPCON-60");
     }
 
     function assertValidProtocolVersions(InternalInput memory _input, Output memory _output) internal {

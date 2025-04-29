@@ -1,6 +1,3 @@
-//go:build cannon64
-// +build cannon64
-
 package arch
 
 import "encoding/binary"

@@ -11,6 +11,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var (
+	errHazardSetNilDeps = errors.New("hazard dependencies cannot be nil")
+)
+
 type HazardDeps interface {
 	Contains(chain eth.ChainID, query types.ContainsQuery) (types.BlockSeal, error)
 	DependencySet() depset.DependencySet
@@ -26,7 +30,7 @@ type HazardSet struct {
 // NewHazardSet creates a new HazardSet with the given dependencies and initial block
 func NewHazardSet(deps HazardDeps, logger log.Logger, chainID eth.ChainID, block types.BlockSeal) (*HazardSet, error) {
 	if deps == nil {
-		return nil, fmt.Errorf("hazard dependencies cannot be nil")
+		return nil, errHazardSetNilDeps
 	}
 	h := &HazardSet{
 		entries: make(map[types.ChainIndex]types.BlockSeal),
@@ -64,7 +68,7 @@ func (h *HazardSet) checkChainCanExecute(depSet depset.DependencySet, chainID et
 
 // checkChainCanInitiate verifies that a chain can initiate messages at a given timestamp.
 // The chain must be able to initiate at the timestamp of the message we're referencing.
-func (h *HazardSet) checkChainCanInitiate(depSet depset.DependencySet, initChainID eth.ChainID, candidate types.BlockSeal, msg *types.ExecutingMessage) error {
+func (h *HazardSet) checkChainCanInitiate(depSet depset.DependencySet, initChainID eth.ChainID, msg *types.ExecutingMessage) error {
 	if ok, err := depSet.CanInitiateAt(initChainID, msg.Timestamp); err != nil {
 		return fmt.Errorf("cannot check message initiation of msg %s (chain %s): %w", msg, initChainID, err)
 	} else if !ok {
@@ -97,7 +101,7 @@ func (h *HazardSet) checkMessageWithCurrentTimestamp(msg *types.ExecutingMessage
 	existing, ok := h.entries[msg.Chain]
 	if ok {
 		if existing.ID() != includedIn.ID() {
-			return true, fmt.Errorf("found dependency on %s (chain %d), but already depend on %s", includedIn, initChainID, existing)
+			return true, fmt.Errorf("found dependency on %s (chain %d), but already depend on %s: %w", includedIn, initChainID, existing, types.ErrConflict)
 		}
 	}
 	return ok, nil
@@ -153,7 +157,7 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 				}
 				return err
 			}
-			if err := h.checkChainCanInitiate(depSet, srcChainID, candidate, msg); err != nil {
+			if err := h.checkChainCanInitiate(depSet, srcChainID, msg); err != nil {
 				return err
 			}
 			// performance: short-circuit inclusion checks if the message has expired

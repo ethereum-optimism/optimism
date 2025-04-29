@@ -109,7 +109,7 @@ func (d *LinkEntry) encode() Entry {
 		out[0] = uint8(SourceV0)
 	}
 	if d.revision&(1<<63) != 0 {
-		panic(fmt.Errorf("cannot encode invalid revision value: %b", d.revision))
+		panic(fmt.Sprintf("cannot encode invalid revision value: %b", d.revision))
 	}
 	offset := 4
 	binary.BigEndian.PutUint64(out[offset:offset+8], d.source.Number)

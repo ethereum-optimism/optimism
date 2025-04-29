@@ -44,11 +44,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 # Writing files to host requires buildkit to be enabled.
 # e.g. `BUILDKIT=1 docker build ...`
 FROM scratch AS export-stage
-COPY --from=builder /app/op-program/bin/op-program-client.elf .
 COPY --from=builder /app/op-program/bin/op-program-client64.elf .
-COPY --from=builder /app/op-program/bin/meta.json .
-COPY --from=builder /app/op-program/bin/prestate.bin.gz .
-COPY --from=builder /app/op-program/bin/prestate-proof.json .
 COPY --from=builder /app/op-program/bin/meta-mt64.json .
 COPY --from=builder /app/op-program/bin/prestate-mt64.bin.gz .
 COPY --from=builder /app/op-program/bin/prestate-proof-mt64.json .

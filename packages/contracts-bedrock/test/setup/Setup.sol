@@ -51,6 +51,7 @@ import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IWETH98 } from "interfaces/universal/IWETH98.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "interfaces/legacy/ILegacyMessagePasser.sol";
@@ -99,6 +100,8 @@ contract Setup {
     IDelayedWETH delayedWETHPermissionedGameProxy;
 
     // L1 contracts - core
+    address proxyAdminOwner;
+    IProxyAdmin proxyAdmin;
     IOptimismPortal optimismPortal2;
     IETHLockbox ethLockbox;
     ISystemConfig systemConfig;
@@ -271,11 +274,14 @@ contract Setup {
         disputeGameFactory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         delayedWeth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
         opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
+        proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
+        proxyAdminOwner = proxyAdmin.owner();
 
         if (deploy.cfg().useAltDA()) {
             dataAvailabilityChallenge =
                 IDataAvailabilityChallenge(artifacts.mustGetAddress("DataAvailabilityChallengeProxy"));
         }
+
         console.log("Setup: registered L1 deployments");
     }
 

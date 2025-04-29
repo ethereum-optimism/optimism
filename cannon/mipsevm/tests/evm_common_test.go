@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/stretchr/testify/require"
 
@@ -20,84 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
-
-func TestEVM_OpenMIPS(t *testing.T) {
-	testutil.Cannon32OnlyTest(t, "Skipping MIPS32 assembly test vectors for cannon64")
-
-	testFiles, err := os.ReadDir("open_mips_tests/test/bin")
-	require.NoError(t, err)
-
-	cases := GetMipsVersionTestCases(t)
-
-	for _, c := range cases {
-		for _, f := range testFiles {
-			testName := fmt.Sprintf("%v (%v)", f.Name(), c.Name)
-			t.Run(testName, func(t *testing.T) {
-				if !versions.IsSupportedSingleThreaded(c.Version) && f.Name() == "clone.bin" {
-					t.Skipf("%v only supported for singlethreaded VMs", f.Name())
-				}
-
-				oracle := testutil.SelectOracleFixture(t, f.Name())
-				// Short-circuit early for exit_group.bin
-				exitGroup := f.Name() == "exit_group.bin"
-				expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
-				validator := testutil.NewEvmValidator(t, c.StateHashFn, c.Contracts, testutil.WithLocalOracle(oracle))
-
-				fn := path.Join("open_mips_tests/test/bin", f.Name())
-				programMem, err := os.ReadFile(fn)
-				require.NoError(t, err)
-
-				goVm := c.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger())
-				state := goVm.GetState()
-				err = state.GetMemory().SetMemoryRange(0, bytes.NewReader(programMem))
-				require.NoError(t, err, "load program into state")
-
-				// set the return address ($ra) to jump into when test completes
-				state.GetRegistersRef()[31] = testutil.EndAddr
-
-				// Catch panics and check if they are expected
-				defer func() {
-					if r := recover(); r != nil {
-						if expectPanic {
-							// Success
-						} else {
-							t.Errorf("unexpected panic: %v", r)
-						}
-					}
-				}()
-
-				for i := 0; i < 1000; i++ {
-					curStep := goVm.GetState().GetStep()
-					if goVm.GetState().GetPC() == testutil.EndAddr {
-						break
-					}
-					if exitGroup && goVm.GetState().GetExited() {
-						break
-					}
-					insn := testutil.GetInstruction(state.GetMemory(), state.GetPC())
-					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
-
-					stepWitness, err := goVm.Step(true)
-					require.NoError(t, err)
-					validator.ValidateEVM(t, stepWitness, curStep, goVm)
-				}
-				if exitGroup {
-					require.NotEqual(t, arch.Word(testutil.EndAddr), goVm.GetState().GetPC(), "must not reach end")
-					require.True(t, goVm.GetState().GetExited(), "must set exited state")
-					require.Equal(t, uint8(1), goVm.GetState().GetExitCode(), "must exit with 1")
-				} else if expectPanic {
-					require.NotEqual(t, arch.Word(testutil.EndAddr), state.GetPC(), "must not reach end")
-				} else {
-					require.Equal(t, arch.Word(testutil.EndAddr), state.GetPC(), "must reach end")
-					// inspect test result
-					done, result := state.GetMemory().GetWord(testutil.BaseAddrEnd+4), state.GetMemory().GetWord(testutil.BaseAddrEnd+8)
-					require.Equal(t, done, Word(1), "must be done")
-					require.Equal(t, result, Word(1), "must have success result")
-				}
-			})
-		}
-	}
-}
 
 func TestEVM_SingleStep_Jump(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
@@ -211,51 +130,6 @@ func TestEVM_SingleStep_Bitwise(t *testing.T) {
 		{name: "sltiu, fail, large values", opcode: 0xb, isImm: true, rs: signExtend64(0xFF_FF_FF_FE), imm: 0xFFFD, expectRes: Word(0)},
 	}
 	testOperators(t, cases, false)
-}
-
-func TestEVM_SingleStep_LoadStore32(t *testing.T) {
-	testutil.Cannon32OnlyTest(t, "These tests are fully covered for 64-bits in TestEVM_SingleStep_LoadStore64")
-	loadMemVal := Word(0x11_22_33_44)
-	loadMemValNeg := Word(0xF1_F2_F3_F4)
-	rtVal := Word(0xaa_bb_cc_dd)
-	cases := []loadStoreTestCase{
-		{name: "lb, offset=0", opcode: uint32(0x20), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
-		{name: "lb, offset=1", opcode: uint32(0x20), base: 0x100, imm: 0x1, memVal: loadMemVal, expectRes: 0x22},
-		{name: "lb, offset=2", opcode: uint32(0x20), base: 0x100, imm: 0x2, memVal: loadMemVal, expectRes: 0x33},
-		{name: "lb, offset=2, variation", opcode: uint32(0x20), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33},
-		{name: "lb, offset=4", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemVal, expectRes: 0x44},
-		{name: "lb, negative, offset=0", opcode: uint32(0x20), base: 0x100, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F1},
-		{name: "lb, negative, offset=1", opcode: uint32(0x20), base: 0x101, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F2},
-		{name: "lb, negative, offset=2", opcode: uint32(0x20), base: 0x102, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F3},
-		{name: "lb, negative, offset=3", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F4},
-		{name: "lh, offset=0", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
-		{name: "lh, offset=1", opcode: uint32(0x21), base: 0x101, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
-		{name: "lh, offset=2", opcode: uint32(0x21), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33_44},
-		{name: "lh, offset=3", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemVal, expectRes: 0x33_44},
-		{name: "lh, negative, offset=0", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xFF_FF_F1_F2},
-		{name: "lh, negative, offset=3", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemValNeg, expectRes: 0xFF_FF_F3_F4},
-		{name: "lw", opcode: uint32(0x23), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22_33_44},
-		{name: "lbu", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
-		{name: "lbu, negative", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1},
-		{name: "lhu", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
-		{name: "lhu, negative", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1_F2},
-		{name: "lwl", opcode: uint32(0x22), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: loadMemVal},
-		{name: "lwl unaligned", opcode: uint32(0x22), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0x22_33_44_dd},
-		{name: "lwr", opcode: uint32(0x26), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_cc_11},
-		{name: "lwr unaligned", opcode: uint32(0x26), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_11_22},
-		{name: "sb, offset=0", opcode: uint32(0x28), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xdd_00_00_00},
-		{name: "sb, offset=1", opcode: uint32(0x28), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0x00_dd_00_00},
-		{name: "sb, offset=2", opcode: uint32(0x28), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_dd_00},
-		{name: "sb, offset=3", opcode: uint32(0x28), base: 0x103, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_00_dd},
-		{name: "sh, offset=0", opcode: uint32(0x29), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
-		{name: "sh, offset=1", opcode: uint32(0x29), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
-		{name: "sh, offset=2", opcode: uint32(0x29), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
-		{name: "sh, offset=3", opcode: uint32(0x29), base: 0x102, imm: 0x21, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
-		{name: "swl", opcode: uint32(0x2a), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
-		{name: "sw", opcode: uint32(0x2b), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
-		{name: "swr unaligned", opcode: uint32(0x2e), base: 0x100, imm: 0x1, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
-	}
-	testLoadStore(t, cases)
 }
 
 func TestEVM_SingleStep_Lui(t *testing.T) {
@@ -1009,7 +883,6 @@ func TestEVM_Fault(t *testing.T) {
 }
 
 func TestEVM_HelloProgram(t *testing.T) {
-	testutil.Cannon64OnlyTest(t, "32-bit Cannon is deprecated")
 	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
 		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
 	}
@@ -1057,7 +930,6 @@ func TestEVM_HelloProgram(t *testing.T) {
 }
 
 func TestEVM_ClaimProgram(t *testing.T) {
-	testutil.Cannon64OnlyTest(t, "32-bit Cannon is deprecated")
 	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
 		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
 	}
@@ -1104,7 +976,6 @@ func TestEVM_ClaimProgram(t *testing.T) {
 }
 
 func TestEVM_EntryProgram(t *testing.T) {
-	testutil.Cannon64OnlyTest(t, "32-bit Cannon is deprecated")
 	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
 		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
 	}
@@ -1146,64 +1017,4 @@ func TestEVM_EntryProgram(t *testing.T) {
 			require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
 		})
 	}
-}
-
-func TestEVM_SingleStep_Branch32(t *testing.T) {
-	testutil.Cannon32OnlyTest(t, "These tests are fully covered for 64-bits in TestEVM_SingleStep_Branch64")
-	t.Parallel()
-	cases := []branchTestCase{
-		// blez
-		{name: "blez", pc: 0, opcode: 0x6, rs: 0x5, offset: 0x100, expectNextPC: 0x8},
-		{name: "blez large rs", pc: 0x10, opcode: 0x6, rs: 0x7F_FF_FF_FF, offset: 0x100, expectNextPC: 0x18},
-		{name: "blez zero rs", pc: 0x10, opcode: 0x6, rs: 0x0, offset: 0x100, expectNextPC: 0x414},
-		{name: "blez sign rs", pc: 0x10, opcode: 0x6, rs: -1, offset: 0x100, expectNextPC: 0x414},
-		{name: "blez rs only sign bit set", pc: 0x10, opcode: 0x6, rs: testutil.ToSignedInteger(0x80_00_00_00), offset: 0x100, expectNextPC: 0x414},
-		{name: "blez sign-extended offset", pc: 0x10, opcode: 0x6, rs: -1, offset: 0x80_00, expectNextPC: 0xFF_FE_00_14},
-
-		// bgtz
-		{name: "bgtz", pc: 0, opcode: 0x7, rs: 0x5, offset: 0x100, expectNextPC: 0x404},
-		{name: "bgtz sign-extended offset", pc: 0x10, opcode: 0x7, rs: 0x5, offset: 0x80_00, expectNextPC: 0xFF_FE_00_14},
-		{name: "bgtz large rs", pc: 0x10, opcode: 0x7, rs: 0x7F_FF_FF_FF, offset: 0x100, expectNextPC: 0x414},
-		{name: "bgtz zero rs", pc: 0x10, opcode: 0x7, rs: 0x0, offset: 0x100, expectNextPC: 0x18},
-		{name: "bgtz sign rs", pc: 0x10, opcode: 0x7, rs: -1, offset: 0x100, expectNextPC: 0x18},
-		{name: "bgtz rs only sign bit set", pc: 0x10, opcode: 0x7, rs: testutil.ToSignedInteger(0x80_00_00_00), offset: 0x100, expectNextPC: 0x18},
-
-		// bltz t0, $x
-		{name: "bltz", pc: 0, opcode: 0x1, regimm: 0x0, rs: 0x5, offset: 0x100, expectNextPC: 0x8},
-		{name: "bltz large rs", pc: 0x10, opcode: 0x1, regimm: 0x0, rs: 0x7F_FF_FF_FF, offset: 0x100, expectNextPC: 0x18},
-		{name: "bltz zero rs", pc: 0x10, opcode: 0x1, regimm: 0x0, rs: 0x0, offset: 0x100, expectNextPC: 0x18},
-		{name: "bltz sign rs", pc: 0x10, opcode: 0x1, regimm: 0x0, rs: -1, offset: 0x100, expectNextPC: 0x414},
-		{name: "bltz rs only sign bit set", pc: 0x10, opcode: 0x1, regimm: 0x0, rs: testutil.ToSignedInteger(0x80_00_00_00), offset: 0x100, expectNextPC: 0x414},
-		{name: "bltz sign-extended offset", pc: 0x10, opcode: 0x1, regimm: 0x0, rs: -1, offset: 0x80_00, expectNextPC: 0xFF_FE_00_14},
-		{name: "bltz large offset no-sign", pc: 0x10, opcode: 0x1, regimm: 0x0, rs: -1, offset: 0x7F_FF, expectNextPC: 0x2_00_10},
-
-		// bltzal t0, $x
-		{name: "bltzal", pc: 0, opcode: 0x1, regimm: 0x10, rs: 0x5, offset: 0x100, expectNextPC: 0x8, expectLink: true},
-		{name: "bltzal large rs", pc: 0x10, opcode: 0x1, regimm: 0x10, rs: 0x7F_FF_FF_FF, offset: 0x100, expectNextPC: 0x18, expectLink: true},
-		{name: "bltzal zero rs", pc: 0x10, opcode: 0x1, regimm: 0x10, rs: 0x0, offset: 0x100, expectNextPC: 0x18, expectLink: true},
-		{name: "bltzal sign rs", pc: 0x10, opcode: 0x1, regimm: 0x10, rs: -1, offset: 0x100, expectNextPC: 0x414, expectLink: true},
-		{name: "bltzal rs only sign bit set", pc: 0x10, opcode: 0x1, regimm: 0x10, rs: testutil.ToSignedInteger(0x80_00_00_00), offset: 0x100, expectNextPC: 0x414, expectLink: true},
-		{name: "bltzal sign-extended offset", pc: 0x10, opcode: 0x1, regimm: 0x10, rs: -1, offset: 0x80_00, expectNextPC: 0xFF_FE_00_14, expectLink: true},
-		{name: "bltzal large offset no-sign", pc: 0x10, opcode: 0x1, regimm: 0x10, rs: -1, offset: 0x7F_FF, expectNextPC: 0x2_00_10, expectLink: true},
-
-		// bgez t0, $x
-		{name: "bgez", pc: 0, opcode: 0x1, regimm: 0x1, rs: 0x5, offset: 0x100, expectNextPC: 0x404},
-		{name: "bgez large rs", pc: 0x10, opcode: 0x1, regimm: 0x1, rs: 0x7F_FF_FF_FF, offset: 0x100, expectNextPC: 0x414},
-		{name: "bgez zero rs", pc: 0x10, opcode: 0x1, regimm: 0x1, rs: 0x0, offset: 0x100, expectNextPC: 0x414},
-		{name: "bgez branch not taken", pc: 0x10, opcode: 0x1, regimm: 0x1, rs: -1, offset: 0x100, expectNextPC: 0x18},
-		{name: "bgez sign-extended offset", pc: 0x10, opcode: 0x1, regimm: 0x1, rs: 1, offset: 0x80_00, expectNextPC: 0xFF_FE_00_14},
-		{name: "bgez large offset no-sign", pc: 0x10, opcode: 0x1, regimm: 0x1, rs: 1, offset: 0x70_00, expectNextPC: 0x1_C0_14},
-		{name: "bgez fill bit offset except sign", pc: 0x10, opcode: 0x1, regimm: 0x1, rs: 1, offset: 0x7F_FF, expectNextPC: 0x2_00_10},
-
-		// bgezal t0, $x
-		{name: "bgezal", pc: 0, opcode: 0x1, regimm: 0x11, rs: 0x5, offset: 0x100, expectNextPC: 0x404, expectLink: true},
-		{name: "bgezal large rs", pc: 0x10, opcode: 0x1, regimm: 0x11, rs: 0x7F_FF_FF_FF, offset: 0x100, expectNextPC: 0x414, expectLink: true},
-		{name: "bgezal zero rs", pc: 0x10, opcode: 0x1, regimm: 0x11, rs: 0x0, offset: 0x100, expectNextPC: 0x414, expectLink: true},
-		{name: "bgezal branch not taken", pc: 0x10, opcode: 0x1, regimm: 0x11, rs: -1, offset: 0x100, expectNextPC: 0x18, expectLink: true},
-		{name: "bgezal sign-extended offset", pc: 0x10, opcode: 0x1, regimm: 0x11, rs: 1, offset: 0x80_00, expectNextPC: 0xFF_FE_00_14, expectLink: true},
-		{name: "bgezal large offset no-sign", pc: 0x10, opcode: 0x1, regimm: 0x11, rs: 1, offset: 0x70_00, expectNextPC: 0x1_C0_14, expectLink: true},
-		{name: "bgezal fill bit offset except sign", pc: 0x10, opcode: 0x1, regimm: 0x11, rs: 1, offset: 0x7F_FF, expectNextPC: 0x2_00_10, expectLink: true},
-	}
-
-	testBranch(t, cases)
 }

@@ -17,6 +17,8 @@ import (
 
 const EnvVarPrefix = "OP_SUPERVISOR"
 
+var ErrRequiredFlagMissing = fmt.Errorf("required flag is missing")
+
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
 }
@@ -100,7 +102,7 @@ var Flags []cli.Flag
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
-			return fmt.Errorf("flag %s is required", f.Names()[0])
+			return fmt.Errorf("%w: %s", ErrRequiredFlagMissing, f.Names()[0])
 		}
 	}
 	return nil

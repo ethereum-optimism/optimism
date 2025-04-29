@@ -1,6 +1,3 @@
-//go:build cannon64
-// +build cannon64
-
 // These tests target architectures that are 64-bit or larger
 package tests
 
@@ -45,7 +42,7 @@ func TestEVM_MT64_LL(t *testing.T) {
 		{name: "4-byte-aligned addr, addr signed extended w overflow", base: 0x1000_0001, offset: 0xFF03, addr: 0x0000_0000_0FFF_FF04, memVal: memVal, retVal: 0x55667788, retReg: 5},
 		{name: "Return register set to 0", base: 0x01, offset: 0x0107, addr: 0x0108, memVal: memVal, retVal: 0x11223344, retReg: 0},
 	}
-	versions := GetMultiThreadedTestCases(t)
+	versions := GetMipsVersionTestCases(t)
 	for _, v := range versions {
 		for i, c := range cases {
 			for _, withExistingReservation := range []bool{true, false} {
@@ -133,7 +130,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 		{name: "Return register set to 0", base: 0x01, offset: 0x0138, addr: 0x0139, value: 0xABCD, expectedMemVal: 0xABCD_0000_0000, rtReg: 0, threadId: 4},
 		{name: "Zero valued ll args", base: 0x0, offset: 0x0, value: 0xABCD, expectedMemVal: 0xABCD_0000_0000, rtReg: 5, threadId: 0},
 	}
-	versions := GetMultiThreadedTestCases(t)
+	versions := GetMipsVersionTestCases(t)
 	for _, ver := range versions {
 		for i, c := range cases {
 			for _, llVar := range llVariations {
@@ -225,7 +222,7 @@ func TestEVM_MT64_LLD(t *testing.T) {
 		{name: "Aligned addr, signed extended w overflow", base: 0x1000_0001, offset: 0xFF07, addr: 0x0000_0000_0FFF_FF08, memVal: memVal, retReg: 5},
 		{name: "Return register set to 0", base: 0x01, offset: 0x0107, addr: 0x0108, memVal: memVal, retReg: 0},
 	}
-	versions := GetMultiThreadedTestCases(t)
+	versions := GetMipsVersionTestCases(t)
 	for _, v := range versions {
 		for i, c := range cases {
 			for _, withExistingReservation := range []bool{true, false} {
@@ -314,7 +311,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 		{name: "Return register set to 0", base: 0x01, offset: 0x0138, addr: 0x0139, rtReg: 0, threadId: 4},
 		{name: "Zero valued ll args", base: 0x0, offset: 0x0, rtReg: 5, threadId: 0},
 	}
-	versions := GetMultiThreadedTestCases(t)
+	versions := GetMipsVersionTestCases(t)
 	for _, ver := range versions {
 		for i, c := range cases {
 			for _, llVar := range llVariations {
@@ -492,7 +489,7 @@ func getNoopSyscalls64(vmVersion versions.StateVersion) map[string]uint32 {
 
 func TestEVM_NoopSyscall64(t *testing.T) {
 	t.Parallel()
-	for _, vmVersion := range GetMultiThreadedTestCases(t) {
+	for _, vmVersion := range GetMipsVersionTestCases(t) {
 		noOpCalls := getNoopSyscalls64(vmVersion.Version)
 		testNoopSyscall(t, vmVersion, noOpCalls)
 	}
@@ -500,7 +497,7 @@ func TestEVM_NoopSyscall64(t *testing.T) {
 
 func TestEVM_UnsupportedSyscall64(t *testing.T) {
 	t.Parallel()
-	for _, vmVersion := range GetMultiThreadedTestCases(t) {
+	for _, vmVersion := range GetMipsVersionTestCases(t) {
 		var noopSyscallNums = maps.Values(getNoopSyscalls64(vmVersion.Version))
 		var SupportedSyscalls = []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid}
 		unsupportedSyscalls := make([]uint32, 0, 400)
@@ -526,7 +523,7 @@ func TestEVM_UndefinedSyscall(t *testing.T) {
 		"SysLlseek":  arch.SysLlseek,
 	}
 	for name, val := range undefinedSyscalls {
-		for _, version := range GetMultiThreadedTestCases(t) {
+		for _, version := range GetMipsVersionTestCases(t) {
 			t.Run(fmt.Sprintf("%v-%v", version.Name, name), func(t *testing.T) {
 				t.Parallel()
 				goVm, state, contracts := setupWithTestCase(t, version, int(val), nil)

@@ -1,6 +1,7 @@
 package cross
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,8 @@ var (
 	ErrCycle                  = fmt.Errorf("%w: cycle detected", types.ErrConflict)
 	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", types.ErrConflict)
 	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", types.ErrConflict)
+
+	errInconsistentBlockSeal = errors.New("inconsistent block seal")
 )
 
 // CycleCheckDeps is an interface for checking cyclical dependencies between logs.
@@ -101,7 +104,7 @@ func gatherLogs(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 		}
 
 		if !blockSealMatchesRef(hazardBlock, bl) {
-			return nil, nil, fmt.Errorf("tried to open block %s of chain %s, but got different block %s than expected, use a reorg lock for consistency", hazardBlock, hazardChainID, bl)
+			return nil, nil, fmt.Errorf("tried to open block %s of chain %s, but got different block %s than expected, use a reorg lock for consistency: %w", hazardBlock, hazardChainID, bl, errInconsistentBlockSeal)
 		}
 
 		// Validate executing message indices

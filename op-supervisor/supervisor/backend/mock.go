@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync/atomic"
 
@@ -27,14 +26,14 @@ func NewMockBackend() *MockBackend {
 
 func (m *MockBackend) Start(ctx context.Context) error {
 	if !m.started.CompareAndSwap(false, true) {
-		return errors.New("already started")
+		return errAlreadyStarted
 	}
 	return nil
 }
 
 func (m *MockBackend) Stop(ctx context.Context) error {
 	if !m.started.CompareAndSwap(true, false) {
-		return errors.New("already stopped")
+		return errAlreadyStopped
 	}
 	return nil
 }

@@ -64,8 +64,8 @@ func (tc *hardforkScheduledTest) fork(fork string) **hexutil.Uint64 {
 	}
 }
 
-func TestCrossLayerUser_Standard(t *testing.T) {
-	testCrossLayerUser(t, config.AllocTypeStandard)
+func TestCrossLayerUser_Default(t *testing.T) {
+	testCrossLayerUser(t, config.DefaultAllocType)
 }
 
 // TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various hardfork configurations:

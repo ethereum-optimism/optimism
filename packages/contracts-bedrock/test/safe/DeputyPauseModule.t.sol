@@ -5,12 +5,12 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
-// Scripts
+// Libraries
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { IDeputyGuardianModule } from "interfaces/safe/IDeputyGuardianModule.sol";
 import { IDeputyPauseModule } from "interfaces/safe/IDeputyPauseModule.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title DeputyPauseModule_TestInit
 /// @notice Base test setup for the DeputyPauseModule.
@@ -19,64 +19,44 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
 
     event ExecutionFromModuleSuccess(address indexed);
     event DeputySet(address indexed);
-    event DeputyGuardianModuleSet(IDeputyGuardianModule indexed);
-    event PauseTriggered(address indexed deputy, bytes32 nonce);
+    event PauseTriggered(address indexed deputy, bytes32 nonce, address identifier);
 
     IDeputyPauseModule deputyPauseModule;
-    IDeputyGuardianModule deputyGuardianModule;
-    SafeInstance securityCouncilSafeInstance;
     SafeInstance foundationSafeInstance;
+    SafeInstance guardianSafeInstance;
     address deputy;
     uint256 deputyKey;
     bytes deputyAuthSignature;
 
     bytes32 constant SOME_VALID_NONCE = keccak256("some valid nonce");
-    bytes32 constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce)");
+    bytes32 constant PAUSE_MESSAGE_TYPEHASH = keccak256("PauseMessage(bytes32 nonce,address identifier)");
     bytes32 constant DEPUTY_AUTH_MESSAGE_TYPEHASH = keccak256("DeputyAuthMessage(address deputy)");
 
     /// @notice Sets up the test environment.
     function setUp() public virtual override {
         super.setUp();
 
-        // Set up 20 keys.
-        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("DeputyPauseModule_test_", 20);
+        // Set up 10 keys for the Foundation Safe.
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("DeputyPauseModule_test_fnd_", 10);
 
-        // Split into two sets of 10 keys.
-        uint256[] memory keys1 = new uint256[](10);
-        uint256[] memory keys2 = new uint256[](10);
-        for (uint256 i; i < 10; i++) {
-            keys1[i] = keys[i];
-            keys2[i] = keys[i + 10];
-        }
+        // Create a Foundation Safe with 10 owners.
+        foundationSafeInstance = _setupSafe(keys, 10);
 
-        // Create a Security Council Safe with 10 owners.
-        securityCouncilSafeInstance = _setupSafe(keys1, 10);
+        // Set up 10 keys for the Guardian Safe.
+        (, uint256[] memory keys2) = SafeTestLib.makeAddrsAndKeys("DeputyPauseModule_test_guardian_", 10);
 
-        // Create a Foundation Safe with 10 different owners.
-        foundationSafeInstance = _setupSafe(keys2, 10);
+        // Create a Guardian Safe with 10 owners.
+        guardianSafeInstance = _setupSafe(keys2, 10);
 
-        // Set the Security Council Safe as the Guardian of the SuperchainConfig.
+        // Set the Guardian Safe as the guardian of the SuperchainConfig.
         vm.store(
             address(superchainConfig),
-            superchainConfig.GUARDIAN_SLOT(),
-            bytes32(uint256(uint160(address(securityCouncilSafeInstance.safe))))
+            bytes32(0),
+            bytes32(uint256(uint160(address(guardianSafeInstance.safe)))) << (2 * 8)
         );
 
-        // Create a DeputyGuardianModule and set the Foundation Safe as the Deputy Guardian.
-        deputyGuardianModule = IDeputyGuardianModule(
-            DeployUtils.create1({
-                _name: "DeputyGuardianModule",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IDeputyGuardianModule.__constructor__,
-                        (securityCouncilSafeInstance.safe, superchainConfig, address(foundationSafeInstance.safe))
-                    )
-                )
-            })
-        );
-
-        // Enable the DeputyGuardianModule on the Security Council Safe.
-        securityCouncilSafeInstance.enableModule(address(deputyGuardianModule));
+        // Make sure that the Guardian Safe is the guardian of the SuperchainConfig.
+        assertEq(superchainConfig.guardian(), address(guardianSafeInstance.safe));
 
         // Create the deputy for the DeputyPauseModule.
         (deputy, deputyKey) = makeAddrAndKey("deputy");
@@ -91,14 +71,20 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, deputyGuardianModule, superchainConfig, deputy, deputyAuthSignature)
+                        (
+                            guardianSafeInstance.safe,
+                            foundationSafeInstance.safe,
+                            superchainConfig,
+                            deputy,
+                            deputyAuthSignature
+                        )
                     )
                 )
             })
         );
 
-        // Enable the DeputyPauseModule on the Foundation Safe.
-        foundationSafeInstance.enableModule(address(deputyPauseModule));
+        // Enable the DeputyPauseModule on the Guardian Safe.
+        guardianSafeInstance.enableModule(address(deputyPauseModule));
     }
 
     /// @notice Generates a signature to authenticate as the deputy.
@@ -143,37 +129,41 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
     /// @notice Generates a signature to trigger a pause.
     /// @param _verifyingContract The verifying contract.
     /// @param _nonce Signature nonce.
+    /// @param _identifier The identifier to pause.
     /// @param _privateKey The private key to use to sign the message.
     /// @return Generated signature.
     function makePauseSignature(
         address _verifyingContract,
         bytes32 _nonce,
+        address _identifier,
         uint256 _privateKey
     )
         internal
         view
         returns (bytes memory)
     {
-        return makePauseSignature(block.chainid, _verifyingContract, _nonce, _privateKey);
+        return makePauseSignature(block.chainid, _verifyingContract, _nonce, _identifier, _privateKey);
     }
 
     /// @notice Generates a signature to trigger a pause.
     /// @param _chainId Chain ID to use for the domain separator.
     /// @param _verifyingContract The verifying contract.
     /// @param _nonce Signature nonce.
+    /// @param _identifier The identifier to pause.
     /// @param _privateKey The private key to use to sign the message.
     /// @return Generated signature.
     function makePauseSignature(
         uint256 _chainId,
         address _verifyingContract,
         bytes32 _nonce,
+        address _identifier,
         uint256 _privateKey
     )
         internal
         pure
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(abi.encode(PAUSE_MESSAGE_TYPEHASH, _nonce));
+        bytes32 structHash = keccak256(abi.encode(PAUSE_MESSAGE_TYPEHASH, _nonce, _identifier));
         bytes32 digest = hashTypedData(_verifyingContract, _chainId, structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_privateKey, digest);
         return abi.encodePacked(r, s, v);
@@ -230,7 +220,7 @@ contract DeputyPauseModule_Constructor_Test is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, deputyGuardianModule, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -257,7 +247,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, deputyGuardianModule, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -280,7 +270,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, deputyGuardianModule, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -306,7 +296,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, deputyGuardianModule, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -329,7 +319,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, deputyGuardianModule, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -339,7 +329,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
     /// @notice Tests that the constructor reverts when the signature is not the deputy auth message.
     function test_constructor_signatureNotAuthMessage_reverts() external {
         // Create the signature.
-        bytes memory signature = makePauseSignature(getNextContract(), bytes32(0), deputyKey);
+        bytes memory signature = makePauseSignature(getNextContract(), bytes32(0), address(0), deputyKey);
 
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_InvalidDeputy.selector));
@@ -349,7 +339,7 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IDeputyPauseModule.__constructor__,
-                        (foundationSafeInstance.safe, deputyGuardianModule, superchainConfig, deputy, signature)
+                        (guardianSafeInstance.safe, foundationSafeInstance.safe, superchainConfig, deputy, signature)
                     )
                 )
             })
@@ -362,8 +352,8 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
 contract DeputyPauseModule_Getters_Test is DeputyPauseModule_TestInit {
     /// @notice Tests that the getters work.
     function test_getters_works() external view {
+        assertEq(address(deputyPauseModule.guardianSafe()), address(guardianSafeInstance.safe));
         assertEq(address(deputyPauseModule.foundationSafe()), address(foundationSafeInstance.safe));
-        assertEq(address(deputyPauseModule.deputyGuardianModule()), address(deputyGuardianModule));
         assertEq(address(deputyPauseModule.superchainConfig()), address(superchainConfig));
         assertEq(deputyPauseModule.deputy(), deputy);
         assertEq(deputyPauseModule.pauseMessageTypehash(), PAUSE_MESSAGE_TYPEHASH);
@@ -376,79 +366,58 @@ contract DeputyPauseModule_Getters_Test is DeputyPauseModule_TestInit {
 contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
     /// @notice Tests that pause() successfully pauses when called by the deputy.
     /// @param _nonce Signature nonce.
-    function testFuzz_pause_validParameters_succeeds(bytes32 _nonce) external {
+    /// @param _identifier The identifier to pause.
+    function testFuzz_pause_validParameters_succeeds(bytes32 _nonce, address _identifier) external {
         vm.expectEmit(address(superchainConfig));
-        emit Paused("Deputy Guardian");
+        emit Paused(_identifier);
 
-        vm.expectEmit(address(securityCouncilSafeInstance.safe));
-        emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
-
-        vm.expectEmit(address(deputyGuardianModule));
-        emit Paused("Deputy Guardian");
-
-        vm.expectEmit(address(foundationSafeInstance.safe));
+        vm.expectEmit(address(guardianSafeInstance.safe));
         emit ExecutionFromModuleSuccess(address(deputyPauseModule));
 
         vm.expectEmit(address(deputyPauseModule));
-        emit PauseTriggered(deputy, _nonce);
+        emit PauseTriggered(deputy, _nonce, _identifier);
 
         // State assertions before the pause.
         assertEq(deputyPauseModule.usedNonces(_nonce), false);
-        assertEq(superchainConfig.paused(), false);
+        assertEq(superchainConfig.paused(_identifier), false);
 
         // Trigger the pause.
-        bytes memory signature = makePauseSignature(address(deputyPauseModule), _nonce, deputyKey);
-        deputyPauseModule.pause(_nonce, signature);
+        bytes memory signature = makePauseSignature(address(deputyPauseModule), _nonce, _identifier, deputyKey);
+        deputyPauseModule.pause(_nonce, _identifier, signature);
 
         // State assertions after the pause.
         assertEq(deputyPauseModule.usedNonces(_nonce), true);
-        assertEq(superchainConfig.paused(), true);
+        assertEq(superchainConfig.paused(_identifier), true);
     }
 
     /// @notice Tests that pause() succeeds when called with two different nonces if the
     ///         SuperchainConfig contract is not paused between calls.
     /// @param _nonce1 First nonce.
     /// @param _nonce2 Second nonce.
-    function testFuzz_pause_differentNonces_succeeds(bytes32 _nonce1, bytes32 _nonce2) external {
+    /// @param _identifier The identifier to pause.
+    function testFuzz_pause_differentNonces_succeeds(bytes32 _nonce1, bytes32 _nonce2, address _identifier) external {
         // Make sure that the nonces are different.
         vm.assume(_nonce1 != _nonce2);
 
         // Pause once.
-        bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, deputyKey);
-        deputyPauseModule.pause(_nonce1, sig1);
+        bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, _identifier, deputyKey);
+        deputyPauseModule.pause(_nonce1, _identifier, sig1);
 
         // Unpause.
-        vm.prank(address(securityCouncilSafeInstance.safe));
-        superchainConfig.unpause();
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.unpause(_identifier);
 
         // Pause again with a different nonce.
-        bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, deputyKey);
-        deputyPauseModule.pause(_nonce2, sig2);
-    }
-
-    /// @notice Tests that pause() succeeds when called with two different nonces after the
-    ///         superchain has already been paused between calls.
-    /// @param _nonce1 First nonce.
-    /// @param _nonce2 Second nonce.
-    function testFuzz_pause_differentNoncesAlreadyPaused_succeeds(bytes32 _nonce1, bytes32 _nonce2) external {
-        // Make sure that the nonces are different.
-        vm.assume(_nonce1 != _nonce2);
-
-        // Pause once.
-        bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, deputyKey);
-        deputyPauseModule.pause(_nonce1, sig1);
-
-        // Pause again with a different nonce.
-        bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, deputyKey);
-        deputyPauseModule.pause(_nonce2, sig2);
+        bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, _identifier, deputyKey);
+        deputyPauseModule.pause(_nonce2, _identifier, sig2);
     }
 
     /// @notice Tests that pause() succeeds within 1 million gas.
     function test_pause_withinMillionGas_succeeds() external {
-        bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, deputyKey);
+        bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey);
 
         uint256 gasBefore = gasleft();
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature);
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
         uint256 gasUsed = gasBefore - gasleft();
 
         // Ensure gas usage is within expected bounds.
@@ -474,27 +443,58 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_Unauthorized.selector));
-        bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, _privateKey);
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature);
+        bytes memory signature =
+            makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), _privateKey);
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the nonce has already been used.
     /// @param _nonce Signature nonce.
     function testFuzz_pause_nonceAlreadyUsed_reverts(bytes32 _nonce) external {
         // Pause once.
-        bytes memory signature = makePauseSignature(address(deputyPauseModule), _nonce, deputyKey);
-        deputyPauseModule.pause(_nonce, signature);
+        bytes memory signature = makePauseSignature(address(deputyPauseModule), _nonce, address(0), deputyKey);
+        deputyPauseModule.pause(_nonce, address(0), signature);
 
         // Unpause.
-        vm.prank(address(securityCouncilSafeInstance.safe));
-        superchainConfig.unpause();
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.unpause(address(0));
 
         // Expect that the nonce is now used.
         assertEq(deputyPauseModule.usedNonces(_nonce), true);
 
         // Pause again.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_NonceAlreadyUsed.selector));
-        deputyPauseModule.pause(_nonce, signature);
+        deputyPauseModule.pause(_nonce, address(0), signature);
+    }
+
+    /// @notice Tests that pause() reverts when called with two different nonces after the
+    ///         superchain has already been paused between calls.
+    /// @param _nonce1 First nonce.
+    /// @param _nonce2 Second nonce.
+    /// @param _identifier The identifier to pause.
+    function testFuzz_pause_differentNoncesAlreadyPaused_reverts(
+        bytes32 _nonce1,
+        bytes32 _nonce2,
+        address _identifier
+    )
+        external
+    {
+        // Make sure that the nonces are different.
+        vm.assume(_nonce1 != _nonce2);
+
+        // Pause once.
+        bytes memory sig1 = makePauseSignature(address(deputyPauseModule), _nonce1, _identifier, deputyKey);
+        deputyPauseModule.pause(_nonce1, _identifier, sig1);
+
+        // Pause again with a different nonce.
+        bytes memory sig2 = makePauseSignature(address(deputyPauseModule), _nonce2, _identifier, deputyKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IDeputyPauseModule.DeputyPauseModule_ExecutionFailed.selector,
+                string(abi.encodeWithSelector(ISuperchainConfig.SuperchainConfig_AlreadyPaused.selector, _identifier))
+            )
+        );
+        deputyPauseModule.pause(_nonce2, _identifier, sig2);
     }
 
     /// @notice Tests that pause() reverts when the signature is longer than 65 bytes.
@@ -508,7 +508,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.ECDSAInvalidSignatureLength.selector, _length));
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature);
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the signature is shorter than 65 bytes.
@@ -522,7 +522,7 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.ECDSAInvalidSignatureLength.selector, _length));
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature);
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the chain ID is not the same as the chain ID that
@@ -533,10 +533,11 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
         vm.assume(_chainId != block.chainid);
 
         // Signature with the wrong chain ID.
-        bytes memory signature = makePauseSignature(_chainId, address(deputyPauseModule), SOME_VALID_NONCE, deputyKey);
+        bytes memory signature =
+            makePauseSignature(_chainId, address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey);
 
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_Unauthorized.selector));
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature);
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the verifying contract is not the deputy pause module.
@@ -547,8 +548,8 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
 
         // Expect a revert.
         vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_Unauthorized.selector));
-        bytes memory signature = makePauseSignature(_verifyingContract, SOME_VALID_NONCE, deputyKey);
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature);
+        bytes memory signature = makePauseSignature(_verifyingContract, SOME_VALID_NONCE, address(0), deputyKey);
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that the error message is returned when the call to the safe reverts.
@@ -560,22 +561,14 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
             "SuperchainConfig: pause() reverted"
         );
 
-        // Note that the error here will be somewhat awkwardly double-encoded because the
-        // DeputyGuardianModule will encode the revert message as an ExecutionFailed error and then
-        // the DeputyPauseModule will re-encode it as another ExecutionFailed error.
+        // Expect a revert with the error message.
         vm.expectRevert(
             abi.encodeWithSelector(
-                IDeputyPauseModule.DeputyPauseModule_ExecutionFailed.selector,
-                string(
-                    abi.encodeWithSelector(
-                        IDeputyGuardianModule.DeputyGuardianModule_ExecutionFailed.selector,
-                        "SuperchainConfig: pause() reverted"
-                    )
-                )
+                IDeputyPauseModule.DeputyPauseModule_ExecutionFailed.selector, "SuperchainConfig: pause() reverted"
             )
         );
-        bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, deputyKey);
-        deputyPauseModule.pause(SOME_VALID_NONCE, signature);
+        bytes memory signature = makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey);
+        deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
     /// @notice Tests that pause() reverts when the superchain is not in a paused state after the
@@ -587,7 +580,9 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
         // Expect a revert.
         vm.expectRevert(IDeputyPauseModule.DeputyPauseModule_SuperchainNotPaused.selector);
         deputyPauseModule.pause(
-            SOME_VALID_NONCE, makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, deputyKey)
+            SOME_VALID_NONCE,
+            address(0),
+            makePauseSignature(address(deputyPauseModule), SOME_VALID_NONCE, address(0), deputyKey)
         );
     }
 }
@@ -637,68 +632,5 @@ contract DeputyPauseModule_SetDeputy_TestFail is DeputyPauseModule_TestInit {
 
         // Make sure deputy has not changed.
         assertEq(deputyPauseModule.deputy(), deputy);
-    }
-}
-
-/// @title DeputyPauseModule_SetDeputyGuardianModule_Test
-/// @notice Tests that the setDeputyGuardianModule() function works.
-contract DeputyPauseModule_SetDeputyGuardianModule_Test is DeputyPauseModule_TestInit {
-    /// @notice Tests that setDeputyGuardianModule() succeeds when called from the safe.
-    function testFuzz_setDeputyGuardianModule_fromSafe_succeeds(address _newModule) external {
-        vm.assume(_newModule != address(0));
-        vm.assume(_newModule != address(deputyGuardianModule));
-        vm.assume(_newModule != address(foundationSafeInstance.safe));
-        assumeNotPrecompile(_newModule);
-
-        // Write code to the module address if it has no code.
-        // vm.assume would throw out too many inputs.
-        if (_newModule.code.length == 0) {
-            vm.etch(_newModule, hex"FF");
-        }
-
-        // Set the new DeputyGuardianModule
-        vm.expectEmit(address(deputyPauseModule));
-        emit DeputyGuardianModuleSet(IDeputyGuardianModule(_newModule));
-        vm.prank(address(foundationSafeInstance.safe));
-        deputyPauseModule.setDeputyGuardianModule(IDeputyGuardianModule(_newModule));
-
-        // Assert that the DeputyGuardianModule has been set
-        assertEq(address(deputyPauseModule.deputyGuardianModule()), _newModule);
-    }
-}
-
-/// @title DeputyPauseModule_SetDeputyGuardianModule_TestFail
-/// @notice Tests that the setDeputyGuardianModule() function reverts when it should.
-contract DeputyPauseModule_SetDeputyGuardianModule_TestFail is DeputyPauseModule_TestInit {
-    /// @notice Tests that setDeputyGuardianModule() reverts when called by an address other than the safe.
-    function testFuzz_setDeputyGuardianModule_notSafe_reverts(address _sender, address _newModule) external {
-        vm.assume(_sender != address(foundationSafeInstance.safe));
-        vm.assume(_newModule != address(0));
-
-        // Expect a revert when called from non-safe address
-        vm.prank(_sender);
-        vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_NotFromSafe.selector));
-        deputyPauseModule.setDeputyGuardianModule(IDeputyGuardianModule(_newModule));
-
-        // Make sure DeputyGuardianModule has not changed
-        assertEq(address(deputyPauseModule.deputyGuardianModule()), address(deputyGuardianModule));
-    }
-
-    /// @notice Tests that setDeputyGuardianModule() reverts when the DeputyGuardianModule has no code.
-    /// @param _newModule The new DeputyGuardianModule.
-    function testFuzz_setDeputyGuardianModule_hasNoCode_reverts(address _newModule) external {
-        vm.assume(_newModule.code.length == 0);
-
-        // Expect a revert.
-        vm.expectRevert(IDeputyPauseModule.DeputyPauseModule_InvalidDeputyGuardianModule.selector);
-        vm.prank(address(foundationSafeInstance.safe));
-        deputyPauseModule.setDeputyGuardianModule(IDeputyGuardianModule(_newModule));
-    }
-
-    /// @notice Tests that setDeputyGuardianModule() reverts when the DeputyGuardianModule is the Foundation Safe.
-    function test_setDeputyGuardianModule_isFoundationSafe_reverts() external {
-        vm.expectRevert(IDeputyPauseModule.DeputyPauseModule_InvalidDeputyGuardianModule.selector);
-        vm.prank(address(foundationSafeInstance.safe));
-        deputyPauseModule.setDeputyGuardianModule(IDeputyGuardianModule(address(foundationSafeInstance.safe)));
     }
 }

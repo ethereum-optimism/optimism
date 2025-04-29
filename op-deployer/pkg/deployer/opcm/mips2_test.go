@@ -22,7 +22,7 @@ func TestNewDeployMIPSScript(t *testing.T) {
 		// Then we deploy
 		output, err := deploySuperchain.Run(DeployMIPS2Input{
 			PreimageOracle: common.Address{'P'},
-			MipsVersion:    big.NewInt(1),
+			MipsVersion:    big.NewInt(6),
 		})
 
 		// And do some simple asserts
@@ -36,7 +36,7 @@ func TestNewDeployMIPSScript(t *testing.T) {
 		host2 := createTestHost(t)
 		deprecatedOutput, err := DeployMIPS(host2, DeployMIPSInput{
 			PreimageOracle: common.Address{'P'},
-			MipsVersion:    1,
+			MipsVersion:    6,
 		})
 
 		// Make sure it succeeded

@@ -5,29 +5,35 @@
     "type": "constructor"
   },
   {
-    "inputs": [],
-    "name": "GUARDIAN_SLOT",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
+    "name": "expiration",
     "outputs": [
       {
-        "internalType": "bytes32",
+        "internalType": "uint256",
         "name": "",
-        "type": "bytes32"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "PAUSED_SLOT",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "name": "extend",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -36,8 +42,21 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "guardian_",
+        "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "initVersion",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -49,11 +68,6 @@
         "internalType": "address",
         "name": "_guardian",
         "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "_paused",
-        "type": "bool"
       }
     ],
     "name": "initialize",
@@ -64,9 +78,28 @@
   {
     "inputs": [
       {
-        "internalType": "string",
+        "internalType": "address",
         "name": "_identifier",
-        "type": "string"
+        "type": "address"
+      }
+    ],
+    "name": "pausable",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
       }
     ],
     "name": "pause",
@@ -76,11 +109,49 @@
   },
   {
     "inputs": [],
+    "name": "pauseExpiry",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "pauseTimestamps",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
     "name": "paused",
     "outputs": [
       {
         "internalType": "bool",
-        "name": "paused_",
+        "name": "",
         "type": "bool"
       }
     ],
@@ -88,8 +159,21 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
+      }
+    ],
     "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "upgrade",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -144,9 +228,9 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "string",
+        "internalType": "address",
         "name": "identifier",
-        "type": "string"
+        "type": "address"
       }
     ],
     "name": "Paused",
@@ -154,8 +238,36 @@
   },
   {
     "anonymous": false,
-    "inputs": [],
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "identifier",
+        "type": "address"
+      }
+    ],
     "name": "Unpaused",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ReinitializableBase_ZeroInitVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "identifier",
+        "type": "address"
+      }
+    ],
+    "name": "SuperchainConfig_AlreadyPaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SuperchainConfig_OnlyGuardian",
+    "type": "error"
   }
 ]

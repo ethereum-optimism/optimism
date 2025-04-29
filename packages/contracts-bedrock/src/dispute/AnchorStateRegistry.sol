@@ -12,6 +12,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
@@ -22,14 +23,14 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.1.0
-    string public constant version = "3.1.0";
+    /// @custom:semver 3.2.0
+    string public constant version = "3.2.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
 
-    /// @notice Address of the SuperchainConfig contract.
-    ISuperchainConfig public superchainConfig;
+    /// @notice Address of the SystemConfig contract.
+    ISystemConfig public systemConfig;
 
     /// @notice Address of the DisputeGameFactory contract.
     IDisputeGameFactory public disputeGameFactory;
@@ -83,11 +84,11 @@ contract AnchorStateRegistry is Initializable, ISemver {
     }
 
     /// @notice Initializes the contract.
-    /// @param _superchainConfig The address of the SuperchainConfig contract.
+    /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
     function initialize(
-        ISuperchainConfig _superchainConfig,
+        ISystemConfig _systemConfig,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
@@ -95,7 +96,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
         external
         initializer
     {
-        superchainConfig = _superchainConfig;
+        systemConfig = _systemConfig;
         disputeGameFactory = _disputeGameFactory;
         startingAnchorRoot = _startingAnchorRoot;
         respectedGameType = _startingRespectedGameType;
@@ -104,7 +105,13 @@ contract AnchorStateRegistry is Initializable, ISemver {
 
     /// @notice Returns whether the contract is paused.
     function paused() public view returns (bool) {
-        return superchainConfig.paused();
+        return systemConfig.paused();
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 
     /// @notice Returns the dispute game finality delay in seconds.
@@ -115,14 +122,14 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Allows the Guardian to set the respected game type.
     /// @param _gameType The new respected game type.
     function setRespectedGameType(GameType _gameType) external {
-        if (msg.sender != superchainConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         respectedGameType = _gameType;
         emit RespectedGameTypeSet(_gameType);
     }
 
     /// @notice Allows the Guardian to update the retirement timestamp.
     function updateRetirementTimestamp() external {
-        if (msg.sender != superchainConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         retirementTimestamp = uint64(block.timestamp);
         emit RetirementTimestampSet(block.timestamp);
     }
@@ -130,7 +137,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Allows the Guardian to blacklist a dispute game.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        if (msg.sender != superchainConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         disputeGameBlacklist[_disputeGame] = true;
         emit DisputeGameBlacklisted(_disputeGame);
     }

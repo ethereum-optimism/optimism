@@ -466,10 +466,10 @@ contract DeployOPChain is Script {
         assertValidAnchorStateRegistryProxy(_doi, _doo);
         assertValidDelayedWETH(_doi, _doo);
         assertValidDisputeGameFactory(_doi, _doo);
-        assertValidL1CrossDomainMessenger(_doi, _doo);
-        assertValidL1ERC721Bridge(_doi, _doo);
-        assertValidL1StandardBridge(_doi, _doo);
-        assertValidOptimismMintableERC20Factory(_doi, _doo);
+        assertValidL1CrossDomainMessenger(_doo);
+        assertValidL1ERC721Bridge(_doo);
+        assertValidL1StandardBridge(_doo);
+        assertValidOptimismMintableERC20Factory(_doo);
         assertValidOptimismPortal(_doi, _doo);
         assertValidETHLockbox(_doi, _doo);
         assertValidPermissionedDisputeGame(_doi, _doo);
@@ -569,7 +569,7 @@ contract DeployOPChain is Script {
         );
     }
 
-    function assertValidL1CrossDomainMessenger(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidL1CrossDomainMessenger(DeployOPChainOutput _doo) internal {
         IL1CrossDomainMessenger messenger = _doo.l1CrossDomainMessengerProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: true, _slot: 0, _offset: 20 });
@@ -579,13 +579,13 @@ contract DeployOPChain is Script {
 
         require(address(messenger.PORTAL()) == address(_doo.optimismPortalProxy()), "L1xDM-30");
         require(address(messenger.portal()) == address(_doo.optimismPortalProxy()), "L1xDM-40");
-        require(address(messenger.superchainConfig()) == address(_doi.opcm().superchainConfig()), "L1xDM-50");
+        require(address(messenger.systemConfig()) == address(_doo.systemConfigProxy()), "L1xDM-50");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
     }
 
-    function assertValidL1StandardBridge(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidL1StandardBridge(DeployOPChainOutput _doo) internal {
         IL1StandardBridge bridge = _doo.l1StandardBridgeProxy();
         IL1CrossDomainMessenger messenger = _doo.l1CrossDomainMessengerProxy();
 
@@ -595,10 +595,10 @@ contract DeployOPChain is Script {
         require(address(bridge.messenger()) == address(messenger), "L1SB-20");
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-30");
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-40");
-        require(address(bridge.superchainConfig()) == address(_doi.opcm().superchainConfig()), "L1SB-50");
+        require(address(bridge.systemConfig()) == address(_doo.systemConfigProxy()), "L1SB-50");
     }
 
-    function assertValidOptimismMintableERC20Factory(DeployOPChainInput, DeployOPChainOutput _doo) internal {
+    function assertValidOptimismMintableERC20Factory(DeployOPChainOutput _doo) internal {
         IOptimismMintableERC20Factory factory = _doo.optimismMintableERC20FactoryProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: true, _slot: 0, _offset: 0 });
@@ -607,7 +607,7 @@ contract DeployOPChain is Script {
         require(factory.bridge() == address(_doo.l1StandardBridgeProxy()), "MERC20F-20");
     }
 
-    function assertValidL1ERC721Bridge(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidL1ERC721Bridge(DeployOPChainOutput _doo) internal {
         IL1ERC721Bridge bridge = _doo.l1ERC721BridgeProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(bridge), _isProxy: true, _slot: 0, _offset: 0 });
@@ -617,7 +617,7 @@ contract DeployOPChain is Script {
 
         require(address(bridge.MESSENGER()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-30");
         require(address(bridge.messenger()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-40");
-        require(address(bridge.superchainConfig()) == address(_doi.opcm().superchainConfig()), "L721B-50");
+        require(address(bridge.systemConfig()) == address(_doo.systemConfigProxy()), "L721B-50");
     }
 
     function assertValidOptimismPortal(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
@@ -629,7 +629,7 @@ contract DeployOPChain is Script {
         require(address(portal.systemConfig()) == address(_doo.systemConfigProxy()), "PORTAL-30");
         require(address(portal.superchainConfig()) == address(superchainConfig), "PORTAL-40");
         require(portal.guardian() == superchainConfig.guardian(), "PORTAL-50");
-        require(portal.paused() == superchainConfig.paused(), "PORTAL-60");
+        require(portal.paused() == portal.systemConfig().paused(), "PORTAL-60");
         require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-70");
 
         // This slot is the custom gas token _balance and this check ensures
@@ -644,7 +644,7 @@ contract DeployOPChain is Script {
     function assertValidETHLockbox(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         IETHLockbox lockbox = _doo.ethLockboxProxy();
 
-        require(address(lockbox.superchainConfig()) == address(_doi.opcm().superchainConfig()), "ETHLOCKBOX-10");
+        require(address(lockbox.systemConfig()) == address(_doo.systemConfigProxy()), "ETHLOCKBOX-10");
         require(lockbox.authorizedPortals(_doo.optimismPortalProxy()), "ETHLOCKBOX-20");
         require(lockbox.proxyAdminOwner() == _doi.opChainProxyAdminOwner(), "ETHLOCKBOX-30");
     }
@@ -664,7 +664,7 @@ contract DeployOPChain is Script {
     function assertValidDelayedWETH(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         IDelayedWETH permissioned = _doo.delayedWETHPermissionedGameProxy();
 
-        require(permissioned.owner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
+        require(permissioned.proxyAdminOwner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
 
         IProxy proxy = IProxy(payable(address(permissioned)));
         vm.prank(address(0));

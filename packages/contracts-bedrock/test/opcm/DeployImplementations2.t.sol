@@ -116,7 +116,7 @@ contract DeployImplementations2_Test is Test {
             uint256(_challengePeriodSeconds),
             _proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds,
-            1, // mipsVersion
+            6, // mipsVersion
             _l1ContractsRelease,
             superchainConfigProxy,
             protocolVersionsProxy,
@@ -249,7 +249,7 @@ contract DeployImplementations2_Test is Test {
             challengePeriodSeconds,
             proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds,
-            1, // mipsVersion
+            6, // mipsVersion
             "dev-release", // l1ContractsRelease
             superchainConfigProxy,
             protocolVersionsProxy,

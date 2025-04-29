@@ -209,6 +209,15 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	node := sources.NewRollupClient(nc)
 	p2p := sources.NewP2PClient(nc)
 
+	var supervisor health.SupervisorHealthAPI
+	if c.cfg.SupervisorRPC != "" {
+		sc, err := opclient.NewRPC(ctx, c.log, c.cfg.SupervisorRPC)
+		if err != nil {
+			return errors.Wrap(err, "failed to create supervisor rpc client")
+		}
+		supervisor = sources.NewSupervisorClient(sc)
+	}
+
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
 		c.metrics,
@@ -220,6 +229,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		&c.cfg.RollupCfg,
 		node,
 		p2p,
+		supervisor,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 

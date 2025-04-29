@@ -22,11 +22,25 @@ optimism_package:
     image: {{ $local_images.op_faucet }}
   interop:
     enabled: true
-    sets:
-      - name: "interop-set"
-        participants: "*"
     supervisor_params:
       image: {{ $local_images.op_supervisor }}
+      dependency_set: |
+        {
+          "dependencies": {
+            "2151908": {
+              "chainIndex": "2151908",
+              "activationTime": 0,
+              "historyMinTime": 0
+            },
+            "2151909": {
+              "chainIndex": "2151909",
+              "activationTime": 0,
+              "historyMinTime": 0
+            }
+          }
+        }
+      extra_params:
+      - {{ $flags.log_level }}
   chains:
     - participants:
       - el_type: op-geth

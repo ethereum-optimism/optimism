@@ -100,13 +100,3 @@ func GetStateVersionStrings() []string {
 func IsSupportedMultiThreaded64(ver StateVersion) bool {
 	return ver == VersionMultiThreaded64_v3 || ver == VersionMultiThreaded64_v4
 }
-
-// IsSupportedMultiThreaded returns true if the state version is a 32-bit multithreaded VM that is currently supported
-func IsSupportedMultiThreaded(ver StateVersion) bool {
-	return ver == VersionMultiThreaded_v2
-}
-
-// IsSupportedSingleThreaded returns true if the state version is a 32-bit single-threaded VM that is currently supported
-func IsSupportedSingleThreaded(ver StateVersion) bool {
-	return ver == VersionSingleThreaded2
-}

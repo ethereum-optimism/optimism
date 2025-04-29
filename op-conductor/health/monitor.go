@@ -15,13 +15,12 @@ import (
 )
 
 var (
-	ErrSequencerNotHealthy     = errors.New("sequencer is not healthy")
-	ErrSequencerConnectionDown = errors.New("cannot connect to sequencer rpc endpoints")
+	ErrSequencerNotHealthy      = errors.New("sequencer is not healthy")
+	ErrSequencerConnectionDown  = errors.New("cannot connect to sequencer rpc endpoints")
+	ErrSupervisorConnectionDown = errors.New("cannot connect to supervisor rpc endpoint")
 )
 
 // HealthMonitor defines the interface for monitoring the health of the sequencer.
-//
-//go:generate mockery --name HealthMonitor --output mocks/ --with-expecter=true
 type HealthMonitor interface {
 	// Subscribe returns a channel that will be notified for every health check.
 	Subscribe() <-chan error
@@ -35,7 +34,7 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient) HealthMonitor {
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI) HealthMonitor {
 	return &SequencerHealthMonitor{
 		log:            log,
 		metrics:        metrics,
@@ -49,6 +48,7 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		timeProviderFn: currentTimeProvicer,
 		node:           node,
 		p2p:            p2p,
+		supervisor:     supervisor,
 	}
 }
 
@@ -71,8 +71,9 @@ type SequencerHealthMonitor struct {
 
 	timeProviderFn func() uint64
 
-	node dial.RollupClientInterface
-	p2p  apis.P2PClient
+	node       dial.RollupClientInterface
+	p2p        apis.P2PClient
+	supervisor SupervisorHealthAPI
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -139,6 +140,14 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 	if err != nil {
 		hm.log.Error("health monitor failed to get sync status", "err", err)
 		return ErrSequencerConnectionDown
+	}
+
+	if hm.supervisor != nil {
+		_, err := hm.supervisor.SyncStatus(ctx)
+		if err != nil {
+			hm.log.Error("health monitor failed to get supervisor sync status", "err", err)
+			return ErrSupervisorConnectionDown
+		}
 	}
 
 	now := hm.timeProviderFn()

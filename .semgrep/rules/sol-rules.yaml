@@ -165,8 +165,6 @@ rules:
       exclude:
         - packages/contracts-bedrock/src/libraries/Bytes.sol
         - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
-        - packages/contracts-bedrock/src/cannon/MIPS.sol
-        - packages/contracts-bedrock/src/cannon/MIPS2.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPSMemory.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
 
@@ -330,8 +328,6 @@ rules:
         - packages/contracts-bedrock/src/L2/FeeVault.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
-        - packages/contracts-bedrock/src/cannon/MIPS.sol
-        - packages/contracts-bedrock/src/cannon/MIPS2.sol
         - packages/contracts-bedrock/src/cannon/MIPS64.sol
         - packages/contracts-bedrock/src/cannon/PreimageOracle.sol
         - packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol

@@ -170,7 +170,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	baseReg := uint32(9)
 	rtReg := uint32(8)
 
-	for _, v := range GetMultiThreadedTestCases(t) {
+	for _, v := range GetMipsVersionTestCases(t) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v %v", v.Name, tt.name)
 			t.Run(testName, func(t *testing.T) {
@@ -292,7 +292,7 @@ func testMTStoreOpsClearMemReservation(t *testing.T, cases []testMTStoreOpsClear
 	//rt := Word(0x12_34_56_78_12_34_56_78)
 	baseReg := uint32(5)
 	rtReg := uint32(6)
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			for _, llVariation := range llVariations {
@@ -370,7 +370,7 @@ func testMTSysReadPreimage(t *testing.T, preimageValue []byte, cases []testMTSys
 		{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
 	}
 
-	vmVersions := GetMultiThreadedTestCases(t)
+	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		for i, c := range cases {
 			for _, llVariation := range llVariations {

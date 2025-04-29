@@ -154,7 +154,6 @@ func (f *Templater) localPrestateOption(buildWg *sync.WaitGroup) tmpl.TemplateCo
 			return &PrestateInfo{
 				URL: f.urlBuilder(prestatePath...),
 				Hashes: map[string]string{
-					"prestate":         "dry_run_placeholder",
 					"prestate_mt64":    "dry_run_placeholder",
 					"prestate_interop": "dry_run_placeholder",
 				},

@@ -221,7 +221,6 @@ contract Deploy is Deployer {
         dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.superchainProxyAdminOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
-        dsi.set(dsi.paused.selector, false);
         dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.wrap(cfg.requiredProtocolVersion()));
         dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
 
@@ -236,7 +235,7 @@ contract Deploy is Deployer {
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxies();
         ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true, _isPaused: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true });
 
         // Then replace the ProtocolVersions proxy with the implementation address and run assertions on it.
         contracts.ProtocolVersions = artifacts.mustGetAddress("ProtocolVersionsImpl");
@@ -244,7 +243,7 @@ contract Deploy is Deployer {
 
         // Finally replace the SuperchainConfig proxy with the implementation address and run assertions on it.
         contracts.SuperchainConfig = artifacts.mustGetAddress("SuperchainConfigImpl");
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isPaused: false, _isProxy: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy all of the implementations
@@ -262,7 +261,7 @@ contract Deploy is Deployer {
         dii.set(dii.challengePeriodSeconds.selector, cfg.preimageOracleChallengePeriod());
         dii.set(dii.proofMaturityDelaySeconds.selector, cfg.proofMaturityDelaySeconds());
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, cfg.disputeGameFinalityDelaySeconds());
-        dii.set(dii.mipsVersion.selector, Config.useMultithreadedCannon() ? 6 : 1);
+        dii.set(dii.mipsVersion.selector, 6);
         string memory release = "dev";
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.protocolVersionsProxy.selector, artifacts.mustGetAddress("ProtocolVersionsProxy"));
@@ -333,7 +332,6 @@ contract Deploy is Deployer {
         console.log("Deploying OP Chain");
 
         // Ensure that the requisite contracts are deployed
-        address superchainConfigProxy = artifacts.mustGetAddress("SuperchainConfigProxy");
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
 
         IOPContractsManager.DeployInput memory deployInput = getDeployInput();
@@ -371,11 +369,12 @@ contract Deploy is Deployer {
             "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
         );
         address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-        address delayedWETHPermissionlessGameProxy = deployERC1967ProxyWithOwner("DelayedWETHProxy", msg.sender);
-        vm.broadcast(msg.sender);
+        address delayedWETHPermissionlessGameProxy =
+            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
+        vm.broadcast(address(deployOutput.opChainProxyAdmin));
         IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
             _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
+            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
         });
 
         setAlphabetFaultGameImplementation();
@@ -385,8 +384,6 @@ contract Deploy is Deployer {
         setCannonFaultGameImplementation();
 
         transferDisputeGameFactoryOwnership();
-        transferDelayedWETHOwnership();
-        transferPermissionedDelayedWETHOwnership();
     }
 
     /// @notice Add AltDA setup to the OP chain
@@ -503,7 +500,8 @@ contract Deploy is Deployer {
                         optimismPortal: artifacts.mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy")
                     }),
-                    cfg.l2ChainID()
+                    cfg.l2ChainID(),
+                    ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"))
                 )
             )
         });
@@ -595,44 +593,6 @@ contract Deploy is Deployer {
         });
     }
 
-    /// @notice Transfer ownership of the DelayedWETH contract to the final system owner
-    function transferDelayedWETHOwnership() public broadcast {
-        console.log("Transferring DelayedWETH ownership to Safe");
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-        address owner = weth.owner();
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            weth.transferOwnership(finalSystemOwner);
-            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkDelayedWETH({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true,
-            _expectedOwner: finalSystemOwner
-        });
-    }
-
-    /// @notice Transfer ownership of the permissioned DelayedWETH contract to the final system owner
-    function transferPermissionedDelayedWETHOwnership() public broadcast {
-        console.log("Transferring permissioned DelayedWETH ownership to Safe");
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("PermissionedDelayedWETHProxy"));
-        address owner = weth.owner();
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            weth.transferOwnership(finalSystemOwner);
-            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkPermissionedDelayedWETH({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true,
-            _expectedOwner: finalSystemOwner
-        });
-    }
-
     ///////////////////////////////////////////////////////////
     //         Proofs setup helper functions                 //
     ///////////////////////////////////////////////////////////
@@ -640,11 +600,7 @@ contract Deploy is Deployer {
     /// @notice Load the appropriate mips absolute prestate for devenets depending on config environment.
     function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
         if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            if (Config.useMultithreadedCannon()) {
-                return _loadDevnetMtMipsAbsolutePrestate();
-            } else {
-                return _loadDevnetStMipsAbsolutePrestate();
-            }
+            return _loadDevnetMtMipsAbsolutePrestate();
         } else {
             console.log(
                 "[Cannon Dispute Game] Using absolute prestate from config: %x", cfg.faultGameAbsolutePrestate()
@@ -665,24 +621,6 @@ contract Deploy is Deployer {
         console.log(
             "[Cannon Dispute Game] Using devnet Interop Devnet Absolute Prestate: %s",
             vm.toString(Claim.unwrap(interopDevnetAbsolutePrestate_))
-        );
-    }
-
-    /// @notice Loads the singlethreaded mips absolute prestate from the prestate-proof for devnets otherwise
-    ///         from the config.
-    function _loadDevnetStMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
-        // Fetch the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
-        if (bytes(Process.bash(string.concat("[[ -f ", filePath, " ]] && echo \"present\""))).length == 0) {
-            revert(
-                "Deploy: cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root"
-            );
-        }
-        mipsAbsolutePrestate_ =
-            Claim.wrap(abi.decode(bytes(Process.bash(string.concat("cat ", filePath, " | jq -r .pre"))), (bytes32)));
-        console.log(
-            "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
-            vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
         );
     }
 

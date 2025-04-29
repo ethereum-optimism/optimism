@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var errRewindFailed = errors.New("rewind failed")
+
 type LogStorage interface {
 	io.Closer
 
@@ -124,6 +126,8 @@ type ChainsDB struct {
 	// an error until it has this L1 finality to work with.
 	finalizedL1 locks.RWValue[eth.L1BlockRef]
 
+	readRegistries locks.RWMap[eth.ChainID, *ReadRegistry]
+
 	// depSet is the dependency set, used to determine what may be tracked,
 	// what is missing, and to provide it to DB users.
 	depSet depset.DependencySet
@@ -217,7 +221,7 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 		}
 		db.logger.Info("Resuming, starting from last sealed block", "head", head)
 		if err := logStore.Rewind(head); err != nil {
-			result = fmt.Errorf("failed to rewind chain %s to sealed block %d", chain, head)
+			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", errRewindFailed, chain, head)
 			return false
 		}
 		return true
@@ -238,4 +242,14 @@ func (db *ChainsDB) Close() error {
 		return true
 	})
 	return combined
+}
+
+func (db *ChainsDB) AcquireReadHandle(chainID eth.ChainID, blockNum uint64) (*ReadHandle, error) {
+	registry, ok := db.readRegistries.Get(chainID)
+	if !ok {
+		registry = NewReadRegistry(db.logger)
+		db.readRegistries.Set(chainID, registry)
+	}
+
+	return registry.AcquireHandle(blockNum), nil
 }

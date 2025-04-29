@@ -387,12 +387,10 @@ type System struct {
 
 func (sys *System) PrestateVariant() challenger.PrestateVariant {
 	switch sys.AllocType() {
-	case config.AllocTypeMTCannon:
-		return challenger.MTCannonVariant
 	case config.AllocTypeMTCannonNext:
 		return challenger.MTCannonNextVariant
 	default:
-		return challenger.STCannonVariant
+		return challenger.MTCannonVariant
 	}
 }
 

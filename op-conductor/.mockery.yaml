@@ -1,0 +1,15 @@
+dir: "{{.InterfaceDir}}/mocks"
+pkgname: "mocks"
+filename: "{{.InterfaceName}}.go"
+structname: '{{.InterfaceName}}'
+packages:
+  github.com/ethereum-optimism/optimism/op-conductor/health:
+    interfaces:
+      HealthMonitor:
+      SupervisorHealthAPI:
+  github.com/ethereum-optimism/optimism/op-conductor/consensus:
+    interfaces:
+      Consensus:
+  github.com/ethereum-optimism/optimism/op-conductor/client:
+    interfaces:
+      SequencerControl:

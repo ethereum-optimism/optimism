@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 interface IDelayedWETH {
@@ -9,25 +10,22 @@ interface IDelayedWETH {
         uint256 timestamp;
     }
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event Initialized(uint8 version);
 
     fallback() external payable;
     receive() external payable;
 
-    function config() external view returns (ISuperchainConfig);
+    function systemConfig() external view returns (ISystemConfig);
     function delay() external view returns (uint256);
     function hold(address _guy) external;
     function hold(address _guy, uint256 _wad) external;
-    function initialize(address _owner, ISuperchainConfig _config) external;
-    function owner() external view returns (address);
+    function initialize(ISystemConfig _systemConfig) external;
     function recover(uint256 _wad) external;
-    function transferOwnership(address newOwner) external; // nosemgrep
-    function renounceOwnership() external;
     function unlock(address _guy, uint256 _wad) external;
     function withdraw(address _guy, uint256 _wad) external;
     function withdrawals(address, address) external view returns (uint256 amount, uint256 timestamp);
     function version() external view returns (string memory);
+    function proxyAdminOwner() external view returns (address);
 
     function withdraw(uint256 _wad) external;
 
@@ -58,6 +56,8 @@ interface IDelayedWETH {
     function transfer(address dst, uint256 wad) external returns (bool);
 
     function transferFrom(address src, address dst, uint256 wad) external returns (bool);
+
+    function config() external view returns (ISuperchainConfig);
 
     function __constructor__(uint256 _delay) external;
 }

@@ -18,6 +18,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+var (
+	errLogIndexTooLarge        = errors.New("log index too large")
+	errNilSafetyLevel          = errors.New("nil safety level")
+	errUnrecognizedSafetyLevel = errors.New("unrecognized safety level")
+	errInvalidParentBlock      = errors.New("invalid parent block")
+)
+
 // ChainIndex represents the lifetime of a chain in a dependency set.
 // Warning: JSON-encoded as string, in base-10.
 type ChainIndex uint32
@@ -200,7 +207,7 @@ func (id *Identifier) UnmarshalJSON(input []byte) error {
 	id.Origin = dec.Origin
 	id.BlockNumber = uint64(dec.BlockNumber)
 	if dec.LogIndex > math.MaxUint32 {
-		return fmt.Errorf("log index too large: %d", dec.LogIndex)
+		return fmt.Errorf("%w: %d", errLogIndexTooLarge, dec.LogIndex)
 	}
 	id.LogIndex = uint32(dec.LogIndex)
 	id.Timestamp = uint64(dec.Timestamp)
@@ -240,11 +247,11 @@ func (lvl SafetyLevel) MarshalText() ([]byte, error) {
 
 func (lvl *SafetyLevel) UnmarshalText(text []byte) error {
 	if lvl == nil {
-		return errors.New("cannot unmarshal into nil SafetyLevel")
+		return errNilSafetyLevel
 	}
 	x := SafetyLevel(text)
 	if !x.Validate() {
-		return fmt.Errorf("unrecognized safety level: %q", text)
+		return fmt.Errorf("%w: %q", errUnrecognizedSafetyLevel, text)
 	}
 	*lvl = x
 	return nil
@@ -377,7 +384,7 @@ func (s BlockSeal) WithParent(parent eth.BlockID) (eth.BlockRef, error) {
 	// prevent parent attachment if the parent is not the previous block,
 	// and the block is not the genesis block
 	if s.Number != parent.Number+1 && s.Number != 0 {
-		return eth.BlockRef{}, fmt.Errorf("invalid parent block %s to combine with %s", parent, s)
+		return eth.BlockRef{}, fmt.Errorf("%w: parent %s to combine with %s", errInvalidParentBlock, parent, s)
 	}
 	return eth.BlockRef{
 		Hash:       s.Hash,
@@ -611,7 +618,7 @@ func ParseAccess(entries []common.Hash) ([]common.Hash, Access, error) {
 	entries = entries[1:]
 	if typeByte := entry[0]; typeByte == PrefixChainIDExtension {
 		if ([7]byte)(entry[1:8]) != ([7]byte{}) {
-			return nil, Access{}, fmt.Errorf("expected zero bytes")
+			return nil, Access{}, fmt.Errorf("expected zero bytes: %w", errMalformedEntry)
 		}
 		// The lower 8 bytes is set to the uint64 in the first entry.
 		// The upper 24 bytes are set with this extension entry.

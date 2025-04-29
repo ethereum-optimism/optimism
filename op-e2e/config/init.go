@@ -49,13 +49,12 @@ const (
 type AllocType string
 
 const (
-	AllocTypeStandard     AllocType = "standard"
 	AllocTypeAltDA        AllocType = "alt-da"
 	AllocTypeL2OO         AllocType = "l2oo"
 	AllocTypeMTCannon     AllocType = "mt-cannon"
 	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
 
-	DefaultAllocType = AllocTypeStandard
+	DefaultAllocType = AllocTypeMTCannon
 )
 
 func (a AllocType) Check() error {
@@ -67,14 +66,14 @@ func (a AllocType) Check() error {
 
 func (a AllocType) UsesProofs() bool {
 	switch a {
-	case AllocTypeStandard, AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
+	case AllocTypeMTCannon, AllocTypeMTCannonNext, AllocTypeAltDA:
 		return true
 	default:
 		return false
 	}
 }
 
-var allocTypes = []AllocType{AllocTypeStandard, AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon, AllocTypeMTCannonNext}
+var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon, AllocTypeMTCannonNext}
 
 var (
 	// All of the following variables are set in the init function
@@ -210,7 +209,7 @@ func init() {
 	decompressGzipJSON(path.Join(configPath, "addresses.json.gz"), &l2OOAddresses)
 	l1DeploymentsByType[AllocTypeL2OO] = &l2OOAddresses
 
-	l2OODC := DeployConfig(AllocTypeStandard)
+	l2OODC := DeployConfig(DefaultAllocType)
 	l2OODC.SetDeployments(&l2OOAddresses)
 	deployConfigsByType[AllocTypeL2OO] = l2OODC
 
@@ -512,7 +511,7 @@ func cannonVMType(allocType AllocType) state.VMType {
 	} else if allocType == AllocTypeMTCannonNext {
 		return state.VMTypeCannon7
 	}
-	return state.VMTypeCannon1
+	return state.VMTypeCannon6
 }
 
 type prestateFile struct {
@@ -521,10 +520,8 @@ type prestateFile struct {
 
 var cannonPrestateMT common.Hash
 var cannonPrestateMTNext common.Hash
-var cannonPrestateST common.Hash
 var cannonPrestateMTOnce sync.Once
 var cannonPrestateMTNextOnce sync.Once
-var cannonPrestateSTOnce sync.Once
 
 func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var filename string
@@ -532,11 +529,7 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var once *sync.Once
 	var cacheVar *common.Hash
 	cannonVmType := cannonVMType(allocType)
-	if cannonVmType == state.VMTypeCannon1 {
-		filename = "prestate-proof.json"
-		once = &cannonPrestateSTOnce
-		cacheVar = &cannonPrestateST
-	} else if cannonVmType == state.VMTypeCannon2 || cannonVmType == state.VMTypeCannon6 {
+	if cannonVmType == state.VMTypeCannon2 || cannonVmType == state.VMTypeCannon6 {
 		filename = "prestate-proof-mt64.json"
 		once = &cannonPrestateMTOnce
 		cacheVar = &cannonPrestateMT

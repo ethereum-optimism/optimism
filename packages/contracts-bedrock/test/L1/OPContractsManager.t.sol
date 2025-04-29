@@ -248,7 +248,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
     uint256 l2ChainId;
-    IProxyAdmin proxyAdmin;
     IProxyAdmin superchainProxyAdmin;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
@@ -268,7 +267,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         );
 
         absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
-        proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
         superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
         upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
@@ -308,17 +306,15 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         IOPCMImplementationsWithoutLockbox.Implementations memory impls =
             IOPCMImplementationsWithoutLockbox(address(deployedOPCM)).implementations();
 
-        address mainnetPAO = artifacts.mustGetAddress("SuperchainConfigProxy");
-
-        // If the delegate caller is not the mainnet PAO, we need to call upgrade as the mainnet PAO first.
-        if (_delegateCaller != mainnetPAO) {
-            IOPContractsManager.OpChainConfig[] memory opmChain = new IOPContractsManager.OpChainConfig[](0);
-            ISuperchainConfig superchainConfig = ISuperchainConfig(mainnetPAO);
-
-            address opmUpgrader = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-            vm.etch(opmUpgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-            DelegateCaller(opmUpgrader).dcForward(OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (opmChain)));
+        // Always trigger U13 once with an empty opChainConfig array to ensure that the
+        // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
+        {
+            ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+            address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+            DelegateCaller(superchainPAO).dcForward(
+                OPCM_ADDRESS, abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+            );
         }
 
         // Cache the old L1xDM address so we can look for it in the AddressManager's event
@@ -507,6 +503,17 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     function runUpgrade15UpgradeAndChecks(address _delegateCaller) public {
         IOPContractsManager.Implementations memory impls = opcm.implementations();
 
+        // Always trigger U15 once with an empty opChainConfig array to ensure that the
+        // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
+        {
+            ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+            address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+            vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+            DelegateCaller(superchainPAO).dcForward(
+                address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+            );
+        }
+
         // Predict the address of the new AnchorStateRegistry proxy.
         // Subcontext to avoid stack too deep.
         address newAsrProxy;
@@ -594,14 +601,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         // Make sure that the SystemConfig is upgraded to the right version. It must also have the
         // right l2ChainId and must be properly initialized.
-        assertEq(ISemver(address(systemConfig)).version(), "3.0.0");
+        assertEq(ISemver(address(systemConfig)).version(), "3.1.0");
         assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
         assertEq(systemConfig.l2ChainId(), l2ChainId);
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _isProxy: true, _slot: 0, _offset: 0 });
 
         // Make sure that the OptimismPortal is upgraded to the right version. It must also have a
         // reference to the new AnchorStateRegistry.
-        assertEq(ISemver(address(optimismPortal2)).version(), "4.1.0");
+        assertEq(ISemver(address(optimismPortal2)).version(), "4.2.0");
         assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal2)));
         assertEq(address(optimismPortal2.anchorStateRegistry()), address(newAsrProxy));
         DeployUtils.assertInitialized({
@@ -612,7 +619,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         });
 
         // Make sure the new AnchorStateRegistry has the right version and is initialized.
-        assertEq(ISemver(address(newAsrProxy)).version(), "3.1.0");
+        assertEq(ISemver(address(newAsrProxy)).version(), "3.2.0");
         vm.prank(address(proxyAdmin));
         assertEq(IProxy(payable(newAsrProxy)).admin(), address(proxyAdmin));
         DeployUtils.assertInitialized({ _contractAddress: address(newAsrProxy), _isProxy: true, _slot: 0, _offset: 0 });

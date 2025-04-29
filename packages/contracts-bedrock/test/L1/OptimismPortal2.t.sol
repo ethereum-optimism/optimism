@@ -14,7 +14,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Libraries
@@ -33,6 +32,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
@@ -55,7 +55,6 @@ contract OptimismPortal2_Test is CommonTest {
         IOptimismPortal opImpl = IOptimismPortal(payable(EIP1967Helper.getImplementation(address(optimismPortal2))));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.systemConfig()), address(0));
-        assertEq(address(opImpl.superchainConfig()), address(0));
         assertEq(opImpl.l2Sender(), address(0));
         assertEq(address(opImpl.anchorStateRegistry()), address(0));
         assertEq(address(opImpl.ethLockbox()), address(0));
@@ -82,93 +81,6 @@ contract OptimismPortal2_Test is CommonTest {
 
         // This check is not valid on forked tests as the respectedGameType varies between OP Chains.
         assertEq(optimismPortal2.respectedGameType().raw(), deploy.cfg().respectedGameType());
-    }
-
-    /// @dev Tests that the upgrade function succeeds.
-    function testFuzz_upgrade_succeeds(address _newAnchorStateRegistry, uint256 _balance) external {
-        // Prevent overflow on an upgrade context
-        _balance = bound(_balance, 0, type(uint256).max - address(ethLockbox).balance);
-
-        // Set the initialize state of the portal to false.
-        vm.store(address(optimismPortal2), bytes32(uint256(0)), bytes32(uint256(0)));
-
-        // Set the balance of the portal and get the lockbox balance before the upgrade.
-        deal(address(optimismPortal2), _balance);
-        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
-
-        // Expect the ETH to be migrated to the lockbox.
-        vm.expectCall(address(ethLockbox), _balance, abi.encodeCall(ethLockbox.lockETH, ()));
-
-        // Call the upgrade function.
-        vm.prank(Predeploys.PROXY_ADMIN);
-        optimismPortal2.upgrade(IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox));
-
-        // Assert the portal is properly upgraded.
-        assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
-        assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
-        assertEq(address(optimismPortal2).balance, 0);
-        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _balance);
-    }
-
-    /// @dev Tests that `pause` successfully pauses
-    ///      when called by the GUARDIAN.
-    function test_pause_succeeds() external {
-        address guardian = optimismPortal2.guardian();
-
-        assertEq(optimismPortal2.paused(), false);
-
-        vm.expectEmit(address(superchainConfig));
-        emit Paused("identifier");
-
-        vm.prank(guardian);
-        superchainConfig.pause("identifier");
-
-        assertEq(optimismPortal2.paused(), true);
-    }
-
-    /// @dev Tests that `pause` reverts when called by a non-GUARDIAN.
-    function test_pause_onlyGuardian_reverts() external {
-        assertEq(optimismPortal2.paused(), false);
-
-        assertTrue(optimismPortal2.guardian() != alice);
-        vm.expectRevert("SuperchainConfig: only guardian can pause");
-        vm.prank(alice);
-        superchainConfig.pause("identifier");
-
-        assertEq(optimismPortal2.paused(), false);
-    }
-
-    /// @dev Tests that `unpause` successfully unpauses
-    ///      when called by the GUARDIAN.
-    function test_unpause_succeeds() external {
-        address guardian = optimismPortal2.guardian();
-
-        vm.prank(guardian);
-        superchainConfig.pause("identifier");
-        assertEq(optimismPortal2.paused(), true);
-
-        vm.expectEmit(address(superchainConfig));
-        emit Unpaused();
-        vm.prank(guardian);
-        superchainConfig.unpause();
-
-        assertEq(optimismPortal2.paused(), false);
-    }
-
-    /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
-    function test_unpause_onlyGuardian_reverts() external {
-        address guardian = optimismPortal2.guardian();
-
-        vm.prank(guardian);
-        superchainConfig.pause("identifier");
-        assertEq(optimismPortal2.paused(), true);
-
-        assertTrue(optimismPortal2.guardian() != alice);
-        vm.expectRevert("SuperchainConfig: only guardian can unpause");
-        vm.prank(alice);
-        superchainConfig.unpause();
-
-        assertEq(optimismPortal2.paused(), true);
     }
 
     /// @dev Tests that `receive` successdully deposits ETH.
@@ -640,8 +552,9 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
-        vm.prank(optimismPortal2.guardian());
-        superchainConfig.pause("identifier");
+        vm.startPrank(optimismPortal2.guardian());
+        systemConfig.superchainConfig().pause(address(0));
+        vm.stopPrank();
 
         vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
         optimismPortal2.proveWithdrawalTransaction({
@@ -1336,7 +1249,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
         vm.prank(optimismPortal2.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -2154,22 +2067,55 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
     }
 
     /// @notice Tests that the upgrade() function succeeds.
-    function test_upgrade_succeeds() external {
+    function testFuzz_upgrade_succeeds(
+        address _newAnchorStateRegistry,
+        uint256 _balance,
+        address _newSystemConfig
+    )
+        external
+    {
+        // Prevent overflow on an upgrade context
+        _balance = bound(_balance, 0, type(uint256).max - address(ethLockbox).balance);
+
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
         // Set the initialized slot to 0.
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
 
-        // Trigger upgrade().
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
+        // Set the balance of the portal and get the lockbox balance before the upgrade.
+        deal(address(optimismPortal2), _balance);
+        uint256 lockboxBalanceBefore = address(ethLockbox).balance;
+
+        // Expect the ETH to be migrated to the lockbox.
+        vm.expectCall(address(ethLockbox), _balance, abi.encodeCall(ethLockbox.lockETH, ()));
+
+        // Call the upgrade function.
+        vm.prank(Predeploys.PROXY_ADMIN);
+        optimismPortal2.upgrade(
+            IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox), ISystemConfig(_newSystemConfig)
+        );
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(optimismPortal2), bytes32(slot.slot));
         assertEq(initializedSlotAfter, bytes32(uint256(2)));
 
-        // Verify that the AnchorStateRegistry was set.
-        assertEq(address(optimismPortal2.anchorStateRegistry()), address(0xdeadbeef));
+        // Assert the portal is properly upgraded.
+        assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
+        assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
+        assertEq(address(optimismPortal2.systemConfig()), _newSystemConfig);
+
+        // Balance has not updated.
+        assertEq(address(optimismPortal2).balance, _balance);
+        assertEq(address(ethLockbox).balance, lockboxBalanceBefore);
+
+        // Now we migrate liquidity.
+        vm.prank(proxyAdminOwner);
+        optimismPortal2.migrateLiquidity();
+
+        // Balance has been updated.
+        assertEq(address(optimismPortal2).balance, 0);
+        assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _balance);
     }
 
     /// @notice Tests that the upgrade() function reverts if called a second time.
@@ -2181,11 +2127,15 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
 
         // Trigger first upgrade.
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
+        optimismPortal2.upgrade(
+            IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
+        );
 
         // Try to trigger second upgrade.
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
+        optimismPortal2.upgrade(
+            IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
+        );
     }
 
     /// @notice Tests that the upgrade() function reverts if called after initialization.
@@ -2200,9 +2150,14 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         // AnchorStateRegistry address should be non-zero.
         assertNotEq(address(optimismPortal2.anchorStateRegistry()), address(0));
 
+        // SystemConfig address should be non-zero.
+        assertNotEq(address(optimismPortal2.systemConfig()), address(0));
+
         // Try to trigger upgrade().
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
+        optimismPortal2.upgrade(
+            IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
+        );
     }
 }
 

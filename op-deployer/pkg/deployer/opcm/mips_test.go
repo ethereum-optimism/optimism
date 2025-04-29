@@ -26,7 +26,7 @@ func TestDeployMIPS(t *testing.T) {
 	require.NoError(t, err)
 
 	input := DeployMIPSInput{
-		MipsVersion:    1,
+		MipsVersion:    6,
 		PreimageOracle: common.Address{0xab},
 	}
 

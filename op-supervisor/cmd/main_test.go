@@ -64,7 +64,7 @@ func TestL2ConsensusNodes(t *testing.T) {
 
 func TestDatadir(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag datadir is required", addRequiredArgsExcept("--datadir"))
+		verifyArgsInvalid(t, "required flag is missing: datadir", addRequiredArgsExcept("--datadir"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {

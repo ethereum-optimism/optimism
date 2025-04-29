@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -60,18 +59,7 @@ func LoadELF(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if versions.IsSupportedSingleThreaded(ver) {
-		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
-			return program.LoadELF(f, singlethreaded.CreateInitialState)
-		}
-		patcher = func(state mipsevm.FPVMState) error {
-			err := program.PatchGoGC(elfProgram, state)
-			if err != nil {
-				return err
-			}
-			return program.PatchStack(state)
-		}
-	} else if versions.IsSupportedMultiThreaded(ver) || versions.IsSupportedMultiThreaded64(ver) {
+	if versions.IsSupportedMultiThreaded64(ver) {
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}

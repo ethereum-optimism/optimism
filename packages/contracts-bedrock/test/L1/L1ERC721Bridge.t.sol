@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -12,7 +13,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Interfaces
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
@@ -73,7 +74,7 @@ contract L1ERC721Bridge_Test is CommonTest {
         IL1ERC721Bridge impl = IL1ERC721Bridge(EIP1967Helper.getImplementation(address(l1ERC721Bridge)));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
-        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.systemConfig()), address(0));
 
         // The constructor now uses _disableInitializers, whereas OP Mainnet has the other bridge in storage
         returnIfForkTest("L1ERC721Bridge_Test: impl storage differs on forked network");
@@ -87,7 +88,8 @@ contract L1ERC721Bridge_Test is CommonTest {
         assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
-        assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1ERC721Bridge.systemConfig()), address(systemConfig));
+        assertEq(address(l1ERC721Bridge.superchainConfig()), address(systemConfig.superchainConfig()));
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
@@ -365,13 +367,13 @@ contract L1ERC721Bridge_Pause_Test is CommonTest {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
     ///      `superchainConfig`.
     function test_paused_succeeds() external view {
-        assertEq(l1ERC721Bridge.paused(), superchainConfig.paused());
+        assertEq(l1ERC721Bridge.paused(), systemConfig.paused());
     }
 
     /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the
     ///      `superchainConfig`.
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()));
+        vm.expectCall(address(systemConfig), abi.encodeCall(ISystemConfig.paused, ()));
         l1ERC721Bridge.paused();
     }
 
@@ -379,13 +381,13 @@ contract L1ERC721Bridge_Pause_Test is CommonTest {
     ///      it's been changed.
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
 
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         assertTrue(l1StandardBridge.paused());
-        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+        assertEq(l1StandardBridge.paused(), systemConfig.paused());
     }
 }
 
@@ -394,10 +396,11 @@ contract L1ERC721Bridge_Pause_TestFail is CommonTest {
     ///      the calls to the xDomainMessageSender so that it returns the correct value.
     function setUp() public override {
         super.setUp();
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
-        assertTrue(l1ERC721Bridge.paused());
+        vm.startPrank(systemConfig.superchainConfig().guardian());
+        systemConfig.superchainConfig().pause(address(0));
+        vm.stopPrank();
 
+        assertTrue(l1ERC721Bridge.paused());
         vm.mockCall(
             address(l1ERC721Bridge.messenger()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
@@ -417,5 +420,58 @@ contract L1ERC721Bridge_Pause_TestFail is CommonTest {
             _tokenId: 0,
             _extraData: hex""
         });
+    }
+}
+
+/// @title L1ERC721Bridge_upgrade_Test
+/// @notice Reusable test for the current upgrade() function in the L1ERC721Bridge contract. If
+///         the upgrade() function is changed, tests inside of this contract should be updated to
+///         reflect the new function. If the upgrade() function is removed, remove the
+///         corresponding tests but leave this contract in place so it's easy to add tests back
+///         in the future.
+contract L1ERC721Bridge_Upgrade_Test is CommonTest {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1ERC721Bridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1ERC721Bridge), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial systemConfig slot is non-zero.
+        StorageSlot memory systemConfigSlot = ForgeArtifacts.getSlot("L1ERC721Bridge", "systemConfig");
+        vm.store(address(l1ERC721Bridge), bytes32(systemConfigSlot.slot), bytes32(uint256(1)));
+        assertNotEq(address(l1ERC721Bridge.systemConfig()), address(0));
+        assertNotEq(vm.load(address(l1ERC721Bridge), bytes32(systemConfigSlot.slot)), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger upgrade().
+        l1ERC721Bridge.upgrade(newSystemConfig);
+
+        // Verify that the systemConfig was updated.
+        assertEq(address(l1ERC721Bridge.systemConfig()), address(newSystemConfig));
+
+        // Verify that the spacer was cleared.
+        StorageSlot memory spacerSlot = ForgeArtifacts.getSlot("L1ERC721Bridge", "spacer_50_0_20");
+        assertEq(vm.load(address(l1ERC721Bridge), bytes32(spacerSlot.slot)), bytes32(0));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1ERC721Bridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1ERC721Bridge), bytes32(slot.slot), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger first upgrade.
+        l1ERC721Bridge.upgrade(newSystemConfig);
+
+        // Try to trigger second upgrade.
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1ERC721Bridge.upgrade(newSystemConfig);
     }
 }

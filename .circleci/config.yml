@@ -188,9 +188,16 @@ commands:
           when: on_fail
 
   # Notifies us on Discord when a build fails on develop
+  # For Discord to properly trigger notifications, mentions need to be in the format:
+  # User mentions: <@USER_ID>
+  # Role mentions: <@&ROLE_ID>
+  # Example: <@&1346448413172170807> is how we'd tag the Protocol DevX Pod
   discord-notification-failures-on-develop:
     description: "Notify Discord"
     parameters:
+      message:
+        type: string
+        default: ""
       mentions:
         type: string
         default: ""
@@ -205,6 +212,11 @@ commands:
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
+
+              # Add failure reason if provided
+              if [ ! -z "<< parameters.message >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
+              fi
 
               # Add mentions if provided
               if [ ! -z "<< parameters.mentions >>" ]; then
@@ -248,9 +260,6 @@ jobs:
         description: Whether to notify on failure
         type: boolean
         default: false
-      mips_word_size:
-        type: integer
-        default: 32
     steps:
       - utils/checkout-with-mise
       - check-changed:
@@ -271,44 +280,21 @@ jobs:
           command: |
             make lint
           working_directory: cannon
-      - when:
-          condition:
-            equal: [32, <<parameters.mips_word_size>>]
-          steps:
-            - run:
-                name: Cannon Go 32-bit tests
-                command: |
-                  export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
-                  TIMEOUT="10m"
-                  if [ "$SKIP_SLOW_TESTS" == "false" ]; then
-                    TIMEOUT="30m"
-                  fi
-                  gotestsum --format=testname --junitfile=../tmp/test-results/cannon-32.xml --jsonfile=../tmp/testlogs/log-32.json \
-                  -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-32.out ./...
-                working_directory: cannon
-            - codecov/upload:
-                disable_search: true
-                files: ./cannon/coverage-32.out
-                flags: cannon-go-tests-32
-      - when:
-          condition:
-            equal: [64, <<parameters.mips_word_size>>]
-          steps:
-            - run:
-                name: Cannon Go 64-bit tests
-                command: |
-                  export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
-                  TIMEOUT="10m"
-                  if [ "$SKIP_SLOW_TESTS" == "false" ]; then
-                    TIMEOUT="30m"
-                  fi
-                  gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
-                  -- --tags=cannon64 -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
-                working_directory: cannon
-            - codecov/upload:
-                disable_search: true
-                files: ./cannon/coverage-64.out
-                flags: cannon-go-tests-64
+      - run:
+          name: Cannon Go 64-bit tests
+          command: |
+            export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
+            TIMEOUT="10m"
+            if [ "$SKIP_SLOW_TESTS" == "false" ]; then
+              TIMEOUT="30m"
+            fi
+            gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
+            -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
+          working_directory: cannon
+      - codecov/upload:
+          disable_search: true
+          files: ./cannon/coverage-64.out
+          flags: cannon-go-tests-64
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
@@ -319,26 +305,6 @@ jobs:
           steps:
             - notify-failures-on-develop:
                 mentions: "@proofs-team"
-
-  cannon-build-test-vectors:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
-    steps:
-      - utils/checkout-with-mise
-      - check-changed:
-          patterns: cannon/mipsevm/tests/open_mips_tests/test
-      - run:
-          name: Install dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y binutils-mips-linux-gnu
-            pip install capstone pyelftools
-      - run:
-          name: Build MIPS test vectors
-          command: |
-            python3 maketests.py && git diff --exit-code
-          working_directory: cannon/mipsevm/tests/open_mips_tests
 
   diff-asterisc-bytecode:
     machine: true
@@ -1209,6 +1175,25 @@ jobs:
             kurtosis engine status || true
 
             echo "Kurtosis setup complete"
+      # Start our devnet
+      - run:
+          name: Start devnet (<<parameters.devnet>>)
+          working_directory: kurtosis-devnet
+          command: |
+            echo "Starting <<parameters.devnet>> devnet..."
+            just <<parameters.devnet>>-devnet
+
+            echo "<<parameters.devnet>> devnet started successfully"
+
+            # Print devnet info for debugging
+            kurtosis enclave inspect <<parameters.devnet>>-devnet || true
+      # Notify us of a devnet failure
+      - when:
+          condition: on_fail
+          steps:
+            - discord-notification-failures-on-develop:
+                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
+                message: "Devnet <<parameters.devnet>>-devnet failed to start"
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1224,22 +1209,33 @@ jobs:
           name: Prepare test environment (compile tests and cache results)
           working_directory: op-acceptance-tests
           command: go test -v ./... || true # ignore failures; we're just compiling the tests
-      # Run the actual acceptance tests with optimized settings
       - run:
-          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
+          name: Stop the job if the devnet failed to start
+          command: circleci-agent step halt
+          when: on_fail
+      # Run the acceptance tests (if the devnet is running)
+      - run:
+          name: Run acceptance tests (gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
-          no_output_timeout: 2h
+          no_output_timeout: 1h
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
-          command: just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+          command: |
+            # Check if the devnet is running before attempting to run tests
+            if ! kurtosis enclave ls | grep -q "<<parameters.devnet>>-devnet"; then
+              echo "Devnet <<parameters.devnet>>-devnet is not running. Skipping tests."
+              exit 1
+            fi
+
+            # Run the tests
+            just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/summary.log" || true
-          when: always
       - run:
           name: Print results (failures)
           working_directory: op-acceptance-tests
@@ -1253,14 +1249,12 @@ jobs:
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/all.log" || true
-          when: always
       - run:
           name: Generate JUnit XML test report for CircleCI
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
-          when: always
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
@@ -1277,9 +1271,12 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      # Notification step
-      - discord-notification-failures-on-develop:
-          mentions: "@_ftw_" # temporarily just mention Stefano until the acceptance tests are more stable (was: @protocol-devx-pod)
+      - when:
+          condition: on_fail
+          steps:
+            - discord-notification-failures-on-develop:
+                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
+                message: "Acceptance tests failed for gate <<parameters.gate>> on devnet <<parameters.devnet>>"
 
   sanitize-op-program:
     docker:
@@ -1300,7 +1297,7 @@ jobs:
           command: make op-program
       - run:
           name: Sanitize op-program client
-          command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client.elf
+          command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
           working_directory: cannon
 
 
@@ -1359,28 +1356,22 @@ jobs:
           name: Upload cannon prestates
           command: |
             # Use the actual hash for tags (hash can be found by reading releases.json)
-            PRESTATE_HASH=$(jq -r .pre ./op-program/bin/prestate-proof.json)
             PRESTATE_MT64_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-mt64.json)
             PRESTATE_INTEROP_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-interop.json)
 
             BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
-            echo "Publishing ${PRESTATE_HASH}, ${PRESTATE_MT64_HASH}, ${PRESTATE_INTEROP_HASH} as ${BRANCH_NAME}"
+            echo "Publishing ${PRESTATE_MT64_HASH}, ${PRESTATE_INTEROP_HASH} as ${BRANCH_NAME}"
             if [[ "" != "<< pipeline.git.branch >>" ]]
             then
               # Upload the git commit info for each prestate since this won't be recorded in releases.json
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate=${PRESTATE_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}.bin.gz.txt"
               (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_MT64_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-mt64.bin.gz.txt"
               (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_INTEROP_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-interop.bin.gz.txt"
 
 
               # Use the branch name for branches to provide a consistent URL
-              PRESTATE_HASH="${BRANCH_NAME}"
               PRESTATE_MT64_HASH="${BRANCH_NAME}-mt64"
               PRESTATE_INTEROP_HASH="${BRANCH_NAME}-interop"
             fi
-            gsutil cp ./op-program/bin/prestate.bin.gz \
-              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_HASH}.bin.gz"
-
             gsutil cp ./op-program/bin/prestate-mt64.bin.gz \
               "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_MT64_HASH}.bin.gz"
 
@@ -1893,9 +1884,7 @@ workflows:
       - bedrock-go-tests:
           requires:
             - go-lint
-            - cannon-build-test-vectors
-            - cannon-go-lint-and-test-32-bit
-            - cannon-go-lint-and-test-64-bit
+            - cannon-go-lint-and-test
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
             # TODO(#15353) - Need to regenerate data used in op-program-compat
@@ -1951,18 +1940,10 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - discord
       - cannon-go-lint-and-test:
-          name: cannon-go-lint-and-test-<<matrix.mips_word_size>>-bit
           requires:
             - contracts-bedrock-build
           skip_slow_tests: true
           notify: true
-          matrix:
-            parameters:
-              mips_word_size: [32, 64]
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
-      - cannon-build-test-vectors:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2205,7 +2186,6 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - discord
       - cannon-go-lint-and-test:
-          name: cannon-go-lint-and-test-<<matrix.mips_word_size>>-bit
           requires:
             - contracts-bedrock-build
           skip_slow_tests: false
@@ -2214,9 +2194,6 @@ workflows:
             - slack
             - circleci-repo-readonly-authenticated-github-token
             - discord
-          matrix:
-            parameters:
-              mips_word_size: [32, 64]
 
   scheduled-docker-publish:
     when:

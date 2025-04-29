@@ -20,24 +20,18 @@ func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer
 	return NewInstrumentedState(state, po, stdOut, stdErr, log, meta, allFeaturesEnabled())
 }
 
-func TestInstrumentedState_OpenMips(t *testing.T) {
-	t.Parallel()
-	testutil.RunVMTests_OpenMips(t, CreateEmptyState, vmFactory, "clone.bin")
-}
-
 func TestInstrumentedState_Hello(t *testing.T) {
 	t.Parallel()
-	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory, false)
+	testutil.RunVMTest_Hello(t, CreateInitialState, vmFactory)
 }
 
 func TestInstrumentedState_Claim(t *testing.T) {
 	t.Parallel()
-	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory, false)
+	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory)
 }
 
 func TestInstrumentedState_UtilsCheck(t *testing.T) {
 	// Sanity check that test running utilities will return a non-zero exit code on failure
-	testutil.Cannon64OnlyTest(t, "32-bit Cannon is deprecated")
 	t.Parallel()
 	cases := []struct {
 		name           string
@@ -51,7 +45,7 @@ func TestInstrumentedState_UtilsCheck(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(c.name), CreateInitialState, false)
+			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(c.name), CreateInitialState)
 			oracle := testutil.StaticOracle(t, []byte{})
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
@@ -76,7 +70,6 @@ func TestInstrumentedState_UtilsCheck(t *testing.T) {
 }
 
 func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
-	testutil.Cannon64OnlyTest(t, "32-bit Cannon is deprecated")
 	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
 		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
 	}
@@ -185,7 +178,7 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(test.programName), CreateInitialState, false)
+			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath(test.programName), CreateInitialState)
 			oracle := testutil.StaticOracle(t, []byte{})
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
@@ -210,7 +203,6 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 	}
 }
 func TestInstrumentedState_Alloc(t *testing.T) {
-	testutil.Cannon64OnlyTest(t, "32-bit Cannon is deprecated")
 	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
 		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
 	}
@@ -232,7 +224,7 @@ func TestInstrumentedState_Alloc(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("alloc"), CreateInitialState, false)
+			state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("alloc"), CreateInitialState)
 			oracle := testutil.AllocOracle(t, test.numAllocs, test.allocSize)
 
 			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), meta, allFeaturesEnabled())

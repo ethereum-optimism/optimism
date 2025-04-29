@@ -31,7 +31,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 		SequencerWindowSize: 24,
 		ChannelTimeout:      20,
 		L1BlockTime:         12,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
