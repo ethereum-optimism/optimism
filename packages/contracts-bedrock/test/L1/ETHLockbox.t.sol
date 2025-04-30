@@ -17,7 +17,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 
-contract ETHLockboxTest is CommonTest {
+contract ETHLockbox_TestInit is CommonTest {
     error InvalidInitialization();
 
     event ETHLocked(IOptimismPortal2 indexed portal, uint256 amount);
@@ -34,7 +34,17 @@ contract ETHLockboxTest is CommonTest {
         // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
         if (isForkTest() && !deploy.cfg().useUpgradedFork()) vm.skip(true);
     }
+}
 
+contract ETHLockbox_Version_Test is ETHLockbox_TestInit {
+    /// @notice Tests that the version function returns a valid string. We avoid testing the
+    ///         specific value of the string as it changes frequently.
+    function test_version_succeeds() public view {
+        assert(bytes(ethLockbox.version()).length > 0);
+    }
+}
+
+contract ETHLockbox_Initialize_Test is ETHLockbox_TestInit {
     /// @notice Tests the superchain config was correctly set during initialization.
     function test_initialization_succeeds() public view {
         assertEq(address(ethLockbox.systemConfig().superchainConfig()), address(superchainConfig));
@@ -48,12 +58,9 @@ contract ETHLockboxTest is CommonTest {
         IOptimismPortal2[] memory _portals = new IOptimismPortal2[](1);
         ethLockbox.initialize(systemConfig, _portals);
     }
+}
 
-    /// @notice Tests the proxy admin owner is correctly returned.
-    function test_proxyProxyAdminOwner_succeeds() public view {
-        assertEq(ethLockbox.proxyAdminOwner(), proxyAdminOwner);
-    }
-
+contract ETHLockbox_Paused_Test is ETHLockbox_TestInit {
     /// @notice Tests the paused status is correctly returned.
     function test_paused_succeeds() public {
         // Assert the paused status is false
@@ -65,13 +72,110 @@ contract ETHLockboxTest is CommonTest {
         // Assert the paused status is true
         assertEq(ethLockbox.paused(), true);
     }
+}
 
-    /// @notice Tests that the version function returns a valid string. We avoid testing the
-    ///         specific value of the string as it changes frequently.
-    function test_version_succeeds() public view {
-        assert(bytes(ethLockbox.version()).length > 0);
+contract ETHLockbox_AuthorizePortal_Test is ETHLockbox_TestInit {
+    /// @notice Tests the `authorizePortal` function reverts when the caller is not the proxy admin.
+    function testFuzz_authorizePortal_unauthorized_reverts(address _caller) public {
+        vm.assume(_caller != proxyAdminOwner);
+
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(IETHLockbox.ETHLockbox_Unauthorized.selector);
+
+        // Call the `authorizePortal` function with an unauthorized caller
+        vm.prank(_caller);
+        ethLockbox.authorizePortal(optimismPortal2);
     }
 
+    /// @notice Tests the `authorizePortal` function reverts when the proxy admin owner of the portal is not the same as
+    /// the one of the lockbox.
+    function testFuzz_authorizePortal_differentProxyAdminOwner_reverts(IOptimismPortal2 _portal) public {
+        assumeNotForgeAddress(address(_portal));
+        vm.mockCall(address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0)));
+
+        // Expect the revert with `DifferentOwner` selector
+        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentProxyAdminOwner.selector);
+
+        // Call the `authorizePortal` function
+        vm.prank(proxyAdminOwner);
+        ethLockbox.authorizePortal(_portal);
+    }
+
+    /// @notice Tests the authorizePortal function reverts when the portal has a different
+    ///         SuperchainConfig than the one configured in the lockbox.
+    /// @param _portal The portal to authorize.
+    function testFuzz_authorizePortal_differentSuperchainConfig_reverts(IOptimismPortal2 _portal) public {
+        assumeNotForgeAddress(address(_portal));
+        vm.assume(address(_portal) != address(systemConfig));
+        vm.assume(address(_portal) != EIP1967Helper.getImplementation(address(systemConfig)));
+
+        // Mock the portal to have the right proxyAdminOwner.
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+        );
+
+        // Mock the portal to have the wrong SuperchainConfig.
+        vm.mockCall(address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(address(0)));
+
+        // Expect the revert with `DifferentSuperchainConfig` selector
+        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentSuperchainConfig.selector);
+
+        // Call the `authorizePortal` function
+        vm.prank(proxyAdminOwner);
+        ethLockbox.authorizePortal(_portal);
+    }
+
+    /// @notice Tests the `authorizeLockbox` function succeeds using the `optimismPortal2` address as the portal.
+    function test_authorizePortal_succeeds() public {
+        // Calculate the correct storage slot for the mapping value
+        bytes32 mappingSlot = bytes32(uint256(1)); // position on the layout
+        address key = address(optimismPortal2);
+        bytes32 slot = keccak256(abi.encode(key, mappingSlot));
+
+        // Reset the authorization status to false
+        vm.store(address(ethLockbox), slot, bytes32(0));
+
+        // Expect the `PortalAuthorized` event to be emitted
+        vm.expectEmit(address(ethLockbox));
+        emit PortalAuthorized(optimismPortal2);
+
+        // Call the `authorizePortal` function with the portal
+        vm.prank(proxyAdminOwner);
+        ethLockbox.authorizePortal(optimismPortal2);
+
+        // Assert the portal is authorized
+        assertTrue(ethLockbox.authorizedPortals(optimismPortal2));
+    }
+
+    /// @notice Tests the `authorizeLockbox` function succeeds
+    function testFuzz_authorizePortal_succeeds(IOptimismPortal2 _portal) public {
+        assumeNotForgeAddress(address(_portal));
+
+        // Mock the admin owner of the portal to be the same as the current lockbox proxy admin owner
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+        );
+
+        // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
+        // Lockbox.
+        vm.mockCall(
+            address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
+        );
+
+        // Expect the `PortalAuthorized` event to be emitted
+        vm.expectEmit(address(ethLockbox));
+        emit PortalAuthorized(_portal);
+
+        // Call the `authorizePortal` function with the portal
+        vm.prank(proxyAdminOwner);
+        ethLockbox.authorizePortal(_portal);
+
+        // Assert the portal is authorized
+        assertTrue(ethLockbox.authorizedPortals(_portal));
+    }
+}
+
+contract ETHLockbox_ReceiveLiquidity_Test is ETHLockbox_TestInit {
     /// @notice Tests the liquidity is correctly received.
     function testFuzz_receiveLiquidity_succeeds(address _lockbox, uint256 _value) public {
         // Since on the fork the `_lockbox` fuzzed address doesn't exist, we skip the test
@@ -107,7 +211,9 @@ contract ETHLockboxTest is CommonTest {
         // Assert the lockbox's balance increased by the amount received
         assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + _value);
     }
+}
 
+contract ETHLockbox_LockETH_Test is ETHLockbox_TestInit {
     /// @notice Tests it reverts when the caller is not an authorized portal.
     function testFuzz_lockETH_unauthorizedPortal_reverts(address _caller) public {
         vm.assume(!ethLockbox.authorizedPortals(IOptimismPortal2(payable(_caller))));
@@ -186,7 +292,9 @@ contract ETHLockboxTest is CommonTest {
         // Assert the portal's balance decreased and the lockbox's balance increased by the amount locked
         assertEq(address(ethLockbox).balance, lockboxBalanceBefore + _amount);
     }
+}
 
+contract ETHLockbox_UnlockETH_Test is ETHLockbox_TestInit {
     /// @notice Tests `unlockETH` reverts when the contract is paused.
     function testFuzz_unlockETH_paused_reverts(address _caller, uint256 _value) public {
         // Mock the superchain config to return true for the paused status
@@ -310,106 +418,9 @@ contract ETHLockboxTest is CommonTest {
         assertEq(address(optimismPortal2).balance, portalBalanceBefore + _value);
         assertEq(address(ethLockbox).balance, lockboxBalanceBefore - _value);
     }
+}
 
-    /// @notice Tests the `authorizePortal` function reverts when the caller is not the proxy admin.
-    function testFuzz_authorizePortal_unauthorized_reverts(address _caller) public {
-        vm.assume(_caller != proxyAdminOwner);
-
-        // Expect the revert with `Unauthorized` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_Unauthorized.selector);
-
-        // Call the `authorizePortal` function with an unauthorized caller
-        vm.prank(_caller);
-        ethLockbox.authorizePortal(optimismPortal2);
-    }
-
-    /// @notice Tests the `authorizePortal` function reverts when the proxy admin owner of the portal is not the same as
-    /// the one of the lockbox.
-    function testFuzz_authorizePortal_differentProxyAdminOwner_reverts(IOptimismPortal2 _portal) public {
-        assumeNotForgeAddress(address(_portal));
-        vm.mockCall(address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0)));
-
-        // Expect the revert with `DifferentOwner` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentProxyAdminOwner.selector);
-
-        // Call the `authorizePortal` function
-        vm.prank(proxyAdminOwner);
-        ethLockbox.authorizePortal(_portal);
-    }
-
-    /// @notice Tests the authorizePortal function reverts when the portal has a different
-    ///         SuperchainConfig than the one configured in the lockbox.
-    /// @param _portal The portal to authorize.
-    function testFuzz_authorizePortal_differentSuperchainConfig_reverts(IOptimismPortal2 _portal) public {
-        assumeNotForgeAddress(address(_portal));
-        vm.assume(address(_portal) != address(systemConfig));
-        vm.assume(address(_portal) != EIP1967Helper.getImplementation(address(systemConfig)));
-
-        // Mock the portal to have the right proxyAdminOwner.
-        vm.mockCall(
-            address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
-        );
-
-        // Mock the portal to have the wrong SuperchainConfig.
-        vm.mockCall(address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(address(0)));
-
-        // Expect the revert with `DifferentSuperchainConfig` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentSuperchainConfig.selector);
-
-        // Call the `authorizePortal` function
-        vm.prank(proxyAdminOwner);
-        ethLockbox.authorizePortal(_portal);
-    }
-
-    /// @notice Tests the `authorizeLockbox` function succeeds using the `optimismPortal2` address as the portal.
-    function test_authorizePortal_succeeds() public {
-        // Calculate the correct storage slot for the mapping value
-        bytes32 mappingSlot = bytes32(uint256(1)); // position on the layout
-        address key = address(optimismPortal2);
-        bytes32 slot = keccak256(abi.encode(key, mappingSlot));
-
-        // Reset the authorization status to false
-        vm.store(address(ethLockbox), slot, bytes32(0));
-
-        // Expect the `PortalAuthorized` event to be emitted
-        vm.expectEmit(address(ethLockbox));
-        emit PortalAuthorized(optimismPortal2);
-
-        // Call the `authorizePortal` function with the portal
-        vm.prank(proxyAdminOwner);
-        ethLockbox.authorizePortal(optimismPortal2);
-
-        // Assert the portal is authorized
-        assertTrue(ethLockbox.authorizedPortals(optimismPortal2));
-    }
-
-    /// @notice Tests the `authorizeLockbox` function succeeds
-    function testFuzz_authorizePortal_succeeds(IOptimismPortal2 _portal) public {
-        assumeNotForgeAddress(address(_portal));
-
-        // Mock the admin owner of the portal to be the same as the current lockbox proxy admin owner
-        vm.mockCall(
-            address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
-        );
-
-        // Mock the SuperchainConfig on the portal to be the same as the SuperchainConfig on the
-        // Lockbox.
-        vm.mockCall(
-            address(_portal), abi.encodeCall(IOptimismPortal2.superchainConfig, ()), abi.encode(superchainConfig)
-        );
-
-        // Expect the `PortalAuthorized` event to be emitted
-        vm.expectEmit(address(ethLockbox));
-        emit PortalAuthorized(_portal);
-
-        // Call the `authorizePortal` function with the portal
-        vm.prank(proxyAdminOwner);
-        ethLockbox.authorizePortal(_portal);
-
-        // Assert the portal is authorized
-        assertTrue(ethLockbox.authorizedPortals(_portal));
-    }
-
+contract ETHLockbox_AuthorizeLockbox_Test is ETHLockbox_TestInit {
     /// @notice Tests the `authorizeLockbox` function reverts when the caller is not the proxy admin.
     function testFuzz_authorizeLockbox_unauthorized_reverts(address _caller) public {
         vm.assume(_caller != proxyAdminOwner);
@@ -458,7 +469,9 @@ contract ETHLockboxTest is CommonTest {
         // Assert the lockbox is authorized
         assertTrue(ethLockbox.authorizedLockboxes(IETHLockbox(_lockbox)));
     }
+}
 
+contract ETHLockbox_MigrateLiquidity_Test is ETHLockbox_TestInit {
     /// @notice Tests the `migrateLiquidity` function reverts when the caller is not the proxy admin.
     function testFuzz_migrateLiquidity_unauthorized_reverts(address _caller) public {
         vm.assume(_caller != proxyAdminOwner);
@@ -545,5 +558,12 @@ contract ETHLockboxTest is CommonTest {
         // Assert the liquidity was migrated
         assertEq(address(ethLockbox).balance, 0);
         assertEq(address(destinationLockbox).balance, destLockboxBalanceBefore + originLockboxBalanceBefore);
+    }
+}
+
+contract ETHLockboxTest is ETHLockbox_TestInit {
+    /// @notice Tests the proxy admin owner is correctly returned.
+    function test_proxyProxyAdminOwner_succeeds() public view {
+        assertEq(ethLockbox.proxyAdminOwner(), proxyAdminOwner);
     }
 }
