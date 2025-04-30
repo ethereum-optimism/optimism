@@ -602,13 +602,13 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 			}()
 			return
 		} else if err != nil {
-			l.Log.Error("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
+			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
 			retryTimer.Reset(retryInterval)
 			return
 		}
 
 		if !success {
-			l.Log.Error("Result of SetMaxDASize was false for endpoint, retrying.", "endpoint", endpoint)
+			l.Log.Warn("Result of SetMaxDASize was false for endpoint, retrying.", "endpoint", endpoint)
 			retryTimer.Reset(retryInterval)
 			return
 		}
