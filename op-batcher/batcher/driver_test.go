@@ -282,6 +282,18 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 					return true
 				}, time.Second*20, time.Millisecond*10, "All endpoints should have been called within 2s")
 
+			startTestServerAtAddr := func(addr string, handler http.HandlerFunc) *httptest.Server {
+				ln, err := net.Listen("tcp", addr)
+				require.NoError(t, err, "Failed to create new listener for test server")
+
+				s := &httptest.Server{
+					Listener: ln,
+					Config:   &http.Server{Handler: handler},
+				}
+				s.Start()
+				return s
+			}
+
 			// Take one of the healthy servers down, wait 2s and restart. Check it is called again.
 			if len(healthyServers) > 0 {
 				restartedServerCalled := false
@@ -289,16 +301,9 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 				addr := healthyServers[0].Listener.Addr().String()
 				healthyServers[0].Close()
 				time.Sleep(time.Second * 2)
-
-				ln, err := net.Listen("tcp", addr)
-				require.NoError(t, err, "Failed to create new listener for restarted server")
-				healthyServers[0] = &httptest.Server{
-					Listener: ln,
-					Config:   &http.Server{Handler: createHTTPHandler(t, func() { restartedServerCalled = true }, false)},
-				}
-				healthyServers[0].Start()
-				t.Log("restarted server at", addr)
+				startTestServerAtAddr(addr, createHTTPHandler(t, func() { restartedServerCalled = true }, false))
 				defer healthyServers[0].Close()
+				t.Log("restarted server at", addr)
 
 				require.Eventually(t, func() bool {
 					return restartedServerCalled
