@@ -663,7 +663,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 			select {
 			case updateChan <- struct{}{}:
 			default:
-				l.Log.Warn("Throttling loop: channel full, skipping update", "endpoint", l.Config.ThrottlingEndpoints[i])
+				l.Log.Debug("Throttling loop: channel full, skipping update", "endpoint", l.Config.ThrottlingEndpoints[i])
 			}
 		}
 	}
