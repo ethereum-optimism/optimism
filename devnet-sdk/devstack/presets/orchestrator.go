@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysext"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/telemetry"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -49,6 +50,14 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 			Format: oplog.FormatTerminal,
 			Pid:    false,
 		})
+
+		otelShutdown, err := telemetry.SetupOpenTelemetry("devstack")
+		if err != nil {
+			logger.Warn("Failed to setup OpenTelemetry", "error", err)
+		} else {
+			defer otelShutdown()
+		}
+
 		p := devtest.NewP(logger, func() {
 			debug.PrintStack()
 			failed.Store(true)

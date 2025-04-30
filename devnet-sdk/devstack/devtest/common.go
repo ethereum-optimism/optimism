@@ -4,8 +4,7 @@ import (
 	"context"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CommonT is a subset of testing.T, extended with a few common utils.
@@ -23,7 +22,8 @@ type CommonT interface {
 	Helper()
 	Name() string
 
-	Logger() log.Logger
+	Logger() Logger
+	Tracer() trace.Tracer
 	Ctx() context.Context
 	Require() *require.Assertions
 }

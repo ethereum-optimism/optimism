@@ -45,3 +45,37 @@ func TestExampleTxs(gt *testing.T) {
 	alice.VerifyBalanceLessThan(pre.Sub(transferred)) // less than, because of the tx fee
 	bob.VerifyBalanceExact(transferred)
 }
+
+func TestExampleTracing(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	ctx := t.Ctx()
+	require := t.Require()
+	tracer := t.Tracer()
+	logger := t.Logger()
+
+	ctx, acquiring := tracer.Start(ctx, "acquiring interop sys")
+	sys := SimpleInterop(t)
+	acquiring.End()
+
+	ctx, funded := tracer.Start(ctx, "acquiring funded eoa")
+	pre := eth.OneEther
+	alice := sys.FunderA.NewFundedEOA(pre)
+	funded.End()
+
+	ctx, unfunded := tracer.Start(ctx, "acquiring unfunded eoa")
+	bob := sys.Wallet.NewEOA(sys.L2ELA)
+	bob.VerifyBalanceExact(eth.ZeroWei)
+	unfunded.End()
+
+	ctx, transfer := tracer.Start(ctx, "transferring")
+	transferred := eth.GWei(42)
+	tx := alice.Transfer(bob.Address(), transferred)
+	logger.WithContext(ctx).Info("transferred", "amount", transferred, "gas", tx.Included.Value().GasUsed)
+	require.Equal(params.TxGas, tx.Included.Value().GasUsed, "transfers cost 21k gas")
+	transfer.End()
+
+	_, verifying := tracer.Start(ctx, "verifying")
+	alice.VerifyBalanceLessThan(pre.Sub(transferred)) // less than, because of the tx fee
+	bob.VerifyBalanceExact(transferred)
+	verifying.End()
+}
