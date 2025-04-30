@@ -250,7 +250,8 @@ contract Deploy is Deployer {
 
         console.log("Deploying implementations");
 
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(artifacts.mustGetAddress("SuperchainProxyAdmin"));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
 
         DeployImplementations2 di2 = new DeployImplementations2();
         DeployImplementations2.Input memory dii = DeployImplementations2.Input({
@@ -261,7 +262,7 @@ contract Deploy is Deployer {
             disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
             mipsVersion: 6,
             l1ContractsRelease: "dev",
-            superchainConfigProxy: ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")),
+            superchainConfigProxy: superchainConfig,
             protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
             superchainProxyAdmin: superchainProxyAdmin,
             upgradeController: superchainProxyAdmin.owner()
