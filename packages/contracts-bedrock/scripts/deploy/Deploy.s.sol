@@ -17,11 +17,7 @@ import { Process } from "scripts/libraries/Process.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/deploy/DeploySuperchain.s.sol";
-import {
-    DeployImplementationsInput,
-    DeployImplementations,
-    DeployImplementationsOutput
-} from "scripts/deploy/DeployImplementations.s.sol";
+import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -47,6 +43,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -253,52 +250,47 @@ contract Deploy is Deployer {
 
         console.log("Deploying implementations");
 
-        DeployImplementations di = new DeployImplementations();
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = di.etchIOContracts();
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(artifacts.mustGetAddress("SuperchainProxyAdmin"));
 
-        dii.set(dii.withdrawalDelaySeconds.selector, cfg.faultGameWithdrawalDelay());
-        dii.set(dii.minProposalSizeBytes.selector, cfg.preimageOracleMinProposalSize());
-        dii.set(dii.challengePeriodSeconds.selector, cfg.preimageOracleChallengePeriod());
-        dii.set(dii.proofMaturityDelaySeconds.selector, cfg.proofMaturityDelaySeconds());
-        dii.set(dii.disputeGameFinalityDelaySeconds.selector, cfg.disputeGameFinalityDelaySeconds());
-        dii.set(dii.mipsVersion.selector, 6);
-        string memory release = "dev";
-        dii.set(dii.l1ContractsRelease.selector, release);
-        dii.set(dii.protocolVersionsProxy.selector, artifacts.mustGetAddress("ProtocolVersionsProxy"));
+        DeployImplementations2 di2 = new DeployImplementations2();
+        DeployImplementations2.Input memory dii = DeployImplementations2.Input({
+            withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+            minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
+            challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
+            proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+            disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+            mipsVersion: 6,
+            l1ContractsRelease: "dev",
+            superchainConfigProxy: ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy")),
+            protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
+            superchainProxyAdmin: superchainProxyAdmin,
+            upgradeController: superchainProxyAdmin.owner()
+        });
 
-        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        dii.set(dii.superchainConfigProxy.selector, address(superchainConfig));
-
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
-        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
-
-        // I think this was a bug
-        dii.set(dii.upgradeController.selector, superchainProxyAdmin.owner());
-
-        di.run(dii, dio);
+        DeployImplementations2.Output memory dio = di2.run(dii);
 
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
-        artifacts.save("MipsSingleton", address(dio.mipsSingleton()));
-        artifacts.save("OPContractsManager", address(dio.opcm()));
-        artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl()));
+        artifacts.save("MipsSingleton", address(dio.mipsSingleton));
+        artifacts.save("OPContractsManager", address(dio.opcm));
+        artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = Types.ContractSet({
-            L1CrossDomainMessenger: address(dio.l1CrossDomainMessengerImpl()),
-            L1StandardBridge: address(dio.l1StandardBridgeImpl()),
+            L1CrossDomainMessenger: address(dio.l1CrossDomainMessengerImpl),
+            L1StandardBridge: address(dio.l1StandardBridgeImpl),
             L2OutputOracle: address(0),
-            DisputeGameFactory: address(dio.disputeGameFactoryImpl()),
-            DelayedWETH: address(dio.delayedWETHImpl()),
-            PermissionedDelayedWETH: address(dio.delayedWETHImpl()),
+            DisputeGameFactory: address(dio.disputeGameFactoryImpl),
+            DelayedWETH: address(dio.delayedWETHImpl),
+            PermissionedDelayedWETH: address(dio.delayedWETHImpl),
             AnchorStateRegistry: address(0),
-            OptimismMintableERC20Factory: address(dio.optimismMintableERC20FactoryImpl()),
-            OptimismPortal: address(dio.optimismPortalImpl()),
-            ETHLockbox: address(dio.ethLockboxImpl()),
-            SystemConfig: address(dio.systemConfigImpl()),
-            L1ERC721Bridge: address(dio.l1ERC721BridgeImpl()),
-            ProtocolVersions: address(dio.protocolVersionsImpl()),
-            SuperchainConfig: address(dio.superchainConfigImpl())
+            OptimismMintableERC20Factory: address(dio.optimismMintableERC20FactoryImpl),
+            OptimismPortal: address(dio.optimismPortalImpl),
+            ETHLockbox: address(dio.ethLockboxImpl),
+            SystemConfig: address(dio.systemConfigImpl),
+            L1ERC721Bridge: address(dio.l1ERC721BridgeImpl),
+            ProtocolVersions: address(dio.protocolVersionsImpl),
+            SuperchainConfig: address(dio.superchainConfigImpl)
         });
 
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: impls, _vm: vm, _isProxy: false });
@@ -309,19 +301,16 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: impls, _isProxy: false });
         ChainAssertions.checkDisputeGameFactory({ _contracts: impls, _expectedOwner: address(0), _isProxy: false });
         ChainAssertions.checkDelayedWETH({ _contracts: impls, _cfg: cfg, _isProxy: false, _expectedOwner: address(0) });
-        ChainAssertions.checkPreimageOracle({
-            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton())),
-            _cfg: cfg
-        });
+        ChainAssertions.checkPreimageOracle({ _oracle: IPreimageOracle(address(dio.preimageOracleSingleton)), _cfg: cfg });
         ChainAssertions.checkMIPS({
-            _mips: IMIPS(address(dio.mipsSingleton())),
-            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton()))
+            _mips: IMIPS(address(dio.mipsSingleton)),
+            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
             _proxies: _proxies(),
-            _opcm: IOPContractsManager(address(dio.opcm())),
-            _mips: IMIPS(address(dio.mipsSingleton())),
+            _opcm: IOPContractsManager(address(dio.opcm)),
+            _mips: IMIPS(address(dio.mipsSingleton)),
             _superchainProxyAdmin: superchainProxyAdmin
         });
         ChainAssertions.checkSystemConfig({ _contracts: impls, _cfg: cfg, _isProxy: false });
