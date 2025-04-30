@@ -37,7 +37,7 @@ abstract contract ProxyAdminOwnedBase {
     /// @notice Reverts if the ProxyAdmin owner of the current contract is not the same as the
     ///         ProxyAdmin owner of the other Proxy address provided. Useful asserting that both
     ///         the current contract and the other Proxy share the same security model.+
-    function _assertSharedProxyAdminOwner(address _proxy) internal view returns (bool) {
+    function _assertSharedProxyAdminOwner(address _proxy) internal view {
         if (proxyAdminOwner() != ProxyAdminOwnedBase(_proxy).proxyAdminOwner()) {
             revert ProxyAdminOwnedBase_NotSharedProxyAdminOwner();
         }

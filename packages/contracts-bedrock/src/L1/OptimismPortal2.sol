@@ -408,12 +408,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     ///         ETHLockbox.migrateLiquidity() function within the same transaction.
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
-    function migrateToSuperRoots(
-        IETHLockbox _newLockbox,
-        IAnchorStateRegistry _newAnchorStateRegistry
-    )
-        external
-    {
+    function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
         // Migration can only be triggered by the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
 

@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
@@ -21,7 +21,7 @@ import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 ///         mapping and an append only array. The timestamp of the creation time of the dispute game is packed tightly
 ///         into the storage slot with the address of the dispute game to make offchain discoverability of playable
 ///         dispute games easier.
-contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Initializable, ISemver {
+contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, OwnableUpgradeable, ISemver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
     using LibClone for address;
 
@@ -263,11 +263,7 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Initial
     /// @dev May only be called by the `owner`.
     /// @param _gameType The type of the DisputeGame.
     /// @param _impl The implementation contract for the given `GameType`.
-    function setImplementation(GameType _gameType, IDisputeGame _impl) external {
-        // Only the ProxyAdmin owner can set implementations.
-        _assertOnlyProxyAdminOwner();
-
-        // Set the implementation.
+    function setImplementation(GameType _gameType, IDisputeGame _impl) external onlyOwner {
         gameImpls[_gameType] = _impl;
         emit ImplementationSet(address(_impl), _gameType);
     }
@@ -276,11 +272,7 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Initial
     /// @dev May only be called by the `owner`.
     /// @param _gameType The type of the DisputeGame.
     /// @param _initBond The bond (in wei) for initializing a game type.
-    function setInitBond(GameType _gameType, uint256 _initBond) external {
-        // Only the ProxyAdmin owner can set init bonds.
-        _assertOnlyProxyAdminOwner();
-
-        // Set the init bond.
+    function setInitBond(GameType _gameType, uint256 _initBond) external onlyOwner {
         initBonds[_gameType] = _initBond;
         emit InitBondUpdated(_gameType, _initBond);
     }
