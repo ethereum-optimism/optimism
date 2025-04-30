@@ -58,11 +58,6 @@ contract StandardValidatorTest is CommonTest {
     function setUp() public virtual override {
         super.setUp();
 
-        // Get OPContractsManager instance
-        address opcmAddress = artifacts.mustGetAddress("OPContractsManager");
-        OPContractsManager opcm = OPContractsManager(opcmAddress);
-        OPContractsManager.Implementations memory impls = opcm.implementations();
-
         // Setup test addresses
         superchainConfig = ISuperchainConfig(makeAddr("superchainConfig"));
         l1PAOMultisig = makeAddr("l1PAOMultisig");
@@ -95,6 +90,10 @@ contract StandardValidatorTest is CommonTest {
 
         // Mock proxyAdmin owner
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(l1PAOMultisig));
+
+        // Get the OPContractsManager and its implementations struct
+        OPContractsManager opcm = OPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
+        OPContractsManager.Implementations memory impls = opcm.implementations();
 
         // Deploy validator with implementations from OPCM
         validator = new StandardValidator(
