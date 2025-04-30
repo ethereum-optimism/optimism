@@ -136,6 +136,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("initVersion()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("upgrade(address)") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("systemConfig()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("proxyAdmin()") });
 
         // L1ERC721Bridge
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("MESSENGER()") });
@@ -160,6 +162,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("upgrade(address)") });
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("systemConfig()") });
         _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("initialize(address,address)") });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("proxyAdmin()") });
 
         // L1StandardBridge
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("MESSENGER()") });
@@ -213,6 +217,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("initVersion()") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("upgrade(address)") });
         _addSpec({ _name: "L1StandardBridge", _sel: _getSel("systemConfig()") });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("proxyAdmin()") });
 
         // OptimismPortal2
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("anchorStateRegistry()") });
@@ -269,9 +275,11 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("ethLockbox()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("migrateLiquidity()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proxyAdmin()") });
 
         // ProxyAdminOwnedBase
         _addSpec({ _name: "ProxyAdminOwnedBase", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "ProxyAdminOwnedBase", _sel: _getSel("proxyAdmin()") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });
@@ -294,6 +302,9 @@ contract Specification_Test is CommonTest {
         });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("transferOwnership(address)") });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("version()") });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("proxyAdmin()") });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("initVersion()") });
 
         // ETHLockbox
         _addSpec({ _name: "ETHLockbox", _sel: _getSel("version()") });
@@ -310,6 +321,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "ETHLockbox", _sel: _getSel("authorizeLockbox(address)") });
         _addSpec({ _name: "ETHLockbox", _sel: _getSel("migrateLiquidity(address)") });
         _addSpec({ _name: "ETHLockbox", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "ETHLockbox", _sel: _getSel("proxyAdmin()") });
+        _addSpec({ _name: "ETHLockbox", _sel: _getSel("initVersion()") });
 
         // ResourceMetering
         _addSpec({ _name: "ResourceMetering", _sel: _getSel("params()") });
@@ -328,6 +341,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("pauseExpiry()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("initVersion()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("extend(address)"), _auth: Role.GUARDIAN });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("proxyAdmin()") });
 
         // SystemConfig
         _addSpec({ _name: "SystemConfig", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()") });
@@ -339,6 +354,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("eip1559Elasticity()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("operatorFeeScalar()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("operatorFeeConstant()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("proxyAdmin()") });
         _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.initialize.selector });
         _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.minimumGasLimit.selector });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("overhead()") });
@@ -498,6 +515,9 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("blacklistDisputeGame(address)"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("setRespectedGameType(uint32)"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("updateRetirementTimestamp()"), _auth: Role.GUARDIAN });
+        _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("proxyAdmin()") });
+        _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("initVersion()") });
 
         // PermissionedDisputeGame
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("absolutePrestate()") });
@@ -780,6 +800,9 @@ contract Specification_Test is CommonTest {
             _auth: Role.DISPUTEGAMEFACTORYOWNER
         });
         _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("version()") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("proxyAdmin()") });
+        _addSpec({ _name: "DisputeGameFactory", _sel: _getSel("initVersion()") });
 
         // DelayedWETH
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("allowance(address,address)") });
@@ -805,6 +828,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("withdrawals(address,address)") });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("systemConfig()") });
         _addSpec({ _name: "DelayedWETH", _sel: _getSel("proxyAdminOwner()") });
+        _addSpec({ _name: "DelayedWETH", _sel: _getSel("proxyAdmin()") });
+        _addSpec({ _name: "DelayedWETH", _sel: _getSel("initVersion()") });
 
         // WETH98
         _addSpec({ _name: "WETH98", _sel: _getSel("allowance(address,address)") });

@@ -315,8 +315,8 @@ contract ETHLockboxTest is CommonTest {
     function testFuzz_authorizePortal_unauthorized_reverts(address _caller) public {
         vm.assume(_caller != proxyAdminOwner);
 
-        // Expect the revert with `Unauthorized` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_Unauthorized.selector);
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
 
         // Call the `authorizePortal` function with an unauthorized caller
         vm.prank(_caller);
@@ -414,8 +414,8 @@ contract ETHLockboxTest is CommonTest {
     function testFuzz_authorizeLockbox_unauthorized_reverts(address _caller) public {
         vm.assume(_caller != proxyAdminOwner);
 
-        // Expect the revert with `Unauthorized` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_Unauthorized.selector);
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdmin` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdmin.selector);
 
         // Call the `authorizeLockbox` function with an unauthorized caller
         vm.prank(_caller);
@@ -463,8 +463,8 @@ contract ETHLockboxTest is CommonTest {
     function testFuzz_migrateLiquidity_unauthorized_reverts(address _caller) public {
         vm.assume(_caller != proxyAdminOwner);
 
-        // Expect the revert with `Unauthorized` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_Unauthorized.selector);
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
 
         // Call the `migrateLiquidity` function with an unauthorized caller
         vm.prank(_caller);

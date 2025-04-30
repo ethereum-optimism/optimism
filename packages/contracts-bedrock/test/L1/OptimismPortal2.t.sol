@@ -13,9 +13,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
-// Contracts
-import { Predeploys } from "src/libraries/Predeploys.sol";
-
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -33,6 +30,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
@@ -384,7 +382,7 @@ contract OptimismPortal2_Test is CommonTest {
     /// @dev Tests that `migrateToSuperRoots` reverts if the caller is not the proxy admin owner.
     function testFuzz_migrateToSuperRoots_notProxyAdminOwner_reverts(address _caller) external {
         vm.assume(_caller != optimismPortal2.proxyAdminOwner());
-        vm.expectRevert(IOptimismPortal.OptimismPortal_Unauthorized.selector);
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
 
         vm.prank(_caller);
         optimismPortal2.migrateToSuperRoots(IETHLockbox(address(1)), IAnchorStateRegistry(address(1)));
@@ -2033,7 +2031,7 @@ contract OptimismPortal2_LiquidityMigration_Test is CommonTest {
     /// @notice Tests the liquidity migration from the portal to the lockbox reverts if not called by the admin owner.
     function testFuzz_migrateLiquidity_notProxyAdminOwner_reverts(address _caller) external {
         vm.assume(_caller != optimismPortal2.proxyAdminOwner());
-        vm.expectRevert(IOptimismPortal.OptimismPortal_Unauthorized.selector);
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         vm.prank(_caller);
         optimismPortal2.migrateLiquidity();
     }
@@ -2095,7 +2093,7 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         vm.expectCall(address(ethLockbox), _balance, abi.encodeCall(ethLockbox.lockETH, ()));
 
         // Call the upgrade function.
-        vm.prank(Predeploys.PROXY_ADMIN);
+        vm.prank(address(optimismPortal2.proxyAdmin()));
         optimismPortal2.upgrade(
             IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox), ISystemConfig(_newSystemConfig)
         );
@@ -2131,11 +2129,13 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(0));
 
         // Trigger first upgrade.
+        vm.prank(address(optimismPortal2.proxyAdmin()));
         optimismPortal2.upgrade(
             IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
         );
 
         // Try to trigger second upgrade.
+        vm.prank(address(optimismPortal2.proxyAdmin()));
         vm.expectRevert("Initializable: contract is already initialized");
         optimismPortal2.upgrade(
             IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))

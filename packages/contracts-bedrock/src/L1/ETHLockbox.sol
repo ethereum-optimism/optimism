@@ -97,8 +97,8 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         external
         reinitializer(initVersion())
     {
-        // Initialization transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrOwner();
 
         // Now perform initialization logic.
         systemConfig = _systemConfig;
@@ -181,8 +181,8 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     ///         cannot be removed from the authorized list once added.
     /// @param _lockbox The address of the ETH lockbox to authorize.
     function authorizeLockbox(IETHLockbox _lockbox) external {
-        // Check that this transaction is coming from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Check that this transaction is coming from the ProxyAdmin owner.
+        _assertOnlyProxyAdminOwner();
 
         // Check that the lockbox has the same proxy admin owner.
         _assertSharedProxyAdminOwner(address(_lockbox));

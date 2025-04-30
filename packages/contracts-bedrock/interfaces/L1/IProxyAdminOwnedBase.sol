@@ -7,6 +7,8 @@ interface IProxyAdminOwnedBase {
     error ProxyAdminOwnedBase_NotSharedProxyAdminOwner();
     error ProxyAdminOwnedBase_NotProxyAdminOwner();
     error ProxyAdminOwnedBase_NotProxyAdmin();
+    error ProxyAdminOwnedBase_NotProxyAdminOrOwner();
+    error ProxyAdminOwnedBase_ProxyAdminNotFound();
 
     function proxyAdmin() external view returns (IProxyAdmin);
     function proxyAdminOwner() external view returns (address);

@@ -261,8 +261,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         external
         reinitializer(initVersion())
     {
-        // Initialization transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrOwner();
 
         // Now perform initialization logic.
         systemConfig = _systemConfig;
@@ -290,8 +290,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         external
         reinitializer(initVersion())
     {
-        // Upgrade transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Upgrade transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrOwner();
 
         // Now perform upgrade logic.
         anchorStateRegistry = _anchorStateRegistry;

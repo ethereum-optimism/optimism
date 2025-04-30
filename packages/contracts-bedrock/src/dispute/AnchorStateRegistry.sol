@@ -95,8 +95,8 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         external
         reinitializer(initVersion())
     {
-        // Initialization transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrOwner();
 
         // Now perform initialization logic.
         systemConfig = _systemConfig;

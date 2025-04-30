@@ -7,11 +7,12 @@ import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-
+import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 /// @notice Base contract for ProxyAdmin-owned contracts. This contract is used to introspect
 ///         compatible Proxy contracts so that their ProxyAdmin and ProxyAdmin owner addresses can
 ///         be retrieved onchain. Existing Proxy contracts don't have these getters, so we need a
 ///         base contract instead.
+
 abstract contract ProxyAdminOwnedBase {
     /// @notice Thrown when the ProxyAdmin owner of the current contract is not the same as the
     ///         ProxyAdmin owner of the other Proxy address provided.
@@ -23,6 +24,12 @@ abstract contract ProxyAdminOwnedBase {
     /// @notice Thrown when the caller is not the ProxyAdmin.
     error ProxyAdminOwnedBase_NotProxyAdmin();
 
+    /// @notice Thrown when the caller is not the ProxyAdmin owner or the ProxyAdmin.
+    error ProxyAdminOwnedBase_NotProxyAdminOrOwner();
+
+    /// @notice Thrown when the ProxyAdmin owner of the current contract is not found.
+    error ProxyAdminOwnedBase_ProxyAdminNotFound();
+
     /// @notice Getter for the owner of the ProxyAdmin.
     function proxyAdminOwner() public view returns (address) {
         return proxyAdmin().owner();
@@ -30,8 +37,20 @@ abstract contract ProxyAdminOwnedBase {
 
     /// @notice Getter for the ProxyAdmin contract that owns this Proxy contract.
     function proxyAdmin() public view returns (IProxyAdmin) {
-        // Get the proxy admin address reading for the reserved slot it has on the Proxy contract.
-        return IProxyAdmin(Storage.getAddress(Constants.PROXY_OWNER_ADDRESS));
+        // First check for a non-zero address in the reserved slot.
+        address proxyAdminAddress = Storage.getAddress(Constants.PROXY_OWNER_ADDRESS);
+        if (proxyAdminAddress != address(0)) {
+            return IProxyAdmin(proxyAdminAddress);
+        }
+
+        // Otherwise, try to read the AddressManager slot.
+        address addressManagerAddress = Storage.getAddress(keccak256(abi.encode(address(this), uint256(1))));
+        if (addressManagerAddress != address(0)) {
+            return IProxyAdmin(IAddressManager(addressManagerAddress).owner());
+        }
+
+        // We should revert here, we couldn't find a non-zero owner address.
+        revert ProxyAdminOwnedBase_ProxyAdminNotFound();
     }
 
     /// @notice Reverts if the ProxyAdmin owner of the current contract is not the same as the
@@ -54,6 +73,12 @@ abstract contract ProxyAdminOwnedBase {
     function _assertOnlyProxyAdmin() internal view {
         if (address(proxyAdmin()) != msg.sender) {
             revert ProxyAdminOwnedBase_NotProxyAdmin();
+        }
+    }
+
+    function _assertOnlyProxyAdminOrOwner() internal view {
+        if (address(proxyAdmin()) != msg.sender && proxyAdminOwner() != msg.sender) {
+            revert ProxyAdminOwnedBase_NotProxyAdminOrOwner();
         }
     }
 }

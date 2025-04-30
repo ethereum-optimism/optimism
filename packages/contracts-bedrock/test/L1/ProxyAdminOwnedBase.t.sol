@@ -103,8 +103,8 @@ contract ProxyAdminOwnedBase_assertOnlyProxyAdmin_Test is ProxyAdminOwnedBase_Te
     /// @notice Tests that the assertOnlyProxyAdmin function does not revert if the caller is the
     ///         ProxyAdmin.
     function test_assertOnlyProxyAdmin_proxyAdmin_succeeds() public {
-        // Prank as the ProxyAdmin owner.
-        vm.prank(proxyAdminOwner);
+        // Prank as the ProxyAdmin.
+        vm.prank(address(proxyAdmin));
 
         // Expect no revert.
         harness.assertOnlyProxyAdmin();

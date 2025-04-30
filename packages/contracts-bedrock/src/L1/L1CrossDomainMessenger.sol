@@ -51,8 +51,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
     function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external reinitializer(initVersion()) {
-        // Initialization transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrOwner();
 
         // Now perform initialization logic.
         systemConfig = _systemConfig;
@@ -63,8 +63,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     /// @notice Upgrades the contract to have a reference to the SystemConfig.
     /// @param _systemConfig The new SystemConfig contract.
     function upgrade(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Upgrade transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrOwner();
 
         // Now perform upgrade logic.
         systemConfig = _systemConfig;

@@ -759,6 +759,7 @@ contract L1StandardBridge_Upgrade_Test is CommonTest {
         ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
 
         // Trigger upgrade().
+        vm.prank(address(l1StandardBridge.proxyAdmin()));
         l1StandardBridge.upgrade(newSystemConfig);
 
         // Verify that the systemConfig was updated.
@@ -780,9 +781,11 @@ contract L1StandardBridge_Upgrade_Test is CommonTest {
         ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
 
         // Trigger first upgrade.
+        vm.prank(address(l1StandardBridge.proxyAdmin()));
         l1StandardBridge.upgrade(newSystemConfig);
 
         // Try to trigger second upgrade.
+        vm.prank(address(l1StandardBridge.proxyAdmin()));
         vm.expectRevert("Initializable: contract is already initialized");
         l1StandardBridge.upgrade(newSystemConfig);
     }

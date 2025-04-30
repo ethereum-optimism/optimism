@@ -447,6 +447,7 @@ contract L1ERC721Bridge_Upgrade_Test is CommonTest {
         ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
 
         // Trigger upgrade().
+        vm.prank(address(l1ERC721Bridge.proxyAdmin()));
         l1ERC721Bridge.upgrade(newSystemConfig);
 
         // Verify that the systemConfig was updated.
@@ -468,9 +469,11 @@ contract L1ERC721Bridge_Upgrade_Test is CommonTest {
         ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
 
         // Trigger first upgrade.
+        vm.prank(address(l1ERC721Bridge.proxyAdmin()));
         l1ERC721Bridge.upgrade(newSystemConfig);
 
         // Try to trigger second upgrade.
+        vm.prank(address(l1ERC721Bridge.proxyAdmin()));
         vm.expectRevert("Initializable: contract is already initialized");
         l1ERC721Bridge.upgrade(newSystemConfig);
     }

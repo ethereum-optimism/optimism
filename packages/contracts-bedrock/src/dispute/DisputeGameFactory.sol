@@ -77,8 +77,8 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     /// @notice Initializes the contract.
     /// @param _owner The owner of the contract.
     function initialize(address _owner) external reinitializer(initVersion()) {
-        // Initialization transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrOwner();
 
         // Now perform initialization logic.
         __Ownable_init();

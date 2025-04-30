@@ -160,7 +160,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.store(address(systemConfig), systemConfig.START_BLOCK_SLOT(), bytes32(uint256(0)));
 
         // Initialize and check that StartBlock updates to current block number
-        vm.prank(systemConfig.owner());
+        vm.prank(address(systemConfig.proxyAdmin()));
         systemConfig.initialize({
             _owner: alice,
             _basefeeScalar: basefeeScalar,
@@ -191,7 +191,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.store(address(systemConfig), systemConfig.START_BLOCK_SLOT(), bytes32(uint256(1)));
 
         // Initialize and check that StartBlock doesn't update
-        vm.prank(systemConfig.owner());
+        vm.prank(address(systemConfig.proxyAdmin()));
         systemConfig.initialize({
             _owner: alice,
             _basefeeScalar: basefeeScalar,
@@ -306,6 +306,7 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
         // Fetch the current gas limit
         uint64 gasLimit = systemConfig.gasLimit();
 
+        vm.prank(address(systemConfig.proxyAdmin()));
         vm.expectRevert(bytes(revertMessage));
         systemConfig.initialize({
             _owner: address(0xdEaD),
@@ -568,6 +569,7 @@ contract SystemConfig_Upgrade_Test is SystemConfig_Init {
         assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
 
         // Trigger upgrade().
+        vm.prank(address(systemConfig.proxyAdmin()));
         systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
 
         // Verify that the initialized slot was updated.
@@ -590,9 +592,11 @@ contract SystemConfig_Upgrade_Test is SystemConfig_Init {
         vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
 
         // Trigger first upgrade.
+        vm.prank(address(systemConfig.proxyAdmin()));
         systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
 
         // Try to trigger second upgrade.
+        vm.prank(address(systemConfig.proxyAdmin()));
         vm.expectRevert("Initializable: contract is already initialized");
         systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
     }
