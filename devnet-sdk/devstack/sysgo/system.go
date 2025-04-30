@@ -79,8 +79,8 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option {
 
 	opt.Add(WithSupervisor(ids.Supervisor, ids.Cluster, ids.L1EL))
 
-	opt.Add(WithL2ELNode(ids.L2AEL, &ids.Supervisor))
-	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor))
+	opt.Add(WithL2ELNode(ids.L2AEL, &ids.Supervisor, true, true))
+	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor, true, true))
 
 	opt.Add(WithL2CLNode(ids.L2ACL, true, ids.L1CL, ids.L1EL, ids.L2AEL))
 	opt.Add(WithL2CLNode(ids.L2BCL, true, ids.L1CL, ids.L1EL, ids.L2BEL))
@@ -128,7 +128,7 @@ func DefaultRedundancyInteropSystem(dest *DefaultRedundancyInteropSystemIDs) sta
 	var parentIds DefaultInteropSystemIDs
 	opt := DefaultInteropSystem(&parentIds)
 
-	opt.Add(WithL2ELNode(ids.L2A2EL, &ids.Supervisor))
+	opt.Add(WithL2ELNode(ids.L2A2EL, &ids.Supervisor, true, true))
 	opt.Add(WithL2CLNode(ids.L2A2CL, false, ids.L1CL, ids.L1EL, ids.L2A2EL))
 
 	// verifier must be also managed or it cannot advance
