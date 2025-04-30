@@ -16,7 +16,7 @@ import { StateDiff } from "scripts/libraries/StateDiff.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/deploy/DeploySuperchain.s.sol";
+import { DeploySuperchain2 } from "scripts/deploy/DeploySuperchain2.s.sol";
 import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.sol";
 import { DeployAltDA2 } from "scripts/deploy/DeployAltDA2.s.sol";
 
@@ -33,7 +33,6 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -226,24 +225,27 @@ contract Deploy is Deployer {
     ///         2. The ProtocolVersions contract
     function deploySuperchain() public {
         console.log("Setting up Superchain");
-        DeploySuperchain ds = new DeploySuperchain();
-        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = ds.etchIOContracts();
 
-        // Set the input values on the input contract.
-        // TODO: when DeployAuthSystem is done, finalSystemOwner should be replaced with the Foundation Upgrades Safe
-        dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
-        dsi.set(dsi.superchainProxyAdminOwner.selector, cfg.finalSystemOwner());
-        dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
-        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.wrap(cfg.requiredProtocolVersion()));
-        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
+        // Deploy the deployment script and populate the struct of the run function's inputs.
+        DeploySuperchain2 ds2 = new DeploySuperchain2();
+        DeploySuperchain2.Input memory dsi = DeploySuperchain2.Input({
+            guardian: cfg.superchainConfigGuardian(),
+            protocolVersionsOwner: cfg.finalSystemOwner(),
+            superchainProxyAdminOwner: cfg.finalSystemOwner(),
+            paused: false,
+            recommendedProtocolVersion: bytes32(cfg.recommendedProtocolVersion()),
+            requiredProtocolVersion: bytes32(cfg.requiredProtocolVersion())
+        });
 
         // Run the deployment script.
-        ds.run(dsi, dso);
-        artifacts.save("SuperchainProxyAdmin", address(dso.superchainProxyAdmin()));
-        artifacts.save("SuperchainConfigProxy", address(dso.superchainConfigProxy()));
-        artifacts.save("SuperchainConfigImpl", address(dso.superchainConfigImpl()));
-        artifacts.save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy()));
-        artifacts.save("ProtocolVersionsImpl", address(dso.protocolVersionsImpl()));
+        DeploySuperchain2.Output memory dso = ds2.run(dsi);
+
+        // Save the deployment artifacts.
+        artifacts.save("SuperchainProxyAdmin", address(dso.superchainProxyAdmin));
+        artifacts.save("SuperchainConfigProxy", address(dso.superchainConfigProxy));
+        artifacts.save("SuperchainConfigImpl", address(dso.superchainConfigImpl));
+        artifacts.save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy));
+        artifacts.save("ProtocolVersionsImpl", address(dso.protocolVersionsImpl));
 
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxies();
