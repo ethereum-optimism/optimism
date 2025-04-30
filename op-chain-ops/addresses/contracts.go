@@ -69,6 +69,7 @@ type OpChainCoreContracts struct {
 	OptimismMintableErc20FactoryProxy common.Address
 	L1StandardBridgeProxy             common.Address
 	L1CrossDomainMessengerProxy       common.Address
+	EthLockboxProxy                   common.Address
 }
 
 type OpChainFaultProofsContracts struct {
@@ -78,7 +79,6 @@ type OpChainFaultProofsContracts struct {
 	PermissionedDisputeGameImpl        common.Address
 	DelayedWethPermissionedGameProxy   common.Address
 	DelayedWethPermissionlessGameProxy common.Address
-	EthLockboxProxy                    common.Address
 }
 
 type OpChainAltDAContracts struct {

@@ -1497,7 +1497,7 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - run:
-          name: compat-sepolia
+          name: Verify Compatibility
           command: |
             make verify-compat
           working_directory: op-program
@@ -1875,21 +1875,17 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-      # TODO(#15353) - Need to regenerate data used in op-program-compat and then reenable this test
-      #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
-#      - op-program-compat:
-#          context:
-#            - circleci-repo-readonly-authenticated-github-token
-#            - discord
+      - op-program-compat:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
       - bedrock-go-tests:
           requires:
             - go-lint
             - cannon-go-lint-and-test
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
-            # TODO(#15353) - Need to regenerate data used in op-program-compat
-            #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
-            # - op-program-compat # Temporarily disable this requirement
+            - op-program-compat
             # Not needed for the devnet but we want to make sure they build successfully
             - cannon-docker-build
             - op-dispute-mon-docker-build

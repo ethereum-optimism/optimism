@@ -989,7 +989,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 computeSalt(_input.l2ChainId, _input.saltMixer, "PermissionedDisputeGame"),
                 encodePermissionedFDGConstructor(
                     IFaultDisputeGame.GameConstructorParams({
-                        gameType: _input.disputeGameType,
+                        gameType: GameTypes.PERMISSIONED_CANNON,
                         absolutePrestate: _input.disputeAbsolutePrestate,
                         maxGameDepth: _input.disputeMaxGameDepth,
                         splitDepth: _input.disputeSplitDepth,
@@ -1334,6 +1334,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
+    /// @dev WARNING: This is a one-way operation. You cannot easily undo this operation without a
+    ///      smart contract upgrade. Do not call this function unless you are 100% confident that
+    ///      you know what you're doing and that you are prepared to fully execute this migration.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public virtual {
         // Check that all of the configs have the same proxy admin owner and prestate.
@@ -1685,9 +1688,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.0.0
+    /// @custom:semver 2.0.1
     function version() public pure virtual returns (string memory) {
-        return "2.0.0";
+        return "2.0.1";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1839,6 +1842,8 @@ contract OPContractsManager is ISemver {
     /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
     /// @param _prestateUpdateInputs The new prestate hash to use
     function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) public {
+        if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
+
         bytes memory data = abi.encodeWithSelector(
             OPContractsManagerGameTypeAdder.updatePrestate.selector, _prestateUpdateInputs, superchainConfig
         );

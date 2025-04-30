@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.25;
 
 // Contracts
 import { ERC20 } from "@solady-v0.0.245/tokens/ERC20.sol";
@@ -21,9 +21,9 @@ import { IERC7802, IERC165 } from "interfaces/L2/IERC7802.sol";
 ///         interacting with this contract.
 abstract contract SuperchainERC20 is ERC20, IERC7802, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1
+    /// @custom:semver 1.0.2
     function version() external view virtual returns (string memory) {
-        return "1.0.1";
+        return "1.0.2";
     }
 
     /// @notice Allows the SuperchainTokenBridge to mint tokens.

@@ -36,6 +36,9 @@ contract SuperFaultDisputeGame_Solvency_Invariant is SuperFaultDisputeGame_Init 
 
         (,,, uint256 rootBond,,,) = gameProxy.claimData(0);
 
+        // Ensure the game creator has locked up the root bond.
+        assertEq(address(this).balance, type(uint96).max - rootBond);
+
         for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
             (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1, 0)));
             assertTrue(success);
@@ -70,10 +73,16 @@ contract SuperFaultDisputeGame_Solvency_Invariant is SuperFaultDisputeGame_Init 
         }
 
         if (gameProxy.status() == GameStatus.DEFENDER_WINS) {
+            // In the event that the defender wins, they receive their bond back. The root claim is never paid out
+            // bonds from claims below it, so the actor that has challenged the root claim (and potentially their)
+            // own receives all of their bonds back.
             assertEq(address(this).balance, type(uint96).max);
-            assertEq(address(actor).balance, actor.totalBonded() - rootBond);
+            assertEq(address(actor).balance, actor.totalBonded());
         } else if (gameProxy.status() == GameStatus.CHALLENGER_WINS) {
-            assertEq(DEFAULT_SENDER.balance, type(uint96).max - rootBond);
+            // If the defender wins, the game creator loses the root bond and the actor receives it. The actor also
+            // is the only party that may have challenged their own claims, so we expect them to receive all of them
+            // back.
+            assertEq(address(this).balance, type(uint96).max - rootBond);
             assertEq(address(actor).balance, actor.totalBonded() + rootBond);
         } else {
             revert("SuperFaultDisputeGame_Solvency_Invariant: unreachable");

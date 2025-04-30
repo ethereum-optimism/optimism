@@ -23,7 +23,7 @@ const (
 	VersionMultiThreaded_v2
 	// VersionMultiThreaded64_v3 includes futex handling simplification
 	VersionMultiThreaded64_v3
-	// VersionMultiThreaded64_v4 is the latest 64-bit multithreaded vm, includes support for new syscall eventfd2
+	// VersionMultiThreaded64_v4 is the latest 64-bit multithreaded vm, includes support for new syscall eventfd2 and dclo/dclz instructions
 	VersionMultiThreaded64_v4
 )
 

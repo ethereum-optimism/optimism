@@ -122,11 +122,12 @@ contract OptimismPortal2_Invariant_Harness is CommonTest {
 
         // Create a dispute game with the output root we've proposed.
         _proposedBlockNumber = 0xFF;
+        GameType respectedGameType = optimismPortal2.respectedGameType();
         IFaultDisputeGame game = IFaultDisputeGame(
             payable(
                 address(
-                    disputeGameFactory.create(
-                        optimismPortal2.respectedGameType(), Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
+                    disputeGameFactory.create{ value: disputeGameFactory.initBonds(respectedGameType) }(
+                        respectedGameType, Claim.wrap(_outputRoot), abi.encode(_proposedBlockNumber)
                     )
                 )
             )

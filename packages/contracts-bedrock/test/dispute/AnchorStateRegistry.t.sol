@@ -206,6 +206,24 @@ contract AnchorStateRegistry_IsGameRegistered_Test is AnchorStateRegistry_Init {
             ),
             abi.encode(address(0), 0)
         );
+
+        // Game should not be registered.
+        assertFalse(anchorStateRegistry.isGameRegistered(gameProxy));
+    }
+
+    /// @notice Tests that isGameRegistered will return false if the game is not using the same
+    ///         AnchorStateRegistry as the one checking the registration.
+    /// @param _anchorStateRegistry The AnchorStateRegistry to use for the test.
+    function test_isGameRegistered_isNotSameAnchorStateRegistry_succeeds(address _anchorStateRegistry) public {
+        // Make sure the AnchorStateRegistry is different.
+        vm.assume(_anchorStateRegistry != address(anchorStateRegistry));
+
+        // Mock the gameProxy's AnchorStateRegistry to be a different address.
+        vm.mockCall(
+            address(gameProxy), abi.encodeCall(gameProxy.anchorStateRegistry, ()), abi.encode(_anchorStateRegistry)
+        );
+
+        // Game should not be registered.
         assertFalse(anchorStateRegistry.isGameRegistered(gameProxy));
     }
 }
@@ -263,7 +281,7 @@ contract AnchorStateRegistry_IsGameRetired_Test is AnchorStateRegistry_Init {
         // Make sure createdAt timestamp is less than or equal to the retirementTimestamp.
         _createdAtTimestamp = uint64(bound(_createdAtTimestamp, 0, anchorStateRegistry.retirementTimestamp()));
 
-        // Mock the respectedGameTypeUpdatedAt call.
+        // Mock the createdAt call.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.createdAt, ()), abi.encode(_createdAtTimestamp));
 
         // Game should be retired.

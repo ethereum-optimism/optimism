@@ -337,6 +337,10 @@ contract Deploy is Deployer {
         IOPContractsManager.DeployInput memory deployInput = getDeployInput();
         IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
 
+        // Store code in the Final system owner address so that it can be used for prank delegatecalls
+        // Store "fe" opcode so that accidental calls to this address revert
+        vm.etch(cfg.finalSystemOwner(), hex"fe");
+
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
         artifacts.save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
         artifacts.save("AddressManager", address(deployOutput.addressManager));
@@ -378,8 +382,6 @@ contract Deploy is Deployer {
         setSuperPermissionedGameImplementation();
         setFastFaultGameImplementation();
         setCannonFaultGameImplementation();
-
-        transferDisputeGameFactoryOwnership();
     }
 
     /// @notice Add AltDA setup to the OP chain
@@ -510,7 +512,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the DataAvailabilityChallenge
-    function initializeDataAvailabilityChallenge() public broadcast {
+    function initializeDataAvailabilityChallenge() public {
         console.log("Upgrading and initializing DataAvailabilityChallenge proxy");
         address dataAvailabilityChallengeProxy = artifacts.mustGetAddress("DataAvailabilityChallengeProxy");
         address dataAvailabilityChallenge = artifacts.mustGetAddress("DataAvailabilityChallengeImpl");
@@ -522,6 +524,7 @@ contract Deploy is Deployer {
         uint256 daResolverRefundPercentage = cfg.daResolverRefundPercentage();
 
         IProxyAdmin proxyAdmin = IProxyAdmin(payable(artifacts.mustGetAddress("ProxyAdmin")));
+        vm.prank(proxyAdmin.owner());
         proxyAdmin.upgradeAndCall({
             _proxy: payable(dataAvailabilityChallengeProxy),
             _implementation: dataAvailabilityChallenge,
@@ -567,25 +570,6 @@ contract Deploy is Deployer {
         // Make sure the ProxyAdmin owner is set to the final system owner.
         owner = proxyAdmin.owner();
         require(owner == finalSystemOwner, "Deploy: ProxyAdmin ownership not transferred to final system owner");
-    }
-
-    /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() public broadcast {
-        console.log("Transferring DisputeGameFactory ownership to Safe");
-        IDisputeGameFactory disputeGameFactory =
-            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address owner = disputeGameFactory.owner();
-        address finalSystemOwner = cfg.finalSystemOwner();
-
-        if (owner != finalSystemOwner) {
-            disputeGameFactory.transferOwnership(finalSystemOwner);
-            console.log("DisputeGameFactory ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkDisputeGameFactory({
-            _contracts: _proxies(),
-            _expectedOwner: finalSystemOwner,
-            _isProxy: true
-        });
     }
 
     ///////////////////////////////////////////////////////////
@@ -638,27 +622,31 @@ contract Deploy is Deployer {
     }
 
     /// @notice Sets the implementation for the `CANNON` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation() public broadcast {
+    function setCannonFaultGameImplementation() public {
         console.log("Setting Cannon FaultDisputeGame implementation");
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
+        address opcm = artifacts.mustGetAddress("OPContractsManager");
+        IProxyAdmin proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
 
-        // Set the Cannon FaultDisputeGame implementation in the factory.
-        _setFaultGameImplementation({
-            _factory: factory,
-            _params: IFaultDisputeGame.GameConstructorParams({
-                gameType: GameTypes.CANNON,
-                absolutePrestate: loadMipsAbsolutePrestate(),
-                maxGameDepth: cfg.faultGameMaxDepth(),
-                splitDepth: cfg.faultGameSplitDepth(),
-                clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
-                weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
-                l2ChainId: cfg.l2ChainID()
-            })
+        IOPContractsManager.AddGameInput[] memory addGameInput = new IOPContractsManager.AddGameInput[](1);
+        addGameInput[0] = IOPContractsManager.AddGameInput({
+            saltMixer: "CannonFaultGame",
+            systemConfig: ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy")),
+            proxyAdmin: proxyAdmin,
+            delayedWETH: IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy")),
+            disputeGameType: GameTypes.CANNON,
+            disputeAbsolutePrestate: loadMipsAbsolutePrestate(),
+            disputeMaxGameDepth: cfg.faultGameMaxDepth(),
+            disputeSplitDepth: cfg.faultGameSplitDepth(),
+            disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
+            disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
+            initialBond: 0.08 ether,
+            vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
+            permissioned: false
         });
+
+        vm.prank(cfg.finalSystemOwner(), true);
+        (bool success,) = opcm.delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (addGameInput)));
+        require(success, "Deploy: Cannon FaultDisputeGame implementation not set");
     }
 
     /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
@@ -863,7 +851,7 @@ contract Deploy is Deployer {
         string memory saltMixer = "salt mixer";
         return IOPContractsManager.DeployInput({
             roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: msg.sender,
+                opChainProxyAdminOwner: cfg.finalSystemOwner(),
                 systemConfigOwner: cfg.finalSystemOwner(),
                 batcher: cfg.batchSenderAddress(),
                 unsafeBlockSigner: cfg.p2pSequencerAddress(),

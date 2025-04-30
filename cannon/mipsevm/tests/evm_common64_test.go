@@ -3,9 +3,12 @@ package tests
 import (
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/stretchr/testify/require"
 )
 
@@ -507,4 +510,78 @@ func TestEVM_SingleStep_Branch64(t *testing.T) {
 	}
 
 	testBranch(t, cases)
+}
+
+func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
+	rsReg := uint32(7)
+	rdReg := uint32(8)
+	cases := []struct {
+		name           string
+		rs             Word
+		funct          uint32
+		expectedResult Word
+	}{
+		// dclo
+		{name: "dclo", rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), expectedResult: Word(64), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FE), expectedResult: Word(63), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0xFF_FF_FF_FF_00_00_00_00), expectedResult: Word(32), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0x80_00_00_00_00_00_00_00), expectedResult: Word(1), funct: 0b10_0101},
+		{name: "dclo", rs: Word(0x0), expectedResult: Word(0), funct: 0b10_0101},
+		// dclz
+		{name: "dclz", rs: Word(0x0), expectedResult: Word(64), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x1), expectedResult: Word(63), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x10_00_00_00), expectedResult: Word(35), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x80_00_00_00), expectedResult: Word(32), funct: 0b10_0100},
+		{name: "dclz", rs: Word(0x80_00_00_00_00_00_00_00), expectedResult: Word(0), funct: 0b10_0100},
+	}
+
+	vmVersions := GetMipsVersionTestCases(t)
+	require.True(t, slices.ContainsFunc(vmVersions, func(v VersionedVMTestCase) bool {
+		features := versions.FeaturesForVersion(v.Version)
+		return features.SupportDclzDclo
+	}), "dclz/dclo feature not tested")
+	require.True(t, slices.ContainsFunc(vmVersions, func(v VersionedVMTestCase) bool {
+		features := versions.FeaturesForVersion(v.Version)
+		return !features.SupportDclzDclo
+	}), "dclz/dclo backwards compatibility feature not tested")
+
+	for _, v := range vmVersions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				// Set up state
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				state := goVm.GetState()
+				insn := 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+				state.GetRegistersRef()[rsReg] = tt.rs
+				step := state.GetStep()
+
+				features := versions.FeaturesForVersion(v.Version)
+				if features.SupportDclzDclo {
+					expected := testutil.NewExpectedState(state)
+					expected.ExpectStep()
+					expected.Registers[rdReg] = tt.expectedResult
+					stepWitness, err := goVm.Step(true)
+					require.NoError(t, err)
+					expected.Validate(t, state)
+					testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+				} else {
+					assertUnsupportedInstruction(t, v, insn, goVm)
+				}
+			})
+		}
+	}
+}
+
+func assertUnsupportedInstruction(t *testing.T, versionedTestCase VersionedVMTestCase, insn uint32, goVm mipsevm.FPVM) {
+	state := goVm.GetState()
+	proofData := versionedTestCase.ProofGenerator(t, goVm.GetState())
+	goPanicMsg := fmt.Sprintf("invalid instruction: %x", insn)
+	require.PanicsWithValue(t, goPanicMsg, func() {
+		_, _ = goVm.Step(
+			false)
+	})
+	errMsg := testutil.CreateErrorStringMatcher("invalid instruction")
+	testutil.AssertEVMReverts(t, state, versionedTestCase.Contracts, nil, proofData, errMsg)
 }

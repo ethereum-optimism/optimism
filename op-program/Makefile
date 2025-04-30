@@ -91,13 +91,28 @@ capture-sepolia-fjord: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-fjord" --l1.head "0x93ba31bf89e54237af6e6564e69d328b2b5202adf643de4cb097431f74f4a6c1" --l2.start "15378256" --l2.end "15378356"
 	tar jcf "$(COMPAT_DIR)/sepolia-fjord.tar.bz" -C "$(COMPAT_DIR)" sepolia-fjord
 
-capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta capture-sepolia-ecotone capture-sepolia-fjord
+capture-sepolia-granite: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-granite" "$(COMPAT_DIR)/sepolia-granite.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-granite" --l1.head "0x4a4e2b07b1cb468f20b37de54308ec70d2a96453e5186b0bf0929bd5b63ca492" --l2.start "15837930" --l2.end "15838030"
+	tar jcf "$(COMPAT_DIR)/sepolia-granite.tar.bz" -C "$(COMPAT_DIR)" sepolia-granite
 
-verify-sepolia-delta: op-program-host op-program-client
-	./scripts/run-compat.sh "sepolia-delta"
+capture-sepolia-holocene: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-holocene" "$(COMPAT_DIR)/sepolia-holocene.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-holocene" --l1.head "0x0fd505af2e97a0cf59232a8615340689ee4dc14d022103f6342ba4fd6b89f066" --l2.start "20415330" --l2.end "20415430"
+	tar jcf "$(COMPAT_DIR)/sepolia-holocene.tar.bz" -C "$(COMPAT_DIR)" sepolia-holocene
+
+capture-sepolia-isthmus: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-isthmus" "$(COMPAT_DIR)/sepolia-isthmus.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-isthmus" --l1.head "0x6ae443d11c3896a458f80905601920f16e6ae6cb34f070db7307195f6e23e58c" --l2.start "26551530" --l2.end "26551630"
+	tar jcf "$(COMPAT_DIR)/sepolia-isthmus.tar.bz" -C "$(COMPAT_DIR)" sepolia-isthmus
+
+capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta capture-sepolia-ecotone capture-sepolia-fjord capture-sepolia-granite capture-sepolia-holocene capture-sepolia-isthmus
 
 verify-mainnet-genesis: op-program-host op-program-client
 	./scripts/run-compat.sh "mainnet-genesis"
+
+verify-sepolia-delta: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-delta"
 
 verify-sepolia-ecotone: op-program-host op-program-client
 	./scripts/run-compat.sh "sepolia-ecotone"
@@ -105,7 +120,16 @@ verify-sepolia-ecotone: op-program-host op-program-client
 verify-sepolia-fjord: op-program-host op-program-client
 	./scripts/run-compat.sh "sepolia-fjord"
 
-verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesis
+verify-sepolia-granite: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-granite"
+
+verify-sepolia-holocene: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-holocene"
+
+verify-sepolia-isthmus: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-isthmus"
+
+verify-compat: verify-mainnet-genesis verify-sepolia-delta verify-sepolia-ecotone verify-sepolia-fjord verify-sepolia-granite verify-sepolia-holocene verify-sepolia-isthmus
 
 analyze-op-program-client: analyze-op-program-client-cannon-multithreaded-64
 
@@ -121,13 +145,21 @@ analyze-op-program-client-cannon-multithreaded-64:
 	op-program-client-riscv \
 	clean \
 	test \
-	capture-goerli-verify \
 	capture-mainnet-genesis \
 	capture-sepolia-delta \
 	capture-sepolia-ecotone \
+	capture-sepolia-fjord \
+	capture-sepolia-granite \
+	capture-sepolia-holocene \
+	capture-sepolia-isthmus \
 	capture-chain-test-data \
-	run-goerli-verify \
-	run-sepolia-verify \
-	run-compat \
+	verify-mainnet-genesis \
+	verify-sepolia-delta \
+	verify-sepolia-ecotone \
+	verify-sepolia-fjord \
+	verify-sepolia-granite \
+	verify-sepolia-holocene \
+	verify-sepolia-isthmus \
+	verify-compat \
 	analyze-op-program-client \
 	analyze-op-program-client-cannon-multithreaded-64

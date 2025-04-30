@@ -178,11 +178,6 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
 contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `setInitBond` function properly sets the init bond for a given `GameType`.
     function test_setInitBond_succeeds() public {
-        // There should be no init bond for the `GameTypes.CANNON` enum value, it has not been set.
-        if (!isForkTest()) {
-            assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 0);
-        }
-
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
         emit InitBondUpdated(GameTypes.CANNON, 1 ether);
 
@@ -191,6 +186,15 @@ contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
 
         // Ensure that the init bond for the `GameTypes.CANNON` enum value is set.
         assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 1 ether);
+
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit InitBondUpdated(GameTypes.CANNON, 2 ether);
+
+        // Set the init bond for the `GameTypes.CANNON` enum value.
+        disputeGameFactory.setInitBond(GameTypes.CANNON, 2 ether);
+
+        // Ensure that the init bond for the `GameTypes.CANNON` enum value is set.
+        assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 2 ether);
     }
 
     /// @dev Tests that the `setInitBond` function reverts when called by a non-owner.

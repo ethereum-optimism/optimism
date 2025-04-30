@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.2.1
+    string public constant version = "1.2.1";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -273,7 +273,8 @@ contract MIPS64 is ISemver {
                 memProofOffset: MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1),
                 insn: insn,
                 opcode: opcode,
-                fun: fun
+                fun: fun,
+                stateVersion: STATE_VERSION
             });
             bool memUpdated;
             uint64 effMemAddr;
@@ -622,7 +623,7 @@ contract MIPS64 is ISemver {
             } else if (syscall_no == sys.SYS_LSEEK) {
                 // ignored
             } else if (syscall_no == sys.SYS_EVENTFD2) {
-                if (STATE_VERSION < 7) {
+                if (!st.featuresForVersion(STATE_VERSION).supportNoopSysEventFd2) {
                     revert("MIPS64: unimplemented syscall");
                 }
             } else {

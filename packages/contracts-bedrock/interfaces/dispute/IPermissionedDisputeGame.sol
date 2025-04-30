@@ -67,7 +67,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
     error GameNotFinalized();
     error GameNotResolved();
     error ReservedGameType();
-
+    error GamePaused();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
 

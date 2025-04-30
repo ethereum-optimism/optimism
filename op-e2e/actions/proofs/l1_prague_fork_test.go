@@ -122,6 +122,9 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 		miner.ActEmptyBlock(t) // block 1
 		miner.ActEmptyBlock(t) // Prague activates here (block 2)
 
+		// Check that Prague is active on L1
+		requirePragueStatusOnL1(true, miner.L1Chain().CurrentBlock())
+
 		// Here's a block with a type 4 deposit transaction, sent to the OptimismPortal
 		miner.ActL1StartBlock(12)(t) // block 3
 		tx, err := actionsHelpers.PrepareSignedSetCodeTx(
@@ -136,9 +139,6 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 		require.NoError(t, err, "failed to send set code tx")
 		miner.ActL1IncludeTx(env.Alice.Address())(t)
 		miner.ActL1EndBlock(t)
-
-		// Check that Prague is active on L1
-		requirePragueStatusOnL1(true, miner.L1Chain().CurrentBlock())
 
 		// Cache safe head before verifier sync
 		safeL2Initial := verifier.SyncStatus().SafeL2

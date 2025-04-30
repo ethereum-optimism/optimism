@@ -75,6 +75,7 @@ type Metadata interface {
 // version can then be supported via multicannon pulling in a specific build and support for it dropped in latest code.
 type FeatureToggles struct {
 	SupportNoopSysEventFd2 bool
+	SupportDclzDclo        bool
 }
 
 type FPVM interface {

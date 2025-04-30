@@ -33,7 +33,9 @@ contract DisputeMonitorHelper_TestInit is CommonTest {
         vm.warp(_timestamp);
 
         // Create the game.
-        disputeGameFactory.create(GameTypes.CANNON, Claim.wrap(_claim), abi.encode(999999));
+        disputeGameFactory.create{ value: disputeGameFactory.initBonds(GameTypes.CANNON) }(
+            GameTypes.CANNON, Claim.wrap(_claim), abi.encode(999999)
+        );
 
         // Get the game index.
         gameIndex_ = disputeGameFactory.gameCount() - 1;
