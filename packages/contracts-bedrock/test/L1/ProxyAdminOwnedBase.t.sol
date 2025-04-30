@@ -2,67 +2,149 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test } from "forge-std/Test.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 // Contracts
 import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 
-// Interfaces
-import { IOwnable } from "interfaces/universal/IOwnable.sol";
+/// @title ProxyAdminOwnedBase_Harness
+/// @notice Contract implementing the abstract `ProxyAdminOwnedBase` contract so we can write unit
+///         tests for the `ProxyAdminOwnedBase` contract.
+contract ProxyAdminOwnedBase_Harness is ProxyAdminOwnedBase {
+    /// @notice Assert that the proxy admin owner of the current contract is the same as the proxy
+    ///         admin owner of the other Proxy address provided.
+    function assertSharedProxyAdminOwner(address _proxy) public view {
+        _assertSharedProxyAdminOwner(_proxy);
+    }
 
-/// @notice Contract implementing the abstract `ProxyAdminOwnedBase` contract so unit tests can be written
-contract ProxyAdminOwned is ProxyAdminOwnedBase {
-    /// @notice For testing purposes, we expose the `_sameProxyAdminOwner` function
-    function forTest_sameProxyAdminOwner(address _proxy) public view returns (bool) {
-        return _sameProxyAdminOwner(_proxy);
+    /// @notice Assert that the caller is the ProxyAdmin.
+    function assertOnlyProxyAdmin() public view {
+        _assertOnlyProxyAdmin();
+    }
+
+    /// @notice Assert that the caller is the ProxyAdmin owner.
+    function assertOnlyProxyAdminOwner() public view {
+        _assertOnlyProxyAdminOwner();
     }
 }
 
-contract ProxyAdminOwnedBaseTest is Test {
-    ProxyAdminOwned public proxyAdminOwned;
-    ProxyAdmin public proxyAdmin;
+contract ProxyAdminOwnedBase_TestInit is CommonTest {
+    /// @notice Harness for the `ProxyAdminOwnedBase` contract.
+    ProxyAdminOwnedBase_Harness public harness;
 
-    address public owner = makeAddr("owner");
+    /// @notice Sets up the test.
+    function setUp() public override {
+        super.setUp();
 
-    function setUp() public {
-        proxyAdmin = new ProxyAdmin(owner);
-        proxyAdminOwned = new ProxyAdminOwned();
+        // Create a new harness
+        harness = new ProxyAdminOwnedBase_Harness();
 
+        // Set the owner of the harness to the ProxyAdmin contract.
         vm.store(
-            address(proxyAdminOwned),
-            bytes32(Constants.PROXY_OWNER_ADDRESS),
-            bytes32(uint256(uint160(address(proxyAdmin))))
+            address(harness), bytes32(Constants.PROXY_OWNER_ADDRESS), bytes32(uint256(uint160(address(proxyAdmin))))
         );
     }
+}
 
-    function _mockAndExpect(address _target, bytes memory _call, bytes memory _return) internal {
-        vm.mockCall(_target, _call, _return);
-        vm.expectCall(_target, _call);
+contract ProxyAdminOwnedBase_proxyAdminOwner_Test is ProxyAdminOwnedBase_TestInit {
+    /// @notice Tests that the proxyAdminOwner function returns the correct owner.
+    function test_proxyAdminOwner_succeeds() public view {
+        assertEq(harness.proxyAdminOwner(), proxyAdminOwner);
     }
+}
 
-    // Test that the `proxyAdminOwner` function returns the correct owner
-    function test_proxyAdminOwner_succeeds() public {
-        vm.expectCall(address(proxyAdmin), abi.encodeCall(IOwnable.owner, ()));
-        assertEq(proxyAdminOwned.proxyAdminOwner(), owner);
+contract ProxyAdminOwnedBase_proxyAdmin_Test is ProxyAdminOwnedBase_TestInit {
+    /// @notice Tests that the proxyAdmin function returns the correct proxy.
+    function test_proxyAdmin_succeeds() public view {
+        assertEq(address(harness.proxyAdmin()), address(proxyAdmin));
     }
+}
 
-    // Test that the `_sameProxyAdminOwner` function returns true if the proxy admin owner owner
-    // of both proxies is the same
-    function test_sameProxyAdminOwner_sameOwner_succeeds(address _proxy) public {
+contract ProxyAdminOwnedBase_assertSharedProxyAdminOwner_Test is ProxyAdminOwnedBase_TestInit {
+    /// @notice Tests that the assertSharedProxyAdminOwner function does not revert if the provided
+    ///         proxy has the same owner as the current contract.
+    function test_assertSharedProxyAdminOwner_sameOwner_succeeds(address _proxy) public {
+        // Assume the provided proxy is not a forge address.
         assumeNotForgeAddress(_proxy);
-        _mockAndExpect(_proxy, abi.encodeCall(ProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(owner));
-        assertEq(proxyAdminOwned.forTest_sameProxyAdminOwner(_proxy), true);
+
+        // Mock the proxyAdminOwner function to return the same owner as the current contract.
+        vm.mockCall(_proxy, abi.encodeCall(ProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(proxyAdminOwner));
+
+        // Expect no revert.
+        harness.assertSharedProxyAdminOwner(_proxy);
     }
 
-    // Test that the `_sameProxyAdminOwner` function returns false if the proxy admin owner of both
-    // proxies is different
-    function test_sameProxyAdminOwner_differentOwner_fails(address _proxy, address _otherProxyOwner) public {
+    /// @notice Tests that the assertSharedProxyAdminOwner function reverts if the proxy admin
+    ///         owner of both proxies is different.
+    function testFuzz_assertSharedProxyAdminOwner_differentOwner_reverts(
+        address _proxy,
+        address _otherProxyOwner
+    )
+        public
+    {
+        // Assume the provided proxy is not a forge address.
         assumeNotForgeAddress(_proxy);
         assumeNotForgeAddress(_otherProxyOwner);
-        vm.assume(_otherProxyOwner != owner);
-        _mockAndExpect(_proxy, abi.encodeCall(ProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(_otherProxyOwner));
-        assertEq(proxyAdminOwned.forTest_sameProxyAdminOwner(_proxy), false);
+
+        // Assume the other proxy owner is not the same as the current owner.
+        vm.assume(_otherProxyOwner != proxyAdminOwner);
+
+        // Mock the proxyAdminOwner function to return the other proxy owner.
+        vm.mockCall(_proxy, abi.encodeCall(ProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(_otherProxyOwner));
+
+        // Expect a revert.
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotSharedProxyAdminOwner.selector);
+        harness.assertSharedProxyAdminOwner(_proxy);
+    }
+}
+
+contract ProxyAdminOwnedBase_assertOnlyProxyAdmin_Test is ProxyAdminOwnedBase_TestInit {
+    /// @notice Tests that the assertOnlyProxyAdmin function does not revert if the caller is the
+    ///         ProxyAdmin.
+    function test_assertOnlyProxyAdmin_proxyAdmin_succeeds() public {
+        // Prank as the ProxyAdmin owner.
+        vm.prank(proxyAdminOwner);
+
+        // Expect no revert.
+        harness.assertOnlyProxyAdmin();
+    }
+
+    /// @notice Tests that the assertOnlyProxyAdmin function reverts if the caller is not the
+    ///         ProxyAdmin.
+    /// @param _sender The address of the sender to test.
+    function test_assertOnlyProxyAdmin_notProxyAdmin_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin.
+        vm.assume(_sender != address(proxyAdmin));
+        vm.prank(_sender);
+
+        // Expect a revert.
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdmin.selector);
+        harness.assertOnlyProxyAdmin();
+    }
+}
+
+contract ProxyAdminOwnedBase_assertOnlyProxyAdminOwner_Test is ProxyAdminOwnedBase_TestInit {
+    /// @notice Tests that the assertOnlyProxyAdminOwner function does not revert if the caller is
+    ///         the ProxyAdmin owner.
+    function test_assertOnlyProxyAdminOwner_proxyAdminOwner_succeeds() public {
+        // Prank as the ProxyAdmin owner.
+        vm.prank(proxyAdminOwner);
+
+        // Expect no revert.
+        harness.assertOnlyProxyAdminOwner();
+    }
+
+    /// @notice Tests that the assertOnlyProxyAdminOwner function reverts if the caller is not the
+    ///         ProxyAdmin owner.
+    /// @param _sender The address of the sender to test.
+    function test_assertOnlyProxyAdminOwner_notProxyAdminOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin owner.
+        vm.assume(_sender != proxyAdminOwner);
+        vm.prank(_sender);
+
+        // Expect a revert.
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
+        harness.assertOnlyProxyAdminOwner();
     }
 }

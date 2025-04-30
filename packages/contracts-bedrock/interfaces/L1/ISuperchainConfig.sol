@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface ISuperchainConfig {
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+
+interface ISuperchainConfig is IProxyAdminOwnedBase {
     enum UpdateType {
         GUARDIAN
     }

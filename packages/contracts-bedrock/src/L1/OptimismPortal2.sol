@@ -238,9 +238,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 4.3.0
+    /// @custom:semver 4.4.0
     function version() public pure virtual returns (string memory) {
-        return "4.3.0";
+        return "4.4.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -290,19 +290,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         external
         reinitializer(initVersion())
     {
-        // Check that this transaction is coming from the ProxyAdmin.
+        // Upgrade transactions must come from the ProxyAdmin.
         _assertOnlyProxyAdmin();
 
-        // Set the anchor state registry.
+        // Now perform upgrade logic.
         anchorStateRegistry = _anchorStateRegistry;
-
-        // Set the ETHLockbox.
         ethLockbox = _ethLockbox;
-
-        // Set the system config.
         systemConfig = _systemConfig;
-
-        // Clear out the old superchainConfig slot.
         spacer_53_1_20 = address(0);
     }
 

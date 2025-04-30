@@ -3,8 +3,9 @@ pragma solidity ^0.8.0;
 
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-interface ISystemConfig {
+interface ISystemConfig is IProxyAdminOwnedBase {
     enum UpdateType {
         BATCHER,
         FEE_SCALARS,

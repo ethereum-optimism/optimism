@@ -330,7 +330,7 @@ contract ETHLockboxTest is CommonTest {
         vm.mockCall(address(_portal), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0)));
 
         // Expect the revert with `DifferentOwner` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentProxyAdminOwner.selector);
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotSharedProxyAdminOwner.selector);
 
         // Call the `authorizePortal` function
         vm.prank(proxyAdminOwner);
@@ -430,8 +430,8 @@ contract ETHLockboxTest is CommonTest {
 
         vm.mockCall(address(_lockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0)));
 
-        // Expect the revert with `ETHLockbox_DifferentProxyAdminOwner` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentProxyAdminOwner.selector);
+        // Expect the revert with `NotSharedProxyAdminOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotSharedProxyAdminOwner.selector);
 
         // Call the `authorizeLockbox` function with the lockbox
         vm.prank(proxyAdminOwner);
@@ -479,8 +479,8 @@ contract ETHLockboxTest is CommonTest {
 
         vm.mockCall(address(_lockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0)));
 
-        // Expect the revert with `ETHLockbox_DifferentProxyAdminOwner` selector
-        vm.expectRevert(IETHLockbox.ETHLockbox_DifferentProxyAdminOwner.selector);
+        // Expect the revert with `NotSharedProxyAdminOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotSharedProxyAdminOwner.selector);
 
         // Call the `migrateLiquidity` function with the lockbox
         vm.prank(proxyAdminOwner);

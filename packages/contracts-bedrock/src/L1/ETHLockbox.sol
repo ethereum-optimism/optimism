@@ -33,9 +33,6 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     /// @notice Thrown when attempting to unlock ETH from the lockbox through a withdrawal transaction.
     error ETHLockbox_NoWithdrawalTransactions();
 
-    /// @notice Thrown when the admin owner of the lockbox is different from the admin owner of the proxy admin.
-    error ETHLockbox_DifferentProxyAdminOwner();
-
     /// @notice Thrown when any authorized portal has a different SuperchainConfig.
     error ETHLockbox_DifferentSuperchainConfig();
 
@@ -76,9 +73,9 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     mapping(IETHLockbox => bool) public authorizedLockboxes;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1
+    /// @custom:semver 1.2.0
     function version() public view virtual returns (string memory) {
-        return "1.1.1";
+        return "1.2.0";
     }
 
     /// @notice Constructs the ETHLockbox contract.
@@ -103,6 +100,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
         // Initialization transactions must come from the ProxyAdmin.
         _assertOnlyProxyAdmin();
 
+        // Now perform initialization logic.
         systemConfig = _systemConfig;
         for (uint256 i; i < _portals.length; i++) {
             _authorizePortal(_portals[i]);

@@ -5,8 +5,9 @@ import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-interface IL1StandardBridge is IStandardBridge {
+interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
 
     error ReinitializableBase_ZeroInitVersion();
 

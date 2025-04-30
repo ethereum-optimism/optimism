@@ -6,13 +6,13 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
 
-interface IETHLockbox is IProxyAdminOwnedBase, ISemver {
+interface IETHLockbox is IProxyAdminOwnedBase, ISemver, IReinitializableBase {
     error ETHLockbox_Unauthorized();
     error ETHLockbox_Paused();
     error ETHLockbox_InsufficientBalance();
     error ETHLockbox_NoWithdrawalTransactions();
-    error ETHLockbox_DifferentProxyAdminOwner();
     error ETHLockbox_DifferentSuperchainConfig();
 
     event Initialized(uint8 version);

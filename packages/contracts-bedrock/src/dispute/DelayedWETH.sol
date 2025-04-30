@@ -30,8 +30,8 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
     /// @notice Returns a withdrawal request for the given address.
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;

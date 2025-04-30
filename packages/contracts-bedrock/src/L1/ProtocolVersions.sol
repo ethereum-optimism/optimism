@@ -43,8 +43,8 @@ contract ProtocolVersions is ProxyAdminOwnedBase, ReinitializableBase, OwnableUp
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice Constructs the ProtocolVersion contract.
     constructor() ReinitializableBase(2) {
