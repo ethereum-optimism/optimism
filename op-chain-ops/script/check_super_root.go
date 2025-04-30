@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -36,6 +35,8 @@ type ChainSettings struct {
 	// EstimatedGenesisTimestamp is the estimated timestamp of the L2 genesis block,
 	// derived from the finalized block and estimated block time
 	EstimatedGenesisTimestamp uint64
+	// TargetBlockNumber is the computed block number to look back for the anchor timestamp
+	TargetBlockNumber *big.Int
 }
 
 // SuperRootMigrator orchestrates the process of calculating a super root
@@ -53,7 +54,7 @@ type SuperRootMigrator struct {
 	// or the user-provided target timestamp.
 	anchorTimestamp uint64
 	// TargetTimestamp is the optional user-provided timestamp to use for the anchor.
-	TargetTimestamp *uint64
+	TargetTimestamp uint64
 	// superRoot is the final calculated super root hash
 	superRoot common.Hash
 	// chainOutputs holds the calculated output root for each chain, ready for super root calculation
@@ -65,11 +66,13 @@ type SuperRootMigrator struct {
 // and an optional target timestamp.
 func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string, targetTimestamp *uint64) (*SuperRootMigrator, error) {
 	if logger == nil {
-		// Default logger if none provided
 		logger = log.New("service", "super-root-migrator")
 	}
 	if len(rpcEndpoints) == 0 {
 		return nil, errors.New("must provide at least one RPC endpoint")
+	}
+	if targetTimestamp == nil {
+		return nil, errors.New("must provide a target timestamp")
 	}
 
 	return &SuperRootMigrator{
@@ -77,7 +80,7 @@ func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string, targetTimest
 		rpcEndpoints:    rpcEndpoints,
 		ethClients:      make(map[string]*ethclient.Client),
 		chainSettings:   make(map[string]*ChainSettings),
-		TargetTimestamp: targetTimestamp, // Store the provided timestamp
+		TargetTimestamp: *targetTimestamp, // Store the provided timestamp
 	}, nil
 }
 
@@ -90,14 +93,14 @@ func (m *SuperRootMigrator) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize clients: %w", err)
 	}
 
+	if err := m.calculateTargetBlockNumbers(ctx); err != nil {
+		return fmt.Errorf("failed to calculate target block numbers: %w", err)
+	}
+
 	if err := m.findAnchorTimestamp(ctx); err != nil {
 		return fmt.Errorf("failed to find anchor timestamp: %w", err)
 	}
 	m.log.Info("Found common anchor timestamp", "timestamp", m.anchorTimestamp)
-
-	if err := m.deriveParamsAndFindTargetBlocks(ctx); err != nil {
-		return fmt.Errorf("failed to derive parameters and find target blocks: %w", err)
-	}
 
 	if err := m.calculateOutputRoots(ctx); err != nil {
 		return fmt.Errorf("failed to calculate output roots: %w", err)
@@ -106,8 +109,6 @@ func (m *SuperRootMigrator) Run(ctx context.Context) error {
 	if err := m.calculateSuperRoot(); err != nil {
 		return fmt.Errorf("failed to calculate super root: %w", err)
 	}
-
-	m.printResults()
 
 	m.log.Info("Super root calculation process finished successfully")
 	return nil
@@ -146,125 +147,124 @@ func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
 	return nil
 }
 
-// findAnchorTimestamp finds the minimum finalized block timestamp across all connected chains
-// if no target timestamp is provided, otherwise uses the target timestamp.
-func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
-	// Check if a target timestamp was provided by the user
-	if m.TargetTimestamp != nil {
-		m.anchorTimestamp = *m.TargetTimestamp
-		m.log.Info("Using user-provided target timestamp as anchor", "timestamp", m.anchorTimestamp)
-		return nil // Skip finalized block check if timestamp is provided
-	}
+func (m *SuperRootMigrator) calculateTargetBlockNumbers(ctx context.Context) error {
+	m.log.Info("Calculating target block numbers...")
 
-	m.log.Info("Finding common anchor timestamp across all chains based on finalized blocks...")
-	var minTimestamp *uint64
-
-	for url, client := range m.ethClients {
-		m.log.Debug("Fetching finalized block header", "url", url)
-		header, err := client.HeaderByNumber(ctx, big.NewInt(rpc.FinalizedBlockNumber.Int64()))
+	for endpoint, client := range m.ethClients {
+		// Get the latest block
+		latestBlock, err := client.BlockByNumber(ctx, nil)
 		if err != nil {
-			return fmt.Errorf("failed to get finalized header from %s: %w", url, err)
+			return fmt.Errorf("failed to get latest block from %s: %w", endpoint, err)
 		}
-		if header == nil {
-			return fmt.Errorf("received nil finalized header from %s", url)
-		}
-		m.log.Debug("Got finalized header", "url", url, "number", header.Number, "timestamp", header.Time)
 
-		if minTimestamp == nil || header.Time < *minTimestamp {
-			timestamp := header.Time
-			minTimestamp = &timestamp
-			m.log.Debug("Updated minimum timestamp", "url", url, "new_min_timestamp", *minTimestamp)
+		// Get the parent block
+		parentBlock, err := client.BlockByNumber(ctx, big.NewInt(latestBlock.Number().Int64()-1))
+		if err != nil {
+			return fmt.Errorf("failed to get parent block from %s: %w", endpoint, err)
 		}
+
+		// Calculate block time (difference in timestamps between latest and parent blocks)
+		blockTime := latestBlock.Time() - parentBlock.Time()
+		if blockTime == 0 {
+			return fmt.Errorf("block time cannot be zero for chain %s", endpoint)
+		}
+
+		// Calculate how many blocks to look back to reach the target timestamp
+		timeDiff := latestBlock.Time() - m.TargetTimestamp
+		blocksToLookBack := (timeDiff / blockTime) + 1
+
+		// Compute the target block number
+		targetBlockNumber := big.NewInt(latestBlock.Number().Int64() - int64(blocksToLookBack))
+
+		// Store the computed values in the chain settings
+		m.chainSettings[endpoint].BlockTime = blockTime
+		m.chainSettings[endpoint].TargetBlockNumber = targetBlockNumber
+
+		m.log.Info("Calculated target block number",
+			"url", endpoint,
+			"blockTime", blockTime,
+			"blocksToLookBack", blocksToLookBack,
+			"targetBlockNumber", targetBlockNumber)
 	}
 
-	if minTimestamp == nil {
-		return errors.New("no valid finalized timestamps found across connected chains")
-	}
-	m.anchorTimestamp = *minTimestamp
-	m.log.Info("Determined common anchor timestamp", "timestamp", m.anchorTimestamp)
+	m.log.Info("Successfully calculated target block numbers for all chains")
 	return nil
 }
 
-// deriveParamsAndFindTargetBlocks derives block time, estimates genesis timestamp,
-// and finds the specific block at or just before the anchor timestamp for each chain.
-func (m *SuperRootMigrator) deriveParamsAndFindTargetBlocks(ctx context.Context) error {
-	m.log.Info("Deriving chain parameters and finding target blocks...")
+// / Find anchor timestamp and blocks associated. Update the chain settings with the actual anchor info
+func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
+	m.log.Info("Finding common anchor timestamp...")
 
-	for url, settings := range m.chainSettings {
-		client := m.ethClients[url]
-		m.log.Debug("Processing chain", "url", url, "chain_id", settings.ChainID)
-
-		latestHeader, err := client.HeaderByNumber(ctx, big.NewInt(rpc.LatestBlockNumber.Int64()))
-		if err != nil {
-			return fmt.Errorf("failed to get finalized block header for %s: %w", url, err)
-		}
-		if latestHeader == nil || latestHeader.Number == nil {
-			return fmt.Errorf("received invalid finalized header for %s", url)
-		}
-		if latestHeader.Number.Sign() <= 0 {
-			// Cannot derive block time if finalized is genesis or block 0
-			return fmt.Errorf("cannot derive block time for %s: finalized block is genesis or block 0", url)
-		} else {
-			latestBlockNumber := latestHeader.Number.Uint64()
-			latestBlocktime := latestHeader.Time
-
-			// Fetch parent of finalized block
-			parentHeader, err := client.HeaderByHash(ctx, latestHeader.ParentHash)
-			if err != nil {
-				return fmt.Errorf("failed to get parent of finalized block for %s: %w", url, err)
-			} else if parentHeader == nil {
-				return fmt.Errorf("parent of finalized block is nil for %s", url)
-			} else if latestBlocktime <= parentHeader.Time {
-				// Timestamps not increasing, indicates issue or maybe 0 block time
-				return fmt.Errorf("finalized block timestamp not greater than parent for %s: finalized=%d, parent=%d", url, latestBlocktime, parentHeader.Time)
-			} else {
-				settings.BlockTime = latestBlocktime - parentHeader.Time
-			}
-
-			// Estimate genesis timestamp (assuming genesis block number 0)
-			// Clamp estimated genesis time to be <= finalized time
-			estGenesisTime := int64(latestBlocktime) - int64(latestBlockNumber*settings.BlockTime)
-			if estGenesisTime < 0 {
-				estGenesisTime = 0 // Genesis time cannot be negative
-			}
-			if uint64(estGenesisTime) > latestBlocktime {
-				settings.EstimatedGenesisTimestamp = latestBlocktime
-			} else {
-				settings.EstimatedGenesisTimestamp = uint64(estGenesisTime)
-			}
-		}
-		m.log.Debug("Derived parameters", "url", url, "block_time", settings.BlockTime, "est_genesis_time", settings.EstimatedGenesisTimestamp)
-
-		// Start search from finalized block, walking backwards
-		currentHeader := latestHeader
-		for currentHeader.Time > m.anchorTimestamp {
-			m.log.Debug("Searching for target block", "url", url, "current_num", currentHeader.Number, "current_time", currentHeader.Time, "anchor_time", m.anchorTimestamp)
-			if currentHeader.Number == nil || currentHeader.Number.Sign() <= 0 {
-				// If we reach block 0 and its time is still > anchor, something is wrong or anchor is before genesis
-				return fmt.Errorf("reached genesis block 0 for %s, but its time %d is still after anchor %d", url, currentHeader.Time, m.anchorTimestamp)
-			}
-
-			parentHeader, err := client.HeaderByHash(ctx, currentHeader.ParentHash)
-			if err != nil {
-				return fmt.Errorf("failed to get parent block for %s during search: %w", url, err)
-			}
-			if parentHeader == nil {
-				return fmt.Errorf("received nil parent block for %s during search", url)
-			}
-
-			// Basic check to prevent infinite loops if timestamps are weird (e.g., constant or decreasing going down)
-			if parentHeader.Time >= currentHeader.Time && currentHeader.Number.Uint64() > 0 {
-				return fmt.Errorf("block timestamps not decreasing during search for %s between block %d (%d) and %d (%d)",
-					url, currentHeader.Number.Uint64(), currentHeader.Time, parentHeader.Number.Uint64(), parentHeader.Time)
-			}
-			currentHeader = parentHeader
-		}
-
-		// After loop, currentHeader.Time <= m.anchorTimestamp
-		settings.TargetBlock = currentHeader
-		m.log.Info("Found target block for chain", "url", url, "chain_id", settings.ChainID, "block_num", settings.TargetBlock.Number, "block_hash", settings.TargetBlock.Hash(), "block_time", settings.TargetBlock.Time)
+	// Initialize block numbers for each chain
+	blockNumbers := make(map[string]*big.Int)
+	for endpoint, settings := range m.chainSettings {
+		blockNumbers[endpoint] = new(big.Int).Set(settings.TargetBlockNumber)
 	}
-	return nil
+
+	// Track the current timestamps for each chain
+	timestamps := make(map[string]uint64)
+
+	// Maximum number of iterations to prevent infinite loops
+	maxIterations := 1000
+	iteration := 0
+
+	for iteration < maxIterations {
+		iteration++
+
+		// Fetch the current block for each chain
+		for endpoint, blockNumber := range blockNumbers {
+			client := m.ethClients[endpoint]
+			block, err := client.BlockByNumber(ctx, blockNumber)
+			if err != nil {
+				return fmt.Errorf("failed to fetch block %v from %s: %w", blockNumber, endpoint, err)
+			}
+			timestamps[endpoint] = block.Time()
+		}
+
+		// Check if all timestamps match
+		var commonTimestamp *uint64
+		for _, timestamp := range timestamps {
+			if commonTimestamp == nil {
+				commonTimestamp = &timestamp
+			} else if timestamp != *commonTimestamp {
+				commonTimestamp = nil
+				break
+			}
+		}
+
+		if commonTimestamp != nil {
+			m.anchorTimestamp = *commonTimestamp
+			m.log.Info("Found common anchor timestamp", "timestamp", m.anchorTimestamp)
+
+			// Record the blocks for each chain that match the anchor timestamp
+			for endpoint, blockNumber := range blockNumbers {
+				client := m.ethClients[endpoint]
+				block, err := client.BlockByNumber(ctx, blockNumber)
+				if err != nil {
+					return fmt.Errorf("failed to fetch block %v from %s: %w", blockNumber, endpoint, err)
+				}
+				m.chainSettings[endpoint].TargetBlock = block.Header()
+				m.log.Info("Recorded block for chain", "url", endpoint, "block_number", blockNumber, "block_hash", block.Hash())
+			}
+
+			return nil
+		}
+
+		// Find the chain with the highest timestamp and walk back one block
+		var maxEndpoint string
+		var maxTimestamp uint64
+		for endpoint, timestamp := range timestamps {
+			if timestamp > maxTimestamp {
+				maxEndpoint = endpoint
+				maxTimestamp = timestamp
+			}
+		}
+
+		// Decrement the block number for the chain with the highest timestamp
+		blockNumbers[maxEndpoint].Sub(blockNumbers[maxEndpoint], big.NewInt(1))
+	}
+
+	return fmt.Errorf("failed to find a common anchor timestamp after %d iterations", maxIterations)
 }
 
 // calculateOutputRoots computes the L2 output root for each chain's target block.
@@ -325,19 +325,4 @@ func (m *SuperRootMigrator) calculateSuperRoot() error {
 
 	m.log.Info("Super root calculated successfully", "super_root", m.superRoot.Hex(), "timestamp", m.anchorTimestamp, "chain_count", len(m.chainOutputs))
 	return nil
-}
-
-// printResults prints the calculated super root and verification inputs.
-func (m *SuperRootMigrator) printResults() {
-	m.log.Info("Printing results...")
-	fmt.Printf("Calculated Super Root: %s\n", m.superRoot.Hex())
-	fmt.Printf("Anchor Timestamp: %d\n", m.anchorTimestamp)
-	fmt.Println("Verification Inputs:")
-	for rpcURL, settings := range m.chainSettings {
-		fmt.Printf("  RPC URL: %s\n", rpcURL)
-		fmt.Printf("    Chain ID: %s\n", settings.ChainID.String())
-		fmt.Printf("    Target Block Number: %d\n", settings.TargetBlock.Number)
-		fmt.Printf("    Target Block Hash: %s\n", settings.TargetBlock.Hash().Hex())
-		fmt.Printf("    Output Root: %s\n", common.Hash(settings.OutputRoot).Hex())
-	}
 }
