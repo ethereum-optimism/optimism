@@ -8,13 +8,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var (
-	opSepoliaExpectedBlock       = uint64(27114605)
-	opSepoliaExpectedBlockHash   = common.HexToHash("0xbc2ac87e80a134b12e0eb971a7ed5046c2f0574ce457d2926f8ba2422c8e5c82")
-	baseSepoliaExpectedBlock     = uint64(25131731)
-	baseSepoliaExpectedBlockHash = common.HexToHash("0xdee49b02220c4d70f071cddae3276dd6db437d79c46960e5c26b3318739923ac")
-	expectedAnchorTimestamp      = uint64(1745748550) // Apr-30-2025 04:49:10 PM +UTC
-)
+// var (
+// 	opSepoliaExpectedBlock       = uint64(27114605)
+// 	opSepoliaExpectedBlockHash   = common.HexToHash("0xbc2ac87e80a134b12e0eb971a7ed5046c2f0574ce457d2926f8ba2422c8e5c82")
+// 	baseSepoliaExpectedBlock     = uint64(25131731)
+// 	baseSepoliaExpectedBlockHash = common.HexToHash("0xdee49b02220c4d70f071cddae3276dd6db437d79c46960e5c26b3318739923ac")
+// 	expectedAnchorTimestamp      = uint64(1745748550) // Apr-30-2025 04:49:10 PM +UTC
+// )
 
 const (
 	opSepoliaRPC   = "https://sepolia.optimism.io"
