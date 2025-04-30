@@ -1318,7 +1318,7 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 	identifier := suptypes.Identifier{
 		Origin:      constants.CrossL2Inbox,
 		BlockNumber: targetNum,
-		LogIndex:    uint32(0),
+		LogIndex:    uint32(0), // tx will emit single ExecutingMessage event to set log index as 0
 		Timestamp:   targetTime,
 		ChainID:     actors.ChainA.ChainID,
 	}
