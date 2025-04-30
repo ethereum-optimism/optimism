@@ -85,8 +85,8 @@ where the write is over the same memory as was last read.
 
 The memory access is specifically:
 - instruction (4 byte) read at `PC`
-- load or syscall mem read, always aligned 4 bytes, read at any `addr`
-- store or syscall mem write, always aligned 4 bytes, at the same `addr`
+- load or syscall mem read, always 8-byte aligned, reading up to 8 bytes at any `addr`
+- store or syscall mem write, always 8-byte aligned, writing up to 8 bytes at the same `addr`
 
 Writing only once, at the last read leaf, also means that the leaf can be safely updated and the same proof-data
 that was used to verify the read, can be used to reconstruct the new `memRoot` of the memory tree,
