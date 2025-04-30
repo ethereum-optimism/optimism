@@ -7,15 +7,11 @@ use jsonrpsee::http_client::{HttpBody, HttpRequest, HttpResponse};
 use std::task::{Context, Poll};
 use std::{future::Future, pin::Pin};
 use tower::{Layer, Service};
-use tracing::debug;
+use tracing::info;
 
-const MULTIPLEX_METHODS: [&str; 4] = [
-    "engine_",
-    "eth_sendRawTransactionConditional",
-    "eth_sendRawTransaction",
-    "miner_",
-];
+const ENGINE_METHOD: &str = "engine_";
 
+/// Requests that should be forwarded to both the builder and default execution client
 const FORWARD_REQUESTS: [&str; 6] = [
     "eth_sendRawTransaction",
     "eth_sendRawTransactionConditional",
@@ -118,28 +114,33 @@ where
                 .method
                 .to_string();
 
-            if MULTIPLEX_METHODS.iter().any(|&m| method.starts_with(m)) {
-                if FORWARD_REQUESTS.contains(&method.as_str()) {
-                    let builder_req =
-                        HttpRequest::from_parts(parts.clone(), HttpBody::from(body_bytes.clone()));
-                    let builder_method = method.clone();
-                    let mut builder_client = service.builder_client.clone();
-                    tokio::spawn(async move {
-                        let _ = builder_client.forward(builder_req, builder_method).await;
-                    });
+            // If the request is an Engine API method, call the inner RollupBoostServer
+            if method.starts_with(ENGINE_METHOD) {
+                let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
+                info!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
+                service.inner.call(req).await.map_err(|e| e.into())
+            } else if FORWARD_REQUESTS.contains(&method.as_str()) {
+                // If the request should be forwarded, send to both the
+                // default execution client and the builder
+                let builder_req =
+                    HttpRequest::from_parts(parts.clone(), HttpBody::from(body_bytes.clone()));
+                let builder_method = method.clone();
+                let mut builder_client = service.builder_client.clone();
+                tokio::spawn(async move {
+                    let _ = builder_client.forward(builder_req, builder_method).await;
+                });
 
-                    let l2_req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
-                    service.l2_client.forward(l2_req, method).await
-                } else {
-                    let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
-                    debug!(target: "proxy::call", message = "proxying request to rollup-boost server", ?method);
-                    service.inner.call(req).await.map_err(|e| e.into())
-                }
+                let l2_req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
+                info!(target: "proxy::call", message = "forward request to default execution client", ?method);
+                service.l2_client.forward(l2_req, method).await
             } else {
+                // If the request should not be forwarded, send directly to the
+                // default execution client
                 let req = HttpRequest::from_parts(parts, HttpBody::from(body_bytes));
                 service.l2_client.forward(req, method).await
             }
         };
+
         Box::pin(fut)
     }
 }
