@@ -12,11 +12,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // BlockBuilder helps txplan to be integrated with intra block building functionality.
@@ -1288,4 +1291,59 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 
 	unsafeHeadNumAfterReorg := targetNum - 1
 	reorgOutUnsafeAndConsolidateToSafeBothChain(t, actors, actors.ChainA, actors.ChainB, 0, 0, targetNum, targetNum, unsafeHeadNumAfterReorg)
+}
+
+// TestExecMsgPointToSelf tests below scenario:
+// Execute msg with identifier pointing to the exec msg itself (payload hash cannot be right)
+func TestExecMsgPointToSelf(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	alice := setupUser(t, is, actors.ChainA, 0)
+
+	actors.ChainA.Sequencer.ActL2EmptyBlock(t)
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+
+	// assume exec message pointing to self land in block number 2
+	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
+	targetNum := uint64(2)
+	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
+
+	// open blocks
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+
+	// manually construct identifier which makes exec message point to itself
+	identifier := suptypes.Identifier{
+		Origin:      constants.CrossL2Inbox,
+		BlockNumber: targetNum,
+		LogIndex:    uint32(0),
+		Timestamp:   targetTime,
+		ChainID:     actors.ChainA.ChainID,
+	}
+	// cannot construct correct payload hash because payload hash preimage contains payload hash itself
+	// we still try to test using dummy payloadHash
+	payloadHash := testutils.RandomHash(rng)
+	message := suptypes.Message{Identifier: identifier, PayloadHash: payloadHash}
+
+	exec := &txintent.ExecTrigger{Executor: constants.CrossL2Inbox, Msg: message}
+	// txintent for executing message pointing to itself
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsA)
+	tx.Content.Set(exec)
+
+	included, err := tx.PlannedTx.IncludedBlock.Eval(t.Ctx())
+	require.NoError(t, err)
+	_, err = tx.PlannedTx.Success.Eval(t.Ctx())
+	require.NoError(t, err)
+
+	// Make sure tx in block sealed at expected time
+	require.Equal(t, included.Time, targetTime)
+	require.Equal(t, included.Number, targetNum)
+
+	// Make batcher happy by advancing at least a single block
+	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
+
+	unsafeHeadNumAfterReorg := targetNum - 1
+	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
 }
