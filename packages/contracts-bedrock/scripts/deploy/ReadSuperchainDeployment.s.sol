@@ -7,9 +7,6 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions, ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
-
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { Solarray } from "scripts/libraries/Solarray.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 
 contract ReadSuperchainDeployment is Script {
