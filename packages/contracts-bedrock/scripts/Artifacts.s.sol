@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeploySuperchain2 } from "scripts/deploy/DeploySuperchain2.s.sol";
 
 /// @notice Represents a deployment. Is serialized to JSON as a key/value
 ///         pair. Can be accessed from within scripts.
@@ -150,6 +151,14 @@ contract Artifacts {
     /// @return The deployment.
     function get(string memory _name) public view returns (Deployment memory) {
         return _namedDeployments[_name];
+    }
+
+    function saveDeploySuperchainOutput(DeploySuperchain2.Output memory _dso) public {
+        save("SuperchainProxyAdmin", address(_dso.superchainProxyAdmin));
+        save("SuperchainConfigProxy", address(_dso.superchainConfigProxy));
+        save("SuperchainConfigImpl", address(_dso.superchainConfigImpl));
+        save("ProtocolVersionsProxy", address(_dso.protocolVersionsProxy));
+        save("ProtocolVersionsImpl", address(_dso.protocolVersionsImpl));
     }
 
     /// @notice Appends a deployment to disk as a JSON deploy artifact.
