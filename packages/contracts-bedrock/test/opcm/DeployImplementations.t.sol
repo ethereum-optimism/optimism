@@ -7,7 +7,7 @@ import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 // Libraries
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
-import { DisputeConstants } from "test/setup/DisputeConstants.sol";
+import {StandardConstants} from "scripts/deploy/StandardConstants.sol";
 
 // Interfaces
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -280,7 +280,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.withdrawalDelaySeconds.selector, 1);
         dii.set(dii.minProposalSizeBytes.selector, 1);
         dii.set(dii.challengePeriodSeconds.selector, 1);
-        dii.set(dii.mipsVersion.selector, DisputeConstants.MIPS_STATE_VERSION);
+        dii.set(dii.mipsVersion.selector, StandardConstants.MIPS_VERSION);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
         dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
@@ -387,7 +387,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
         dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
-        dii.set(dii.mipsVersion.selector, DisputeConstants.MIPS_STATE_VERSION);
+        dii.set(dii.mipsVersion.selector, StandardConstants.MIPS_VERSION);
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
@@ -402,7 +402,7 @@ contract DeployImplementations_Test is Test {
         assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
         assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "400");
         assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "500");
-        assertEq(DisputeConstants.MIPS_STATE_VERSION, dii.mipsVersion(), "512");
+        assertEq(StandardConstants.MIPS_VERSION, dii.mipsVersion(), "512");
         assertEq(release, dii.l1ContractsRelease(), "525");
         assertEq(address(superchainConfigProxy), address(dii.superchainConfigProxy()), "550");
         assertEq(address(protocolVersionsProxy), address(dii.protocolVersionsProxy()), "575");
@@ -424,7 +424,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
         dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
-        dii.set(dii.mipsVersion.selector, DisputeConstants.MIPS_STATE_VERSION);
+        dii.set(dii.mipsVersion.selector, StandardConstants.MIPS_VERSION);
         string memory release = "dev-release";
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));

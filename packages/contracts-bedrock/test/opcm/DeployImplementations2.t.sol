@@ -8,7 +8,7 @@ import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
-import { DisputeConstants } from "test/setup/DisputeConstants.sol";
+import {StandardConstants} from "scripts/deploy/StandardConstants.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -117,7 +117,7 @@ contract DeployImplementations2_Test is Test {
             uint256(_challengePeriodSeconds),
             _proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds,
-            DisputeConstants.MIPS_STATE_VERSION, // mipsVersion
+            StandardConstants.MIPS_VERSION, // mipsVersion
             _l1ContractsRelease,
             superchainConfigProxy,
             protocolVersionsProxy,
@@ -250,7 +250,7 @@ contract DeployImplementations2_Test is Test {
             challengePeriodSeconds,
             proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds,
-            DisputeConstants.MIPS_STATE_VERSION, // mipsVersion
+            StandardConstants.MIPS_VERSION, // mipsVersion
             "dev-release", // l1ContractsRelease
             superchainConfigProxy,
             protocolVersionsProxy,

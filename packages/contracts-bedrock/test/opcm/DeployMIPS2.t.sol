@@ -8,7 +8,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 import { DeployMIPS2 } from "scripts/deploy/DeployMIPS2.s.sol";
 import { MIPS64 } from "src/cannon/MIPS64.sol";
-import { DisputeConstants } from "test/setup/DisputeConstants.sol";
+import {StandardConstants} from "scripts/deploy/StandardConstants.sol";
 
 contract DeployMIPS2_Test is Test {
     DeployMIPS2 deployMIPS;
@@ -23,7 +23,7 @@ contract DeployMIPS2_Test is Test {
 
     function testFuzz_run_mipsVersion2_succeeds(DeployMIPS2.Input memory _input) public {
         vm.assume(address(_input.preimageOracle) != address(0));
-        _input.mipsVersion = DisputeConstants.MIPS_STATE_VERSION;
+        _input.mipsVersion = StandardConstants.MIPS_VERSION;
 
         // Run the deployment script.
         DeployMIPS2.Output memory output1 = deployMIPS.run(_input);
