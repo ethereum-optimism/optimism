@@ -229,7 +229,11 @@ contract Deploy is Deployer {
         DeploySuperchain2.Output memory dso = ds2.run(dsi);
 
         // Save the deployment artifacts.
-        artifacts.saveDeploySuperchainOutput(dso);
+        artifacts.save("SuperchainProxyAdmin", address(dso.superchainProxyAdmin));
+        artifacts.save("SuperchainConfigProxy", address(dso.superchainConfigProxy));
+        artifacts.save("SuperchainConfigImpl", address(dso.superchainConfigImpl));
+        artifacts.save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy));
+        artifacts.save("ProtocolVersionsImpl", address(dso.protocolVersionsImpl));
 
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxies();
