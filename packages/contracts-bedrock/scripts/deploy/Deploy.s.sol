@@ -18,6 +18,7 @@ import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/deploy/DeploySuperchain.s.sol";
 import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.sol";
+import { DeployAltDA2 } from "scripts/deploy/DeployAltDA2.s.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -192,7 +193,23 @@ contract Deploy is Deployer {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
             if (typeHash == keccakHash) {
-                deployOpAltDA();
+                console.log("Deploying OP AltDA");
+
+                DeployAltDA2 da2 = new DeployAltDA2();
+                DeployAltDA2.Input memory dii = DeployAltDA2.Input({
+                    salt: _implSalt(),
+                    proxyAdmin: IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin")),
+                    challengeContractOwner: cfg.finalSystemOwner(),
+                    challengeWindow: cfg.daChallengeWindow(),
+                    resolveWindow: cfg.daResolveWindow(),
+                    bondSize: cfg.daBondSize(),
+                    resolverRefundPercentage: cfg.daResolverRefundPercentage()
+                });
+
+                DeployAltDA2.Output memory dio = da2.run(dii);
+
+                artifacts.save("DataAvailabilityChallengeProxy", address(dio.dataAvailabilityChallengeProxy));
+                artifacts.save("DataAvailabilityChallengeImpl", address(dio.dataAvailabilityChallengeImpl));
             }
         }
 
@@ -374,24 +391,9 @@ contract Deploy is Deployer {
         setCannonFaultGameImplementation();
     }
 
-    /// @notice Add AltDA setup to the OP chain
-    function deployOpAltDA() public {
-        console.log("Deploying OP AltDA");
-        deployDataAvailabilityChallengeProxy();
-        deployDataAvailabilityChallenge();
-        initializeDataAvailabilityChallenge();
-    }
-
     ////////////////////////////////////////////////////////////////
     //                Proxy Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
-
-    /// @notice Deploys an ERC1967Proxy contract with the ProxyAdmin as the owner.
-    /// @param _name The name of the proxy contract to be deployed.
-    /// @return addr_ The address of the deployed proxy contract.
-    function deployERC1967Proxy(string memory _name) public returns (address addr_) {
-        addr_ = deployERC1967ProxyWithOwner(_name, artifacts.mustGetAddress("ProxyAdmin"));
-    }
 
     /// @notice Deploys an ERC1967Proxy contract with a specified owner.
     /// @param _name The name of the proxy contract to be deployed.
@@ -416,42 +418,6 @@ contract Deploy is Deployer {
         );
         require(EIP1967Helper.getAdmin(address(proxy)) == _proxyOwner, "Deploy: EIP1967Proxy admin not set");
         addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the DataAvailabilityChallengeProxy
-    function deployDataAvailabilityChallengeProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = artifacts.mustGetAddress("ProxyAdmin");
-        IProxy proxy = IProxy(
-            DeployUtils.create2AndSave({
-                _save: artifacts,
-                _salt: _implSalt(),
-                _name: "Proxy",
-                _nick: "DataAvailabilityChallengeProxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (proxyAdmin)))
-            })
-        );
-        require(
-            EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin, "Deploy: DataAvailabilityChallengeProxy admin not set"
-        );
-        addr_ = address(proxy);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //             Implementation Deployment Functions            //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Deploy the DataAvailabilityChallenge
-    function deployDataAvailabilityChallenge() public broadcast returns (address addr_) {
-        IDataAvailabilityChallenge dac = IDataAvailabilityChallenge(
-            DeployUtils.create2AndSave({
-                _save: artifacts,
-                _salt: _implSalt(),
-                _name: "DataAvailabilityChallenge",
-                _nick: "DataAvailabilityChallengeImpl",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ()))
-            })
-        );
-        addr_ = address(dac);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -499,45 +465,6 @@ contract Deploy is Deployer {
         console.log("SystemConfig version: %s", version);
 
         ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-    }
-
-    /// @notice Initialize the DataAvailabilityChallenge
-    function initializeDataAvailabilityChallenge() public {
-        console.log("Upgrading and initializing DataAvailabilityChallenge proxy");
-        address dataAvailabilityChallengeProxy = artifacts.mustGetAddress("DataAvailabilityChallengeProxy");
-        address dataAvailabilityChallenge = artifacts.mustGetAddress("DataAvailabilityChallengeImpl");
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        uint256 daChallengeWindow = cfg.daChallengeWindow();
-        uint256 daResolveWindow = cfg.daResolveWindow();
-        uint256 daBondSize = cfg.daBondSize();
-        uint256 daResolverRefundPercentage = cfg.daResolverRefundPercentage();
-
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(artifacts.mustGetAddress("ProxyAdmin")));
-        vm.prank(proxyAdmin.owner());
-        proxyAdmin.upgradeAndCall({
-            _proxy: payable(dataAvailabilityChallengeProxy),
-            _implementation: dataAvailabilityChallenge,
-            _data: abi.encodeCall(
-                IDataAvailabilityChallenge.initialize,
-                (finalSystemOwner, daChallengeWindow, daResolveWindow, daBondSize, daResolverRefundPercentage)
-            )
-        });
-
-        IDataAvailabilityChallenge dac = IDataAvailabilityChallenge(payable(dataAvailabilityChallengeProxy));
-        string memory version = dac.version();
-        console.log("DataAvailabilityChallenge version: %s", version);
-
-        require(dac.owner() == finalSystemOwner, "Deploy: DataAvailabilityChallenge owner not set");
-        require(
-            dac.challengeWindow() == daChallengeWindow, "Deploy: DataAvailabilityChallenge challenge window not set"
-        );
-        require(dac.resolveWindow() == daResolveWindow, "Deploy: DataAvailabilityChallenge resolve window not set");
-        require(dac.bondSize() == daBondSize, "Deploy: DataAvailabilityChallenge bond size not set");
-        require(
-            dac.resolverRefundPercentage() == daResolverRefundPercentage,
-            "Deploy: DataAvailabilityChallenge resolver refund percentage not set"
-        );
     }
 
     ////////////////////////////////////////////////////////////////
