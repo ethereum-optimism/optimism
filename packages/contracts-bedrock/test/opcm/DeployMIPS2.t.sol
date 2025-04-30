@@ -8,7 +8,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 import { DeployMIPS2 } from "scripts/deploy/DeployMIPS2.s.sol";
 import { MIPS64 } from "src/cannon/MIPS64.sol";
-import {StandardConstants} from "scripts/deploy/StandardConstants.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 contract DeployMIPS2_Test is Test {
     DeployMIPS2 deployMIPS;
