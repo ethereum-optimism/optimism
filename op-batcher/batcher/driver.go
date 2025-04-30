@@ -651,10 +651,10 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 	}
 
 	for pb := range pendingBytesUpdated {
-
-		l.throttling.Store(uint64(pb) > l.Config.ThrottleThreshold)
-		if l.throttling.Load() {
-			l.Log.Warn("Throttling loop: pending bytes above threshold, sending throttling updates", "pending_bytes", pb, "threshold", l.Config.ThrottleThreshold, "throttle", l.throttling)
+		throttling := uint64(pb) > l.Config.ThrottleThreshold
+		l.throttling.Store(throttling)
+		if throttling {
+			l.Log.Warn("Throttling loop: pending bytes above threshold, sending throttling updates", "pending_bytes", pb, "threshold", l.Config.ThrottleThreshold, "throttle", throttling)
 		}
 
 		for i, updateChan := range updateChans {
