@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -227,8 +227,10 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Add in an endpoint with no server at all
+			// Add in an endpoint with no server at all, representing an "always down" endpoint
 			urls = append(urls, "http://invalid/")
+
+			t.Log("Throttling endpoints:", urls)
 
 			// Create test BatchSubmitter using the setup function
 			bs, _ := setup(t)
@@ -249,20 +251,62 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			// Start throttling loop in a goroutine
 			go bs.throttlingLoop(&wg, pendingBytesUpdated)
 
-			// Send test data to trigger throttling
-			pendingBytesUpdated <- 20000 // Over threshold, should trigger throttling
-
-			require.EventuallyWithT(t, func(collect *assert.CollectT) {
-				// Check that all endpoints were called
-				for i := range healthyCalls {
-
-					require.Greater(t, healthyCalls[i], 0, "Healthy Server %d should have been called", i)
+			// Simulate block loading by sending perodically on pendingBytesUpdated
+			blockLoadingCtx, cancelBlockLoading := context.WithCancel(context.Background())
+			go func() {
+				// Simulate block loading
+				for range time.NewTicker(100 * time.Millisecond).C {
+					select {
+					case <-blockLoadingCtx.Done():
+						return
+					default:
+						// Simulate block loading
+						pendingBytesUpdated <- 20000 // the value doesn't actually matter for this test
+					}
 				}
-				for i := range unHealthyCalls {
-					require.Greater(t, unHealthyCalls[i], 0, "Unhealthy Server %d should have been called", i)
+			}()
+
+			require.Eventually(t,
+				func() bool {
+					// Check that all endpoints were called
+					for i := range healthyCalls {
+						if healthyCalls[i] == 0 {
+							return false
+						}
+					}
+					for i := range unHealthyCalls {
+						if unHealthyCalls[i] == 0 {
+							return false
+						}
+					}
+					return true
+				}, time.Second*20, time.Millisecond*10, "All endpoints should have been called within 2s")
+
+			// Take one of the healthy servers down, wait 2s and restart. Check it is called again.
+			if len(healthyServers) > 0 {
+				restartedServerCalled := false
+
+				addr := healthyServers[0].Listener.Addr().String()
+				healthyServers[0].Close()
+				time.Sleep(time.Second * 2)
+
+				ln, err := net.Listen("tcp", addr)
+				require.NoError(t, err, "Failed to create new listener for restarted server")
+				healthyServers[0] = &httptest.Server{
+					Listener: ln,
+					Config:   &http.Server{Handler: createHTTPHandler(t, func() { restartedServerCalled = true }, false)},
 				}
-			}, time.Millisecond*2000, time.Millisecond*10, "All endpoints should have been called within 2s")
+				healthyServers[0].Start()
+				t.Log("restarted server at", addr)
+				defer healthyServers[0].Close()
+
+				require.Eventually(t, func() bool {
+					return restartedServerCalled
+				}, time.Second*2, time.Millisecond*10, "Restarted server should have been called within 2s")
+			}
+
 			// Clean up
+			cancelBlockLoading()
 			close(pendingBytesUpdated)
 			cancel()
 			wg.Wait()
