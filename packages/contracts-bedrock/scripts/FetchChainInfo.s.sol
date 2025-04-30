@@ -60,24 +60,27 @@ contract FetchChainInfoInput {
 
 contract FetchChainInfoOutput {
     // contract addresses
-    address internal _addressManager;
+    //  - SuperchainContracts
+    address internal _superchainConfigProxy;
+    //  - ImplementationsContracts
+    address internal _mipsImpl;
+    address internal _preimageOracleImpl;
+    //  - OpChainContracts
+    address internal _addressManagerImpl;
     address internal _l1CrossDomainMessengerProxy;
-    address internal _l1ERC721BridgeProxy;
+    address internal _l1Erc721BridgeProxy;
     address internal _l1StandardBridgeProxy;
     address internal _l2OutputOracleProxy;
-    address internal _optimismMintableERC20FactoryProxy;
+    address internal _optimismMintableErc20FactoryProxy;
     address internal _optimismPortalProxy;
     address internal _systemConfigProxy;
-    address internal _opChainProxyAdmin;
-    address internal _superchainConfig;
+    address internal _opChainProxyAdminImpl;
     address internal _anchorStateRegistryProxy;
-    address internal _delayedWETHPermissionedGameProxy;
-    address internal _delayedWETHPermissionlessGameProxy;
+    address internal _delayedWethPermissionedGameProxy;
+    address internal _delayedWethPermissionlessGameProxy;
     address internal _disputeGameFactoryProxy;
-    address internal _faultDisputeGame;
-    address internal _mips;
-    address internal _permissionedDisputeGame;
-    address internal _preimageOracle;
+    address internal _faultDisputeGameImpl;
+    address internal _permissionedDisputeGameImpl;
 
     // roles
     address internal _systemConfigOwner;
@@ -94,24 +97,28 @@ contract FetchChainInfoOutput {
     GameType internal _respectedGameType;
 
     function set(bytes4 _sel, address _addr) public {
-        if (_sel == this.addressManager.selector) _addressManager = _addr;
+        // SuperchainContracts
+        if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = _addr;
+        //  - ImplementationsContracts
+        else if (_sel == this.mipsImpl.selector) _mipsImpl = _addr;
+        else if (_sel == this.preimageOracleImpl.selector) _preimageOracleImpl = _addr;
+        //  - OpChainContracts
+        else if (_sel == this.addressManagerImpl.selector) _addressManagerImpl = _addr;
         else if (_sel == this.l1CrossDomainMessengerProxy.selector) _l1CrossDomainMessengerProxy = _addr;
-        else if (_sel == this.l1ERC721BridgeProxy.selector) _l1ERC721BridgeProxy = _addr;
+        else if (_sel == this.l1Erc721BridgeProxy.selector) _l1Erc721BridgeProxy = _addr;
         else if (_sel == this.l1StandardBridgeProxy.selector) _l1StandardBridgeProxy = _addr;
         else if (_sel == this.l2OutputOracleProxy.selector) _l2OutputOracleProxy = _addr;
-        else if (_sel == this.optimismMintableERC20FactoryProxy.selector) _optimismMintableERC20FactoryProxy = _addr;
+        else if (_sel == this.optimismMintableErc20FactoryProxy.selector) _optimismMintableErc20FactoryProxy = _addr;
         else if (_sel == this.optimismPortalProxy.selector) _optimismPortalProxy = _addr;
         else if (_sel == this.systemConfigProxy.selector) _systemConfigProxy = _addr;
-        else if (_sel == this.opChainProxyAdmin.selector) _opChainProxyAdmin = _addr;
-        else if (_sel == this.superchainConfig.selector) _superchainConfig = _addr;
+        else if (_sel == this.opChainProxyAdminImpl.selector) _opChainProxyAdminImpl = _addr;
         else if (_sel == this.anchorStateRegistryProxy.selector) _anchorStateRegistryProxy = _addr;
-        else if (_sel == this.delayedWETHPermissionedGameProxy.selector) _delayedWETHPermissionedGameProxy = _addr;
-        else if (_sel == this.delayedWETHPermissionlessGameProxy.selector) _delayedWETHPermissionlessGameProxy = _addr;
+        else if (_sel == this.delayedWethPermissionedGameProxy.selector) _delayedWethPermissionedGameProxy = _addr;
+        else if (_sel == this.delayedWethPermissionlessGameProxy.selector) _delayedWethPermissionlessGameProxy = _addr;
         else if (_sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = _addr;
-        else if (_sel == this.faultDisputeGame.selector) _faultDisputeGame = _addr;
-        else if (_sel == this.mips.selector) _mips = _addr;
-        else if (_sel == this.permissionedDisputeGame.selector) _permissionedDisputeGame = _addr;
-        else if (_sel == this.preimageOracle.selector) _preimageOracle = _addr;
+        else if (_sel == this.faultDisputeGameImpl.selector) _faultDisputeGameImpl = _addr;
+        else if (_sel == this.permissionedDisputeGameImpl.selector) _permissionedDisputeGameImpl = _addr;
+        // roles
         else if (_sel == this.systemConfigOwner.selector) _systemConfigOwner = _addr;
         else if (_sel == this.opChainProxyAdminOwner.selector) _opChainProxyAdminOwner = _addr;
         else if (_sel == this.guardian.selector) _guardian = _addr;
@@ -119,7 +126,7 @@ contract FetchChainInfoOutput {
         else if (_sel == this.proposer.selector) _proposer = _addr;
         else if (_sel == this.unsafeBlockSigner.selector) _unsafeBlockSigner = _addr;
         else if (_sel == this.batchSubmitter.selector) _batchSubmitter = _addr;
-        else revert("FetchChainInfoOutput: unknown address selector");
+        else revert("FetchChainInfoOutput: unknown address selector test");
     }
 
     function set(bytes4 _sel, bool _bool) public {
@@ -133,9 +140,9 @@ contract FetchChainInfoOutput {
         else revert("FetchChainInfoOutput: unknown GameType selector");
     }
 
-    function addressManager() public view returns (address) {
-        require(_addressManager != address(0), "FetchChainInfoOutput: addressManager not set");
-        return _addressManager;
+    function addressManagerImpl() public view returns (address) {
+        require(_addressManagerImpl != address(0), "FetchChainInfoOutput: addressManagerImpl not set");
+        return _addressManagerImpl;
     }
 
     function l1CrossDomainMessengerProxy() public view returns (address) {
@@ -143,9 +150,9 @@ contract FetchChainInfoOutput {
         return _l1CrossDomainMessengerProxy;
     }
 
-    function l1ERC721BridgeProxy() public view returns (address) {
-        require(_l1ERC721BridgeProxy != address(0), "FetchChainInfoOutput: l1ERC721BridgeProxy not set");
-        return _l1ERC721BridgeProxy;
+    function l1Erc721BridgeProxy() public view returns (address) {
+        require(_l1Erc721BridgeProxy != address(0), "FetchChainInfoOutput: l1Erc721BridgeProxy not set");
+        return _l1Erc721BridgeProxy;
     }
 
     function l1StandardBridgeProxy() public view returns (address) {
@@ -158,12 +165,12 @@ contract FetchChainInfoOutput {
         return _l2OutputOracleProxy;
     }
 
-    function optimismMintableERC20FactoryProxy() public view returns (address) {
+    function optimismMintableErc20FactoryProxy() public view returns (address) {
         require(
-            _optimismMintableERC20FactoryProxy != address(0),
-            "FetchChainInfoOutput: optimismMintableERC20FactoryProxy not set"
+            _optimismMintableErc20FactoryProxy != address(0),
+            "FetchChainInfoOutput: optimismMintableErc20FactoryProxy not set"
         );
-        return _optimismMintableERC20FactoryProxy;
+        return _optimismMintableErc20FactoryProxy;
     }
 
     function optimismPortalProxy() public view returns (address) {
@@ -176,14 +183,14 @@ contract FetchChainInfoOutput {
         return _systemConfigProxy;
     }
 
-    function opChainProxyAdmin() public view returns (address) {
-        require(_opChainProxyAdmin != address(0), "FetchChainInfoOutput: opChainProxyAdmin not set");
-        return _opChainProxyAdmin;
+    function opChainProxyAdminImpl() public view returns (address) {
+        require(_opChainProxyAdminImpl != address(0), "FetchChainInfoOutput: opChainProxyAdminImpl not set");
+        return _opChainProxyAdminImpl;
     }
 
-    function superchainConfig() public view returns (address) {
-        require(_superchainConfig != address(0), "FetchChainInfoOutput: superchainConfig not set");
-        return _superchainConfig;
+    function superchainConfigProxy() public view returns (address) {
+        require(_superchainConfigProxy != address(0), "FetchChainInfoOutput: superchainConfigProxy not set");
+        return _superchainConfigProxy;
     }
 
     function anchorStateRegistryProxy() public view returns (address) {
@@ -191,36 +198,36 @@ contract FetchChainInfoOutput {
         return _anchorStateRegistryProxy;
     }
 
-    function delayedWETHPermissionedGameProxy() public view returns (address) {
-        return _delayedWETHPermissionedGameProxy;
+    function delayedWethPermissionedGameProxy() public view returns (address) {
+        return _delayedWethPermissionedGameProxy;
     }
 
-    function delayedWETHPermissionlessGameProxy() public view returns (address) {
-        return _delayedWETHPermissionlessGameProxy;
+    function delayedWethPermissionlessGameProxy() public view returns (address) {
+        return _delayedWethPermissionlessGameProxy;
     }
 
     function disputeGameFactoryProxy() public view returns (address) {
         return _disputeGameFactoryProxy;
     }
 
-    function faultDisputeGame() public view returns (address) {
-        require(_faultDisputeGame != address(0), "FetchChainInfoOutput: faultDisputeGame not set");
-        return _faultDisputeGame;
+    function faultDisputeGameImpl() public view returns (address) {
+        require(_faultDisputeGameImpl != address(0), "FetchChainInfoOutput: faultDisputeGameImpl not set");
+        return _faultDisputeGameImpl;
     }
 
-    function mips() public view returns (address) {
-        require(_mips != address(0), "FetchChainInfoOutput: mips not set");
-        return _mips;
+    function mipsImpl() public view returns (address) {
+        require(_mipsImpl != address(0), "FetchChainInfoOutput: mipsImpl not set");
+        return _mipsImpl;
     }
 
-    function permissionedDisputeGame() public view returns (address) {
-        require(_permissionedDisputeGame != address(0), "FetchChainInfoOutput: permissionedDisputeGame not set");
-        return _permissionedDisputeGame;
+    function permissionedDisputeGameImpl() public view returns (address) {
+        require(_permissionedDisputeGameImpl != address(0), "FetchChainInfoOutput: permissionedDisputeGameImpl not set");
+        return _permissionedDisputeGameImpl;
     }
 
-    function preimageOracle() public view returns (address) {
-        require(_preimageOracle != address(0), "FetchChainInfoOutput: preimageOracle not set");
-        return _preimageOracle;
+    function preimageOracleImpl() public view returns (address) {
+        require(_preimageOracleImpl != address(0), "FetchChainInfoOutput: preimageOracleImpl not set");
+        return _preimageOracleImpl;
     }
 
     function systemConfigOwner() public view returns (address) {
@@ -291,17 +298,17 @@ contract FetchChainInfo is Script {
         address batchSubmitter = _getBatchSubmitter(systemConfigProxy);
         _fo.set(_fo.batchSubmitter.selector, batchSubmitter);
 
-        address opChainProxyAdmin = _getProxyAdmin(systemConfigProxy);
-        _fo.set(_fo.opChainProxyAdmin.selector, opChainProxyAdmin);
+        address opChainProxyAdminImpl = _getProxyAdmin(systemConfigProxy);
+        _fo.set(_fo.opChainProxyAdminImpl.selector, opChainProxyAdminImpl);
 
-        address opChainProxyAdminOwner = IFetcher(opChainProxyAdmin).owner();
+        address opChainProxyAdminOwner = IFetcher(opChainProxyAdminImpl).owner();
         _fo.set(_fo.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
 
-        address l1ERC721BridgeProxy = _getL1ERC721BridgeProxy(systemConfigProxy);
-        _fo.set(_fo.l1ERC721BridgeProxy.selector, l1ERC721BridgeProxy);
+        address l1Erc721BridgeProxy = _getL1ERC721BridgeProxy(systemConfigProxy);
+        _fo.set(_fo.l1Erc721BridgeProxy.selector, l1Erc721BridgeProxy);
 
-        address optimismMintableERC20FactoryProxy = _getOptimismMintableERC20FactoryProxy(systemConfigProxy);
-        _fo.set(_fo.optimismMintableERC20FactoryProxy.selector, optimismMintableERC20FactoryProxy);
+        address optimismMintableErc20FactoryProxy = _getOptimismMintableERC20FactoryProxy(systemConfigProxy);
+        _fo.set(_fo.optimismMintableErc20FactoryProxy.selector, optimismMintableErc20FactoryProxy);
     }
 
     function _processMessengerAndPortal(FetchChainInfoInput _fi, FetchChainInfoOutput _fo) internal {
@@ -311,8 +318,8 @@ contract FetchChainInfo is Script {
         address l1CrossDomainMessengerProxy = IFetcher(l1StandardBridgeProxy).messenger();
         _fo.set(_fo.l1CrossDomainMessengerProxy.selector, l1CrossDomainMessengerProxy);
 
-        address addressManager = _getAddressManager(l1CrossDomainMessengerProxy);
-        _fo.set(_fo.addressManager.selector, addressManager);
+        address addressManagerImpl = _getAddressManager(l1CrossDomainMessengerProxy);
+        _fo.set(_fo.addressManagerImpl.selector, addressManagerImpl);
 
         address optimismPortalProxy = _getOptimismPortalProxy(l1CrossDomainMessengerProxy);
         _fo.set(_fo.optimismPortalProxy.selector, optimismPortalProxy);
@@ -320,8 +327,8 @@ contract FetchChainInfo is Script {
         address guardian = _getGuardian(optimismPortalProxy);
         _fo.set(_fo.guardian.selector, guardian);
 
-        address superchainConfig = _getSuperchainConfig(optimismPortalProxy);
-        _fo.set(_fo.superchainConfig.selector, superchainConfig);
+        address superchainConfigProxy = _getSuperchainConfigProxy(optimismPortalProxy);
+        _fo.set(_fo.superchainConfigProxy.selector, superchainConfigProxy);
     }
 
     function _processFaultProofs(FetchChainInfoOutput _fo) internal {
@@ -352,39 +359,39 @@ contract FetchChainInfo is Script {
         if (disputeGameFactoryProxy != address(0)) {
             _fo.set(_fo.disputeGameFactoryProxy.selector, disputeGameFactoryProxy);
 
-            address permissionedDisputeGame = _getPermissionedDisputeGame(disputeGameFactoryProxy);
-            if (permissionedDisputeGame != address(0)) {
+            address permissionedDisputeGameImpl = _getPermissionedDisputeGame(disputeGameFactoryProxy);
+            if (permissionedDisputeGameImpl != address(0)) {
                 // permissioned fault proofs installed
                 _fo.set(_fo.permissioned.selector, true);
-                _fo.set(_fo.permissionedDisputeGame.selector, permissionedDisputeGame);
+                _fo.set(_fo.permissionedDisputeGameImpl.selector, permissionedDisputeGameImpl);
 
-                address challenger = IFetcher(permissionedDisputeGame).challenger();
+                address challenger = IFetcher(permissionedDisputeGameImpl).challenger();
                 _fo.set(_fo.challenger.selector, challenger);
 
-                address anchorStateRegistryProxy = IFetcher(permissionedDisputeGame).anchorStateRegistry();
+                address anchorStateRegistryProxy = IFetcher(permissionedDisputeGameImpl).anchorStateRegistry();
                 _fo.set(_fo.anchorStateRegistryProxy.selector, anchorStateRegistryProxy);
 
-                address proposer = IFetcher(permissionedDisputeGame).proposer();
+                address proposer = IFetcher(permissionedDisputeGameImpl).proposer();
                 _fo.set(_fo.proposer.selector, proposer);
 
-                address delayedWETHPermissionedGameProxy = _getDelayedWETHProxy(permissionedDisputeGame);
-                _fo.set(_fo.delayedWETHPermissionedGameProxy.selector, delayedWETHPermissionedGameProxy);
+                address delayedWethPermissionedGameProxy = _getDelayedWETHProxy(permissionedDisputeGameImpl);
+                _fo.set(_fo.delayedWethPermissionedGameProxy.selector, delayedWethPermissionedGameProxy);
 
-                address mips = IFetcher(permissionedDisputeGame).vm();
-                _fo.set(_fo.mips.selector, mips);
+                address mipsImpl = IFetcher(permissionedDisputeGameImpl).vm();
+                _fo.set(_fo.mipsImpl.selector, mipsImpl);
 
-                address preimageOracle = IFetcher(mips).oracle();
-                _fo.set(_fo.preimageOracle.selector, preimageOracle);
+                address preimageOracleImpl = IFetcher(mipsImpl).oracle();
+                _fo.set(_fo.preimageOracleImpl.selector, preimageOracleImpl);
             }
 
-            address faultDisputeGame = _getFaultDisputeGame(disputeGameFactoryProxy);
-            if (faultDisputeGame != address(0)) {
+            address faultDisputeGameImpl = _getFaultDisputeGame(disputeGameFactoryProxy);
+            if (faultDisputeGameImpl != address(0)) {
                 // permissionless fault proofs installed
-                _fo.set(_fo.faultDisputeGame.selector, faultDisputeGame);
+                _fo.set(_fo.faultDisputeGameImpl.selector, faultDisputeGameImpl);
                 _fo.set(_fo.permissionless.selector, true);
 
-                address delayedWETHPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGame);
-                _fo.set(_fo.delayedWETHPermissionlessGameProxy.selector, delayedWETHPermissionlessGameProxy);
+                address delayedWethPermissionlessGameProxy = _getDelayedWETHProxy(faultDisputeGameImpl);
+                _fo.set(_fo.delayedWethPermissionlessGameProxy.selector, delayedWethPermissionlessGameProxy);
             }
         } else {
             // some older chains have L2OutputOracle instead of DisputeGameFactory.
@@ -452,9 +459,9 @@ contract FetchChainInfo is Script {
         }
     }
 
-    function _getSuperchainConfig(address _optimismPortalProxy) internal view returns (address) {
-        try IFetcher(_optimismPortalProxy).superchainConfig() returns (address superchainConfig_) {
-            return superchainConfig_;
+    function _getSuperchainConfigProxy(address _optimismPortalProxy) internal view returns (address) {
+        try IFetcher(_optimismPortalProxy).superchainConfig() returns (address superchainConfigProxy_) {
+            return superchainConfigProxy_;
         } catch {
             return address(0);
         }
