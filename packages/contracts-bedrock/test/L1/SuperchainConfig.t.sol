@@ -11,19 +11,26 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
-contract SuperchainConfig_Init_Test is CommonTest {
+/// @title SuperchainConfig Test Init
+/// @notice Test initialization for SuperchainConfig tests.
+contract SuperchainConfig_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         skipIfForkTest("SuperchainConfig_Init_Test: cannot test initialization on forked network");
     }
+}
 
-    /// @dev Tests that initialization sets the correct values. These are defined in CommonTest.sol.
+/// @title SuperchainConfig_Initialize_Test
+/// @notice Test contract for SuperchainConfig `initialize` function.
+contract SuperchainConfig_Initialize_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that initialization sets the correct values. These are defined in
+    ///         CommonTest.sol.
     function test_initialize_unpaused_succeeds() external view {
         assertFalse(superchainConfig.paused(address(this)));
         assertEq(superchainConfig.guardian(), deploy.cfg().superchainConfigGuardian());
     }
 
-    /// @dev Tests that it can be intialized as paused.
+    /// @notice Tests that it can be intialized as paused.
     function test_initialize_paused_succeeds() external {
         IProxy newProxy = IProxy(
             DeployUtils.create1({
@@ -48,8 +55,19 @@ contract SuperchainConfig_Init_Test is CommonTest {
     }
 }
 
-contract SuperchainConfig_Pause_TestFail is CommonTest {
-    /// @dev Tests that `pause` reverts when called by a non-guardian.
+/// @title SuperchainConfig_PauseExpiry_Test
+/// @notice Test contract for SuperchainConfig `pauseExpiry` function.
+contract SuperchainConfig_PauseExpiry_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `pauseExpiry` returns the correct constant value.
+    function test_pauseExpiry_succeeds() external view {
+        assertEq(superchainConfig.pauseExpiry(), 7_884_000);
+    }
+}
+
+/// @title SuperchainConfig_Pause_Test
+/// @notice Test contract for SuperchainConfig `pause` function.
+contract SuperchainConfig_Pause_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `pause` reverts when called by a non-guardian.
     function test_pause_notGuardian_reverts() external {
         assertFalse(superchainConfig.paused(address(this)));
 
@@ -61,7 +79,7 @@ contract SuperchainConfig_Pause_TestFail is CommonTest {
         assertFalse(superchainConfig.paused(address(this)));
     }
 
-    /// @dev Tests that `pause` reverts when the identifier is already used.
+    /// @notice Tests that `pause` reverts when the identifier is already used.
     function test_pause_alreadyUsed_reverts() external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -72,11 +90,8 @@ contract SuperchainConfig_Pause_TestFail is CommonTest {
 
         superchainConfig.pause(address(this));
     }
-}
 
-contract SuperchainConfig_Pause_Test is CommonTest {
-    /// @dev Tests that `pause` successfully pauses
-    ///      when called by the guardian.
+    /// @notice Tests that `pause` successfully pauses when called by the guardian.
     function test_pause_succeeds() external {
         assertFalse(superchainConfig.paused(address(this)));
 
@@ -90,8 +105,10 @@ contract SuperchainConfig_Pause_Test is CommonTest {
     }
 }
 
-contract SuperchainConfig_Unpause_TestFail is CommonTest {
-    /// @dev Tests that `unpause` reverts when called by a non-guardian.
+/// @title SuperchainConfig_Unpause_Test
+/// @notice Test contract for SuperchainConfig `unpause` function.
+contract SuperchainConfig_Unpause_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `unpause` reverts when called by a non-guardian.
     function test_unpause_notGuardian_reverts() external {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -104,11 +121,8 @@ contract SuperchainConfig_Unpause_TestFail is CommonTest {
 
         assertTrue(superchainConfig.paused(address(this)));
     }
-}
 
-contract SuperchainConfig_Unpause_Test is CommonTest {
-    /// @dev Tests that `unpause` successfully unpauses
-    ///      when called by the guardian.
+    /// @notice Tests that `unpause` successfully unpauses when called by the guardian.
     function test_unpause_succeeds() external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -122,8 +136,10 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
     }
 }
 
-contract SuperchainConfig_Extend_Test is CommonTest {
-    /// @dev Tests that `extend` successfully resets and re-pauses an identifier.
+/// @title SuperchainConfig_Extend_Test
+/// @notice Test contract for SuperchainConfig `extend` function.
+contract SuperchainConfig_Extend_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `extend` successfully resets and re-pauses an identifier.
     function test_extend_succeeds() external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -136,7 +152,7 @@ contract SuperchainConfig_Extend_Test is CommonTest {
         assertTrue(superchainConfig.paused(address(this)));
     }
 
-    /// @dev Tests that `extend` reverts when called by a non-guardian.
+    /// @notice Tests that `extend` reverts when called by a non-guardian.
     function test_extend_notGuardian_reverts() external {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -147,30 +163,32 @@ contract SuperchainConfig_Extend_Test is CommonTest {
     }
 }
 
-contract SuperchainConfig_Getters_Test is CommonTest {
-    /// @dev Tests that `pauseExpiry` returns the correct constant value.
-    function test_pauseExpiry_succeeds() external view {
-        assertEq(superchainConfig.pauseExpiry(), 7_884_000);
-    }
-
-    /// @dev Tests that `pausable` returns true when the identifier is not paused.
+/// @title SuperchainConfig_Pausable_Test
+/// @notice Test contract for SuperchainConfig `pausable` function.
+contract SuperchainConfig_Pausable_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `pausable` returns true when the identifier is not paused.
     function test_pausable_notPaused_succeeds() external view {
         assertTrue(superchainConfig.pausable(address(this)));
     }
 
-    /// @dev Tests that `pausable` returns false when the identifier is paused.
+    /// @notice Tests that `pausable` returns false when the identifier is paused.
     function test_pausable_paused_succeeds() external {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
         assertFalse(superchainConfig.pausable(address(this)));
     }
+}
 
-    /// @dev Tests that `expiration` returns 0 when the identifier is not paused.
+/// @title SuperchainConfig_Expiration_Test
+/// @notice Test contract for SuperchainConfig `expiration` function.
+contract SuperchainConfig_Expiration_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `expiration` returns 0 when the identifier is not paused.
     function test_expiration_notPaused_succeeds() external view {
         assertEq(superchainConfig.expiration(address(this)), 0);
     }
 
-    /// @dev Tests that `expiration` returns the correct timestamp when the identifier is paused.
+    /// @notice Tests that `expiration` returns the correct timestamp when the identifier is
+    ///         paused.
     function test_expiration_paused_succeeds() external {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
@@ -178,7 +196,7 @@ contract SuperchainConfig_Getters_Test is CommonTest {
         assertEq(superchainConfig.expiration(address(this)), expectedExpiration);
     }
 
-    /// @dev Tests that `expiration` returns the updated timestamp after extending the pause.
+    /// @notice Tests that `expiration` returns the updated timestamp after extending the pause.
     function test_expiration_afterExtend_succeeds() external {
         vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause(address(this));
