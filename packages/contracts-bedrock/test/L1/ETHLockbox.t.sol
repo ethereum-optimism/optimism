@@ -414,8 +414,8 @@ contract ETHLockboxTest is CommonTest {
     function testFuzz_authorizeLockbox_unauthorized_reverts(address _caller) public {
         vm.assume(_caller != proxyAdminOwner);
 
-        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdmin` selector
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdmin.selector);
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
 
         // Call the `authorizeLockbox` function with an unauthorized caller
         vm.prank(_caller);
