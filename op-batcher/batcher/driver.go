@@ -8,6 +8,7 @@ import (
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -102,9 +103,10 @@ type BatchSubmitter struct {
 	shutdownCtx, killCtx             context.Context
 	cancelShutdownCtx, cancelKillCtx context.CancelFunc
 
-	mutex      sync.Mutex
-	running    bool
-	throttling bool
+	mutex   sync.Mutex
+	running bool
+
+	throttling atomic.Bool // whether the batcher is throttling sequencers and additional endpoints
 
 	txpoolMutex       sync.Mutex // guards txpoolState and txpoolBlockedBlob
 	txpoolState       TxPoolState
@@ -566,13 +568,9 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
 		defer cancel()
 
-		l.mutex.Lock()
-		throttle := l.throttling
-		l.mutex.Unlock()
-
 		maxTxSize := uint64(0)
 		maxBlockSize := l.Config.ThrottleAlwaysBlockSize
-		if throttle {
+		if l.throttling.Load() {
 			maxTxSize = l.Config.ThrottleTxSize
 			if maxBlockSize == 0 || (l.Config.ThrottleBlockSize != 0 && l.Config.ThrottleBlockSize < maxBlockSize) {
 				maxBlockSize = l.Config.ThrottleBlockSize
@@ -653,12 +651,12 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 	}
 
 	for pb := range pendingBytesUpdated {
-		l.mutex.Lock()
-		l.throttling = uint64(pb) > l.Config.ThrottleThreshold
-		if l.throttling {
+
+		l.throttling.Store(uint64(pb) > l.Config.ThrottleThreshold)
+		if l.throttling.Load() {
 			l.Log.Warn("Throttling loop: pending bytes above threshold, sending throttling updates", "pending_bytes", pb, "threshold", l.Config.ThrottleThreshold, "throttle", l.throttling)
 		}
-		l.mutex.Unlock()
+
 		for i, updateChan := range updateChans {
 			select {
 			case updateChan <- struct{}{}:
