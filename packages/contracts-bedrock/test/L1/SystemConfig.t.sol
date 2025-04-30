@@ -16,6 +16,8 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
+/// @title SystemConfig_TestInit
+/// @notice Reusable test initialization for SystemConfig tests.
 contract SystemConfig_TestInit is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
 
@@ -29,6 +31,7 @@ contract SystemConfig_TestInit is CommonTest {
     uint32 basefeeScalar;
     uint32 blobbasefeeScalar;
 
+    /// @notice Sets up the test environment.
     function setUp() public virtual override {
         super.setUp();
         skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
@@ -46,8 +49,8 @@ contract SystemConfig_TestInit is CommonTest {
         optimismMintableERC20Factory = artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy");
     }
 
-    /// @dev Helper to initialize the system config with a resource config and default values, and expect a revert
-    ///      with the given message.
+    /// @notice Helper to initialize the system config with a resource config and default values,
+    ///         and expect a revert with the given message.
     function _initializeWithResourceConfig(
         IResourceMetering.ResourceConfig memory config,
         string memory revertMessage
@@ -82,6 +85,8 @@ contract SystemConfig_TestInit is CommonTest {
     }
 }
 
+/// @title SystemConfig_Version_Test
+/// @notice Test contract for SystemConfig version function.
 contract SystemConfig_Version_Test is SystemConfig_TestInit {
     /// @notice Tests that the version function returns a valid string. We avoid testing the
     ///         specific value of the string as it changes frequently.
@@ -90,8 +95,10 @@ contract SystemConfig_Version_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_Constructor_Test
+/// @notice Test contract for SystemConfig constructor.
 contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
-    /// @dev Tests that constructor sets the correct values.
+    /// @notice Tests that constructor sets the correct values.
     function test_constructor_succeeds() external view {
         ISystemConfig impl = ISystemConfig(systemConfigImpl);
         assertEq(impl.owner(), address(0));
@@ -119,8 +126,9 @@ contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
         assertEq(address(impl.optimismMintableERC20Factory()), address(0));
     }
 }
+
 contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
-    /// @dev Tests that initialization sets the correct values.
+    /// @notice Tests that initialization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
         assertEq(systemConfig.overhead(), 0);
@@ -159,7 +167,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         assertNotEq(systemConfig.l2ChainId(), 0);
     }
 
-    /// @dev Tests that initialization reverts if the gas limit is too low.
+    /// @notice Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
 
@@ -191,12 +199,13 @@ contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
         });
     }
 }
-/// @title SystemConfig_upgrade_Test
+/// @title SystemConfig_Upgrade_Test
 /// @notice Reusable test for the current upgrade() function in the SystemConfig contract. If
 ///         the upgrade() function is changed, tests inside of this contract should be updated to
 ///         reflect the new function. If the upgrade() function is removed, remove the
 ///         corresponding tests but leave this contract in place so it's easy to add tests back
 ///         in the future.
+
 contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
     /// @notice Tests that the upgrade() function succeeds.
     function test_upgrade_succeeds() external {
@@ -261,8 +270,10 @@ contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_StartBlock_Test
+/// @notice Test contract for SystemConfig startBlock function.
 contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
-    /// @dev Tests that startBlock is updated correctly when it's zero.
+    /// @notice Tests that startBlock is updated correctly when it's zero.
     function test_startBlock_update_succeeds() external {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
@@ -293,7 +304,7 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
         assertEq(systemConfig.startBlock(), block.number);
     }
 
-    /// @dev Tests that startBlock is not updated when it's not zero.
+    /// @notice Tests that startBlock is not updated when it's not zero.
     function test_startBlock_update_fails() external {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(systemConfig), bytes32(0), bytes32(0));
@@ -325,8 +336,10 @@ contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_SetUnsafeBlockSigner_Test
+/// @notice Test contract for SystemConfig setUnsafeBlockSigner function.
 contract SystemConfig_SetUnsafeBlockSigner_Test is SystemConfig_TestInit {
-    /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
+    /// @notice Tests that `setUnsafeBlockSigner` updates the block signer successfully.
     function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
         vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(newUnsafeSigner));
@@ -336,15 +349,17 @@ contract SystemConfig_SetUnsafeBlockSigner_Test is SystemConfig_TestInit {
         assertEq(systemConfig.unsafeBlockSigner(), newUnsafeSigner);
     }
 
-    /// @dev Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
+    /// @notice Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
     function test_setUnsafeBlockSigner_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         systemConfig.setUnsafeBlockSigner(address(0x20));
     }
 }
 
+/// @title SystemConfig_SetBatcherHash_Test
+/// @notice Test contract for SystemConfig setBatcherHash function.
 contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
-    /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
+    /// @notice Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(0, ISystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
@@ -354,15 +369,17 @@ contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
         assertEq(systemConfig.batcherHash(), newBatcherHash);
     }
 
-    /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
+    /// @notice Tests that `setBatcherHash` reverts if the caller is not the owner.
     function test_setBatcherHash_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         systemConfig.setBatcherHash(bytes32(hex""));
     }
 }
 
+/// @title SystemConfig_SetGasConfig_Test
+/// @notice Test contract for SystemConfig setGasConfig function.
 contract SystemConfig_SetGasConfig_Test is SystemConfig_TestInit {
-    /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
+    /// @notice Tests that `setGasConfig` updates the overhead and scalar successfully.
     function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
         // always zero out most significant byte
         newScalar = (newScalar << 16) >> 16;
@@ -375,7 +392,7 @@ contract SystemConfig_SetGasConfig_Test is SystemConfig_TestInit {
         assertEq(systemConfig.scalar(), newScalar);
     }
 
-    /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
+    /// @notice Tests that `setGasConfig` reverts if the caller is not the owner.
     function test_setGasConfig_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         systemConfig.setGasConfig(0, 0);
@@ -389,7 +406,11 @@ contract SystemConfig_SetGasConfig_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_SetGasConfigEcotone_Test
+/// @notice Test contract for SystemConfig setGasConfigEcotone function.
 contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
+    /// @notice Tests that `setGasConfigEcotone` updates the basefee scalar and blobbasefee scalar
+    ///         successfully.
     function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
         bytes32 encoded =
             ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
@@ -408,14 +429,17 @@ contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
         assertEq(uint256(blobbbasefeeScalar), uint256(_blobbasefeeScalar));
     }
 
+    /// @notice Tests that `setGasConfigEcotone` reverts if the caller is not the owner.
     function test_setGasConfigEcotone_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         systemConfig.setGasConfigEcotone({ _basefeeScalar: 0, _blobbasefeeScalar: 0 });
     }
 }
 
+/// @title SystemConfig_SetGasLimit_Test
+/// @notice Test contract for SystemConfig setGasLimit function.
 contract SystemConfig_SetGasLimit_Test is SystemConfig_TestInit {
-    /// @dev Tests that `setGasLimit` updates the gas limit successfully.
+    /// @notice Tests that `setGasLimit` updates the gas limit successfully.
     function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
         uint64 maximumGasLimit = systemConfig.maximumGasLimit();
@@ -429,13 +453,13 @@ contract SystemConfig_SetGasLimit_Test is SystemConfig_TestInit {
         assertEq(systemConfig.gasLimit(), newGasLimit);
     }
 
-    /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
+    /// @notice Tests that `setGasLimit` reverts if the caller is not the owner.
     function test_setGasLimit_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         systemConfig.setGasLimit(0);
     }
 
-    /// @dev Tests that `setGasLimit` reverts if the gas limit is too low.
+    /// @notice Tests that `setGasLimit` reverts if the gas limit is too low.
     function test_setGasLimit_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
         vm.prank(systemConfig.owner());
@@ -443,7 +467,7 @@ contract SystemConfig_SetGasLimit_Test is SystemConfig_TestInit {
         systemConfig.setGasLimit(minimumGasLimit - 1);
     }
 
-    /// @dev Tests that `setGasLimit` reverts if the gas limit is too high.
+    /// @notice Tests that `setGasLimit` reverts if the gas limit is too high.
     function test_setGasLimit_highGasLimit_reverts() external {
         uint64 maximumGasLimit = systemConfig.maximumGasLimit();
         vm.prank(systemConfig.owner());
@@ -452,8 +476,10 @@ contract SystemConfig_SetGasLimit_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_SetEIP1559Params_Test
+/// @notice Test contract for SystemConfig setEIP1559Params function.
 contract SystemConfig_SetEIP1559Params_Test is SystemConfig_TestInit {
-    /// @dev Tests that `setEIP1559Params` updates the EIP1559 parameters successfully.
+    /// @notice Tests that `setEIP1559Params` updates the EIP1559 parameters successfully.
     function testFuzz_setEIP1559Params_succeeds(uint32 _denominator, uint32 _elasticity) external {
         _denominator = uint32(bound(_denominator, 2, type(uint32).max));
         _elasticity = uint32(bound(_elasticity, 2, type(uint32).max));
@@ -469,20 +495,20 @@ contract SystemConfig_SetEIP1559Params_Test is SystemConfig_TestInit {
         assertEq(systemConfig.eip1559Elasticity(), _elasticity);
     }
 
-    /// @dev Tests that `setEIP1559Params` reverts if the caller is not the owner.
+    /// @notice Tests that `setEIP1559Params` reverts if the caller is not the owner.
     function test_setEIP1559Params_notOwner_reverts(uint32 _denominator, uint32 _elasticity) external {
         vm.expectRevert("Ownable: caller is not the owner");
         systemConfig.setEIP1559Params({ _denominator: _denominator, _elasticity: _elasticity });
     }
 
-    /// @dev Tests that `setEIP1559Params` reverts if the denominator is zero.
+    /// @notice Tests that `setEIP1559Params` reverts if the denominator is zero.
     function test_setEIP1559Params_zeroDenominator_reverts(uint32 _elasticity) external {
         vm.prank(systemConfig.owner());
         vm.expectRevert("SystemConfig: denominator must be >= 1");
         systemConfig.setEIP1559Params({ _denominator: 0, _elasticity: _elasticity });
     }
 
-    /// @dev Tests that `setEIP1559Params` reverts if the elasticity is zero.
+    /// @notice Tests that `setEIP1559Params` reverts if the elasticity is zero.
     function test_setEIP1559Params_zeroElasticity_reverts(uint32 _denominator) external {
         _denominator = uint32(bound(_denominator, 1, type(uint32).max));
         vm.prank(systemConfig.owner());
@@ -491,9 +517,11 @@ contract SystemConfig_SetEIP1559Params_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_SetResourceConfig_Test
+/// @notice Test contract for SystemConfig setResourceConfig function.
 contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
-    /// @dev Tests that `setResourceConfig` reverts if the min base fee
-    ///      is greater than the maximum allowed base fee.
+    /// @notice Tests that `setResourceConfig` reverts if the min base fee is greater than the
+    ///         maximum allowed base fee.
     function test_setResourceConfig_badMinMax_reverts() external {
         IResourceMetering.ResourceConfig memory config = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -506,8 +534,7 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
         _initializeWithResourceConfig(config, "SystemConfig: min base fee must be less than max base");
     }
 
-    /// @dev Tests that `setResourceConfig` reverts if the baseFeeMaxChangeDenominator
-    ///      is zero.
+    /// @notice Tests that `setResourceConfig` reverts if the baseFeeMaxChangeDenominator is zero.
     function test_setResourceConfig_zeroDenominator_reverts() external {
         IResourceMetering.ResourceConfig memory config = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -520,7 +547,7 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
         _initializeWithResourceConfig(config, "SystemConfig: denominator must be larger than 1");
     }
 
-    /// @dev Tests that `setResourceConfig` reverts if the gas limit is too low.
+    /// @notice Tests that `setResourceConfig` reverts if the gas limit is too low.
     function test_setResourceConfig_lowGasLimit_reverts() external {
         uint64 gasLimit = systemConfig.gasLimit();
 
@@ -535,7 +562,7 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
         _initializeWithResourceConfig(config, "SystemConfig: gas limit too low");
     }
 
-    /// @dev Tests that `setResourceConfig` reverts if the gas limit is too low.
+    /// @notice Tests that `setResourceConfig` reverts if the gas limit is too low.
     function test_setResourceConfig_elasticityMultiplierIs0_reverts() external {
         IResourceMetering.ResourceConfig memory config = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -548,8 +575,8 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
         _initializeWithResourceConfig(config, "SystemConfig: elasticity multiplier cannot be 0");
     }
 
-    /// @dev Tests that `setResourceConfig` reverts if the elasticity multiplier
-    ///      and max resource limit are configured such that there is a loss of precision.
+    /// @notice Tests that `setResourceConfig` reverts if the elasticity multiplier and max
+    ///         resource limit are configured such that there is a loss of precision.
     function test_setResourceConfig_badPrecision_reverts() external {
         IResourceMetering.ResourceConfig memory config = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -563,13 +590,15 @@ contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_Paused_Test
+/// @notice Test contract for SystemConfig paused function.
 contract SystemConfig_Paused_Test is SystemConfig_TestInit {
-    /// @dev Tests that `paused()` returns the correct value.
+    /// @notice Tests that `paused()` returns the correct value.
     function test_paused_succeeds() external view {
         assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
     }
 
-    /// @dev Tests that `paused()` returns the correct value after pausing.
+    /// @notice Tests that `paused()` returns the correct value after pausing.
     function test_paused_afterPause_succeeds() external {
         // Initially not paused
         assertFalse(systemConfig.paused());
@@ -584,7 +613,7 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
         assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
     }
 
-    /// @dev Tests that `paused()` returns true when the ETHLockbox identifier is set.
+    /// @notice Tests that `paused()` returns true when the ETHLockbox identifier is set.
     function test_paused_ethLockboxIdentifier_succeeds() external {
         // Initially not paused
         assertFalse(systemConfig.paused());
@@ -597,7 +626,7 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
         assertTrue(systemConfig.paused());
     }
 
-    /// @dev Tests that `paused()` returns false when any other address is set.
+    /// @notice Tests that `paused()` returns false when any other address is set.
     function test_paused_otherAddress_works() external {
         // Initially not paused
         assertFalse(systemConfig.paused());
@@ -611,16 +640,18 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
     }
 }
 
+/// @title SystemConfig_Guardian_Test
+/// @notice Test contract for SystemConfig guardian function.
 contract SystemConfig_Guardian_Test is SystemConfig_TestInit {
-    /// @dev Tests that `guardian()` returns the correct address.
+    /// @notice Tests that `guardian()` returns the correct address.
     function test_guardian_succeeds() external view {
         assertEq(systemConfig.guardian(), superchainConfig.guardian());
     }
 }
-/// @dev AD - This test is not testing any function directly from SystemConfig
+/// @dev This test is not testing any function directly from SystemConfig
 
 contract SystemConfig_Getters_Test is SystemConfig_TestInit {
-    /// @dev Tests that `superchainConfig()` returns the correct address.
+    /// @notice Tests that `superchainConfig()` returns the correct address.
     function test_superchainConfig_succeeds() external view {
         assertEq(address(systemConfig.superchainConfig()), address(superchainConfig));
     }
