@@ -36,7 +36,7 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
 }
 
-func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option {
+func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID, enableMempoolFilter bool, enableInterop bool) stack.Option {
 	return func(o stack.Orchestrator) {
 		orch := o.(*Orchestrator)
 		require := o.P().Require()
@@ -46,7 +46,7 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 
 		jwtPath, _ := orch.writeDefaultJWT()
 
-		useInterop := l2Net.genesis.Config.InteropTime != nil
+		useInterop := enableInterop
 
 		supervisorRPC := ""
 		if useInterop {
@@ -60,7 +60,7 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 		l2Geth, err := geth.InitL2(id.String(), l2Net.genesis, jwtPath,
 			func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 				ethCfg.InteropMessageRPC = supervisorRPC
-				ethCfg.InteropMempoolFiltering = true // TODO option
+				ethCfg.InteropMempoolFiltering = enableMempoolFilter
 				return nil
 			})
 		require.NoError(err)
