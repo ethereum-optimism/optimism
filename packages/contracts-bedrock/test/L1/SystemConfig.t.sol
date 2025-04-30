@@ -16,11 +16,9 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
-contract SystemConfig_Init is CommonTest {
+contract SystemConfig_TestInit is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
-}
 
-contract SystemConfig_Initialize_Test is SystemConfig_Init {
     address batchInbox;
     address owner;
     bytes32 batcherHash;
@@ -34,6 +32,9 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     function setUp() public virtual override {
         super.setUp();
         skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
+        skipIfOpsRepoTest(
+            "SystemConfig_Init_ResourceConfig: cannot test initialization on superchain ops repo upgrade tests"
+        );
         batchInbox = deploy.cfg().batchInboxAddress();
         owner = deploy.cfg().finalSystemOwner();
         basefeeScalar = deploy.cfg().basefeeScalar();
@@ -45,12 +46,51 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         optimismMintableERC20Factory = artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy");
     }
 
+    /// @dev Helper to initialize the system config with a resource config and default values, and expect a revert
+    ///      with the given message.
+    function _initializeWithResourceConfig(
+        IResourceMetering.ResourceConfig memory config,
+        string memory revertMessage
+    )
+        internal
+    {
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        // Fetch the current gas limit
+        uint64 currentGasLimit = systemConfig.gasLimit();
+
+        vm.expectRevert(bytes(revertMessage));
+        systemConfig.initialize({
+            _owner: address(0xdEaD),
+            _basefeeScalar: 0,
+            _blobbasefeeScalar: 0,
+            _batcherHash: bytes32(0),
+            _gasLimit: currentGasLimit,
+            _unsafeBlockSigner: address(0),
+            _config: config,
+            _batchInbox: address(0),
+            _addresses: ISystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0)
+            }),
+            _l2ChainId: 1234,
+            _superchainConfig: ISuperchainConfig(address(0))
+        });
+    }
+}
+
+contract SystemConfig_Version_Test is SystemConfig_TestInit {
     /// @notice Tests that the version function returns a valid string. We avoid testing the
     ///         specific value of the string as it changes frequently.
     function test_version_succeeds() external view {
         assert(bytes(systemConfig.version()).length > 0);
     }
+}
 
+contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
     /// @dev Tests that constructor sets the correct values.
     function test_constructor_succeeds() external view {
         ISystemConfig impl = ISystemConfig(systemConfigImpl);
@@ -78,7 +118,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(impl.optimismPortal()), address(0));
         assertEq(address(impl.optimismMintableERC20Factory()), address(0));
     }
-
+}
+contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
     /// @dev Tests that initialization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
@@ -117,9 +158,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(addrs.optimismMintableERC20Factory, address(optimismMintableERC20Factory));
         assertNotEq(systemConfig.l2ChainId(), 0);
     }
-}
 
-contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
     /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
@@ -151,7 +190,78 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
             _superchainConfig: ISuperchainConfig(address(0))
         });
     }
+}
+/// @title SystemConfig_upgrade_Test
+/// @notice Reusable test for the current upgrade() function in the SystemConfig contract. If
+///         the upgrade() function is changed, tests inside of this contract should be updated to
+///         reflect the new function. If the upgrade() function is removed, remove the
+///         corresponding tests but leave this contract in place so it's easy to add tests back
+///         in the future.
+contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
 
+        // Set the initialized slot to 0.
+        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial dispute game factory slot is non-zero.
+        // We set a value here since it seems this defaults to zero.
+        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
+        vm.store(address(systemConfig), disputeGameFactorySlot, bytes32(uint256(1)));
+        assertNotEq(systemConfig.disputeGameFactory(), address(0));
+        assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
+
+        // Trigger upgrade().
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
+
+        // Verify that the initialized slot was updated.
+        bytes32 initializedSlotAfter = vm.load(address(systemConfig), bytes32(slot.slot));
+        assertEq(initializedSlotAfter, bytes32(uint256(2)));
+
+        // Verify that the l2ChainId was updated.
+        assertEq(systemConfig.l2ChainId(), 1234);
+
+        // Verify that the dispute game factory address was cleared.
+        assertEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
+
+        // Trigger first upgrade.
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
+
+        // Try to trigger second upgrade.
+        vm.expectRevert("Initializable: contract is already initialized");
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called after initialization.
+    function test_upgrade_afterInitialization_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
+
+        // Slot value should be set to 2 (already initialized).
+        bytes32 initializedSlotBefore = vm.load(address(systemConfig), bytes32(slot.slot));
+        assertEq(initializedSlotBefore, bytes32(uint256(2)));
+
+        // l2ChainId should be non-zero.
+        assertNotEq(systemConfig.l2ChainId(), 0);
+
+        // Try to trigger upgrade().
+        vm.expectRevert("Initializable: contract is already initialized");
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
+    }
+}
+
+contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
     /// @dev Tests that startBlock is updated correctly when it's zero.
     function test_startBlock_update_succeeds() external {
         // Wipe out the initialized slot so the proxy can be initialized again
@@ -215,14 +325,173 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
     }
 }
 
-contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
-    function setUp() public virtual override {
-        super.setUp();
-        skipIfOpsRepoTest(
-            "SystemConfig_Init_ResourceConfig: cannot test initialization on superchain ops repo upgrade tests"
-        );
+contract SystemConfig_SetUnsafeBlockSigner_Test is SystemConfig_TestInit {
+    /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
+    function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(newUnsafeSigner));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setUnsafeBlockSigner(newUnsafeSigner);
+        assertEq(systemConfig.unsafeBlockSigner(), newUnsafeSigner);
     }
 
+    /// @dev Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
+    function test_setUnsafeBlockSigner_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setUnsafeBlockSigner(address(0x20));
+    }
+}
+
+contract SystemConfig_SetBatcherHash_Test is SystemConfig_TestInit {
+    /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
+    function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setBatcherHash(newBatcherHash);
+        assertEq(systemConfig.batcherHash(), newBatcherHash);
+    }
+
+    /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
+    function test_setBatcherHash_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setBatcherHash(bytes32(hex""));
+    }
+}
+
+contract SystemConfig_SetGasConfig_Test is SystemConfig_TestInit {
+    /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
+    function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
+        // always zero out most significant byte
+        newScalar = (newScalar << 16) >> 16;
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(newOverhead, newScalar));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setGasConfig(newOverhead, newScalar);
+        assertEq(systemConfig.overhead(), newOverhead);
+        assertEq(systemConfig.scalar(), newScalar);
+    }
+
+    /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
+    function test_setGasConfig_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setGasConfig(0, 0);
+    }
+
+    /// @notice Ensures that `setGasConfig` reverts if version byte is set.
+    function test_setGasConfig_badValues_reverts() external {
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: scalar exceeds max.");
+        systemConfig.setGasConfig({ _overhead: 0, _scalar: type(uint256).max });
+    }
+}
+
+contract SystemConfig_SetGasConfigEcotone_Test is SystemConfig_TestInit {
+    function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
+        bytes32 encoded =
+            ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(systemConfig.overhead(), encoded));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
+        assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
+        assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
+        assertEq(systemConfig.scalar(), uint256(encoded));
+
+        (uint32 basefeeScalar, uint32 blobbbasefeeScalar) = ffi.decodeScalarEcotone(encoded);
+        assertEq(uint256(basefeeScalar), uint256(_basefeeScalar));
+        assertEq(uint256(blobbbasefeeScalar), uint256(_blobbasefeeScalar));
+    }
+
+    function test_setGasConfigEcotone_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setGasConfigEcotone({ _basefeeScalar: 0, _blobbasefeeScalar: 0 });
+    }
+}
+
+contract SystemConfig_SetGasLimit_Test is SystemConfig_TestInit {
+    /// @dev Tests that `setGasLimit` updates the gas limit successfully.
+    function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
+        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
+        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
+        newGasLimit = uint64(bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(maximumGasLimit)));
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.GAS_LIMIT, abi.encode(newGasLimit));
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setGasLimit(newGasLimit);
+        assertEq(systemConfig.gasLimit(), newGasLimit);
+    }
+
+    /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
+    function test_setGasLimit_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setGasLimit(0);
+    }
+
+    /// @dev Tests that `setGasLimit` reverts if the gas limit is too low.
+    function test_setGasLimit_lowGasLimit_reverts() external {
+        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: gas limit too low");
+        systemConfig.setGasLimit(minimumGasLimit - 1);
+    }
+
+    /// @dev Tests that `setGasLimit` reverts if the gas limit is too high.
+    function test_setGasLimit_highGasLimit_reverts() external {
+        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: gas limit too high");
+        systemConfig.setGasLimit(maximumGasLimit + 1);
+    }
+}
+
+contract SystemConfig_SetEIP1559Params_Test is SystemConfig_TestInit {
+    /// @dev Tests that `setEIP1559Params` updates the EIP1559 parameters successfully.
+    function testFuzz_setEIP1559Params_succeeds(uint32 _denominator, uint32 _elasticity) external {
+        _denominator = uint32(bound(_denominator, 2, type(uint32).max));
+        _elasticity = uint32(bound(_elasticity, 2, type(uint32).max));
+
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(
+            0, ISystemConfig.UpdateType.EIP_1559_PARAMS, abi.encode(uint256(_denominator) << 32 | uint64(_elasticity))
+        );
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setEIP1559Params(_denominator, _elasticity);
+        assertEq(systemConfig.eip1559Denominator(), _denominator);
+        assertEq(systemConfig.eip1559Elasticity(), _elasticity);
+    }
+
+    /// @dev Tests that `setEIP1559Params` reverts if the caller is not the owner.
+    function test_setEIP1559Params_notOwner_reverts(uint32 _denominator, uint32 _elasticity) external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setEIP1559Params({ _denominator: _denominator, _elasticity: _elasticity });
+    }
+
+    /// @dev Tests that `setEIP1559Params` reverts if the denominator is zero.
+    function test_setEIP1559Params_zeroDenominator_reverts(uint32 _elasticity) external {
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: denominator must be >= 1");
+        systemConfig.setEIP1559Params({ _denominator: 0, _elasticity: _elasticity });
+    }
+
+    /// @dev Tests that `setEIP1559Params` reverts if the elasticity is zero.
+    function test_setEIP1559Params_zeroElasticity_reverts(uint32 _denominator) external {
+        _denominator = uint32(bound(_denominator, 1, type(uint32).max));
+        vm.prank(systemConfig.owner());
+        vm.expectRevert("SystemConfig: elasticity must be >= 1");
+        systemConfig.setEIP1559Params({ _denominator: _denominator, _elasticity: 0 });
+    }
+}
+
+contract SystemConfig_SetResourceConfig_Test is SystemConfig_TestInit {
     /// @dev Tests that `setResourceConfig` reverts if the min base fee
     ///      is greater than the maximum allowed base fee.
     function test_setResourceConfig_badMinMax_reverts() external {
@@ -292,212 +561,9 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
         });
         _initializeWithResourceConfig(config, "SystemConfig: precision loss with target resource limit");
     }
-
-    /// @dev Helper to initialize the system config with a resource config and default values, and expect a revert
-    ///      with the given message.
-    function _initializeWithResourceConfig(
-        IResourceMetering.ResourceConfig memory config,
-        string memory revertMessage
-    )
-        internal
-    {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(systemConfig), bytes32(0), bytes32(0));
-        // Fetch the current gas limit
-        uint64 gasLimit = systemConfig.gasLimit();
-
-        vm.expectRevert(bytes(revertMessage));
-        systemConfig.initialize({
-            _owner: address(0xdEaD),
-            _basefeeScalar: 0,
-            _blobbasefeeScalar: 0,
-            _batcherHash: bytes32(0),
-            _gasLimit: gasLimit,
-            _unsafeBlockSigner: address(0),
-            _config: config,
-            _batchInbox: address(0),
-            _addresses: ISystemConfig.Addresses({
-                l1CrossDomainMessenger: address(0),
-                l1ERC721Bridge: address(0),
-                l1StandardBridge: address(0),
-                optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
-            }),
-            _l2ChainId: 1234,
-            _superchainConfig: ISuperchainConfig(address(0))
-        });
-    }
 }
 
-contract SystemConfig_Setters_TestFail is SystemConfig_Init {
-    /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
-    function test_setBatcherHash_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setBatcherHash(bytes32(hex""));
-    }
-
-    /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
-    function test_setGasConfig_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setGasConfig(0, 0);
-    }
-
-    /// @notice Ensures that `setGasConfig` reverts if version byte is set.
-    function test_setGasConfig_badValues_reverts() external {
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: scalar exceeds max.");
-        systemConfig.setGasConfig({ _overhead: 0, _scalar: type(uint256).max });
-    }
-
-    function test_setGasConfigEcotone_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setGasConfigEcotone({ _basefeeScalar: 0, _blobbasefeeScalar: 0 });
-    }
-
-    /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
-    function test_setGasLimit_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setGasLimit(0);
-    }
-
-    /// @dev Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
-    function test_setUnsafeBlockSigner_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setUnsafeBlockSigner(address(0x20));
-    }
-
-    /// @dev Tests that `setGasLimit` reverts if the gas limit is too low.
-    function test_setGasLimit_lowGasLimit_reverts() external {
-        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: gas limit too low");
-        systemConfig.setGasLimit(minimumGasLimit - 1);
-    }
-
-    /// @dev Tests that `setGasLimit` reverts if the gas limit is too high.
-    function test_setGasLimit_highGasLimit_reverts() external {
-        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: gas limit too high");
-        systemConfig.setGasLimit(maximumGasLimit + 1);
-    }
-
-    /// @dev Tests that `setEIP1559Params` reverts if the caller is not the owner.
-    function test_setEIP1559Params_notOwner_reverts(uint32 _denominator, uint32 _elasticity) external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        systemConfig.setEIP1559Params({ _denominator: _denominator, _elasticity: _elasticity });
-    }
-
-    /// @dev Tests that `setEIP1559Params` reverts if the denominator is zero.
-    function test_setEIP1559Params_zeroDenominator_reverts(uint32 _elasticity) external {
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: denominator must be >= 1");
-        systemConfig.setEIP1559Params({ _denominator: 0, _elasticity: _elasticity });
-    }
-
-    /// @dev Tests that `setEIP1559Params` reverts if the elasticity is zero.
-    function test_setEIP1559Params_zeroElasticity_reverts(uint32 _denominator) external {
-        _denominator = uint32(bound(_denominator, 1, type(uint32).max));
-        vm.prank(systemConfig.owner());
-        vm.expectRevert("SystemConfig: elasticity must be >= 1");
-        systemConfig.setEIP1559Params({ _denominator: _denominator, _elasticity: 0 });
-    }
-}
-
-contract SystemConfig_Setters_Test is SystemConfig_Init {
-    /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
-    function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setBatcherHash(newBatcherHash);
-        assertEq(systemConfig.batcherHash(), newBatcherHash);
-    }
-
-    /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
-    function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
-        // always zero out most significant byte
-        newScalar = (newScalar << 16) >> 16;
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(newOverhead, newScalar));
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setGasConfig(newOverhead, newScalar);
-        assertEq(systemConfig.overhead(), newOverhead);
-        assertEq(systemConfig.scalar(), newScalar);
-    }
-
-    function testFuzz_setGasConfigEcotone_succeeds(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) external {
-        bytes32 encoded =
-            ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
-
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(systemConfig.overhead(), encoded));
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
-        assertEq(systemConfig.basefeeScalar(), _basefeeScalar);
-        assertEq(systemConfig.blobbasefeeScalar(), _blobbasefeeScalar);
-        assertEq(systemConfig.scalar(), uint256(encoded));
-
-        (uint32 basefeeScalar, uint32 blobbbasefeeScalar) = ffi.decodeScalarEcotone(encoded);
-        assertEq(uint256(basefeeScalar), uint256(_basefeeScalar));
-        assertEq(uint256(blobbbasefeeScalar), uint256(_blobbasefeeScalar));
-    }
-
-    /// @dev Tests that `setGasLimit` updates the gas limit successfully.
-    function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
-        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
-        uint64 maximumGasLimit = systemConfig.maximumGasLimit();
-        newGasLimit = uint64(bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(maximumGasLimit)));
-
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.GAS_LIMIT, abi.encode(newGasLimit));
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setGasLimit(newGasLimit);
-        assertEq(systemConfig.gasLimit(), newGasLimit);
-    }
-
-    /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
-    function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(newUnsafeSigner));
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setUnsafeBlockSigner(newUnsafeSigner);
-        assertEq(systemConfig.unsafeBlockSigner(), newUnsafeSigner);
-    }
-
-    /// @dev Tests that `setEIP1559Params` updates the EIP1559 parameters successfully.
-    function testFuzz_setEIP1559Params_succeeds(uint32 _denominator, uint32 _elasticity) external {
-        _denominator = uint32(bound(_denominator, 2, type(uint32).max));
-        _elasticity = uint32(bound(_elasticity, 2, type(uint32).max));
-
-        vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(
-            0, ISystemConfig.UpdateType.EIP_1559_PARAMS, abi.encode(uint256(_denominator) << 32 | uint64(_elasticity))
-        );
-
-        vm.prank(systemConfig.owner());
-        systemConfig.setEIP1559Params(_denominator, _elasticity);
-        assertEq(systemConfig.eip1559Denominator(), _denominator);
-        assertEq(systemConfig.eip1559Elasticity(), _elasticity);
-    }
-}
-
-contract SystemConfig_Getters_Test is SystemConfig_Init {
-    /// @dev Tests that `superchainConfig()` returns the correct address.
-    function test_superchainConfig_succeeds() external view {
-        assertEq(address(systemConfig.superchainConfig()), address(superchainConfig));
-    }
-
-    /// @dev Tests that `guardian()` returns the correct address.
-    function test_guardian_succeeds() external view {
-        assertEq(systemConfig.guardian(), superchainConfig.guardian());
-    }
-
+contract SystemConfig_Paused_Test is SystemConfig_TestInit {
     /// @dev Tests that `paused()` returns the correct value.
     function test_paused_succeeds() external view {
         assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
@@ -545,72 +611,17 @@ contract SystemConfig_Getters_Test is SystemConfig_Init {
     }
 }
 
-/// @title SystemConfig_upgrade_Test
-/// @notice Reusable test for the current upgrade() function in the SystemConfig contract. If
-///         the upgrade() function is changed, tests inside of this contract should be updated to
-///         reflect the new function. If the upgrade() function is removed, remove the
-///         corresponding tests but leave this contract in place so it's easy to add tests back
-///         in the future.
-contract SystemConfig_Upgrade_Test is SystemConfig_Init {
-    /// @notice Tests that the upgrade() function succeeds.
-    function test_upgrade_succeeds() external {
-        // Get the slot for _initialized.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
-
-        // Set the initialized slot to 0.
-        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
-
-        // Verify the initial dispute game factory slot is non-zero.
-        // We set a value here since it seems this defaults to zero.
-        bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-        vm.store(address(systemConfig), disputeGameFactorySlot, bytes32(uint256(1)));
-        assertNotEq(systemConfig.disputeGameFactory(), address(0));
-        assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
-
-        // Trigger upgrade().
-        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
-
-        // Verify that the initialized slot was updated.
-        bytes32 initializedSlotAfter = vm.load(address(systemConfig), bytes32(slot.slot));
-        assertEq(initializedSlotAfter, bytes32(uint256(2)));
-
-        // Verify that the l2ChainId was updated.
-        assertEq(systemConfig.l2ChainId(), 1234);
-
-        // Verify that the dispute game factory address was cleared.
-        assertEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
+contract SystemConfig_Guardian_Test is SystemConfig_TestInit {
+    /// @dev Tests that `guardian()` returns the correct address.
+    function test_guardian_succeeds() external view {
+        assertEq(systemConfig.guardian(), superchainConfig.guardian());
     }
+}
+/// @dev AD - This test is not testing any function directly from SystemConfig
 
-    /// @notice Tests that the upgrade() function reverts if called a second time.
-    function test_upgrade_upgradeTwice_reverts() external {
-        // Get the slot for _initialized.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
-
-        // Set the initialized slot to 0.
-        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
-
-        // Trigger first upgrade.
-        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
-
-        // Try to trigger second upgrade.
-        vm.expectRevert("Initializable: contract is already initialized");
-        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
-    }
-
-    /// @notice Tests that the upgrade() function reverts if called after initialization.
-    function test_upgrade_afterInitialization_reverts() external {
-        // Get the slot for _initialized.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
-
-        // Slot value should be set to 2 (already initialized).
-        bytes32 initializedSlotBefore = vm.load(address(systemConfig), bytes32(slot.slot));
-        assertEq(initializedSlotBefore, bytes32(uint256(2)));
-
-        // l2ChainId should be non-zero.
-        assertNotEq(systemConfig.l2ChainId(), 0);
-
-        // Try to trigger upgrade().
-        vm.expectRevert("Initializable: contract is already initialized");
-        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
+contract SystemConfig_Getters_Test is SystemConfig_TestInit {
+    /// @dev Tests that `superchainConfig()` returns the correct address.
+    function test_superchainConfig_succeeds() external view {
+        assertEq(address(systemConfig.superchainConfig()), address(superchainConfig));
     }
 }
