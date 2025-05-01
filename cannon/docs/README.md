@@ -104,7 +104,7 @@ The data is loaded into `PreimageOracle.sol` using the respective loading functi
 And then retrieved during execution of the `read` syscall.
 
 Note that although the oracle provides up to 32 bytes of the pre-image,
-Cannon only supports reading at most 4 bytes at a time, to unify the memory operations with regular load/stores.
+Cannon only supports reading up to 8 bytes at a time, to unify the memory operations with regular load/stores.
 
 
 ## Usage in Dispute Game
