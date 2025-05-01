@@ -548,6 +548,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     function upgrade(
         ISuperchainConfig _superchainConfig,
         IProxyAdmin _superchainProxyAdmin,
+        IProtocolVersions _protocolVersions,
         OPContractsManager.OpChainConfig[] memory _opChainConfigs
     )
         external
@@ -568,12 +569,23 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             );
         }
 
+        // If the ProtocolVersions contract is not already upgraded, upgrade it. NOTE that this
+        // type of upgrade means that chains can ONLY be upgraded via this OPCM contract if they
+        // use the same ProtocolVersions contract.
+        if (_superchainProxyAdmin.getProxyImplementation(address(_protocolVersions)) != impls.protocolVersionsImpl) {
+            // Attempt to upgrade. If the ProxyAdmin is not the ProtocolVersions's admin, this will revert.
+            upgradeTo(_superchainProxyAdmin, address(_protocolVersions), impls.protocolVersionsImpl);
+        }
+
         // Loop through each chain and upgrade.
         for (uint256 i = 0; i < _opChainConfigs.length; i++) {
             assertValidOpChainConfig(_opChainConfigs[i]);
 
             // Use the SystemConfig to grab the DisputeGameFactory address.
             IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfigs[i].systemConfigProxy.disputeGameFactory());
+
+            // Need to upgrade the DisputeGameFactory implementation, no internal upgrade call.
+            upgradeTo(_opChainConfigs[i].proxyAdmin, address(dgf), impls.disputeGameFactoryImpl);
 
             // All chains have the PermissionedDisputeGame, grab that.
             IPermissionedDisputeGame permissionedDisputeGame =
@@ -1831,7 +1843,8 @@ contract OPContractsManager is ISemver {
         }
 
         bytes memory data = abi.encodeCall(
-            OPContractsManagerUpgrader.upgrade, (superchainConfig, superchainProxyAdmin, _opChainConfigs)
+            OPContractsManagerUpgrader.upgrade,
+            (superchainConfig, superchainProxyAdmin, protocolVersions, _opChainConfigs)
         );
         _performDelegateCall(address(opcmUpgrader), data);
     }
