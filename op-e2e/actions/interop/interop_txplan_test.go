@@ -2,6 +2,7 @@ package interop
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"testing"
 
@@ -1346,4 +1347,220 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 
 	unsafeHeadNumAfterReorg := targetNum - 1
 	reorgOutUnsafeAndConsolidateToSafe(t, actors, actors.ChainB, actors.ChainA, 0, 0, 1, targetNum, unsafeHeadNumAfterReorg)
+}
+
+// TestInvalidRandomGraph tests below scenario:
+// Construct random graphs of messages, with cycles or invalid executing messages
+func TestInvalidRandomGraph(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	rng := rand.New(rand.NewSource(1234))
+
+	is := dsl.SetupInterop(t)
+	actors := is.CreateActors()
+	actors.PrepareChainState(t)
+	alice := setupUser(t, is, actors.ChainA, 0)
+	bob := setupUser(t, is, actors.ChainB, 0)
+
+	// deploy eventLogger for each chain
+	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
+	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
+	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
+
+	assertHeads(t, actors.ChainA, 1, 0, 0, 0)
+	assertHeads(t, actors.ChainB, 1, 0, 0, 0)
+
+	eventLoggerAddresses := []common.Address{eventLoggerAddressA, eventLoggerAddressB}
+	chains := []*dsl.Chain{actors.ChainA, actors.ChainB}
+	users := []*userWithKeys{alice, bob}
+	nonces := []uint64{0, 0}
+
+	// paramters for building directed acyclic graph
+	blockCnt := 10
+	L2ChainCnt := 2
+	maxTxCntPerBlock := 15
+	// execMsgDensity controls the density of exec message txs for overall blocks
+	execMsgDensity := 0.01
+	require.Greater(t, blockCnt, 1)
+	require.Greater(t, L2ChainCnt, 1)
+	require.Greater(t, maxTxCntPerBlock, 2)
+
+	// build directed acyclic graph
+	// each vertex represents message
+	type vertex struct {
+		chainIdx  int
+		blockNum  int
+		msgIdx    int
+		vertexIdx int
+		init      *txintent.InitTrigger
+		exec      *txintent.ExecTrigger
+	}
+	type edge struct {
+		tail *vertex
+		head *vertex
+	}
+	genKey := func(chainIdx, blockNum, msgIdx int) string {
+		return fmt.Sprintf("%d-%d-%d", chainIdx, blockNum, msgIdx)
+	}
+
+	vertices := map[string]*vertex{}
+	keys := []string{}
+	msgCnts := make([][]int, L2ChainCnt)
+	msgCntsPerTimestamp := []int{}
+	vertexIdx := 0
+
+	// Fix message count per blocks per chains
+	for blockNum := range blockCnt {
+		msgCntPerTimestamp := 0
+		for l2Idx := range L2ChainCnt {
+			// every block has at least single message
+			msgCnt := 1 + rng.Intn(maxTxCntPerBlock)
+			msgCnts[l2Idx] = append(msgCnts[l2Idx], msgCnt)
+			for msgIdx := range msgCnt {
+				v := vertex{chainIdx: l2Idx, blockNum: blockNum, msgIdx: msgIdx, vertexIdx: vertexIdx}
+				key := genKey(l2Idx, blockNum, msgIdx)
+				keys = append(keys, key)
+				vertices[key] = &v
+				vertexIdx += 1
+				msgCntPerTimestamp += 1
+			}
+		}
+		msgCntsPerTimestamp = append(msgCntsPerTimestamp, msgCntPerTimestamp)
+	}
+	vertexCnt := len(vertices)
+
+	// vertices will hold init triggers. When vertex is considered to be an exec message, use them
+	for _, vertex := range vertices {
+		vertex.init = interop.RandomInitTrigger(rng, eventLoggerAddresses[vertex.chainIdx], rng.Intn(5), rng.Intn(50))
+	}
+
+	// build implicit dependencies for intra block messages
+	implicitEdges := []edge{}
+	for blockNum := range blockCnt {
+		for l2Idx := range L2ChainCnt {
+			for idx := range msgCnts[l2Idx][blockNum] - 1 {
+				tail := vertices[genKey(l2Idx, blockNum, idx+1)]
+				head := vertices[genKey(l2Idx, blockNum, idx)]
+				implicitEdges = append(implicitEdges,
+					edge{
+						tail: tail,
+						head: head,
+					})
+			}
+		}
+	}
+
+	// we start with block number 2 because we passed genesis and block 1 was consumed by deploying EventLogger
+	blockNumOffset := uint64(2)
+
+	// build explicit dependencies
+	explicitEdges := []edge{}
+	// vertices are already topologically sorted, so we are safe to construct graph by choosing indexes as below manner.
+	for i := 0; i < vertexCnt; i++ {
+		for j := i + 1; j < vertexCnt; j++ {
+			tail := vertices[keys[j]] // exec message
+			head := vertices[keys[i]] // init message
+			// if tail was already considered as an exec message, do not redo
+			if tail.exec != nil {
+				continue
+			}
+			// if head was already considered as an exec message, we cannot use it as an init message
+			// technically we may override init message by manually generating event:
+			// event ExecutingMessage which is emitted by CrossL2Inbox when validateMessage called
+			if head.exec != nil {
+				// because of this check, there is no exec message that points to exec message
+				// although in real world, there could be this kind of scenario where exec depends on exec
+				continue
+			}
+			if rand.Float64() < execMsgDensity {
+				initMsgBlockNum := uint64(head.blockNum) + blockNumOffset
+				initMsgChain := chains[head.chainIdx]
+				initMsgBlockTime := initMsgChain.RollupCfg.Genesis.L2Time + initMsgChain.RollupCfg.BlockTime*initMsgBlockNum
+				// speculatively build exec messages without init message execution
+				exec, err := interop.ExecTriggerFromInitTrigger(head.init, uint(head.msgIdx), initMsgBlockNum, initMsgBlockTime, initMsgChain.ChainID)
+				tail.exec = exec
+				require.NoError(t, err)
+				explicitEdges = append(explicitEdges, edge{tail: tail, head: head})
+			}
+		}
+	}
+
+	edges := []edge{}
+	edges = append(edges, implicitEdges...)
+	edges = append(edges, explicitEdges...)
+
+	// Log every dependencies
+	chainNames := []string{"A", "B"}
+	for _, edge := range edges {
+		t.Log("edge", fmt.Sprintf("%s%d-%d -> %s%d-%d\n",
+			chainNames[edge.tail.chainIdx],
+			edge.tail.blockNum,
+			edge.tail.msgIdx,
+			chainNames[edge.head.chainIdx],
+			edge.head.blockNum,
+			edge.head.msgIdx,
+		))
+	}
+
+	base := 0
+
+	faultInjectionIdx := rng.Intn(len(explicitEdges) - 1)
+	execMsgIncludedCnt := 0
+	// assume that each transaction contains single message
+	for blockIdx := range blockCnt {
+		// open block for each chains
+		actors.ChainA.Sequencer.ActL2StartBlock(t)
+		actors.ChainB.Sequencer.ActL2StartBlock(t)
+
+		msgCntPerTimestamp := msgCntsPerTimestamp[blockIdx]
+		intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
+		// safe to iterate like this because vertices are already well sorted and grouped
+		for idx := base; idx < base+msgCntPerTimestamp; idx++ {
+			vertex := vertices[keys[idx]]
+			var trigger txintent.Call
+			if vertex.exec != nil {
+				exec := vertex.exec
+				// inject fault to trigger unsafe reorg
+				if execMsgIncludedCnt == faultInjectionIdx {
+					exec.Msg.PayloadHash = testutils.RandomHash(rng)
+				}
+				trigger = exec
+				execMsgIncludedCnt += 1
+			} else {
+				trigger = vertex.init
+			}
+			nonce := &nonces[vertex.chainIdx]
+			user := users[vertex.chainIdx]
+			chain := chains[vertex.chainIdx]
+			submitIntent(t, trigger, nonce, user, chain, &intents)
+		}
+		base += msgCntPerTimestamp
+
+		// seal block for each chains
+		actors.ChainA.Sequencer.ActL2EndBlock(t)
+		actors.ChainB.Sequencer.ActL2EndBlock(t)
+	}
+	// each vertex is 1-1 to txs
+	require.Equal(t, vertexCnt, int(nonces[0]+nonces[1]))
+
+	// propagate unsafe blocks to supervisor
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+	actors.ChainA.Sequencer.SyncSupervisor(t)
+	actors.ChainB.Sequencer.SyncSupervisor(t)
+	actors.Supervisor.ProcessFull(t)
+	actors.ChainA.Sequencer.ActL2PipelineFull(t)
+	actors.ChainB.Sequencer.ActL2PipelineFull(t)
+
+	// supervisor cannot progress all unsafe blocks, and make chains reorg
+	targetNum := uint64(1 + blockCnt)
+	statusA := actors.ChainA.Sequencer.SyncStatus()
+	statusB := actors.ChainB.Sequencer.SyncStatus()
+	check := targetNum == statusA.CrossUnsafeL2.ID().Number
+	check = check && targetNum == statusB.CrossUnsafeL2.ID().Number
+
+	// cross unsafe did not advance
+	require.False(t, check)
 }
