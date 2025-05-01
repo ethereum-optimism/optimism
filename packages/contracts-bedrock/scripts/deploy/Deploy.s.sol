@@ -21,10 +21,8 @@ import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.
 import { DeployAltDA2 } from "scripts/deploy/DeployAltDA2.s.sol";
 
 // Libraries
-import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
-import { StorageSlot, ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
@@ -714,17 +712,5 @@ contract Deploy is Deployer {
             disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
             disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
         });
-    }
-
-    /// @notice Reset the initialized value on a proxy contract so that it can be initialized again
-    function resetInitializedProxy(string memory _contractName) internal {
-        console.log("resetting initialized value on %s Proxy", _contractName);
-        address proxy = artifacts.mustGetAddress(string.concat(_contractName, "Proxy"));
-        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_contractName);
-        bytes32 slotVal = vm.load(proxy, bytes32(slot.slot));
-        uint256 value = uint256(slotVal);
-        value = value & ~(0xFF << (slot.offset * 8));
-        slotVal = bytes32(value);
-        vm.store(proxy, bytes32(slot.slot), slotVal);
     }
 }
