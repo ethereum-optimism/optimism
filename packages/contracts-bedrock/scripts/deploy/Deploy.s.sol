@@ -153,13 +153,6 @@ contract Deploy is Deployer {
         _run({ _needsSuperchain: false });
     }
 
-    /// @notice Used for L1 alloc generation.
-    function runWithStateDump() public {
-        vm.chainId(cfg.l1ChainID());
-        _run({ _needsSuperchain: true });
-        vm.dumpState(Config.stateDumpPath(""));
-    }
-
     /// @notice Deploy all L1 contracts and write the state diff to a file.
     ///         Used to generate kontrol tests.
     function runWithStateDiff() public stateDiff {
@@ -211,7 +204,6 @@ contract Deploy is Deployer {
             }
         }
 
-        transferProxyAdminOwnership();
         console.log("set up op chain!");
     }
 
@@ -419,75 +411,6 @@ contract Deploy is Deployer {
         );
         require(EIP1967Helper.getAdmin(address(proxy)) == _proxyOwner, "Deploy: EIP1967Proxy admin not set");
         addr_ = address(proxy);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                    Initialize Functions                    //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Initialize the SystemConfig
-    function initializeSystemConfig() public broadcast {
-        console.log("Upgrading and initializing SystemConfig proxy");
-        address systemConfigProxy = artifacts.mustGetAddress("SystemConfigProxy");
-        address systemConfig = artifacts.mustGetAddress("SystemConfigImpl");
-
-        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
-
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(artifacts.mustGetAddress("ProxyAdmin")));
-        proxyAdmin.upgradeAndCall({
-            _proxy: payable(systemConfigProxy),
-            _implementation: systemConfig,
-            _data: abi.encodeCall(
-                ISystemConfig.initialize,
-                (
-                    cfg.finalSystemOwner(),
-                    cfg.basefeeScalar(),
-                    cfg.blobbasefeeScalar(),
-                    batcherHash,
-                    uint64(cfg.l2GenesisBlockGasLimit()),
-                    cfg.p2pSequencerAddress(),
-                    Constants.DEFAULT_RESOURCE_CONFIG(),
-                    cfg.batchInboxAddress(),
-                    ISystemConfig.Addresses({
-                        l1CrossDomainMessenger: artifacts.mustGetAddress("L1CrossDomainMessengerProxy"),
-                        l1ERC721Bridge: artifacts.mustGetAddress("L1ERC721BridgeProxy"),
-                        l1StandardBridge: artifacts.mustGetAddress("L1StandardBridgeProxy"),
-                        optimismPortal: artifacts.mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy")
-                    }),
-                    cfg.l2ChainID(),
-                    ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"))
-                )
-            )
-        });
-
-        ISystemConfig config = ISystemConfig(systemConfigProxy);
-        string memory version = config.version();
-        console.log("SystemConfig version: %s", version);
-
-        ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //         Ownership Transfer Helper Functions                //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        // Get the ProxyAdmin contract.
-        IProxyAdmin proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
-
-        // Transfer ownership to the final system owner if necessary.
-        address owner = proxyAdmin.owner();
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            proxyAdmin.transferOwnership(finalSystemOwner);
-            console.log("ProxyAdmin ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-
-        // Make sure the ProxyAdmin owner is set to the final system owner.
-        owner = proxyAdmin.owner();
-        require(owner == finalSystemOwner, "Deploy: ProxyAdmin ownership not transferred to final system owner");
     }
 
     ///////////////////////////////////////////////////////////
