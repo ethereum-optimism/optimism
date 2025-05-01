@@ -6,11 +6,13 @@ import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDis
 
 // Libraries
 import { GameType, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 contract AnchorStateRegistry_Init is FaultDisputeGame_Init {
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
@@ -65,6 +67,28 @@ contract AnchorStateRegistry_Initialize_TestFail is AnchorStateRegistry_Init {
             }),
             GameType.wrap(0)
         );
+    }
+
+    /// @notice Tests that initialization reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(
+            _sender != address(anchorStateRegistry.proxyAdmin()) && _sender != anchorStateRegistry.proxyAdminOwner()
+        );
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(anchorStateRegistry), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        anchorStateRegistry.initialize(systemConfig, disputeGameFactory, proposal, gameType);
     }
 }
 

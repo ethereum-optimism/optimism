@@ -8,11 +8,11 @@ import { Constants } from "src/libraries/Constants.sol";
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
+
 /// @notice Base contract for ProxyAdmin-owned contracts. This contract is used to introspect
 ///         compatible Proxy contracts so that their ProxyAdmin and ProxyAdmin owner addresses can
 ///         be retrieved onchain. Existing Proxy contracts don't have these getters, so we need a
 ///         base contract instead.
-
 abstract contract ProxyAdminOwnedBase {
     /// @notice Thrown when the ProxyAdmin owner of the current contract is not the same as the
     ///         ProxyAdmin owner of the other Proxy address provided.

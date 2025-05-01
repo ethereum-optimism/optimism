@@ -12,13 +12,14 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
-import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Target contract dependencies
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 contract Encoding_Harness {
     function encodeCrossDomainMessage(
@@ -75,6 +76,26 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         assertEq(address(l1CrossDomainMessenger.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    }
+
+    /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notByProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        l1CrossDomainMessenger.initialize(systemConfig, optimismPortal2);
     }
 
     /// @dev Tests that the version can be decoded from the message nonce.
@@ -1008,6 +1029,28 @@ contract L1CrossDomainMessenger_Upgrade_Test is CommonTest {
         // Try to trigger second upgrade.
         vm.prank(address(l1CrossDomainMessenger.proxyAdmin()));
         vm.expectRevert("Initializable: contract is already initialized");
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_upgrade_notByProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Create a new SystemConfig contract
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Call the `upgrade` function with the sender
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector
+        vm.prank(_sender);
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
         l1CrossDomainMessenger.upgrade(newSystemConfig);
     }
 }

@@ -15,6 +15,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 contract SystemConfig_Init is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
@@ -131,6 +132,45 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         vm.prank(admin);
 
         vm.expectRevert("SystemConfig: gas limit too low");
+        systemConfig.initialize({
+            _owner: alice,
+            _basefeeScalar: basefeeScalar,
+            _blobbasefeeScalar: blobbasefeeScalar,
+            _batcherHash: bytes32(hex"abcd"),
+            _gasLimit: minimumGasLimit - 1,
+            _unsafeBlockSigner: address(1),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG(),
+            _batchInbox: address(0),
+            _addresses: ISystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0)
+            }),
+            _l2ChainId: 1234,
+            _superchainConfig: ISuperchainConfig(address(0))
+        });
+    }
+
+    /// @dev Tests that `initialize` reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(systemConfig.proxyAdmin()) && _sender != systemConfig.proxyAdminOwner());
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `initialize` function with the sender
+        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
+        vm.prank(_sender);
         systemConfig.initialize({
             _owner: alice,
             _basefeeScalar: basefeeScalar,
@@ -615,6 +655,26 @@ contract SystemConfig_Upgrade_Test is SystemConfig_Init {
 
         // Try to trigger upgrade().
         vm.expectRevert("Initializable: contract is already initialized");
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_upgrade_notProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(systemConfig.proxyAdmin()) && _sender != systemConfig.proxyAdminOwner());
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `upgrade` function with the sender
+        vm.prank(_sender);
         systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
     }
 }

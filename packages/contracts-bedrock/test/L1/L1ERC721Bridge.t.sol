@@ -17,8 +17,9 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
-
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 /// @dev Test ERC721 contract.
+
 contract TestERC721 is ERC721 {
     constructor() ERC721("Test", "TST") { }
 
@@ -90,6 +91,26 @@ contract L1ERC721Bridge_Test is CommonTest {
         assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.systemConfig()), address(systemConfig));
         assertEq(address(l1ERC721Bridge.superchainConfig()), address(systemConfig.superchainConfig()));
+    }
+
+    /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notByProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1ERC721Bridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1ERC721Bridge), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        l1ERC721Bridge.initialize(l1CrossDomainMessenger, systemConfig);
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
@@ -476,5 +497,25 @@ contract L1ERC721Bridge_Upgrade_Test is CommonTest {
         vm.prank(address(l1ERC721Bridge.proxyAdmin()));
         vm.expectRevert("Initializable: contract is already initialized");
         l1ERC721Bridge.upgrade(newSystemConfig);
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_upgrade_notByProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1ERC721Bridge", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1ERC721Bridge), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `upgrade` function with the sender
+        vm.prank(_sender);
+        l1ERC721Bridge.upgrade(ISystemConfig(address(0xdeadbeef)));
     }
 }

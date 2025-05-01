@@ -27,6 +27,11 @@ contract ProxyAdminOwnedBase_Harness is ProxyAdminOwnedBase {
     function assertOnlyProxyAdminOwner() public view {
         _assertOnlyProxyAdminOwner();
     }
+
+    /// @notice Assert that the caller is the ProxyAdmin or the ProxyAdmin owner.
+    function assertOnlyProxyAdminOrOwner() public view {
+        _assertOnlyProxyAdminOrOwner();
+    }
 }
 
 contract ProxyAdminOwnedBase_TestInit is CommonTest {
@@ -146,5 +151,40 @@ contract ProxyAdminOwnedBase_assertOnlyProxyAdminOwner_Test is ProxyAdminOwnedBa
         // Expect a revert.
         vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOwner.selector);
         harness.assertOnlyProxyAdminOwner();
+    }
+}
+
+contract ProxyAdminOwnedBase_assertOnlyProxyAdminOrOwner_Test is ProxyAdminOwnedBase_TestInit {
+    /// @notice Tests that the assertOnlyProxyAdminOrOwner function does not revert if the caller
+    ///         is the ProxyAdmin or the ProxyAdmin owner.
+    function test_assertOnlyProxyAdminOrOwner_proxyAdmin_succeeds() public {
+        // Prank as the ProxyAdmin.
+        vm.prank(address(proxyAdmin));
+
+        // Expect no revert.
+        harness.assertOnlyProxyAdminOrOwner();
+    }
+
+    /// @notice Tests that the assertOnlyProxyAdminOrOwner function does not revert if the caller
+    ///         is the ProxyAdmin owner.
+    function test_assertOnlyProxyAdminOrOwner_proxyAdminOwner_succeeds() public {
+        // Prank as the ProxyAdmin owner.
+        vm.prank(proxyAdminOwner);
+
+        // Expect no revert.
+        harness.assertOnlyProxyAdminOrOwner();
+    }
+
+    /// @notice Tests that the assertOnlyProxyAdminOrOwner function reverts if the caller is not
+    ///         the ProxyAdmin or the ProxyAdmin owner.
+    /// @param _sender The address of the sender to test.
+    function test_assertOnlyProxyAdminOrOwner_notProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+        vm.prank(_sender);
+
+        // Expect a revert.
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+        harness.assertOnlyProxyAdminOrOwner();
     }
 }

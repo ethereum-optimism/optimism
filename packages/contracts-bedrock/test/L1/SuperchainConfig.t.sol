@@ -6,10 +6,13 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 contract SuperchainConfig_Init_Test is CommonTest {
     function setUp() public virtual override {
@@ -45,6 +48,26 @@ contract SuperchainConfig_Init_Test is CommonTest {
 
         assertFalse(ISuperchainConfig(address(newProxy)).paused(address(this)));
         assertEq(ISuperchainConfig(address(newProxy)).guardian(), deploy.cfg().superchainConfigGuardian());
+    }
+
+    /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notByProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SuperchainConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(superchainConfig), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        superchainConfig.initialize(address(0xdeadbeef));
     }
 }
 
@@ -193,5 +216,74 @@ contract SuperchainConfig_Getters_Test is CommonTest {
 
         assertTrue(newExpiration > firstExpiration);
         assertEq(newExpiration, block.timestamp + superchainConfig.pauseExpiry());
+    }
+}
+
+contract SuperchainConfig_Upgrade_Test is CommonTest {
+    /// @dev Tests that `upgrade` successfully upgrades the contract.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SuperchainConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(superchainConfig), bytes32(slot.slot), bytes32(0));
+
+        // Get the slot for the SuperchainConfig's ProxyAdmin.
+        address proxyAdminAddress =
+            address(uint160(uint256(vm.load(address(superchainConfig), Constants.PROXY_OWNER_ADDRESS))));
+
+        // Upgrade the contract.
+        vm.prank(proxyAdminAddress);
+        superchainConfig.upgrade();
+
+        // Check that the guardian slot was updated.
+        bytes32 guardianSlot = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
+        assertEq(vm.load(address(superchainConfig), guardianSlot), bytes32(0));
+
+        // Check that the paused slot was cleared.
+        bytes32 pausedSlot = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
+        assertEq(vm.load(address(superchainConfig), pausedSlot), bytes32(0));
+    }
+
+    /// @dev Tests that `upgrade` reverts when called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SuperchainConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(superchainConfig), bytes32(slot.slot), bytes32(0));
+
+        // Get the slot for the SuperchainConfig's ProxyAdmin.
+        address proxyAdminAddress =
+            address(uint160(uint256(vm.load(address(superchainConfig), Constants.PROXY_OWNER_ADDRESS))));
+
+        // Trigger first upgrade.
+        vm.prank(proxyAdminAddress);
+        superchainConfig.upgrade();
+
+        // Trigger second upgrade.
+        vm.prank(proxyAdminAddress);
+        vm.expectRevert("Initializable: contract is already initialized");
+        superchainConfig.upgrade();
+    }
+
+    /// @dev Tests that `upgrade` reverts when called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_upgrade_notProxyAdminOrOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("SuperchainConfig", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(superchainConfig), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+
+        // Call the `upgrade` function with the sender
+        vm.prank(_sender);
+        superchainConfig.upgrade();
     }
 }
