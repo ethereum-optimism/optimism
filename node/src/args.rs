@@ -55,6 +55,10 @@ pub struct RollupArgs {
         default_value_t = SafetyLevel::CrossUnsafe,
     )]
     pub supervisor_safety_level: SafetyLevel,
+
+    /// Optional headers to use when connecting to the sequencer.
+    #[arg(long = "rollup.sequencer-headers", requires = "sequencer")]
+    pub sequencer_headers: Vec<String>,
 }
 
 impl Default for RollupArgs {
@@ -68,6 +72,7 @@ impl Default for RollupArgs {
             enable_tx_conditional: false,
             supervisor_http: DEFAULT_SUPERVISOR_URL.to_string(),
             supervisor_safety_level: SafetyLevel::CrossUnsafe,
+            sequencer_headers: Vec::new(),
         }
     }
 }

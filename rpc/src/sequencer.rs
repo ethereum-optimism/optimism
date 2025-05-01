@@ -17,6 +17,9 @@ pub enum Error {
     /// Invalid scheme
     #[error("Invalid scheme of sequencer url: {0}")]
     InvalidScheme(String),
+    /// Invalid header or value provided.
+    #[error("Invalid header: {0}")]
+    InvalidHeader(String),
     /// Invalid url
     #[error("Invalid sequencer url: {0}")]
     InvalidUrl(String),
@@ -55,13 +58,42 @@ impl SequencerClient {
     ///
     /// If the URL is a websocket endpoint we connect a websocket instance.
     pub async fn new(sequencer_endpoint: impl Into<String>) -> Result<Self, Error> {
+        Self::new_with_headers(sequencer_endpoint, Default::default()).await
+    }
+
+    /// Creates a new `SequencerClient` for the given URL with the given headers
+    ///
+    /// This expects headers in the form: `header=value`
+    pub async fn new_with_headers(
+        sequencer_endpoint: impl Into<String>,
+        headers: Vec<String>,
+    ) -> Result<Self, Error> {
         let sequencer_endpoint = sequencer_endpoint.into();
         let endpoint = BuiltInConnectionString::from_str(&sequencer_endpoint)?;
         if let BuiltInConnectionString::Http(url) = endpoint {
-            let client = reqwest::Client::builder()
+            let mut builder = reqwest::Client::builder()
                 // we force use tls to prevent native issues
-                .use_rustls_tls()
-                .build()?;
+                .use_rustls_tls();
+
+            if !headers.is_empty() {
+                let mut header_map = reqwest::header::HeaderMap::new();
+                for header in headers {
+                    if let Some((key, value)) = header.split_once('=') {
+                        header_map.insert(
+                            key.trim()
+                                .parse::<reqwest::header::HeaderName>()
+                                .map_err(|err| Error::InvalidHeader(err.to_string()))?,
+                            value
+                                .trim()
+                                .parse::<reqwest::header::HeaderValue>()
+                                .map_err(|err| Error::InvalidHeader(err.to_string()))?,
+                        );
+                    }
+                }
+                builder = builder.default_headers(header_map);
+            }
+
+            let client = builder.build()?;
             Self::with_http_client(url, client)
         } else {
             let client = ClientBuilder::default().connect_with(endpoint).await?;
