@@ -50,7 +50,7 @@ type SuperRootMigrator struct {
 	chainSettings map[string]*ChainSettings
 	// TargetTimestamp is the timestamp to calculate the super root for.
 	// If not provided by the user it will be set to the latest timestamp that is finalized on all chains.
-	TargetTimestamp uint64
+	TargetTimestamp *uint64
 	// superRoot is the final calculated super root hash
 	superRoot common.Hash
 	// chainOutputs holds the calculated output root for each chain, ready for super root calculation
@@ -61,27 +61,41 @@ type SuperRootMigrator struct {
 // It requires a logger, a list of L2 execution client RPC endpoints,
 // and an optional target timestamp.
 func NewSuperRootMigrator(logger log.Logger, rpcEndpoints []string, targetTimestamp *uint64) (*SuperRootMigrator, error) {
-	if logger == nil {
-		logger = log.New("service", "super-root-migrator")
-	}
 	if len(rpcEndpoints) == 0 {
 		return nil, errors.New("must provide at least one RPC endpoint")
 	}
 
-	migrator := SuperRootMigrator{
-		log:           logger,
-		rpcEndpoints:  rpcEndpoints,
-		ethClients:    make(map[string]*ethclient.Client),
-		chainSettings: make(map[string]*ChainSettings),
+	migrator := &SuperRootMigrator{
+		log:             logger,
+		rpcEndpoints:    rpcEndpoints,
+		chainSettings:   make(map[string]*ChainSettings),
+		TargetTimestamp: targetTimestamp,
 	}
-	if targetTimestamp != nil {
-		migrator.TargetTimestamp = *targetTimestamp
+	return migrator, nil
+}
+
+func NewSuperRootMigratorWithClients(logger log.Logger, clients map[string]*ethclient.Client, targetTimestamp *uint64) (*SuperRootMigrator, error) {
+	if len(clients) == 0 {
+		return nil, errors.New("must provide at least one client")
 	}
-	return &migrator, nil
+	migrator := &SuperRootMigrator{
+		log:             logger,
+		ethClients:      clients,
+		chainSettings:   make(map[string]*ChainSettings),
+		TargetTimestamp: targetTimestamp,
+	}
+	return migrator, nil
 }
 
 // Run executes the main logic of the super root migrator within the given context.
 func (m *SuperRootMigrator) Run(ctx context.Context) (common.Hash, error) {
+	if m.ethClients == nil {
+		clients, err := dialClients(ctx, m.rpcEndpoints)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		m.ethClients = clients
+	}
 	// Use the provided context for all operations
 	if err := m.initClientsAndFetchIDs(ctx); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to initialize clients: %w", err)
@@ -106,17 +120,22 @@ func (m *SuperRootMigrator) Run(ctx context.Context) (common.Hash, error) {
 	return m.superRoot, nil
 }
 
+func dialClients(ctx context.Context, urls []string) (map[string]*ethclient.Client, error) {
+	clients := make(map[string]*ethclient.Client)
+	for _, endpoint := range urls {
+		client, err := ethclient.DialContext(ctx, endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to RPC endpoint %s: %w", endpoint, err)
+		}
+		clients[endpoint] = client
+	}
+	return clients, nil
+}
+
 // initClientsAndFetchIDs establishes connections to all RPC endpoints
 // and retrieves their chain IDs.
 func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
-	for _, endpoint := range m.rpcEndpoints {
-		m.log.Debug("Dialing RPC endpoint", "url", endpoint)
-		client, err := ethclient.DialContext(ctx, endpoint)
-		if err != nil {
-			return fmt.Errorf("failed to connect to RPC endpoint %s: %w", endpoint, err)
-		}
-		m.ethClients[endpoint] = client
-
+	for endpoint, client := range m.ethClients {
 		chainID, err := client.ChainID(ctx)
 		if err != nil {
 			// Clean up the client we just created before returning
@@ -138,8 +157,8 @@ func (m *SuperRootMigrator) initClientsAndFetchIDs(ctx context.Context) error {
 // if no target timestamp is provided, otherwise uses the target timestamp.
 func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
 	// Check if a target timestamp was provided by the user
-	if m.TargetTimestamp != 0 {
-		m.log.Info("Using user-provided timestamp", "timestamp", m.TargetTimestamp)
+	if m.TargetTimestamp != nil {
+		m.log.Info("Using user-provided timestamp", "timestamp", *m.TargetTimestamp)
 		return nil
 	}
 
@@ -166,8 +185,8 @@ func (m *SuperRootMigrator) findAnchorTimestamp(ctx context.Context) error {
 	if minTimestamp == nil {
 		return errors.New("no valid finalized timestamps found across connected chains")
 	}
-	m.TargetTimestamp = *minTimestamp
-	m.log.Info("Using finalized timestamp", "timestamp", m.TargetTimestamp)
+	m.TargetTimestamp = minTimestamp
+	m.log.Info("Using finalized timestamp", "timestamp", *m.TargetTimestamp)
 	return nil
 }
 
@@ -192,7 +211,7 @@ func (m *SuperRootMigrator) calculateTargetBlockNumbers(ctx context.Context) err
 		}
 
 		// Calculate how many blocks to look back to reach the target timestamp
-		timeDiff := latestBlock.Time() - m.TargetTimestamp
+		timeDiff := latestBlock.Time() - *m.TargetTimestamp
 		blocksToLookBack := timeDiff / blockTime
 		if timeDiff%blockTime != 0 {
 			// Round up the number of blocks to look back to ensure that we get the latest block at or before the timestamp
@@ -258,11 +277,11 @@ func (m *SuperRootMigrator) calculateSuperRoot() error {
 	}
 
 	// Create a SuperV1 structure with the anchor timestamp and chain outputs
-	superV1 := eth.NewSuperV1(m.TargetTimestamp, m.chainOutputs...)
+	superV1 := eth.NewSuperV1(*m.TargetTimestamp, m.chainOutputs...)
 
 	// Calculate the super root hash
 	m.superRoot = common.Hash(eth.SuperRoot(superV1))
 
-	m.log.Info("Super root calculated successfully", "superRoot", m.superRoot.Hex(), "timestamp", m.TargetTimestamp, "chains", len(m.chainOutputs))
+	m.log.Info("Super root calculated successfully", "superRoot", m.superRoot.Hex(), "timestamp", *m.TargetTimestamp, "chains", len(m.chainOutputs))
 	return nil
 }
