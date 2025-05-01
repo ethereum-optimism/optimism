@@ -79,6 +79,10 @@ func (m *MockBackend) SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus,
 	return eth.SupervisorSyncStatus{}, nil
 }
 
+func (m *MockBackend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
+	return nil
+}
+
 func (m *MockBackend) Close() error {
 	return nil
 }

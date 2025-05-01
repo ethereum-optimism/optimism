@@ -210,7 +210,7 @@ func (sa *SupervisorActor) SignalFinalizedL1(t helpers.Testing) {
 }
 
 func (sa *SupervisorActor) Rewind(chain eth.ChainID, block eth.BlockID) error {
-	return sa.backend.Rewind(chain, block)
+	return sa.backend.Rewind(context.Background(), chain, block)
 }
 
 // RecipeToDepSet converts a recipe into a dependency-set for the supervisor.

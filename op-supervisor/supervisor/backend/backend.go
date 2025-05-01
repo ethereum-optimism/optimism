@@ -753,6 +753,6 @@ func (su *SupervisorBackend) SetConfDepthL1(depth uint64) {
 }
 
 // Rewind rolls back the state of the supervisor for the given chain.
-func (su *SupervisorBackend) Rewind(chain eth.ChainID, block eth.BlockID) error {
+func (su *SupervisorBackend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
 	return su.chainDBs.Rewind(chain, block)
 }
