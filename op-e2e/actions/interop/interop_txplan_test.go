@@ -1351,6 +1351,12 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 
 // TestInvalidRandomGraph tests below scenario:
 // Construct random graphs of messages, with cycles or invalid executing messages
+// Test outline:
+// 1. Deploy EventLogger per chain.
+// 2. Initialize block counts and message count per blocks per chains
+// 3. Generate direct acyclic graph, and map each vertices to each messages
+// 4. Inject fault
+// 5. Sync EL, CL and supervisor to check unsafe reorg
 func TestInvalidRandomGraph(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	rng := rand.New(rand.NewSource(1234))
