@@ -49,20 +49,15 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 
 // Main is the entrypoint for the check-super-root command.
 func Main(cfg *Config, ctx *cli.Context) error {
-	cfg.Logger.Info("Initializing Super Root Check Tool")
-
 	migrator, err := script.NewSuperRootMigrator(cfg.Logger, cfg.RPCEndpoints, cfg.TargetTimestamp)
 	if err != nil {
-		cfg.Logger.Crit("Failed to create SuperRootMigrator", "err", err)
+		return fmt.Errorf("failed to create SuperRootMigrator: %w", err)
+	}
+
+	if _, err := migrator.Run(ctx.Context); err != nil {
 		return err
 	}
 
-	if err := migrator.Run(ctx.Context); err != nil {
-		cfg.Logger.Error("Super root calculation failed", "err", err)
-		return err
-	}
-
-	cfg.Logger.Info("Super root check tool finished successfully")
 	return nil
 }
 
