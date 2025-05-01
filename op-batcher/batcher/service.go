@@ -25,6 +25,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/slices"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -94,32 +95,6 @@ func BatcherServiceFromCLIConfig(ctx context.Context, version string, cfg *CLICo
 	return &bs, nil
 }
 
-// union combines two slices of strings and returns a new slice with unique elements.
-func union(a, b []string) []string {
-	// Create a map to store unique elements
-	unique := make(map[string]struct{})
-
-	// Add elements from the first slice
-	for _, item := range a {
-		unique[item] = struct{}{}
-	}
-
-	// Add elements from the second slice
-	for _, item := range b {
-		unique[item] = struct{}{}
-	}
-
-	// Create a result slice to hold the unique elements
-	result := make([]string, 0, len(unique))
-
-	// Append the unique elements to the result slice
-	for item := range unique {
-		result = append(result, item)
-	}
-
-	return result
-}
-
 func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, opts ...DriverSetupOption) error {
 	bs.Version = version
 	bs.Log = log
@@ -140,7 +115,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
 
 	// Combine the L2EthRpc and RollupRpc into a single list of endpoints for throttling.
-	bs.ThrottlingEndpoints = union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)
+	bs.ThrottlingEndpoints = slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)
 
 	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
 
