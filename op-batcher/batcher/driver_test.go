@@ -271,14 +271,12 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			}()
 			wg2.Add(1)
 
-			cleanup := func() {
+			t.Cleanup(func() {
 				cancelBlockLoading()
 				wg2.Wait()
 				close(pendingBytesUpdated)
 				wg1.Wait()
-			}
-
-			defer cleanup()
+			})
 
 			require.Eventually(t,
 				func() bool {
