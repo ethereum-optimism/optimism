@@ -52,7 +52,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     /// @param _systemConfig Address of the SystemConfig contract.
     function initialize(ISystemConfig _systemConfig) external reinitializer(initVersion()) {
         // Initialization transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrOwner();
+        _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform initialization logic.
         systemConfig = _systemConfig;

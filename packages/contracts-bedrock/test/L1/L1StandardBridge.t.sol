@@ -165,7 +165,7 @@ contract L1StandardBridge_Pause_TestFail is CommonTest {
 contract L1StandardBridge_Initialize_TestFail is CommonTest {
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
-    function testFuzz_initialize_notByProxyAdminOrOwner_reverts(address _sender) public {
+    function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
@@ -175,8 +175,8 @@ contract L1StandardBridge_Initialize_TestFail is CommonTest {
         // Set the initialized slot to 0.
         vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
 
-        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
 
         // Call the `initialize` function with the sender
         vm.prank(_sender);
@@ -813,7 +813,7 @@ contract L1StandardBridge_Upgrade_Test is CommonTest {
 
     /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
-    function testFuzz_upgrade_notByProxyAdminOrOwner_reverts(address _sender) public {
+    function testFuzz_upgrade_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
@@ -823,8 +823,8 @@ contract L1StandardBridge_Upgrade_Test is CommonTest {
         // Set the initialized slot to 0.
         vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
 
-        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
 
         // Call the `upgrade` function with the sender
         vm.prank(_sender);

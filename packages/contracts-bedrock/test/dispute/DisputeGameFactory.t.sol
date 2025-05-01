@@ -5,7 +5,7 @@ pragma solidity ^0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Scripts
-import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Libraries
 import "src/dispute/lib/Types.sol";
@@ -14,6 +14,7 @@ import "src/dispute/lib/Errors.sol";
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 contract DisputeGameFactory_Init is CommonTest {
     FakeClone fakeClone;
@@ -29,6 +30,30 @@ contract DisputeGameFactory_Init is CommonTest {
         // Transfer ownership of the factory to the test contract.
         vm.prank(disputeGameFactory.owner());
         disputeGameFactory.transferOwnership(address(this));
+    }
+}
+
+contract DisputeGameFactory_initialize_Test is DisputeGameFactory_Init {
+    /// @notice Tests that initialization reverts if called by a non-proxy admin or proxy admin owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(
+            _sender != address(disputeGameFactory.proxyAdmin()) && _sender != disputeGameFactory.proxyAdminOwner()
+        );
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("DisputeGameFactory", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(disputeGameFactory), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+
+        // Call the `initialize` function with the sender.
+        vm.prank(_sender);
+        disputeGameFactory.initialize(address(1234));
     }
 }
 

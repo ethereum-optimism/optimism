@@ -25,7 +25,7 @@ abstract contract ProxyAdminOwnedBase {
     error ProxyAdminOwnedBase_NotProxyAdmin();
 
     /// @notice Thrown when the caller is not the ProxyAdmin owner or the ProxyAdmin.
-    error ProxyAdminOwnedBase_NotProxyAdminOrOwner();
+    error ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner();
 
     /// @notice Thrown when the ProxyAdmin owner of the current contract is not found.
     error ProxyAdminOwnedBase_ProxyAdminNotFound();
@@ -76,9 +76,9 @@ abstract contract ProxyAdminOwnedBase {
         }
     }
 
-    function _assertOnlyProxyAdminOrOwner() internal view {
+    function _assertOnlyProxyAdminOrProxyAdminOwner() internal view {
         if (address(proxyAdmin()) != msg.sender && proxyAdminOwner() != msg.sender) {
-            revert ProxyAdminOwnedBase_NotProxyAdminOrOwner();
+            revert ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner();
         }
     }
 }

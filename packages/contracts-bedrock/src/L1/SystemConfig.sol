@@ -185,8 +185,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         public
         reinitializer(initVersion())
     {
-        // Initialization transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform initialization logic.
         __Ownable_init();
@@ -217,8 +217,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
     /// @param _superchainConfig The SuperchainConfig contract address.
     function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
-        // Upgrade transactions must come from the ProxyAdmin.
-        _assertOnlyProxyAdmin();
+        // Upgrade transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform upgrade logic.
         // Set the L2 chain ID.

@@ -155,7 +155,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
 
     /// @dev Tests that `initialize` reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
-    function testFuzz_initialize_notProxyAdminOrOwner_reverts(address _sender) public {
+    function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(systemConfig.proxyAdmin()) && _sender != systemConfig.proxyAdminOwner());
 
@@ -165,11 +165,13 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         // Set the initialized slot to 0.
         vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
 
-        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+        // Get the minimum gas limit.
+        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
 
         // Call the `initialize` function with the sender
-        uint64 minimumGasLimit = systemConfig.minimumGasLimit();
         vm.prank(_sender);
         systemConfig.initialize({
             _owner: alice,
@@ -660,7 +662,7 @@ contract SystemConfig_Upgrade_Test is SystemConfig_Init {
 
     /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
-    function testFuzz_upgrade_notProxyAdminOrOwner_reverts(address _sender) public {
+    function testFuzz_upgrade_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(systemConfig.proxyAdmin()) && _sender != systemConfig.proxyAdminOwner());
 
@@ -670,8 +672,8 @@ contract SystemConfig_Upgrade_Test is SystemConfig_Init {
         // Set the initialized slot to 0.
         vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
 
-        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrOwner` selector.
-        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrOwner.selector);
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
 
         // Call the `upgrade` function with the sender
         vm.prank(_sender);

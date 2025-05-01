@@ -267,7 +267,7 @@
   },
   {
     "inputs": [],
-    "name": "ProxyAdminOwnedBase_NotProxyAdminOrOwner",
+    "name": "ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner",
     "type": "error"
   },
   {

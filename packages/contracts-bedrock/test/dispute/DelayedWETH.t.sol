@@ -5,12 +5,15 @@ pragma solidity ^0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 import { Burn } from "src/libraries/Burn.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
 // Interfaces
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
 contract DelayedWETH_Init is CommonTest {
     event Approval(address indexed src, address indexed guy, uint256 wad);
@@ -30,6 +33,26 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_Init {
         assertEq(delayedWeth.proxyAdminOwner(), proxyAdminOwner);
         assertEq(address(delayedWeth.systemConfig()), address(systemConfig));
         assertEq(address(delayedWeth.config()), address(systemConfig.superchainConfig()));
+    }
+
+    /// @notice Tests that initialization reverts if called by a non-proxy admin or proxy admin owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(delayedWeth.proxyAdmin()) && _sender != delayedWeth.proxyAdminOwner());
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("DelayedWETH", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(delayedWeth), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+
+        // Call the `initialize` function with the sender.
+        vm.prank(_sender);
+        delayedWeth.initialize(ISystemConfig(address(1234)));
     }
 }
 
