@@ -336,7 +336,6 @@ func initAllocType(root string, allocType AllocType) {
 				if err != nil {
 					panic(fmt.Errorf("failed to inspect L1: %w", err))
 				}
-				l1Deployments := l1Contracts.AsL1Deployments()
 
 				// Set the L1 genesis block timestamp to now
 				dc.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
@@ -344,10 +343,12 @@ func initAllocType(root string, allocType AllocType) {
 				// Speed up the in memory tests
 				dc.L1BlockTime = 2
 				dc.L2BlockTime = 1
-				dc.SetDeployments(l1Deployments)
+				dc.SetContracts(l1Contracts)
 				mtx.Lock()
 				deployConfigsByType[allocType] = dc
 				l1AllocsByType[allocType] = st.L1StateDump.Data
+
+				l1Deployments := genesis.CreateL1DeploymentsFromContracts(l1Contracts)
 				l1DeploymentsByType[allocType] = l1Deployments
 				mtx.Unlock()
 			}

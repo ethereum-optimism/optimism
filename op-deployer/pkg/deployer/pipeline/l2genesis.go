@@ -61,9 +61,9 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 	if err := opcm.L2Genesis(host, &opcm.L2GenesisInput{
 		L1Deployments: opcm.L1Deployments{
-			L1CrossDomainMessengerProxy: thisChainState.L1CrossDomainMessengerProxyAddress,
-			L1StandardBridgeProxy:       thisChainState.L1StandardBridgeProxyAddress,
-			L1ERC721BridgeProxy:         thisChainState.L1ERC721BridgeProxyAddress,
+			L1CrossDomainMessengerProxy: thisChainState.L1CrossDomainMessengerProxy,
+			L1StandardBridgeProxy:       thisChainState.L1StandardBridgeProxy,
+			L1ERC721BridgeProxy:         thisChainState.L1Erc721BridgeProxy,
 		},
 		L2Config:           initCfg.L2InitializationConfig,
 		OverrideAllocsMode: overrideAllocsMode,

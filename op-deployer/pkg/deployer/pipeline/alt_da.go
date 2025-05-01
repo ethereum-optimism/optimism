@@ -32,7 +32,7 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 	lgr.Info("deploying alt-da contracts")
 	dao, err = opcm.DeployAltDA(env.L1ScriptHost, opcm.DeployAltDAInput{
 		Salt:                     st.Create2Salt,
-		ProxyAdmin:               chainState.ProxyAdminAddress,
+		ProxyAdmin:               chainState.OpChainContracts.OpChainProxyAdminImpl,
 		ChallengeContractOwner:   chainIntent.Roles.L1ProxyAdminOwner,
 		ChallengeWindow:          new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAChallengeWindow),
 		ResolveWindow:            new(big.Int).SetUint64(chainIntent.DangerousAltDAConfig.DAResolveWindow),
@@ -43,8 +43,8 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 		return fmt.Errorf("failed to deploy alt-da contracts: %w", err)
 	}
 
-	chainState.DataAvailabilityChallengeProxyAddress = dao.DataAvailabilityChallengeProxy
-	chainState.DataAvailabilityChallengeImplAddress = dao.DataAvailabilityChallengeImpl
+	chainState.OpChainContracts.AltDAChallengeProxy = dao.DataAvailabilityChallengeProxy
+	chainState.OpChainContracts.AltDAChallengeImpl = dao.DataAvailabilityChallengeImpl
 	return nil
 }
 
@@ -53,5 +53,5 @@ func shouldDeployAltDA(chainIntent *state.ChainIntent, chainState *state.ChainSt
 		return false
 	}
 
-	return chainState.DataAvailabilityChallengeImplAddress == common.Address{}
+	return chainState.OpChainContracts.AltDAChallengeImpl == common.Address{}
 }
