@@ -85,7 +85,7 @@ contract FetchChainInfoOutput {
     // roles
     address internal _systemConfigOwner;
     address internal _opChainProxyAdminOwner;
-    address internal _guardian;
+    address internal _opChainGuardian;
     address internal _challenger;
     address internal _proposer;
     address internal _unsafeBlockSigner;
@@ -121,7 +121,7 @@ contract FetchChainInfoOutput {
         // roles
         else if (_sel == this.systemConfigOwner.selector) _systemConfigOwner = _addr;
         else if (_sel == this.opChainProxyAdminOwner.selector) _opChainProxyAdminOwner = _addr;
-        else if (_sel == this.guardian.selector) _guardian = _addr;
+        else if (_sel == this.opChainGuardian.selector) _opChainGuardian = _addr;
         else if (_sel == this.challenger.selector) _challenger = _addr;
         else if (_sel == this.proposer.selector) _proposer = _addr;
         else if (_sel == this.unsafeBlockSigner.selector) _unsafeBlockSigner = _addr;
@@ -240,9 +240,9 @@ contract FetchChainInfoOutput {
         return _opChainProxyAdminOwner;
     }
 
-    function guardian() public view returns (address) {
-        require(_guardian != address(0), "FetchChainInfoOutput: guardian not set");
-        return _guardian;
+    function opChainGuardian() public view returns (address) {
+        require(_opChainGuardian != address(0), "FetchChainInfoOutput: opChainGuardian not set");
+        return _opChainGuardian;
     }
 
     function challenger() public view returns (address) {
@@ -324,8 +324,8 @@ contract FetchChainInfo is Script {
         address optimismPortalProxy = _getOptimismPortalProxy(l1CrossDomainMessengerProxy);
         _fo.set(_fo.optimismPortalProxy.selector, optimismPortalProxy);
 
-        address guardian = _getGuardian(optimismPortalProxy);
-        _fo.set(_fo.guardian.selector, guardian);
+        address opChainGuardian = _getGuardian(optimismPortalProxy);
+        _fo.set(_fo.opChainGuardian.selector, opChainGuardian);
 
         address superchainConfigProxy = _getSuperchainConfigProxy(optimismPortalProxy);
         _fo.set(_fo.superchainConfigProxy.selector, superchainConfigProxy);
