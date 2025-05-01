@@ -1383,7 +1383,7 @@ func TestInvalidRandomGraph(gt *testing.T) {
 	users := []*userWithKeys{alice, bob}
 	nonces := []uint64{0, 0}
 
-	// paramters for building directed acyclic graph
+	// parameters for building directed acyclic graph
 	blockCnt := 10
 	L2ChainCnt := 2
 	maxTxCntPerBlock := 15
