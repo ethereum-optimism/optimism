@@ -30,6 +30,9 @@ abstract contract ProxyAdminOwnedBase {
     /// @notice Thrown when the ProxyAdmin owner of the current contract is not found.
     error ProxyAdminOwnedBase_ProxyAdminNotFound();
 
+    /// @notice Thrown when the current contract is not a ResolvedDelegateProxy.
+    error ProxyAdminOwnedBase_NotResolvedDelegateProxy();
+
     /// @notice Getter for the owner of the ProxyAdmin.
     function proxyAdminOwner() public view returns (address) {
         return proxyAdmin().owner();
@@ -43,7 +46,22 @@ abstract contract ProxyAdminOwnedBase {
             return IProxyAdmin(proxyAdminAddress);
         }
 
-        // Otherwise, try to read the AddressManager slot.
+        // Otherwise, we'll try to read the AddressManager slot.
+        // First we make sure this is almost certainly a ResolvedDelegateProxy. We only have a
+        // single ResolvedDelegateProxy and it's for the L1CrossDomainMessenger, so we'll check
+        // that the storage slot for the mapping at slot 0 returns the string
+        // "OVM_L1CrossDomainMessenger". We need to use Solidity's rules for how strings are stored
+        // in storage slots to do this.
+        if (
+            Storage.getBytes32(keccak256(abi.encode(address(this), uint256(0))))
+                != bytes32(
+                    uint256(bytes32("OVM_L1CrossDomainMessenger")) | uint256(bytes("OVM_L1CrossDomainMessenger").length * 2)
+                )
+        ) {
+            revert ProxyAdminOwnedBase_NotResolvedDelegateProxy();
+        }
+
+        // Ok, now we'll try to read the AddressManager slot.
         address addressManagerAddress = Storage.getAddress(keccak256(abi.encode(address(this), uint256(1))));
         if (addressManagerAddress != address(0)) {
             return IProxyAdmin(IAddressManager(addressManagerAddress).owner());

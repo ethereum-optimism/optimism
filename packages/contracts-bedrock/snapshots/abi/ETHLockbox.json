@@ -374,6 +374,11 @@
   },
   {
     "inputs": [],
+    "name": "ProxyAdminOwnedBase_NotResolvedDelegateProxy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProxyAdminOwnedBase_NotSharedProxyAdminOwner",
     "type": "error"
   },

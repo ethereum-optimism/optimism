@@ -12,6 +12,12 @@ import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 /// @notice Contract implementing the abstract `ProxyAdminOwnedBase` contract so we can write unit
 ///         tests for the `ProxyAdminOwnedBase` contract.
 contract ProxyAdminOwnedBase_Harness is ProxyAdminOwnedBase {
+    /// @notice Slot 0, used to test ResolvedDelegateProxy behavior.
+    mapping(address => string) public slot0;
+
+    /// @notice Slot 1, used to test ResolvedDelegateProxy behavior.
+    mapping(address => address) public slot1;
+
     /// @notice Assert that the proxy admin owner of the current contract is the same as the proxy
     ///         admin owner of the other Proxy address provided.
     function assertSharedProxyAdminOwner(address _proxy) public view {
@@ -31,6 +37,16 @@ contract ProxyAdminOwnedBase_Harness is ProxyAdminOwnedBase {
     /// @notice Assert that the caller is the ProxyAdmin or the ProxyAdmin owner.
     function assertOnlyProxyAdminOrProxyAdminOwner() public view {
         _assertOnlyProxyAdminOrProxyAdminOwner();
+    }
+
+    /// @notice Set the value of slot 0 for the provided address.
+    function setSlot0(address _address, string memory _value) public {
+        slot0[_address] = _value;
+    }
+
+    /// @notice Set the value of slot 1 for the provided address.
+    function setSlot1(address _address, address _value) public {
+        slot1[_address] = _value;
     }
 }
 
@@ -63,6 +79,56 @@ contract ProxyAdminOwnedBase_proxyAdmin_Test is ProxyAdminOwnedBase_TestInit {
     /// @notice Tests that the proxyAdmin function returns the correct proxy.
     function test_proxyAdmin_succeeds() public view {
         assertEq(address(harness.proxyAdmin()), address(proxyAdmin));
+    }
+
+    /// @notice Tests that the proxyAdmin function returns the correct proxy when the current
+    ///         contract is a full ResolvedDelegateProxy.
+    function test_proxyAdmin_fullResolvedDelegateProxy_succeeds() public {
+        // Unset the standard proxy owner slot.
+        vm.store(address(harness), bytes32(Constants.PROXY_OWNER_ADDRESS), bytes32(0));
+
+        // Store the string "OVM_L1CrossDomainMessenger" in slot 0.
+        harness.setSlot0(address(harness), "OVM_L1CrossDomainMessenger");
+
+        // Store the address of the proxyAdmin in slot 1.
+        harness.setSlot1(address(harness), address(addressManager));
+
+        // Expect no revert.
+        assertEq(address(harness.proxyAdmin()), address(proxyAdmin));
+    }
+
+    /// @notice Tests that the proxyAdmin function reverts if the current contract is not a
+    ///         ResolvedDelegateProxy.
+    /// @param _slot0Value The value to store in slot 0.
+    function test_proxyAdmin_notResolvedDelegateProxy_reverts(string memory _slot0Value) public {
+        // Assume the slot 0 value is not "OVM_L1CrossDomainMessenger".
+        vm.assume(keccak256(abi.encode(_slot0Value)) != keccak256(abi.encode("OVM_L1CrossDomainMessenger")));
+
+        // Unset the standard proxy owner slot.
+        vm.store(address(harness), bytes32(Constants.PROXY_OWNER_ADDRESS), bytes32(0));
+
+        // Store the slot 0 value.
+        harness.setSlot0(address(harness), _slot0Value);
+
+        // Expect a revert.
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector);
+        harness.proxyAdmin();
+    }
+
+    /// @notice Tests that the proxyAdmin function reverts if the proxy admin is not found.
+    function test_proxyAdmin_proxyAdminNotFound_reverts() public {
+        // Unset the standard proxy owner slot.
+        vm.store(address(harness), bytes32(Constants.PROXY_OWNER_ADDRESS), bytes32(0));
+
+        // Store the string "OVM_L1CrossDomainMessenger" in slot 0.
+        harness.setSlot0(address(harness), "OVM_L1CrossDomainMessenger");
+
+        // Store address(0) in slot 1.
+        harness.setSlot1(address(harness), address(0));
+
+        // Expect a revert.
+        vm.expectRevert(ProxyAdminOwnedBase.ProxyAdminOwnedBase_ProxyAdminNotFound.selector);
+        harness.proxyAdmin();
     }
 }
 

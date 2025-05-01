@@ -11,6 +11,7 @@ interface IDelayedWETH {
     error ProxyAdminOwnedBase_NotProxyAdmin();
     error ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner();
     error ProxyAdminOwnedBase_ProxyAdminNotFound();
+    error ProxyAdminOwnedBase_NotResolvedDelegateProxy();
     error ReinitializableBase_ZeroInitVersion();
 
     struct WithdrawalRequest {
