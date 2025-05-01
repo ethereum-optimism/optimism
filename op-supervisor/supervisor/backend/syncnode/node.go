@@ -156,7 +156,7 @@ func (m *ManagedNode) SubscribeToNodeEvents() {
 		func(ctx context.Context, prevErr error) (gethevent.Subscription, error) {
 			if prevErr != nil {
 				// This is the RPC runtime error, not the setup error we have logging for below.
-				m.log.Error("RPC subscription failed, restarting now", "err", prevErr)
+				m.log.Warn("RPC subscription failed, retrying", "err", prevErr)
 				var closeErr *websocket.CloseError
 				if errors.As(prevErr, &closeErr) {
 					m.log.Warn("RPC websocket connection closed")
