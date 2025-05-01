@@ -713,7 +713,11 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 		}
 		source, err := su.chainDBs.CrossDerivedToSource(chainID, ref.ID())
 		if err != nil {
-			return eth.SuperRootResponse{}, err
+			// Transform error to ethereum.NotFound at RPC boundary so that the challenger can detect this case
+			if errors.Is(err, types.ErrFuture) {
+				err = errors.Join(err, ethereum.NotFound)
+			}
+			return eth.SuperRootResponse{}, fmt.Errorf("cross-derived-to-source failed for chain %s: %w", chainID, err)
 		}
 		if crossSafeSource.Number == 0 || crossSafeSource.Number < source.Number {
 			crossSafeSource = source.ID()

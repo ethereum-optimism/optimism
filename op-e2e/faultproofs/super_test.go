@@ -323,7 +323,6 @@ func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
 }
 
 func TestSuperInvalidateUnsafeProposal(t *testing.T) {
-	t.Skip("TODO(#15321): Challenger does not respond to unsafe proposals")
 	ctx := context.Background()
 	type TestCase struct {
 		name     string
