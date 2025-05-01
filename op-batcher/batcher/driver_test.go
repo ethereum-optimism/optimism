@@ -271,6 +271,15 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			}()
 			wg2.Add(1)
 
+			cleanup := func() {
+				cancelBlockLoading()
+				wg2.Wait()
+				close(pendingBytesUpdated)
+				wg1.Wait()
+			}
+
+			defer cleanup()
+
 			require.Eventually(t,
 				func() bool {
 					// Check that all endpoints were called
@@ -315,11 +324,6 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 				}, time.Second*2, time.Millisecond*10, "Restarted server should have been called within 2s")
 			}
 
-			// Clean up
-			cancelBlockLoading()
-			wg2.Wait()
-			close(pendingBytesUpdated)
-			wg1.Wait()
 		}
 	}
 	t.Run("two normal endpoints", testThrottlingEndpoints(2, 0))
