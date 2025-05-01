@@ -85,13 +85,6 @@ optimism_package:
         image: {{ $local_images.op_batcher }}
         extra_params:
         - {{ $flags.log_level }}
-      challenger_params:
-        image: {{ $local_images.op_challenger }}
-        cannon_prestate_path: ""
-        cannon_prestates_url: {{ $urls.prestate }}
-        cannon_trace_types: ["cannon", "permissioned", "super-cannon"]
-        extra_params:
-        - {{ $flags.log_level }}
       proposer_params:
         image: {{ $local_images.op_proposer }}
         extra_params:
@@ -145,13 +138,6 @@ optimism_package:
         image: {{ $local_images.op_batcher }}
         extra_params:
         - {{ $flags.log_level }}
-      challenger_params:
-        image: {{ $local_images.op_challenger }}
-        cannon_prestate_path: ""
-        cannon_prestates_url: {{ $urls.prestate }}
-        cannon_trace_types: ["cannon", "permissioned", "super-cannon"]
-        extra_params:
-        - {{ $flags.log_level }}
       proposer_params:
         image: {{ $local_images.op_proposer }}
         extra_params:
@@ -163,6 +149,15 @@ optimism_package:
         builder_host: ""
         builder_port: ""
       additional_services: []
+  challengers:
+    challenger:
+      enabled: true
+      image: {{ $local_images.op_challenger }}
+      participants: "*"
+      cannon_prestates_url: {{ localPrestate.URL }}
+      cannon_trace_types: ["super-cannon", "super-permissioned"]
+      extra_params:
+      - {{ $flags.log_level }}
   op_contract_deployer_params:
     image: {{ $local_images.op_deployer }}
     l1_artifacts_locator: {{ $urls.l1_artifacts }}

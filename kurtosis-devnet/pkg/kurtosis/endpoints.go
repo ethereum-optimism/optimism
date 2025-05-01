@@ -141,6 +141,12 @@ func (f *ServiceFinder) FindL2Services(s ChainSpec) ([]descriptors.Node, descrip
 			return "", 0, false
 		}
 
+		// challenger is special too, and right now there's no way to identify which L2s it covers
+		// TODO: fix this horror, right now we're forced to assume there's only one.
+		if strings.HasPrefix(serviceName, "op-challenger") {
+			return "challenger", 0, true
+		}
+
 		// Some services don't have a network suffix, as they span multiple chains
 		if strings.HasPrefix(serviceName, f.l2ServicePrefix) {
 			tag, idx := f.serviceTag(strings.TrimPrefix(serviceName, f.l2ServicePrefix))

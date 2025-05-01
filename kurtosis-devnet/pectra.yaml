@@ -40,11 +40,6 @@ optimism_package:
       batcher_params:
         image: {{ localDockerImage "op-batcher" }}
         extra_params: []
-      challenger_params:
-        image: {{ localDockerImage "op-challenger" }}
-        cannon_prestate_path: ""
-        cannon_prestates_url: "http://fileserver/proofs/op-program/cannon"
-        extra_params: []
       proposer_params:
         image: {{ localDockerImage "op-proposer" }}
         extra_params: []
@@ -55,6 +50,13 @@ optimism_package:
         builder_host: ""
         builder_port: ""
       additional_services: []
+  challengers:
+    challenger:
+      enabled: true
+      image: {{ localDockerImage "op-challenger" }}
+      participants: "*"
+      cannon_prestates_url: {{ localPrestate.URL }}
+      cannon_trace_types: ["cannon", "permissioned"]
   op_contract_deployer_params:
     image: {{ localDockerImage "op-deployer" }}
     l1_artifacts_locator: {{ localContractArtifacts "l1" }}
