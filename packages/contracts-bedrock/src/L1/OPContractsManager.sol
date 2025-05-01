@@ -1430,7 +1430,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
 
-        // TODO: Explain why portals[0].systemConfig() is used here.
+        // We can use opChainConfigs[0] as they are members of the same superchain cluster (shared lockbox)
         // Initialize the new AnchorStateRegistry.
         upgradeToAndCall(
             _input.opChainConfigs[0].proxyAdmin,
