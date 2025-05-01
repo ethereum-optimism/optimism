@@ -6,6 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -55,13 +57,14 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 		require.NoError(t, err)
 
 		// Now we run the deploy script
+		mipsVersion := int64(standard.MIPSVersion)
 		output, err := deployImplementations.Run(DeployImplementations2Input{
 			WithdrawalDelaySeconds:          big.NewInt(1),
 			MinProposalSizeBytes:            big.NewInt(2),
 			ChallengePeriodSeconds:          big.NewInt(3),
 			ProofMaturityDelaySeconds:       big.NewInt(4),
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
-			MipsVersion:                     big.NewInt(6),
+			MipsVersion:                     big.NewInt(mipsVersion),
 			// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
 			L1ContractsRelease:    "dev-release",
 			SuperchainConfigProxy: proxyAddress,
@@ -89,7 +92,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			ChallengePeriodSeconds:          big.NewInt(3),
 			ProofMaturityDelaySeconds:       big.NewInt(4),
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
-			MipsVersion:                     big.NewInt(6),
+			MipsVersion:                     big.NewInt(mipsVersion),
 			// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
 			L1ContractsRelease:    "dev-release",
 			SuperchainConfigProxy: proxyAddress,

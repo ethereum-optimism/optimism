@@ -1,6 +1,6 @@
 # `mipsevm`
 
-Supported 63 instructions:
+Supported instructions:
 | Category             | Instruction   | Description                                  |
 |----------------------|---------------|----------------------------------------------|
 | `Arithmetic`         | `add`         | Add.                                         |
@@ -11,24 +11,46 @@ Supported 63 instructions:
 | `Logical`            | `andi`        | Bitwise AND immediate.                       |
 | `Conditional Branch` | `beq`         | Branch on equal.                             |
 | `Conditional Branch` | `bgez`        | Branch on greater than or equal to zero.     |
-| `Conditional Branch` | `bgtz`        | Branch on greater than zero.                 |
 | `Conditional Branch` | `bgezal`      | Branch and link on greater than or equal to zero.     |
+| `Conditional Branch` | `bgtz`        | Branch on greater than zero.                 |
 | `Conditional Branch` | `blez`        | Branch on less than or equal to zero.        |
 | `Conditional Branch` | `bltz`        | Branch on less than zero.                    |
 | `Conditional Branch` | `bltzal`      | Branch and link on less than zero.           |
 | `Conditional Branch` | `bne`         | Branch on not equal.                         |
 | `Logical`            | `clo`         | Count leading ones.                          |
 | `Logical`            | `clz`         | Count leading zeros.                         |
+| `Arithmetic`         | `dadd`        | Double-word add.                             |
+| `Arithmetic`         | `daddi`       | Double-word add immediate.                   |
+| `Arithmetic`         | `daddiu`      | Double-word add immediate unsigned.          |
+| `Arithmetic`         | `daddu`       | Double-word add unsigned.                    |
 | `Logical`            | `dclo`        | Count Leading Ones in Doubleword.            |
 | `Logical`            | `dclz`        | Count Leading Zeros in Doubleword.           |
+| `Arithmetic`         | `ddiv`        | Double-word divide.                          |
+| `Arithmetic`         | `ddivu`       | Double-word divide unsigned.                 |
 | `Arithmetic`         | `div`         | Divide.                                      |
 | `Arithmetic`         | `divu`        | Divide unsigned.                             |
+| `Arithmetic`         | `dmult`       | Double-word multiply.                        |
+| `Arithmetic`         | `dmultu`      | Double-word multiply unsigned.               |
+| `Logical`            | `dsll`        | Double-word shift left logical.              |
+| `Logical`            | `dsll32`      | Double-word shift left logical + 32.         |
+| `Logical`            | `dsllv`       | Double-word shift left logical variable.     |
+| `Logical`            | `dsra`        | Double-word shift right arithmetic.          |
+| `Logical`            | `dsra32`      | Double-word shift right arithmetic + 32.     |
+| `Logical`            | `dsrav`       | Double-word shift right arithmetic variable. |
+| `Logical`            | `dsrl`        | Double-word shift right logical.             |
+| `Logical`            | `dsrl32`      | Double-word shift right logical + 32.        |
+| `Logical`            | `dsrlv`       | Double-word shift right logical variable.    |
+| `Arithmetic`         | `dsub`        | Double-word subtract.                        |
+| `Arithmetic`         | `dsubu`       | Double-word subtract unsigned.               |
 | `Unconditional Jump` | `j`           | Jump.                                        |
 | `Unconditional Jump` | `jal`         | Jump and link.                               |
 | `Unconditional Jump` | `jalr`        | Jump and link register.                      |
 | `Unconditional Jump` | `jr`          | Jump register.                               |
 | `Data Transfer`      | `lb`          | Load byte.                                   |
 | `Data Transfer`      | `lbu`         | Load byte unsigned.                          |
+| `Data Transfer`      | `ld`          | Load double-word.                            |
+| `Data Transfer`      | `ldl`         | Load double-word left.                       |
+| `Data Transfer`      | `ldr`         | Load double-word right.                      |
 | `Data Transfer`      | `lh`          | Load halfword.                               |
 | `Data Transfer`      | `lhu`         | Load halfword unsigned.                      |
 | `Data Transfer`      | `ll`          | Load linked word.                            |
@@ -36,6 +58,7 @@ Supported 63 instructions:
 | `Data Transfer`      | `lw`          | Load word.                                   |
 | `Data Transfer`      | `lwl`         | Load word left.                              |
 | `Data Transfer`      | `lwr`         | Load word right.                             |
+| `Data Transfer`      | `lwu`         | Load word unsigned.                          |
 | `Data Transfer`      | `mfhi`        | Move from HI register.                       |
 | `Data Transfer`      | `mflo`        | Move from LO register.                       |
 | `Data Transfer`      | `movn`        | Move conditional on not zero.                |
@@ -50,6 +73,9 @@ Supported 63 instructions:
 | `Logical`            | `ori`         | Bitwise OR immediate.                        |
 | `Data Transfer`      | `sb`          | Store byte.                                  |
 | `Data Transfer`      | `sc`          | Store conditional.                           |
+| `Data Transfer`      | `sd`          | Store double-word.                           |
+| `Data Transfer`      | `sdl`         | Store double-word left.                      |
+| `Data Transfer`      | `sdr`         | Store double-word right.                     |
 | `Data Transfer`      | `sh`          | Store halfword.                              |
 | `Logical`            | `sll`         | Shift left logical.                          |
 | `Logical`            | `sllv`        | Shift left logical variable.                 |
@@ -78,4 +104,4 @@ To run:
 5. Instrument the emulator with the state, and pre-image oracle, using `NewInstrumentedState`
 6. Step through the instrumented state with `Step(proof)`,
    where `proof==true` if witness data should be generated. Steps are faster with `proof==false`.
-7. Optionally repeat the step on-chain by calling `MIPS.sol` and `PreimageOracle.sol`, using the above witness data.
+7. Optionally repeat the step on-chain by calling `MIPS64.sol` and `PreimageOracle.sol`, using the above witness data.

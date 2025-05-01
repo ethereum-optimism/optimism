@@ -53,9 +53,9 @@ prestate TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: (client TYPE CLIENT_SUFFIX PRESTATE
         --output ""
     mv /app/op-program/bin/0{{PRESTATE_SUFFIX}}.json /app/op-program/bin/prestate-proof{{PRESTATE_SUFFIX}}.json
 
-build-mt64: (prestate "multithreaded64-3" "64" "-mt64")
+build-mt64: (prestate "multithreaded64-4" "64" "-mt64")
 build-mt64Next: (prestate "multithreaded64-4" "64" "-mt64Next")
-build-interop: (prestate "multithreaded64-3" "-interop" "-interop")
+build-interop: (prestate "multithreaded64-4" "-interop" "-interop")
 
 build-all: build-mt64 build-mt64Next build-interop
 build-current: build-mt64 build-interop

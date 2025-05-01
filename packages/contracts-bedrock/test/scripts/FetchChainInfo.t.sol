@@ -324,7 +324,7 @@ contract FetchChainInfoTest is Test {
         assertEq(ctx.output.systemConfigProxy(), ctx.systemConfigProxy, "SystemConfig should match");
         assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
         assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
-        assertEq(ctx.output.permissionedDisputeGame(), ctx.permissionedGame, "PermissionedDisputeGame should match");
+        assertEq(ctx.output.permissionedDisputeGameImpl(), ctx.permissionedGame, "PermissionedDisputeGame should match");
         assertTrue(
             LibGameType.raw(ctx.output.respectedGameType()) == LibGameType.raw(GameTypes.PERMISSIONED_CANNON),
             "respectedGameType should be CANNON"
@@ -372,12 +372,12 @@ contract FetchChainInfoTest is Test {
         assertEq(ctx.output.systemConfigProxy(), ctx.systemConfigProxy, "SystemConfig should match");
         assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
         assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
-        assertEq(ctx.output.permissionedDisputeGame(), ctx.permissionedGame, "PermissionedDisputeGame should match");
-        assertEq(ctx.output.faultDisputeGame(), ctx.permissionlessGame, "FaultDisputeGame should match");
+        assertEq(ctx.output.permissionedDisputeGameImpl(), ctx.permissionedGame, "PermissionedDisputeGame should match");
+        assertEq(ctx.output.faultDisputeGameImpl(), ctx.permissionlessGame, "FaultDisputeGame should match");
         assertEq(ctx.output.challenger(), TEST_CHALLENGER, "Challenger should match");
         assertEq(ctx.output.proposer(), TEST_PROPOSER, "Proposer should match");
-        assertEq(ctx.output.mips(), ctx.mips, "MIPS should match");
-        assertEq(ctx.output.preimageOracle(), ctx.preimageOracle, "PreimageOracle should match");
+        assertEq(ctx.output.mipsImpl(), ctx.mips, "MIPS should match");
+        assertEq(ctx.output.preimageOracleImpl(), ctx.preimageOracle, "PreimageOracle should match");
         assertEq(ctx.output.anchorStateRegistryProxy(), ctx.anchorStateRegistry, "AnchorStateRegistry should match");
 
         assertTrue(ctx.output.permissioned(), "Permissioned proofs should be enabled");
@@ -482,9 +482,9 @@ contract FetchChainInfoTest is Test {
         fetchChainInfo = new FetchChainInfo();
         fetchChainInfo.run(ctx.input, ctx.output);
 
-        assertEq(ctx.output.delayedWETHPermissionedGameProxy(), WETH_PERMISSIONED, "PermissionedGame WETH should match");
+        assertEq(ctx.output.delayedWethPermissionedGameProxy(), WETH_PERMISSIONED, "PermissionedGame WETH should match");
         assertEq(
-            ctx.output.delayedWETHPermissionlessGameProxy(), WETH_PERMISSIONLESS, "PermissionlessGame WETH should match"
+            ctx.output.delayedWethPermissionlessGameProxy(), WETH_PERMISSIONLESS, "PermissionlessGame WETH should match"
         );
     }
 }

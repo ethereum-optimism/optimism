@@ -44,6 +44,9 @@ type State struct {
 	// can be looked up on chain.
 	SuperchainDeployment *addresses.SuperchainContracts `json:"superchainContracts"`
 
+	// SuperchainRoles contains the addresses of the Superchain roles.
+	SuperchainRoles *addresses.SuperchainRoles `json:"superchainRoles"`
+
 	// ImplementationsDeployment contains the addresses of the common implementation
 	// contracts required for the Superchain to function.
 	ImplementationsDeployment *addresses.ImplementationsContracts `json:"implementationsDeployment"`

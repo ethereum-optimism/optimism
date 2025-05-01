@@ -90,7 +90,3 @@ See [`testdata/Makefile`](testdata/Makefile) for building these MIPS binaries.
 
 MIT, see [`LICENSE`](./LICENSE) file.
 
-**Note: This code is unaudited.**
-In NO WAY should it be used to secure any monetary value before testing and auditing.
-This is experimental software, and should be treated as such.
-The authors of this project make no guarantees of security of ANY KIND.

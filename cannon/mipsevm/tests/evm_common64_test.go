@@ -540,10 +540,6 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 		features := versions.FeaturesForVersion(v.Version)
 		return features.SupportDclzDclo
 	}), "dclz/dclo feature not tested")
-	require.True(t, slices.ContainsFunc(vmVersions, func(v VersionedVMTestCase) bool {
-		features := versions.FeaturesForVersion(v.Version)
-		return !features.SupportDclzDclo
-	}), "dclz/dclo backwards compatibility feature not tested")
 
 	for _, v := range vmVersions {
 		for i, tt := range cases {

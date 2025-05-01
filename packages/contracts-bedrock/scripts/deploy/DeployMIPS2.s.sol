@@ -11,6 +11,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 /// @title DeployMIPS
 contract DeployMIPS2 is Script {
@@ -53,7 +54,7 @@ contract DeployMIPS2 is Script {
     function assertValidInput(Input memory _input) public pure {
         require(address(_input.preimageOracle) != address(0), "DeployMIPS: preimageOracle not set");
         require(_input.mipsVersion != 0, "DeployMIPS: mipsVersion not set");
-        require(_input.mipsVersion == 6, "DeployMIPS: unknown mips version");
+        require(_input.mipsVersion == StandardConstants.MIPS_VERSION, "DeployMIPS: unsupported mips version");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) public view {

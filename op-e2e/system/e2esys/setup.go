@@ -982,8 +982,8 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 sys.EthInstances[RoleL1].UserRPC().RPC(),
-		L2EthRpc:                 sys.EthInstances[RoleSeq].UserRPC().RPC(),
-		RollupRpc:                sys.RollupNodes[RoleSeq].UserRPC().RPC(),
+		L2EthRpc:                 []string{sys.EthInstances[RoleSeq].UserRPC().RPC()},
+		RollupRpc:                []string{sys.RollupNodes[RoleSeq].UserRPC().RPC()},
 		MaxPendingTransactions:   cfg.BatcherMaxPendingTransactions,
 		MaxChannelDuration:       1,
 		MaxL1TxSize:              batcherMaxL1TxSizeBytes,

@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -360,16 +361,16 @@ func initAllocType(root string, allocType AllocType) {
 
 func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address, allocType AllocType) *state.Intent {
 	secrets := secrets.DefaultSecrets
-	addresses := secrets.Addresses()
+	addrs := secrets.Addresses()
 	defaultPrestate := common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98")
 	genesisOutputRoot := common.HexToHash("0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF")
 	return &state.Intent{
 		ConfigType: state.IntentTypeCustom,
 		L1ChainID:  900,
-		SuperchainRoles: &state.SuperchainRoles{
-			ProxyAdminOwner:       deployer,
-			ProtocolVersionsOwner: deployer,
-			Guardian:              deployer,
+		SuperchainRoles: &addresses.SuperchainRoles{
+			SuperchainProxyAdminOwner: deployer,
+			ProtocolVersionsOwner:     deployer,
+			SuperchainGuardian:        deployer,
 		},
 		FundDevAccounts:    true,
 		L1ContractsLocator: loc,
@@ -380,7 +381,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 			"channelTimeout":                           120,
 			"l2OutputOracleSubmissionInterval":         10,
 			"l2OutputOracleStartingTimestamp":          0,
-			"l2OutputOracleProposer":                   addresses.Proposer,
+			"l2OutputOracleProposer":                   addrs.Proposer,
 			"l2OutputOracleChallenger":                 "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
 			"l2GenesisBlockGasLimit":                   "0x1c9c380",
 			"l1BlockTime":                              6,
@@ -428,8 +429,8 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 					L2ProxyAdminOwner: deployer,
 					SystemConfigOwner: deployer,
 					UnsafeBlockSigner: common.HexToAddress("0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"),
-					Batcher:           addresses.Batcher,
-					Proposer:          addresses.Proposer,
+					Batcher:           addrs.Batcher,
+					Proposer:          addrs.Proposer,
 					Challenger:        common.HexToAddress("0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"),
 				},
 				AdditionalDisputeGames: []state.AdditionalDisputeGame{
@@ -507,12 +508,14 @@ func decompressGzipJSON(p string, thing any) {
 }
 
 func cannonVMType(allocType AllocType) state.VMType {
-	if allocType == AllocTypeMTCannon {
-		return state.VMTypeCannon6
-	} else if allocType == AllocTypeMTCannonNext {
-		return state.VMTypeCannon7
+	if allocType == AllocTypeMTCannonNext {
+		return state.VMTypeCannonNext
 	}
-	return state.VMTypeCannon6
+	return state.VMTypeCannon
+}
+
+func IsCannonInDevelopment() bool {
+	return cannonVMType(AllocTypeMTCannonNext).MipsVersion() != cannonVMType(AllocTypeMTCannon).MipsVersion()
 }
 
 type prestateFile struct {
@@ -530,11 +533,11 @@ func cannonPrestate(monorepoRoot string, allocType AllocType) common.Hash {
 	var once *sync.Once
 	var cacheVar *common.Hash
 	cannonVmType := cannonVMType(allocType)
-	if cannonVmType == state.VMTypeCannon2 || cannonVmType == state.VMTypeCannon6 {
+	if cannonVmType == state.VMTypeCannon {
 		filename = "prestate-proof-mt64.json"
 		once = &cannonPrestateMTOnce
 		cacheVar = &cannonPrestateMT
-	} else if cannonVmType == state.VMTypeCannon7 {
+	} else if cannonVmType == state.VMTypeCannonNext {
 		filename = "prestate-proof-mt64Next.json"
 		once = &cannonPrestateMTNextOnce
 		cacheVar = &cannonPrestateMTNext

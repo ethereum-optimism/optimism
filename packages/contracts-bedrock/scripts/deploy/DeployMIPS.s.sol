@@ -12,6 +12,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 /// @title DeployMIPSInput
 contract DeployMIPSInput is BaseDeployIO {
@@ -23,7 +24,7 @@ contract DeployMIPSInput is BaseDeployIO {
 
     function set(bytes4 _sel, uint256 _value) public {
         if (_sel == this.mipsVersion.selector) {
-            require(_value == 6, "DeployMIPS: unknown mips version");
+            require(_value == StandardConstants.MIPS_VERSION, "DeployMIPS: unsupported mips version");
             _mipsVersion = _value;
         } else {
             revert("DeployMIPS: unknown selector");
@@ -41,7 +42,7 @@ contract DeployMIPSInput is BaseDeployIO {
 
     function mipsVersion() public view returns (uint256) {
         require(_mipsVersion != 0, "DeployMIPS: mipsVersion not set");
-        require(_mipsVersion == 6, "DeployMIPS: unknown mips version");
+        require(_mipsVersion == StandardConstants.MIPS_VERSION, "DeployMIPS: unsupported mips version");
         return _mipsVersion;
     }
 

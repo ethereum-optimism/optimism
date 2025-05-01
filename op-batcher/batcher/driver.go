@@ -8,6 +8,7 @@ import (
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -91,7 +92,6 @@ type DriverSetup struct {
 	ChannelConfig     ChannelConfigProvider
 	AltDA             *altda.DAClient
 	ChannelOutFactory ChannelOutFactory
-	ActiveSeqChanged  chan struct{} // optional
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -105,6 +105,8 @@ type BatchSubmitter struct {
 
 	mutex   sync.Mutex
 	running bool
+
+	throttling atomic.Bool // whether the batcher is throttling sequencers and additional endpoints
 
 	txpoolMutex       sync.Mutex // guards txpoolState and txpoolBlockedBlob
 	txpoolState       TxPoolState
@@ -542,90 +544,132 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 	l.Log.Info("receiptsLoop returning")
 }
 
-// throttlingLoop monitors the backlog in bytes we need to make available, and appropriately enables or disables
-// throttling of incoming data to prevent the backlog from growing too large. We ensure the engine currently in use
-// is always going to be reset to the proper throttling settings (even in the event of sequencer failover) by
-// binding to the ActiveSeqChanged channel as well as the pendingBytesUpdated channel.
-func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
+// singleEndpointThrottler handles throttling for a specific endpoint
+func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSignal chan struct{}, endpoint string) {
 	defer wg.Done()
-	l.Log.Info("Starting DA throttling loop")
+	l.Log.Info("Starting endpoint throttling loop", "endpoint", endpoint)
+
+	client, err := rpc.Dial(endpoint)
+	if err != nil {
+		// rpc.Dial returns an error if e.g. the URL is malformed
+		// If the server is unavailable, we will get an error when performing the first call
+		// and retries for that are handled below. Therefore  we don't need any retry logic here
+		l.Log.Error("Failed to Dial endpoint", "endpoint", endpoint, "err", err)
+		return
+	}
 
 	retryInterval := 10 * time.Second
 	retryTimer := time.NewTimer(retryInterval)
 	retryTimer.Stop()
 
-	updateParams := func(pendingBytes int64) {
+	updateParams := func() {
 		retryTimer.Stop()
+
 		ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
 		defer cancel()
-		cl, err := l.EndpointProvider.EthClient(ctx)
-		if err != nil {
-			l.Log.Error("Can't reach sequencer execution RPC", "err", err)
-			return
-		}
 
 		maxTxSize := uint64(0)
 		maxBlockSize := l.Config.ThrottleAlwaysBlockSize
-		if pendingBytes > int64(l.Config.ThrottleThreshold) {
-			l.Log.Warn("Pending bytes over limit, throttling DA", "bytes", pendingBytes, "limit", l.Config.ThrottleThreshold)
+		if l.throttling.Load() {
 			maxTxSize = l.Config.ThrottleTxSize
 			if maxBlockSize == 0 || (l.Config.ThrottleBlockSize != 0 && l.Config.ThrottleBlockSize < maxBlockSize) {
 				maxBlockSize = l.Config.ThrottleBlockSize
 			}
 		}
-		var (
-			success bool
-			rpcErr  rpc.Error
-		)
-		err = cl.Client().CallContext(
+
+		var success bool
+		err := client.CallContext(
 			ctx, &success, SetMaxDASizeMethod, hexutil.Uint64(maxTxSize), hexutil.Uint64(maxBlockSize),
 		)
+
 		if errors.Is(ctx.Err(), context.Canceled) {
-			// If the context was cancelled, our work is done and we expect an error here:
-			// So log it quietly and exit.
-			l.Log.Debug("DA throttling context cancelled")
+			// If the context was cancelled, our work is done and we expect an error here
+			l.Log.Debug("DA throttling context cancelled for endpoint", "endpoint", endpoint)
 			return
 		}
+
+		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()).IsGenericRPCError() {
-			l.Log.Error("SetMaxDASize rpc unavailable or broken, shutting down. Either enable it or disable throttling.", "err", err)
-			// We'd probably hit this error right after startup, so a short shutdown duration should suffice.
+			l.Log.Error("SetMaxDASize RPC method unavailable on endpoint, shutting down. Either enable it or disable throttling.",
+				"endpoint", endpoint, "err", err)
+
+			// We have a strict requirement that all endpoints must have the SetMaxDASize endpoint, and shut down if this RPC method is not available
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			// Call StopBatchSubmitting in another goroutine to avoid deadlock.
 			go func() {
-				// Always returns nil. An error is only returned to expose this function as an RPC.
 				_ = l.StopBatchSubmitting(ctx)
 			}()
 			return
 		} else if err != nil {
-			l.Log.Error("SetMaxDASize rpc failed, retrying.", "err", err)
+			l.Log.Warn("SetMaxDASize RPC failed for endpoint, retrying.", "endpoint", endpoint, "err", err)
 			retryTimer.Reset(retryInterval)
 			return
 		}
-		if !success {
-			l.Log.Error("Result of SetMaxDASize was false, retrying.")
-			retryTimer.Reset(retryInterval)
-		}
-	}
 
-	cachedPendingBytes := int64(0)
+		if !success {
+			l.Log.Warn("Result of SetMaxDASize was false for endpoint, retrying.", "endpoint", endpoint)
+			retryTimer.Reset(retryInterval)
+			return
+		}
+
+		l.Log.Debug("Successfully set max DA size on endpoint",
+			"endpoint", endpoint,
+			"max_tx_size", maxTxSize,
+			"max_block_size", maxBlockSize)
+	}
 
 	for {
 		select {
-		case pendingBytes, ok := <-pendingBytesUpdated:
+		case _, ok := <-throttleSignal:
 			if !ok {
 				// If the channel was closed, this is our signal to exit
-				l.Log.Info("throttlingLoop returning")
+				l.Log.Info("Endpoint throttling loop shutting down", "endpoint", endpoint)
 				return
 			}
-			updateParams(pendingBytes)
-			cachedPendingBytes = pendingBytes
-		case <-l.ActiveSeqChanged:
-			updateParams(cachedPendingBytes)
+			updateParams()
 		case <-retryTimer.C:
-			updateParams(cachedPendingBytes)
+			updateParams()
 		}
 	}
+}
+
+// throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
+// and fans out the pending bytes updates to each endpoint
+func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
+	defer wg.Done()
+	l.Log.Info("Starting DA throttling loop")
+	updateChans := make([]chan struct{}, len(l.Config.ThrottlingEndpoints))
+
+	innerWg := sync.WaitGroup{}
+
+	for i, endpoint := range l.Config.ThrottlingEndpoints {
+		updateChans[i] = make(chan struct{}, 1)
+		innerWg.Add(1)
+		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
+		l.Log.Info("Started throttling loop for endpoint", "endpoint", endpoint)
+	}
+
+	for pb := range pendingBytesUpdated {
+		throttling := uint64(pb) > l.Config.ThrottleThreshold
+		l.throttling.Store(throttling)
+		if throttling {
+			l.Log.Warn("Throttling loop: pending bytes above threshold, endpoints will be throttled", "pending_bytes", pb, "threshold", l.Config.ThrottleThreshold)
+		}
+
+		for i, updateChan := range updateChans {
+			select {
+			case updateChan <- struct{}{}:
+			default:
+				l.Log.Debug("Throttling loop: channel full, skipping update", "endpoint", l.Config.ThrottlingEndpoints[i])
+			}
+		}
+	}
+
+	for _, updateChan := range updateChans {
+		close(updateChan)
+	}
+	innerWg.Wait()
 }
 
 func (l *BatchSubmitter) waitNodeSyncAndClearState() {

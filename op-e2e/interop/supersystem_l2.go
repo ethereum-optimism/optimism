@@ -267,8 +267,8 @@ func (s *interopE2ESystem) newBatcherForL2(
 	logger := s.logger.New("role", "batcher"+id)
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
-		L2EthRpc:                 l2Geth.UserRPC().RPC(),
-		RollupRpc:                opNode.UserRPC().RPC(),
+		L2EthRpc:                 []string{l2Geth.UserRPC().RPC()},
+		RollupRpc:                []string{opNode.UserRPC().RPC()},
 		MaxPendingTransactions:   1,
 		MaxChannelDuration:       1,
 		MaxL1TxSize:              120_000,

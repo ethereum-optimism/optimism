@@ -296,6 +296,25 @@ func (d *InteropDSL) AdvanceL1(optionalArgs ...func(*AdvanceL1Opts)) {
 	}
 }
 
+func (d *InteropDSL) FinalizeL1() {
+	opts := d.defaultChainOpts()
+
+	actors := d.Actors
+	preStatus, err := actors.Supervisor.SyncStatus(d.t.Ctx())
+	require.NoError(d.t, err)
+	actors.L1Miner.ActL1SafeNext(d.t)
+	actors.L1Miner.ActL1FinalizeNext(d.t)
+	actors.Supervisor.SignalFinalizedL1(d.t)
+	actors.Supervisor.ProcessFull(d.t)
+	for _, chain := range opts.Chains {
+		chain.Sequencer.ActL2PipelineFull(d.t)
+	}
+
+	postStatus, err := actors.Supervisor.SyncStatus(d.t.Ctx())
+	require.NoError(d.t, err)
+	require.Greater(d.t, postStatus.FinalizedTimestamp, preStatus.FinalizedTimestamp)
+}
+
 // DeployEmitterContracts deploys an emitter contract on both chains
 func (d *InteropDSL) DeployEmitterContracts() *EmitterContract {
 	emitter := NewEmitterContract(d.t)

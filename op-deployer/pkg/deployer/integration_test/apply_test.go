@@ -31,6 +31,7 @@ import (
 
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -352,7 +353,7 @@ func TestProofParamOverrides(t *testing.T) {
 		"preimageOracleChallengePeriod":           standard.ChallengePeriodSeconds + 1,
 		"proofMaturityDelaySeconds":               standard.ProofMaturityDelaySeconds + 1,
 		"disputeGameFinalityDelaySeconds":         standard.DisputeGameFinalityDelaySeconds + 1,
-		"mipsVersion":                             6,                        // Contract enforces a valid value be used
+		"mipsVersion":                             standard.MIPSVersion,     // Contract enforces a valid value be used
 		"respectedGameType":                       standard.DisputeGameType, // This must be set to the permissioned game
 		"faultGameAbsolutePrestate":               common.Hash{'A', 'B', 'S', 'O', 'L', 'U', 'T', 'E'},
 		"faultGameMaxDepth":                       standard.DisputeMaxGameDepth + 1,
@@ -543,7 +544,7 @@ func TestAdditionalDisputeGames(t *testing.T) {
 	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
 	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	(&intent.Chains[0].Roles).L1ProxyAdminOwner = deployerAddr
-	intent.SuperchainRoles.Guardian = deployerAddr
+	intent.SuperchainRoles.SuperchainGuardian = deployerAddr
 	intent.GlobalDeployOverrides = map[string]any{
 		"challengePeriodSeconds": 1,
 	}
@@ -681,10 +682,10 @@ func newIntent(
 	intent := &state.Intent{
 		ConfigType: state.IntentTypeCustom,
 		L1ChainID:  l1ChainID.Uint64(),
-		SuperchainRoles: &state.SuperchainRoles{
-			ProxyAdminOwner:       addrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
-			ProtocolVersionsOwner: addrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainID)),
-			Guardian:              addrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
+		SuperchainRoles: &addresses.SuperchainRoles{
+			SuperchainProxyAdminOwner: addrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
+			ProtocolVersionsOwner:     addrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainID)),
+			SuperchainGuardian:        addrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
 		},
 		FundDevAccounts:    false,
 		L1ContractsLocator: l1Loc,

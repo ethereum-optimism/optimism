@@ -1,4 +1,4 @@
-FROM golang:1.22.7-alpine3.20 AS builder
+FROM golang:1.23.8-alpine3.21 AS builder
 
 RUN apk add --no-cache make bash
 
@@ -23,15 +23,14 @@ ARG GIT_DATE
 
 ARG TARGETOS TARGETARCH
 
-# TODO(#15591): Update to test cannon-multithreaded64-4 when new VM stabilizes
-FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.4.0 AS cannon-multithreaded64-3
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.5.0-alpha.1 AS cannon-multithreaded64-4
 
 FROM --platform=$BUILDPLATFORM builder AS cannon-verify
-COPY --from=cannon-multithreaded64-3 /usr/local/bin/cannon /usr/local/bin/cannon-multithreaded64-3
+COPY --from=cannon-multithreaded64-4 /usr/local/bin/cannon /usr/local/bin/cannon-multithreaded64-4
 
-# Check cannon-multithreaded64-3
-# verify the latest multithreaded VM behavior against multithreaded64-3
-RUN cd cannon && make diff-multithreaded64-3-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-3
+# Check cannon-multithreaded64-4
+# verify the latest multithreaded VM behavior against multithreaded64-4
+RUN cd cannon && make diff-multithreaded64-4-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-4
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && \
- make diff-multithreaded64-3-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-3 \
+ make diff-multithreaded64-4-cannon -e OTHER_CANNON=/usr/local/bin/cannon-multithreaded64-4 \
  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE

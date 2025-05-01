@@ -76,7 +76,7 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			MIPSVersion:                     6,
+			MIPSVersion:                     int(standard.MIPSVersion),
 			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
 			UpgradeController:               proxyAdminOwner,

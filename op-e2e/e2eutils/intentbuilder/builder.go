@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
@@ -147,7 +148,7 @@ func New() Builder {
 	return &intentBuilder{
 		intent: &state.Intent{
 			ConfigType:      state.IntentTypeCustom,
-			SuperchainRoles: new(state.SuperchainRoles),
+			SuperchainRoles: new(addresses.SuperchainRoles),
 		},
 	}
 }
@@ -202,12 +203,12 @@ func (c *superchainConfigurator) WithSuperchainConfigProxy(address common.Addres
 }
 
 func (c *superchainConfigurator) WithProxyAdminOwner(address common.Address) SuperchainConfigurator {
-	c.builder.intent.SuperchainRoles.ProxyAdminOwner = address
+	c.builder.intent.SuperchainRoles.SuperchainProxyAdminOwner = address
 	return c
 }
 
 func (c *superchainConfigurator) WithGuardian(address common.Address) SuperchainConfigurator {
-	c.builder.intent.SuperchainRoles.Guardian = address
+	c.builder.intent.SuperchainRoles.SuperchainGuardian = address
 	return c
 }
 

@@ -3,7 +3,6 @@ package batcher
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -29,10 +28,10 @@ type CLIConfig struct {
 	L1EthRpc string
 
 	// L2EthRpc is the HTTP provider URL for the L2 execution engine. A comma-separated list enables the active L2 provider. Such a list needs to match the number of RollupRpcs provided.
-	L2EthRpc string
+	L2EthRpc []string
 
 	// RollupRpc is the HTTP provider URL for the L2 rollup node. A comma-separated list enables the active L2 provider. Such a list needs to match the number of L2EthRpcs provided.
-	RollupRpc string
+	RollupRpc []string
 
 	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
 	// channel open. This allows to more eagerly send batcher transactions
@@ -117,6 +116,9 @@ type CLIConfig struct {
 	// Should only be used for testing purposes.
 	TestUseMaxTxSizeForBlobs bool
 
+	// AdditionalThrottlingEndpoints is a list of additional endpoints to throttle.
+	AdditionalThrottlingEndpoints []string
+
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -129,13 +131,13 @@ func (c *CLIConfig) Check() error {
 	if c.L1EthRpc == "" {
 		return errors.New("empty L1 RPC URL")
 	}
-	if c.L2EthRpc == "" {
+	if len(c.L2EthRpc) == 0 {
 		return errors.New("empty L2 RPC URL")
 	}
-	if c.RollupRpc == "" {
+	if len(c.RollupRpc) == 0 {
 		return errors.New("empty rollup RPC URL")
 	}
-	if strings.Count(c.RollupRpc, ",") != strings.Count(c.L2EthRpc, ",") {
+	if len(c.RollupRpc) != len(c.L2EthRpc) {
 		return errors.New("number of rollup and eth URLs must match")
 	}
 	if c.PollInterval == 0 {
@@ -188,36 +190,37 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
 		/* Required Flags */
 		L1EthRpc:        ctx.String(flags.L1EthRpcFlag.Name),
-		L2EthRpc:        ctx.String(flags.L2EthRpcFlag.Name),
-		RollupRpc:       ctx.String(flags.RollupRpcFlag.Name),
+		L2EthRpc:        ctx.StringSlice(flags.L2EthRpcFlag.Name),
+		RollupRpc:       ctx.StringSlice(flags.RollupRpcFlag.Name),
 		SubSafetyMargin: ctx.Uint64(flags.SubSafetyMarginFlag.Name),
 		PollInterval:    ctx.Duration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
-		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
-		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
-		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
-		MaxBlocksPerSpanBatch:        ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
-		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
-		Compressor:                   ctx.String(flags.CompressorFlag.Name),
-		CompressionAlgo:              derive.CompressionAlgo(ctx.String(flags.CompressionAlgoFlag.Name)),
-		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
-		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
-		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
-		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
-		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
-		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
-		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
-		LogConfig:                    oplog.ReadCLIConfig(ctx),
-		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
-		RPC:                          oprpc.ReadCLIConfig(ctx),
-		AltDA:                        altda.ReadCLIConfig(ctx),
-		ThrottleThreshold:            ctx.Uint64(flags.ThrottleThresholdFlag.Name),
-		ThrottleTxSize:               ctx.Uint64(flags.ThrottleTxSizeFlag.Name),
-		ThrottleBlockSize:            ctx.Uint64(flags.ThrottleBlockSizeFlag.Name),
-		ThrottleAlwaysBlockSize:      ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
-		PreferLocalSafeL2:            ctx.Bool(flags.PreferLocalSafeL2Flag.Name),
+		MaxPendingTransactions:        ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
+		MaxChannelDuration:            ctx.Uint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1TxSize:                   ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
+		MaxBlocksPerSpanBatch:         ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
+		TargetNumFrames:               ctx.Int(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:              ctx.Float64(flags.ApproxComprRatioFlag.Name),
+		Compressor:                    ctx.String(flags.CompressorFlag.Name),
+		CompressionAlgo:               derive.CompressionAlgo(ctx.String(flags.CompressionAlgoFlag.Name)),
+		Stopped:                       ctx.Bool(flags.StoppedFlag.Name),
+		WaitNodeSync:                  ctx.Bool(flags.WaitNodeSyncFlag.Name),
+		CheckRecentTxsDepth:           ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
+		BatchType:                     ctx.Uint(flags.BatchTypeFlag.Name),
+		DataAvailabilityType:          flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
+		ActiveSequencerCheckDuration:  ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
+		TxMgrConfig:                   txmgr.ReadCLIConfig(ctx),
+		LogConfig:                     oplog.ReadCLIConfig(ctx),
+		MetricsConfig:                 opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                   oppprof.ReadCLIConfig(ctx),
+		RPC:                           oprpc.ReadCLIConfig(ctx),
+		AltDA:                         altda.ReadCLIConfig(ctx),
+		ThrottleThreshold:             ctx.Uint64(flags.ThrottleThresholdFlag.Name),
+		ThrottleTxSize:                ctx.Uint64(flags.ThrottleTxSizeFlag.Name),
+		ThrottleBlockSize:             ctx.Uint64(flags.ThrottleBlockSizeFlag.Name),
+		ThrottleAlwaysBlockSize:       ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
+		PreferLocalSafeL2:             ctx.Bool(flags.PreferLocalSafeL2Flag.Name),
+		AdditionalThrottlingEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
 	}
 }

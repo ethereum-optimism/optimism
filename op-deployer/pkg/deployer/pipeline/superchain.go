@@ -23,9 +23,9 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 	dso, err := opcm.DeploySuperchain(
 		env.L1ScriptHost,
 		opcm.DeploySuperchainInput{
-			SuperchainProxyAdminOwner:  intent.SuperchainRoles.ProxyAdminOwner,
+			SuperchainProxyAdminOwner:  intent.SuperchainRoles.SuperchainProxyAdminOwner,
 			ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
-			Guardian:                   intent.SuperchainRoles.Guardian,
+			Guardian:                   intent.SuperchainRoles.SuperchainGuardian,
 			Paused:                     false,
 			RequiredProtocolVersion:    rollup.OPStackSupport,
 			RecommendedProtocolVersion: rollup.OPStackSupport,
@@ -42,6 +42,7 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		ProtocolVersionsProxy:    dso.ProtocolVersionsProxy,
 		ProtocolVersionsImpl:     dso.ProtocolVersionsImpl,
 	}
+	st.SuperchainRoles = intent.SuperchainRoles
 
 	return nil
 }

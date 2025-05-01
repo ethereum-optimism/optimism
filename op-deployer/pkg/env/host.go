@@ -3,6 +3,7 @@ package env
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -54,6 +55,33 @@ func DefaultForkedScriptHost(
 	forkRPC *rpc.Client,
 	additionalOpts ...script.HostOption,
 ) (*script.Host, error) {
+	client := ethclient.NewClient(forkRPC)
+
+	latest, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest block: %w", err)
+	}
+
+	return ForkedScriptHost(
+		bcaster,
+		lgr,
+		deployer,
+		artifacts,
+		forkRPC,
+		latest.Number,
+		additionalOpts...,
+	)
+}
+
+func ForkedScriptHost(
+	bcaster broadcaster.Broadcaster,
+	lgr log.Logger,
+	deployer common.Address,
+	artifacts foundry.StatDirFs,
+	forkRPC *rpc.Client,
+	blockNumber *big.Int,
+	additionalOpts ...script.HostOption,
+) (*script.Host, error) {
 	h, err := DefaultScriptHost(
 		bcaster,
 		lgr,
@@ -73,16 +101,9 @@ func DefaultForkedScriptHost(
 		return nil, fmt.Errorf("failed to create default script host: %w", err)
 	}
 
-	client := ethclient.NewClient(forkRPC)
-
-	latest, err := client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get latest block: %w", err)
-	}
-
 	if _, err := h.CreateSelectFork(
 		script.ForkWithURLOrAlias("main"),
-		script.ForkWithBlockNumberU256(latest.Number),
+		script.ForkWithBlockNumberU256(blockNumber),
 	); err != nil {
 		return nil, fmt.Errorf("failed to select fork: %w", err)
 	}

@@ -1430,7 +1430,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
 
-        // TODO: Explain why portals[0].systemConfig() is used here.
+        // We can use portals[0].systemConfig() as they are members of the same superchain cluster (shared lockbox)
         // Initialize the new AnchorStateRegistry.
         upgradeToAndCall(
             _input.opChainConfigs[0].proxyAdmin,
@@ -1688,9 +1688,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.0.1
+    /// @custom:semver 2.0.2
     function version() public pure virtual returns (string memory) {
-        return "2.0.1";
+        return "2.0.2";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
