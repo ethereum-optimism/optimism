@@ -332,6 +332,9 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int, enableEcoton
 				L2ChainID:   901,
 				L2BlockTime: 2,
 			},
+			UpgradeScheduleDeployConfig: genesis.UpgradeScheduleDeployConfig{
+				L1CancunTimeOffset: new(hexutil.Uint64),
+			},
 		},
 	}
 	if enableEcotone {

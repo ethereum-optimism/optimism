@@ -45,7 +45,7 @@ func runL1LookbackTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.EqualValues(t, numL2Blocks, l2SafeHead.Number.Uint64())
 
 	// Run the FPP on the configured L2 block.
-	env.RunFaultProofProgram(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any]) {
@@ -122,7 +122,7 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	require.EqualValues(t, numL2Blocks, l2SafeHead.Number.Uint64())
 
 	// Run the FPP on the configured L2 block.
-	env.RunFaultProofProgram(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_L1Lookback(gt *testing.T) {

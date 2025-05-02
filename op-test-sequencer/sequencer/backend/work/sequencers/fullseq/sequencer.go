@@ -65,7 +65,7 @@ func (s *Sequencer) Open(ctx context.Context) error {
 	}
 
 	opts := &seqtypes.BuildOpts{
-		Parent:   common.Hash{}, // TODO(#14124): update sequencer to chain blocks together
+		Parent:   common.Hash{}, // TODO(#15572): update sequencer to chain blocks together
 		L1Origin: nil,
 	}
 

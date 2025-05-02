@@ -19,6 +19,7 @@ type SupervisorAdminAPI interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.Bytes32) error
+	Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error
 }
 
 type SupervisorQueryAPI interface {

@@ -430,3 +430,219 @@ func (db *ChainsDB) IteratorStartingAt(chain eth.ChainID, sealedNum uint64, logI
 	}
 	return logDB.IteratorStartingAt(sealedNum, logIndex)
 }
+
+// WithReadHandle executes a function with a read handle for a specific chain and block number.
+// If 'fn' performs side effects, those will NOT be rolled back if validation fails.
+func (db *ChainsDB) WithReadHandle(chainID eth.ChainID, blockNum uint64, fn func(*ReadHandle) error) error {
+	handle, err := db.AcquireReadHandle(chainID, blockNum)
+	if err != nil {
+		return err
+	}
+	defer handle.Release()
+
+	// Execute the function
+	fnErr := fn(handle)
+	if fnErr != nil {
+		db.logger.Error("Failed to execute function with read handle", "chainID", chainID, "blockNum", blockNum, "error", fnErr)
+		return fnErr
+	}
+
+	// Final validation
+	validationErr := handle.Validate()
+	if validationErr != nil {
+		db.logger.Error("Failed to validate read handle", "chainID", chainID, "blockNum", blockNum, "error", validationErr)
+		return validationErr
+	}
+	return nil
+}
+
+// WithReadHandles executes a function with read handles for multiple chains and block numbers.
+// If 'fn' performs side effects, those will NOT be rolled back if validation fails.
+func (db *ChainsDB) WithReadHandles(chains []eth.ChainID, blockNums []uint64, fn func([]*ReadHandle) error) error {
+	if len(chains) != len(blockNums) {
+		return fmt.Errorf("mismatched chains and block numbers")
+	}
+
+	handles := make([]*ReadHandle, len(chains))
+	for i, chainID := range chains {
+		handle, err := db.AcquireReadHandle(chainID, blockNums[i])
+		if err != nil {
+			// Release any handles we've already acquired
+			for j := 0; j < i; j++ {
+				handles[j].Release()
+			}
+			return err
+		}
+		handles[i] = handle
+	}
+	defer func() {
+		for _, handle := range handles {
+			if handle != nil {
+				handle.Release()
+			}
+		}
+	}()
+
+	// Execute the function
+	if err := fn(handles); err != nil {
+		db.logger.Error("Failed to execute function with read handles", "error", err)
+		return fmt.Errorf("failed to execute function with read handles: %w", err)
+	}
+
+	// Final validation of all handles
+	for _, handle := range handles {
+		if err := handle.Validate(); err != nil {
+			db.logger.Error("Failed to validate read handle", "error", err, "id", handle.handleID)
+			return fmt.Errorf("failed to validate read handle: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Follows Go idiom: returns zero BlockSeal on error
+func (db *ChainsDB) SafeContains(chainID eth.ChainID, access types.Access) (types.BlockSeal, error) {
+	var result types.BlockSeal
+
+	err := db.WithReadHandle(chainID, access.BlockNumber, func(handle *ReadHandle) error {
+		logDB, ok := db.logDBs.Get(chainID)
+		if !ok {
+			return fmt.Errorf("cannot get logs DB: %w: %s", types.ErrUnknownChain, chainID)
+		}
+
+		query := types.ContainsQuery{
+			BlockNum:  access.BlockNumber,
+			Timestamp: access.Timestamp,
+			LogIdx:    access.LogIndex,
+			Checksum:  access.Checksum,
+		}
+
+		blockSeal, err := logDB.Contains(query)
+		if err != nil {
+			return err
+		}
+
+		if blockSeal.Number > 0 && blockSeal.Number != access.BlockNumber {
+			if !handle.UpdateBlock(blockSeal.Number) {
+				return ErrInvalidHandle
+			}
+		}
+
+		result = blockSeal
+		return nil
+	})
+
+	if err != nil {
+		return types.BlockSeal{}, err // Return zero value on error
+	}
+	return result, nil
+}
+
+func (db *ChainsDB) ValidateAccessList(accessList []types.Access) error {
+	var chainIDs []eth.ChainID
+	var blockNums []uint64
+
+	for _, item := range accessList {
+		chainIDs = append(chainIDs, item.ChainID)
+		blockNums = append(blockNums, item.BlockNumber)
+	}
+
+	return db.WithReadHandles(chainIDs, blockNums, func(handles []*ReadHandle) error {
+		for i, item := range accessList {
+			query := types.ContainsQuery{
+				BlockNum:  item.BlockNumber,
+				Timestamp: item.Timestamp,
+				LogIdx:    item.LogIndex,
+				Checksum:  item.Checksum,
+			}
+
+			logDB, ok := db.logDBs.Get(item.ChainID)
+			if !ok {
+				return fmt.Errorf("cannot get logs DB: %w: %s", types.ErrUnknownChain, item.ChainID)
+			}
+
+			blockSeal, err := logDB.Contains(query)
+			if err != nil {
+				return fmt.Errorf("failed to check if log exists: %w", err)
+			}
+
+			if blockSeal.Number > 0 && blockSeal.Number != item.BlockNumber {
+				if !handles[i].UpdateBlock(blockSeal.Number) {
+					return ErrInvalidHandle
+				}
+			}
+		}
+
+		return nil
+	})
+}
+
+func (db *ChainsDB) WithRetry(chainID eth.ChainID, blockNum uint64, maxRetries int, fn func(*ReadHandle) error) error {
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		err = db.WithReadHandle(chainID, blockNum, fn)
+
+		if err != ErrInvalidHandle {
+			return err
+		}
+
+		db.logger.Info("Retrying operation due to reorg",
+			"chainID", chainID,
+			"blockNum", blockNum,
+			"attempt", i+1,
+			"maxRetries", maxRetries)
+
+	}
+
+	return err
+}
+
+func (db *ChainsDB) SafeFindSealedBlock(chain eth.ChainID, number uint64) (seal types.BlockSeal, err error) {
+	err = db.WithReadHandle(chain, number, func(handle *ReadHandle) error {
+		logDB, ok := db.logDBs.Get(chain)
+		if !ok {
+			return fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
+		}
+
+		blockSeal, err := logDB.FindSealedBlock(number)
+		if err != nil {
+			return err
+		}
+
+		seal = blockSeal
+		return nil
+	})
+
+	return seal, err
+}
+
+func (db *ChainsDB) SafeLocalUnsafe(chainID eth.ChainID) (types.BlockSeal, error) {
+	var result types.BlockSeal
+
+	err := db.WithReadHandle(chainID, 0, func(handle *ReadHandle) error {
+		eventsDB, ok := db.logDBs.Get(chainID)
+		if !ok {
+			return types.ErrUnknownChain
+		}
+
+		head, ok := eventsDB.LatestSealedBlock()
+		if !ok {
+			return types.ErrFuture
+		}
+
+		if !handle.UpdateBlock(head.Number) {
+			return ErrInvalidHandle
+		}
+
+		seal, err := eventsDB.FindSealedBlock(head.Number)
+		if err != nil {
+			return err
+		}
+
+		result = seal
+		return nil
+	})
+
+	return result, err
+}

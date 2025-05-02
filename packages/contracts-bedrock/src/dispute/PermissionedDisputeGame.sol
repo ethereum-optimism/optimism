@@ -32,9 +32,9 @@ contract PermissionedDisputeGame is FaultDisputeGame {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0
+    /// @custom:semver 1.6.0
     function version() public pure override returns (string memory) {
-        return "1.5.0";
+        return "1.6.0";
     }
 
     /// @param _params Parameters for creating a new FaultDisputeGame.

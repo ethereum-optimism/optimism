@@ -21,8 +21,8 @@ import (
 func validBatcherConfig() batcher.CLIConfig {
 	return batcher.CLIConfig{
 		L1EthRpc:               "fake",
-		L2EthRpc:               "fake",
-		RollupRpc:              "fake",
+		L2EthRpc:               []string{"fake"},
+		RollupRpc:              []string{"fake"},
 		MaxChannelDuration:     0,
 		SubSafetyMargin:        0,
 		PollInterval:           time.Second,
@@ -66,12 +66,12 @@ func TestBatcherConfig(t *testing.T) {
 		},
 		{
 			name:      "empty L2",
-			override:  func(c *batcher.CLIConfig) { c.L2EthRpc = "" },
+			override:  func(c *batcher.CLIConfig) { c.L2EthRpc = []string{} },
 			errString: "empty L2 RPC URL",
 		},
 		{
 			name:      "empty rollup",
-			override:  func(c *batcher.CLIConfig) { c.RollupRpc = "" },
+			override:  func(c *batcher.CLIConfig) { c.RollupRpc = []string{} },
 			errString: "empty rollup RPC URL",
 		},
 		{

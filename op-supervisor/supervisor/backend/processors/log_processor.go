@@ -40,7 +40,7 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.BlockRef, rcpts 
 	for _, rcpt := range rcpts {
 		for _, l := range rcpt.Logs {
 			// log hash represents the hash of *this* log as a potentially initiating message
-			logHash := logToLogHash(l)
+			logHash := LogToLogHash(l)
 			// The log may be an executing message emitted by the CrossL2Inbox
 			execMsg, err := p.eventDecoder(l, p.depSet)
 			if err != nil {
@@ -59,12 +59,12 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.BlockRef, rcpts 
 	return nil
 }
 
-// logToLogHash transforms a log into a hash that represents the log.
+// LogToLogHash transforms a log into a hash that represents the log.
 // it is the concatenation of the log's address and the hash of the log's payload,
 // which is then hashed again. This is the hash that is stored in the log storage.
 // The address is hashed into the payload hash to save space in the log storage,
 // and because they represent paired data.
-func logToLogHash(l *ethTypes.Log) common.Hash {
+func LogToLogHash(l *ethTypes.Log) common.Hash {
 	payloadHash := crypto.Keccak256Hash(types.LogToMessagePayload(l))
 	return types.PayloadHashToLogHash(payloadHash, l.Address)
 }

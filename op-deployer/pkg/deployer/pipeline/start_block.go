@@ -2,13 +2,12 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 )
 
 func SetStartBlockLiveStrategy(ctx context.Context, intent *state.Intent, env *Env, st *state.State, chainID common.Hash) error {
@@ -50,38 +49,15 @@ func SetStartBlockGenesisStrategy(env *Env, intent *state.Intent, st *state.Stat
 	lgr := env.Logger.New("stage", "set-start-block", "strategy", "genesis")
 	lgr.Info("setting start block", "id", chainID.Hex())
 
+	if st.L1DevGenesis == nil {
+		return errors.New("must seal L1 genesis state before determining start-block")
+	}
 	thisChainState, err := st.Chain(chainID)
 	if err != nil {
 		return fmt.Errorf("failed to get chain state: %w", err)
 	}
 
-	var timestamp uint64
-	if intent.L1StartTimestamp != nil {
-		timestamp = *intent.L1StartTimestamp
-	} else {
-		timestamp = uint64(time.Now().Unix())
-	}
-
-	deployConfig := &genesis.DeployConfig{
-		DevL1DeployConfig: genesis.DevL1DeployConfig{
-			L1BlockTime:             12,
-			L1GenesisBlockTimestamp: hexutil.Uint64(timestamp),
-		},
-		L2InitializationConfig: genesis.L2InitializationConfig{
-			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
-				L1ChainID: 900,
-			},
-			DevDeployConfig: genesis.DevDeployConfig{
-				FundDevAccounts: true,
-			},
-		},
-	}
-
-	devGenesis, err := genesis.BuildL1DeveloperGenesis(deployConfig, st.L1StateDump.Data, &genesis.L1Deployments{})
-	if err != nil {
-		return fmt.Errorf("failed to build L1 developer genesis: %w", err)
-	}
-	thisChainState.StartBlock = state.BlockRefJsonFromHeader(devGenesis.ToBlock().Header())
+	thisChainState.StartBlock = state.BlockRefJsonFromHeader(st.L1DevGenesis.ToBlock().Header())
 
 	return nil
 }

@@ -341,7 +341,7 @@ contract FFIInterface {
 
     function getCannonMemory64Proof(uint64 addr, uint64 value) external returns (bytes32, bytes memory) {
         string[] memory cmds = new string[](5);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof";
         cmds[3] = vm.toString(addr);
@@ -361,7 +361,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](7);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof";
         cmds[3] = vm.toString(addr0);
@@ -385,7 +385,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](9);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof";
         cmds[3] = vm.toString(addr0);
@@ -410,7 +410,7 @@ contract FFIInterface {
         returns (bytes32, bytes memory)
     {
         string[] memory cmds = new string[](8);
-        cmds[0] = "scripts/go-ffi/go-ffi-cannon64";
+        cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
         cmds[2] = "cannonMemoryProof2";
         cmds[3] = vm.toString(addr0);

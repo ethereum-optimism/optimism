@@ -83,11 +83,6 @@
         "internalType": "struct OPContractsManager.AddGameInput[]",
         "name": "_gameConfigs",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
       }
     ],
     "name": "addGameType",
@@ -341,11 +336,6 @@
         "internalType": "struct OPContractsManager.OpChainConfig[]",
         "name": "_prestateUpdateInputs",
         "type": "tuple[]"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
       }
     ],
     "name": "updatePrestate",

@@ -18,6 +18,8 @@ import (
 )
 
 func TestDencunL1ForkAfterGenesis(gt *testing.T) {
+	gt.Skip("Cancun is activated in the contracts-build, rendering this test technically invalid")
+
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(24)

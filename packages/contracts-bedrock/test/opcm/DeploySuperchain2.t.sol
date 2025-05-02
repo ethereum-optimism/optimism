@@ -62,7 +62,6 @@ contract DeploySuperchain2_Test is Test {
         assertEq(address(dso.superchainProxyAdmin.owner()), _superchainProxyAdminOwner, "100");
         assertEq(address(dso.protocolVersionsProxy.owner()), _protocolVersionsOwner, "200");
         assertEq(address(dso.superchainConfigProxy.guardian()), _guardian, "300");
-        assertEq(dso.superchainConfigProxy.paused(), _paused, "400");
         assertEq(unwrap(dso.protocolVersionsProxy.required()), _requiredProtocolVersion, "500");
         assertEq(unwrap(dso.protocolVersionsProxy.recommended()), _recommendedProtocolVersion, "600");
 

@@ -147,7 +147,7 @@ type PreimageOracleData struct {
 	OracleOffset uint32
 
 	// 4844 blob data
-	BlobFieldIndex uint64
+	ZPoint         [32]byte
 	BlobCommitment []byte
 	BlobProof      []byte
 }
@@ -189,13 +189,13 @@ func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOrac
 	}
 }
 
-func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, fieldIndex uint64, commitment []byte, proof []byte) *PreimageOracleData {
+func NewPreimageOracleBlobData(key []byte, data []byte, offset uint32, zPoint [32]byte, commitment []byte, proof []byte) *PreimageOracleData {
 	return &PreimageOracleData{
 		IsLocal:        false,
 		OracleKey:      key,
 		oracleData:     data,
 		OracleOffset:   offset,
-		BlobFieldIndex: fieldIndex,
+		ZPoint:         zPoint,
 		BlobCommitment: commitment,
 		BlobProof:      proof,
 	}

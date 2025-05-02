@@ -14,6 +14,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 contract SystemConfig_Init is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
@@ -146,7 +147,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: ISuperchainConfig(address(0))
         });
     }
 
@@ -175,7 +177,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: ISuperchainConfig(address(0))
         });
         assertEq(systemConfig.startBlock(), block.number);
     }
@@ -205,7 +208,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: ISuperchainConfig(address(0))
         });
         assertEq(systemConfig.startBlock(), 1);
     }
@@ -319,7 +323,8 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0)
             }),
-            _l2ChainId: 1234
+            _l2ChainId: 1234,
+            _superchainConfig: ISuperchainConfig(address(0))
         });
     }
 }
@@ -482,13 +487,71 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     }
 }
 
+contract SystemConfig_Getters_Test is SystemConfig_Init {
+    /// @dev Tests that `superchainConfig()` returns the correct address.
+    function test_superchainConfig_succeeds() external view {
+        assertEq(address(systemConfig.superchainConfig()), address(superchainConfig));
+    }
+
+    /// @dev Tests that `guardian()` returns the correct address.
+    function test_guardian_succeeds() external view {
+        assertEq(systemConfig.guardian(), superchainConfig.guardian());
+    }
+
+    /// @dev Tests that `paused()` returns the correct value.
+    function test_paused_succeeds() external view {
+        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
+    }
+
+    /// @dev Tests that `paused()` returns the correct value after pausing.
+    function test_paused_afterPause_succeeds() external {
+        // Initially not paused
+        assertFalse(systemConfig.paused());
+        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
+
+        // Pause the system
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        // Verify paused state
+        assertTrue(systemConfig.paused());
+        assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
+    }
+
+    /// @dev Tests that `paused()` returns true when the ETHLockbox identifier is set.
+    function test_paused_ethLockboxIdentifier_succeeds() external {
+        // Initially not paused
+        assertFalse(systemConfig.paused());
+
+        // Pause the system with ETHLockbox identifier
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(ethLockbox));
+
+        // Verify paused state
+        assertTrue(systemConfig.paused());
+    }
+
+    /// @dev Tests that `paused()` returns false when any other address is set.
+    function test_paused_otherAddress_works() external {
+        // Initially not paused
+        assertFalse(systemConfig.paused());
+
+        // Pause the system with a different address
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0x1234));
+
+        // Verify still not paused
+        assertFalse(systemConfig.paused());
+    }
+}
+
 /// @title SystemConfig_upgrade_Test
 /// @notice Reusable test for the current upgrade() function in the SystemConfig contract. If
 ///         the upgrade() function is changed, tests inside of this contract should be updated to
 ///         reflect the new function. If the upgrade() function is removed, remove the
 ///         corresponding tests but leave this contract in place so it's easy to add tests back
 ///         in the future.
-contract SystemConfig_upgrade_Test is SystemConfig_Init {
+contract SystemConfig_Upgrade_Test is SystemConfig_Init {
     /// @notice Tests that the upgrade() function succeeds.
     function test_upgrade_succeeds() external {
         // Get the slot for _initialized.
@@ -505,7 +568,7 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
         assertNotEq(vm.load(address(systemConfig), disputeGameFactorySlot), bytes32(0));
 
         // Trigger upgrade().
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(systemConfig), bytes32(slot.slot));
@@ -527,11 +590,11 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
         vm.store(address(systemConfig), bytes32(slot.slot), bytes32(0));
 
         // Trigger first upgrade.
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
 
         // Try to trigger second upgrade.
         vm.expectRevert("Initializable: contract is already initialized");
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
     }
 
     /// @notice Tests that the upgrade() function reverts if called after initialization.
@@ -548,6 +611,6 @@ contract SystemConfig_upgrade_Test is SystemConfig_Init {
 
         // Try to trigger upgrade().
         vm.expectRevert("Initializable: contract is already initialized");
-        systemConfig.upgrade(1234);
+        systemConfig.upgrade(1234, ISuperchainConfig(address(0xdeadbeef)));
     }
 }

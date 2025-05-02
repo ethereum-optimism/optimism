@@ -1,10 +1,9 @@
-package opcm_test
+package opcm
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -18,11 +17,11 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 		// Then we load the script
 		//
 		// This would raise an error if the Go types didn't match the ABI
-		deploySuperchain, err := opcm.NewDeploySuperchainScript(host1)
+		deploySuperchain, err := NewDeploySuperchainScript(host1)
 		require.NoError(t, err)
 
 		// Then we deploy
-		output, err := deploySuperchain.Run(opcm.DeploySuperchain2Input{
+		output, err := deploySuperchain.Run(DeploySuperchain2Input{
 			Guardian:                   common.BigToAddress(big.NewInt(1)),
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),
@@ -40,7 +39,7 @@ func TestNewDeploySuperchainScript(t *testing.T) {
 		// We run it on a fresh host so that the deployer nonces are the same
 		// which in turn means we should get identical output
 		host2 := createTestHost(t)
-		deprecatedOutput, err := opcm.DeploySuperchain(host2, opcm.DeploySuperchainInput{
+		deprecatedOutput, err := DeploySuperchain(host2, DeploySuperchainInput{
 			Guardian:                   common.BigToAddress(big.NewInt(1)),
 			ProtocolVersionsOwner:      common.BigToAddress(big.NewInt(2)),
 			SuperchainProxyAdminOwner:  common.BigToAddress(big.NewInt(3)),

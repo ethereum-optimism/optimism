@@ -1,5 +1,7 @@
 # Getting Started
 
+Welcome to the Kurtosis Devnet! This tool helps you quickly spin up local development networks for testing and development purposes. Whether you're working on simple test networks or complex interoperability scenarios, this devnet environment has you covered.
+
 Running a Kurtosis Devnet has the following prerequisites:
 - Kurtosis must be installed. This is automatically handled by `mise`, same as with other dev tools in this repository
 - Docker Desktop must be installed and running
@@ -152,12 +154,43 @@ In particular, cleaning up a devnet can be achieved using
 
 ## Troubleshooting
 
+### Autofix mode
+
+Autofix mode helps recover from failed devnet deployments by automatically 
+cleaning up the environment. It has two modes:
+
+1. **Normal Mode** (`AUTOFIX=true`)
+   - Sets up the correct shell and updates dependencies
+   - Cleans up dangling networks and stopped devnets
+   - Preserves other running enclaves
+   - Good for fixing minor deployment issues
+
+2. **Nuke Mode** (`AUTOFIX=nuke`)
+   - Sets up the correct shell and updates dependencies
+   - Completely resets the Kurtosis environment
+   - Removes all networks and containers
+   - Use when you need a fresh start
+
+Usage:
+```bash
+# For normal cleanup
+AUTOFIX=true just interop-devnet
+
+# For complete reset
+AUTOFIX=nuke just interop-devnet
+```
+
+Note: Nuke mode will stop all running enclaves, so use it carefully.
+
+### Older kurtosis versions
+
 In some cases, a newer kurtosis client might not be able to handle an
 older kurtosis engine. This typically happens if the kurtosis
 command-line managed by mise gets updated while some enclaves are
 already running.
 
-To help recover, you can kill the old engine with:
+To help recover, you can either run with `AUTOFIX=nuke` or kill the 
+old engine with:
 
 ```shell
 docker rm -f $(docker ps -aqf "name=kurtosis-*")

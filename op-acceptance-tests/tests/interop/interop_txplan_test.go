@@ -539,33 +539,74 @@ func randomDirectedGraph(
 	}
 }
 
-func TestInteropTxTest(t *testing.T) {
+func TestInteropInitAndExecMsg(t *testing.T) {
 	l2ChainNums := 2
 	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		initAndExecMsg(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
+}
 
-	tests := []struct {
-		name     string
-		testFunc systest.InteropSystemTestFunc
-	}{
-		// success case
-		{"initAndExecMsg", initAndExecMsg(l2ChainNums, walletGetters)},
-		{"initAndExecMultipleMsg", initAndExecMultipleMsg(l2ChainNums, walletGetters)},
-		{"execSameMsgTwice", execSameMsgTwice(l2ChainNums, walletGetters)},
-		{"randomDirectedGraph", randomDirectedGraph(l2ChainNums, walletGetters)},
-		{"execMsgDifferentTopicCount", execMsgDifferentTopicCount(l2ChainNums, walletGetters)},
-		{"execMsgOpagueData", execMsgOpagueData(l2ChainNums, walletGetters)},
-		{"execMsgDifferEventIndexInSingleTx", execMsgDifferEventIndexInSingleTx(l2ChainNums, walletGetters)},
-		// failure case
-		{"executeMessageInvalidAttributes", executeMessageInvalidAttributes(l2ChainNums, walletGetters)},
-	}
+func TestInteropInitAndExecMultipleMsg(t *testing.T) {
+	l2ChainNums := 2
+	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		initAndExecMultipleMsg(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
+}
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			systest.InteropSystemTest(t,
-				test.testFunc,
-				totalValidators...,
-			)
-		})
-	}
+func TestInteropExecSameMsgTwice(t *testing.T) {
+	l2ChainNums := 2
+	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		execSameMsgTwice(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
+}
+
+func TestInteropRandomDirectedGraph(t *testing.T) {
+	l2ChainNums := 2
+	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		randomDirectedGraph(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
+}
+
+func TestInteropExecMsgDifferentTopicCount(t *testing.T) {
+	l2ChainNums := 2
+	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		execMsgDifferentTopicCount(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
+}
+
+func TestInteropExecMsgOpagueData(t *testing.T) {
+	l2ChainNums := 2
+	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		execMsgOpagueData(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
+}
+
+func TestInteropExecMsgDifferEventIndexInSingleTx(t *testing.T) {
+	l2ChainNums := 2
+	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		execMsgDifferEventIndexInSingleTx(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
+}
+
+func TestInteropExecuteMessageInvalidAttributes(t *testing.T) {
+	l2ChainNums := 2
+	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
+	systest.InteropSystemTest(t,
+		executeMessageInvalidAttributes(l2ChainNums, walletGetters),
+		totalValidators...,
+	)
 }

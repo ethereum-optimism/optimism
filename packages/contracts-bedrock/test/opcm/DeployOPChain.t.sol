@@ -11,6 +11,7 @@ import {
 } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
@@ -347,7 +348,6 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
-        dsi.set(dsi.paused.selector, paused);
         dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
@@ -368,7 +368,7 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
         dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
-        dii.set(dii.mipsVersion.selector, 1);
+        dii.set(dii.mipsVersion.selector, StandardConstants.MIPS_VERSION);
         dii.set(dii.l1ContractsRelease.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));

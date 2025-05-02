@@ -13,10 +13,8 @@ import (
 func TestInitialSyncStatus(t *testing.T) {
 	chains := []eth.ChainID{eth.ChainIDFromUInt64(1), eth.ChainIDFromUInt64(2)}
 	tracker := NewStatusTracker(chains)
-	status, err := tracker.SyncStatus()
-	require.NoError(t, err)
-	require.Zero(t, status.MinSyncedL1)
-	require.Len(t, status.Chains, 2)
+	_, err := tracker.SyncStatus()
+	require.Error(t, ErrStatusTrackerNotReady, err)
 }
 
 func TestUpdateMinSyncedL1(t *testing.T) {

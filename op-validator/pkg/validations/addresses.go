@@ -18,8 +18,8 @@ var addresses = map[uint64]map[string]common.Address{
 		VersionV180: common.HexToAddress("0x37fb5b21750d0e08a992350574bd1c24f4bcedf9"),
 		// Bootstrapped on 03/07/2025 using OP Deployer.
 		VersionV200: common.HexToAddress("0x12a9e38628e5a5b24d18b1956ed68a24fe4e3dc0"),
-		// Bootstrapped on 03/10/2025 using OP Deployer.
-		VersionV300: common.HexToAddress("0x1b8f0e76bb49b60dffbe3b847e25d6429ebff3e6"),
+		// Bootstrapped on 04/16/2025 using OP Deployer.
+		VersionV300: common.HexToAddress("0xf989Df70FB46c581ba6157Ab335c0833bA60e1f0"),
 	},
 	11155111: {
 		// Bootstrapped on 03/02/2025 using OP Deployer.

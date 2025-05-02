@@ -28,6 +28,16 @@ func SortSuperchainIDs(ids []SuperchainID) []SuperchainID {
 	return copyAndSortCmp(ids)
 }
 
+func SortSuperchains(elems []Superchain) []Superchain {
+	return copyAndSort(elems, lessElemOrdered[SuperchainID, Superchain])
+}
+
+var _ SuperchainMatcher = SuperchainID("")
+
+func (id SuperchainID) Match(elems []Superchain) []Superchain {
+	return findByID(id, elems)
+}
+
 // Superchain is a collection of L2 chains with common rules and shared configuration on L1
 type Superchain interface {
 	Common

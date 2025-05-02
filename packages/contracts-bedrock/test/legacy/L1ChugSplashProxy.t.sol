@@ -7,6 +7,7 @@ import { VmSafe } from "forge-std/Vm.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
@@ -108,10 +109,7 @@ contract L1ChugSplashProxy_Test is Test {
         // Because forge coverage always runs with the optimizer disabled,
         // if forge coverage is run before testing this with forge test or forge snapshot, forge clean should be
         // run first so that it recompiles the contracts using the foundry.toml optimizer settings.
-        if (
-            vm.isContext(VmSafe.ForgeContext.Coverage)
-                || LibString.eq(vm.envOr("FOUNDRY_PROFILE", string("default")), "lite")
-        ) {
+        if (vm.isContext(VmSafe.ForgeContext.Coverage) || LibString.eq(Config.foundryProfile(), "lite")) {
             gasLimit = 95_000;
         } else if (vm.isContext(VmSafe.ForgeContext.Test) || vm.isContext(VmSafe.ForgeContext.Snapshot)) {
             gasLimit = 65_000;

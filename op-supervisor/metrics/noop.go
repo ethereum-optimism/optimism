@@ -26,3 +26,5 @@ func (m *noopMetrics) CacheGet(_ eth.ChainID, _ string, _ bool)        {}
 
 func (m *noopMetrics) RecordDBEntryCount(_ eth.ChainID, _ string, _ int64) {}
 func (m *noopMetrics) RecordDBSearchEntriesRead(_ eth.ChainID, _ int64)    {}
+
+func (m *noopMetrics) RecordAccessListVerifyFailure(_ eth.ChainID) {}

@@ -14,7 +14,7 @@ import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 
 /// @title ETHLiquidity_User
 /// @notice Actor contract that interacts with the ETHLiquidity contract. Always pretends to be the
-///         SuperchainWETH contract since it's the only contract that can use ETHLiquidity.
+///         SuperchainETHBridge contract since it's the only contract that can use ETHLiquidity.
 contract ETHLiquidity_User is StdUtils {
     /// @notice Flag to indicate if the test has failed.
     bool public failed = false;
@@ -31,21 +31,34 @@ contract ETHLiquidity_User is StdUtils {
     constructor(Vm _vm, IETHLiquidity _liquidity, uint256 _balance) {
         vm = _vm;
         liquidity = _liquidity;
-        vm.deal(Predeploys.SUPERCHAIN_WETH, _balance);
+        vm.deal(Predeploys.SUPERCHAIN_ETH_BRIDGE, _balance);
     }
 
     /// @notice Mint ETH liquidity.
     /// @param _amount The amount of ETH to mint.
     function mint(uint256 _amount) public {
-        vm.prank(Predeploys.SUPERCHAIN_WETH);
+        vm.prank(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         liquidity.mint(_amount);
     }
 
     /// @notice Burn ETH liquidity.
     /// @param _amount The amount of ETH to burn.
     function burn(uint256 _amount) public {
-        vm.prank(Predeploys.SUPERCHAIN_WETH);
+        vm.prank(Predeploys.SUPERCHAIN_ETH_BRIDGE);
         liquidity.burn{ value: _amount }();
+    }
+
+    /// @notice Fund ETH liquidity.
+    /// @param _amount The amount of ETH to fund.
+    function fund(uint256 _amount) public {
+        // Anyone can fund
+        // Bound amount by actor's current balance
+        _amount = bound(_amount, 0, address(this).balance);
+        if (_amount == 0) {
+            // Cannot fund with 0
+            return;
+        }
+        try liquidity.fund{ value: _amount }() { } catch { /* Ignore reverts */ }
     }
 }
 
@@ -71,9 +84,10 @@ contract ETHLiquidity_MintBurn_Invariant is CommonTest {
         targetContract(address(actor));
 
         // Set the target selectors.
-        bytes4[] memory selectors = new bytes4[](2);
+        bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = actor.mint.selector;
         selectors[1] = actor.burn.selector;
+        selectors[2] = actor.fund.selector;
         FuzzSelector memory selector = FuzzSelector({ addr: address(actor), selectors: selectors });
         targetSelector(selector);
     }

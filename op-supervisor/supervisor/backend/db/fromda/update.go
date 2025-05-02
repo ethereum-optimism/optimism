@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+var errInvalidateMismatch = fmt.Errorf("cannot invalidate mismatching block")
+
 func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
@@ -319,7 +321,7 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 			if _, v, err := db.derivedNumToLastSource(derived.Number, last.revision); err != nil {
 				return fmt.Errorf("failed to check if older invalidated derived block was known: %w", err)
 			} else if v.derived.Hash != invalidated {
-				return fmt.Errorf("cannot invalidate mismatching block: expected %s but invalidating %s", link.derived, invalidated)
+				return fmt.Errorf("expected %s but invalidating %s: %w", link.derived, invalidated, errInvalidateMismatch)
 			}
 		} else {
 			return fmt.Errorf("derived block %s is older than current derived block %s: %w",

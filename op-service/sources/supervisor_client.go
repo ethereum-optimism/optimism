@@ -52,6 +52,10 @@ func (cl *SupervisorClient) AddL2RPC(ctx context.Context, rpc string, auth eth.B
 	return nil
 }
 
+func (cl *SupervisorClient) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
+	return cl.client.CallContext(ctx, nil, "admin_rewind", chain, block)
+}
+
 func (cl *SupervisorClient) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
 	return cl.client.CallContext(ctx, nil, "supervisor_checkAccessList", inboxEntries, minSafety, executingDescriptor)

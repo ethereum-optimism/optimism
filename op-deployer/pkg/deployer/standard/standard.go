@@ -25,7 +25,7 @@ const (
 	ChallengePeriodSeconds          uint64 = 86400
 	ProofMaturityDelaySeconds       uint64 = 604800
 	DisputeGameFinalityDelaySeconds uint64 = 302400
-	MIPSVersion                     uint64 = 2
+	MIPSVersion                     uint64 = 7
 	DisputeGameType                 uint32 = 1 // PERMISSIONED game type
 	DisputeMaxGameDepth             uint64 = 73
 	DisputeSplitDepth               uint64 = 30
@@ -204,7 +204,11 @@ func ProtocolVersionsOwner(chainID uint64) (common.Address, error) {
 func ArtifactsURLForTag(tag string) (*url.URL, error) {
 	release, ok := taggedReleases[tag]
 	if !ok {
-		return nil, fmt.Errorf("unsupported tag: %s", tag)
+		var validTagsStr string
+		for t := range taggedReleases {
+			validTagsStr += fmt.Sprintf("  %s\n", t)
+		}
+		return nil, fmt.Errorf("unsupported tag: %s\nValid tags are:\n%s", tag, validTagsStr)
 	}
 
 	return url.Parse(release.URL())

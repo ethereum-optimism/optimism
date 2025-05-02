@@ -232,9 +232,9 @@ func (s *interopE2ESystem) newProposerForL2(
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          s.l1.UserRPC().RPC(),
 		SupervisorRpcs:    []string{s.Supervisor().RPC()},
-		DGFAddress:        s.worldDeployment.L2s[id].DisputeGameFactoryProxy.Hex(),
+		DGFAddress:        s.worldDeployment.Interop.DisputeGameFactory.Hex(),
 		ProposalInterval:  6 * time.Second,
-		DisputeGameType:   1, // Permissioned game type is the only one currently deployed
+		DisputeGameType:   4, // Super Permissionless game type is the only one currently deployed
 		PollInterval:      500 * time.Millisecond,
 		TxMgrConfig:       setuputils.NewTxMgrConfig(s.L1().UserRPC(), &key),
 		AllowNonFinalized: true,
@@ -267,8 +267,8 @@ func (s *interopE2ESystem) newBatcherForL2(
 	logger := s.logger.New("role", "batcher"+id)
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
-		L2EthRpc:                 l2Geth.UserRPC().RPC(),
-		RollupRpc:                opNode.UserRPC().RPC(),
+		L2EthRpc:                 []string{l2Geth.UserRPC().RPC()},
+		RollupRpc:                []string{opNode.UserRPC().RPC()},
 		MaxPendingTransactions:   1,
 		MaxChannelDuration:       1,
 		MaxL1TxSize:              120_000,

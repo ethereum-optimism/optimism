@@ -27,6 +27,18 @@ func SortL1CLNodeIDs(ids []L1CLNodeID) []L1CLNodeID {
 	})
 }
 
+func SortL1CLNodes(elems []L1CLNode) []L1CLNode {
+	return copyAndSort(elems, func(a, b L1CLNode) bool {
+		return lessIDWithChain(idWithChain(a.ID()), idWithChain(b.ID()))
+	})
+}
+
+var _ L1CLMatcher = L1CLNodeID{}
+
+func (id L1CLNodeID) Match(elems []L1CLNode) []L1CLNode {
+	return findByID(id, elems)
+}
+
 // L1CLNode is a L1 ethereum consensus-layer node, aka Beacon node.
 // This node may not be a full beacon node, and instead run a mock L1 consensus node.
 type L1CLNode interface {

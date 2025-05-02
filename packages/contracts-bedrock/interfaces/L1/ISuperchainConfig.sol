@@ -8,17 +8,26 @@ interface ISuperchainConfig {
 
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
     event Initialized(uint8 version);
-    event Paused(string identifier);
-    event Unpaused();
+    event Paused(address identifier);
+    event Unpaused(address identifier);
 
-    function GUARDIAN_SLOT() external view returns (bytes32);
-    function PAUSED_SLOT() external view returns (bytes32);
-    function guardian() external view returns (address guardian_);
-    function initialize(address _guardian, bool _paused) external;
-    function pause(string memory _identifier) external;
-    function paused() external view returns (bool paused_);
-    function unpause() external;
+    error SuperchainConfig_OnlyGuardian();
+    error SuperchainConfig_AlreadyPaused(address identifier);
+    error ReinitializableBase_ZeroInitVersion();
+
+    function guardian() external view returns (address);
+    function initialize(address _guardian) external;
+    function upgrade() external;
+    function pause(address _identifier) external;
+    function unpause(address _identifier) external;
+    function pausable(address _identifier) external view returns (bool);
+    function paused(address _identifier) external view returns (bool);
+    function expiration(address _identifier) external view returns (uint256);
+    function extend(address _identifier) external;
     function version() external view returns (string memory);
+    function pauseTimestamps(address) external view returns (uint256);
+    function pauseExpiry() external view returns (uint256);
+    function initVersion() external view returns (uint8);
 
     function __constructor__() external;
 }

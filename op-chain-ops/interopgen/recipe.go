@@ -16,6 +16,7 @@ type InteropDevRecipe struct {
 	L1ChainID        uint64
 	L2s              []InteropDevL2Recipe
 	GenesisTimestamp uint64
+	ExpiryTime       uint64
 }
 
 func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) {
@@ -75,7 +76,7 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 				ChallengePeriodSeconds:          big.NewInt(120),
 				ProofMaturityDelaySeconds:       big.NewInt(12),
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
-				MipsVersion:                     big.NewInt(2),
+				MipsVersion:                     big.NewInt(6),
 			},
 			UseInterop: true,
 		},

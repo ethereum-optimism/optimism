@@ -20,6 +20,7 @@
 !/op-supervisor
 !/op-wheel
 !/op-alt-da
+!/op-faucet
 !/go.mod
 !/go.sum
 !/justfiles

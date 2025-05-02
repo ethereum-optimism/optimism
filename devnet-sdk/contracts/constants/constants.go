@@ -26,7 +26,7 @@ var (
 	EAS                           types.Address = common.HexToAddress("0x4200000000000000000000000000000000000021")
 	CrossL2Inbox                  types.Address = common.HexToAddress("0x4200000000000000000000000000000000000022")
 	L2ToL2CrossDomainMessenger    types.Address = common.HexToAddress("0x4200000000000000000000000000000000000023")
-	SuperchainWETH                types.Address = common.HexToAddress("0x4200000000000000000000000000000000000024")
+	SuperchainETHBridge           types.Address = common.HexToAddress("0x4200000000000000000000000000000000000024")
 	ETHLiquidity                  types.Address = common.HexToAddress("0x4200000000000000000000000000000000000025")
 	SuperchainTokenBridge         types.Address = common.HexToAddress("0x4200000000000000000000000000000000000028")
 	GovernanceToken               types.Address = common.HexToAddress("0x4200000000000000000000000000000000000042")

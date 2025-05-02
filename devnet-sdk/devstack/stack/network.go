@@ -16,13 +16,13 @@ type Network interface {
 
 	ChainConfig() *params.ChainConfig
 
-	Faucet() Faucet
-
-	User(id UserID) User
-	Users() []UserID
+	Faucet(m FaucetMatcher) Faucet
+	Faucets() []Faucet
+	FaucetIDs() []FaucetID
 }
 
 type ExtensibleNetwork interface {
 	Network
-	AddUser(v User)
+
+	AddFaucet(f Faucet)
 }

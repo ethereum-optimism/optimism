@@ -12,6 +12,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
@@ -22,14 +23,14 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.1.0
-    string public constant version = "3.1.0";
+    /// @custom:semver 3.3.0
+    string public constant version = "3.3.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
 
-    /// @notice Address of the SuperchainConfig contract.
-    ISuperchainConfig public superchainConfig;
+    /// @notice Address of the SystemConfig contract.
+    ISystemConfig public systemConfig;
 
     /// @notice Address of the DisputeGameFactory contract.
     IDisputeGameFactory public disputeGameFactory;
@@ -67,9 +68,6 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @param disputeGame The dispute game that was blacklisted.
     event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
 
-    /// @notice Thrown when the anchor root is requested, but the anchor game is blacklisted.
-    error AnchorStateRegistry_AnchorGameBlacklisted();
-
     /// @notice Thrown when an invalid anchor game is provided.
     error AnchorStateRegistry_InvalidAnchorGame();
 
@@ -83,11 +81,11 @@ contract AnchorStateRegistry is Initializable, ISemver {
     }
 
     /// @notice Initializes the contract.
-    /// @param _superchainConfig The address of the SuperchainConfig contract.
+    /// @param _systemConfig The address of the SystemConfig contract.
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
     function initialize(
-        ISuperchainConfig _superchainConfig,
+        ISystemConfig _systemConfig,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
@@ -95,7 +93,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
         external
         initializer
     {
-        superchainConfig = _superchainConfig;
+        systemConfig = _systemConfig;
         disputeGameFactory = _disputeGameFactory;
         startingAnchorRoot = _startingAnchorRoot;
         respectedGameType = _startingRespectedGameType;
@@ -104,7 +102,13 @@ contract AnchorStateRegistry is Initializable, ISemver {
 
     /// @notice Returns whether the contract is paused.
     function paused() public view returns (bool) {
-        return superchainConfig.paused();
+        return systemConfig.paused();
+    }
+
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() public view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
     }
 
     /// @notice Returns the dispute game finality delay in seconds.
@@ -115,14 +119,14 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Allows the Guardian to set the respected game type.
     /// @param _gameType The new respected game type.
     function setRespectedGameType(GameType _gameType) external {
-        if (msg.sender != superchainConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         respectedGameType = _gameType;
         emit RespectedGameTypeSet(_gameType);
     }
 
     /// @notice Allows the Guardian to update the retirement timestamp.
     function updateRetirementTimestamp() external {
-        if (msg.sender != superchainConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         retirementTimestamp = uint64(block.timestamp);
         emit RetirementTimestampSet(block.timestamp);
     }
@@ -130,7 +134,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Allows the Guardian to blacklist a dispute game.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        if (msg.sender != superchainConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
         disputeGameBlacklist[_disputeGame] = true;
         emit DisputeGameBlacklisted(_disputeGame);
     }
@@ -156,19 +160,28 @@ contract AnchorStateRegistry is Initializable, ISemver {
         return (Hash.wrap(anchorGame.rootClaim().raw()), anchorGame.l2SequenceNumber());
     }
 
-    /// @notice Determines whether a game is registered in the DisputeGameFactory.
+    /// @notice Determines whether a game is registered by checking that it was created by the
+    ///         DisputeGameFactory and that it uses this AnchorStateRegistry.
     /// @param _game The game to check.
-    /// @return Whether the game is factory registered.
+    /// @return Whether the game is registered.
     function isGameRegistered(IDisputeGame _game) public view returns (bool) {
         // Grab the game and game data.
         (GameType gameType, Claim rootClaim, bytes memory extraData) = _game.gameData();
 
         // Grab the verified address of the game based on the game data.
-        (IDisputeGame _factoryRegisteredGame,) =
+        (IDisputeGame factoryRegisteredGame,) =
             disputeGameFactory.games({ _gameType: gameType, _rootClaim: rootClaim, _extraData: extraData });
 
-        // Return whether the game is factory registered.
-        return address(_factoryRegisteredGame) == address(_game);
+        // Grab the AnchorStateRegistry from the game. Awkward type conversion here but
+        // IDisputeGame probably needs to have this function eventually anyway.
+        address asr = address(IFaultDisputeGame(address(_game)).anchorStateRegistry());
+
+        // Return whether the game is factory registered and uses this AnchorStateRegistry. We
+        // check for both of these conditions because the game could be using a different
+        // AnchorStateRegistry if the registry was updated at some point. We mitigate the risks of
+        // an outdated AnchorStateRegistry by invalidating all previous games in the initializer of
+        // this contract, but an explicit check avoids potential footguns in the future.
+        return address(factoryRegisteredGame) == address(_game) && asr == address(this);
     }
 
     /// @notice Determines whether a game is of a respected game type.
@@ -192,9 +205,8 @@ contract AnchorStateRegistry is Initializable, ISemver {
     /// @param _game The game to check.
     /// @return Whether the game is retired.
     function isGameRetired(IDisputeGame _game) public view returns (bool) {
-        // Must be created after the respectedGameTypeUpdatedAt timestamp. Note that this means all
-        // games created in the same block as the respectedGameTypeUpdatedAt timestamp are
-        // considered retired.
+        // Must be created after the retirementTimestamp. Note that this means all games created in
+        // the same block as the retirementTimestamp are considered retired.
         return _game.createdAt().raw() <= retirementTimestamp;
     }
 
@@ -230,7 +242,7 @@ contract AnchorStateRegistry is Initializable, ISemver {
             return false;
         }
 
-        // Must be created at or after the respectedGameTypeUpdatedAt timestamp.
+        // Must be created at or after the retirement timestamp.
         if (isGameRetired(_game)) {
             return false;
         }

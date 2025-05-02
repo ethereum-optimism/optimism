@@ -79,6 +79,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_disputeGame",
+        "type": "address"
+      }
+    ],
+    "name": "disputeGameBlacklist",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "disputeGameFactory",
     "outputs": [
@@ -269,11 +288,6 @@
       {
         "internalType": "contract ISystemConfig",
         "name": "_systemConfig",
-        "type": "address"
-      },
-      {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
         "type": "address"
       },
       {
@@ -761,6 +775,11 @@
       {
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
+        "type": "address"
+      },
+      {
+        "internalType": "contract ISystemConfig",
+        "name": "_systemConfig",
         "type": "address"
       }
     ],

@@ -362,6 +362,8 @@ func (d *EngDeriver) AttachEmitter(em event.Emitter) {
 }
 
 func (d *EngDeriver) OnEvent(ev event.Event) bool {
+	d.ec.mu.Lock()
+	defer d.ec.mu.Unlock()
 	switch x := ev.(type) {
 	case TryBackupUnsafeReorgEvent:
 		// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c

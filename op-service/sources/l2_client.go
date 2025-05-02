@@ -42,6 +42,10 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 	if span > 1000 { // sanity cap. If a large sequencing window is configured, do not make the cache too large
 		span = 1000
 	}
+	return L2ClientSimpleConfig(config, trustRPC, span, fullSpan)
+}
+
+func L2ClientSimpleConfig(config *rollup.Config, trustRPC bool, span, fullSpan int) *L2ClientConfig {
 	return &L2ClientConfig{
 		EthClientConfig: EthClientConfig{
 			// receipts and transactions are cached per block
@@ -49,7 +53,7 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 			TransactionsCacheSize: span,
 			HeadersCacheSize:      span,
 			PayloadsCacheSize:     span,
-			MaxRequestsPerBatch:   20, // TODO: tune batch param
+			MaxRequestsPerBatch:   20,
 			MaxConcurrentRequests: 10,
 			BlockRefsCacheSize:    span,
 			TrustRPC:              trustRPC,

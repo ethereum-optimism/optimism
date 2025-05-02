@@ -50,8 +50,8 @@ contract CrossL2Inbox is ISemver {
     error LogIndexTooHigh();
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.15
-    string public constant version = "1.0.0-beta.15";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice The mask for the most significant bits of the checksum.
     /// @dev    Used to set the most significant byte to zero.

@@ -156,17 +156,14 @@ func (t *implP) _PackageOnly() {
 	panic("do not use - this method only forces the interface to be unique")
 }
 
-func NewP(logger log.Logger) P {
+func NewP(logger log.Logger, onFail func()) P {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &implP{
 		scopeName: "pkg",
 		logger:    logger,
-		fail: func() {
-			logger.Error("Exiting now...")
-			os.Exit(1)
-		},
-		ctx:    ctx,
-		cancel: cancel,
+		fail:      onFail,
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 	out.req = require.New(out)
 	return out

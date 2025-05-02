@@ -64,7 +64,6 @@ type Driver struct {
 	unsafeL2Payloads chan *eth.ExecutionPayloadEnvelope
 
 	sequencer sequencing.SequencerIface
-	network   Network // may be nil, network for is optional
 
 	metrics Metrics
 	log     log.Logger

@@ -130,6 +130,9 @@ contract DeploySuperchainInput is BaseDeployIO {
         return _guardian;
     }
 
+    /// @dev Paused input is unused in the deploy script, but is kept to minimize the changes
+    ///      needed to the existing deploy pipeline. Value will be ignored as of U16. May be
+    ///      removed entirely in another PR before U16 is released.
     function paused() public view returns (bool) {
         return _paused;
     }
@@ -246,7 +249,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
             _offset: 0
         });
         require(superchainConfig.guardian() == _dsi.guardian(), "SUPCON-10");
-        require(superchainConfig.paused() == _dsi.paused(), "SUPCON-20");
 
         vm.startPrank(address(0));
         require(
@@ -258,7 +260,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
         // Implementation checks
         superchainConfig = superchainConfigImpl();
         require(superchainConfig.guardian() == address(0), "SUPCON-50");
-        require(superchainConfig.paused() == false, "SUPCON-60");
     }
 
     function assertValidProtocolVersions(DeploySuperchainInput _dsi) internal {
@@ -366,7 +367,6 @@ contract DeploySuperchain is Script {
 
     function deployAndInitializeSuperchainConfig(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
         address guardian = _dsi.guardian();
-        bool paused = _dsi.paused();
 
         IProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         ISuperchainConfig superchainConfigImpl = _dso.superchainConfigImpl();
@@ -383,7 +383,7 @@ contract DeploySuperchain is Script {
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(ISuperchainConfig.initialize, (guardian, paused))
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian))
         );
         vm.stopBroadcast();
 

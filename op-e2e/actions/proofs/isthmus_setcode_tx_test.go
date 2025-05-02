@@ -141,7 +141,7 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	latestBlock, err := cl.BlockByNumber(t.Ctx(), nil)
 	require.NoError(t, err, "error fetching latest block")
 
-	env.RunFaultProofProgram(t, latestBlock.NumberU64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, latestBlock.NumberU64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 // TestInvalidSetCodeTxBatch tests that batches that include SetCodeTxs are dropped before Isthmus
@@ -190,7 +190,7 @@ func testInvalidSetCodeTxBatch(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	recs := env.Logs.FindLogs(testlog.NewMessageFilter("sequencers may not embed any SetCode transactions before Isthmus"))
 	require.Len(t, recs, 1)
 
-	env.RunFaultProofProgram(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_SetCodeTxWithContractCreationBitSet(gt *testing.T) {
@@ -293,5 +293,5 @@ func runSetCodeTxTypeWithContractCreationBitSetTest(gt *testing.T, testCfg *help
 	recs := env.Logs.FindLogs(testlog.NewErrContainsFilter("to address is required for SetCodeTx"))
 	require.GreaterOrEqual(t, len(recs), 1)
 
-	env.RunFaultProofProgram(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2safe.Number, testCfg.CheckResult, testCfg.InputParams...)
 }

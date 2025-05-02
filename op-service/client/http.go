@@ -59,6 +59,12 @@ func WithHeader(h http.Header) BasicHTTPClientOption {
 	})
 }
 
+func WithTransport(t http.RoundTripper) BasicHTTPClientOption {
+	return BasicHTTPClientOptionFn(func(c *BasicHTTPClient) {
+		c.client.Transport = t
+	})
+}
+
 var ErrNoEndpoint = errors.New("no endpoint is configured")
 
 func (cl *BasicHTTPClient) Get(ctx context.Context, p string, query url.Values, headers http.Header) (*http.Response, error) {

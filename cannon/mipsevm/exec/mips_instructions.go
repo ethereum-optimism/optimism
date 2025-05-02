@@ -38,7 +38,7 @@ func GetInstructionDetails(pc Word, memory *memory.Memory) (insn, opcode, fun ui
 
 // ExecMipsCoreStepLogic executes a MIPS instruction that isn't a syscall nor a RMW operation
 // If a store operation occurred, then it returns the effective address of the store memory location.
-func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory *memory.Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) (memUpdated bool, effMemAddr Word, err error) {
+func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory *memory.Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker, features mipsevm.FeatureToggles) (memUpdated bool, effMemAddr Word, err error) {
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
 		linkReg := Word(0)
@@ -117,7 +117,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 	}
 
 	// ALU
-	val := ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem)
+	val := ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem, features)
 
 	funSel := uint32(0x1c)
 	if !arch.IsMips32 {
@@ -182,7 +182,7 @@ func assertMips64Fun(fun uint32) {
 	}
 }
 
-func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem Word) Word {
+func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem Word, features mipsevm.FeatureToggles) Word {
 	if opcode == 0 || (opcode >= 8 && opcode < 0xF) || (!arch.IsMips32 && (opcode == 0x18 || opcode == 0x19)) {
 		// transform ArithLogI to SPECIAL
 		switch opcode {
@@ -338,15 +338,25 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 		switch opcode {
 		// SPECIAL2
 		case 0x1C:
-			switch fun {
-			case 0x2: // mul
+			switch {
+			case fun == 0x2: // mul
 				return SignExtend(Word(int32(rs)*int32(rt)), 32)
-			case 0x20, 0x21: // clz, clo
+			case fun == 0x20 || fun == 0x21: // clz, clo
 				if fun == 0x20 {
 					rs = ^rs
 				}
 				i := uint32(0)
 				for ; rs&0x80000000 != 0; i++ {
+					rs <<= 1
+				}
+				return Word(i)
+			case features.SupportDclzDclo && (fun == 0x24 || fun == 0x25): // dclz, dclo
+				assertMips64Fun(insn)
+				if fun == 0x24 {
+					rs = ^rs
+				}
+				i := uint32(0)
+				for ; uint64(rs)&0x80000000_00000000 != 0; i++ {
 					rs <<= 1
 				}
 				return Word(i)

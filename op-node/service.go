@@ -118,6 +118,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 		IgnoreMissingPectraBlobSchedule: ctx.Bool(flags.IgnoreMissingPectraBlobSchedule.Name),
 		FetchWithdrawalRootFromState:    ctx.Bool(flags.FetchWithdrawalRootFromState.Name),
+
+		ExperimentalOPStackAPI: ctx.Bool(flags.ExperimentalOPStackAPI.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -273,6 +275,14 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 	if ctx.IsSet(opflags.PectraBlobScheduleOverrideFlagName) {
 		pectrablobschedule := ctx.Uint64(opflags.PectraBlobScheduleOverrideFlagName)
 		rollupConfig.PectraBlobScheduleTime = &pectrablobschedule
+	}
+	if ctx.IsSet(opflags.IsthmusOverrideFlagName) {
+		isthmus := ctx.Uint64(opflags.IsthmusOverrideFlagName)
+		rollupConfig.IsthmusTime = &isthmus
+	}
+	if ctx.IsSet(opflags.InteropOverrideFlagName) {
+		interop := ctx.Uint64(opflags.InteropOverrideFlagName)
+		rollupConfig.InteropTime = &interop
 	}
 }
 

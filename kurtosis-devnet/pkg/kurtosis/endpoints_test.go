@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,7 +31,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 		"tcp-discovery": {Port: 53504},
 	}
 
-	testServices["op-el-1-op-geth-op-node-op-kurtosis"] = inspect.PortMap{
+	testServices["op-el-1-op-geth-op-node-1234"] = inspect.PortMap{
 		"udp-discovery": {Port: 53233},
 		"engine-rpc":    {Port: 53399},
 		"metrics":       {Port: 53400},
@@ -66,7 +67,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 			wantNodes: []descriptors.Node{
 				{
 					Services: descriptors.ServiceMap{
-						"cl": descriptors.Service{
+						"cl": &descriptors.Service{
 							Name: "cl-1-lighthouse-geth",
 							Endpoints: descriptors.EndpointMap{
 								"metrics":       {Port: 52691},
@@ -75,7 +76,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 								"http":          {Port: 52693},
 							},
 						},
-						"el": descriptors.Service{
+						"el": &descriptors.Service{
 							Name: "el-1-geth-lighthouse",
 							Endpoints: descriptors.EndpointMap{
 								"metrics":       {Port: 52643},
@@ -95,12 +96,18 @@ func TestFindRPCEndpoints(t *testing.T) {
 			name:     "find op-kurtosis L2 endpoints",
 			services: testServices,
 			findFn: func(f *ServiceFinder) ([]descriptors.Node, descriptors.ServiceMap) {
-				return f.FindL2Services("op-kurtosis")
+				return f.FindL2Services(ChainSpec{
+					ChainSpec: spec.ChainSpec{
+						Name:      "op-kurtosis",
+						NetworkID: "1234",
+					},
+					DepSets: map[string]descriptors.DepSet{},
+				})
 			},
 			wantNodes: []descriptors.Node{
 				{
 					Services: descriptors.ServiceMap{
-						"cl": descriptors.Service{
+						"cl": &descriptors.Service{
 							Name: "op-cl-1-op-node-op-geth-op-kurtosis",
 							Endpoints: descriptors.EndpointMap{
 								"udp-discovery": {Port: 50990},
@@ -108,8 +115,8 @@ func TestFindRPCEndpoints(t *testing.T) {
 								"tcp-discovery": {Port: 53504},
 							},
 						},
-						"el": descriptors.Service{
-							Name: "op-el-1-op-geth-op-node-op-kurtosis",
+						"el": &descriptors.Service{
+							Name: "op-el-1-op-geth-op-node-1234",
 							Endpoints: descriptors.EndpointMap{
 								"udp-discovery": {Port: 53233},
 								"engine-rpc":    {Port: 53399},
@@ -123,7 +130,7 @@ func TestFindRPCEndpoints(t *testing.T) {
 				},
 			},
 			wantServices: descriptors.ServiceMap{
-				"batcher": descriptors.Service{
+				"batcher": &descriptors.Service{
 					Name: "op-batcher-op-kurtosis",
 					Endpoints: descriptors.EndpointMap{
 						"http": {Port: 53572},
@@ -139,11 +146,17 @@ func TestFindRPCEndpoints(t *testing.T) {
 				},
 			},
 			findFn: func(f *ServiceFinder) ([]descriptors.Node, descriptors.ServiceMap) {
-				return f.FindL2Services("custom-host")
+				return f.FindL2Services(ChainSpec{
+					ChainSpec: spec.ChainSpec{
+						Name:      "custom-host",
+						NetworkID: "0000",
+					},
+					DepSets: map[string]descriptors.DepSet{},
+				})
 			},
 			wantNodes: nil,
 			wantServices: descriptors.ServiceMap{
-				"batcher": descriptors.Service{
+				"batcher": &descriptors.Service{
 					Name: "op-batcher-custom-host",
 					Endpoints: descriptors.EndpointMap{
 						"http": {Host: "custom.host", Port: 8080},
@@ -155,7 +168,12 @@ func TestFindRPCEndpoints(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			finder := NewServiceFinder(tt.services, WithL2Networks([]string{"op-kurtosis", "network1", "network2", "custom-host"}))
+			finder := NewServiceFinder(tt.services, WithL2Networks([]ChainSpec{
+				{ChainSpec: spec.ChainSpec{Name: "op-kurtosis", NetworkID: "1234"}},
+				{ChainSpec: spec.ChainSpec{Name: "network1", NetworkID: "1111"}},
+				{ChainSpec: spec.ChainSpec{Name: "network2", NetworkID: "2222"}},
+				{ChainSpec: spec.ChainSpec{Name: "custom-host", NetworkID: "0000"}},
+			}))
 			gotNodes, gotServices := tt.findFn(finder)
 			assert.Equal(t, tt.wantNodes, gotNodes)
 			assert.Equal(t, tt.wantServices, gotServices)
@@ -164,6 +182,28 @@ func TestFindRPCEndpoints(t *testing.T) {
 }
 
 func TestFindL2ServicesSkipsOtherNetworks(t *testing.T) {
+	n1 := ChainSpec{
+		ChainSpec: spec.ChainSpec{
+			Name:      "network1",
+			NetworkID: "1111",
+		},
+		DepSets: map[string]descriptors.DepSet{},
+	}
+	n2 := ChainSpec{
+		ChainSpec: spec.ChainSpec{
+			Name:      "network2",
+			NetworkID: "2222",
+		},
+		DepSets: map[string]descriptors.DepSet{},
+	}
+	n3 := ChainSpec{
+		ChainSpec: spec.ChainSpec{
+			Name:      "network3",
+			NetworkID: "3333",
+		},
+		DepSets: map[string]descriptors.DepSet{},
+	}
+
 	// Create a service map with services from multiple L2 networks
 	services := inspect.ServiceMap{
 		// network1 services
@@ -181,7 +221,7 @@ func TestFindL2ServicesSkipsOtherNetworks(t *testing.T) {
 		"op-batcher-network2": inspect.PortMap{
 			"http": {Port: 8081},
 		},
-		"op-proposer-network2": inspect.PortMap{
+		"op-proposer-2222": inspect.PortMap{
 			"http": {Port: 8083},
 		},
 		"op-cl-1-op-node-op-geth-network2": inspect.PortMap{
@@ -205,15 +245,14 @@ func TestFindL2ServicesSkipsOtherNetworks(t *testing.T) {
 		},
 	}
 
-	// Create a service finder with all networks configured
 	finder := NewServiceFinder(
 		services,
-		WithL2Networks([]string{"network1", "network2", "network3"}),
+		WithL2Networks([]ChainSpec{n1, n2, n3}),
 	)
 
 	// Test finding services for network2
 	t.Run("find network2 services", func(t *testing.T) {
-		nodes, serviceMap := finder.FindL2Services("network2")
+		nodes, serviceMap := finder.FindL2Services(n2)
 
 		// Verify nodes
 		assert.Len(t, nodes, 1)
@@ -228,7 +267,7 @@ func TestFindL2ServicesSkipsOtherNetworks(t *testing.T) {
 		assert.Contains(t, serviceMap, "proposer")
 		assert.Contains(t, serviceMap, "common-service")
 		assert.Equal(t, "op-batcher-network2", serviceMap["batcher"].Name)
-		assert.Equal(t, "op-proposer-network2", serviceMap["proposer"].Name)
+		assert.Equal(t, "op-proposer-2222", serviceMap["proposer"].Name)
 		assert.Equal(t, "op-common-service", serviceMap["common-service"].Name)
 
 		// Verify network1 and network3 services are not included
@@ -240,7 +279,13 @@ func TestFindL2ServicesSkipsOtherNetworks(t *testing.T) {
 
 	// Test with a network that doesn't exist
 	t.Run("find non-existent network services", func(t *testing.T) {
-		nodes, serviceMap := finder.FindL2Services("non-existent")
+		nodes, serviceMap := finder.FindL2Services(ChainSpec{
+			ChainSpec: spec.ChainSpec{
+				Name:      "non-existent",
+				NetworkID: "plop",
+			},
+			DepSets: map[string]descriptors.DepSet{},
+		})
 
 		// Should only find common services
 		assert.Len(t, nodes, 0)
@@ -295,6 +340,12 @@ func TestServiceTag(t *testing.T) {
 			wantTag:   "multi-part-name",
 			wantIndex: 1,
 		},
+		{
+			name:      "service with multiple numbers",
+			input:     "node-42-1",
+			wantTag:   "node",
+			wantIndex: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -302,6 +353,91 @@ func TestServiceTag(t *testing.T) {
 			gotTag, gotIndex := finder.serviceTag(tt.input)
 			assert.Equal(t, tt.wantTag, gotTag)
 			assert.Equal(t, tt.wantIndex, gotIndex)
+		})
+	}
+}
+
+func TestFindL2ServicesWithSupervisors(t *testing.T) {
+	// Create dependency sets as raw JSON
+	depSet1 := []byte(`{"dependencies":{"1111":{"activationTime":0,"chainIndex":"1111","historyMinTime":0}}}`)
+	depSet2 := []byte(`{"dependencies":{"2222":{"activationTime":0,"chainIndex":"2222","historyMinTime":0}}}`)
+
+	// Create test services with supervisors for different networks
+	services := inspect.ServiceMap{
+		// Network1 supervisor with depSet1
+		"op-supervisor-depset1": inspect.PortMap{
+			"rpc": {Port: 8080},
+		},
+		// Network2 supervisor with depSet2
+		"op-supervisor-depset2": inspect.PortMap{
+			"rpc": {Port: 8081},
+		},
+		// extra supervisor
+		"op-supervisor-depset3": inspect.PortMap{
+			"rpc": {Port: 8083},
+		},
+	}
+
+	// Create chain specs for the networks
+	n1 := ChainSpec{
+		ChainSpec: spec.ChainSpec{
+			Name:      "network1",
+			NetworkID: "1111",
+		},
+		DepSets: map[string]descriptors.DepSet{
+			"depset1": depSet1,
+		},
+	}
+	n2 := ChainSpec{
+		ChainSpec: spec.ChainSpec{
+			Name:      "network2",
+			NetworkID: "2222",
+		},
+		DepSets: map[string]descriptors.DepSet{
+			"depset2": depSet2,
+		},
+	}
+
+	finder := NewServiceFinder(
+		services,
+		WithL2Networks([]ChainSpec{n1, n2}),
+	)
+
+	tests := []struct {
+		name      string
+		chainSpec ChainSpec
+		wantName  string
+		wantPort  int
+	}{
+		{
+			name:      "network1 supervisor",
+			chainSpec: n1,
+			wantName:  "op-supervisor-depset1",
+			wantPort:  8080,
+		},
+		{
+			name:      "network2 supervisor",
+			chainSpec: n2,
+			wantName:  "op-supervisor-depset2",
+			wantPort:  8081,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, serviceMap := finder.FindL2Services(tt.chainSpec)
+
+			// Debug output
+			t.Logf("Service map: %+v", serviceMap)
+			for k, v := range serviceMap {
+				t.Logf("Service %s: %+v", k, v)
+			}
+
+			// Verify supervisor services
+			assert.Len(t, serviceMap, 1) // just the supervisor service
+			assert.Contains(t, serviceMap, "supervisor")
+			assert.Equal(t, tt.wantName, serviceMap["supervisor"].Name)
+			assert.Equal(t, tt.wantPort, serviceMap["supervisor"].Endpoints["rpc"].Port)
 		})
 	}
 }

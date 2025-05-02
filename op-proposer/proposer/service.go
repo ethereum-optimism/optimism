@@ -315,7 +315,6 @@ func (ps *ProposerService) Stop(ctx context.Context) error {
 	}
 
 	if ps.rpcServer != nil {
-		// TODO(7685): the op-service RPC server is not built on top of op-service httputil Server, and has poor shutdown
 		if err := ps.rpcServer.Stop(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop RPC server: %w", err))
 		}

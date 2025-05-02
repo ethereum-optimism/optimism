@@ -459,6 +459,10 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
 			return opened, 0, execs, nil
 		}
+		csd.checkFn = func(chainID eth.ChainID, blockNum uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
+			require.Fail(t, "unexpected checkFn call. expected short-circuit for expired message")
+			return types.BlockSeal{}, errors.New("unexpected checkFn call. expected short-circuit")
+		}
 		// when OpenBlock and CandidateCrossSafe return different blocks,
 		// an ErrConflict is returned
 		pair, err := scopedCrossSafeUpdate(logger, chainID, csd)

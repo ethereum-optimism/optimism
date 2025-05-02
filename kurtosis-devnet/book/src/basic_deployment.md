@@ -136,3 +136,63 @@ The devnet shell automatically sets up environment variables needed for developm
 - `DEVNET_CHAIN_NAME`: The name of the currently selected chain
 
 These variables are automatically picked up by tools like `cast`, making it easy to interact with the chain directly from the shell.
+
+## AUTOFIX Feature
+
+The devnet includes an AUTOFIX feature that helps recover from failed devnet deployments by automatically cleaning up the environment. It has two modes:
+
+1. **Normal Mode** (`AUTOFIX=true`)
+   - Cleans up stopped or empty enclaves
+   - Removes associated Docker resources (containers, volumes, networks)
+   - Preserves running enclaves
+   - Good for fixing minor deployment issues
+
+2. **Nuke Mode** (`AUTOFIX=nuke`)
+   - Completely resets the Kurtosis environment
+   - Removes all enclaves and associated Docker resources
+   - Use when you need a fresh start
+
+### How AUTOFIX Works
+
+AUTOFIX operates by:
+1. Checking the status of the enclave (running, stopped, or empty)
+2. For stopped or empty enclaves in normal mode:
+   - Removes the enclave
+   - Cleans up potential kurtosis Docker resources
+3. For nuke mode:
+   - Removes all enclaves
+   - Cleans up all potential kurtosis Docker resources
+
+### Usage
+
+```bash
+# For normal cleanup
+AUTOFIX=true just devnet simple.yaml
+
+# For complete reset
+AUTOFIX=nuke just devnet simple.yaml
+```
+
+Note: Nuke mode will stop all running enclaves, so use it carefully.
+
+### Troubleshooting
+
+If you encounter issues with older Kurtosis versions, you can use AUTOFIX to recover:
+
+```bash
+# For normal cleanup
+AUTOFIX=true just devnet simple.yaml
+
+# For complete reset
+AUTOFIX=nuke just devnet simple.yaml
+```
+
+Alternatively, you can manually clean up Docker resources:
+
+```bash
+# Remove old Kurtosis containers
+docker rm -f $(docker ps -aqf "name=kurtosis-*")
+
+# Clean up dangling networks
+docker network rm -f $(docker network ls -qf "name=kt-*")
+```
