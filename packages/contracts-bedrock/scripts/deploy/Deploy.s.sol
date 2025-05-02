@@ -19,6 +19,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeploySuperchain2 } from "scripts/deploy/DeploySuperchain2.s.sol";
 import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.sol";
 import { DeployAltDA2 } from "scripts/deploy/DeployAltDA2.s.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
 import { Types } from "scripts/libraries/Types.sol";
@@ -268,7 +269,7 @@ contract Deploy is Deployer {
             challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
             proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
             disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
-            mipsVersion: 6,
+            mipsVersion: StandardConstants.MIPS_VERSION,
             l1ContractsRelease: "dev",
             superchainConfigProxy: superchainConfig,
             protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
