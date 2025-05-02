@@ -543,12 +543,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
+    /// @param _superchainConfig The SuperchainConfig contract to upgrade
+    /// @param _superchainProxyAdmin The ProxyAdmin contract for the SuperchainConfig
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
     function upgrade(
         ISuperchainConfig _superchainConfig,
         IProxyAdmin _superchainProxyAdmin,
-        IProtocolVersions _protocolVersions,
         OPContractsManager.OpChainConfig[] memory _opChainConfigs
     )
         external
@@ -567,14 +568,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 impls.superchainConfigImpl,
                 abi.encodeCall(ISuperchainConfig.upgrade, ())
             );
-        }
-
-        // If the ProtocolVersions contract is not already upgraded, upgrade it. NOTE that this
-        // type of upgrade means that chains can ONLY be upgraded via this OPCM contract if they
-        // use the same ProtocolVersions contract.
-        if (_superchainProxyAdmin.getProxyImplementation(address(_protocolVersions)) != impls.protocolVersionsImpl) {
-            // Attempt to upgrade. If the ProxyAdmin is not the ProtocolVersions's admin, this will revert.
-            upgradeTo(_superchainProxyAdmin, address(_protocolVersions), impls.protocolVersionsImpl);
         }
 
         // Loop through each chain and upgrade.
@@ -1843,8 +1836,7 @@ contract OPContractsManager is ISemver {
         }
 
         bytes memory data = abi.encodeCall(
-            OPContractsManagerUpgrader.upgrade,
-            (superchainConfig, superchainProxyAdmin, protocolVersions, _opChainConfigs)
+            OPContractsManagerUpgrader.upgrade, (superchainConfig, superchainProxyAdmin, _opChainConfigs)
         );
         _performDelegateCall(address(opcmUpgrader), data);
     }

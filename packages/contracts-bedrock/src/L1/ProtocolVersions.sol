@@ -3,8 +3,6 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
-import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
@@ -18,7 +16,7 @@ type ProtocolVersion is uint256;
 /// @custom:proxied true
 /// @title ProtocolVersions
 /// @notice The ProtocolVersions contract is used to manage superchain protocol version information.
-contract ProtocolVersions is ProxyAdminOwnedBase, ReinitializableBase, OwnableUpgradeable, ISemver {
+contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value REQUIRED_PROTOCOL_VERSION              Represents an update to the required protocol version.
     /// @custom:value RECOMMENDED_PROTOCOL_VERSION           Represents an update to the recommended protocol version.
@@ -43,11 +41,11 @@ contract ProtocolVersions is ProxyAdminOwnedBase, ReinitializableBase, OwnableUp
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Constructs the ProtocolVersion contract.
-    constructor() ReinitializableBase(3) {
+    constructor() {
         _disableInitializers();
     }
 
@@ -55,18 +53,7 @@ contract ProtocolVersions is ProxyAdminOwnedBase, ReinitializableBase, OwnableUp
     /// @param _owner             Initial owner of the contract.
     /// @param _required          Required protocol version to operate on this chain.
     /// @param _recommended       Recommended protocol version to operate on thi chain.
-    function initialize(
-        address _owner,
-        ProtocolVersion _required,
-        ProtocolVersion _recommended
-    )
-        external
-        reinitializer(initVersion())
-    {
-        // Initialization transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Now perform initialization logic.
+    function initialize(address _owner, ProtocolVersion _required, ProtocolVersion _recommended) external initializer {
         __Ownable_init();
         transferOwnership(_owner);
         _setRequired(_required);

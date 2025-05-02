@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
-import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
-
 type ProtocolVersion is uint256;
 
-interface IProtocolVersions is IProxyAdminOwnedBase, IReinitializableBase {
+interface IProtocolVersions {
     enum UpdateType {
         REQUIRED_PROTOCOL_VERSION,
         RECOMMENDED_PROTOCOL_VERSION

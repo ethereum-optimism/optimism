@@ -228,11 +228,6 @@
         "type": "address"
       },
       {
-        "internalType": "contract IProtocolVersions",
-        "name": "_protocolVersions",
-        "type": "address"
-      },
-      {
         "components": [
           {
             "internalType": "contract ISystemConfig",

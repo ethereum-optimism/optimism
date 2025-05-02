@@ -19,9 +19,8 @@ Applies to Solidity files.
   - `@custom:network-specific`: Add to state variables which vary between OP Chains
 
 ## Errors
-- Use `require` statements for simple assertions
-- Use `revert(string)` if throwing an error where an assertion is not being made
-- Error strings must have format `"{ContractName}: {message}"` where `message` is lowercase
+- When adding new errors, always use custom Solidity errors
+- Custom errors should take the format `ContractName_ErrorDescription`
 
 ## Naming Conventions
 - Function parameters should be prefixed with an underscore
@@ -35,8 +34,10 @@ Applies to Solidity files.
 
 ## Upgradeability
 - Contracts should be built assuming upgradeability by default
-- Extend OpenZeppelin's `Initializable` base contract
-- Include an `initialize` function with the `initializer()` modifier
+- Extend OpenZeppelin's `Initializable` or base contract
+- Use the `ReinitializableBase` contract
+- Include an `initialize` function with the `reinitializer(initValue())` modifier
+- If including an `upgrade` function, use the `reinitializer(initValue())` modifier
 - In the constructor:
   - Call `_disableInitializers()`
   - Set any immutables (though generally avoid immutables)
@@ -66,4 +67,3 @@ Applies to Solidity files.
   - `TargetContract_FunctionName_Test`: for happy path tests
   - `TargetContract_FunctionName_TestFail`: for sad path tests
   - `TargetContract_Harness`: for harness contracts
-  - Can group getter tests in `TargetContract_Getters_Test`
