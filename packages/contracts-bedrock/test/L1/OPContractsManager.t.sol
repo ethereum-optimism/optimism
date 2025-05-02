@@ -1444,13 +1444,37 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         assertLt(gasBefore - gasAfter, 20_000_000, "Gas usage too high");
     }
 
+    /// @notice Helper function to assert that the old game implementations are now zeroed out.
+    ///         We need a separate helper to avoid stack too deep errors.
+    /// @param _disputeGameFactory The dispute game factory to check.
+    function _assertOldGamesZeroed(IDisputeGameFactory _disputeGameFactory) internal view {
+        // Assert that the old game implementations are now zeroed out.
+        assertEq(address(_disputeGameFactory.gameImpls(GameTypes.CANNON)), address(0));
+        assertEq(address(_disputeGameFactory.gameImpls(GameTypes.SUPER_CANNON)), address(0));
+        assertEq(address(_disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)), address(0));
+        assertEq(address(_disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON)), address(0));
+    }
+
     /// @notice Tests that the migration function succeeds when requesting to use the
     ///         permissionless game.
     function test_migrate_withPermissionlessGame_succeeds() public {
         IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
 
-        // Execute the migration.
-        _doMigration(input);
+        // Separate context to avoid stack too deep errors.
+        {
+            // Grab the existing DisputeGameFactory for each chain.
+            IDisputeGameFactory oldDisputeGameFactory1 =
+                IDisputeGameFactory(payable(chainDeployOutput1.systemConfigProxy.disputeGameFactory()));
+            IDisputeGameFactory oldDisputeGameFactory2 =
+                IDisputeGameFactory(payable(chainDeployOutput2.systemConfigProxy.disputeGameFactory()));
+
+            // Execute the migration.
+            _doMigration(input);
+
+            // Assert that the old game implementations are now zeroed out.
+            _assertOldGamesZeroed(oldDisputeGameFactory1);
+            _assertOldGamesZeroed(oldDisputeGameFactory2);
+        }
 
         // Grab the two OptimismPortal addresses.
         IOptimismPortal2 optimismPortal1 =
@@ -1557,8 +1581,21 @@ contract OPContractsManager_InteropMigrator_Test is OPContractsManager_TestInit 
         // Change the input to not use the permissionless game.
         input.usePermissionlessGame = false;
 
-        // Execute the migration.
-        _doMigration(input);
+        // Separate context to avoid stack too deep errors.
+        {
+            // Grab the existing DisputeGameFactory for each chain.
+            IDisputeGameFactory oldDisputeGameFactory1 =
+                IDisputeGameFactory(payable(chainDeployOutput1.systemConfigProxy.disputeGameFactory()));
+            IDisputeGameFactory oldDisputeGameFactory2 =
+                IDisputeGameFactory(payable(chainDeployOutput2.systemConfigProxy.disputeGameFactory()));
+
+            // Execute the migration.
+            _doMigration(input);
+
+            // Assert that the old game implementations are now zeroed out.
+            _assertOldGamesZeroed(oldDisputeGameFactory1);
+            _assertOldGamesZeroed(oldDisputeGameFactory2);
+        }
 
         // Grab the two OptimismPortal addresses.
         IOptimismPortal2 optimismPortal1 =

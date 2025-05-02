@@ -1451,6 +1451,15 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Migrate the existing ETHLockbox to the new ETHLockbox.
             existingLockbox.migrateLiquidity(newEthLockbox);
 
+            // Before migrating the portal, clear out any implementations that might exist in the
+            // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
+            IDisputeGameFactory oldDisputeGameFactory =
+                IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
+            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)));
+            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)));
+            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)));
+            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)));
+
             // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
             portals[i].migrateToSuperRoots(newEthLockbox, newAnchorStateRegistry);
         }
