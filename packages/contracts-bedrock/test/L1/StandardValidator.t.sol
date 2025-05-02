@@ -2,11 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test } from "forge-std/Test.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
-
-// Scripts
-import { Artifacts } from "scripts/Artifacts.s.sol";
 
 // Target contract
 import { StandardValidator } from "src/L1/StandardValidator.sol";
