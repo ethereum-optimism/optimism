@@ -314,7 +314,15 @@ impl EngineApiServer for RollupBoostServer {
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<OpPayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
-        info!("received fork_choice_updated_v3");
+        if let Some(attr) = payload_attributes.as_ref() {
+            info!(
+                message = "received fork_choice_updated_v3 with payload attributes",
+                "use_tx_pool" = !attr.no_tx_pool.unwrap_or_default()
+            );
+        } else {
+            info!("received fork_choice_updated_v3");
+        }
+
         // First get the local payload ID from L2 client
         let l2_response = self
             .l2_client
