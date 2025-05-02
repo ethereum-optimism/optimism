@@ -10,6 +10,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Math } from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { Process } from "scripts/libraries/Process.sol";
+import { Config } from "scripts/libraries/Config.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 
 // Interfaces
@@ -120,24 +121,36 @@ contract VerifyOPCM is Script {
 
     /// @notice Entry point for the script when run via `forge script`, reads the OPCM address from
     ///         the environment variable OPCM_ADDRESS. Use run(address) if you want to specify the
-    ///         address as an argument instead.
+    ///         address as an argument instead. Running in this mode will not allow you to skip
+    ///         constructor verification.
     function run() external {
-        run(vm.envAddress("OPCM_ADDRESS"));
+        run(vm.envAddress("OPCM_ADDRESS"), false);
     }
 
     /// @notice Entry point for the script when trying to verify a single contract by name.
     /// @param _name Name of the contract to verify.
     /// @param _addr Address of the contract to verify.
-    function runSingle(string memory _name, address _addr) public view {
-        _verifyOpcmContractRef(OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }));
+    /// @param _skipConstructorVerification Whether to skip constructor verification.
+    function runSingle(string memory _name, address _addr, bool _skipConstructorVerification) public {
+        _verifyOpcmContractRef(
+            OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }), _skipConstructorVerification
+        );
     }
 
     /// @notice Main verification logic.
     /// @param _opcmAddress Address of the OPContractsManager contract to verify.
-    function run(address _opcmAddress) public {
+    /// @param _skipConstructorVerification Whether to skip constructor verification.
+    function run(address _opcmAddress, bool _skipConstructorVerification) public {
         // Make sure the setup function has been called.
         if (!ready) {
             setUp();
+        }
+
+        // Log a warning if constructor verification is being skipped.
+        if (_skipConstructorVerification) {
+            console.log("WARNING: Constructor verification is being skipped");
+            console.log("         ONLY to be used in test environments");
+            console.log("         Do NOT do this in production");
         }
 
         // Fetch Implementations & Blueprints from OPCM
@@ -149,7 +162,7 @@ contract VerifyOPCM is Script {
         // Verify each reference.
         bool success = true;
         for (uint256 i = 0; i < refs.length; i++) {
-            success = _verifyOpcmContractRef(refs[i]) && success;
+            success = _verifyOpcmContractRef(refs[i], _skipConstructorVerification) && success;
         }
 
         // Final Result
@@ -213,8 +226,15 @@ contract VerifyOPCM is Script {
 
     /// @notice Verifies a single OPCM contract reference (implementation or bytecode).
     /// @param _target The target contract reference to verify.
+    /// @param _skipConstructorVerification Whether to skip constructor verification.
     /// @return True if the contract reference is verified, false otherwise.
-    function _verifyOpcmContractRef(OpcmContractRef memory _target) internal view returns (bool) {
+    function _verifyOpcmContractRef(
+        OpcmContractRef memory _target,
+        bool _skipConstructorVerification
+    )
+        internal
+        returns (bool)
+    {
         console.log();
         console.log(string.concat("Checking Contract: ", _target.field));
         console.log(string.concat("  Type: ", _target.blueprint ? "Blueprint" : "Implementation"));
@@ -267,6 +287,61 @@ contract VerifyOPCM is Script {
 
         // Perform detailed bytecode comparison.
         bool success = _compareBytecode(actualCode, expectedCode, _target.name, artifact, !_target.blueprint);
+
+        // If requested and this is not a blueprint, we also need to check the creation code.
+        if (!_target.blueprint && !_skipConstructorVerification) {
+            // Use the Etherscan API to get the creation code.
+            bytes memory actualCreationCode = bytes(
+                Process.bash(
+                    string.concat(
+                        "curl -s 'https://api.etherscan.io/v2/api?chainid=",
+                        vm.toString(block.chainid),
+                        "&module=contract&action=getcontractcreation&contractaddresses=",
+                        vm.toString(_target.addr),
+                        "&apikey=",
+                        Config.etherscanApiKey(),
+                        "' | jq -r '.result[0].creationBytecode'"
+                    )
+                )
+            );
+
+            // If we got a creation code, try to grab the constructor arguments from etherscan too.
+            if (actualCreationCode.length > 0) {
+                // Now try to grab the constructor arguments from etherscan too.
+                bytes memory constructorArgs = bytes(
+                    Process.bash(
+                        string.concat(
+                            "curl -s 'https://api.etherscan.io/v2/api?chainid=",
+                            vm.toString(block.chainid),
+                            "&module=contract&action=getsourcecode&address=",
+                            vm.toString(_target.addr),
+                            "&apikey=",
+                            Config.etherscanApiKey(),
+                            "' | jq -r '.result[0].ConstructorArguments'"
+                        )
+                    )
+                );
+
+                // If we got a constructor args, try to compare the bytecode.
+                if (constructorArgs.length > 0) {
+                    success = _compareBytecode(
+                        actualCreationCode,
+                        bytes.concat(artifact.bytecode, constructorArgs),
+                        _target.name,
+                        artifact,
+                        !_target.blueprint
+                    );
+                } else {
+                    console.log(
+                        string.concat("[FAIL] ERROR: Failed to retrieve constructor arguments for ", _target.name)
+                    );
+                    success = false;
+                }
+            } else {
+                console.log(string.concat("[FAIL] ERROR: Failed to retrieve creation code for ", _target.name));
+                success = false;
+            }
+        }
 
         // Log final status for this field.
         if (success) {

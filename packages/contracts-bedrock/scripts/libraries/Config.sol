@@ -123,6 +123,11 @@ library Config {
         env_ = vm.envUint("DRIPPIE_OWNER_PRIVATE_KEY");
     }
 
+    /// @notice Returns the API key for the Etherscan API.
+    function etherscanApiKey() internal view returns (string memory env_) {
+        env_ = vm.envString("ETHERSCAN_API_KEY");
+    }
+
     /// @notice Returns the OutputMode for genesis allocs generation.
     ///         It reads the mode from the environment variable OUTPUT_MODE.
     ///         If it is unset, OutputMode.ALL is returned.

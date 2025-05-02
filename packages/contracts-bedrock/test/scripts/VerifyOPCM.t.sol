@@ -62,7 +62,7 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
         skipIfCoverage();
 
         // Run the script.
-        harness.run(address(opcm));
+        harness.run(address(opcm), true);
     }
 
     /// @notice Tests that the script succeeds when differences are introduced into the immutable
@@ -122,7 +122,7 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
 
         // Run the script.
         // No revert expected.
-        harness.run(address(opcm));
+        harness.run(address(opcm), true);
     }
 
     /// @notice Tests that the script reverts when differences are introduced into the code of
@@ -176,7 +176,7 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
 
         // Run the script.
         vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
-        harness.run(address(opcm));
+        harness.run(address(opcm), true);
     }
 
     /// @notice Tests that the script reverts when differences are introduced into the code of
@@ -217,6 +217,6 @@ contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
 
         // Run the script.
         vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
-        harness.run(address(opcm));
+        harness.run(address(opcm), true);
     }
 }
