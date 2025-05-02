@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
 
@@ -21,9 +22,9 @@ const (
 func (v VMType) MipsVersion() uint64 {
 	switch v {
 	case VMTypeCannon:
-		return 7
+		return uint64(versions.GetCurrentVersion())
 	case VMTypeCannonNext:
-		return 7
+		return uint64(versions.GetExperimentalVersion())
 	default:
 		// Not a mips VM - return empty value
 		return 0

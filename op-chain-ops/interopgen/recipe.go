@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
@@ -76,7 +77,7 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 				ChallengePeriodSeconds:          big.NewInt(120),
 				ProofMaturityDelaySeconds:       big.NewInt(12),
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
-				MipsVersion:                     big.NewInt(6),
+				MipsVersion:                     big.NewInt(int64(versions.GetCurrentVersion())),
 			},
 			UseInterop: true,
 		},

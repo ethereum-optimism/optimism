@@ -51,3 +51,11 @@ func TestIsSupported(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCurrentVersion(t *testing.T) {
+	require.True(t, IsSupported(int(GetCurrentVersion())))
+}
+
+func TestGetExperimentalVersion(t *testing.T) {
+	require.True(t, IsSupported(int(GetExperimentalVersion())))
+}
