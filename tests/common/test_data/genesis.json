@@ -855,6 +855,8 @@
     "londonBlock": 0,
     "mergeNetsplitBlock": 0,
     "muirGlacierBlock": 0,
+    "isthmusTime": 100000000000000,
+    "pragueTime": 100000000000000,
     "blobSchedule": {
       "cancun": {
         "target": 3,

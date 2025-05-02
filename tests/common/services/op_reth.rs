@@ -1,15 +1,5 @@
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-    fs::File,
-    io::BufReader,
-    path::PathBuf,
-    sync::LazyLock,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use http::Uri;
-use serde_json::Value;
+use std::{borrow::Cow, collections::HashMap, path::PathBuf};
 use testcontainers::{
     ContainerAsync, CopyToContainer, Image,
     core::{ContainerPort, WaitFor},
@@ -18,31 +8,10 @@ use testcontainers::{
 use crate::common::TEST_DATA;
 
 const NAME: &str = "ghcr.io/paradigmxyz/op-reth";
-const TAG: &str = "v1.3.4";
+const TAG: &str = "v1.3.12";
 
 pub const AUTH_RPC_PORT: u16 = 8551;
 pub const P2P_PORT: u16 = 30303;
-
-// Genesis should only be created once and reused for
-// each instance
-static GENESIS: LazyLock<String> = LazyLock::new(|| {
-    let file = File::open(PathBuf::from(format!("{}/genesis.json", *TEST_DATA))).unwrap();
-    let reader = BufReader::new(file);
-    let mut genesis: Value = serde_json::from_reader(reader).unwrap();
-
-    // Update the timestamp field
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-
-    if let Some(config) = genesis.as_object_mut() {
-        // Assuming timestamp is at the root level - adjust path as needed
-        config["timestamp"] = Value::String(format!("0x{:x}", timestamp));
-    }
-
-    serde_json::to_string_pretty(&genesis).unwrap()
-});
 
 #[derive(Debug, Clone)]
 pub struct OpRethConfig {
@@ -52,6 +21,7 @@ pub struct OpRethConfig {
     pub color: String,
     pub ipcdisable: bool,
     pub env_vars: HashMap<String, String>,
+    pub genesis: Option<String>,
 }
 
 impl Default for OpRethConfig {
@@ -63,6 +33,7 @@ impl Default for OpRethConfig {
             color: "never".to_string(),
             ipcdisable: true,
             env_vars: Default::default(),
+            genesis: None,
         }
     }
 }
@@ -83,13 +54,23 @@ impl OpRethConfig {
         self
     }
 
+    pub fn set_genesis(mut self, genesis: String) -> Self {
+        self.genesis = Some(genesis);
+        self
+    }
+
     pub fn build(self) -> eyre::Result<OpRethImage> {
+        let genesis = self
+            .genesis
+            .clone()
+            .ok_or_else(|| eyre::eyre!("Genesis configuration not found"))?;
+
         let mut copy_to_sources = vec![
             CopyToContainer::new(
                 std::fs::read_to_string(&self.jwt_secret)?.into_bytes(),
                 "/jwt_secret.hex".to_string(),
             ),
-            CopyToContainer::new(GENESIS.clone().into_bytes(), "/genesis.json".to_string()),
+            CopyToContainer::new(genesis.into_bytes(), "/genesis.json".to_string()),
         ];
 
         if let Some(p2p_secret) = &self.p2p_secret {

@@ -20,6 +20,7 @@ use rollup_boost::DebugClient;
 use rollup_boost::{AuthLayer, AuthService};
 use rollup_boost::{EngineApiClient, OpExecutionPayloadEnvelope, Version};
 use rollup_boost::{NewPayload, PayloadSource};
+use serde_json::Value;
 use services::op_reth::{AUTH_RPC_PORT, OpRethConfig, OpRethImage, OpRethMehods, P2P_PORT};
 use services::rollup_boost::{RollupBoost, RollupBoostConfig};
 use std::collections::HashSet;
@@ -28,6 +29,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, LazyLock};
 use std::time::SystemTime;
+use std::{fs::File, io::BufReader, time::UNIX_EPOCH};
 use testcontainers::core::ContainerPort;
 use testcontainers::core::client::docker_client_instance;
 use testcontainers::core::logs::LogFrame;
@@ -160,16 +162,58 @@ pub trait BlockApi {
     ) -> RpcResult<Option<alloy_rpc_types_eth::Block>>;
 }
 
+#[derive(Clone)]
+pub struct Genesis {
+    pub timestamp: u64,
+    pub isthmus_block: Option<u64>,
+    pub block_time: u64,
+}
+
+impl Genesis {
+    fn to_string(&self) -> eyre::Result<String> {
+        let file = File::open(PathBuf::from(format!("{}/genesis.json", *TEST_DATA))).unwrap();
+        let reader = BufReader::new(file);
+        let mut genesis: Value = serde_json::from_reader(reader).unwrap();
+
+        if let Some(config) = genesis.as_object_mut() {
+            // Assuming timestamp is at the root level - adjust path as needed
+            config["timestamp"] = Value::String(format!("0x{:x}", self.timestamp));
+
+            if let Some(isthmus_block) = self.isthmus_block {
+                // In the genesis file the Isthmus fork is represented not as a block number
+                // but as a timestamp.
+                let isthmus_time = self.timestamp + isthmus_block * self.block_time;
+                if let Some(config_obj) = config.get_mut("config").and_then(|c| c.as_object_mut()) {
+                    // you need to enable also the Prague hardfork since it is the one that
+                    // enables the engine v4 API.
+                    // In the test_data/genesis.json file they are set as '100000000000000' which
+                    // represents that they are not enabled.
+                    config_obj["isthmusTime"] =
+                        Value::Number(serde_json::Number::from(isthmus_time));
+                    config_obj["pragueTime"] =
+                        Value::Number(serde_json::Number::from(isthmus_time));
+                }
+            }
+        }
+
+        serde_json::to_string_pretty(&genesis)
+            .map_err(|e| eyre::eyre!("Failed to serialize genesis: {}", e))
+    }
+}
+
 /// Test flavor that sets up one Rollup-boost instance connected to two Reth nodes
 pub struct RollupBoostTestHarness {
     pub l2: ContainerAsync<OpRethImage>,
     pub builder: ContainerAsync<OpRethImage>,
     pub rollup_boost: RollupBoost,
+    pub genesis: Genesis,
 }
 
 pub struct RollupBoostTestHarnessBuilder {
     test_name: String,
     proxy_handler: Option<Arc<dyn ProxyHandler>>,
+    isthmus_block: Option<u64>,
+    block_time: u64,
 }
 
 impl RollupBoostTestHarnessBuilder {
@@ -177,7 +221,19 @@ impl RollupBoostTestHarnessBuilder {
         Self {
             test_name: test_name.to_string(),
             proxy_handler: None,
+            isthmus_block: None,
+            block_time: 1,
         }
+    }
+
+    pub fn with_isthmus_block(mut self, isthmus_block: u64) -> Self {
+        self.isthmus_block = Some(isthmus_block);
+        self
+    }
+
+    pub fn with_block_time(mut self, block_time: u64) -> Self {
+        self.block_time = block_time;
+        self
     }
 
     pub fn file_path(&self, service_name: &str) -> eyre::Result<PathBuf> {
@@ -223,12 +279,26 @@ impl RollupBoostTestHarnessBuilder {
         let builder_log_consumer = self.log_consumer("builder").await?;
         let rollup_boost_log_file_path = self.file_path("rollup_boost")?;
 
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let genesis = Genesis {
+            timestamp,
+            isthmus_block: self.isthmus_block,
+            block_time: self.block_time,
+        };
+
+        let genesis_str = genesis.to_string()?;
+
         let l2_p2p_port = get_available_port();
         let l2 = OpRethConfig::default()
             .set_p2p_secret(Some(PathBuf::from(format!(
                 "{}/p2p_secret.hex",
                 *TEST_DATA
             ))))
+            .set_genesis(genesis_str.clone())
             .build()?
             .with_mapped_port(l2_p2p_port, ContainerPort::Tcp(P2P_PORT))
             .with_mapped_port(l2_p2p_port, ContainerPort::Udp(P2P_PORT))
@@ -247,6 +317,7 @@ impl RollupBoostTestHarnessBuilder {
         let builder_p2p_port = get_available_port();
         let builder = OpRethConfig::default()
             .set_trusted_peers(vec![l2_enode])
+            .set_genesis(genesis_str)
             .build()?
             .with_mapped_port(builder_p2p_port, ContainerPort::Tcp(P2P_PORT))
             .with_mapped_port(builder_p2p_port, ContainerPort::Udp(P2P_PORT))
@@ -283,6 +354,7 @@ impl RollupBoostTestHarnessBuilder {
             l2,
             builder,
             rollup_boost,
+            genesis,
         })
     }
 }
@@ -294,7 +366,8 @@ impl RollupBoostTestHarness {
 
         let engine_api = EngineApi::new(&self.rollup_boost.rpc_endpoint(), JWT_SECRET)?;
 
-        let mut block_creator = SimpleBlockGenerator::new(validator, engine_api);
+        let mut block_creator =
+            SimpleBlockGenerator::new(validator, engine_api, self.genesis.clone());
         block_creator.init().await?;
         Ok(block_creator)
     }
@@ -310,17 +383,23 @@ pub struct SimpleBlockGenerator {
     engine_api: EngineApi,
     latest_hash: B256,
     timestamp: u64,
-    version: Version,
+    genesis: Genesis,
+    current_block_number: u64,
 }
 
 impl SimpleBlockGenerator {
-    pub fn new(validator: BlockBuilderCreatorValidator, engine_api: EngineApi) -> Self {
+    pub fn new(
+        validator: BlockBuilderCreatorValidator,
+        engine_api: EngineApi,
+        genesis: Genesis,
+    ) -> Self {
         Self {
             validator,
             engine_api,
             latest_hash: B256::ZERO, // temporary value
-            timestamp: 0,            // temporary value
-            version: Version::V3,
+            timestamp: genesis.timestamp,
+            genesis,
+            current_block_number: 0,
         }
     }
 
@@ -337,8 +416,26 @@ impl SimpleBlockGenerator {
         &mut self,
         empty_blocks: bool,
     ) -> eyre::Result<(B256, PayloadSource)> {
-        let txns = match self.version {
+        let timestamp = self.timestamp + self.genesis.block_time;
+        self.current_block_number += 1;
+
+        let version = match self.genesis.isthmus_block {
+            Some(num) => {
+                if self.current_block_number < num {
+                    Version::V3
+                } else {
+                    Version::V4
+                }
+            }
+            None => Version::V3,
+        };
+
+        let txns = match version {
             Version::V4 => {
+                // Starting on the Ishtmus hardfork, the payload attributes must include a "BlockInfo"
+                // transaction which is a deposit transaction with info about the gas fees on L1.
+                // Op-Reth will fail to process the block if the state resulting from executing this transaction
+                // is not set in REVM.
                 let tx = create_deposit_tx();
                 Some(vec![tx])
             }
@@ -355,7 +452,7 @@ impl SimpleBlockGenerator {
                     payload_attributes: PayloadAttributes {
                         withdrawals: Some(vec![]),
                         parent_beacon_block_root: Some(B256::ZERO),
-                        timestamp: self.timestamp + 1000, // 1 second later
+                        timestamp,
                         prev_randao: B256::ZERO,
                         suggested_fee_recipient: Default::default(),
                     },
@@ -373,10 +470,7 @@ impl SimpleBlockGenerator {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
-        let payload = self
-            .engine_api
-            .get_payload(self.version, payload_id)
-            .await?;
+        let payload = self.engine_api.get_payload(version, payload_id).await?;
 
         // Submit the new payload to the node
         let validation_status = self
@@ -408,6 +502,16 @@ impl SimpleBlockGenerator {
             .expect("block creator not found");
 
         Ok((new_block_hash, block_creator))
+    }
+
+    pub async fn generate_builder_blocks(&mut self, num_blocks: u64) -> eyre::Result<()> {
+        for _ in 0..num_blocks {
+            let (_block, block_creator) = self.generate_block(false).await?;
+            if !block_creator.is_builder() {
+                eyre::bail!("Block creator should be the builder");
+            }
+        }
+        Ok(())
     }
 }
 
@@ -456,6 +560,7 @@ impl BlockBuilderCreatorValidator {
 }
 
 fn create_deposit_tx() -> Bytes {
+    // Extracted from a Isthmus enabled chain running in builder-playground
     const ISTHMUS_DATA: &[u8] = &hex!(
         "098999be00000558000c5fc500000000000000030000000067a9f765000000000000002900000000000000000000000000000000000000000000000000000000006a6d09000000000000000000000000000000000000000000000000000000000000000172fcc8e8886636bdbe96ba0e4baab67ea7e7811633f52b52e8cf7a5123213b6f000000000000000000000000d3f2c5afb2d76f5579f326b0cd7da5f5a4126c3500004e2000000000000001f4"
     );
