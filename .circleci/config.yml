@@ -1678,6 +1678,196 @@ jobs:
             MESSAGE: << parameters.message >>
             LABEL_NAME: << parameters.label_name >>
 
+  workflow-completed:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    steps:
+      - run:
+          name: Workflow Completed
+          command: echo "Workflow completed successfully!"
+
+  kurtosis-pr-sanity-check:
+    docker:
+      - image: cimg/go:1.21
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Install Kurtosis
+          command: |
+            echo "Installing Kurtosis CLI..."
+            curl -sSL https://get.kurtosis.com/install.sh | bash
+            echo 'export PATH="$HOME/.kurtosis/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            kurtosis version
+      - run:
+          name: Start Kurtosis Engine
+          command: |
+            kurtosis engine start
+            kurtosis engine status
+      - run:
+          name: Build Required Docker Images
+          working_directory: kurtosis-devnet
+          command: |
+            # Install just
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # Build the minimal set of Docker images required for the check
+            just op-node-image
+            just op-batcher-image
+            just op-proposer-image
+      - run:
+          name: Run Kurtosis Simple Deployment Check
+          working_directory: kurtosis-devnet
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # Attempt to deploy the simple devnet (most lightweight option)
+            just simple-devnet
+
+            # Verify the devnet is running properly
+            ENCLAVE_NAME="simple-devnet"
+            if kurtosis enclave inspect $ENCLAVE_NAME | grep -q "RUNNING"; then
+              echo "✅ Kurtosis devnet deployed successfully!"
+              DEPLOYMENT_SUCCESS=true
+            else
+              echo "❌ Kurtosis devnet deployment failed!"
+              kurtosis enclave inspect $ENCLAVE_NAME || true
+              exit 1
+            fi
+      - run:
+          name: Clean Up Resources
+          command: |
+            kurtosis clean -a || true
+          when: always
+      - discord-notification-failures-on-develop:
+          message: "⚠️ **Kurtosis PR Sanity Check Failed**: ${CIRCLE_PROJECT_REPONAME} PR ${CIRCLE_PULL_REQUEST##*/}\nPlease ensure your changes don't break the kurtosis devnet deployments."
+          when: on_fail
+
+  kurtosis-merge-queue-check:
+    docker:
+      - image: cimg/go:1.21
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Install Kurtosis
+          command: |
+            echo "Installing Kurtosis CLI..."
+            curl -sSL https://get.kurtosis.com/install.sh | bash
+            echo 'export PATH="$HOME/.kurtosis/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            kurtosis version
+      - run:
+          name: Start Kurtosis Engine
+          command: |
+            kurtosis engine start
+            kurtosis engine status
+      - run:
+          name: Build Required Docker Images
+          working_directory: kurtosis-devnet
+          command: |
+            # Install just
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # Build the minimal set of Docker images required for the check
+            just op-node-image
+            just op-batcher-image
+            just op-proposer-image
+      - run:
+          name: Check for Existing Persistent Devnet
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # Check if the persistent-devnet already exists
+            if kurtosis enclave ls | grep -q "persistent-devnet"; then
+              echo "Persistent devnet already exists, will attempt to update it"
+              PERSISTENT_EXISTS=true
+            else
+              echo "No persistent devnet found, will create a new one"
+              PERSISTENT_EXISTS=false
+            fi
+
+            # Store the state in an environment variable for the next step
+            echo "export PERSISTENT_EXISTS=${PERSISTENT_EXISTS}" >> $BASH_ENV
+      - run:
+          name: Deploy or Update Persistent Devnet
+          working_directory: kurtosis-devnet
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+
+            if [ "$PERSISTENT_EXISTS" = "true" ]; then
+              # Try to update the existing devnet
+              echo "Attempting to update the persistent devnet..."
+
+              # Stop any running tests
+              kurtosis enclave stop persistent-devnet || true
+
+              # Restart the enclave with new code
+              kurtosis enclave start persistent-devnet || true
+
+              # Run the simple devnet with the same name to update it
+              just devnet "simple.yaml" "" "persistent"
+            else
+              # Deploy a new devnet
+              echo "Creating new persistent devnet..."
+              just devnet "simple.yaml" "" "persistent"
+            fi
+
+            # Verify the devnet is running properly
+            ENCLAVE_NAME="persistent-devnet"
+            if kurtosis enclave inspect $ENCLAVE_NAME | grep -q "RUNNING"; then
+              echo "✅ Persistent kurtosis devnet deployed/updated successfully!"
+              DEPLOYMENT_SUCCESS=true
+            else
+              echo "❌ Persistent kurtosis devnet deployment/update failed!"
+              kurtosis enclave inspect $ENCLAVE_NAME || true
+              exit 1
+            fi
+      - discord-notification-failures-on-develop:
+          message: "⚠️ **Kurtosis Merge Queue Check Failed**: ${CIRCLE_PROJECT_REPONAME} branch ${CIRCLE_BRANCH}\nPlease ensure your changes don't break the kurtosis devnet deployments."
+          when: on_fail
+
+  # Kurtosis PR Check Workflow
+  kurtosis-pr-check:
+    # Run on all PRs except those targeting main or develop
+    when:
+      and:
+        - not:
+            equal: [ "develop", << pipeline.git.branch >> ]
+        - not:
+            equal: [ "main", << pipeline.git.branch >> ]
+        - or:
+            - matches:
+                pattern: "^pull/\\d+$"
+                value: << pipeline.git.branch >>
+            - matches:
+                pattern: "^pull/\\d+/head$"
+                value: << pipeline.git.branch >>
+    jobs:
+      - kurtosis-pr-sanity-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+
+  # Kurtosis Merge Queue Check
+  kurtosis-merge-queue-check:
+    # Run only in the merge queue
+    when:
+      and:
+        - or:
+            - equal: [ "merge-queue", << pipeline.git.branch >> ]
+            - matches:
+                pattern: "^merge-queue/.*$"
+                value: << pipeline.git.branch >>
+    jobs:
+      - kurtosis-merge-queue-check:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+
 workflows:
   main:
     when:
