@@ -156,7 +156,7 @@ In particular, cleaning up a devnet can be achieved using
 
 ### Autofix mode
 
-Autofix mode helps recover from failed devnet deployments by automatically 
+Autofix mode helps recover from failed devnet deployments by automatically
 cleaning up the environment. It has two modes:
 
 1. **Normal Mode** (`AUTOFIX=true`)
@@ -189,7 +189,7 @@ older kurtosis engine. This typically happens if the kurtosis
 command-line managed by mise gets updated while some enclaves are
 already running.
 
-To help recover, you can either run with `AUTOFIX=nuke` or kill the 
+To help recover, you can either run with `AUTOFIX=nuke` or kill the
 old engine with:
 
 ```shell
@@ -201,3 +201,9 @@ Potentially you'll also need to cleanup dangling docker networks:
 ```shell
 docker network rm -f $(docker network ls -qf "name=kt-*")
 ```
+
+## PR Checks
+
+To ensure stability and prevent inadvertent breakage of the kurtosis deployments, we've implemented PR checks that automatically verify each PR can successfully deploy a kurtosis devnet.
+
+For more information, see the [PR Checks Documentation](docs/pr-checks.md).
