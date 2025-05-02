@@ -135,6 +135,11 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RPC_ENABLE_PROXY"),
 		Value:   true,
 	}
+	FlashblocksWebsocketURL = &cli.StringFlag{
+		Name:    "flashblocks-websocket-url",
+		Usage:   "WebSocket URL of the flashblocks proxy to connect to when this conductor is the leader",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "FLASHBLOCKS_WEBSOCKET_URL"),
+	}
 )
 
 var requiredFlags = []cli.Flag{

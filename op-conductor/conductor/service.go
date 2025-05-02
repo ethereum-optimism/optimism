@@ -87,6 +87,13 @@ func NewOpConductor(
 	// do not rely on the default context, use a dedicated context for shutdown.
 	oc.shutdownCtx, oc.shutdownCancel = context.WithCancel(context.Background())
 
+	// Initialize flashblocks websocket client if URL is provided
+	if cfg.FlashblocksWebsocketURL != "" {
+		oc.log.Info("initializing flashblocks websocket client", "url", cfg.FlashblocksWebsocketURL)
+		wsControl := client.NewWebSocketControl(cfg.FlashblocksWebsocketURL, oc.log)
+		oc.wsControl = wsControl
+	}
+
 	err := oc.init(ctx)
 	if err != nil {
 		log.Error("failed to initialize OpConductor", "err", err)
@@ -303,9 +310,10 @@ type OpConductor struct {
 	cfg     *Config
 	metrics metrics.Metricer
 
-	ctrl client.SequencerControl
-	cons consensus.Consensus
-	hmon health.HealthMonitor
+	ctrl      client.SequencerControl
+	cons      consensus.Consensus
+	hmon      health.HealthMonitor
+	wsControl client.WebSocketControl // Flashblocks websocket client
 
 	leader         atomic.Bool
 	leaderOverride atomic.Bool
@@ -431,6 +439,15 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 		}
 	}
 
+	if oc.wsControl != nil {
+		isConnected, _ := oc.wsControl.IsConnected(ctx)
+		if isConnected {
+			if err := oc.wsControl.Disconnect(ctx); err != nil {
+				result = multierror.Append(result, errors.Wrap(err, "failed to disconnect WebSocket client"))
+			}
+		}
+	}
+
 	if oc.metricsServer != nil {
 		if err := oc.metricsServer.Shutdown(ctx); err != nil {
 			result = multierror.Append(result, errors.Wrap(err, "failed to stop metrics server"))
@@ -500,7 +517,36 @@ func (oc *OpConductor) HTTPEndpoint() string {
 }
 
 func (oc *OpConductor) OverrideLeader(override bool) {
+	previousOverride := oc.leaderOverride.Load()
 	oc.leaderOverride.Store(override)
+
+	// Only take action if the override status changed
+	if previousOverride != override && oc.wsControl != nil {
+		ctx := context.Background()
+		isActualLeader := oc.leader.Load()
+
+		// If we're now effectively a leader (either by override or actual leadership)
+		if override || isActualLeader {
+			isConnected, _ := oc.wsControl.IsConnected(ctx)
+			if !isConnected {
+				if err := oc.wsControl.Connect(ctx); err != nil {
+					oc.log.Error("Failed to connect to WebSocket proxy after leadership override", "err", err)
+				} else {
+					oc.log.Info("Connected to WebSocket proxy after leadership override")
+				}
+			}
+		} else {
+			// If we're no longer effectively a leader
+			isConnected, _ := oc.wsControl.IsConnected(ctx)
+			if isConnected {
+				if err := oc.wsControl.Disconnect(ctx); err != nil {
+					oc.log.Error("Failed to disconnect from WebSocket proxy after leadership override change", "err", err)
+				} else {
+					oc.log.Info("Disconnected from WebSocket proxy after leadership override change")
+				}
+			}
+		}
+	}
 }
 
 func (oc *OpConductor) LeaderOverridden() bool {
@@ -620,6 +666,35 @@ func (oc *OpConductor) handleLeaderUpdate(leader bool) {
 	oc.log.Info("Leadership status changed", "server", oc.cons.ServerID(), "leader", leader)
 
 	oc.leader.Store(leader)
+
+	// Manage WebSocket connection based on leadership
+	if oc.wsControl != nil {
+		ctx := context.Background()
+
+		// Check if leadership override is set
+		isEffectiveLeader := leader || oc.LeaderOverridden()
+
+		if isEffectiveLeader {
+			isConnected, _ := oc.wsControl.IsConnected(ctx)
+			if !isConnected {
+				if err := oc.wsControl.Connect(ctx); err != nil {
+					oc.log.Error("Failed to connect to WebSocket proxy", "err", err)
+				} else {
+					oc.log.Info("Connected to WebSocket proxy as leader")
+				}
+			}
+		} else {
+			isConnected, _ := oc.wsControl.IsConnected(ctx)
+			if isConnected {
+				if err := oc.wsControl.Disconnect(ctx); err != nil {
+					oc.log.Error("Failed to disconnect from WebSocket proxy", "err", err)
+				} else {
+					oc.log.Info("Disconnected from WebSocket proxy as non-leader")
+				}
+			}
+		}
+	}
+
 	oc.queueAction()
 }
 
