@@ -60,6 +60,8 @@ func TestGetCurrentVersion(t *testing.T) {
 func TestGetExperimentalVersion(t *testing.T) {
 	require.True(t, IsSupported(int(GetExperimentalVersion())))
 
+	require.GreaterOrEqual(t, GetExperimentalVersion(), GetCurrentVersion())
+
 	// Experimental version should be equal to the latest version
 	expectedValue := slices.Max(StateVersionTypes)
 	require.Equal(t, expectedValue, GetExperimentalVersion())
