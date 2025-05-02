@@ -1,5 +1,5 @@
 diff --git a/packages/contracts-bedrock/scripts/L2Genesis.s.sol b/packages/contracts-bedrock/scripts/L2Genesis.s.sol
-index 6e02c199b0..efebf0d4b4 100644
+index 6e02c199b0..598b7d328c 100644
 --- a/packages/contracts-bedrock/scripts/L2Genesis.s.sol
 +++ b/packages/contracts-bedrock/scripts/L2Genesis.s.sol
 @@ -2,13 +2,11 @@
@@ -43,7 +43,7 @@ index 6e02c199b0..efebf0d4b4 100644
 +        address payable l1CrossDomainMessengerProxy;
 +        address payable l1StandardBridgeProxy;
 +        address payable l1ERC721BridgeProxy;
-+        address l2ProxyAdminOwner;
++        address opChainProxyAdminOwner;
 +        address sequencerFeeVaultRecipient;
 +        uint256 sequencerFeeVaultMinimumWithdrawalAmount;
 +        uint256 sequencerFeeVaultWithdrawalNetwork;
@@ -305,10 +305,10 @@ index 6e02c199b0..efebf0d4b4 100644
  
          // there is no initialize() function, so we just set the storage manually.
 -        vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(cfg.proxyAdminOwner()))));
-+        vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.l2ProxyAdminOwner))));
++        vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
          // update the proxy to not be uninitialized (although not standard initialize pattern)
 -        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(cfg.proxyAdminOwner()))));
-+        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.l2ProxyAdminOwner))));
++        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
      }
  
 -    function setL2ToL1MessagePasser() public {
