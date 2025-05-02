@@ -248,7 +248,7 @@ contract L2CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-/// @notice Tests that the relayMessage function on L2 will always succeed for any potential
+    /// @notice Tests that the relayMessage function on L2 will always succeed for any potential
     ///         message, regardless of the size of the message, the minimum gas limit, or the
     ///         amount of gas used by the target contract.
     function testFuzz_relayMessage_baseGasSufficient_succeeds(
