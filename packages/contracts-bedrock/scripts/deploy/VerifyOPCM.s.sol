@@ -125,6 +125,13 @@ contract VerifyOPCM is Script {
         run(vm.envAddress("OPCM_ADDRESS"));
     }
 
+    /// @notice Entry point for the script when trying to verify a single contract by name.
+    /// @param _name Name of the contract to verify.
+    /// @param _addr Address of the contract to verify.
+    function runSingle(string memory _name, address _addr) public view {
+        _verifyOpcmContractRef(OpcmContractRef({ field: _name, name: _name, addr: _addr, blueprint: false }));
+    }
+
     /// @notice Main verification logic.
     /// @param _opcmAddress Address of the OPContractsManager contract to verify.
     function run(address _opcmAddress) public {
