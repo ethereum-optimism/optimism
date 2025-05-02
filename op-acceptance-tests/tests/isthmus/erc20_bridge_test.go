@@ -136,7 +136,7 @@ func erc20BridgeTestScenario(chainIdx uint64, l1WalletGetter validators.WalletGe
 		require.NoError(t, err)
 		require.True(t, big.NewInt(0).Cmp(initialL2Balance) == 0, "Initial L2 token balance should be 0, actual was %s", initialL2Balance.String())
 
-		l1StandardBridgeAddress, ok := l2Chain.L1Addresses()["l1StandardBridgeProxy"]
+		l1StandardBridgeAddress, ok := l2Chain.L1Addresses()["L1StandardBridgeProxy"]
 		require.True(t, ok, fmt.Errorf("no L1 proxy address configured for this test"))
 
 		l1StandardBridge, err := bindings.NewL1StandardBridge(l1StandardBridgeAddress, l1Client)
@@ -170,7 +170,7 @@ func erc20BridgeTestScenario(chainIdx uint64, l1WalletGetter validators.WalletGe
 		logger.Info("Deposit transaction confirmed on L1", "tx", tx.Hash().Hex())
 
 		// Get the OptimismPortal contract to find the deposit event
-		optimismPortal, err := bindings.NewOptimismPortal(l2Chain.L1Addresses()["optimismPortalProxy"], l1Client)
+		optimismPortal, err := bindings.NewOptimismPortal(l2Chain.L1Addresses()["OptimismPortalProxy"], l1Client)
 		require.NoError(t, err)
 
 		// Find the TransactionDeposited event from the logs

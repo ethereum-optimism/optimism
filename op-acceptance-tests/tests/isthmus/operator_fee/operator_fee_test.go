@@ -144,7 +144,7 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 
 	// Initialize systemconfig contract
 	logger.Info("Getting SystemConfig contract")
-	systemConfigProxyAddr, ok := l2Chain.L1Addresses()["systemConfigProxy"]
+	systemConfigProxyAddr, ok := l2Chain.L1Addresses()["SystemConfigProxy"]
 	require.True(t, ok, "system config proxy address not found")
 	systemConfig, err := bindings.NewSystemConfig(systemConfigProxyAddr, l1GethClient)
 	require.NoError(t, err)

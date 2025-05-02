@@ -236,11 +236,10 @@ func parseStateFile(r io.Reader) (*DeployerState, error) {
 	}
 
 	mapDeployment := func(deployment map[string]interface{}) DeploymentAddresses {
-		addrSuffix := "Address"
 		addresses := make(DeploymentAddresses)
 		for key, value := range deployment {
-			if strings.HasSuffix(key, addrSuffix) {
-				addresses[strings.TrimSuffix(key, addrSuffix)] = common.HexToAddress(value.(string))
+			if strings.HasSuffix(key, "Proxy") || strings.HasSuffix(key, "Impl") {
+				addresses[key] = common.HexToAddress(value.(string))
 			}
 		}
 		return addresses
@@ -269,7 +268,7 @@ func parseStateFile(r io.Reader) (*DeployerState, error) {
 		// so we need to map them manually.
 		// TODO: Update op-deployer to sort rollup contracts by category
 		l2Addresses := make(DeploymentAddresses)
-		for _, addressName := range []string{"optimismMintableERC20FactoryProxy"} {
+		for _, addressName := range []string{"OptimismMintableErc20FactoryProxy"} {
 			if addr, ok := l1Addresses[addressName]; ok {
 				l2Addresses[addressName] = addr
 				delete(l1Addresses, addressName)
