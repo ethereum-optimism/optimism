@@ -47,7 +47,7 @@ contract MIPS64_Test is Test {
 
     /// @notice Test that deploying MIPS64 with an invalid version reverts with expected error.
     function test_deploy_unsupportedVersions_fails() external {
-        for (uint256 ver = 0; ver < maxValidVersion + 2; ver++) {
+        for (uint256 ver = 0; ver <= maxValidVersion + 2; ver++) {
             if (isValidVersion[ver]) {
                 continue;
             }
