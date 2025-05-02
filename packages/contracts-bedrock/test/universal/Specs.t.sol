@@ -302,9 +302,6 @@ contract Specification_Test is CommonTest {
         });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("transferOwnership(address)") });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("version()") });
-        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("proxyAdminOwner()") });
-        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("proxyAdmin()") });
-        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("initVersion()") });
 
         // ETHLockbox
         _addSpec({ _name: "ETHLockbox", _sel: _getSel("version()") });
