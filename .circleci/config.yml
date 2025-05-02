@@ -152,9 +152,9 @@ commands:
             git submodule update --init --recursive --force -j 8
           working_directory: packages/contracts-bedrock
 
-  # Notifies us on Slack and Discord when a build fails on develop
+  # Notifies us on Slack a build fails on develop
   notify-failures-on-develop:
-    description: "Notify Slack & Discord"
+    description: "Notify Slack"
     parameters:
       channel:
         type: string
@@ -169,23 +169,6 @@ commands:
           template: basic_fail_1
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
-      - run:
-          name: "Notify Discord"
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
-              # Format message for Discord
-              DISCORD_MESSAGE=":x: **CI Failure**: ${CIRCLE_PROJECT_REPONAME} on branch ${CIRCLE_BRANCH}"
-              if [ ! -z "<< parameters.mentions >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n<< parameters.mentions >>"
-              fi
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}\nJob: ${CIRCLE_JOB}\nBuild: ${CIRCLE_BUILD_URL}"
-
-              # Post to Discord webhook
-              curl -X POST -H "Content-Type: application/json" \
-                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" \
-                "${notify_ci}"
-            fi
-          when: on_fail
 
   # Notifies us on Discord when a build fails on develop
   # For Discord to properly trigger notifications, mentions need to be in the format:
@@ -1694,27 +1677,23 @@ workflows:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-kontrol-build:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
           test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
           test_list: find test -name "PreimageOracle.t.sol"
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified
@@ -1723,7 +1702,6 @@ workflows:
           test_profile: ciheavy
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-coverage:
           # Generate coverage reports.
           name: contracts-bedrock-coverage
@@ -1734,7 +1712,6 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade
           fork_op_chain: op
@@ -1742,7 +1719,6 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade base-mainnet
           fork_op_chain: base
@@ -1750,7 +1726,6 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade ink-mainnet
           fork_op_chain: ink
@@ -1758,7 +1733,6 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade unichain-mainnet
           fork_op_chain: unichain
@@ -1766,43 +1740,35 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-frozen-code:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - diff-fetcher-forge-artifacts:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - go-lint:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
           on_changes: <<matrix.package_name>>
@@ -1815,7 +1781,6 @@ workflows:
                 - op-chain-ops
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
@@ -1824,7 +1789,6 @@ workflows:
           requires: ["contracts-bedrock-build"]
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - fuzz-golang:
           name: op-e2e-fuzz
           package_name: op-e2e
@@ -1833,7 +1797,6 @@ workflows:
           requires: ["contracts-bedrock-build"]
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - go-tests:
           environment_overrides: |
             export PARALLEL=24
@@ -1870,15 +1833,12 @@ workflows:
             - cannon-prestate-quick
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - analyze-op-program-client:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - op-program-compat:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - bedrock-go-tests:
           requires:
             - go-lint
@@ -1895,7 +1855,6 @@ workflows:
             - sanitize-op-program
           context:
             - circleci-repo-readonly-authenticated-github-tokens
-            - discord
       - docker-build:
           name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -1916,25 +1875,20 @@ workflows:
                 - op-dripper
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - sanitize-op-program:
           requires:
             - cannon-prestate-quick
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-generated-mocks-op-node:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-generated-mocks-op-service:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -1942,13 +1896,11 @@ workflows:
           notify: true
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - todo-issues:
           name: todo-issues-check
           check_closed: false
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
@@ -1968,7 +1920,6 @@ workflows:
           module: op-deployer
           context:
             - oplabs-gcr-release
-            - discord
 
   release:
     when:
@@ -2012,7 +1963,6 @@ workflows:
               ignore: /.*/
           context:
             - oplabs-gcr-release
-            - discord
           requires:
             - hold
       # Checks for cross-platform images go here
@@ -2078,7 +2028,6 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   develop-publish-contract-artifacts:
     when:
@@ -2093,7 +2042,6 @@ workflows:
       - publish-contract-artifacts:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   develop-fault-proofs:
     when:
@@ -2108,18 +2056,15 @@ workflows:
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-stf-verify:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - go-tests:
           name: op-e2e-cannon-tests
           notify: true
@@ -2135,7 +2080,6 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2144,7 +2088,6 @@ workflows:
             - slack
             - oplabs-network-optimism-io-bucket
             - circleci-repo-readonly-authenticated-github-token
-            - discord
           requires:
             - cannon-prestate
             - op-e2e-cannon-tests
@@ -2168,7 +2111,6 @@ workflows:
             - slack
             - runtimeverification
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   scheduled-cannon-full-tests:
     when:
@@ -2180,7 +2122,6 @@ workflows:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -2189,7 +2130,6 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   scheduled-docker-publish:
     when:
@@ -2220,7 +2160,6 @@ workflows:
             - oplabs-gcr
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-cross-platform:
           matrix:
             parameters:
@@ -2252,7 +2191,6 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   scheduled-stale-check:
     when:
@@ -2264,7 +2202,6 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
-            - discord
 
   acceptance-tests:
     when:
