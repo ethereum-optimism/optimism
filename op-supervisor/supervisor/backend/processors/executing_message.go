@@ -28,12 +28,16 @@ func DecodeExecutingMessageLog(l *ethTypes.Log, depSet depset.ChainIndexFromID) 
 		return nil, fmt.Errorf("invalid executing message: %w", err)
 	}
 	logHash := types.PayloadHashToLogHash(msg.PayloadHash, msg.Identifier.Origin)
+
+	var chainIndex types.ChainIndex
 	index, err := depSet.ChainIndexFromID(eth.ChainID(msg.Identifier.ChainID))
-	if err != nil {
-		return nil, err
+	if err != nil { // not found
+		chainIndex = depset.NotFoundChainIndex
+	} else {
+		chainIndex = index
 	}
 	return &types.ExecutingMessage{
-		Chain:     index,
+		Chain:     chainIndex,
 		BlockNum:  msg.Identifier.BlockNumber,
 		LogIdx:    msg.Identifier.LogIndex,
 		Timestamp: msg.Identifier.Timestamp,

@@ -122,7 +122,7 @@ func (c *CrossSafeWorker) OnEvent(ev event.Event) bool {
 			if errors.Is(err, types.ErrFuture) {
 				c.logger.Debug("Worker awaits additional blocks", "err", err)
 			} else {
-				c.logger.Warn("Failed to process work", "err", err)
+				c.logger.Warn("Failed to process work", "worker", "cross-safe", "err", err)
 			}
 		}
 	default:
