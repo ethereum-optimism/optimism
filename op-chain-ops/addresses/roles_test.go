@@ -25,6 +25,7 @@ func TestSuperchainRoles_CheckNoZeroAddresses(t *testing.T) {
 			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
 		}
 
+		require.Equal(t, roles.SuperchainGuardian, common.HexToAddress("0x0000000000000000000000000000000000000000"))
 		err := roles.CheckNoZeroAddresses()
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrSuperchainRoleZeroAddress)
