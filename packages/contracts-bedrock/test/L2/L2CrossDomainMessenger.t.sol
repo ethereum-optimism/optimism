@@ -12,6 +12,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
@@ -285,7 +286,7 @@ contract L2CrossDomainMessenger_Test is CommonTest {
         // Base gas should really be computed on the fully encoded message but that would break the
         // expected API, so we instead just add the encoding overhead to the message length inside
         // of the baseGas function.
-        uint64 baseGas = l1CrossDomainMessenger.baseGas(_message, _minGasLimit);
+        uint64 baseGas = l2CrossDomainMessenger.baseGas(_message, _minGasLimit);
 
         // Deploy a gas burner.
         address target = address(new GasBurner(_gasToUse));
@@ -314,24 +315,26 @@ contract L2CrossDomainMessenger_Test is CommonTest {
         // Base gas must always be sufficient to cover the floor cost from EIP-7623.
         assertGt(baseGas, 21000 + ((zeroBytesInCalldata + nonzeroBytesInCalldata * 4) * 10));
 
-        // Actual gas on L2 will be the base gas minus the intrinsic gas cost. Note that even after
-        // EIP-7623, we still deduct 21k + 16 gas per calldata token from the gas limit before
-        // execution happens. After execution, if the message didn't spend enough in execution gas,
-        // the EVM will floor the cost of the transaction to 21k + 40 gas per calldata token.
-        uint256 gasSupplied = baseGas - (21000 + ((zeroBytesInCalldata + nonzeroBytesInCalldata * 4) * 4));
+        // In the L2 => L1 direction we actually get all of the base gas supplied, nothing is
+        // deducted. This is an advantage over the L1 => L2 direction because it means the base
+        // gas goes a lot further.
+        uint256 gasSupplied = baseGas;
 
-        // We'll trigger the L2CrossDomainMessenger as if we're the L1CrossDomainMessenger
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
-        vm.prank(caller);
+        // Store the value of l2Sender in the OptimismPortal2 contract.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "l2Sender");
+        vm.store(address(optimismPortal2), bytes32(slot.slot), bytes32(abi.encode(address(l2CrossDomainMessenger))));
 
-        // Trigger the L2CrossDomainMessenger.
+        // We'll trigger the L1CrossDomainMessenger as if we're the OptimismPortal2
+        vm.prank(address(optimismPortal2));
+
+        // Trigger the L1CrossDomainMessenger.
         // Should NOT fail.
-        (bool success,) = address(l2CrossDomainMessenger).call{ gas: gasSupplied }(encoded);
-        assertTrue(success, "L2CrossDomainMessenger call should not fail");
+        (bool success,) = address(l1CrossDomainMessenger).call{ gas: gasSupplied }(encoded);
+        assertTrue(success, "L1CrossDomainMessenger call should not fail");
 
         // Message should either be in the failed or successful messages mapping.
-        bool inFailedMessages = l2CrossDomainMessenger.failedMessages(keccak256(encoded));
-        bool inSuccessfulMessages = l2CrossDomainMessenger.successfulMessages(keccak256(encoded));
+        bool inFailedMessages = l1CrossDomainMessenger.failedMessages(keccak256(encoded));
+        bool inSuccessfulMessages = l1CrossDomainMessenger.successfulMessages(keccak256(encoded));
         assertTrue(
             inFailedMessages || inSuccessfulMessages, "message should be in either failed or successful messages"
         );
