@@ -88,7 +88,7 @@ func TestL2Genesis(t *testing.T) {
 				L1CrossDomainMessengerProxy:              common.Address{'M'},
 				L1StandardBridgeProxy:                    common.Address{'B'},
 				L1ERC721BridgeProxy:                      common.Address{'E'},
-				L2ProxyAdminOwner:                        initCfg.OwnershipDeployConfig.ProxyAdminOwner,
+				OpChainProxyAdminOwner:                   initCfg.OwnershipDeployConfig.ProxyAdminOwner,
 				SequencerFeeVaultRecipient:               initCfg.L2VaultsDeployConfig.SequencerFeeVaultRecipient,
 				SequencerFeeVaultMinimumWithdrawalAmount: (*big.Int)(initCfg.L2VaultsDeployConfig.SequencerFeeVaultMinimumWithdrawalAmount),
 				SequencerFeeVaultWithdrawalNetwork:       big.NewInt(int64(initCfg.L2VaultsDeployConfig.SequencerFeeVaultWithdrawalNetwork.ToUint8())),

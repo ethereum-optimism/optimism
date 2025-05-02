@@ -296,7 +296,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment) err
 		L1CrossDomainMessengerProxy:              deployment.L1CrossDomainMessengerProxy,
 		L1StandardBridgeProxy:                    deployment.L1StandardBridgeProxy,
 		L1ERC721BridgeProxy:                      deployment.L1ERC721BridgeProxy,
-		L2ProxyAdminOwner:                        cfg.ProxyAdminOwner,
+		OpChainProxyAdminOwner:                   cfg.ProxyAdminOwner,
 		SequencerFeeVaultRecipient:               cfg.SequencerFeeVaultRecipient,
 		SequencerFeeVaultMinimumWithdrawalAmount: cfg.SequencerFeeVaultMinimumWithdrawalAmount.ToInt(),
 		SequencerFeeVaultWithdrawalNetwork:       big.NewInt(int64(cfg.SequencerFeeVaultWithdrawalNetwork.ToUint8())),

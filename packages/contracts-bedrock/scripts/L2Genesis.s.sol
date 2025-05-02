@@ -45,7 +45,7 @@ contract L2Genesis is Script {
         address payable l1CrossDomainMessengerProxy;
         address payable l1StandardBridgeProxy;
         address payable l1ERC721BridgeProxy;
-        address l2ProxyAdminOwner;
+        address opChainProxyAdminOwner;
         address sequencerFeeVaultRecipient;
         uint256 sequencerFeeVaultMinimumWithdrawalAmount;
         uint256 sequencerFeeVaultWithdrawalNetwork;
@@ -242,9 +242,9 @@ contract L2Genesis is Script {
         bytes32 _ownerSlot = bytes32(0);
 
         // there is no initialize() function, so we just set the storage manually.
-        vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.l2ProxyAdminOwner))));
+        vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
         // update the proxy to not be uninitialized (although not standard initialize pattern)
-        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.l2ProxyAdminOwner))));
+        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(_input.opChainProxyAdminOwner))));
     }
 
     function setL2ToL1MessagePasser() internal {

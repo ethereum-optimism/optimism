@@ -323,7 +323,7 @@ func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, erro
 	}
 	l2ProxyAdminOwner, err := standard.L2ProxyAdminOwner(l1ChainId)
 	if err != nil {
-		return Intent{}, fmt.Errorf("error getting L2ProxyAdminOwner: %w", err)
+		return Intent{}, fmt.Errorf("error getting OpChainProxyAdminOwner: %w", err)
 	}
 
 	opcmAddr, err := standard.ManagerImplementationAddrFor(l1ChainId, intent.L1ContractsLocator.Tag)

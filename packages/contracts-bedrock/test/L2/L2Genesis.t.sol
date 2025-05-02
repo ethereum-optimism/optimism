@@ -33,7 +33,7 @@ contract L2GenesisTest is Test {
             l1CrossDomainMessengerProxy: payable(address(0x0000000000000000000000000000000000000001)),
             l1StandardBridgeProxy: payable(address(0x0000000000000000000000000000000000000002)),
             l1ERC721BridgeProxy: payable(address(0x0000000000000000000000000000000000000003)),
-            l2ProxyAdminOwner: address(0x0000000000000000000000000000000000000004),
+            opChainProxyAdminOwner: address(0x0000000000000000000000000000000000000004),
             sequencerFeeVaultRecipient: address(0x0000000000000000000000000000000000000005),
             sequencerFeeVaultMinimumWithdrawalAmount: 1,
             sequencerFeeVaultWithdrawalNetwork: 1,
@@ -60,7 +60,7 @@ contract L2GenesisTest is Test {
     }
 
     function testProxyAdmin() internal view {
-        assertEq(input.l2ProxyAdminOwner, IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+        assertEq(input.opChainProxyAdminOwner, IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
     }
 
     function testPredeploys() internal view {
