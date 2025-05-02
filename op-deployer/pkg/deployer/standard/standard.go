@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
 	"github.com/ethereum/go-ethereum/superchain"
@@ -47,6 +49,10 @@ var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55
 var DefaultL1ContractsTag = ContractsV300Tag
 
 var DefaultL2ContractsTag = ContractsV300Tag
+
+var VaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
+
+var GovernanceTokenOwner = common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad")
 
 type TaggedRelease struct {
 	ArtifactsHash common.Hash
@@ -247,4 +253,10 @@ func DefaultHardforkScheduleForTag(tag string) *genesis.UpgradeScheduleDeployCon
 	}
 
 	return sched
+}
+
+func mustHexBigFromHex(hex string) *hexutil.Big {
+	num := hexutil.MustDecodeBig(hex)
+	hexBig := hexutil.Big(*num)
+	return &hexBig
 }

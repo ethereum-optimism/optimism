@@ -561,7 +561,7 @@ func (d *UpgradeScheduleDeployConfig) SolidityForkNumber(genesisTime uint64) int
 	forks := d.forks()
 	for i := len(forks) - 1; i >= 0; i-- {
 		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
-			// Add 1 since Solidity has a "none" fork type
+			// Subtract 1 since Solidity has a "none" fork type
 			return int64(i - 1)
 		}
 		// the oldest L2AllocsMode is delta

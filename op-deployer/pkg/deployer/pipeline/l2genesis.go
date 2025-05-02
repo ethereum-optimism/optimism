@@ -88,9 +88,9 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		BaseFeeVaultWithdrawalNetwork:            common.Big1,
 		L1FeeVaultWithdrawalNetwork:              common.Big1,
 		SequencerFeeVaultWithdrawalNetwork:       common.Big1,
-		SequencerFeeVaultMinimumWithdrawalAmount: state.VaultMinWithdrawalAmount.ToInt(),
-		BaseFeeVaultMinimumWithdrawalAmount:      state.VaultMinWithdrawalAmount.ToInt(),
-		L1FeeVaultMinimumWithdrawalAmount:        state.VaultMinWithdrawalAmount.ToInt(),
+		SequencerFeeVaultMinimumWithdrawalAmount: standard.VaultMinWithdrawalAmount.ToInt(),
+		BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount.ToInt(),
+		L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount.ToInt(),
 		BaseFeeVaultRecipient:                    thisIntent.BaseFeeVaultRecipient,
 		L1FeeVaultRecipient:                      thisIntent.L1FeeVaultRecipient,
 		SequencerFeeVaultRecipient:               thisIntent.SequencerFeeVaultRecipient,
@@ -123,7 +123,7 @@ func shouldGenerateL2Genesis(thisChainState *state.ChainState) bool {
 
 func govTokenOwner(intent *state.Intent, chainIntent *state.ChainIntent) common.Address {
 	if !isGovEnabled(intent, chainIntent) {
-		return state.GovernanceTokenOwner
+		return standard.GovernanceTokenOwner
 	}
 
 	globalOverride := intent.GlobalDeployOverrides["governanceTokenOwner"]
@@ -135,7 +135,7 @@ func govTokenOwner(intent *state.Intent, chainIntent *state.ChainIntent) common.
 	if chainOverride != nil {
 		chainOverrideStr, ok = chainOverride.(string)
 		if !ok || !common.IsHexAddress(chainOverrideStr) {
-			return state.GovernanceTokenOwner
+			return standard.GovernanceTokenOwner
 		}
 		return common.HexToAddress(chainOverrideStr)
 	}
@@ -143,12 +143,12 @@ func govTokenOwner(intent *state.Intent, chainIntent *state.ChainIntent) common.
 	if globalOverride != nil {
 		globalOverrideAddr, ok = globalOverride.(string)
 		if !ok || !common.IsHexAddress(globalOverrideAddr) {
-			return state.GovernanceTokenOwner
+			return standard.GovernanceTokenOwner
 		}
 		return common.HexToAddress(globalOverrideAddr)
 	}
 
-	return state.GovernanceTokenOwner
+	return standard.GovernanceTokenOwner
 }
 
 func isGovEnabled(intent *state.Intent, chainIntent *state.ChainIntent) bool {
