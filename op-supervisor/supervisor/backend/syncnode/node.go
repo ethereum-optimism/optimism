@@ -29,11 +29,13 @@ type backend interface {
 	CrossSafe(ctx context.Context, chainID eth.ChainID) (pair types.DerivedIDPair, err error)
 	Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
 
+	AnchorPoint(ctx context.Context, chainID eth.ChainID) (types.DerivedBlockSealPair, error)
+
 	FindSealedBlock(ctx context.Context, chainID eth.ChainID, number uint64) (eth.BlockID, error)
 	IsLocalSafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error
 	IsCrossSafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error
 	IsLocalUnsafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error
-	SafeDerivedAt(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (derived eth.BlockID, err error)
+	LocalSafeDerivedAt(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (derived eth.BlockID, err error)
 	L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error)
 }
 
@@ -448,35 +450,65 @@ func (m *ManagedNode) resetIfInconsistent() {
 	ctx, cancel := context.WithTimeout(m.ctx, internalTimeout)
 	defer cancel()
 
-	var last eth.BlockID
+	// Handle the given seen block from the node if it is an inconsistency.
+	handle := func(name string, seenFromNode eth.BlockID) (inconsistent bool) {
+		if seenFromNode == (eth.BlockID{}) {
+			return false // if we haven't seen anything, then don't reset to it
+		}
+		// We know the last block from the op-node.
+		// Ae may have references that:
+		//   - local-unsafe matches, and local-safe matches -> no inconsistency caused by latest signaled local-unsafe!
+		//   - local-unsafe matches, but local-safe differs -> e.g. if local-safe is behind and does not know about this block
+		//   - local-unsafe differs, but local-safe matches  -> we should stick to the local-safe chain, not rewind further, but may need to rewind some
+		//   - local-unsafe differs, and local-safe differs -> we should use the local-safe chain as truth
+		//
+		// And never should we reset if the node is just ahead of us; resetIfAhead handles that.
 
-	// check if the last unsafe block we saw is consistent with the logs db
-	err := m.backend.IsLocalUnsafe(ctx, m.chainID, m.lastNodeLocalUnsafe)
-	if errors.Is(err, types.ErrConflict) {
-		m.log.Warn("local unsafe block is inconsistent with logs db. Initiating reset",
-			"lastUnsafeblock", m.lastNodeLocalUnsafe,
-			"err", err)
-		last = m.lastNodeLocalUnsafe
+		m.log.Debug("Checking last seen block from node for consistency", "safety", name, "block", seenFromNode)
+		localUnsafeMatchErr := m.backend.IsLocalUnsafe(ctx, m.chainID, seenFromNode)
+		if errors.Is(localUnsafeMatchErr, types.ErrFuture) {
+			localUnsafeMatchErr = nil // do not count it when the node is ahead of us
+		}
+		if localUnsafeMatchErr != nil {
+			m.log.Warn("Last seen block from node is inconsistent with supervisor local-unsafe blocks",
+				"safety", name, "err", localUnsafeMatchErr)
+		}
+		localSafeMatchErr := m.backend.IsLocalSafe(ctx, m.chainID, seenFromNode)
+		if errors.Is(localSafeMatchErr, types.ErrFuture) {
+			localSafeMatchErr = nil // do not count it when the node is ahead of us
+		}
+		if localSafeMatchErr != nil {
+			m.log.Warn("Last seen block from node is inconsistent with supervisor local-safe blocks",
+				"safety", name, "err", localSafeMatchErr)
+		}
+		if localUnsafeMatchErr != nil || localSafeMatchErr != nil {
+			// If either mismatches, we want to reset back no further than latest local-safe
+			localSafe, err := m.backend.LocalSafe(ctx, m.chainID)
+			if err != nil {
+				m.log.Debug("Cannot determine how to handle inconsistency, no local-safe data available",
+					"localUnsafeMatchErr", localUnsafeMatchErr,
+					"localSafeMatchErr", localSafeMatchErr, "err", err)
+				return false
+			}
+			if m.lastNodeLocalUnsafe.Number > localSafe.Derived.Number {
+				m.resetTracker.beginBisectionReset(m.lastNodeLocalUnsafe)
+			} else {
+				m.resetTracker.beginBisectionReset(localSafe.Derived)
+			}
+			return true
+		}
+		return false
 	}
-
-	// check if the last safe block we saw is consistent with the local safe db
-	err = m.backend.IsLocalSafe(ctx, m.chainID, m.lastNodeLocalSafe)
-	if errors.Is(err, types.ErrConflict) {
-		m.log.Warn("local safe block is inconsistent with logs db. Initiating reset",
-			"lastSafeblock", m.lastNodeLocalSafe,
-			"err", err)
-		last = m.lastNodeLocalSafe
+	if handle("local-unsafe", m.lastNodeLocalUnsafe) {
+		return
 	}
-
-	// there is inconsistency. begin the reset process
-	if last != (eth.BlockID{}) {
-		m.resetTracker.beginBisectionReset(last)
-	} else {
-		m.log.Debug("no inconsistency found")
+	if handle("local-safe", m.lastNodeLocalSafe) {
+		return
 	}
+	m.log.Debug("no inconsistency found")
 }
 
-// resetIfAhead checks if the node is ahead of the logs db
+// resetIfAhead checks if the node is ahead of the local-safe db
 // and initiates a bisection based reset preparation if it is
 func (m *ManagedNode) resetIfAhead() {
 	ctx, cancel := context.WithTimeout(m.ctx, internalTimeout)
@@ -499,14 +531,17 @@ func (m *ManagedNode) resetIfAhead() {
 }
 
 // resetFullRange resets the node using the last block in the db
-// as the end of the range to search for the last consistent block
+// as the end of the range to search for the last consistent local-safe block.
+// The reset can take care of preserving the unsafe chain that extends the local-safe chain.
+// We do not want to reset deeper than local-safe,
+// to maintain a local-safe block that reorgs out unsafe data.
 func (m *ManagedNode) resetFullRange() {
 	internalCtx, iCancel := context.WithTimeout(m.ctx, internalTimeout)
 	defer iCancel()
-	dbLast, err := m.backend.LocalUnsafe(internalCtx, m.chainID)
+	dbLast, err := m.backend.LocalSafe(internalCtx, m.chainID)
 	if err != nil {
-		m.log.Error("failed to get last local unsafe block", "err", err)
+		m.log.Error("failed to get last local safe block", "err", err)
 		return
 	}
-	m.resetTracker.beginBisectionReset(dbLast)
+	m.resetTracker.beginBisectionReset(dbLast.Derived)
 }

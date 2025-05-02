@@ -137,7 +137,7 @@ func (db *ChainsDB) IsFinalized(chainID eth.ChainID, block eth.BlockID) error {
 	return fmt.Errorf("cross-safe source block is not finalized: %w", types.ErrFuture)
 }
 
-func (db *ChainsDB) SafeDerivedAt(chainID eth.ChainID, source eth.BlockID) (types.BlockSeal, error) {
+func (db *ChainsDB) LocalSafeDerivedAt(chainID eth.ChainID, source eth.BlockID) (types.BlockSeal, error) {
 	lDB, ok := db.localDBs.Get(chainID)
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
@@ -645,4 +645,13 @@ func (db *ChainsDB) SafeLocalUnsafe(chainID eth.ChainID) (types.BlockSeal, error
 	})
 
 	return result, err
+}
+
+// AnchorPoint returns the first cross-safe block as anchor-point for interop.
+func (db *ChainsDB) AnchorPoint(chainID eth.ChainID) (types.DerivedBlockSealPair, error) {
+	xdb, ok := db.crossDBs.Get(chainID)
+	if !ok {
+		return types.DerivedBlockSealPair{}, types.ErrUnknownChain
+	}
+	return xdb.First()
 }

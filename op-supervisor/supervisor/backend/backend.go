@@ -605,8 +605,8 @@ func (su *SupervisorBackend) CrossUnsafe(ctx context.Context, chainID eth.ChainI
 	return v.ID(), nil
 }
 
-func (su *SupervisorBackend) SafeDerivedAt(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (eth.BlockID, error) {
-	v, err := su.chainDBs.SafeDerivedAt(chainID, source)
+func (su *SupervisorBackend) LocalSafeDerivedAt(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (eth.BlockID, error) {
+	v, err := su.chainDBs.LocalSafeDerivedAt(chainID, source)
 	if err != nil {
 		return eth.BlockID{}, err
 	}
@@ -626,7 +626,7 @@ func (su *SupervisorBackend) AllSafeDerivedAt(ctx context.Context, source eth.Bl
 	chains := su.depSet.Chains()
 	ret := map[eth.ChainID]eth.BlockID{}
 	for _, chainID := range chains {
-		derived, err := su.SafeDerivedAt(ctx, chainID, source)
+		derived, err := su.LocalSafeDerivedAt(ctx, chainID, source)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get last derived block for chain %v: %w", chainID, err)
 		}
@@ -649,6 +649,10 @@ func (su *SupervisorBackend) FinalizedL1(ctx context.Context) (eth.BlockRef, err
 		return eth.BlockRef{}, fmt.Errorf("finality of L1 is not initialized: %w", ethereum.NotFound)
 	}
 	return v, nil
+}
+
+func (su *SupervisorBackend) AnchorPoint(ctx context.Context, chainID eth.ChainID) (types.DerivedBlockSealPair, error) {
+	return su.chainDBs.AnchorPoint(chainID)
 }
 
 func (su *SupervisorBackend) IsLocalUnsafe(ctx context.Context, chainID eth.ChainID, block eth.BlockID) error {

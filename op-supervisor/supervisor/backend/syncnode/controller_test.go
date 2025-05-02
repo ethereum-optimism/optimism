@@ -2,6 +2,7 @@ package syncnode
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -105,6 +106,7 @@ func (m *mockSyncControl) ReconnectRPC(ctx context.Context) error {
 var _ SyncControl = (*mockSyncControl)(nil)
 
 type mockBackend struct {
+	anchorPointFn     func(ctx context.Context, chainID eth.ChainID) (types.DerivedBlockSealPair, error)
 	localSafeFn       func(ctx context.Context, chainID eth.ChainID) (pair types.DerivedIDPair, err error)
 	finalizedFn       func(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
 	safeDerivedAtFn   func(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (eth.BlockID, error)
@@ -112,6 +114,13 @@ type mockBackend struct {
 	isLocalSafeFn     func(ctx context.Context, chainID eth.ChainID, blockID eth.BlockID) error
 	isCrossSafeFn     func(ctx context.Context, chainID eth.ChainID, blockID eth.BlockID) error
 	isLocalUnsafeFn   func(ctx context.Context, chainID eth.ChainID, blockID eth.BlockID) error
+}
+
+func (m *mockBackend) AnchorPoint(ctx context.Context, chainID eth.ChainID) (types.DerivedBlockSealPair, error) {
+	if m.anchorPointFn != nil {
+		return m.anchorPointFn(ctx, chainID)
+	}
+	return types.DerivedBlockSealPair{}, errors.New("not implemented")
 }
 
 func (m *mockBackend) FindSealedBlock(ctx context.Context, chainID eth.ChainID, num uint64) (eth.BlockID, error) {
@@ -157,7 +166,7 @@ func (m *mockBackend) IsLocalUnsafe(ctx context.Context, chainID eth.ChainID, bl
 	return nil
 }
 
-func (m *mockBackend) SafeDerivedAt(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (derived eth.BlockID, err error) {
+func (m *mockBackend) LocalSafeDerivedAt(ctx context.Context, chainID eth.ChainID, source eth.BlockID) (derived eth.BlockID, err error) {
 	if m.safeDerivedAtFn != nil {
 		return m.safeDerivedAtFn(ctx, chainID, source)
 	}
