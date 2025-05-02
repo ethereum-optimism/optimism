@@ -277,7 +277,7 @@ contract FetchChainInfoTest is Test {
         fetchChainInfo.run(ctx.input, ctx.output);
 
         assertEq(ctx.output.l2OutputOracleProxy(), ctx.l2OutputOracle, "L2OutputOracle should match");
-        assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
+        assertEq(ctx.output.opChainGuardian(), TEST_GUARDIAN, "Guardian should match");
         assertEq(ctx.output.proposer(), TEST_PROPOSER, "Proposer should match");
 
         assertFalse(ctx.output.permissioned(), "Permissioned proofs should be disabled");
@@ -323,7 +323,7 @@ contract FetchChainInfoTest is Test {
 
         assertEq(ctx.output.systemConfigProxy(), ctx.systemConfigProxy, "SystemConfig should match");
         assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
-        assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
+        assertEq(ctx.output.opChainGuardian(), TEST_GUARDIAN, "Guardian should match");
         assertEq(ctx.output.permissionedDisputeGameImpl(), ctx.permissionedGame, "PermissionedDisputeGame should match");
         assertTrue(
             LibGameType.raw(ctx.output.respectedGameType()) == LibGameType.raw(GameTypes.PERMISSIONED_CANNON),
@@ -371,7 +371,7 @@ contract FetchChainInfoTest is Test {
 
         assertEq(ctx.output.systemConfigProxy(), ctx.systemConfigProxy, "SystemConfig should match");
         assertEq(ctx.output.disputeGameFactoryProxy(), ctx.disputeGameFactory, "DisputeGameFactory should match");
-        assertEq(ctx.output.guardian(), TEST_GUARDIAN, "Guardian should match");
+        assertEq(ctx.output.opChainGuardian(), TEST_GUARDIAN, "Guardian should match");
         assertEq(ctx.output.permissionedDisputeGameImpl(), ctx.permissionedGame, "PermissionedDisputeGame should match");
         assertEq(ctx.output.faultDisputeGameImpl(), ctx.permissionlessGame, "FaultDisputeGame should match");
         assertEq(ctx.output.challenger(), TEST_CHALLENGER, "Challenger should match");
