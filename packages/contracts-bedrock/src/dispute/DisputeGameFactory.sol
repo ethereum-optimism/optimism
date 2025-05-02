@@ -70,7 +70,7 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     GameId[] internal _disputeGameList;
 
     /// @notice Constructs a new DisputeGameFactory contract.
-    constructor() OwnableUpgradeable() ReinitializableBase(2) {
+    constructor() OwnableUpgradeable() ReinitializableBase(1) {
         _disableInitializers();
     }
 

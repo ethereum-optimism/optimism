@@ -35,6 +35,21 @@ contract DelayedWETH_Initialize_Test is DelayedWETH_Init {
         assertEq(address(delayedWeth.config()), address(systemConfig.superchainConfig()));
     }
 
+    /// @notice Tests that the initializer value is correct. Trivial test for normal
+    ///         initialization but confirms that the initValue is not incremented incorrectly if
+    ///         an upgrade function is not present.
+    function test_initialize_correctInitializerValue_succeeds() public {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("DelayedWETH", "_initialized");
+
+        // Get the initializer value.
+        bytes32 slotVal = vm.load(address(delayedWeth), bytes32(slot.slot));
+        uint8 val = uint8(uint256(slotVal) & 0xFF);
+
+        // Assert that the initializer value matches the expected value.
+        assertEq(val, delayedWeth.initVersion());
+    }
+
     /// @notice Tests that initialization reverts if called by a non-proxy admin or proxy admin owner.
     /// @param _sender The address of the sender to test.
     function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {

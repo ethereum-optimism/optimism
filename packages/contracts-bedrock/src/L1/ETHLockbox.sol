@@ -79,7 +79,7 @@ contract ETHLockbox is ProxyAdminOwnedBase, Initializable, ReinitializableBase, 
     }
 
     /// @notice Constructs the ETHLockbox contract.
-    constructor() ReinitializableBase(2) {
+    constructor() ReinitializableBase(1) {
         _disableInitializers();
     }
 

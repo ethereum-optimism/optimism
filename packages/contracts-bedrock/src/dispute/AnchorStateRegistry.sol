@@ -77,7 +77,7 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     error AnchorStateRegistry_Unauthorized();
 
     /// @param _disputeGameFinalityDelaySeconds The dispute game finality delay in seconds.
-    constructor(uint256 _disputeGameFinalityDelaySeconds) ReinitializableBase(2) {
+    constructor(uint256 _disputeGameFinalityDelaySeconds) ReinitializableBase(1) {
         DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
         _disableInitializers();
     }

@@ -182,6 +182,21 @@ contract L1StandardBridge_Initialize_TestFail is CommonTest {
         vm.prank(_sender);
         l1StandardBridge.initialize(l1CrossDomainMessenger, systemConfig);
     }
+
+    /// @notice Tests that the initializer value is correct. Trivial test for normal
+    ///         initialization but confirms that the initValue is not incremented incorrectly if
+    ///         an upgrade function is not present.
+    function test_initialize_correctInitializerValue_succeeds() public {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
+
+        // Get the initializer value.
+        bytes32 slotVal = vm.load(address(l1StandardBridge), bytes32(slot.slot));
+        uint8 val = uint8(uint256(slotVal) & 0xFF);
+
+        // Assert that the initializer value matches the expected value.
+        assertEq(val, l1StandardBridge.initVersion());
+    }
 }
 
 contract L1StandardBridge_Receive_Test is CommonTest {

@@ -47,7 +47,7 @@ contract ProtocolVersions is ProxyAdminOwnedBase, ReinitializableBase, OwnableUp
     string public constant version = "1.2.0";
 
     /// @notice Constructs the ProtocolVersion contract.
-    constructor() ReinitializableBase(2) {
+    constructor() ReinitializableBase(3) {
         _disableInitializers();
     }
 

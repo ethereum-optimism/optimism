@@ -1,7 +1,7 @@
 ---
 description:
-globs:
-alwaysApply: true
+globs: *.sol
+alwaysApply: false
 ---
 # Optimism Solidity Style Guide
 

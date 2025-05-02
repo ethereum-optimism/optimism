@@ -81,6 +81,21 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(optimismPortal2.respectedGameType().raw(), deploy.cfg().respectedGameType());
     }
 
+    /// @notice Tests that the initializer value is correct. Trivial test for normal
+    ///         initialization but confirms that the initValue is not incremented incorrectly if
+    ///         an upgrade function is not present.
+    function test_initialize_correctInitializerValue_succeeds() public {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
+
+        // Get the initializer value.
+        bytes32 slotVal = vm.load(address(optimismPortal2), bytes32(slot.slot));
+        uint8 val = uint8(uint256(slotVal) & 0xFF);
+
+        // Assert that the initializer value matches the expected value.
+        assertEq(val, optimismPortal2.initVersion());
+    }
+
     /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
     /// @param _sender The address of the sender to test.
     function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {

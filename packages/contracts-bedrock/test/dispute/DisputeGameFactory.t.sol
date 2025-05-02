@@ -55,6 +55,21 @@ contract DisputeGameFactory_initialize_Test is DisputeGameFactory_Init {
         vm.prank(_sender);
         disputeGameFactory.initialize(address(1234));
     }
+
+    /// @notice Tests that the initializer value is correct. Trivial test for normal
+    ///         initialization but confirms that the initValue is not incremented incorrectly if
+    ///         an upgrade function is not present.
+    function test_initialize_correctInitializerValue_succeeds() public {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("DisputeGameFactory", "_initialized");
+
+        // Get the initializer value.
+        bytes32 slotVal = vm.load(address(disputeGameFactory), bytes32(slot.slot));
+        uint8 val = uint8(uint256(slotVal) & 0xFF);
+
+        // Assert that the initializer value matches the expected value.
+        assertEq(val, disputeGameFactory.initVersion());
+    }
 }
 
 contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {

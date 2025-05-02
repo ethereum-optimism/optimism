@@ -43,7 +43,7 @@ contract DelayedWETH is Initializable, ProxyAdminOwnedBase, ReinitializableBase,
     ISystemConfig public systemConfig;
 
     /// @param _delay The delay for withdrawals in seconds.
-    constructor(uint256 _delay) ReinitializableBase(2) {
+    constructor(uint256 _delay) ReinitializableBase(1) {
         DELAY_SECONDS = _delay;
         _disableInitializers();
     }
