@@ -77,7 +77,7 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 				ChallengePeriodSeconds:          big.NewInt(120),
 				ProofMaturityDelaySeconds:       big.NewInt(12),
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
-				MipsVersion:                     big.NewInt(int64(versions.GetCurrentVersion())),
+				MipsVersion:                     big.NewInt(int64(versions.GetExperimentalVersion())),
 			},
 			UseInterop: true,
 		},
