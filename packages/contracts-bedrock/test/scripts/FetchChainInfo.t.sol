@@ -36,7 +36,7 @@ interface IRespectedGameType {
 
 // Legacy style contracts (e.g., L2OutputOracle era)
 contract LegacyMockContract is BaseMockContract {
-    address public OPCHAINGUARDIAN;
+    address public GUARDIAN;
     address public SYSTEM_CONFIG;
     address public PORTAL;
     address public L2_ORACLE;
@@ -44,8 +44,8 @@ contract LegacyMockContract is BaseMockContract {
     address public messenger; // For legacy contracts that might have modern names
     GameType public respectedGameType;
 
-    function set_OPCHAINGUARDIAN(address _opChainGuardian) external {
-        OPCHAINGUARDIAN = _opChainGuardian;
+    function set_GUARDIAN(address _guardian) external {
+        GUARDIAN = _guardian;
     }
 
     function set_SYSTEM_CONFIG(address _config) external {
@@ -80,7 +80,7 @@ contract LegacyMockContract is BaseMockContract {
 
 // Modern style contracts without fault proof
 contract ModernMockContract is BaseMockContract {
-    address public opChainGuardian;
+    address public guardian;
     address public systemConfig;
     address public portal;
     address public messenger;
@@ -90,8 +90,8 @@ contract ModernMockContract is BaseMockContract {
     address public disputeGameFactory; // returns address(0) by default
     GameType public respectedGameType;
 
-    function set_opChainGuardian(address _opChainGuardian) external {
-        opChainGuardian = _opChainGuardian;
+    function set_guardian(address _guardian) external {
+        guardian = _guardian;
     }
 
     function set_systemConfig(address _config) external {
@@ -266,7 +266,7 @@ contract FetchChainInfoTest is Test {
         LegacyMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
         LegacyMockContract(payable(ctx.l1CrossDomainMessenger)).set_PORTAL(ctx.optimismPortal);
         LegacyMockContract(payable(ctx.optimismPortal)).set_L2_ORACLE(ctx.l2OutputOracle);
-        LegacyMockContract(payable(ctx.optimismPortal)).set_OPCHAINGUARDIAN(TEST_GUARDIAN);
+        LegacyMockContract(payable(ctx.optimismPortal)).set_GUARDIAN(TEST_GUARDIAN);
         LegacyMockContract(payable(ctx.l2OutputOracle)).set_PROPOSER(TEST_PROPOSER);
 
         vm.mockCallRevert(
@@ -303,7 +303,7 @@ contract FetchChainInfoTest is Test {
         ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
         ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
         ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
-        ModernMockContract(payable(ctx.optimismPortal)).set_opChainGuardian(TEST_GUARDIAN);
+        ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
 
         ModernMockContract(payable(ctx.optimismPortal)).set_respectedGameType(GameTypes.PERMISSIONED_CANNON);
         OracleMock(payable(ctx.mips)).set_oracle(ctx.preimageOracle);
@@ -349,7 +349,7 @@ contract FetchChainInfoTest is Test {
         ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
         ModernMockContract(payable(ctx.systemConfigProxy)).set_disputeGameFactory(ctx.disputeGameFactory);
         ModernMockContract(payable(ctx.optimismPortal)).set_superchainConfig(ctx.superchainConfig);
-        ModernMockContract(payable(ctx.optimismPortal)).set_opChainGuardian(TEST_GUARDIAN);
+        ModernMockContract(payable(ctx.optimismPortal)).set_guardian(TEST_GUARDIAN);
         ModernMockContract(payable(ctx.optimismPortal)).set_systemConfig(ctx.systemConfigProxy);
 
         DisputeGameFactoryMock(payable(ctx.disputeGameFactory)).set_gameImpl(GameTypes.CANNON, ctx.permissionlessGame);
@@ -405,7 +405,7 @@ contract FetchChainInfoTest is Test {
         ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
         ModernMockContract(payable(ctx.l1CrossDomainMessenger)).set_portal(ctx.optimismPortal);
         // Set "GUARDIAN" but not "guardian" to test fallback
-        LegacyMockContract(payable(ctx.optimismPortal)).set_OPCHAINGUARDIAN(TEST_GUARDIAN);
+        LegacyMockContract(payable(ctx.optimismPortal)).set_GUARDIAN(TEST_GUARDIAN);
         LegacyMockContract(payable(ctx.optimismPortal)).set_L2_ORACLE(address(new LegacyMockContract()));
 
         _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
@@ -438,7 +438,7 @@ contract FetchChainInfoTest is Test {
         ModernMockContract(payable(ctx.l1StandardBridgeProxy)).set_messenger(ctx.l1CrossDomainMessenger);
         // Set "PORTAL" but not "portal" to test fallback
         LegacyMockContract(payable(ctx.l1CrossDomainMessenger)).set_PORTAL(ctx.optimismPortal);
-        LegacyMockContract(payable(ctx.optimismPortal)).set_OPCHAINGUARDIAN(TEST_GUARDIAN);
+        LegacyMockContract(payable(ctx.optimismPortal)).set_GUARDIAN(TEST_GUARDIAN);
         LegacyMockContract(payable(ctx.optimismPortal)).set_L2_ORACLE(address(new LegacyMockContract()));
 
         _setupAddressManagerSlot(ctx.l1CrossDomainMessenger, TEST_ADDRESS_MANAGER);
