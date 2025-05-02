@@ -12,7 +12,8 @@ use reth_rpc_eth_api::{
     types::RpcTypes,
     RpcReceipt,
 };
-use reth_storage_api::{BlockReader, HeaderProvider};
+use reth_storage_api::{BlockReader, HeaderProvider, ProviderTx};
+use reth_transaction_pool::{PoolTransaction, TransactionPool};
 
 use crate::{eth::OpNodeCore, OpEthApi, OpEthApiError, OpReceiptBuilder};
 
@@ -83,7 +84,11 @@ where
 
 impl<N> LoadBlock for OpEthApi<N>
 where
-    Self: LoadPendingBlock + SpawnBlocking,
+    Self: LoadPendingBlock<
+            Pool: TransactionPool<
+                Transaction: PoolTransaction<Consensus = ProviderTx<Self::Provider>>,
+            >,
+        > + SpawnBlocking,
     N: OpNodeCore,
 {
 }
