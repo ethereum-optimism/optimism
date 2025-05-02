@@ -37,7 +37,7 @@ contract MIPS64_Test is Test {
     }
 
     /// @notice Test the we can deploy MIPS64 with a valid version parameter.
-    function testDeploySupportedVersion() external {
+    function test_deploy_supportedVersions_succeeds() external {
         for (uint256 i = 0; i < validVersions.length; i++) {
             uint256 version = validVersions[i];
             IMIPS2 mips = deployVm(version);
@@ -46,7 +46,7 @@ contract MIPS64_Test is Test {
     }
 
     /// @notice Test that deploying MIPS64 with an invalid version reverts with expected error.
-    function testDeployUnsupportedVersion() external {
+    function test_deploy_unsupportedVersions_fails() external {
         for (uint256 ver = 0; ver < maxValidVersion + 2; ver++) {
             if (isValidVersion[ver]) {
                 continue;
