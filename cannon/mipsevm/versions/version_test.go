@@ -66,7 +66,7 @@ func TestGetExperimentalVersion(t *testing.T) {
 }
 
 func TestStateVersionTypes(t *testing.T) {
-+	// Versions should be in ascending order
+	// Versions should be in ascending order
 	lastVersion := StateVersion(0)
 	for i, version := range StateVersionTypes {
 		if i == 0 {
