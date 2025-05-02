@@ -5,7 +5,6 @@ import { Test, Vm, console2 as console } from "forge-std/Test.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { UnsupportedStateVersion } from "src/cannon/libraries/CannonErrors.sol";
-import { MIPS64 } from "src/cannon/MIPS64.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
 
@@ -60,6 +59,11 @@ contract MIPS64_Test is Test {
 
     /// @notice Deploys new MIPS64 contract with the given version parameter.
     function deployVm(uint256 version) internal returns (IMIPS2) {
-        return IMIPS2(address(new MIPS64(oracle, version)));
+        return IMIPS2(
+            DeployUtils.create1({
+                _name: "MIPS64",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (oracle, version)))
+            })
+        );
     }
 }
