@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test, Vm, console2 as console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { UnsupportedStateVersion } from "src/cannon/libraries/CannonErrors.sol";
