@@ -1,0 +1,74 @@
+version: 2.1
+
+orbs:
+  go: circleci/go@1.8.0
+  slack: circleci/slack@5.1.1
+
+# Define the kurtosis PR check job
+jobs:
+  kurtosis-pr-sanity-check:
+    docker:
+      - image: cimg/go:1.21
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Install Kurtosis
+          command: |
+            echo "Installing Kurtosis CLI..."
+            curl -sSL https://get.kurtosis.com/install.sh | bash
+            echo 'export PATH="$HOME/.kurtosis/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            kurtosis version
+      - run:
+          name: Start Kurtosis Engine
+          command: |
+            kurtosis engine start
+            kurtosis engine status
+      - run:
+          name: Build Required Docker Images
+          working_directory: kurtosis-devnet
+          command: |
+            # Install just
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # Build the minimal set of Docker images required for the check
+            just op-node-image
+            just op-batcher-image
+            just op-proposer-image
+      - run:
+          name: Run Kurtosis Simple Deployment Check
+          working_directory: kurtosis-devnet
+          command: |
+            export PATH="$HOME/.local/bin:$PATH"
+
+            # Attempt to deploy the simple devnet (most lightweight option)
+            just simple-devnet
+
+            # Verify the devnet is running properly
+            ENCLAVE_NAME="simple-devnet"
+            if kurtosis enclave inspect $ENCLAVE_NAME | grep -q "RUNNING"; then
+              echo "✅ Kurtosis devnet deployed successfully!"
+              DEPLOYMENT_SUCCESS=true
+            else
+              echo "❌ Kurtosis devnet deployment failed!"
+              kurtosis enclave inspect $ENCLAVE_NAME || true
+              exit 1
+            fi
+      - run:
+          name: Clean Up Resources
+          command: |
+            kurtosis clean -a || true
+          when: always
+
+# Define the workflow for PR checks
+workflows:
+  kurtosis-pr-check:
+    jobs:
+      - kurtosis-pr-sanity-check:
+          filters:
+            branches:
+              ignore:
+                - main
+                - develop
