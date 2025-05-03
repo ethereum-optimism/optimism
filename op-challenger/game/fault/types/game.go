@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"math/big"
+	"slices"
 	"time"
 )
 
@@ -82,7 +83,7 @@ func (g *gameState) IsDuplicate(claim Claim) bool {
 
 func (g *gameState) Claims() []Claim {
 	// Defensively copy to avoid modifications to the underlying array.
-	return append([]Claim(nil), g.claims...)
+	return slices.Clone(g.claims)
 }
 
 func (g *gameState) MaxDepth() Depth {

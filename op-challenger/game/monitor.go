@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -95,12 +96,7 @@ func (m *gameMonitor) allowedGame(game common.Address) bool {
 	if len(m.allowedGames) == 0 {
 		return true
 	}
-	for _, allowed := range m.allowedGames {
-		if allowed == game {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.allowedGames, game)
 }
 
 func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {

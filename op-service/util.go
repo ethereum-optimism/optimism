@@ -143,8 +143,8 @@ func FindMonorepoRoot(startDir string) (string, error) {
 // treated as an integer string.
 func Parse256BitChainID(in string) (common.Hash, error) {
 	var chainIDBig *big.Int
-	if strings.HasPrefix(in, "0x") {
-		in = strings.TrimPrefix(in, "0x")
+	if after, ok := strings.CutPrefix(in, "0x"); ok {
+		in = after
 		var ok bool
 		chainIDBig, ok = new(big.Int).SetString(in, 16)
 		if !ok {

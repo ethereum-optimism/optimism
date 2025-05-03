@@ -212,10 +212,7 @@ func (d *state) Write(p []byte) (written int, err error) {
 			keccakF1600(&d.a)
 		} else {
 			// The slow path; buffer the input until we can fill the sponge, and then xor it in.
-			todo := d.rate - len(d.buf)
-			if todo > len(p) {
-				todo = len(p)
-			}
+			todo := min(d.rate-len(d.buf), len(p))
 			d.buf = append(d.buf, p[:todo]...)
 			p = p[todo:]
 

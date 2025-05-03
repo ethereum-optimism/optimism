@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -207,11 +208,9 @@ func (b *ContractBuilder) createContractsArtifact() (name string, retErr error) 
 	if err != nil {
 		log.Printf("Warning: Failed to retrieve artifact names: %v", err)
 	} else {
-		for _, existingName := range artifactNames {
-			if existingName == name {
-				log.Printf("Artifact '%s' already exists, skipping creation", name)
-				return name, nil
-			}
+		if slices.Contains(artifactNames, name) {
+			log.Printf("Artifact '%s' already exists, skipping creation", name)
+			return name, nil
 		}
 	}
 

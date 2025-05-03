@@ -185,7 +185,7 @@ func testBytesN(t *testing.T, n int, x BytesN, alloc func() BytesN) {
 		require.Equal(t, x, y)
 
 		z := alloc()
-		require.NoError(t, z.UnmarshalJSON([]byte(fmt.Sprintf("%q", xStr))))
+		require.NoError(t, z.UnmarshalJSON(fmt.Appendf(nil, "%q", xStr)))
 		require.Equal(t, x, z)
 	})
 }

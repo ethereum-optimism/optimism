@@ -172,10 +172,7 @@ func createTestFile(t *testing.T, path string, size int64) {
 	// Write the test data over and over until the desired size is reached
 	var written int64
 	for written < size {
-		toWrite := size - written
-		if toWrite > int64(len(data)) {
-			toWrite = int64(len(data))
-		}
+		toWrite := min(size-written, int64(len(data)))
 		n, err := f.Write(data[:toWrite])
 		require.NoError(t, err)
 		written += int64(n)

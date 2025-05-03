@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
@@ -367,12 +368,7 @@ func formatABIItem(item map[string]interface{}) string {
 }
 
 func isExcluded(contractName string) bool {
-	for _, exclude := range excludeContracts {
-		if exclude == contractName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(excludeContracts, contractName)
 }
 
 // getString safely retrieves a string value from a map[string]interface{}

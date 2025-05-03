@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
+	"slices"
 )
 
 type ChainOpts struct {
@@ -99,7 +100,7 @@ func (d *InteropDSL) DepSet() *depset.StaticConfigDependencySet {
 func (d *InteropDSL) defaultChainOpts() ChainOpts {
 	return ChainOpts{
 		// Defensive copy to make sure the original slice isn't modified
-		Chains: append([]*Chain{}, d.allChains...),
+		Chains: slices.Clone(d.allChains),
 	}
 }
 

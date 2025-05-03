@@ -37,7 +37,7 @@ func TestUnmarshalL1StartingBlockTag(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"l1StartingBlockTag": "earliest"}`), decoded))
 	require.EqualValues(t, rpc.EarliestBlockNumber, *decoded.L1StartingBlockTag.BlockNumber)
 	h := "0x86c7263d87140ca7cd9bf1bc9e95a435a7a0efc0ae2afaf64920c5b59a6393d4"
-	require.NoError(t, json.Unmarshal([]byte(fmt.Sprintf(`{"l1StartingBlockTag": "%s"}`, h)), decoded))
+	require.NoError(t, json.Unmarshal(fmt.Appendf(nil, `{"l1StartingBlockTag": "%s"}`, h), decoded))
 	require.EqualValues(t, common.HexToHash(h), *decoded.L1StartingBlockTag.BlockHash)
 }
 

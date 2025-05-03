@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"encoding/binary"
+	"slices"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/consensus/beacon"
@@ -66,7 +67,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	chainA, _ := core.GenerateChain(sd.L1Cfg.Config, genesisBlock, consensus, db, 10, gen("A"))
 	chainA = append(append([]*types.Block{}, genesisBlock), chainA...)
 	chainB, _ := core.GenerateChain(sd.L1Cfg.Config, chainA[3], consensus, db, 10, gen("B"))
-	chainB = append(append([]*types.Block{}, chainA[:4]...), chainB...)
+	chainB = slices.Concat(chainA[:4], chainB)
 	require.NotEqual(t, chainA[9], chainB[9], "need different chains")
 	canonL1 := func(blocks []*types.Block) func(num uint64) *types.Block {
 		return func(num uint64) *types.Block {

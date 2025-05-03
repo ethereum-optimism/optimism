@@ -253,10 +253,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				step := state.GetStep()
 
 				alignment := addr & arch.ExtMask
-				writeLen := arch.WordSizeBytes - alignment
-				if count < writeLen {
-					writeLen = count
-				}
+				writeLen := min(count, arch.WordSizeBytes-alignment)
 				// Cap write length to remaining bytes of the preimage
 				preimageDataLen := Word(len(preimageData))
 				if preimageOffset+writeLen > preimageDataLen {

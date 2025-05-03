@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -281,17 +282,10 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			require.Eventually(t,
 				func() bool {
 					// Check that all endpoints were called
-					for i := range healthyCalls {
-						if healthyCalls[i] == 0 {
-							return false
-						}
+					if slices.Contains(healthyCalls, 0) {
+						return false
 					}
-					for i := range unHealthyCalls {
-						if unHealthyCalls[i] == 0 {
-							return false
-						}
-					}
-					return true
+					return !slices.Contains(unHealthyCalls, 0)
 				}, time.Second*20, time.Millisecond*10, "All endpoints should have been called within 2s")
 
 			startTestServerAtAddr := func(addr string, handler http.HandlerFunc) *httptest.Server {

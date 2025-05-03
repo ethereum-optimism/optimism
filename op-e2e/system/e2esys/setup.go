@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -1045,7 +1046,7 @@ func (sys *System) NewMockNetPeer() (host.Host, error) {
 	if len(id) > 8 {
 		suffix = id[len(id)-8:]
 	}
-	ip := append(net.IP{}, blackholeIP6...)
+	ip := slices.Clone(blackholeIP6)
 	copy(ip[net.IPv6len-len(suffix):], suffix)
 	a, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/4242", ip))
 	if err != nil {

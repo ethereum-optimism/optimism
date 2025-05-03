@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -202,12 +203,7 @@ func (kind *RPCProviderKind) Clone() any {
 }
 
 func ValidRPCProviderKind(value RPCProviderKind) bool {
-	for _, k := range RPCProviderKinds {
-		if k == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(RPCProviderKinds, value)
 }
 
 // ReceiptsFetchingMethod is a bitfield with 1 bit for each receipts fetching type.

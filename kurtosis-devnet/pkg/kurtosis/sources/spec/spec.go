@@ -3,6 +3,7 @@ package spec
 import (
 	"fmt"
 	"io"
+	"slices"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,12 +21,7 @@ type ChainSpec struct {
 type FeatureList []string
 
 func (fl FeatureList) Contains(feature string) bool {
-	for _, f := range fl {
-		if f == feature {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(fl, feature)
 }
 
 // EnclaveSpec represents the parsed chain specifications from the YAML

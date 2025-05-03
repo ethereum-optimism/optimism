@@ -120,7 +120,7 @@ func (id genericID) marshalText(kind Kind) ([]byte, error) {
 	if len(id) > maxIDLength {
 		return nil, errInvalidID
 	}
-	return []byte(fmt.Sprintf("%s-%s", kind, string(id))), nil
+	return fmt.Appendf(nil, "%s-%s", kind, string(id)), nil
 }
 
 func (id *genericID) unmarshalText(kind Kind, data []byte) error {

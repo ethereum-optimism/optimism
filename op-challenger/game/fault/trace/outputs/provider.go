@@ -59,10 +59,7 @@ func (o *OutputTraceProvider) ClaimedBlockNumber(pos types.Position) (uint64, er
 		return 0, fmt.Errorf("%w: %v", ErrIndexTooBig, traceIndex)
 	}
 
-	outputBlock := traceIndex.Uint64() + o.prestateBlock + 1
-	if outputBlock > o.poststateBlock {
-		outputBlock = o.poststateBlock
-	}
+	outputBlock := min(traceIndex.Uint64()+o.prestateBlock+1, o.poststateBlock)
 	return outputBlock, nil
 }
 

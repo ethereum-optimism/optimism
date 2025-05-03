@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -299,7 +300,7 @@ func check4844Precompile(ctx context.Context, env *actionEnv) error {
 	mstore32(point[:], 32)        // z
 	mstore32(claim[:], 64)        // y
 	mstore32(commitment[0:32], 96)
-	mstore32(append(append([]byte{}, commitment[32:48]...), proof[0:16]...), 96+32)
+	mstore32(slices.Concat(commitment[32:48], proof[0:16]), 96+32)
 	mstore32(proof[16:48], 144+16)
 	env.log.Info(fmt.Sprintf("4844 precompile test: verifying p(%x) == %x for commitment %x proof %x", point[:], claim[:], commitment[:], proof[:]))
 

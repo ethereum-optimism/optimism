@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -54,9 +55,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 
 	// Infer defaults for chains that were not explicitly mentioned.
 	// Always use the lowest faucet ID, so map-iteration doesn't affect defaults.
-	sort.Slice(faucetIDs, func(i, j int) bool {
-		return faucetIDs[i] < faucetIDs[j]
-	})
+	slices.Sort(faucetIDs)
 	for _, fID := range faucetIDs {
 		f, _ := b.faucets.Get(fID)
 		b.defaults.SetIfMissing(f.chainID, fID)

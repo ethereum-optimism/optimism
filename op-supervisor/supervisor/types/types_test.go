@@ -196,8 +196,8 @@ func TestSafetyLevel(t *testing.T) {
 	} {
 		upper := strings.ToUpper(lvl.String())
 		var x SafetyLevel
-		require.ErrorContains(t, json.Unmarshal([]byte(fmt.Sprintf("%q", upper)), &x), "unrecognized", "case sensitive")
-		require.NoError(t, json.Unmarshal([]byte(fmt.Sprintf("%q", lvl.String())), &x))
+		require.ErrorContains(t, json.Unmarshal(fmt.Appendf(nil, "%q", upper), &x), "unrecognized", "case sensitive")
+		require.NoError(t, json.Unmarshal(fmt.Appendf(nil, "%q", lvl.String()), &x))
 		dat, err := json.Marshal(x)
 		require.NoError(t, err)
 		require.Equal(t, fmt.Sprintf("%q", lvl.String()), string(dat))

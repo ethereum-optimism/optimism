@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -145,12 +146,7 @@ func (b *TxBuilder) BuildTx(options ...TxOption) (Transaction, error) {
 
 // supportsType checks if a transaction type is supported
 func (b *TxBuilder) supportsType(txType uint8) bool {
-	for _, t := range b.supportedTxTypes {
-		if t == txType {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(b.supportedTxTypes, txType)
 }
 
 // chooseTxType selects the most advanced supported transaction type

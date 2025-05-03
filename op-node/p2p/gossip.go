@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -244,10 +245,8 @@ type seenBlocks struct {
 func (sb *seenBlocks) hasSeen(h common.Hash) (count int, hasSeen bool) {
 	sb.Lock()
 	defer sb.Unlock()
-	for _, prev := range sb.blockHashes {
-		if prev == h {
-			return len(sb.blockHashes), true
-		}
+	if slices.Contains(sb.blockHashes, h) {
+		return len(sb.blockHashes), true
 	}
 	return len(sb.blockHashes), false
 }

@@ -99,8 +99,8 @@ func solToGo(name string) (string, error) {
 	case "bytes":
 		return "hexutil.Bytes", nil
 	default:
-		if strings.HasPrefix(name, "bytes") {
-			n, err := strconv.Atoi(strings.TrimPrefix(name, "bytes"))
+		if after, ok := strings.CutPrefix(name, "bytes"); ok {
+			n, err := strconv.Atoi(after)
 			if err != nil {
 				return "", err
 			}

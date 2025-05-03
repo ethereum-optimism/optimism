@@ -3,6 +3,7 @@ package derive
 import (
 	"fmt"
 	"regexp"
+	"slices"
 )
 
 type CompressionAlgo string
@@ -61,10 +62,5 @@ func GetBrotliLevel(algo CompressionAlgo) int {
 }
 
 func ValidCompressionAlgo(value CompressionAlgo) bool {
-	for _, k := range CompressionAlgos {
-		if k == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(CompressionAlgos, value)
 }

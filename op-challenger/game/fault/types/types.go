@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"slices"
 	"time"
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -103,12 +104,7 @@ func (t *TraceType) Clone() any {
 }
 
 func ValidTraceType(value TraceType) bool {
-	for _, t := range TraceTypes {
-		if t == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(TraceTypes, value)
 }
 
 func (t TraceType) GameType() GameType {

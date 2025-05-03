@@ -293,7 +293,7 @@ func TestState_EncodeThreadProof_SingleThread(t *testing.T) {
 		activeThread.Registers[i] = Word(i)
 	}
 
-	expectedProof := append([]byte{}, activeThread.serializeThread()[:]...)
+	expectedProof := bytes.Clone(activeThread.serializeThread()[:])
 	expectedProof = append(expectedProof, EmptyThreadsRoot[:]...)
 
 	actualProof := state.EncodeThreadProof()
@@ -327,12 +327,12 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 		hashedThread := crypto.Keccak256Hash(curThread.serializeThread())
 
 		// root = prevRoot ++ hash(curRoot)
-		hashData := append([]byte{}, expectedRoot[:]...)
+		hashData := bytes.Clone(expectedRoot[:])
 		hashData = append(hashData, hashedThread[:]...)
 		expectedRoot = crypto.Keccak256Hash(hashData)
 	}
 
-	expectedProof := append([]byte{}, state.GetCurrentThread().serializeThread()[:]...)
+	expectedProof := bytes.Clone(state.GetCurrentThread().serializeThread()[:])
 	expectedProof = append(expectedProof, expectedRoot[:]...)
 
 	actualProof := state.EncodeThreadProof()

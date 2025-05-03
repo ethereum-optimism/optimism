@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"text/template"
 
 	sprig "github.com/go-task/slim-sprig/v3"
@@ -72,10 +73,8 @@ func (ctx *TemplateContext) includeFile(fname string, data ...interface{}) (stri
 	if err != nil {
 		return "", fmt.Errorf("error resolving absolute path: %w", err)
 	}
-	for _, includedFile := range ctx.includeStack {
-		if includedFile == absPath {
-			return "", fmt.Errorf("circular include detected for file %s", fname)
-		}
+	if slices.Contains(ctx.includeStack, absPath) {
+		return "", fmt.Errorf("circular include detected for file %s", fname)
 	}
 
 	// Read the included file
@@ -103,7 +102,7 @@ func (ctx *TemplateContext) includeFile(fname string, data ...interface{}) (stri
 		baseDir:      filepath.Dir(path),
 		Data:         tplData,
 		Functions:    ctx.Functions,
-		includeStack: append(append([]string{}, ctx.includeStack...), absPath),
+		includeStack: append(slices.Clone(ctx.includeStack), absPath),
 	}
 
 	// Process the included template

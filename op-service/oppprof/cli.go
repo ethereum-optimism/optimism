@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -45,12 +46,7 @@ func (t *profileType) Clone() any {
 }
 
 func validProfileType(value profileType) bool {
-	for _, k := range allowedProfileTypes {
-		if k == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(allowedProfileTypes, value)
 }
 
 func DefaultCLIConfig() CLIConfig {

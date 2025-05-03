@@ -148,8 +148,8 @@ func (f *ServiceFinder) FindL2Services(s ChainSpec) ([]descriptors.Node, descrip
 		}
 
 		// Some services don't have a network suffix, as they span multiple chains
-		if strings.HasPrefix(serviceName, f.l2ServicePrefix) {
-			tag, idx := f.serviceTag(strings.TrimPrefix(serviceName, f.l2ServicePrefix))
+		if after, ok := strings.CutPrefix(serviceName, f.l2ServicePrefix); ok {
+			tag, idx := f.serviceTag(after)
 			return tag, idx, true
 		}
 		return "", 0, false

@@ -2,6 +2,7 @@ package sysext
 
 import (
 	"os"
+	"slices"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
@@ -64,12 +65,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 }
 
 func isInterop(env *descriptors.DevnetEnvironment) bool {
-	for _, feature := range env.Features {
-		if feature == FeatureInterop {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(env.Features, FeatureInterop)
 }
 
 func (o *Orchestrator) isInterop() bool {

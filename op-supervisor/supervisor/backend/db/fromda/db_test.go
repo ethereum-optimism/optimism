@@ -105,7 +105,7 @@ func TestEmptyDB(t *testing.T) {
 
 func mockL1(i uint64) types.BlockSeal {
 	return types.BlockSeal{
-		Hash:      crypto.Keccak256Hash([]byte(fmt.Sprintf("L1 block %d", i))),
+		Hash:      crypto.Keccak256Hash(fmt.Appendf(nil, "L1 block %d", i)),
 		Number:    i,
 		Timestamp: 1000_000 + i*12,
 	}
@@ -122,7 +122,7 @@ func mockL1Ref(i uint64) eth.BlockRef {
 func mockL2(i uint64) types.BlockSeal {
 	var h common.Hash
 	if i != 0 {
-		h = crypto.Keccak256Hash([]byte(fmt.Sprintf("L2 block %d", i)))
+		h = crypto.Keccak256Hash(fmt.Appendf(nil, "L2 block %d", i))
 	}
 	return types.BlockSeal{
 		Hash:      h,

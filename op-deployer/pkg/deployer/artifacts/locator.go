@@ -42,8 +42,8 @@ func MustNewLocatorFromTag(tag string) *Locator {
 }
 
 func NewLocatorFromURL(u string) (*Locator, error) {
-	if strings.HasPrefix(u, "tag://") {
-		return NewLocatorFromTag(strings.TrimPrefix(u, "tag://"))
+	if after, ok := strings.CutPrefix(u, "tag://"); ok {
+		return NewLocatorFromTag(after)
 	}
 	parsedURL, err := url.Parse(u)
 	if err != nil {

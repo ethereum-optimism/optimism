@@ -1,5 +1,7 @@
 package engine
 
+import "slices"
+
 import "fmt"
 
 // Kind identifies the engine client's kind, used to control the behavior of optimism in different engine clients.
@@ -45,10 +47,5 @@ func (kind Kind) SupportsPostFinalizationELSync() bool {
 }
 
 func ValidEngineKind(value Kind) bool {
-	for _, k := range Kinds {
-		if k == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(Kinds, value)
 }

@@ -276,9 +276,9 @@ func TestEther(t *testing.T) {
 		require.NoError(t, x.UnmarshalJSON([]byte(MaxU256Wei.Decimal())))
 		require.Equal(t, MaxU256Wei, x)
 		// With quotes should also work
-		require.NoError(t, x.UnmarshalJSON([]byte(fmt.Sprintf("%q", OneEther.Decimal()))))
+		require.NoError(t, x.UnmarshalJSON(fmt.Appendf(nil, "%q", OneEther.Decimal())))
 		require.Equal(t, OneEther, x)
-		require.NoError(t, x.UnmarshalJSON([]byte(fmt.Sprintf("%q", MaxU256Wei.Decimal()))))
+		require.NoError(t, x.UnmarshalJSON(fmt.Appendf(nil, "%q", MaxU256Wei.Decimal())))
 		require.Equal(t, MaxU256Wei, x)
 	})
 

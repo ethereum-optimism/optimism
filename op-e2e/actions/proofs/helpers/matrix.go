@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -133,5 +134,5 @@ var (
 )
 
 func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
-	return append(ForkMatrix{}, forks...)
+	return slices.Clone(forks)
 }

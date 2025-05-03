@@ -189,7 +189,7 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	// Wait and then publish messages
 	time.Sleep(3 * time.Second)
 	for i := 0; i < 20; i++ {
-		msg := []byte(fmt.Sprintf("message %d", i))
+		msg := fmt.Appendf(nil, "message %d", i)
 		topic := topics[i]
 		err := topic.Publish(ctx, msg)
 		testSuite.NoError(err)
