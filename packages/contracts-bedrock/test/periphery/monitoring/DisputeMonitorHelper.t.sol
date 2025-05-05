@@ -8,7 +8,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
-import { console } from "forge-std/console.sol";
+
 // Contracts
 import { DisputeMonitorHelper } from "src/periphery/monitoring/DisputeMonitorHelper.sol";
 import { GameTypes, Claim, VMStatuses, Duration } from "src/dispute/lib/Types.sol";
@@ -69,9 +69,7 @@ contract DisputeMonitorHelper_TestInit is CommonTest {
         // Register the game implementation with the factory.
         vm.startPrank(disputeGameFactory.owner());
         disputeGameFactory.setImplementation(GameTypes.CANNON, gameImpl);
-        console.log("initBond", disputeGameFactory.initBonds(GameTypes.CANNON));
         disputeGameFactory.setInitBond(GameTypes.CANNON, 0.08 ether);
-        console.log("initBond", disputeGameFactory.initBonds(GameTypes.CANNON));
         vm.stopPrank();
     }
 
