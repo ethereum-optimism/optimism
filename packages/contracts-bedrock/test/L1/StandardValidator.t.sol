@@ -997,4 +997,20 @@ contract StandardValidatorTest is CommonTest {
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(0));
         assertEq("", validate(true));
     }
+
+    function test_versions_succeeds() public {
+        // Assert that each version function returns the expected string value.
+        assertEq(validator.systemConfigVersion(), "2.5.0");
+        assertEq(validator.optimismPortalVersion(), "3.14.0");
+        assertEq(validator.l1CrossDomainMessengerVersion(), "2.6.0");
+        assertEq(validator.l1ERC721BridgeVersion(), "2.4.0");
+        assertEq(validator.l1StandardBridgeVersion(), "2.3.0");
+        assertEq(validator.mipsVersion(), "1.0.0");
+        assertEq(validator.optimismMintableERC20FactoryVersion(), "1.10.1");
+        assertEq(validator.disputeGameFactoryVersion(), "1.0.1");
+        assertEq(validator.anchorStateRegistryVersion(), "2.2.2");
+        assertEq(validator.delayedWETHVersion(), "1.3.0");
+        assertEq(validator.permissionedDisputeGameVersion(), "1.4.1");
+        assertEq(validator.preimageOracleVersion(), "1.1.4");
+    }
 }
