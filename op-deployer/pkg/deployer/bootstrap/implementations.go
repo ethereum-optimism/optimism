@@ -8,11 +8,11 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-
+	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -70,11 +70,13 @@ func (c *ImplementationsConfig) Check() error {
 	if c.ArtifactsLocator == nil {
 		return errors.New("artifacts locator must be specified")
 	}
-	if c.L1ContractsRelease == "" {
-		return errors.New("L1 contracts release must be specified")
+	if c.ArtifactsLocator.IsTag() {
+		c.L1ContractsRelease = c.ArtifactsLocator.Tag
+	} else {
+		c.L1ContractsRelease = "dev"
 	}
-	if c.MIPSVersion != 1 && c.MIPSVersion != 2 {
-		return errors.New("MIPS version must be specified as either 1 or 2")
+	if !mipsVersion.IsSupported(c.MIPSVersion) {
+		return errors.New("MIPS version is not supported")
 	}
 	if c.WithdrawalDelaySeconds == 0 {
 		return errors.New("withdrawal delay in seconds must be specified")

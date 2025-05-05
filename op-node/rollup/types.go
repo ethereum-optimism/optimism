@@ -751,10 +751,6 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	if c.AltDAConfig != nil {
 		ctx = append(ctx, "alt_da", *c.AltDAConfig)
 	}
-	if c.PectraBlobScheduleTime != nil {
-		// only print in config if set at all
-		ctx = append(ctx, "pectra_blob_schedule_time", fmtForkTimeOrUnset(c.PectraBlobScheduleTime))
-	}
 	log.Info("Rollup Config", ctx...)
 }
 

@@ -106,7 +106,7 @@ func TestDeploy(t *testing.T) {
 		return ktfs.NewEnclaveFS(ctx, enclave, ktfs.WithEnclaveCtx(mockCtx))
 	}
 
-	d := NewDeployer(
+	d, err := NewDeployer(
 		WithBaseDir(tmpDir),
 		WithKurtosisDeployer(mockDeployerFunc),
 		WithDryRun(true),
@@ -114,6 +114,7 @@ func TestDeploy(t *testing.T) {
 		WithDataFile(dataPath),
 		WithNewEnclaveFSFunc(mockEnclaveFSFunc),
 	)
+	require.NoError(t, err)
 
 	env, err := d.Deploy(ctx, deployConfig)
 	require.NoError(t, err)
@@ -132,71 +133,11 @@ func TestDeploy(t *testing.T) {
 	assert.Equal(t, "value", envData["test"])
 }
 
-func TestGetNextDevnetDescriptor(t *testing.T) {
-	tests := []struct {
-		name        string
-		artifacts   []string
-		wantName    string
-		wantErrText string
-	}{
-		{
-			name: "increments highest numbered descriptor",
-			artifacts: []string{
-				"devnet-descriptor-1",
-				"devnet-descriptor-5",
-				"devnet-descriptor-10",
-				"other",
-			},
-			wantName: "devnet-descriptor-11",
-		},
-		{
-			name: "handles non-numeric suffixes",
-			artifacts: []string{
-				"devnet-descriptor-1",
-				"devnet-descriptor-5",
-				"devnet-descriptor-abc",
-				"devnet-descriptor-10",
-				"other",
-				"devnet-descriptor-def",
-			},
-			wantName: "devnet-descriptor-11",
-		},
-		{
-			name:      "no descriptors",
-			artifacts: []string{},
-			wantName:  "devnet-descriptor-0",
-		},
-		{
-			name: "no valid descriptors",
-			artifacts: []string{
-				"other",
-				"devnet-abc",
-			},
-			wantName: "devnet-descriptor-0",
-		},
-		{
-			name: "handles negative numbers",
-			artifacts: []string{
-				"devnet-descriptor--1",
-				"devnet-descriptor-5",
-			},
-			wantName: "devnet-descriptor-6",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockCtx := &mockEnclaveContext{artifacts: tt.artifacts}
-			fs, err := ktfs.NewEnclaveFS(context.Background(), "test-enclave", ktfs.WithEnclaveCtx(mockCtx))
-			require.NoError(t, err)
-			got, err := getNextDevnetDescriptor(context.Background(), fs)
-			if tt.wantErrText != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErrText)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantName, got)
-		})
-	}
+func TestNewDeployer_DryRun(t *testing.T) {
+	// In dry run mode, we should not create an enclave manager
+	deployer, err := NewDeployer(
+		WithDryRun(true),
+	)
+	require.NoError(t, err)
+	assert.Nil(t, deployer.enclaveManager)
 }

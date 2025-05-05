@@ -1,10 +1,9 @@
-package opcm_test
+package opcm
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -17,11 +16,11 @@ func TestNewDeployAsteriscScript(t *testing.T) {
 		// Then we load the script
 		//
 		// This would raise an error if the Go types didn't match the ABI
-		deploySuperchain, err := opcm.NewDeployAsteriscScript(host1)
+		deploySuperchain, err := NewDeployAsteriscScript(host1)
 		require.NoError(t, err)
 
 		// Then we deploy
-		output, err := deploySuperchain.Run(opcm.DeployAsterisc2Input{
+		output, err := deploySuperchain.Run(DeployAsterisc2Input{
 			PreimageOracle: common.BigToAddress(big.NewInt(1)),
 		})
 
@@ -34,7 +33,7 @@ func TestNewDeployAsteriscScript(t *testing.T) {
 		// We run it on a fresh host so that the deployer nonces are the same
 		// which in turn means we should get identical output
 		host2 := createTestHost(t)
-		deprecatedOutput, err := opcm.DeployAsterisc(host2, opcm.DeployAsteriscInput{
+		deprecatedOutput, err := DeployAsterisc(host2, DeployAsteriscInput{
 			PreimageOracle: common.BigToAddress(big.NewInt(1)),
 		})
 

@@ -1,82 +1,34 @@
 package env
 
 import (
-	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFetchFileData(t *testing.T) {
-	// Create a temporary test file
-	content := []byte("test content")
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.json")
-	err := os.WriteFile(tmpFile, content, 0644)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name        string
-		path        string
-		wantName    string
-		wantContent []byte
-		wantError   bool
-	}{
-		{
-			name:        "existing file",
-			path:        tmpFile,
-			wantName:    "test",
-			wantContent: content,
-		},
-		{
-			name:      "non-existent file",
-			path:      filepath.Join(tmpDir, "nonexistent.json"),
-			wantError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &url.URL{Path: tt.path}
-			name, content, err := fetchFileData(u)
-			if tt.wantError {
-				assert.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantName, name)
-			assert.Equal(t, tt.wantContent, content)
-		})
-	}
-}
-
-type mockOS struct {
-	files map[string][]byte
-}
-
-func (m *mockOS) ReadFile(name string) ([]byte, error) {
-	if content, ok := m.files[name]; ok {
-		return content, nil
-	}
-	return nil, fmt.Errorf("file not found: %s", name)
-}
-
 func TestFetchFileDataFromOS(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
 	var (
-		absoluteContent = []byte("absolute path content")
-		relativeContent = []byte("relative path content")
+		absoluteContent = []byte(`{"name": "absolute"}`)
+		relativeContent = []byte(`{"name": "relative"}`)
+		noNameContent   = []byte(`{}`)
 	)
 
-	mockOS := &mockOS{
-		files: map[string][]byte{
-			"/some/absolute/path": absoluteContent,
-			"some/relative/path":  relativeContent,
-		},
+	err := afero.WriteFile(fs, "/some/absolute/path", absoluteContent, 0644)
+	require.NoError(t, err)
+	err = afero.WriteFile(fs, "some/relative/path", relativeContent, 0644)
+	require.NoError(t, err)
+	err = afero.WriteFile(fs, "some/file/devnet-env.json", noNameContent, 0644)
+	require.NoError(t, err)
+	err = afero.WriteFile(fs, "some/file/devnet", noNameContent, 0644)
+	require.NoError(t, err)
+
+	fetcher := &fileFetcher{
+		fs: fs,
 	}
 
 	tests := []struct {
@@ -89,20 +41,32 @@ func TestFetchFileDataFromOS(t *testing.T) {
 		{
 			name:        "file URL",
 			urlStr:      "file:///some/absolute/path",
-			wantName:    "path",
+			wantName:    "absolute",
 			wantContent: absoluteContent,
 		},
 		{
 			name:        "absolute path",
 			urlStr:      "/some/absolute/path",
-			wantName:    "path",
+			wantName:    "absolute",
 			wantContent: absoluteContent,
 		},
 		{
 			name:        "relative path",
 			urlStr:      "some/relative/path",
-			wantName:    "path",
+			wantName:    "relative",
 			wantContent: relativeContent,
+		},
+		{
+			name:        "no name - file with extension",
+			urlStr:      "some/file/devnet-env.json",
+			wantName:    "devnet-env",
+			wantContent: noNameContent,
+		},
+		{
+			name:        "no name - file without extension",
+			urlStr:      "some/file/devnet",
+			wantName:    "devnet",
+			wantContent: noNameContent,
 		},
 		{
 			name:      "non-existent file",
@@ -116,15 +80,14 @@ func TestFetchFileDataFromOS(t *testing.T) {
 			u, err := url.Parse(tt.urlStr)
 			require.NoError(t, err)
 
-			name, content, err := fetchFileDataFromOS(u, mockOS)
+			env, err := fetcher.fetchFileData(u)
 			if tt.wantError {
 				assert.Error(t, err)
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantName, name)
-			assert.Equal(t, tt.wantContent, content)
+			assert.Equal(t, tt.wantName, env.Name)
 		})
 	}
 }

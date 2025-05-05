@@ -114,12 +114,12 @@ type mockContractsRegistry struct {
 	empty.EmptyRegistry
 }
 
-// mockSuperchainWETH implements a minimal SuperchainWETH interface for testing
-type mockSuperchainWETH struct {
+// mockWETH implements a minimal WETH interface for testing
+type mockWETH struct {
 	addr types.Address
 }
 
-func (m *mockSuperchainWETH) BalanceOf(account types.Address) types.ReadInvocation[types.Balance] {
+func (m *mockWETH) BalanceOf(account types.Address) types.ReadInvocation[types.Balance] {
 	return &mockReadInvocation{balance: types.NewBalance(big.NewInt(0))}
 }
 
@@ -132,8 +132,8 @@ func (m *mockReadInvocation) Call(ctx context.Context) (types.Balance, error) {
 	return m.balance, nil
 }
 
-func (r *mockContractsRegistry) SuperchainWETH(address types.Address) (interfaces.SuperchainWETH, error) {
-	return &mockSuperchainWETH{addr: address}, nil
+func (r *mockContractsRegistry) WETH(address types.Address) (interfaces.WETH, error) {
+	return &mockWETH{addr: address}, nil
 }
 
 // mockFailingChain implements system.Chain with a failing SendETH

@@ -166,6 +166,10 @@ func lessIDOnlyChainID(a, b idOnlyChainID) bool {
 	return a.ChainID().Cmp(b.ChainID()) < 0
 }
 
+func lessElemOrdered[I cmp.Ordered, E Identifiable[I]](a, b E) bool {
+	return a.ID() < b.ID()
+}
+
 // copyAndSortCmp is a helper function to copy and sort a slice of elements that are already natively comparable.
 func copyAndSortCmp[V ~[]E, E cmp.Ordered](vs V) V {
 	out := slices.Clone(vs)

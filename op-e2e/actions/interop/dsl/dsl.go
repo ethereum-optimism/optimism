@@ -65,8 +65,7 @@ type InteropDSL struct {
 func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
 	setup := SetupInterop(t, opts...)
 	actors := setup.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	t.Logf("ChainA: %v, ChainB: %v", actors.ChainA.ChainID, actors.ChainB.ChainID)
 
 	allChains := []*Chain{actors.ChainA, actors.ChainB}
@@ -294,6 +293,25 @@ func (d *InteropDSL) AdvanceL1(optionalArgs ...func(*AdvanceL1Opts)) {
 		require.Equalf(d.t, newBlock, status.HeadL1, "Chain %v did not detect new L1 head", chain.ChainID)
 		require.Equalf(d.t, newBlock, status.CurrentL1, "Chain %v did not process new L1 head", chain.ChainID)
 	}
+}
+
+func (d *InteropDSL) FinalizeL1() {
+	opts := d.defaultChainOpts()
+
+	actors := d.Actors
+	preStatus, err := actors.Supervisor.SyncStatus(d.t.Ctx())
+	require.NoError(d.t, err)
+	actors.L1Miner.ActL1SafeNext(d.t)
+	actors.L1Miner.ActL1FinalizeNext(d.t)
+	actors.Supervisor.SignalFinalizedL1(d.t)
+	actors.Supervisor.ProcessFull(d.t)
+	for _, chain := range opts.Chains {
+		chain.Sequencer.ActL2PipelineFull(d.t)
+	}
+
+	postStatus, err := actors.Supervisor.SyncStatus(d.t.Ctx())
+	require.NoError(d.t, err)
+	require.Greater(d.t, postStatus.FinalizedTimestamp, preStatus.FinalizedTimestamp)
 }
 
 // DeployEmitterContracts deploys an emitter contract on both chains

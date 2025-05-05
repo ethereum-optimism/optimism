@@ -6,11 +6,13 @@ import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDis
 
 // Libraries
 import { GameType, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 contract AnchorStateRegistry_Init is FaultDisputeGame_Init {
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
@@ -46,8 +48,24 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_Init {
         assertEq(l2BlockNumber, 0);
 
         // Verify contract addresses.
-        assert(anchorStateRegistry.superchainConfig() == superchainConfig);
+        assert(anchorStateRegistry.systemConfig() == systemConfig);
         assert(anchorStateRegistry.disputeGameFactory() == disputeGameFactory);
+        assert(anchorStateRegistry.superchainConfig() == superchainConfig);
+    }
+
+    /// @notice Tests that the initializer value is correct. Trivial test for normal
+    ///         initialization but confirms that the initValue is not incremented incorrectly if
+    ///         an upgrade function is not present.
+    function test_initialize_correctInitializerValue_succeeds() public {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+
+        // Get the initializer value.
+        bytes32 slotVal = vm.load(address(anchorStateRegistry), bytes32(slot.slot));
+        uint8 val = uint8(uint256(slotVal) & 0xFF);
+
+        // Assert that the initializer value matches the expected value.
+        assertEq(val, anchorStateRegistry.initVersion());
     }
 }
 
@@ -56,7 +74,37 @@ contract AnchorStateRegistry_Initialize_TestFail is AnchorStateRegistry_Init {
     function test_initialize_twice_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         anchorStateRegistry.initialize(
-            superchainConfig,
+            systemConfig,
+            disputeGameFactory,
+            Proposal({
+                root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
+                l2SequenceNumber: 0
+            }),
+            GameType.wrap(0)
+        );
+    }
+
+    /// @notice Tests that initialization reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(
+            _sender != address(anchorStateRegistry.proxyAdmin()) && _sender != anchorStateRegistry.proxyAdminOwner()
+        );
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("AnchorStateRegistry", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(anchorStateRegistry), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        anchorStateRegistry.initialize(
+            systemConfig,
             disputeGameFactory,
             Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
@@ -79,14 +127,14 @@ contract AnchorStateRegistry_Paused_Test is AnchorStateRegistry_Init {
     function test_paused_succeeds() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Paused should return true.
         assertTrue(anchorStateRegistry.paused());
 
         // Unpause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.unpause();
+        superchainConfig.unpause(address(0));
 
         // Paused should return false.
         assertFalse(anchorStateRegistry.paused());
@@ -141,7 +189,7 @@ contract AnchorStateRegistry_GetAnchorRoot_Test is AnchorStateRegistry_Init {
 
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // We should get the anchor root back.
         (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.getAnchorRoot();
@@ -205,6 +253,24 @@ contract AnchorStateRegistry_IsGameRegistered_Test is AnchorStateRegistry_Init {
             ),
             abi.encode(address(0), 0)
         );
+
+        // Game should not be registered.
+        assertFalse(anchorStateRegistry.isGameRegistered(gameProxy));
+    }
+
+    /// @notice Tests that isGameRegistered will return false if the game is not using the same
+    ///         AnchorStateRegistry as the one checking the registration.
+    /// @param _anchorStateRegistry The AnchorStateRegistry to use for the test.
+    function test_isGameRegistered_isNotSameAnchorStateRegistry_succeeds(address _anchorStateRegistry) public {
+        // Make sure the AnchorStateRegistry is different.
+        vm.assume(_anchorStateRegistry != address(anchorStateRegistry));
+
+        // Mock the gameProxy's AnchorStateRegistry to be a different address.
+        vm.mockCall(
+            address(gameProxy), abi.encodeCall(gameProxy.anchorStateRegistry, ()), abi.encode(_anchorStateRegistry)
+        );
+
+        // Game should not be registered.
         assertFalse(anchorStateRegistry.isGameRegistered(gameProxy));
     }
 }
@@ -262,7 +328,7 @@ contract AnchorStateRegistry_IsGameRetired_Test is AnchorStateRegistry_Init {
         // Make sure createdAt timestamp is less than or equal to the retirementTimestamp.
         _createdAtTimestamp = uint64(bound(_createdAtTimestamp, 0, anchorStateRegistry.retirementTimestamp()));
 
-        // Mock the respectedGameTypeUpdatedAt call.
+        // Mock the createdAt call.
         vm.mockCall(address(gameProxy), abi.encodeCall(gameProxy.createdAt, ()), abi.encode(_createdAtTimestamp));
 
         // Game should be retired.
@@ -339,7 +405,7 @@ contract AnchorStateRegistry_IsGameProper_Test is AnchorStateRegistry_Init {
     function test_isGameProper_superchainPaused_succeeds() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Game should not be proper.
         assertFalse(anchorStateRegistry.isGameProper(gameProxy));
@@ -582,7 +648,7 @@ contract AnchorStateRegistry_IsGameClaimValid_Test is AnchorStateRegistry_Init {
     function test_isGameClaimValid_superchainPaused_succeeds() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Game should not be valid.
         assertFalse(anchorStateRegistry.isGameClaimValid(gameProxy));
@@ -883,7 +949,7 @@ contract AnchorStateRegistry_SetAnchorState_TestFail is AnchorStateRegistry_Init
     function test_setAnchorState_superchainPaused_fails() public {
         // Pause the superchain.
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("testing");
+        superchainConfig.pause(address(0));
 
         // Update the anchor state.
         vm.prank(address(gameProxy));

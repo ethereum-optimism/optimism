@@ -20,6 +20,11 @@ const (
 	eventFlagHasExecutingMessage = byte(1)
 )
 
+var (
+	errIteratorStoppedButNoSealedBlock = errors.New("iterator stopped but no sealed block found")
+	errUnexpectedLogSkip               = errors.New("unexpected log-skip")
+)
+
 type Metrics interface {
 	RecordDBEntryCount(kind string, count int64)
 	RecordDBSearchEntriesRead(count int64)
@@ -152,7 +157,7 @@ func (db *DB) FindSealedBlock(number uint64) (seal types.BlockSeal, err error) {
 		panic("expected block")
 	}
 	if n != number {
-		panic(fmt.Errorf("found block seal %s %d does not match expected block number %d", h, n, number))
+		panic(fmt.Sprintf("found block seal %s %d does not match expected block number %d", h, n, number))
 	}
 	timestamp, ok := iter.SealedTimestamp()
 	if !ok {
@@ -324,7 +329,7 @@ func (db *DB) Contains(query types.ContainsQuery) (types.BlockSeal, error) {
 	if errors.Is(err, types.ErrStop) {
 		h, n, ok := iter.SealedBlock()
 		if !ok {
-			return types.BlockSeal{}, fmt.Errorf("iterator stopped but no sealed block found")
+			return types.BlockSeal{}, errIteratorStoppedButNoSealedBlock
 		}
 		t, _ := iter.SealedTimestamp()
 		// check the timestamp invariant on the result
@@ -374,7 +379,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (common.Hash, Iterator
 	if _, x, ok := iter.SealedBlock(); !ok {
 		panic("expected block")
 	} else if x < blockNum-1 {
-		panic(fmt.Errorf("bug in newIteratorAt, expected to have found parent block %d but got %d", blockNum-1, x))
+		panic(fmt.Sprintf("bug in newIteratorAt, expected to have found parent block %d but got %d", blockNum-1, x))
 	} else if x > blockNum-1 {
 		return common.Hash{}, nil, fmt.Errorf("log does not exist, found next block already: %w", types.ErrConflict)
 	}
@@ -382,7 +387,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (common.Hash, Iterator
 	if !ok {
 		panic("expected init message")
 	} else if x != logIdx {
-		panic(fmt.Errorf("bug in newIteratorAt, expected to have found log %d but got %d", logIdx, x))
+		panic(fmt.Sprintf("bug in newIteratorAt, expected to have found log %d but got %d", logIdx, x))
 	}
 	return logHash, iter, nil
 }
@@ -460,7 +465,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 		if idx+1 == logIndex {
 			break // the NextInitMsg call will position the iterator at the re
 		}
-		return nil, fmt.Errorf("unexpected log-skip at block %d log %d", blockNum, idx)
+		return nil, fmt.Errorf("%w: at block %d log %d", errUnexpectedLogSkip, blockNum, idx)
 	}
 	return iter, nil
 }

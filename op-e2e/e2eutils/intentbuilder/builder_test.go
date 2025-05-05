@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -118,10 +119,10 @@ func TestBuilder(t *testing.T) {
 		ConfigType:            state.IntentTypeCustom,
 		L1ChainID:             1,
 		SuperchainConfigProxy: &superchainConfigProxyAddr,
-		SuperchainRoles: &state.SuperchainRoles{
-			ProxyAdminOwner:       common.HexToAddress("0xaaaa"),
-			Guardian:              common.HexToAddress("0xbbbb"),
-			ProtocolVersionsOwner: common.HexToAddress("0xcccc"),
+		SuperchainRoles: &addresses.SuperchainRoles{
+			SuperchainProxyAdminOwner: common.HexToAddress("0xaaaa"),
+			SuperchainGuardian:        common.HexToAddress("0xbbbb"),
+			ProtocolVersionsOwner:     common.HexToAddress("0xcccc"),
 		},
 		L1DevGenesisParams: &l1Params,
 		L1ContractsLocator: &artifacts.Locator{

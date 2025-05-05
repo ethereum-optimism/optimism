@@ -32,8 +32,7 @@ func (n *L1ELNode) hydrate(system stack.ExtensibleSystem) {
 			ChainID:      n.id.ChainID,
 		},
 	})
-	l1ID := system.L1NetworkID(n.id.ChainID)
-	l1Net := system.L1Network(l1ID)
+	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID))
 	l1Net.(stack.ExtensibleL1Network).AddL1ELNode(frontend)
 }
 
@@ -50,8 +49,7 @@ func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
 		ID:           n.id,
 		Client:       beaconCl,
 	})
-	l1ID := system.L1NetworkID(n.id.ChainID)
-	l1Net := system.L1Network(l1ID)
+	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID))
 	l1Net.(stack.ExtensibleL1Network).AddL1CLNode(frontend)
 }
 

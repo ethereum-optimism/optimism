@@ -1,30 +1,26 @@
 # Cannon Overview
 
 Cannon has two main components:
-- Onchain `MIPS.sol`: EVM implementation to verify execution of a single MIPS instruction.
+- Onchain `MIPS64.sol`: EVM implementation to verify execution of a single MIPS instruction.
 - Offchain `mipsevm`: Go implementation to produce a proof for any MIPS instruction to verify onchain.
 
 Between these two modes of operation, the [witness data](#witness-data) is essential,
 to reproduce the same instruction onchain as offchain.
 
-## Onchain `MIPS.sol`
+## Onchain `MIPS64.sol`
 
-This is an onchain implementation of big-endian 32-bit MIPS instruction execution.
-This covers MIPS III, R3000, as required by the `mips` Go compiler/runtime target.
+This is an onchain implementation of big-endian 64-bit MIPS instruction execution.
+This covers the MIPS64 Release 1 (MIPS64r1) instruction set, as required by the mips64
+Go compiler/runtime target.
 
 The syscall instruction is implemented to simulate a minimal subset of the Linux kernel,
 just enough to serve the needs of a basic Go program:
 allocate memory, read/write to certain file-descriptors, and exit.
 
-Note that this does not include concurrency related system calls: when running Go programs,
-the GC has to be disabled, since it runs concurrently.
-This is done by patching out specific runtime functions that start the GC,
-by simply inserting jumps to the return-address, before the functions spin up any additional threads.
-
 
 ## Offchain `mipsevm`
 
-This is an instrumented emulator, also running big-endian 32-bit MIPS, that executes one step at a time,
+This is an instrumented emulator, also running big-endian 64-bit MIPS, that executes one step at a time,
 and maintains the same state as used for onchain execution.
 The difference is that it has access to the full memory, and pre-image oracle.
 And as it executes each step, it can optionally produce the witness data for the step, to repeat it onchain.
@@ -64,8 +60,8 @@ This added a lot of complexity, as there would be multiple dynamically-sized MPT
 with read and write operations, during a single instruction.
 
 Instead, memory in Cannon is now represented as a binary merkle tree:
-The tree has a fixed-depth of 27 levels, with leaf values of 32 bytes each.
-This spans the full 32-bit address space: `2**27 * 32 = 2**32`.
+The tree has a fixed-depth of 59 levels, with leaf values of 32 bytes each.
+This spans the full 64-bit address space: `2**59 * 32 = 2**59 * 2**5 = 2**(59 + 5) = 2**64`.
 Each leaf contains the memory at that part of the tree.
 
 The tree is efficiently allocated, since the root of fully zeroed sub-trees
@@ -76,8 +72,8 @@ Nodes in this memory tree are combined as: `out = keccak256(left ++ right)`, whe
 and `left` and `right` are the 32-byte outputs of the respective sub-trees or the leaf values themselves.
 Individual leaf nodes are not hashed.
 
-The proof format is a concatenated byte array of 28 `bytes32`. The first `bytes32` is the leaf value,
-and the remaining 27 `bytes32` are the sibling nodes up till the root of the tree,
+The proof format is a concatenated byte array of 60 `bytes32`. The first `bytes32` is the leaf value,
+and the remaining 59 `bytes32` are the sibling nodes up till the root of the tree,
 along the branch of the leaf value, starting from the bottom.
 
 To verify the proof, start with the leaf value as `node`, and combine it with respective sibling values:
@@ -89,8 +85,8 @@ where the write is over the same memory as was last read.
 
 The memory access is specifically:
 - instruction (4 byte) read at `PC`
-- load or syscall mem read, always aligned 4 bytes, read at any `addr`
-- store or syscall mem write, always aligned 4 bytes, at the same `addr`
+- load or syscall mem read, always 8-byte aligned, reading up to 8 bytes at any `addr`
+- store or syscall mem write, always 8-byte aligned, writing up to 8 bytes at the same `addr`
 
 Writing only once, at the last read leaf, also means that the leaf can be safely updated and the same proof-data
 that was used to verify the read, can be used to reconstruct the new `memRoot` of the memory tree,
@@ -108,7 +104,7 @@ The data is loaded into `PreimageOracle.sol` using the respective loading functi
 And then retrieved during execution of the `read` syscall.
 
 Note that although the oracle provides up to 32 bytes of the pre-image,
-Cannon only supports reading at most 4 bytes at a time, to unify the memory operations with regular load/stores.
+Cannon only supports reading up to 8 bytes at a time, to unify the memory operations with regular load/stores.
 
 
 ## Usage in Dispute Game

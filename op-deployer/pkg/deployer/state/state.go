@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -41,11 +42,14 @@ type State struct {
 	// SuperchainDeployment contains the addresses of the Superchain
 	// deployment. It only contains the proxies because the implementations
 	// can be looked up on chain.
-	SuperchainDeployment *SuperchainDeployment `json:"superchainDeployment"`
+	SuperchainDeployment *addresses.SuperchainContracts `json:"superchainContracts"`
+
+	// SuperchainRoles contains the addresses of the Superchain roles.
+	SuperchainRoles *addresses.SuperchainRoles `json:"superchainRoles"`
 
 	// ImplementationsDeployment contains the addresses of the common implementation
 	// contracts required for the Superchain to function.
-	ImplementationsDeployment *ImplementationsDeployment `json:"implementationsDeployment"`
+	ImplementationsDeployment *addresses.ImplementationsContracts `json:"implementationsDeployment"`
 
 	// Chains contains data about L2 chain deployments.
 	Chains []*ChainState `json:"opChainDeployments"`
@@ -77,34 +81,6 @@ func (s *State) Chain(id common.Hash) (*ChainState, error) {
 	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
-type SuperchainDeployment struct {
-	ProxyAdminAddress            common.Address `json:"proxyAdminAddress"`
-	SuperchainConfigProxyAddress common.Address `json:"superchainConfigProxyAddress"`
-	SuperchainConfigImplAddress  common.Address `json:"superchainConfigImplAddress"`
-	ProtocolVersionsProxyAddress common.Address `json:"protocolVersionsProxyAddress"`
-	ProtocolVersionsImplAddress  common.Address `json:"protocolVersionsImplAddress"`
-}
-
-type ImplementationsDeployment struct {
-	OpcmAddress                             common.Address `json:"opcmAddress"`
-	OpcmGameTypeAdderAddress                common.Address `json:"opcmGameTypeAdderAddress"`
-	OpcmDeployerAddress                     common.Address `json:"opcmDeployerAddress"`
-	OpcmUpgraderAddress                     common.Address `json:"opcmUpgraderAddress"`
-	OpcmInteropMigratorAddress              common.Address `json:"opcmInteropMigratorAddress"`
-	DelayedWETHImplAddress                  common.Address `json:"delayedWETHImplAddress"`
-	OptimismPortalImplAddress               common.Address `json:"optimismPortalImplAddress"`
-	ETHLockboxImplAddress                   common.Address `json:"ethLockboxImplAddress"`
-	PreimageOracleSingletonAddress          common.Address `json:"preimageOracleSingletonAddress"`
-	MipsSingletonAddress                    common.Address `json:"mipsSingletonAddress"`
-	SystemConfigImplAddress                 common.Address `json:"systemConfigImplAddress"`
-	L1CrossDomainMessengerImplAddress       common.Address `json:"l1CrossDomainMessengerImplAddress"`
-	L1ERC721BridgeImplAddress               common.Address `json:"l1ERC721BridgeImplAddress"`
-	L1StandardBridgeImplAddress             common.Address `json:"l1StandardBridgeImplAddress"`
-	OptimismMintableERC20FactoryImplAddress common.Address `json:"optimismMintableERC20FactoryImplAddress"`
-	DisputeGameFactoryImplAddress           common.Address `json:"disputeGameFactoryImplAddress"`
-	AnchorStateRegistryImplAddress          common.Address `json:"anchorStateRegistryImplAddress"`
-}
-
 type AdditionalDisputeGameState struct {
 	GameType      uint32
 	GameAddress   common.Address
@@ -116,24 +92,9 @@ type AdditionalDisputeGameState struct {
 type ChainState struct {
 	ID common.Hash `json:"id"`
 
-	ProxyAdminAddress                         common.Address               `json:"proxyAdminAddress"`
-	AddressManagerAddress                     common.Address               `json:"addressManagerAddress"`
-	L1ERC721BridgeProxyAddress                common.Address               `json:"l1ERC721BridgeProxyAddress"`
-	SystemConfigProxyAddress                  common.Address               `json:"systemConfigProxyAddress"`
-	OptimismMintableERC20FactoryProxyAddress  common.Address               `json:"optimismMintableERC20FactoryProxyAddress"`
-	L1StandardBridgeProxyAddress              common.Address               `json:"l1StandardBridgeProxyAddress"`
-	L1CrossDomainMessengerProxyAddress        common.Address               `json:"l1CrossDomainMessengerProxyAddress"`
-	OptimismPortalProxyAddress                common.Address               `json:"optimismPortalProxyAddress"`
-	ETHLockboxProxyAddress                    common.Address               `json:"ethLockboxProxyAddress"`
-	DisputeGameFactoryProxyAddress            common.Address               `json:"disputeGameFactoryProxyAddress"`
-	AnchorStateRegistryProxyAddress           common.Address               `json:"anchorStateRegistryProxyAddress"`
-	FaultDisputeGameAddress                   common.Address               `json:"faultDisputeGameAddress"`
-	PermissionedDisputeGameAddress            common.Address               `json:"permissionedDisputeGameAddress"`
-	DelayedWETHPermissionedGameProxyAddress   common.Address               `json:"delayedWETHPermissionedGameProxyAddress"`
-	DelayedWETHPermissionlessGameProxyAddress common.Address               `json:"delayedWETHPermissionlessGameProxyAddress"`
-	DataAvailabilityChallengeProxyAddress     common.Address               `json:"dataAvailabilityChallengeProxyAddress"`
-	DataAvailabilityChallengeImplAddress      common.Address               `json:"dataAvailabilityChallengeImplAddress"`
-	AdditionalDisputeGames                    []AdditionalDisputeGameState `json:"additionalDisputeGames"`
+	addresses.OpChainContracts
+
+	AdditionalDisputeGames []AdditionalDisputeGameState `json:"additionalDisputeGames"`
 
 	Allocs *GzipData[foundry.ForgeAllocs] `json:"allocs"`
 

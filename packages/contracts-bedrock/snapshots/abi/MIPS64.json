@@ -5,6 +5,11 @@
         "internalType": "contract IPreimageOracle",
         "name": "_oracle",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_stateVersion",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -18,6 +23,19 @@
         "internalType": "contract IPreimageOracle",
         "name": "oracle_",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "stateVersion",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "stateVersion_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -88,6 +106,11 @@
   {
     "inputs": [],
     "name": "InvalidSecondMemoryProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnsupportedStateVersion",
     "type": "error"
   }
 ]

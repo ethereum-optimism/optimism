@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/exp/maps"
 )
 
@@ -27,21 +26,6 @@ const (
 )
 
 type Word = arch.Word
-
-func HashPair(left, right [32]byte) [32]byte {
-	out := crypto.Keccak256Hash(left[:], right[:])
-	//fmt.Printf("0x%x 0x%x -> 0x%x\n", left, right, out)
-	return out
-}
-
-var zeroHashes = func() [256][32]byte {
-	// empty parts of the tree are all zero. Precompute the hash of each full-zero range sub-tree level.
-	var out [256][32]byte
-	for i := 1; i < 256; i++ {
-		out[i] = HashPair(out[i-1], out[i-1])
-	}
-	return out
-}()
 
 type Memory struct {
 	merkleIndex PageIndex
@@ -155,7 +139,7 @@ func (m *Memory) SetWord(addr Word, v Word) {
 		// Go may mmap relatively large ranges, but we only allocate the pages just in time.
 		p = m.AllocPage(pageIndex)
 	} else {
-		prevValid := p.Ok[1]
+		prevValid := p.getBit(1)
 		p.invalidate(pageAddr)
 		if prevValid {
 			m.merkleIndex.Invalidate(addr) // invalidate this branch of memory, now that the value changed
@@ -177,7 +161,7 @@ func (m *Memory) GetWord(addr Word) Word {
 		return 0
 	}
 	pageAddr := addr & PageAddrMask
-	return arch.ByteOrderWord.Word(p.Data[pageAddr : pageAddr+arch.WordSizeBytes])
+	return arch.ByteOrderWord.Word(p.Data[pageAddr : pageAddr+arch.WordSizeBytes : pageAddr+arch.WordSizeBytes])
 }
 
 func (m *Memory) AllocPage(pageIndex Word) *CachedPage {

@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.9")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.10")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -34,12 +34,10 @@ acceptance-test devnet="simple" gate="holocene":
             exit 0
         fi
 
-        # Run the appropriate devnet from the kurtosis-devnet directory if needed.
-        # Note: For now, due to a known bug, we ignore failures here
-        #       because if the devnet is already running then this command will fail.
-        just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+        # Run the appropriate devnet
+        just {{KURTOSIS_DIR}}/{{ devnet }}-devnet
 
-        # Print which binary is being used (for debugging)
+        # Print which binary is being used
         BINARY_PATH=$(mise which op-acceptor)
         echo "Using mise-managed binary: $BINARY_PATH"
 
@@ -62,8 +60,7 @@ acceptance-test-docker devnet="simple" gate="holocene":
     echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
 
     # First run the appropriate devnet from the kurtosis-devnet directory if needed.
-    # We ignore failures here because if the devnet is already running then this command will fail.
-    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet
 
     # Print which image is being used (for debugging)
     echo "Using acceptor image: {{ACCEPTOR_IMAGE}}"

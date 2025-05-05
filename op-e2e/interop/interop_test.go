@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -253,8 +252,6 @@ func TestInterop_EmitLogs(t *testing.T) {
 
 func TestInteropBlockBuilding(t *testing.T) {
 	t.Parallel()
-	logger := testlog.Logger(t, log.LevelInfo)
-	oplog.SetGlobalLogHandler(logger.Handler())
 
 	test := func(t *testing.T, s2 SuperSystem) {
 		ids := s2.L2IDs()
@@ -440,6 +437,12 @@ func TestProposals(t *testing.T) {
 			t.Logf("Current game count: %v", count)
 			return count > 0
 		}, 5*time.Minute, time.Second)
+
+		head, err := ethClient.BlockByNumber(context.Background(), nil)
+		require.NoError(t, err)
+		game, err := factory.GetGame(context.Background(), 0, head.Hash())
+		require.NoError(t, err)
+		require.Equal(t, uint32(4) /* super permissionless */, game.GameType)
 	}
 	setupAndRun(t, SuperSystemConfig{}, test)
 }

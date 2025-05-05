@@ -2,12 +2,15 @@ package logs
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+var errLogIndexTooLarge = errors.New("log index is too large")
 
 // searchCheckpoint is both a checkpoint for searching, as well as a checkpoint for sealing blocks.
 type searchCheckpoint struct {
@@ -116,7 +119,7 @@ type executingLink struct {
 
 func newExecutingLink(msg types.ExecutingMessage) (executingLink, error) {
 	if msg.LogIdx > 1<<24 {
-		return executingLink{}, fmt.Errorf("log idx is too large (%v)", msg.LogIdx)
+		return executingLink{}, fmt.Errorf("%w: %v", errLogIndexTooLarge, msg.LogIdx)
 	}
 	return executingLink{
 		chain:     uint32(msg.Chain),

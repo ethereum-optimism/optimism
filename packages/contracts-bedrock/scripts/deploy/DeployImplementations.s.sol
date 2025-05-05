@@ -15,6 +15,7 @@ import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import {
@@ -361,7 +362,6 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         require(address(portal.anchorStateRegistry()) == address(0), "PORTAL-10");
         require(address(portal.systemConfig()) == address(0), "PORTAL-20");
-        require(address(portal.superchainConfig()) == address(0), "PORTAL-30");
         require(portal.l2Sender() == address(0), "PORTAL-40");
 
         // This slot is the custom gas token _balance and this check ensures
@@ -376,7 +376,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(lockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(address(lockbox.superchainConfig()) == address(0), "ELB-10");
+        require(address(lockbox.systemConfig()) == address(0), "ELB-10");
         require(lockbox.authorizedPortals(optimismPortalImpl()) == false, "ELB-20");
     }
 
@@ -385,9 +385,8 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(delayedWETH), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(delayedWETH.owner() == address(0), "DW-10");
-        require(delayedWETH.delay() == _dii.withdrawalDelaySeconds(), "DW-20");
-        require(delayedWETH.config() == ISuperchainConfig(address(0)), "DW-30");
+        require(delayedWETH.delay() == _dii.withdrawalDelaySeconds(), "DW-10");
+        require(delayedWETH.systemConfig() == ISystemConfig(address(0)), "DW-20");
     }
 
     function assertValidPreimageOracleSingleton(DeployImplementationsInput _dii) internal view {
@@ -431,6 +430,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(systemConfig.l1StandardBridge() == address(0), "SYSCON-190");
         require(systemConfig.optimismPortal() == address(0), "SYSCON-200");
         require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-210");
+        require(systemConfig.superchainConfig() == ISuperchainConfig(address(0)), "SYSCON-220");
     }
 
     function assertValidL1CrossDomainMessengerImpl(DeployImplementationsInput) internal view {
@@ -442,7 +442,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(address(messenger.otherMessenger()) == address(0), "L1xDM-20");
         require(address(messenger.PORTAL()) == address(0), "L1xDM-30");
         require(address(messenger.portal()) == address(0), "L1xDM-40");
-        require(address(messenger.superchainConfig()) == address(0), "L1xDM-50");
+        require(address(messenger.systemConfig()) == address(0), "L1xDM-50");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == address(0), "L1xDM-60");
@@ -457,7 +457,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(address(bridge.otherBridge()) == address(0), "L721B-20");
         require(address(bridge.MESSENGER()) == address(0), "L721B-30");
         require(address(bridge.messenger()) == address(0), "L721B-40");
-        require(address(bridge.superchainConfig()) == address(0), "L721B-50");
+        require(address(bridge.systemConfig()) == address(0), "L721B-50");
     }
 
     function assertValidL1StandardBridgeImpl(DeployImplementationsInput) internal view {
@@ -469,7 +469,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(address(bridge.messenger()) == address(0), "L1SB-20");
         require(address(bridge.OTHER_BRIDGE()) == address(0), "L1SB-30");
         require(address(bridge.otherBridge()) == address(0), "L1SB-40");
-        require(address(bridge.superchainConfig()) == address(0), "L1SB-50");
+        require(address(bridge.systemConfig()) == address(0), "L1SB-50");
     }
 
     function assertValidOptimismMintableERC20FactoryImpl(DeployImplementationsInput) internal view {
@@ -842,7 +842,7 @@ contract DeployImplementations is Script {
         IPreimageOracle preimageOracle = IPreimageOracle(address(_dio.preimageOracleSingleton()));
 
         // We want to ensure that the OPCM for upgrade 13 is deployed with Mips32 on production networks.
-        if (mipsVersion != 2) {
+        if (mipsVersion < 2) {
             if (block.chainid == Chains.Mainnet || block.chainid == Chains.Sepolia) {
                 revert("DeployImplementations: Only Mips64 should be deployed on Mainnet or Sepolia");
             }
@@ -850,9 +850,9 @@ contract DeployImplementations is Script {
 
         IMIPS singleton = IMIPS(
             DeployUtils.createDeterministic({
-                _name: mipsVersion == 1 ? "MIPS" : "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (preimageOracle))),
-                _salt: _salt
+                _name: "MIPS64",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (preimageOracle, mipsVersion))),
+                _salt: DeployUtils.DEFAULT_SALT
             })
         );
         vm.label(address(singleton), "MIPSSingleton");

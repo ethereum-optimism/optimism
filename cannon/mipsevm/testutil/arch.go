@@ -5,7 +5,6 @@ package testutil
 import (
 	"bytes"
 	"fmt"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -62,13 +61,6 @@ func RandomizeWordAndSetUint32(mem *memory.Memory, addr Word, val uint32, random
 // Useful for avoiding Go compiler warnings for literals that don't fit in a signed type
 func ToSignedInteger(x Word) arch.SignedInteger {
 	return arch.SignedInteger(x)
-}
-
-// Cannon32OnlyTest skips the test if it's not a cannon64 build
-func Cannon32OnlyTest(t testing.TB, msg string, args ...any) {
-	if !arch.IsMips32 {
-		t.Skipf(msg, args...)
-	}
 }
 
 // FlipSign flips the sign of a 2's complement Word

@@ -56,7 +56,8 @@ import {
     GameNotFinalized,
     InvalidBondDistributionMode,
     GameNotResolved,
-    ReservedGameType
+    ReservedGameType,
+    GamePaused
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -170,9 +171,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0
+    /// @custom:semver 1.6.0
     function version() public pure virtual returns (string memory) {
-        return "1.5.0";
+        return "1.6.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -996,6 +997,15 @@ contract FaultDisputeGame is Clone, ISemver {
     /// @notice Closes out the game, determines the bond distribution mode, attempts to register
     ///         the game as the anchor game, and emits an event.
     function closeGame() public {
+        // We won't close the game if the system is currently paused. Paused games are temporarily
+        // invalid which would cause the game to go into refund mode and potentially cause some
+        // confusion for honest challengers. By blocking the game from being closed while the
+        // system is paused, the game will only go into refund mode if it ends up being explicitly
+        // invalidated in the AnchorStateRegistry.
+        if (ANCHOR_STATE_REGISTRY.paused()) {
+            revert GamePaused();
+        }
+
         // If the bond distribution mode has already been determined, we can return early.
         if (bondDistributionMode == BondDistributionMode.REFUND || bondDistributionMode == BondDistributionMode.NORMAL)
         {

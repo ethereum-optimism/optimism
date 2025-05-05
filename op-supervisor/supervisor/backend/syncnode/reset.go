@@ -81,14 +81,15 @@ func (t *resetTracker) bisectToTarget() {
 
 	// initialize the start of the range if it is empty
 	if t.a == (eth.BlockID{}) {
-		t.managed.log.Debug("start of range is empty, finding the first block")
-		var err error
-		t.a, err = t.managed.backend.FindSealedBlock(internalCtx, t.managed.chainID, 0)
+		t.managed.log.Debug("Start of range is empty, fetching the anchor block as starting point")
+		anchor, err := t.managed.backend.AnchorPoint(internalCtx, t.managed.chainID)
 		if err != nil {
 			t.managed.log.Error("failed to initialize start of bisection range", "err", err)
 			t.endReset()
 			return
 		}
+		t.managed.log.Debug("Start of range is set to anchor point", "anchor", anchor)
+		t.a = anchor.Derived.ID()
 	}
 
 	// before starting bisection, check if z is already consistent (i.e. the node is ahead but otherwise consistent)
@@ -166,15 +167,20 @@ func (t *resetTracker) bisect() error {
 		}
 	}
 
-	// check if the block at i is consistent with the logs db
-	// and update the search range accordingly
+	// Check if the block at i is consistent with the local-safe DB,
+	// if we do not know it yet, then fall back to the local-unsafe blocks (logs DB)
+	// and update the search range accordingly.
 	nodeI := nodeIRef.ID()
-	err = t.managed.backend.IsLocalUnsafe(internalCtx, t.managed.chainID, nodeI)
+	err = t.managed.backend.IsLocalSafe(internalCtx, t.managed.chainID, nodeI)
+	if errors.Is(err, types.ErrFuture) {
+		t.managed.log.Debug("No local-safe reference for reset bisection, falling back to local-unsafe", "i", i)
+		err = t.managed.backend.IsLocalUnsafe(internalCtx, t.managed.chainID, nodeI)
+	}
 	if err != nil {
-		t.managed.log.Trace("midpoint of range is inconsistent with logs db. pulling back end of range", "i", i)
+		t.managed.log.Debug("midpoint of range is inconsistent. pulling back end of range", "i", i)
 		t.z = nodeI
 	} else {
-		t.managed.log.Trace("midpoint of range is consistent with logs db. pushing up start of range", "i", i)
+		t.managed.log.Debug("midpoint of range is consistent. pushing up start of range", "i", i)
 		t.a = nodeI
 	}
 	return nil

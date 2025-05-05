@@ -92,7 +92,7 @@ func TestEventResponse(t *testing.T) {
 
 func TestPrepareReset(t *testing.T) {
 	chainID := eth.ChainIDFromUInt64(1)
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LvlDebug)
 	syncCtrl := &mockSyncControl{}
 	backend := &mockBackend{}
 
@@ -112,7 +112,7 @@ func TestPrepareReset(t *testing.T) {
 
 	// mock: control whether the blocks appear valid or not
 	var pivot uint64
-	backend.isLocalUnsafeFn = func(ctx context.Context, chainID eth.ChainID, id eth.BlockID) error {
+	backend.isLocalSafeFn = func(ctx context.Context, chainID eth.ChainID, id eth.BlockID) error {
 		if id.Number > uint64(pivot) {
 			return types.ErrConflict
 		}

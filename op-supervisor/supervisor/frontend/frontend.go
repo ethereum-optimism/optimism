@@ -85,3 +85,9 @@ func (a *AdminFrontend) Stop(ctx context.Context) error {
 func (a *AdminFrontend) AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.Bytes32) error {
 	return a.Supervisor.AddL2RPC(ctx, rpc, jwtSecret)
 }
+
+// Rewind removes some L2 chain data from the supervisor backend, starting from the given block.
+func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
+	// TODO(#15665) add logging here to track when rewinds are requested
+	return a.Supervisor.Rewind(ctx, chain, block)
+}

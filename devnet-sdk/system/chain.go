@@ -218,7 +218,7 @@ func newChain(chainID string, wallets WalletMap, chainConfig *params.ChainConfig
 func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
 
-	nodes := newNodesFromDescriptor(&d.Chain)
+	nodes := newNodesFromDescriptor(d.Chain)
 	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses), nodes) // Create chain first
 
 	l2Wallets, err := newWalletMapFromDescriptorWalletMap(d.Wallets, c)

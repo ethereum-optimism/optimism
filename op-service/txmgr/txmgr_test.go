@@ -1686,3 +1686,81 @@ func TestSendAsyncUnbufferedChan(t *testing.T) {
 		h.mgr.SendAsync(context.Background(), TxCandidate{}, make(chan SendResponse))
 	})
 }
+
+// TestIncreaseGasPriceSigningError tests that the increaseGasPrice function
+// correctly returns an error when signing fails, rather than returning the
+// original transaction with a nil error.
+func TestIncreaseGasPriceSigningError(t *testing.T) {
+	signingError := errors.New("signing failed")
+	cfg := configWithNumConfs(1)
+	cfg.Signer = func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		return nil, signingError
+	}
+	h := newTestHarnessWithConfig(t, cfg)
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: h.gasPricer.baseGasTipFee,
+		GasFeeCap: h.gasPricer.baseBaseFee,
+	})
+
+	newTx, err := h.mgr.increaseGasPrice(context.Background(), tx)
+
+	require.Nil(t, newTx, "Expected nil transaction when signing fails")
+	require.ErrorIs(t, err, signingError, "Expected signing error to be returned")
+}
+
+// TestIncreaseGasPriceSigningErrorWithSend tests the error handling path when signing fails
+// during a transaction fee bump. Previously, the increaseGasPrice function would return the
+// original transaction (tx, nil) when signing failed, silently ignoring the signing error.
+// That would lead to a condition where sendState.bumpFees was false and the transaction
+// would be stuck.
+// The test simulates a specific sequence of events:
+// 1. First attempt gets ErrUnderpriced, triggering a fee bump
+// 2. First fee bump attempt fails with a signing error
+// 3. Second fee bump attempt succeeds, transaction is mined
+// This verifies that the error doesn't abort the transaction entirely, and the system
+// can recover when signing later succeeds.
+func TestIncreaseGasPriceSigningErrorWithSend(t *testing.T) {
+	t.Parallel()
+
+	signingError := errors.New("signing failed")
+	sendTxCount := 0
+	var signedHash common.Hash
+	cfg := configWithNumConfs(1)
+	h := newTestHarnessWithConfig(t, cfg)
+
+	cfg.Signer = func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		if sendTxCount != 2 {
+			return nil, signingError
+		}
+		signedHash = tx.Hash()
+		return tx, nil
+	}
+
+	h.backend.setTxSender(func(ctx context.Context, tx *types.Transaction) error {
+		if sendTxCount == 0 {
+			sendTxCount = 1
+			return txpool.ErrUnderpriced
+		} else if sendTxCount == 1 {
+			sendTxCount = 2
+			return txpool.ErrAlreadyKnown
+		} else if tx.Hash() == signedHash {
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, tx.GasFeeCap(), nil)
+			return nil
+		} else {
+			return signingError
+		}
+	})
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: h.gasPricer.baseGasTipFee,
+		GasFeeCap: h.gasPricer.baseBaseFee,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	receipt, err := h.mgr.sendTx(ctx, tx)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
+}

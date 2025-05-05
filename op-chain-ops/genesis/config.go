@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -1000,6 +1001,15 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
+func (d *DeployConfig) SetContracts(contracts *addresses.L1Contracts) {
+	d.L1StandardBridgeProxy = contracts.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = contracts.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = contracts.L1Erc721BridgeProxy
+	d.SystemConfigProxy = contracts.SystemConfigProxy
+	d.OptimismPortalProxy = contracts.OptimismPortalProxy
+	d.DAChallengeProxy = contracts.AltDAChallengeProxy
+}
+
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
 func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
@@ -1132,6 +1142,34 @@ type L1Deployments struct {
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
 	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
 	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
+}
+
+func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
+	return &L1Deployments{
+		AddressManager:                    contracts.AddressManagerImpl,
+		DisputeGameFactory:                contracts.DisputeGameFactoryImpl,
+		DisputeGameFactoryProxy:           contracts.DisputeGameFactoryProxy,
+		L1CrossDomainMessenger:            contracts.L1CrossDomainMessengerImpl,
+		L1CrossDomainMessengerProxy:       contracts.L1CrossDomainMessengerProxy,
+		L1ERC721Bridge:                    contracts.L1Erc721BridgeImpl,
+		L1ERC721BridgeProxy:               contracts.L1Erc721BridgeProxy,
+		L1StandardBridge:                  contracts.L1StandardBridgeImpl,
+		L1StandardBridgeProxy:             contracts.L1StandardBridgeProxy,
+		L2OutputOracleProxy:               contracts.L2OutputOracleProxy,
+		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
+		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
+		OptimismPortal:                    contracts.OptimismPortalImpl,
+		OptimismPortalProxy:               contracts.OptimismPortalProxy,
+		ETHLockbox:                        contracts.EthLockboxImpl,
+		ETHLockboxProxy:                   contracts.EthLockboxProxy,
+		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
+		SystemConfig:                      contracts.SystemConfigImpl,
+		SystemConfigProxy:                 contracts.SystemConfigProxy,
+		ProtocolVersions:                  contracts.ProtocolVersionsImpl,
+		ProtocolVersionsProxy:             contracts.ProtocolVersionsProxy,
+		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
+		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
+	}
 }
 
 // GetName will return the name of the contract given an address.

@@ -59,7 +59,6 @@ var descriptions = map[string]string{
 	"PORTAL-40": "OptimismPortal systemConfig address mismatch",
 	"PORTAL-50": "OptimismPortal superchainConfig address mismatch",
 	"PORTAL-60": "OptimismPortal guardian address mismatch",
-	"PORTAL-70": "OptimismPortal paused state mismatch with superchainConfig",
 	"PORTAL-80": "OptimismPortal l2Sender not set to default value",
 
 	// Dispute Factory validations

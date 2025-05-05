@@ -69,7 +69,7 @@ func deployDisputeGame(
 		lgr.Info("oracle deployed", "oracleAddr", oracleAddr)
 	} else {
 		lgr.Info("using existing preimage oracle")
-		oracleAddr = st.ImplementationsDeployment.PreimageOracleSingletonAddress
+		oracleAddr = st.ImplementationsDeployment.PreimageOracleImpl
 	}
 
 	lgr.Info("deploying VM", "vmType", game.VMType)
@@ -84,14 +84,9 @@ func deployDisputeGame(
 			return fmt.Errorf("failed to deploy Alphabet VM: %w", err)
 		}
 		vmAddr = out.AlphabetVM
-	case state.VMTypeCannon1, state.VMTypeCannon2:
-		mipsVersion := 1
-		if game.VMType == state.VMTypeCannon2 {
-			mipsVersion = 2
-		}
-
+	case state.VMTypeCannon, state.VMTypeCannonNext:
 		out, err := opcm.DeployMIPS(env.L1ScriptHost, opcm.DeployMIPSInput{
-			MipsVersion:    uint64(mipsVersion),
+			MipsVersion:    game.VMType.MipsVersion(),
 			PreimageOracle: oracleAddr,
 		})
 		if err != nil {
@@ -114,8 +109,8 @@ func deployDisputeGame(
 		SplitDepth:               game.DisputeSplitDepth,
 		ClockExtension:           game.DisputeClockExtension,
 		MaxClockDuration:         game.DisputeMaxClockDuration,
-		DelayedWethProxy:         thisState.DelayedWETHPermissionedGameProxyAddress,
-		AnchorStateRegistryProxy: thisState.AnchorStateRegistryProxyAddress,
+		DelayedWethProxy:         thisState.OpChainContracts.DelayedWethPermissionedGameProxy,
+		AnchorStateRegistryProxy: thisState.OpChainContracts.AnchorStateRegistryProxy,
 		L2ChainId:                thisIntent.ID,
 		Proposer:                 thisIntent.Roles.Proposer,
 		Challenger:               thisIntent.Roles.Challenger,
@@ -127,12 +122,12 @@ func deployDisputeGame(
 
 	lgr.Info("setting dispute game impl on factory", "respected", game.MakeRespected)
 	sdgiInput := opcm.SetDisputeGameImplInput{
-		Factory:  thisState.DisputeGameFactoryProxyAddress,
+		Factory:  thisState.OpChainContracts.DisputeGameFactoryProxy,
 		Impl:     out.DisputeGameImpl,
 		GameType: game.DisputeGameType,
 	}
 	if game.MakeRespected {
-		sdgiInput.AnchorStateRegistry = thisState.AnchorStateRegistryProxyAddress
+		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy
 	}
 	if err := opcm.SetDisputeGameImpl(
 		env.L1ScriptHost,

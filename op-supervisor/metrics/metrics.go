@@ -23,6 +23,8 @@ type Metricer interface {
 	RecordDBEntryCount(chainID eth.ChainID, kind string, count int64)
 	RecordDBSearchEntriesRead(chainID eth.ChainID, count int64)
 
+	RecordAccessListVerifyFailure(chainID eth.ChainID)
+
 	Document() []opmetrics.DocumentedMetric
 
 	event.Metrics
@@ -44,6 +46,8 @@ type Metrics struct {
 
 	DBEntryCountVec        *prometheus.GaugeVec
 	DBSearchEntriesReadVec *prometheus.HistogramVec
+
+	AccessListVerifyFailureVec *prometheus.CounterVec
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -129,6 +133,13 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"chain",
 		}),
+		AccessListVerifyFailureVec: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "access_list_verify_failure",
+			Help:      "Number of access list verify failures",
+		}, []string{
+			"chain",
+		}),
 	}
 }
 
@@ -187,4 +198,8 @@ func (m *Metrics) RecordDBSearchEntriesRead(chainID eth.ChainID, count int64) {
 
 func chainIDLabel(chainID eth.ChainID) string {
 	return chainID.String()
+}
+
+func (m *Metrics) RecordAccessListVerifyFailure(chainID eth.ChainID) {
+	m.AccessListVerifyFailureVec.WithLabelValues(chainIDLabel(chainID)).Inc()
 }

@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -279,6 +280,10 @@ func (m *MockMetrics) RecordDBSearchEntriesRead(chainID eth.ChainID, count int64
 	m.Mock.Called(chainID, count)
 }
 
+func (m *MockMetrics) RecordAccessListVerifyFailure(chainID eth.ChainID) {
+	m.Mock.Called(chainID)
+}
+
 type MockProcessorSource struct {
 	mock.Mock
 }
@@ -301,4 +306,137 @@ func (m *MockProcessorSource) BlockRefByNumber(ctx context.Context, num uint64) 
 
 func (m *MockProcessorSource) ExpectBlockRefByNumber(num uint64, ref eth.BlockRef, err error) {
 	m.Mock.On("BlockRefByNumber", num).Return(ref, err)
+}
+
+// fakeSyncSource implements syncnode.SyncSource for testing asyncVerifyAccessWithRPC.
+type fakeSyncSource struct {
+	chainID eth.ChainID
+	seal    types.BlockSeal
+	err     error
+}
+
+func (f *fakeSyncSource) Contains(_ context.Context, _ types.ContainsQuery) (types.BlockSeal, error) {
+	return f.seal, f.err
+}
+
+func (f *fakeSyncSource) ChainID(_ context.Context) (eth.ChainID, error) {
+	return f.chainID, nil
+}
+
+func (f *fakeSyncSource) BlockRefByNumber(_ context.Context, _ uint64) (eth.BlockRef, error) {
+	panic("should not be called")
+}
+
+func (f *fakeSyncSource) FetchReceipts(_ context.Context, _ common.Hash) (types2.Receipts, error) {
+	panic("should not be called")
+}
+
+func (f *fakeSyncSource) OutputV0AtTimestamp(_ context.Context, _ uint64) (*eth.OutputV0, error) {
+	panic("should not be called")
+}
+
+func (f *fakeSyncSource) PendingOutputV0AtTimestamp(_ context.Context, _ uint64) (*eth.OutputV0, error) {
+	panic("should not be called")
+}
+
+func (f *fakeSyncSource) L2BlockRefByTimestamp(_ context.Context, _ uint64) (eth.L2BlockRef, error) {
+	panic("should not be called")
+}
+
+func (f *fakeSyncSource) String() string {
+	return "fakeSyncSource"
+}
+
+// TestAsyncVerifyAccessWithRPC exercises the asyncVerifyAccessWithRPC method against various RPC error and block match/mismatch scenarios.
+// The method is responsible for asynchronously verifying RPC access checks (checksum and block ID matching),
+// and recording metrics when discrepancies are found.
+//
+// The test checks four key scenarios:
+// 1. ErrConflict error + block ID mismatch: Should record 2 failures (one for checksum, one for mismatch)
+// 2. ErrConflict error + matching block ID: Still records a failure for the checksum error
+// 3. Other error (e.g. ErrFuture) + mismatch: Should record failure only for the block mismatch
+// 4. No error + matching block ID: Should record no failures
+func TestAsyncVerifyAccessWithRPC(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelInfo)
+	// Setup a single-chain dependency set
+	chainID := eth.ChainIDFromUInt64(1)
+	depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+		chainID: {ChainIndex: 1, ActivationTime: 0, HistoryMinTime: 0},
+	})
+	require.NoError(t, err)
+
+	// Create and set up mock metrics
+	mockMetrics := &MockMetrics{}
+	// Set up the required method calls that happen during initialization
+	mockMetrics.Mock.On("RecordDBEntryCount", chainID, "log", int64(0)).Return()
+	mockMetrics.Mock.On("RecordDBEntryCount", chainID, "local_derived", int64(0)).Return()
+	mockMetrics.Mock.On("RecordDBEntryCount", chainID, "cross_derived", int64(0)).Return()
+
+	// Initialize backend with mock metrics
+	cfg := &config.Config{
+		Version:               "test",
+		LogConfig:             oplog.CLIConfig{},
+		MetricsConfig:         opmetrics.CLIConfig{},
+		PprofConfig:           oppprof.CLIConfig{},
+		RPC:                   oprpc.CLIConfig{},
+		DependencySetSource:   depSet,
+		SynchronousProcessors: true,
+		MockRun:               false,
+		SyncSources:           &syncnode.CLISyncNodes{},
+		Datadir:               t.TempDir(),
+	}
+	ex := event.NewGlobalSynchronous(context.Background())
+	b, err := NewSupervisorBackend(context.Background(), logger, mockMetrics, cfg, ex)
+	require.NoError(t, err)
+
+	// Prepare the access object (only ChainID matters for metrics)
+	acc := types.Access{ChainID: chainID}
+
+	// Helper to run a scenario and assert metrics calls
+	runScenario := func(name string, stubSeal types.BlockSeal, stubErr error, dbBlock eth.BlockID) {
+		t.Run(name, func(t *testing.T) {
+			// Reset recorded calls
+			mockMetrics.Mock = mock.Mock{}
+
+			// Based on the log output, we observe:
+			// 1. When err=ErrConflict: Logs "RPC access checksum failed" and calls RecordAccessListVerifyFailure
+			// 2. When err!=ErrConflict: Logs "RPC access check failed mechanically" but doesn't record a metric
+			// 3. When seal.ID() != dbBlock: Logs "DB access check result did not match" and calls RecordAccessListVerifyFailure
+
+			// Set expectations for the actual behavior observed
+			if errors.Is(stubErr, types.ErrConflict) {
+				// Error for checksum failure
+				mockMetrics.Mock.On("RecordAccessListVerifyFailure", chainID).Return()
+			}
+
+			// Block ID mismatch will always trigger a metrics call
+			if seal := stubSeal.ID(); seal != dbBlock {
+				mockMetrics.Mock.On("RecordAccessListVerifyFailure", chainID).Return()
+			}
+
+			// Override the sync source to return our stubbed result
+			b.syncSources.Set(chainID, &fakeSyncSource{chainID: chainID, seal: stubSeal, err: stubErr})
+
+			// Invoke the async verification
+			b.asyncVerifyAccessWithRPC(context.Background(), acc, dbBlock)
+
+			// Verify that our expectations were met
+			mockMetrics.Mock.AssertExpectations(t)
+		})
+	}
+
+	// Define a couple of block seals for match vs mismatch
+	sealA := types.BlockSeal{Hash: common.HexToHash("0x1"), Number: 10, Timestamp: 100}
+	idA := sealA.ID()
+	sealB := types.BlockSeal{Hash: common.HexToHash("0x2"), Number: 20, Timestamp: 200}
+	idB := sealB.ID()
+
+	// ErrConflict + mismatch => 2 failures (checksum + mismatch)
+	runScenario("ErrConflict_mismatch", sealA, types.ErrConflict, idB)
+	// ErrConflict + match    => 1 failure  (checksum only)
+	runScenario("ErrConflict_match", sealA, types.ErrConflict, idA)
+	// Other non-conflict error + mismatch => 1 failure (mismatch only)
+	runScenario("OtherErr_mismatch", sealA, types.ErrFuture, idB)
+	// No error + match         => 0 failures
+	runScenario("NoErr_match", sealA, nil, idA)
 }

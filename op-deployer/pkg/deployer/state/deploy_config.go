@@ -38,12 +38,12 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 
 	cfg := genesis.DeployConfig{
 		L1DependenciesConfig: genesis.L1DependenciesConfig{
-			L1StandardBridgeProxy:       chainState.L1StandardBridgeProxyAddress,
-			L1CrossDomainMessengerProxy: chainState.L1CrossDomainMessengerProxyAddress,
-			L1ERC721BridgeProxy:         chainState.L1ERC721BridgeProxyAddress,
-			SystemConfigProxy:           chainState.SystemConfigProxyAddress,
-			OptimismPortalProxy:         chainState.OptimismPortalProxyAddress,
-			ProtocolVersionsProxy:       state.SuperchainDeployment.ProtocolVersionsProxyAddress,
+			L1StandardBridgeProxy:       chainState.L1StandardBridgeProxy,
+			L1CrossDomainMessengerProxy: chainState.L1CrossDomainMessengerProxy,
+			L1ERC721BridgeProxy:         chainState.L1Erc721BridgeProxy,
+			SystemConfigProxy:           chainState.SystemConfigProxy,
+			OptimismPortalProxy:         chainState.OptimismPortalProxy,
+			ProtocolVersionsProxy:       state.SuperchainDeployment.ProtocolVersionsProxy,
 		},
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			DevDeployConfig: genesis.DevDeployConfig{
@@ -136,7 +136,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 
 	if chainIntent.DangerousAltDAConfig.UseAltDA {
 		cfg.AltDADeployConfig = chainIntent.DangerousAltDAConfig
-		cfg.L1DependenciesConfig.DAChallengeProxy = chainState.DataAvailabilityChallengeProxyAddress
+		cfg.L1DependenciesConfig.DAChallengeProxy = chainState.AltDAChallengeProxy
 	}
 
 	// The below dummy variables are set in order to allow the deploy

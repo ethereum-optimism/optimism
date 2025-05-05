@@ -26,7 +26,7 @@ optimism_package:
     l2_artifacts_locator: {{ dig "overrides" "urls" "l2_artifacts" (localContractArtifacts "l2") $context }}
 {{ if $interop }}
     global_deploy_overrides:
-      faultGameAbsolutePrestate: {{ dig "overrides" "deployer" "prestate" (localPrestate.Hashes.prestate) $context }}
+      faultGameAbsolutePrestate: {{ dig "overrides" "deployer" "prestate" (localPrestate.Hashes.prestate_mt64) $context }}
 {{ end }}
   global_log_level: "info"
   global_node_selectors: {}

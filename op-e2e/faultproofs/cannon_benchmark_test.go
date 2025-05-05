@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 
@@ -33,18 +32,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestBenchmarkCannonFPP_Standard(t *testing.T) {
-	testBenchmarkCannonFPP(t, config.AllocTypeStandard)
-}
-
-func TestBenchmarkCannonFPP_Multithreaded(t *testing.T) {
-	testBenchmarkCannonFPP(t, config.AllocTypeMTCannon)
+func TestBenchmarkCannonFPP(t *testing.T) {
+	t.Skip("TODO(client-pod#906): Compare total witness size for assertions against pages allocated by the VM")
+	RunTestAcrossVmTypes(t, testBenchmarkCannonFPP)
 }
 
 func testBenchmarkCannonFPP(t *testing.T, allocType config.AllocType) {
-	t.Skip("TODO(client-pod#906): Compare total witness size for assertions against pages allocated by the VM")
-
-	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
 	cfg := e2esys.DefaultSystemConfig(t, e2esys.WithAllocType(allocType))
 	// We don't need a verifier - just the sequencer is enough

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -276,16 +275,16 @@ func setupBatcher(t *testing.T, sys *e2esys.System, conductors map[string]*condu
 	// enable active sequencer follow mode.
 	// in sequencer HA, all batcher / proposer requests will be proxied by conductor so that we can make sure
 	// that requests are always handled by leader.
-	l2EthRpc := strings.Join([]string{
+	l2EthRpc := []string{
 		conductors[Sequencer1Name].RPCEndpoint(),
 		conductors[Sequencer2Name].RPCEndpoint(),
 		conductors[Sequencer3Name].RPCEndpoint(),
-	}, ",")
-	rollupRpc := strings.Join([]string{
+	}
+	rollupRpc := []string{
 		conductors[Sequencer1Name].RPCEndpoint(),
 		conductors[Sequencer2Name].RPCEndpoint(),
 		conductors[Sequencer3Name].RPCEndpoint(),
-	}, ",")
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].UserRPC().RPC(),
 		L2EthRpc:               l2EthRpc,

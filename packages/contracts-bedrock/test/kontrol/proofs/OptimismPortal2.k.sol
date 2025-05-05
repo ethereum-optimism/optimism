@@ -23,7 +23,7 @@ contract OptimismPortal2Kontrol is DeploymentSummaryFaultProofs, KontrolUtils {
 
         // Pause Optimism Portal
         vm.prank(optimismPortal.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         vm.expectRevert(OptimismPortal.OptimismPortal_CallPaused.selector);
         optimismPortal.finalizeWithdrawalTransaction(_tx);
@@ -44,7 +44,7 @@ contract OptimismPortal2Kontrol is DeploymentSummaryFaultProofs, KontrolUtils {
 
         // Pause Optimism Portal
         vm.prank(optimismPortal.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
 
         vm.expectRevert(OptimismPortal.OptimismPortal_CallPaused.selector);
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);

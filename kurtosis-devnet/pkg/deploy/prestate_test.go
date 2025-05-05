@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
@@ -53,8 +54,9 @@ _prestate-build target:
 				},
 			}
 
+			buildWg := &sync.WaitGroup{}
 			// Create template context with just the prestate function
-			tmplCtx := tmpl.NewTemplateContext(templater.localPrestateOption())
+			tmplCtx := tmpl.NewTemplateContext(templater.localPrestateOption(buildWg))
 
 			// Test template with multiple calls to localPrestate
 			template := `first:
@@ -75,6 +77,9 @@ second:
 				return
 			}
 			require.NoError(t, err)
+
+			// Wait for the async goroutine to complete
+			buildWg.Wait()
 
 			// Verify the output is valid YAML and contains the static path
 			output := buf.String()
@@ -98,7 +103,7 @@ second:
 			assert.Equal(t, result.First.URL, result.Second.URL, "URLs should match")
 			assert.Equal(t, result.First.Hashes, result.Second.Hashes, "Hashes should match")
 
-			// Verify the directory was created only once
+			// In dry run mode, we don't create the directory
 			prestateDir := filepath.Join(tmpDir, "proofs", "op-program", "cannon")
 			assert.DirExists(t, prestateDir)
 		})

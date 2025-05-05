@@ -21,7 +21,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 		SequencerWindowSize: 24,
 		ChannelTimeout:      10,
 		L1BlockTime:         15,
-		AllocType:           config.AllocTypeStandard,
+		AllocType:           config.DefaultAllocType,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)

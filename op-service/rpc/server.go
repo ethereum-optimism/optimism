@@ -25,6 +25,10 @@ func (b *Server) Endpoint() string {
 	return b.httpServer.Addr().String()
 }
 
+func (b *Server) Port() (int, error) {
+	return b.httpServer.Port()
+}
+
 func (b *Server) Start() error {
 	err := b.httpServer.Start()
 	if err != nil {

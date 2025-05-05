@@ -52,3 +52,18 @@ func DecodeRawReceipts(block BlockID, rawReceipts []hexutil.Bytes, txHashes []co
 	}
 	return result, nil
 }
+
+// Assumes receipts are sorted by transaction index.
+func GetLogAtIndex(receipts []*types.Receipt, logIndex uint) (*types.Log, error) {
+	// Find the receipt that might contain our log
+	for _, rec := range receipts {
+		if len(rec.Logs) > 0 {
+			firstLogIndex := rec.Logs[0].Index
+			lastLogIndex := rec.Logs[len(rec.Logs)-1].Index
+			if firstLogIndex <= logIndex && logIndex <= lastLogIndex {
+				return rec.Logs[logIndex-firstLogIndex], nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("internal error: log index %d not found in receipts", logIndex)
+}

@@ -203,7 +203,7 @@ func (s *channelManager) handleChannelInvalidated(c *channel) {
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
-		return txData{}, io.EOF // TODO: not enough data error instead
+		return txData{}, io.EOF
 	}
 	tx := channel.NextTxData()
 

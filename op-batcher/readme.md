@@ -34,7 +34,7 @@ The philosophy behind the current architecture is:
 
 ### Routines
 
-The batcher has up to 4 concurrent routines:
+The batcher has up to 4 main concurrent routines:
 
 The `blockLoadingLoop`, which (in the happy path)
 
@@ -60,15 +60,16 @@ The `receiptsLoop` which
 
 The `throttlingLoop` which
 
-1. Waits for a signal either from the `blockLoadingLoop` or from the active sequencer endpoint provider (if more than one sequencer endpoint is provided)
-2. If it detects that the pending data in state is over a threshold, calls the sequencer over RPC and tells it to throttle the amount of L2 data it produces. See the (section below)[#data-availability-backlog]
+1. Waits for a signal from the `blockLoadingLoop`
+2. Calls (potentially multiple) sequencers over RPC and tells them to throttle or unthrottle -- that is, to limit (or not) the amount of L2 data they produce. See the (section below)[#data-availability-backlog]. Each sequencer is throttled in parallel by a separate sub-goroutine (not shown in the below diagram). Additional endpoints, such as builders in a rollup-boost setup, may also be configured to be throttled.
 
 The relationships are shown in this diagram:
 
 ```mermaid
 architecture-beta
 
-    service seq(database)[Sequencer]
+    group seqs(database)[x M]
+    service seq(database)[Sequencer] in seqs
     service dalayer(cloud)[DA Layer]
 
     group bs(server)[BatchSubmitter]
@@ -86,7 +87,7 @@ architecture-beta
     handler{group}:B --> T:receiptsLoop
 
     seq:R -->L:blockLoadingLoop
-    seq:B <--L:throttlingLoop
+    seq{group}:B <--L:throttlingLoop
 
     publishingLoop:T --> B:dalayer
     handler:T <--R:dalayer

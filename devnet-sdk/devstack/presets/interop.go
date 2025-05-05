@@ -1,19 +1,36 @@
 package presets
 
 import (
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/dsl"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/shim"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 )
 
 type SimpleInterop struct {
-	Log        log.Logger
-	T          devtest.T
-	Supervisor *dsl.Supervisor
+	Log          log.Logger
+	T            devtest.T
+	Supervisor   *dsl.Supervisor
+	ControlPlane stack.ControlPlane
+
+	L2ChainA *dsl.L2Network
+	L2ChainB *dsl.L2Network
+
+	L2ELA *dsl.L2ELNode
+	L2ELB *dsl.L2ELNode
+
+	Wallet *dsl.HDWallet
+
+	FaucetA *dsl.Faucet
+	FaucetB *dsl.Faucet
+
+	FunderA *dsl.Funder
+	FunderB *dsl.Funder
 }
 
 func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
@@ -40,15 +57,26 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
 
-	t.Require().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
+	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
 	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
 	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
 	// since currently there's no way to tell which nodes are using which supervisor.
-	supervisorId := system.Supervisors()[0]
-	sys := dsl.Hydrate(t, system)
-	return &SimpleInterop{
-		Log:        t.Logger(),
-		T:          t,
-		Supervisor: sys.Supervisor(supervisorId),
+	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
+	l2B := system.L2Network(match.Assume(t, match.L2ChainB))
+	out := &SimpleInterop{
+		Log:          t.Logger(),
+		T:            t,
+		Supervisor:   dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor))),
+		ControlPlane: orch.ControlPlane(),
+		L2ChainA:     dsl.NewL2Network(l2A),
+		L2ChainB:     dsl.NewL2Network(l2B),
+		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
+		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
+		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
 	}
+	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
+	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
+	return out
 }

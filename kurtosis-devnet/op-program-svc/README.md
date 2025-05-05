@@ -35,7 +35,6 @@ $ curl -X POST -H "Content-Type: multipart/form-data" \
 ```
 $ curl -q http://localhost:8080/info.json
 {
-  "prestate": "0x03f4b7435fec731578c72635d8e8180f7b48703073d038fc7f8c494eeed1ce19",
   "prestate_interop": "0x034731331d519c93fc0562643e0728c43f8e45a0af1160ad4c57c4e5141d2bbb",
   "prestate_mt64": "0x0325bb0ca8521b468bb8234d8ba54b1b74db60e2b5bc75d0077a0fe2098b6b45"
 }

@@ -33,9 +33,12 @@ contract DataAvailabilityChallengeTest is CommonTest {
     function test_withdraw_succeeds(address sender, uint256 amount) public {
         assumePayable(sender);
         assumeNotPrecompile(sender);
+
         // EntryPoint will revert if using amount > type(uint112).max.
         vm.assume(sender != Preinstalls.EntryPoint_v060);
         vm.assume(sender != address(dataAvailabilityChallenge));
+        // OptimismPortal will send ETH into the ETHLockbox.
+        vm.assume(sender != address(optimismPortal2));
         vm.deal(sender, amount);
 
         vm.prank(sender);
