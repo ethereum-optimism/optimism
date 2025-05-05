@@ -1356,7 +1356,7 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 // 2. Initialize block counts and message count per blocks per chains
 // 3. Generate direct acyclic graph, and map each vertices to each messages
 // 4. Inject fault
-// 5. Sync EL, CL and supervisor to check unsafe reorg
+// 5. Sync EL, CL and supervisor to check cross-unsafe halts and rejects bad data
 func TestInvalidRandomGraph(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	rng := rand.New(rand.NewSource(1234))
@@ -1417,7 +1417,7 @@ func TestInvalidRandomGraph(gt *testing.T) {
 	msgCntsPerTimestamp := []int{}
 	vertexIdx := 0
 
-	// Fix message count per blocks per chains
+	// Fix message count per block per chain
 	for blockNum := range blockCnt {
 		msgCntPerTimestamp := 0
 		for l2Idx := range L2ChainCnt {
@@ -1497,7 +1497,7 @@ func TestInvalidRandomGraph(gt *testing.T) {
 	edges = append(edges, implicitEdges...)
 	edges = append(edges, explicitEdges...)
 
-	// Log every dependencies
+	// Log every dependency
 	chainNames := []string{"A", "B"}
 	for _, edge := range edges {
 		t.Log("edge", fmt.Sprintf("%s%d-%d -> %s%d-%d\n",
@@ -1514,7 +1514,7 @@ func TestInvalidRandomGraph(gt *testing.T) {
 
 	faultInjectionIdx := rng.Intn(len(explicitEdges) - 1)
 	execMsgIncludedCnt := 0
-	// assume that each transaction contains single message
+	// assume that each transaction contains a single message
 	for blockIdx := range blockCnt {
 		// open block for each chains
 		actors.ChainA.Sequencer.ActL2StartBlock(t)
@@ -1560,7 +1560,7 @@ func TestInvalidRandomGraph(gt *testing.T) {
 	actors.ChainA.Sequencer.ActL2PipelineFull(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 
-	// supervisor cannot progress all unsafe blocks, and make chains reorg
+	// supervisor cannot make progress with all unsafe blocks, and cross-unsafe halts
 	targetNum := uint64(1 + blockCnt)
 	statusA := actors.ChainA.Sequencer.SyncStatus()
 	statusB := actors.ChainB.Sequencer.SyncStatus()
