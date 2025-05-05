@@ -36,6 +36,8 @@ interface IOPContractsManagerContractsContainer {
 }
 
 interface IOPContractsManagerGameTypeAdder {
+    error OPContractsManagerGameTypeAdder_UnsupportedGameType();
+
     event GameTypeAdded(
         uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
     );

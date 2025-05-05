@@ -417,6 +417,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerGameTypeAdder_UnsupportedGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManager_InvalidGameType",
     "type": "error"
   },
