@@ -38,7 +38,7 @@ const (
 	ContractsV160Tag        = "op-contracts/v1.6.0"
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
 	ContractsV170Beta1L2Tag = "op-contracts/v1.7.0-beta.1+l2-contracts"
-	ContractsV200Tag        = "op-contracts/v2.0.0-rc.1"
+	ContractsV200Tag        = "op-contracts/v2.0.0"
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
@@ -68,6 +68,10 @@ var taggedReleases = map[string]TaggedRelease{
 	ContractsV180Tag: {
 		ArtifactsHash: common.HexToHash("78f186df4e9a02a6421bd9c3641b281e297535140967faa428c938286923976a"),
 		ContentHash:   common.HexToHash("361ebf1f520c20d932695b00babfff6923ce2530cd05b2776eb74e07038898a6"),
+	},
+	"op-contracts/v2.0.0-rc.1": {
+		ArtifactsHash: common.HexToHash("32e11c96e07b83619f419595facb273368dccfe2439287549e7b436c9b522204"),
+		ContentHash:   common.HexToHash("1cec51ed629c0394b8fb17ff2c6fa45c406c30f94ebbd37d4c90ede6c29ad608"),
 	},
 	ContractsV200Tag: {
 		ArtifactsHash: common.HexToHash("32e11c96e07b83619f419595facb273368dccfe2439287549e7b436c9b522204"),
