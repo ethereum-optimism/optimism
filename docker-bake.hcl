@@ -69,6 +69,10 @@ variable "OP_SUPERVISOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_TEST_SEQUENCER_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "CANNON_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -210,7 +214,7 @@ target "op-test-sequencer" {
   args = {
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"
-    OP_SUPERVISOR_VERSION = "${OP_SUPERVISOR_VERSION}"
+    OP_TEST_SEQUENCER_VERSION = "${OP_TEST_SEQUENCER_VERSION}"
   }
   target = "op-test-sequencer-target"
   platforms = split(",", PLATFORMS)
