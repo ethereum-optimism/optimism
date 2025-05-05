@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import "src/dispute/lib/Types.sol";
@@ -15,6 +16,12 @@ import "src/dispute/lib/Errors.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+// Mocks
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 contract DisputeGameFactory_Init is CommonTest {
     FakeClone fakeClone;
@@ -30,6 +37,165 @@ contract DisputeGameFactory_Init is CommonTest {
         // Transfer ownership of the factory to the test contract.
         vm.prank(disputeGameFactory.owner());
         disputeGameFactory.transferOwnership(address(this));
+    }
+
+    /// @notice Creates a new VM instance with the given absolute prestate
+    function _createVM(Claim absolutePrestate) internal returns (AlphabetVM vm_, IPreimageOracle preimageOracle_) {
+        // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
+        // actually test the clock extensions later on. This is not a realistic value.
+        preimageOracle_ = IPreimageOracle(
+            DeployUtils.create1({
+                _name: "PreimageOracle",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 4)))
+            })
+        );
+        vm_ = new AlphabetVM(absolutePrestate, preimageOracle_);
+    }
+
+    function setGame(address gameImpl, GameType gameType) internal {
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(gameType, IDisputeGame(gameImpl));
+        disputeGameFactory.setInitBond(gameType, 0.08 ether);
+        vm.stopPrank();
+    }
+
+    /// @notice Sets up a super cannon game implementation
+    function setupSuperFaultDisputeGame(Claim absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        gameImpl_ = DeployUtils.create1({
+            _name: "SuperFaultDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    ISuperFaultDisputeGame.__constructor__,
+                    (
+                        ISuperFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.SUPER_CANNON,
+                            absolutePrestate: absolutePrestate,
+                            maxGameDepth: 2 ** 3,
+                            splitDepth: 2 ** 2,
+                            clockExtension: Duration.wrap(3 hours),
+                            maxClockDuration: Duration.wrap(3.5 days),
+                            vm: vm_,
+                            weth: delayedWeth,
+                            anchorStateRegistry: anchorStateRegistry,
+                            l2ChainId: 0
+                        })
+                    )
+                )
+            )
+        });
+
+        setGame(gameImpl_, GameTypes.SUPER_CANNON);
+    }
+
+    /// @notice Sets up a super permissioned game implementation
+    function setupSuperPermissionedDisputeGame(
+        Claim absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        gameImpl_ = DeployUtils.create1({
+            _name: "SuperPermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IPermissionedDisputeGame.__constructor__,
+                    (
+                        IFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                            absolutePrestate: absolutePrestate,
+                            maxGameDepth: 2 ** 3,
+                            splitDepth: 2 ** 2,
+                            clockExtension: Duration.wrap(3 hours),
+                            maxClockDuration: Duration.wrap(3.5 days),
+                            vm: vm_,
+                            weth: delayedWeth,
+                            anchorStateRegistry: anchorStateRegistry,
+                            l2ChainId: 0
+                        }),
+                        _proposer,
+                        _challenger
+                    )
+                )
+            )
+        });
+
+        setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
+    }
+
+    /// @notice Sets up a fault game implementation
+    function setupFaultDisputeGame(Claim absolutePrestate)
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        gameImpl_ = DeployUtils.create1({
+            _name: "FaultDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IFaultDisputeGame.__constructor__,
+                    (
+                        IFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.CANNON,
+                            absolutePrestate: absolutePrestate,
+                            maxGameDepth: 2 ** 3,
+                            splitDepth: 2 ** 2,
+                            clockExtension: Duration.wrap(3 hours),
+                            maxClockDuration: Duration.wrap(3.5 days),
+                            vm: vm_,
+                            weth: delayedWeth,
+                            anchorStateRegistry: anchorStateRegistry,
+                            l2ChainId: 10
+                        })
+                    )
+                )
+            )
+        });
+
+        setGame(gameImpl_, GameTypes.CANNON);
+    }
+
+    function setupPermissionedDisputeGame(
+        Claim absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+        internal
+        returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        gameImpl_ = DeployUtils.create1({
+            _name: "PermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IPermissionedDisputeGame.__constructor__,
+                    (
+                        IFaultDisputeGame.GameConstructorParams({
+                            gameType: GameTypes.PERMISSIONED_CANNON,
+                            absolutePrestate: absolutePrestate,
+                            maxGameDepth: 2 ** 3,
+                            splitDepth: 2 ** 2,
+                            clockExtension: Duration.wrap(3 hours),
+                            maxClockDuration: Duration.wrap(3.5 days),
+                            vm: vm_,
+                            weth: delayedWeth,
+                            anchorStateRegistry: anchorStateRegistry,
+                            l2ChainId: 0
+                        }),
+                        _proposer,
+                        _challenger
+                    )
+                )
+            )
+        });
+
+        setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
     }
 }
 

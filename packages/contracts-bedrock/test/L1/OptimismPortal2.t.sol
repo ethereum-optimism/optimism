@@ -9,6 +9,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
@@ -463,7 +464,7 @@ contract OptimismPortal2_Test is CommonTest {
     }
 }
 
-contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
+contract OptimismPortal2_FinalizeWithdrawal_Test is DisputeGameFactory_Init {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
     IFaultDisputeGame game;
@@ -520,6 +521,8 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
             // Set up the dummy game.
             _proposedBlockNumber = 0xFF;
         }
+
+        setupFaultDisputeGame(Claim.wrap(_outputRoot));
 
         // Warp forward in time to ensure that the game is created after the retirement timestamp.
         vm.warp(anchorStateRegistry.retirementTimestamp() + 1);
