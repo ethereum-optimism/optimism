@@ -7,16 +7,20 @@ import (
 type Sequencer struct {
 	commonImpl
 
-	stack.Sequencer
+	inner stack.Sequencer
 }
 
 func NewSequencer(inner stack.Sequencer) *Sequencer {
 	return &Sequencer{
 		commonImpl: commonFromT(inner.T()),
-		Sequencer:  inner,
+		inner:      inner,
 	}
 }
 
 func (s *Sequencer) String() string {
-	return s.Sequencer.ID().String()
+	return s.inner.ID().String()
+}
+
+func (s *Sequencer) Escape() stack.Sequencer {
+	return s.inner
 }
