@@ -31,7 +31,7 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when no implementations are found in the OPCM.
     error VerifyOPCM_NoImplementations();
 
-    /// @notice Thrown when no blueprints are found in the OPCM.`
+    /// @notice Thrown when no blueprints are found in the OPCM.
     error VerifyOPCM_NoBlueprints();
 
     /// @notice Thrown when an unexpected part number is found in the blueprint.
@@ -124,6 +124,7 @@ contract VerifyOPCM is Script {
     ///         address as an argument instead. Running in this mode will not allow you to skip
     ///         constructor verification.
     function run() external {
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         run(vm.envAddress("OPCM_ADDRESS"), false);
     }
 
@@ -322,21 +323,14 @@ contract VerifyOPCM is Script {
                     )
                 );
 
-                // If we got a constructor args, try to compare the bytecode.
-                if (constructorArgs.length > 0) {
-                    success = _compareBytecode(
-                        actualCreationCode,
-                        bytes.concat(artifact.bytecode, constructorArgs),
-                        _target.name,
-                        artifact,
-                        !_target.blueprint
-                    );
-                } else {
-                    console.log(
-                        string.concat("[FAIL] ERROR: Failed to retrieve constructor arguments for ", _target.name)
-                    );
-                    success = false;
-                }
+                // Constructor args might be empty, so we check regardless of the result.
+                success = _compareBytecode(
+                    actualCreationCode,
+                    bytes.concat(artifact.bytecode, constructorArgs),
+                    _target.name,
+                    artifact,
+                    !_target.blueprint
+                );
             } else {
                 console.log(string.concat("[FAIL] ERROR: Failed to retrieve creation code for ", _target.name));
                 success = false;
