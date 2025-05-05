@@ -3,10 +3,15 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 // Contracts
 import { DisputeMonitorHelper } from "src/periphery/monitoring/DisputeMonitorHelper.sol";
-import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
+import { GameTypes, Claim, VMStatuses, Duration } from "src/dispute/lib/Types.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 contract DisputeMonitorHelper_TestInit is CommonTest {
@@ -14,11 +19,56 @@ contract DisputeMonitorHelper_TestInit is CommonTest {
 
     function setUp() public override {
         super.setUp();
+
         helper = new DisputeMonitorHelper();
 
         // Skip everything for forked networks. Tests here involve carefully controlling the list
         // of games in the factory, which is not possible on forked networks.
         skipIfForkTest("DisputeMonitorHelper tests are not applicable to forked networks");
+
+        Claim absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(abi.encode(0))), VMStatuses.UNFINISHED);
+
+        // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
+        // actually test the clock extensions later on. This is not a realistic value.
+        AlphabetVM _vm = new AlphabetVM(
+            absolutePrestate,
+            IPreimageOracle(
+                DeployUtils.create1({
+                    _name: "PreimageOracle",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 4)))
+                })
+            )
+        );
+
+        // Deploy an implementation of the fault game
+        IFaultDisputeGame gameImpl = IFaultDisputeGame(
+            DeployUtils.create1({
+                _name: "FaultDisputeGame",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IFaultDisputeGame.__constructor__,
+                        (
+                            IFaultDisputeGame.GameConstructorParams({
+                                gameType: GameTypes.CANNON,
+                                absolutePrestate: absolutePrestate,
+                                maxGameDepth: 2 ** 3,
+                                splitDepth: 2 ** 2,
+                                clockExtension: Duration.wrap(3 hours),
+                                maxClockDuration: Duration.wrap(3.5 days),
+                                vm: _vm,
+                                weth: delayedWeth,
+                                anchorStateRegistry: anchorStateRegistry,
+                                l2ChainId: 10
+                            })
+                        )
+                    )
+                )
+            })
+        );
+
+        // Register the game implementation with the factory.
+        vm.prank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.CANNON, gameImpl);
     }
 
     /// @notice Helper to create a game with a specific timestamp.
