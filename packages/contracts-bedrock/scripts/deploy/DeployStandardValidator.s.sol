@@ -278,9 +278,9 @@ contract DeployStandardValidator is Script {
 
     function assertValidValidator(DeployStandardValidatorInput _si, DeployStandardValidatorOutput _so) internal view {
         IStandardValidator validator = IStandardValidator(_so.validator());
-        require(address(validator.superchainConfig()) == address(_si.superchainConfig()), "SV300-10");
-        require(validator.l1PAOMultisig() == _si.l1PAOMultisig(), "SV300-20");
-        require(validator.challenger() == _si.challenger(), "SV300-40");
-        require(validator.withdrawalDelaySeconds() == _si.withdrawalDelaySeconds(), "SV300-50");
+        require(address(validator.superchainConfig()) == address(_si.superchainConfig()), "SV-10");
+        require(validator.l1PAOMultisig() == _si.l1PAOMultisig(), "SV-20");
+        require(validator.challenger() == _si.challenger(), "SV-40");
+        require(validator.withdrawalDelaySeconds() == _si.withdrawalDelaySeconds(), "SV-50");
     }
 }
