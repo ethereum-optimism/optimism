@@ -36,7 +36,6 @@ type L2CLNode struct {
 	id         stack.L2CLNodeID
 	opNode     *opnode.Opnode
 	userRPC    string
-	elRPC      string
 	interopRPC string
 	cfg        *node.Config
 	p          devtest.P
@@ -52,21 +51,12 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
-	rpcEl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.elRPC, client.WithLazyDial())
-	require.NoError(err)
-	system.T().Cleanup(rpcCl.Close)
-
-	rollupClient := sources.NewRollupClient(rpcCl)
-	rollupCfg, err := rollupClient.RollupConfig(system.T().Ctx())
-	require.NoError(err)
-
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
-
 	sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
 		CommonConfig: shim.NewCommonConfig(system.T()),
 		ID:           n.id,
 		Client:       rpcCl,
-	}, rollupCfg, rollupClient, rpcEl)
+	})
+	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
 }
@@ -249,7 +239,6 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			logger: logger,
 			p:      o.P(),
 			el:     l2ELID,
-			elRPC:  l2EL.userRPC,
 		}
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
 		l2CLNode.Start()

@@ -11,8 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
@@ -100,16 +98,6 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 
 	// it's an RPC, but 'http' in kurtosis descriptor
 	clClient := o.rpcClient(l2Net.T(), clService, HTTPProtocol)
-
-	rollupClient := sources.NewRollupClient(clClient)
-
-	rollupCfg, err := retry.Do(l2Net.T().Ctx(), 10, retry.Exponential(), func() (*rollup.Config, error) {
-		cfg, err := rollupClient.RollupConfig(l2Net.T().Ctx())
-		require.NoError(err)
-		return cfg, err
-	})
-	require.NoError(err)
-
 	l2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
 		ID: stack.L2CLNodeID{
 			Key:     clService.Name,
@@ -117,7 +105,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 		},
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		Client:       clClient,
-	}, rollupCfg, rollupClient, elClient)
+	})
 	l2Net.AddL2CLNode(l2CL)
 	l2CL.(stack.LinkableL2CLNode).LinkEL(l2EL)
 }
