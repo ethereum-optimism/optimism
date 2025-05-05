@@ -29,10 +29,6 @@ func SortSupervisors(elems []Supervisor) []Supervisor {
 	return copyAndSort(elems, lessElemOrdered[SupervisorID, Supervisor])
 }
 
-func SortSequencers(elems []Sequencer) []Sequencer {
-	return copyAndSort(elems, lessElemOrdered[SequencerID, Sequencer])
-}
-
 var _ SupervisorMatcher = SupervisorID("")
 
 func (id SupervisorID) Match(elems []Supervisor) []Supervisor {

@@ -26,6 +26,10 @@ func SortSequencerIDs(ids []SequencerID) []SequencerID {
 	return copyAndSortCmp(ids)
 }
 
+func SortSequencers(elems []Sequencer) []Sequencer {
+	return copyAndSort(elems, lessElemOrdered[SequencerID, Sequencer])
+}
+
 // Sequencer
 type Sequencer interface {
 	Common
