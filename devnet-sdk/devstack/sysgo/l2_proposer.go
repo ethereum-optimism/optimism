@@ -51,7 +51,7 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 		proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID.ToBig()))
 		require.NoError(err)
 
-		logger := o.P().Logger().New("service", "op-proposer", "id", proposerID)
+		logger := o.P().Logger().New("id", proposerID)
 		logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)

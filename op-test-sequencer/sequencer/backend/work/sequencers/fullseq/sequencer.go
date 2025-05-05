@@ -57,28 +57,6 @@ func (s *Sequencer) Close() error {
 func (s *Sequencer) Open(ctx context.Context) error {
 	s.stateMu.Lock()
 	defer s.stateMu.Unlock()
-
-	s.log.Debug("Sequencer Open request")
-
-	if s.unsigned != nil {
-		return seqtypes.ErrAlreadySealed
-	}
-
-	if s.currentJob == nil {
-		return seqtypes.ErrUnknownJob
-	}
-
-	err := s.currentJob.Open(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to open block: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Sequencer) New(ctx context.Context, opts seqtypes.BuildOpts) error {
-	s.stateMu.Lock()
-	defer s.stateMu.Unlock()
 	if s.unsigned != nil {
 		return seqtypes.ErrAlreadySealed
 	}
@@ -86,14 +64,16 @@ func (s *Sequencer) New(ctx context.Context, opts seqtypes.BuildOpts) error {
 		return seqtypes.ErrConflictingJob
 	}
 
-	s.log.Debug("Sequencer New request", "opts", opts)
+	opts := &seqtypes.BuildOpts{
+		Parent:   common.Hash{}, // TODO(#15572): update sequencer to chain blocks together
+		L1Origin: nil,
+	}
 
 	job, err := s.builder.NewJob(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("failed to start new build job: %w", err)
 	}
 	s.currentJob = job
-	s.log.Debug("Sequencer New set current job", "job_id", job.ID())
 	return nil
 }
 
@@ -106,8 +86,6 @@ func (s *Sequencer) BuildJob() work.BuildJob {
 func (s *Sequencer) Seal(ctx context.Context) error {
 	s.stateMu.Lock()
 	defer s.stateMu.Unlock()
-
-	s.log.Debug("Sequencer about to seal block")
 	if s.unsigned != nil {
 		return seqtypes.ErrAlreadySealed
 	}
@@ -139,15 +117,12 @@ func (s *Sequencer) Prebuilt(ctx context.Context, block work.Block) error {
 func (s *Sequencer) Sign(ctx context.Context) error {
 	s.stateMu.Lock()
 	defer s.stateMu.Unlock()
-
 	if s.signed != nil {
 		return seqtypes.ErrAlreadySigned
 	}
 	if s.unsigned == nil {
 		return seqtypes.ErrNotSealed
 	}
-
-	s.log.Debug("Sequencer about to sign block", "blk", s.unsigned.String())
 	result, err := s.signer.Sign(ctx, s.unsigned)
 	if err != nil {
 		return err
@@ -165,7 +140,6 @@ func (s *Sequencer) Commit(ctx context.Context) error {
 	if s.signed == nil {
 		return seqtypes.ErrUnsigned
 	}
-	s.log.Debug("Sequencer about to commit signed block", "signed_blk", s.signed.String())
 	if err := s.committer.Commit(ctx, s.signed); err != nil {
 		return err
 	}
@@ -180,7 +154,7 @@ func (s *Sequencer) Publish(ctx context.Context) error {
 	return s.publish(ctx)
 }
 
-var errAlreadyPublished = errors.New("block already published")
+var errAlreadyPublished = errors.New("block alreadyb published")
 
 func (s *Sequencer) publishMaybe(ctx context.Context) error {
 	s.stateMu.Lock()
@@ -197,7 +171,6 @@ func (s *Sequencer) publish(ctx context.Context) error {
 	if !s.committed {
 		return seqtypes.ErrUncommitted
 	}
-	s.log.Debug("Sequencer about to publish signed block", "signed_blk", s.signed.String())
 	if err := s.publisher.Publish(ctx, s.signed); err != nil {
 		return err
 	}
@@ -206,13 +179,9 @@ func (s *Sequencer) publish(ctx context.Context) error {
 }
 
 func (s *Sequencer) Next(ctx context.Context) error {
-	if err := s.New(ctx, seqtypes.BuildOpts{}); err != nil && !(errors.Is(err, seqtypes.ErrAlreadySealed) ||
+	if err := s.Open(ctx); err != nil && !(errors.Is(err, seqtypes.ErrAlreadySealed) ||
 		errors.Is(err, seqtypes.ErrConflictingJob)) { // forced-in blocks don't count as job
 		return fmt.Errorf("block-open failed: %w", err)
-	}
-
-	if err := s.Open(ctx); err != nil && !errors.Is(err, seqtypes.ErrAlreadySealed) {
-		return fmt.Errorf("block-seal failed: %w", err)
 	}
 	if err := s.Seal(ctx); err != nil && !errors.Is(err, seqtypes.ErrAlreadySealed) {
 		return fmt.Errorf("block-seal failed: %w", err)
@@ -237,8 +206,6 @@ func (s *Sequencer) lockingReset() {
 }
 
 func (s *Sequencer) reset() {
-	s.log.Debug("Sequencer reset called")
-
 	if s.currentJob != nil {
 		s.currentJob.Close()
 	}

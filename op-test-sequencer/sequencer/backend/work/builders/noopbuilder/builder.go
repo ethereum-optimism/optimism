@@ -21,7 +21,7 @@ func NewBuilder(id seqtypes.BuilderID, registry work.Jobs) *Builder {
 	return &Builder{id: id, registry: registry}
 }
 
-func (n *Builder) NewJob(ctx context.Context, opts seqtypes.BuildOpts) (work.BuildJob, error) {
+func (n *Builder) NewJob(ctx context.Context, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
 	id := seqtypes.RandomJobID()
 	job := &Job{
 		id: id,

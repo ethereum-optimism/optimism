@@ -1,8 +1,6 @@
 package dsl
 
-import (
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
-)
+import "github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {

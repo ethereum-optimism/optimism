@@ -38,8 +38,6 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 		defer func() {
 			if x := recover(); x != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
-				_, _ = fmt.Fprintf(os.Stderr, "Stacktrace from panic: \n"+string(debug.Stack()))
-
 				failed.Store(true)
 			}
 		}()

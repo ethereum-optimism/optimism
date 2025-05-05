@@ -33,15 +33,11 @@ func (n *Sequencer) ID() seqtypes.SequencerID {
 	return n.id
 }
 
-func (n *Sequencer) New(ctx context.Context, opts seqtypes.BuildOpts) error {
+func (n *Sequencer) Open(ctx context.Context) error {
 	return nil
 }
 
 func (n *Sequencer) BuildJob() work.BuildJob {
-	return nil
-}
-
-func (n *Sequencer) Open(ctx context.Context) error {
 	return nil
 }
 

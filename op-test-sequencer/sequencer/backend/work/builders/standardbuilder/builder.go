@@ -62,46 +62,28 @@ func NewBuilder(id seqtypes.BuilderID,
 	}
 }
 
-func (b *Builder) NewJob(ctx context.Context, opts seqtypes.BuildOpts) (work.BuildJob, error) {
-	b.log.Debug("Builder NewJob request", "opts", opts)
-
+func (b *Builder) NewJob(ctx context.Context, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
 	parentRef, err := b.l2.L2BlockRefByHash(ctx, opts.Parent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve parent-block: %w", err)
 	}
-	b.log.Debug("Builder NewJob fetched parentRef", "ref", parentRef)
-
-	var l1OriginRefBlkID eth.BlockID
-
-	if opts.L1Origin != nil {
-		b.log.Debug("Builder NewJob about to get BlockRefByHash for L1 origin", "opts", opts)
-
-		l1OriginRef, err := b.l1.L1BlockRefByHash(ctx, *opts.L1Origin)
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve L1 origin: %w", err)
-		}
-		l1OriginRefBlkID = l1OriginRef.ID()
-
-		b.log.Debug("Builder NewJob fetched l1OriginRef", "block_id", l1OriginRefBlkID)
-	} else {
-		l1OriginRefBlkID = parentRef.L1Origin
-
-		b.log.Debug("Builder NewJob using L1Origin value from parentRef, as opts.L1Origin is nil", "block_id", l1OriginRefBlkID)
+	l1OriginRef, err := b.l1.L1BlockRefByHash(ctx, *opts.L1Origin)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve L1 origin: %w", err)
 	}
-
-	attrs, err := b.attrPrep.PreparePayloadAttributes(ctx, parentRef, l1OriginRefBlkID)
+	attrs, err := b.attrPrep.PreparePayloadAttributes(ctx, parentRef, l1OriginRef.ID())
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare payload attributes: %w", err)
 	}
-	b.log.Debug("Builder NewJob prepared payload attrs", "attrs", attrs)
-
 	id := seqtypes.RandomJobID()
+	info, err := b.cl.OpenBlock(ctx, parentRef.ID(), attrs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open block: %w", err)
+	}
 	job := &Job{
-		logger:    b.log,
-		id:        id,
-		eng:       b.cl,
-		attrs:     attrs,
-		parentRef: parentRef,
+		id:          id,
+		eng:         b.cl,
+		payloadInfo: info,
 		unregister: func() {
 			b.registry.UnregisterJob(id)
 		},
@@ -109,7 +91,6 @@ func (b *Builder) NewJob(ctx context.Context, opts seqtypes.BuildOpts) (work.Bui
 	if err := b.registry.RegisterJob(job); err != nil {
 		return nil, err
 	}
-	b.log.Info("Builder NewJob has registered job", "job_id", id)
 	return job, nil
 }
 

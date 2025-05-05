@@ -23,9 +23,7 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
-		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       rpcCl,
@@ -34,6 +32,7 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 		ID: n.id,
 	})
 	sysL2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
+	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
 }
 

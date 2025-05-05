@@ -2,12 +2,10 @@ package frontend
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -61,14 +59,6 @@ func (m *mockBuildJob) Close() {
 	m.unregister()
 }
 
-func (m *mockBuildJob) Open(ctx context.Context) error {
-	return nil
-}
-
-func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
-	return errors.New("not supported")
-}
-
 var _ work.BuildJob = (*mockBuildJob)(nil)
 
 type mockBuildBackend struct {
@@ -80,7 +70,7 @@ const (
 	testBuilderB = seqtypes.BuilderID("builder-b")
 )
 
-func (m *mockBuildBackend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts seqtypes.BuildOpts) (work.BuildJob, error) {
+func (m *mockBuildBackend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
 	if id == testBuilderB {
 		return nil, seqtypes.ErrUnknownBuilder
 	}
@@ -123,7 +113,7 @@ func TestBuildFrontend(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("unknown builder", func(t *testing.T) {
-		_, err := front.New(ctx, testBuilderB, seqtypes.BuildOpts{})
+		_, err := front.Open(ctx, testBuilderB, nil)
 		require.ErrorIs(t, err, seqtypes.ErrUnknownBuilder)
 	})
 
@@ -138,7 +128,7 @@ func TestBuildFrontend(t *testing.T) {
 	})
 
 	t.Run("seal", func(t *testing.T) {
-		jobID, err := front.New(ctx, testBuilderA, seqtypes.BuildOpts{})
+		jobID, err := front.Open(ctx, testBuilderA, nil)
 		require.NoError(t, err)
 
 		require.False(t, backend.jobs[jobID].sealed)
@@ -155,7 +145,7 @@ func TestBuildFrontend(t *testing.T) {
 	})
 
 	t.Run("seal error", func(t *testing.T) {
-		jobID, err := front.New(ctx, testBuilderA, seqtypes.BuildOpts{})
+		jobID, err := front.Open(ctx, testBuilderA, nil)
 		require.NoError(t, err)
 		require.False(t, backend.jobs[jobID].sealed)
 		backend.jobs[jobID].err = seqtypes.ErrAlreadySealed
@@ -167,7 +157,7 @@ func TestBuildFrontend(t *testing.T) {
 	})
 
 	t.Run("cancel", func(t *testing.T) {
-		jobID, err := front.New(ctx, testBuilderA, seqtypes.BuildOpts{})
+		jobID, err := front.Open(ctx, testBuilderA, nil)
 		require.NoError(t, err)
 		require.False(t, backend.jobs[jobID].canceled)
 		err = front.Cancel(ctx, jobID)
@@ -179,7 +169,7 @@ func TestBuildFrontend(t *testing.T) {
 	})
 
 	t.Run("cancel error", func(t *testing.T) {
-		jobID, err := front.New(ctx, testBuilderA, seqtypes.BuildOpts{})
+		jobID, err := front.Open(ctx, testBuilderA, nil)
 		require.NoError(t, err)
 		require.False(t, backend.jobs[jobID].canceled)
 		backend.jobs[jobID].err = seqtypes.ErrAlreadySealed

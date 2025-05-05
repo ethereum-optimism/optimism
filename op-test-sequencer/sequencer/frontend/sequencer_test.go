@@ -19,6 +19,7 @@ type advancedBuildJob struct {
 }
 
 var _ work.BuildJob = (*advancedBuildJob)(nil)
+var _ IncludeTxSupport = (*advancedBuildJob)(nil)
 
 func (a *advancedBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
 	a.txs = append(a.txs, tx)
@@ -41,11 +42,6 @@ func (m *mockSequencer) ID() seqtypes.SequencerID {
 }
 
 func (m *mockSequencer) Close() error {
-	return m.err
-}
-
-func (m *mockSequencer) New(ctx context.Context, opts seqtypes.BuildOpts) error {
-	m.action = "new"
 	return m.err
 }
 

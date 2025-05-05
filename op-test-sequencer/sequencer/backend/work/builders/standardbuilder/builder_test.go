@@ -81,13 +81,9 @@ func TestStandardBuilder(t *testing.T) {
 	}
 	l1.ExpectL1BlockRefByHash(l1Origin.Hash, l1Origin, nil)
 	l2.ExpectL2BlockRefByHash(l2Parent.Hash, l2Parent, nil)
-	job, err := x.NewJob(ctx, *opts)
+	job, err := x.NewJob(ctx, opts)
 	require.NoError(t, err)
 	require.NotNil(t, reg.GetJob(job.ID()), "job should be there now")
-
-	err = job.Open(ctx)
-	require.NoError(t, err)
-
 	require.Equal(t, l2Parent.Time+2, uint64(api.attrs.Timestamp), "must be building the right block")
 	l1.AssertExpectations(t)
 	l2.AssertExpectations(t)
@@ -109,7 +105,7 @@ func TestStandardBuilder(t *testing.T) {
 
 	l1.ExpectL1BlockRefByHash(l1Origin.Hash, l1Origin, nil)
 	l2.ExpectL2BlockRefByHash(l2Parent.Hash, l2Parent, nil)
-	job2, err := x.NewJob(ctx, *opts)
+	job2, err := x.NewJob(ctx, opts)
 	require.NoError(t, err)
 	l1.AssertExpectations(t)
 	l2.AssertExpectations(t)

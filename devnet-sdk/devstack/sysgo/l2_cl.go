@@ -231,7 +231,6 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			ConductorRpcTimeout:             0,
 			AltDA:                           altda.CLIConfig{},
 			IgnoreMissingPectraBlobSchedule: false,
-			ExperimentalOPStackAPI:          true,
 		}
 		l2CLNode := &L2CLNode{
 			id:     l2CLID,

@@ -48,7 +48,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	onClose.Stack(l1ELRPCClient.Close)
 
 	rolCl := sources.NewRollupClient(l2CLRPCClient)
-	cfg, err := retry.Do(ctx, 10, retry.Exponential(), func() (*rollup.Config, error) {
+	cfg, err := retry.Do(ctx, 0, retry.Exponential(), func() (*rollup.Config, error) {
 		opts.Log.Info("Fetching rollup-config for block-building")
 		cfg, err := rolCl.RollupConfig(ctx)
 		if err != nil {
@@ -61,7 +61,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	}
 
 	l1Cl, err := sources.NewL1Client(l1ELRPCClient, opts.Log, nil,
-		sources.L1ClientSimpleConfig(false, sources.RPCKindStandard, 10))
+		sources.L1ClientSimpleConfig(false, sources.RPCKindAny, 10))
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +71,6 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 		return nil, err
 	}
 	fb := derive.NewFetchingAttributesBuilder(cfg, l1Cl, l2Cl)
-
-	fb.TestSkipL1OriginCheck()
-
 	cl := sources.NewOPStackClient(l2CLRPCClient)
 	cancelCloseEarly()
 	return &Builder{
