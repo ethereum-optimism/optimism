@@ -201,14 +201,8 @@ func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 		{rollup.Isthmus, 6},
 		{rollup.Jovian, 7},
 	}
-	for i, tt := range tests {
+	for _, tt := range tests {
 		var d UpgradeScheduleDeployConfig
-
-		for j := 0; j < i; j++ {
-			prevFork := scheduleableForks[j]
-			d.ActivateForkAtGenesis(prevFork)
-		}
-
 		d.ActivateForkAtGenesis(tt.fork)
 		require.EqualValues(t, tt.expected, d.SolidityForkNumber(uint64(42)))
 	}
