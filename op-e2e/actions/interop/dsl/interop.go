@@ -94,7 +94,7 @@ func (actors *InteropActors) PrepareChainState(t helpers.Testing) {
 	t.Log("Processed!")
 }
 
-func (actors *InteropActors) VerifyInitialState(t helpers.Testing) {
+func (actors *InteropActors) VerifyGenesisState(t helpers.Testing) {
 	// Verify initial state
 	statusA := actors.ChainA.Sequencer.SyncStatus()
 	statusB := actors.ChainB.Sequencer.SyncStatus()
@@ -104,7 +104,7 @@ func (actors *InteropActors) VerifyInitialState(t helpers.Testing) {
 
 func (actors *InteropActors) PrepareAndVerifyInitialState(t helpers.Testing) {
 	actors.PrepareChainState(t)
-	actors.VerifyInitialState(t)
+	actors.VerifyGenesisState(t)
 }
 
 // messageExpiryTime is the time in seconds that a message will be valid for on the L2 chain.
@@ -337,10 +337,35 @@ func createL2Services(
 	}
 }
 
+type batchAndMineOption func(*batchAndMineConfig)
+
+type batchAndMineConfig struct {
+	shouldMarkSafe  bool
+	shouldMarkFinal bool
+}
+
+// WithMarkFinal marks the L1 block with L2 batches as safe and finalized.
+// Necessary for doing this is creating a second L1 block so that the final head can be be promoted.
+func WithMarkFinal() batchAndMineOption {
+	return func(cfg *batchAndMineConfig) {
+		cfg.shouldMarkFinal = true
+	}
+}
+
+func WithMarkSafe() batchAndMineOption {
+	return func(cfg *batchAndMineConfig) {
+		cfg.shouldMarkSafe = true
+	}
+}
+
 // Creates a new L2 block, submits it to L1, and mines the L1 block.
-func (actors *InteropActors) ActBatchAndMine(t helpers.Testing, chains ...*Chain) {
+func (actors *InteropActors) ActBatchAndMine(t helpers.Testing, opts ...batchAndMineOption) {
+	cfg := &batchAndMineConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	var batches []*gethTypes.Transaction
-	for _, c := range chains {
+	for _, c := range []*Chain{actors.ChainA, actors.ChainB} {
 		c.Batcher.ActSubmitAll(t)
 		batches = append(batches, c.Batcher.LastSubmitted)
 	}
@@ -349,4 +374,47 @@ func (actors *InteropActors) ActBatchAndMine(t helpers.Testing, chains ...*Chain
 		actors.L1Miner.ActL1IncludeTxByHash(b.Hash())(t)
 	}
 	actors.L1Miner.ActL1EndBlock(t)
+
+	if cfg.shouldMarkSafe || cfg.shouldMarkFinal {
+		actors.L1Miner.ActL1SafeNext(t)
+	}
+	if cfg.shouldMarkFinal {
+		actors.L1Miner.ActEmptyBlock(t)
+		actors.L1Miner.ActL1FinalizeNext(t)
+	}
+}
+
+type actSyncSupernodeOption func(*actSyncSupernodeConfig)
+
+type actSyncSupernodeConfig struct {
+	ChainOpts
+	shouldSendL1FinalizedSignal bool
+	shouldSendL1LatestSignal    bool
+}
+
+func WithChains(chains ...*Chain) actSyncSupernodeOption {
+	return func(cfg *actSyncSupernodeConfig) {
+		cfg.Chains = chains
+	}
+}
+
+func WithFinalizedSignal() actSyncSupernodeOption {
+	return func(cfg *actSyncSupernodeConfig) {
+		cfg.shouldSendL1FinalizedSignal = true
+	}
+}
+
+func WithLatestSignal() actSyncSupernodeOption {
+	return func(cfg *actSyncSupernodeConfig) {
+		cfg.shouldSendL1LatestSignal = true
+	}
+}
+
+func (actors *InteropActors) SyncStatuses(t helpers.Testing, chain *Chain) (*eth.SyncStatus, *eth.SupervisorChainSyncStatus) {
+	seqSyncStatus := chain.Sequencer.SyncStatus()
+	supSyncStatus, err := actors.Supervisor.SyncStatus(t.Ctx())
+	require.NoError(t, err)
+	supChainStatus, ok := supSyncStatus.Chains[chain.ChainID]
+	require.True(t, ok, "supervisor should have chain status for chain id: %s", chain.ChainID)
+	return seqSyncStatus, supChainStatus
 }

@@ -226,6 +226,7 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	for _, arg := range optionalArgs {
 		arg(&opts)
 	}
+
 	// Process cross-safe updates
 	d.Actors.Supervisor.ProcessFull(d.t)
 
@@ -243,7 +244,7 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	d.Actors.Supervisor.ProcessFull(d.t)
 	for _, chain := range opts.Chains {
 		status := chain.Sequencer.SyncStatus()
-		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance safe head", chain.ChainID)
+		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance cross safe head", chain.ChainID)
 	}
 }
 
@@ -372,5 +373,29 @@ func (d *InteropDSL) AdvanceL2ToLastBlockOfOrigin(chain *Chain, l1OriginHeight u
 			break
 		}
 		d.AddL2Block(chain)
+	}
+}
+
+func (d *InteropDSL) ActSyncSupernode(t helpers.Testing, opts ...actSyncSupernodeOption) {
+	cfg := &actSyncSupernodeConfig{
+		ChainOpts: d.defaultChainOpts(),
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Perform actions
+	if cfg.shouldSendL1LatestSignal {
+		d.Actors.Supervisor.SignalLatestL1(t)
+	}
+	if cfg.shouldSendL1FinalizedSignal {
+		d.Actors.Supervisor.SignalFinalizedL1(t)
+	}
+	for _, chain := range cfg.Chains {
+		chain.Sequencer.SyncSupervisor(t) // supervisor to react to exhaust-L1
+	}
+	d.Actors.Supervisor.ProcessFull(t)
+	for _, chain := range cfg.Chains {
+		chain.Sequencer.ActL2PipelineFull(t) // node to complete syncing to L1 head.
 	}
 }
