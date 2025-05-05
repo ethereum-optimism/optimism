@@ -31,7 +31,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	sys := SimpleInterop(t)
 	l := sys.Log
 
-	ia := sys.Sequencer.IndividualAPI(sys.L2ChainA.ChainID())
+	ia := sys.Sequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
 
 	l.Info("Stopping batcher")
 	err := sys.L2BatcherA.Escape().ActivityAPI().StopBatcher(ctx)
