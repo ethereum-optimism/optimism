@@ -177,6 +177,7 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 }
 
 func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
+	// Iterate over all of them in case more are added
 	for i, fork := range scheduleableForks[2:] {
 		if fork == "interop" {
 			continue
@@ -185,5 +186,30 @@ func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
 		var d UpgradeScheduleDeployConfig
 		d.ActivateForkAtOffset(fork, 0)
 		require.EqualValues(t, i+1, d.SolidityForkNumber(uint64(42)))
+	}
+
+	// Also validate that each fork manually, for sanity
+	tests := []struct {
+		fork     rollup.ForkName
+		expected int64
+	}{
+		{rollup.Delta, 1},
+		{rollup.Ecotone, 2},
+		{rollup.Fjord, 3},
+		{rollup.Granite, 4},
+		{rollup.Holocene, 5},
+		{rollup.Isthmus, 6},
+		{rollup.Jovian, 7},
+	}
+	for i, tt := range tests {
+		var d UpgradeScheduleDeployConfig
+
+		for j := 0; j < i; j++ {
+			prevFork := scheduleableForks[j]
+			d.ActivateForkAtGenesis(prevFork)
+		}
+
+		d.ActivateForkAtGenesis(tt.fork)
+		require.EqualValues(t, tt.expected, d.SolidityForkNumber(uint64(42)))
 	}
 }
