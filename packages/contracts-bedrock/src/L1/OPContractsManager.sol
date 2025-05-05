@@ -314,6 +314,9 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
     /// @notice Thrown when an unsupported game type is provided to the addGameType function.
     error OPContractsManagerGameTypeAdder_UnsupportedGameType();
 
+    /// @notice Thrown when a mix of legacy and super games are found in updatePrestate.
+    error OPContractsManagerGameTypeAdder_MixedGameTypes();
+
     /// @notice Emitted when a new game type is added to a chain
     /// @param l2ChainId Chain ID of the chain
     /// @param gameType Type of the game being
@@ -516,6 +519,12 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             gameTypes[2] = GameTypes.SUPER_CANNON;
             gameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
 
+            // Track if we have a legacy game, super game, or both. We will revert if this function
+            // is ever called with a mix of legacy and super games. Should never happen in
+            // production if you follow the standard upgrade process, but you never know.
+            bool hasLegacyGame = false;
+            bool hasSuperGame = false;
+
             // Iterate over each game type and update the prestate.
             for (uint256 j = 0; j < gameTypes.length; j++) {
                 GameType gameType = gameTypes[j];
@@ -526,6 +535,21 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 // If no implementation exists, skip.
                 if (address(existingGame) == address(0)) {
                     continue;
+                }
+
+                // Track the game types that we've seen so far.
+                if (
+                    gameType.raw() == GameTypes.SUPER_CANNON.raw()
+                        || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                ) {
+                    hasSuperGame = true;
+                } else {
+                    hasLegacyGame = true;
+                }
+
+                // If we have a mix of legacy and super games, revert.
+                if (hasLegacyGame && hasSuperGame) {
+                    revert OPContractsManagerGameTypeAdder_MixedGameTypes();
                 }
 
                 // Grab the existing game constructor params and init bond.

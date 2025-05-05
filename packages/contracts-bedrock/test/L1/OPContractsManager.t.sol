@@ -1476,6 +1476,13 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         input2.disputeGameType = GameTypes.SUPER_CANNON;
         addGameType(input2);
 
+        // Clear out the PermissionedDisputeGame implementation.
+        address owner = chainDeployOutput1.disputeGameFactoryProxy.owner();
+        vm.prank(owner);
+        chainDeployOutput1.disputeGameFactoryProxy.setImplementation(
+            GameTypes.PERMISSIONED_CANNON, IDisputeGame(payable(address(0)))
+        );
+
         // Create the input for the function call.
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
@@ -1492,11 +1499,11 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
             address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
         );
 
-        // Grab the PermissionedDisputeGame.
+        // Grab the SuperPermissionedDisputeGame.
         IPermissionedDisputeGame pdg = IPermissionedDisputeGame(
             address(
                 IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory()).gameImpls(
-                    GameTypes.PERMISSIONED_CANNON
+                    GameTypes.SUPER_PERMISSIONED_CANNON
                 )
             )
         );
@@ -1517,6 +1524,30 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         // Ensure that the WETH contracts are not reverting
         pdg.weth().balanceOf(address(0));
         fdg.weth().balanceOf(address(0));
+    }
+
+    function test_updatePrestate_mixedGameTypes_reverts() public {
+        // Add a SuperFaultDisputeGame implementation via addGameType.
+        IOPContractsManager.AddGameInput memory input = newGameInputFactory({ permissioned: false });
+        input.disputeGameType = GameTypes.SUPER_CANNON;
+        addGameType(input);
+
+        // Create the input for the function call.
+        Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
+        IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
+        inputs[0] = IOPContractsManager.OpChainConfig(
+            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
+        );
+
+        // Turn the ProxyAdmin owner into a DelegateCaller.
+        address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
+        vm.etch(address(proxyAdminOwner), vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Trigger the updatePrestate function, should revert.
+        vm.expectRevert(IOPContractsManagerGameTypeAdder.OPContractsManagerGameTypeAdder_MixedGameTypes.selector);
+        DelegateCaller(proxyAdminOwner).dcForward(
+            address(prestateUpdater), abi.encodeCall(IOPContractsManager.updatePrestate, (inputs))
+        );
     }
 
     /// @notice Tests that the updatePrestate function will revert if the provided prestate is the
