@@ -68,7 +68,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	var originalRef eth.L2BlockRef
 	// prepare and sequencer a conflicting block for the L2A chain
 	{
-		unsafeHeadRef, err := sys.L2CLNodeA.Escape().L2BlockRefByHash().L2BlockRefByHash(ctx, unsafeHead)
+		unsafeHeadRef, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByHash(ctx, unsafeHead)
 		require.NoError(t, err, "Expected to be able to call L2BlockRefByHash API, but got error")
 
 		l.Info("Current unsafe ref", "unsafeHead", unsafeHead, "parent", unsafeHeadRef.ParentID().Hash, "l1_origin", unsafeHeadRef.L1Origin)
@@ -85,7 +85,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		l1OriginHash := l1Origin.Hash()
 
 		parentOfUnsafeHead := unsafeHeadRef.ParentID()
-		parentsL1Origin, err := sys.L2CLNodeA.Escape().L2BlockRefByHash().L2BlockRefByHash(ctx, parentOfUnsafeHead.Hash)
+		parentsL1Origin, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByHash(ctx, parentOfUnsafeHead.Hash)
 		require.NoError(t, err, "Expected to be able to call L2BlockRefByHash API, but got error")
 
 		if l1Origin.NumberU64() == parentsL1Origin.L1Origin.Number {
