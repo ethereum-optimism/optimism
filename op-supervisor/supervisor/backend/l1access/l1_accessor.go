@@ -80,14 +80,10 @@ func (p *L1Accessor) AttachClient(client L1Source, subscribe bool) {
 	defer p.clientMu.Unlock()
 
 	// if we have a finality subscription, unsubscribe from it
-	if p.finalitySub != nil {
-		p.UnsubscribeFinalityHandler()
-	}
+	p.UnsubscribeFinalityHandler()
 
 	// if we have a latest subscription, unsubscribe from it
-	if p.latestSub != nil {
-		p.UnsubscribeLatestHandler()
-	}
+	p.UnsubscribeLatestHandler()
 
 	p.client = client
 
@@ -108,7 +104,9 @@ func (p *L1Accessor) SubscribeFinalityHandler() {
 }
 
 func (p *L1Accessor) UnsubscribeFinalityHandler() {
-	p.finalitySub.Unsubscribe()
+	if p.finalitySub != nil {
+		p.finalitySub.Unsubscribe()
+	}
 }
 
 func (p *L1Accessor) SubscribeLatestHandler() {
@@ -122,7 +120,9 @@ func (p *L1Accessor) SubscribeLatestHandler() {
 }
 
 func (p *L1Accessor) UnsubscribeLatestHandler() {
-	p.latestSub.Unsubscribe()
+	if p.latestSub != nil {
+		p.latestSub.Unsubscribe()
+	}
 }
 
 func (p *L1Accessor) SetConfDepth(depth uint64) {
