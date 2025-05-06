@@ -819,13 +819,13 @@ where
         > + Unpin
         + 'static,
 {
-    type Primitives = OpNetworkPrimitives;
+    type Network = NetworkHandle<OpNetworkPrimitives>;
 
     async fn build_network(
         self,
         ctx: &BuilderContext<Node>,
         pool: Pool,
-    ) -> eyre::Result<NetworkHandle<Self::Primitives>> {
+    ) -> eyre::Result<Self::Network> {
         let network_config = self.network_config(ctx)?;
         let network = NetworkManager::builder(network_config).await?;
         let handle = ctx.start_network(network, pool);
