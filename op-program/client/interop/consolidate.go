@@ -299,6 +299,9 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query supervisortypes
 	if err != nil {
 		return supervisortypes.BlockSeal{}, err
 	}
+	if block.Time() != query.Timestamp {
+		return supervisortypes.BlockSeal{}, fmt.Errorf("block timestamp mismatch: %d != %d: %w", block.Time(), query.Timestamp, supervisortypes.ErrConflict)
+	}
 	_, receipts := d.oracle.ReceiptsByBlockHash(block.Hash(), chain)
 	var current uint32
 	for _, receipt := range receipts {
@@ -313,8 +316,6 @@ func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query supervisortypes
 				}.Checksum()
 				if checksum != query.Checksum {
 					return supervisortypes.BlockSeal{}, fmt.Errorf("checksum mismatch: %s != %s: %w", checksum, query.Checksum, supervisortypes.ErrConflict)
-				} else if block.Time() != query.Timestamp {
-					return supervisortypes.BlockSeal{}, fmt.Errorf("block timestamp mismatch: %d != %d: %w", block.Time(), query.Timestamp, supervisortypes.ErrConflict)
 				} else {
 					return supervisortypes.BlockSeal{
 						Hash:      block.Hash(),
