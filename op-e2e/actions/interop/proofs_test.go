@@ -186,8 +186,12 @@ func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
 
 	system.AddL2Block(system.Actors.ChainA, dsl.WithL2BlockTransactions(emitter.EmitMessage(alice, "hello")))
 	initMsg := emitter.LastEmittedMessage()
-	system.AddL2Block(system.Actors.ChainB, dsl.WithL2BlockTransactions(system.InboxContract.Execute(alice, initMsg, dsl.WithPayload([]byte("wrong")))))
-	system.InboxContract.LastTransaction().CheckIncluded()
+	system.AddL2Block(system.Actors.ChainB,
+		dsl.WithL2BlockTransactions(system.InboxContract.Execute(alice, initMsg,
+			dsl.WithPayload([]byte("wrong")),
+			// CrossL2Inbox contract isn't deployed so the tx will revert. Need to avoid using eth_estimateGas
+			dsl.WithFixedGasLimit())))
+	system.InboxContract.LastTransaction().CheckIncluded(dsl.WithRevertExpected())
 
 	// Submit batch data for each chain in separate L1 blocks so tests can have one chain safe and one unsafe
 	system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
@@ -198,7 +202,7 @@ func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
 	})
 	// Check that the supervisor didn't re-org out this transaction.
 	// Interop isn't active yet so the extra derivation rules to validate executing messages must not be active.
-	system.InboxContract.LastTransaction().CheckIncluded()
+	system.InboxContract.LastTransaction().CheckIncluded(dsl.WithRevertExpected())
 
 	start := system.Outputs.SuperRoot(startTimestamp)
 	end := system.Outputs.SuperRoot(endTimestamp)

@@ -30,6 +30,7 @@ func NewInboxContract(t helpers.Testing) *InboxContract {
 type ExecuteOpts struct {
 	Identifier *inbox.Identifier
 	Payload    *[]byte
+	GasLimit   uint64
 }
 
 func WithIdentifier(ident inbox.Identifier) func(opts *ExecuteOpts) {
@@ -41,6 +42,12 @@ func WithIdentifier(ident inbox.Identifier) func(opts *ExecuteOpts) {
 func WithPayload(payload []byte) func(opts *ExecuteOpts) {
 	return func(opts *ExecuteOpts) {
 		opts.Payload = &payload
+	}
+}
+
+func WithFixedGasLimit() func(opts *ExecuteOpts) {
+	return func(opts *ExecuteOpts) {
+		opts.GasLimit = 1_000_000 // Overly large to ensure the tx doesn't OOG.
 	}
 }
 
@@ -87,6 +94,7 @@ func (i *InboxContract) Execute(user *DSLUser, initTx *GeneratedTransaction, arg
 			payload = initTx.MessagePayload()
 		}
 		txOpts, from := user.TransactOpts(chain.ChainID.ToBig())
+		txOpts.GasLimit = opts.GasLimit
 		contract, err := inbox.NewInbox(predeploys.CrossL2InboxAddr, chain.SequencerEngine.EthClient())
 		require.NoError(i.t, err)
 		id := stypes.Identifier{

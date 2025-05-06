@@ -89,10 +89,29 @@ func (m *GeneratedTransaction) MessagePayload() []byte {
 	return stypes.LogToMessagePayload(m.rcpt.Logs[0])
 }
 
-func (m *GeneratedTransaction) CheckIncluded() {
+type CheckIncludedOpts struct {
+	ExpectRevert bool
+}
+
+func WithRevertExpected() func(*CheckIncludedOpts) {
+	return func(opts *CheckIncludedOpts) {
+		opts.ExpectRevert = true
+	}
+}
+
+func (m *GeneratedTransaction) CheckIncluded(args ...func(opts *CheckIncludedOpts)) {
+	opts := CheckIncludedOpts{}
+	for _, arg := range args {
+		arg(&opts)
+	}
 	rcpt, err := m.chain.SequencerEngine.EthClient().TransactionReceipt(m.t.Ctx(), m.tx.Hash())
 	require.NoError(m.t, err, "Transaction should have been included")
 	require.NotNil(m.t, rcpt, "No receipt found")
+	if opts.ExpectRevert {
+		require.Equal(m.t, types.ReceiptStatusFailed, rcpt.Status, "Expected tx to revert")
+	} else {
+		require.Equal(m.t, types.ReceiptStatusSuccessful, rcpt.Status, "Expected tx to be successful")
+	}
 }
 
 func (m *GeneratedTransaction) CheckNotIncluded() {
