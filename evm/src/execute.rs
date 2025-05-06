@@ -1,34 +1,18 @@
 //! Optimism block execution strategy.
 
-use crate::{OpEvmConfig, OpRethReceiptBuilder};
-use alloc::sync::Arc;
-use reth_evm::execute::BasicBlockExecutorProvider;
-use reth_optimism_chainspec::OpChainSpec;
-
 /// Helper type with backwards compatible methods to obtain executor providers.
-#[derive(Debug)]
-pub struct OpExecutorProvider;
-
-impl OpExecutorProvider {
-    /// Creates a new default optimism executor strategy factory.
-    pub fn optimism(chain_spec: Arc<OpChainSpec>) -> BasicBlockExecutorProvider<OpEvmConfig> {
-        BasicBlockExecutorProvider::new(OpEvmConfig::new(
-            chain_spec,
-            OpRethReceiptBuilder::default(),
-        ))
-    }
-}
+pub type OpExecutorProvider = crate::OpEvmConfig;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::OpChainSpec;
+    use crate::{OpChainSpec, OpEvmConfig, OpRethReceiptBuilder};
+    use alloc::sync::Arc;
     use alloy_consensus::{Block, BlockBody, Header, SignableTransaction, TxEip1559};
     use alloy_primitives::{b256, Address, Signature, StorageKey, StorageValue, U256};
     use op_alloy_consensus::TxDeposit;
     use op_revm::constants::L1_BLOCK_CONTRACT;
     use reth_chainspec::MIN_TRANSACTION_GAS;
-    use reth_evm::execute::{BasicBlockExecutorProvider, BlockExecutorProvider, Executor};
+    use reth_evm::{execute::Executor, ConfigureEvm};
     use reth_optimism_chainspec::OpChainSpecBuilder;
     use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
     use reth_primitives_traits::{Account, RecoveredBlock};
@@ -62,11 +46,8 @@ mod tests {
         db
     }
 
-    fn executor_provider(chain_spec: Arc<OpChainSpec>) -> BasicBlockExecutorProvider<OpEvmConfig> {
-        BasicBlockExecutorProvider::new(OpEvmConfig::new(
-            chain_spec,
-            OpRethReceiptBuilder::default(),
-        ))
+    fn evm_config(chain_spec: Arc<OpChainSpec>) -> OpEvmConfig {
+        OpEvmConfig::new(chain_spec, OpRethReceiptBuilder::default())
     }
 
     #[test]
@@ -108,8 +89,8 @@ mod tests {
         }
         .into();
 
-        let provider = executor_provider(chain_spec);
-        let mut executor = provider.executor(StateProviderDatabase::new(&db));
+        let provider = evm_config(chain_spec);
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
 
         // make sure the L1 block contract state is preloaded.
         executor.with_state_mut(|state| {
@@ -181,8 +162,8 @@ mod tests {
         }
         .into();
 
-        let provider = executor_provider(chain_spec);
-        let mut executor = provider.executor(StateProviderDatabase::new(&db));
+        let provider = evm_config(chain_spec);
+        let mut executor = provider.batch_executor(StateProviderDatabase::new(&db));
 
         // make sure the L1 block contract state is preloaded.
         executor.with_state_mut(|state| {
