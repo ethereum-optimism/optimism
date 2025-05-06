@@ -20,6 +20,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 // Mocks
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
@@ -40,7 +41,7 @@ contract DisputeGameFactory_Init is CommonTest {
     }
 
     /// @notice Creates a new VM instance with the given absolute prestate
-    function _createVM(Claim absolutePrestate) internal returns (AlphabetVM vm_, IPreimageOracle preimageOracle_) {
+    function _createVM(Claim _absolutePrestate) private returns (AlphabetVM vm_, IPreimageOracle preimageOracle_) {
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
         // actually test the clock extensions later on. This is not a realistic value.
         preimageOracle_ = IPreimageOracle(
@@ -49,76 +50,90 @@ contract DisputeGameFactory_Init is CommonTest {
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 4)))
             })
         );
-        vm_ = new AlphabetVM(absolutePrestate, preimageOracle_);
+        vm_ = new AlphabetVM(_absolutePrestate, preimageOracle_);
     }
 
-    function setGame(address gameImpl, GameType gameType) internal {
+    function _getGameConstructorParams(
+        Claim _absolutePrestate,
+        AlphabetVM _vm,
+        GameType _gameType
+    )
+        private
+        view
+        returns (IFaultDisputeGame.GameConstructorParams memory params_)
+    {
+        return IFaultDisputeGame.GameConstructorParams({
+            gameType: _gameType,
+            absolutePrestate: _absolutePrestate,
+            maxGameDepth: 2 ** 3,
+            splitDepth: 2 ** 2,
+            clockExtension: Duration.wrap(3 hours),
+            maxClockDuration: Duration.wrap(3.5 days),
+            vm: _vm,
+            weth: delayedWeth,
+            anchorStateRegistry: anchorStateRegistry,
+            l2ChainId: 0
+        });
+    }
+
+    function _getSuperGameConstructorParams(
+        Claim _absolutePrestate,
+        AlphabetVM _vm,
+        GameType _gameType
+    )
+        private
+        view
+        returns (ISuperFaultDisputeGame.GameConstructorParams memory params_)
+    {
+        bytes memory args = abi.encode(_getGameConstructorParams(_absolutePrestate, _vm, _gameType));
+        params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
+    }
+
+    function _setGame(address _gameImpl, GameType _gameType) private {
         vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(gameType, IDisputeGame(gameImpl));
-        disputeGameFactory.setInitBond(gameType, 0.08 ether);
+        disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
+        disputeGameFactory.setInitBond(_gameType, 0.08 ether);
         vm.stopPrank();
     }
 
     /// @notice Sets up a super cannon game implementation
-    function setupSuperFaultDisputeGame(Claim absolutePrestate)
+    function setupSuperFaultDisputeGame(Claim _absolutePrestate)
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+
         gameImpl_ = DeployUtils.create1({
             _name: "SuperFaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.SUPER_CANNON,
-                            absolutePrestate: absolutePrestate,
-                            maxGameDepth: 2 ** 3,
-                            splitDepth: 2 ** 2,
-                            clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            vm: vm_,
-                            weth: delayedWeth,
-                            anchorStateRegistry: anchorStateRegistry,
-                            l2ChainId: 0
-                        })
-                    )
+                    (_getSuperGameConstructorParams(_absolutePrestate, vm_, GameTypes.SUPER_CANNON))
                 )
             )
         });
 
-        setGame(gameImpl_, GameTypes.SUPER_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON);
     }
 
     /// @notice Sets up a super permissioned game implementation
     function setupSuperPermissionedDisputeGame(
-        Claim absolutePrestate,
+        Claim _absolutePrestate,
         address _proposer,
         address _challenger
     )
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+
         gameImpl_ = DeployUtils.create1({
             _name: "SuperPermissionedDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IPermissionedDisputeGame.__constructor__,
+                    ISuperPermissionedDisputeGame.__constructor__,
                     (
-                        IFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                            absolutePrestate: absolutePrestate,
-                            maxGameDepth: 2 ** 3,
-                            splitDepth: 2 ** 2,
-                            clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            vm: vm_,
-                            weth: delayedWeth,
-                            anchorStateRegistry: anchorStateRegistry,
-                            l2ChainId: 0
-                        }),
+                        _getSuperGameConstructorParams(_absolutePrestate, vm_, GameTypes.SUPER_PERMISSIONED_CANNON),
                         _proposer,
                         _challenger
                     )
@@ -126,68 +141,43 @@ contract DisputeGameFactory_Init is CommonTest {
             )
         });
 
-        setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
     }
 
     /// @notice Sets up a fault game implementation
-    function setupFaultDisputeGame(Claim absolutePrestate)
+    function setupFaultDisputeGame(Claim _absolutePrestate)
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
-                    IFaultDisputeGame.__constructor__,
-                    (
-                        IFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.CANNON,
-                            absolutePrestate: absolutePrestate,
-                            maxGameDepth: 2 ** 3,
-                            splitDepth: 2 ** 2,
-                            clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            vm: vm_,
-                            weth: delayedWeth,
-                            anchorStateRegistry: anchorStateRegistry,
-                            l2ChainId: 10
-                        })
-                    )
+                    IFaultDisputeGame.__constructor__, (_getGameConstructorParams(_absolutePrestate, vm_, GameTypes.CANNON))
                 )
             )
         });
 
-        setGame(gameImpl_, GameTypes.CANNON);
+        _setGame(gameImpl_, GameTypes.CANNON);
     }
 
     function setupPermissionedDisputeGame(
-        Claim absolutePrestate,
+        Claim _absolutePrestate,
         address _proposer,
         address _challenger
     )
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
-        (vm_, preimageOracle_) = _createVM(absolutePrestate);
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
         gameImpl_ = DeployUtils.create1({
             _name: "PermissionedDisputeGame",
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IPermissionedDisputeGame.__constructor__,
                     (
-                        IFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.PERMISSIONED_CANNON,
-                            absolutePrestate: absolutePrestate,
-                            maxGameDepth: 2 ** 3,
-                            splitDepth: 2 ** 2,
-                            clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            vm: vm_,
-                            weth: delayedWeth,
-                            anchorStateRegistry: anchorStateRegistry,
-                            l2ChainId: 0
-                        }),
+                        _getGameConstructorParams(_absolutePrestate, vm_, GameTypes.PERMISSIONED_CANNON),
                         _proposer,
                         _challenger
                     )
@@ -195,7 +185,7 @@ contract DisputeGameFactory_Init is CommonTest {
             )
         });
 
-        setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
     }
 }
 
