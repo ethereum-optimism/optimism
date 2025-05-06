@@ -36,6 +36,29 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 			},
 		},
 		{
+			name: "special case for fund dev accounts in intent",
+			intent: &state.Intent{
+				L1ContractsLocator: &artifacts.Locator{},
+				FundDevAccounts:    true,
+			},
+			chainIntent: &state.ChainIntent{},
+			expectError: false,
+			expectedOverrides: l2GenesisOverrides{
+				FundDevAccounts:                          true,
+				BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
+				L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,
+				SequencerFeeVaultMinimumWithdrawalAmount: standard.VaultMinWithdrawalAmount,
+				BaseFeeVaultWithdrawalNetwork:            "local",
+				L1FeeVaultWithdrawalNetwork:              "local",
+				SequencerFeeVaultWithdrawalNetwork:       "local",
+				EnableGovernance:                         false,
+				GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
+			},
+			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
+				return standard.DefaultHardforkScheduleForTag("")
+			},
+		},
+		{
 			name: "with overrides",
 			intent: &state.Intent{
 				L1ContractsLocator: &artifacts.Locator{},

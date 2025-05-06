@@ -125,6 +125,9 @@ func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIn
 	}
 
 	overrides := defaultOverrides()
+	// Special case for FundDevAccounts since it's both an intent value and an override.
+	overrides.FundDevAccounts = intent.FundDevAccounts
+
 	var err error
 	if len(intent.GlobalDeployOverrides) > 0 {
 		schedule, err = jsonutil.MergeJSON(schedule, intent.GlobalDeployOverrides)
