@@ -114,9 +114,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_proposalId",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "_proposalHash",
+        "type": "bytes32"
       }
     ],
     "name": "approveProposal",
@@ -172,9 +172,24 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_proposalId",
-        "type": "uint256"
+        "internalType": "address[]",
+        "name": "_targets",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_values",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "_calldatas",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "string",
+        "name": "_description",
+        "type": "string"
       }
     ],
     "name": "moveToVote",
@@ -293,6 +308,11 @@
         "type": "uint8"
       },
       {
+        "internalType": "uint8",
+        "name": "_proposalTypeConfigurator",
+        "type": "uint8"
+      },
+      {
         "internalType": "bytes32",
         "name": "_attestationUid",
         "type": "bytes32"
@@ -301,9 +321,9 @@
     "name": "submitProposal",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "proposalId_",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "proposalHash_",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -404,9 +424,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "uint256",
-        "name": "proposalId",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "proposalHash",
+        "type": "bytes32"
       },
       {
         "indexed": true,
@@ -423,9 +443,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "uint256",
-        "name": "proposalId",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "proposalHash",
+        "type": "bytes32"
       },
       {
         "indexed": true,
@@ -442,9 +462,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "uint256",
-        "name": "proposalId",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "proposalHash",
+        "type": "bytes32"
       },
       {
         "indexed": true,
@@ -480,6 +500,12 @@
         "indexed": false,
         "internalType": "enum ProposalValidator.ProposalType",
         "name": "proposalType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "proposalTypeConfigurator",
         "type": "uint8"
       }
     ],
@@ -521,7 +547,12 @@
   },
   {
     "inputs": [],
-    "name": "ProposalValidator_ProposalAlreadyInVoting",
+    "name": "ProposalValidator_ProposalAlreadySubmitted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_ProposalDoesNotExist",
     "type": "error"
   }
 ]
