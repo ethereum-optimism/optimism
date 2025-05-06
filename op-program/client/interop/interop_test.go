@@ -474,10 +474,6 @@ func runConsolidationTestCase(t *testing.T, testCase consolidationTestCase) {
 
 	l2PreimageOracle.Outputs[common.Hash(agreedSuperRoot.Chains[0].Output)] = createOutput(block1A.Hash())
 	l2PreimageOracle.Outputs[common.Hash(agreedSuperRoot.Chains[1].Output)] = createOutput(block1B.Hash())
-	l2PreimageOracle.BlockData = map[common.Hash]*gethTypes.Block{
-		block2A.Hash(): block2A,
-		block2B.Hash(): block2B,
-	}
 	l2PreimageOracle.Blocks[block1A.Hash()] = block1A
 	l2PreimageOracle.Blocks[block2A.Hash()] = block2A
 	l2PreimageOracle.Blocks[block2B.Hash()] = block2B
@@ -503,7 +499,6 @@ func runConsolidationTestCase(t *testing.T, testCase consolidationTestCase) {
 			finalRoots[chainIndexToReplace] = depositsOnlyOutputRoot
 			// stub the preimages in the replacement block
 			l2PreimageOracle.Blocks[depositsOnlyBlock.Hash()] = depositsOnlyBlock
-			l2PreimageOracle.BlockData[depositsOnlyBlock.Hash()] = depositsOnlyBlock
 			l2PreimageOracle.Outputs[common.Hash(depositsOnlyOutputRoot)] = depositsOnlyOutput
 			l2PreimageOracle.Receipts[depositsOnlyBlock.Hash()] = depositsOnlyBlockReceipts
 		}
@@ -645,6 +640,9 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 		l2PreimageOracle.Blocks[block2B.Hash()] = block2B
 		l2PreimageOracle.Receipts[block2A.Hash()] = block2AReceipts
 		l2PreimageOracle.Receipts[block2B.Hash()] = block2BReceipts
+		for _, chain := range agreedSuperRoot.Chains {
+			l2PreimageOracle.Outputs[common.Hash(chain.Output)] = &eth.OutputV0{}
+		}
 
 		consolidateState := newConsolidateState(transitionState)
 		consolidateDeps, err := newConsolidateCheckDeps(configSource.depset, configSource, transitionState, agreedSuperRoot.Chains, l2PreimageOracle, consolidateState)
