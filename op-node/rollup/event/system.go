@@ -262,8 +262,11 @@ func (s *Sys) emit(name string, derivContext uint64, ev Event) {
 	s.recordEmit(name, annotated, derivContext, emitTime)
 
 	err := s.executor.Enqueue(annotated)
+	// If the event system cannot enqueue an event, then it is a critical error
+	// and we should panic to avoid deferred errors creating behaviors that are hard to reason about.
+	// The Sys cannot decide if an event is important or not, so all events should be considered critical.
 	if err != nil {
 		s.log.Error("Failed to enqueue event", "emitter", name, "event", ev, "context", derivContext)
-		return
+		panic(err)
 	}
 }
