@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -19,6 +22,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+type l2GenesisOverrides struct {
+	FundDevAccounts                          bool                      `json:"fundDevAccounts"`
+	BaseFeeVaultMinimumWithdrawalAmount      *hexutil.Big              `json:"baseFeeVaultMinimumWithdrawalAmount"`
+	L1FeeVaultMinimumWithdrawalAmount        *hexutil.Big              `json:"l1FeeVaultMinimumWithdrawalAmount"`
+	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big              `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
+	BaseFeeVaultWithdrawalNetwork            genesis.WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
+	L1FeeVaultWithdrawalNetwork              genesis.WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
+	SequencerFeeVaultWithdrawalNetwork       genesis.WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
+	EnableGovernance                         bool                      `json:"enableGovernance"`
+	GovernanceTokenOwner                     common.Address            `json:"governanceTokenOwner"`
+}
 
 func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, st *state.State, chainID common.Hash) error {
 	lgr := pEnv.Logger.New("stage", "generate-l2-genesis")
@@ -55,27 +70,9 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		return fmt.Errorf("failed to create L2Genesis script: %w", err)
 	}
 
-	schedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
-	if intent.UseInterop {
-		if schedule.L2GenesisIsthmusTimeOffset == nil {
-			return fmt.Errorf("expecting isthmus fork to be enabled for interop deployments")
-		}
-		schedule.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
-		schedule.UseInterop = true
-	}
-
-	if len(intent.GlobalDeployOverrides) > 0 {
-		schedule, err = jsonutil.MergeJSON(schedule, intent.GlobalDeployOverrides)
-		if err != nil {
-			return fmt.Errorf("failed to merge global deploy overrides: %w", err)
-		}
-	}
-
-	if len(thisIntent.DeployOverrides) > 0 {
-		schedule, err = jsonutil.MergeJSON(schedule, thisIntent.DeployOverrides)
-		if err != nil {
-			return fmt.Errorf("failed to merge L2 deploy overrides: %w", err)
-		}
+	overrides, schedule, err := calculateL2GenesisOverrides(intent, thisIntent)
+	if err != nil {
+		return fmt.Errorf("failed to calculate L2 genesis overrides: %w", err)
 	}
 
 	if err := script.Run(opcm.L2GenesisInput{
@@ -85,20 +82,20 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		L1StandardBridgeProxy:                    thisChainState.L1StandardBridgeProxy,
 		L1ERC721BridgeProxy:                      thisChainState.L1Erc721BridgeProxy,
 		OpChainProxyAdminOwner:                   thisIntent.Roles.L2ProxyAdminOwner,
-		BaseFeeVaultWithdrawalNetwork:            common.Big1,
-		L1FeeVaultWithdrawalNetwork:              common.Big1,
-		SequencerFeeVaultWithdrawalNetwork:       common.Big1,
-		SequencerFeeVaultMinimumWithdrawalAmount: standard.VaultMinWithdrawalAmount.ToInt(),
-		BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount.ToInt(),
-		L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount.ToInt(),
+		BaseFeeVaultWithdrawalNetwork:            wdNetworkToBig(overrides.BaseFeeVaultWithdrawalNetwork),
+		L1FeeVaultWithdrawalNetwork:              wdNetworkToBig(overrides.L1FeeVaultWithdrawalNetwork),
+		SequencerFeeVaultWithdrawalNetwork:       wdNetworkToBig(overrides.SequencerFeeVaultWithdrawalNetwork),
+		SequencerFeeVaultMinimumWithdrawalAmount: overrides.SequencerFeeVaultMinimumWithdrawalAmount.ToInt(),
+		BaseFeeVaultMinimumWithdrawalAmount:      overrides.BaseFeeVaultMinimumWithdrawalAmount.ToInt(),
+		L1FeeVaultMinimumWithdrawalAmount:        overrides.L1FeeVaultMinimumWithdrawalAmount.ToInt(),
 		BaseFeeVaultRecipient:                    thisIntent.BaseFeeVaultRecipient,
 		L1FeeVaultRecipient:                      thisIntent.L1FeeVaultRecipient,
 		SequencerFeeVaultRecipient:               thisIntent.SequencerFeeVaultRecipient,
-		GovernanceTokenOwner:                     govTokenOwner(intent, thisIntent),
+		GovernanceTokenOwner:                     overrides.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
 		UseInterop:                               intent.UseInterop,
-		EnableGovernance:                         isGovEnabled(intent, thisIntent),
-		FundDevAccounts:                          intent.FundDevAccounts,
+		EnableGovernance:                         overrides.EnableGovernance,
+		FundDevAccounts:                          overrides.FundDevAccounts,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -117,60 +114,62 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 	return nil
 }
 
+func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {
+	schedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
+	if intent.UseInterop {
+		if schedule.L2GenesisIsthmusTimeOffset == nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("expecting isthmus fork to be enabled for interop deployments")
+		}
+		schedule.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
+		schedule.UseInterop = true
+	}
+
+	overrides := defaultOverrides()
+	var err error
+	if len(intent.GlobalDeployOverrides) > 0 {
+		schedule, err = jsonutil.MergeJSON(schedule, intent.GlobalDeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge global deploy overrides: %w", err)
+		}
+		overrides, err = jsonutil.MergeJSON(overrides, intent.GlobalDeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge global deploy overrides: %w", err)
+		}
+	}
+
+	if len(thisIntent.DeployOverrides) > 0 {
+		schedule, err = jsonutil.MergeJSON(schedule, thisIntent.DeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge L2 deploy overrides: %w", err)
+		}
+		overrides, err = jsonutil.MergeJSON(overrides, thisIntent.DeployOverrides)
+		if err != nil {
+			return l2GenesisOverrides{}, nil, fmt.Errorf("failed to merge global deploy overrides: %w", err)
+		}
+	}
+
+	return overrides, schedule, nil
+}
+
 func shouldGenerateL2Genesis(thisChainState *state.ChainState) bool {
 	return thisChainState.Allocs == nil
 }
 
-func govTokenOwner(intent *state.Intent, chainIntent *state.ChainIntent) common.Address {
-	if !isGovEnabled(intent, chainIntent) {
-		return standard.GovernanceTokenOwner
-	}
-
-	globalOverride := intent.GlobalDeployOverrides["governanceTokenOwner"]
-	chainOverride := chainIntent.DeployOverrides["governanceTokenOwner"]
-
-	var globalOverrideAddr, chainOverrideStr string
-	var ok bool
-
-	if chainOverride != nil {
-		chainOverrideStr, ok = chainOverride.(string)
-		if !ok || !common.IsHexAddress(chainOverrideStr) {
-			return standard.GovernanceTokenOwner
-		}
-		return common.HexToAddress(chainOverrideStr)
-	}
-
-	if globalOverride != nil {
-		globalOverrideAddr, ok = globalOverride.(string)
-		if !ok || !common.IsHexAddress(globalOverrideAddr) {
-			return standard.GovernanceTokenOwner
-		}
-		return common.HexToAddress(globalOverrideAddr)
-	}
-
-	return standard.GovernanceTokenOwner
+func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
+	n := wd.ToUint8()
+	return big.NewInt(int64(n))
 }
 
-func isGovEnabled(intent *state.Intent, chainIntent *state.ChainIntent) bool {
-	globalOverride := intent.GlobalDeployOverrides["enableGovernance"]
-	chainOverride := chainIntent.DeployOverrides["enableGovernance"]
-
-	var globalEnabled, chainEnabled, ok bool
-	if chainOverride != nil {
-		chainEnabled, ok = chainOverride.(bool)
-		if !ok {
-			chainEnabled = false
-		}
-		return chainEnabled
+func defaultOverrides() l2GenesisOverrides {
+	return l2GenesisOverrides{
+		FundDevAccounts:                          false,
+		BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
+		L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,
+		SequencerFeeVaultMinimumWithdrawalAmount: standard.VaultMinWithdrawalAmount,
+		BaseFeeVaultWithdrawalNetwork:            "local",
+		L1FeeVaultWithdrawalNetwork:              "local",
+		SequencerFeeVaultWithdrawalNetwork:       "local",
+		EnableGovernance:                         false,
+		GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
 	}
-
-	if globalOverride != nil {
-		globalEnabled, ok = globalOverride.(bool)
-		if !ok {
-			globalEnabled = false
-		}
-		return globalEnabled
-	}
-
-	return false
 }
