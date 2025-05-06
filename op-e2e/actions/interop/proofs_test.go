@@ -97,7 +97,7 @@ func TestInteropFaultProofs_UnsafeProposal(gt *testing.T) {
 	agreedTimestamp := proposalTimestamp - 1
 	agreedClaim := system.Outputs.SuperRoot(agreedTimestamp).Marshal()
 	disputedClaim := system.Outputs.TransitionState(agreedTimestamp, 1).Marshal()
-	disputedTraceIndex := int64(1)
+	disputedTraceIndex := int64(0)
 	tests := []*transitionTest{
 		{
 			name:               "ProposedUnsafeBlock-NotValid",
@@ -106,7 +106,6 @@ func TestInteropFaultProofs_UnsafeProposal(gt *testing.T) {
 			disputedTraceIndex: disputedTraceIndex,
 			proposalTimestamp:  proposalTimestamp,
 			expectValid:        false,
-			skipChallenger:     true, // TODO(#15321) Enable once op-supervisor support unsafe super roots
 		},
 		{
 			name:               "ProposedUnsafeBlock-ShouldBeInvalid",
@@ -115,10 +114,8 @@ func TestInteropFaultProofs_UnsafeProposal(gt *testing.T) {
 			disputedTraceIndex: disputedTraceIndex,
 			proposalTimestamp:  proposalTimestamp,
 			expectValid:        true,
-			skipChallenger:     true, // TODO(#15321) Enable once op-supervisor support unsafe super roots
 		},
 	}
-	fmt.Printf("Invalid hash: %v\n", interop.InvalidTransitionHash)
 	runFppAndChallengerTests(gt, system, tests)
 }
 
