@@ -25,10 +25,14 @@ func TestControlPlane(gt *testing.T) {
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(logger, func() {
-		gt.Helper()
-		gt.FailNow()
-	})
+	p := devtest.NewP(
+		context.Background(),
+		logger,
+		func() {
+			gt.Helper()
+			gt.FailNow()
+		},
+	)
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p)

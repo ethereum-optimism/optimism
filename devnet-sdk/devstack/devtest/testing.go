@@ -16,6 +16,12 @@ import (
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
 
+var (
+	// RootContext is the context that is used for the root of the test suite.
+	// It should be set for good before any tests are run.
+	RootContext = context.Background()
+)
+
 type T interface {
 	CommonT
 
@@ -130,7 +136,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 		ctx, cancel := context.WithCancel(t.ctx)
 		subGoT.Cleanup(cancel)
 
-		tracer := otel.GetTracerProvider().Tracer(baseName + "::" + name)
+		tracer := otel.Tracer(baseName + "::" + name)
 		ctx, span := tracer.Start(ctx, name)
 		subGoT.Cleanup(func() {
 			span.End()
@@ -205,10 +211,10 @@ var _ T = (*testingT)(nil)
 
 // SerialT wraps around a test-logger and turns it into a T for devstack testing.
 func SerialT(t *testing.T) T {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(RootContext)
 	t.Cleanup(cancel)
 
-	tracer := otel.GetTracerProvider().Tracer(t.Name())
+	tracer := otel.Tracer(t.Name())
 	ctx, span := tracer.Start(ctx, t.Name())
 	t.Cleanup(func() {
 		span.End()

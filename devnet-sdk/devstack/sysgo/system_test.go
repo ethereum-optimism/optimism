@@ -20,7 +20,7 @@ func TestSystem(gt *testing.T) {
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(logger, func() {
+	p := devtest.NewP(context.Background(), logger, func() {
 		gt.Helper()
 		gt.FailNow()
 	})

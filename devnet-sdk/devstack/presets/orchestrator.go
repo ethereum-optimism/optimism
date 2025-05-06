@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
+	"go.opentelemetry.io/otel"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
@@ -39,7 +41,7 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 		defer func() {
 			if x := recover(); x != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
-				_, _ = fmt.Fprintf(os.Stderr, "Stacktrace from panic: \n"+string(debug.Stack()))
+				_, _ = fmt.Fprint(os.Stderr, "Stacktrace from panic: \n"+string(debug.Stack()))
 
 				failed.Store(true)
 			}
@@ -53,14 +55,18 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 			Pid:    false,
 		})
 
-		otelShutdown, err := telemetry.SetupOpenTelemetry("devstack")
+		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())
 		if err != nil {
 			logger.Warn("Failed to setup OpenTelemetry", "error", err)
 		} else {
 			defer otelShutdown()
 		}
 
-		p := devtest.NewP(logger, func() {
+		ctx, run := otel.Tracer("run").Start(ctx, "test suite")
+		defer run.End()
+
+		devtest.RootContext = ctx
+		p := devtest.NewP(ctx, logger, func() {
 			debug.PrintStack()
 			failed.Store(true)
 			panic("setup fail")
@@ -75,7 +81,7 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 		// TODO(#15139): set log-level filter, reduce noise
 		//log.SetDefault(t.Log.New("logger", "global"))
 
-		initOrchestrator(p, opts...)
+		initOrchestrator(ctx, p, opts...)
 
 		errCode = m.Run()
 		return
@@ -84,7 +90,10 @@ func DoMain(m *testing.M, opts ...stack.Option) {
 	os.Exit(code)
 }
 
-func initOrchestrator(p devtest.P, opts ...stack.Option) {
+func initOrchestrator(ctx context.Context, p devtest.P, opts ...stack.Option) {
+	ctx, span := p.Tracer().Start(ctx, "initializing orchestrator")
+	defer span.End()
+
 	lockedOrchestrator.Lock()
 	defer lockedOrchestrator.Unlock()
 	if lockedOrchestrator.Value != nil {
@@ -95,10 +104,13 @@ func initOrchestrator(p devtest.P, opts ...stack.Option) {
 		p.Logger().Warn("Selecting sysgo as default devstack orchestrator")
 		kind = "sysgo"
 	}
+
 	switch kind {
 	case "sysgo":
+		p.Logger().WithContext(ctx).Info("initializing sysgo orchestrator")
 		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
 	case "syskt":
+		p.Logger().WithContext(ctx).Info("initializing sysext orchestrator")
 		lockedOrchestrator.Value = sysext.NewOrchestrator(p)
 	default:
 		p.Logger().Crit("Unknown devstack backend", "kind", kind)
