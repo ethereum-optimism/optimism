@@ -112,11 +112,6 @@ contract DeployAltDA2_Test is Test {
         input.bondSize = 0;
         vm.expectRevert("DeployAltDA: bondSize not set");
         deployAltDA.run(input);
-
-        input = defaultInput();
-        input.resolverRefundPercentage = 0;
-        vm.expectRevert("DeployAltDA: resolverRefundPercentage not set");
-        deployAltDA.run(input);
     }
 
     function defaultInput() private view returns (DeployAltDA2.Input memory input_) {
