@@ -194,6 +194,15 @@ func WithPrefundedL2(chainID eth.ChainID) DeployerOption {
 	}
 }
 
+// WithInteropAtGenesis activates interop at genesis for all known L2s
+func WithInteropAtGenesis() DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithForkAtOffset(rollup.Interop, new(uint64))
+		}
+	}
+}
+
 func (wb *worldBuilder) buildL1Genesis() {
 	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
 	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")

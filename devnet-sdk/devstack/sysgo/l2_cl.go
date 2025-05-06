@@ -161,6 +161,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			require.NoError(err)
 			networkPrivKeyHex := hex.EncodeToString(crypto.FromECDSA(networkPrivKey))
 			require.NoError(fs.Set(opNodeFlags.P2PPrivRawName, networkPrivKeyHex))
+			// Explicitly set to empty; do not default to resolving DNS of external bootnodes
+			require.NoError(fs.Set(opNodeFlags.BootnodesName, ""))
 
 			cliCtx := cli.NewContext(&cli.App{}, fs, nil)
 			if isSequencer {
@@ -321,7 +323,7 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orch
 		p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
 
 		connectPeer := func(p2pClient *sources.P2PClient, multiAddress string) {
-			err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
+			err := retry.Do0(ctx, 6, retry.Exponential(), func() error {
 				return p2pClient.ConnectPeer(ctx, multiAddress)
 			})
 			require.NoError(err, "failed to connect peer")

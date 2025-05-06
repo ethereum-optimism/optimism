@@ -74,7 +74,10 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 			WithLocalContractSources(),
 			WithCommons(ids.L1.ChainID()),
 			WithPrefundedL2(ids.L2A.ChainID()),
-			WithPrefundedL2(ids.L2B.ChainID())))
+			WithPrefundedL2(ids.L2B.ChainID()),
+			WithInteropAtGenesis(), // this can be overridden by later options
+		),
+	)
 
 	//opt.Add(WithInteropGen(ids.L1, ids.Superchain, ids.Cluster,
 	//	[]stack.L2NetworkID{ids.L2A, ids.L2B}, contractPaths))
