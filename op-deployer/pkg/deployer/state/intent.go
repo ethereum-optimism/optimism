@@ -140,7 +140,7 @@ func (c *Intent) validateStandardValues() error {
 		return ErrIncompatibleValue
 	}
 
-	standardOPCM, err := standard.ManagerImplementationAddrFor(c.L1ChainID, c.L1ContractsLocator.Tag)
+	standardOPCM, err := standard.OPCMImplAddressFor(c.L1ChainID, c.L1ContractsLocator.Tag)
 	if err != nil {
 		return fmt.Errorf("error getting OPCM address: %w", err)
 	}
@@ -254,7 +254,7 @@ func (c *Intent) checkL1Prod() error {
 		return fmt.Errorf("tag '%s' not found in standard versions", c.L1ContractsLocator.Tag)
 	}
 
-	opcmAddr, err := standard.ManagerImplementationAddrFor(c.L1ChainID, c.L1ContractsLocator.Tag)
+	opcmAddr, err := standard.OPCMImplAddressFor(c.L1ChainID, c.L1ContractsLocator.Tag)
 	if err != nil {
 		return fmt.Errorf("error getting OPCM address: %w", err)
 	}
@@ -311,9 +311,9 @@ func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error)
 }
 
 func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
-	opcmAddr, err := standard.ManagerImplementationAddrFor(l1ChainId, artifacts.DefaultL1ContractsLocator.Tag)
+	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainId, artifacts.DefaultL1ContractsLocator.Tag)
 	if err != nil {
-		return Intent{}, fmt.Errorf("error getting OPCM address: %w", err)
+		return Intent{}, fmt.Errorf("error getting OPCM impl address: %w", err)
 	}
 
 	intent := Intent{

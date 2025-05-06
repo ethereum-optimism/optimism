@@ -140,7 +140,7 @@ func SuperchainFor(chainID uint64) (superchain.Superchain, error) {
 	}
 }
 
-func ManagerImplementationAddrFor(chainID uint64, tag string) (common.Address, error) {
+func OPCMImplAddressFor(chainID uint64, tag string) (common.Address, error) {
 	versionsData, err := L1VersionsFor(chainID)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("unsupported chainID: %d", chainID)
