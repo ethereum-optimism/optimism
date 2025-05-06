@@ -125,6 +125,7 @@ rules:
         - packages/contracts-bedrock/src/universal/WETH98.sol
         - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
         - packages/contracts-bedrock/src/governance/GovernanceToken.sol
+        - packages/contracts-bedrock/src/governance/VotingModule.sol
 
   - id: sol-style-return-arg-fmt
     languages: [solidity]
@@ -139,6 +140,7 @@ rules:
         - packages/contracts-bedrock/test/safe-tools
         - packages/contracts-bedrock/scripts/libraries/Solarray.sol
         - packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
+        - packages/contracts-bedrock/src/governance/VotingModule.sol
 
   - id: sol-style-doc-comment
     languages: [solidity]
@@ -233,6 +235,7 @@ rules:
         - packages/contracts-bedrock/src/libraries/Blueprint.sol
         - packages/contracts-bedrock/src/dispute/lib/Errors.sol
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
+        - packages/contracts-bedrock/src/governance/VotingModule.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
         - packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
         - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
@@ -331,6 +334,9 @@ rules:
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
         - packages/contracts-bedrock/src/governance/MintManager.sol
+        - packages/contracts-bedrock/src/governance/ProposalValidator.sol
+        - packages/contracts-bedrock/src/governance/VotingModule.sol
+        - packages/contracts-bedrock/src/governance/ProposalValidator.sol
         - packages/contracts-bedrock/src/periphery/TransferOnion.sol
         - packages/contracts-bedrock/src/periphery/faucet/Faucet.sol
         - packages/contracts-bedrock/src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol
