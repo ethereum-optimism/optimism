@@ -242,8 +242,8 @@ func (db *ChainsDB) Finalized(chainID eth.ChainID) (types.BlockSeal, error) {
 		db.logger.Warn("Finalized L1 block is newer than the latest L1 for this chain. Assuming latest L2 is finalized",
 			"chain", chainID,
 			"finalizedL1", finalizedL1.Number,
-			"latestSource", latest.Source.Number,
-			"latestDerived", latest.Source)
+			"latestSource", latest.Source,
+			"latestDerived", latest.Derived)
 		return latest.Derived, nil
 	}
 
