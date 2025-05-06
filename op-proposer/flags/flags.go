@@ -46,7 +46,7 @@ var (
 	}
 	PollIntervalFlag = &cli.DurationFlag{
 		Name:    "poll-interval",
-		Usage:   "How frequently to poll L2 for new blocks (legacy L2OO)",
+		Usage:   "How frequently to check if a new proposal needs to be submitted",
 		Value:   12 * time.Second,
 		EnvVars: prefixEnvVars("POLL_INTERVAL"),
 	}
