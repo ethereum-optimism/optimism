@@ -1,0 +1,527 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IOptimismGovernor",
+        "name": "_governor",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IGovernanceToken",
+        "name": "_votingToken",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_attestationSchemaUid",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minimumVotingPower",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_votingCycleBlock",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_distributionThreshold",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum ProposalValidator.ProposalType[]",
+        "name": "_proposalTypes",
+        "type": "uint8[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_requiredApprovals",
+        "type": "uint256[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address[]",
+            "name": "targets",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "values",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "string[]",
+            "name": "signatures",
+            "type": "string[]"
+          }
+        ],
+        "internalType": "struct ProposalValidator.ImmutableProposalTypeData[]",
+        "name": "_immutableProposalTypeDatas",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "ATTESTATION_SCHEMA_UID",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "GOVERNOR",
+    "outputs": [
+      {
+        "internalType": "contract IOptimismGovernor",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "VOTING_TOKEN",
+    "outputs": [
+      {
+        "internalType": "contract IGovernanceToken",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_proposalId",
+        "type": "uint256"
+      }
+    ],
+    "name": "approveProposal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_delegate",
+        "type": "address"
+      }
+    ],
+    "name": "canSignOff",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "canSignOff_",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "distributionThreshold",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minimumVotingPower",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_proposalId",
+        "type": "uint256"
+      }
+    ],
+    "name": "moveToVote",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "governorProposalId_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_distributionThreshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "setDistributionThreshold",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_minimumVotingPower",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMinimumVotingPower",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "_proposalType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_requiredApprovals",
+        "type": "uint256"
+      }
+    ],
+    "name": "setProposalRequiredApprovals",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_votingCycleBlock",
+        "type": "uint256"
+      }
+    ],
+    "name": "setVotingCycleBlock",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_targets",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_values",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "_calldatas",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "string",
+        "name": "_description",
+        "type": "string"
+      },
+      {
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "_proposalType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_attestationUid",
+        "type": "bytes32"
+      }
+    ],
+    "name": "submitProposal",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "votingCycleBlock",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newDistributionThreshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "DistributionThresholdSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newMinimumVotingPower",
+        "type": "uint256"
+      }
+    ],
+    "name": "MinimumVotingPowerSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "proposalType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newApprovalThreshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProposalApprovalThresholdSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "approver",
+        "type": "address"
+      }
+    ],
+    "name": "ProposalApproved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      }
+    ],
+    "name": "ProposalMovedToVote",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proposer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "targets",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "values",
+        "type": "uint256[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes[]",
+        "name": "calldatas",
+        "type": "bytes[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "description",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "proposalType",
+        "type": "uint8"
+      }
+    ],
+    "name": "ProposalSubmitted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newVotingCycleBlock",
+        "type": "uint256"
+      }
+    ],
+    "name": "VotingCycleBlockSet",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InsufficientApprovals",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InsufficientVotingPower",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InvalidAttestation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_ProposalAlreadyApproved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_ProposalAlreadyInVoting",
+    "type": "error"
+  }
+]
