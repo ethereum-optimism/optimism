@@ -108,7 +108,7 @@ contract StandardValidator {
     }
 
     function mipsVersion() public pure returns (string memory) {
-        return "1.0.0";
+        return "1.3.0";
     }
 
     function optimismMintableERC20FactoryVersion() public pure returns (string memory) {
