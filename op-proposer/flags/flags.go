@@ -46,7 +46,7 @@ var (
 	}
 	PollIntervalFlag = &cli.DurationFlag{
 		Name:    "poll-interval",
-		Usage:   "Delay between the trigger to decide wether it is time to load an output root and propose it",
+		Usage:   "Delay between periodic checks on whether it is time to load an output root and propose it.",
 		Value:   12 * time.Second,
 		EnvVars: prefixEnvVars("POLL_INTERVAL"),
 	}
