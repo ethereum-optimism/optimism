@@ -234,9 +234,6 @@ func checkHazards(logger log.Logger, deps ConsolidateCheckDeps, candidate superv
 	if err != nil {
 		return err
 	}
-	if err := cross.HazardUnsafeFrontierChecks(deps, hazards); err != nil {
-		return err
-	}
 	if err := cross.HazardCycleChecks(deps.DependencySet(), deps, candidate.Timestamp, hazards); err != nil {
 		return err
 	}
