@@ -8,7 +8,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
-contract DeployAltDA2 is Script {
+contract DeployAltDA is Script {
     struct Input {
         bytes32 salt;
         IProxyAdmin proxyAdmin;

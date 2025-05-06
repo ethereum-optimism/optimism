@@ -34,7 +34,7 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 		return fmt.Errorf("failed to load DeployAltDA script: %w", err)
 	}
 
-	output, err := deployAltDAScript.Run(opcm.DeployAltDA2Input{
+	output, err := deployAltDAScript.Run(opcm.DeployAltDAInput{
 		Salt:                     st.Create2Salt,
 		ProxyAdmin:               chainState.OpChainContracts.OpChainProxyAdminImpl,
 		ChallengeContractOwner:   chainIntent.Roles.L1ProxyAdminOwner,

@@ -9,7 +9,7 @@ import (
 // Scripts contains all the deployment scripts for ease of passing them around
 type Scripts struct {
 	DeployAlphabetVM      DeployAlphabetVMScript
-	DeployAltDA           DeployAltDA2Script
+	DeployAltDA           DeployAltDAScript
 	DeployAsterisc        DeployAsteriscScript
 	DeployDisputeGame     DeployDisputeGameScript
 	DeployImplementations DeployImplementations2Script

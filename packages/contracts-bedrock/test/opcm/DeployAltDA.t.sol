@@ -3,14 +3,14 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 
-import { DeployAltDA2 } from "scripts/deploy/DeployAltDA2.s.sol";
+import { DeployAltDA } from "scripts/deploy/DeployAltDA.s.sol";
 import { IDataAvailabilityChallenge } from "interfaces/L1/IDataAvailabilityChallenge.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
-contract DeployAltDA2_Test is Test {
-    DeployAltDA2 deployAltDA;
+contract DeployAltDA_Test is Test {
+    DeployAltDA deployAltDA;
 
     // Define defaults
     bytes32 salt = bytes32(uint256(1));
@@ -22,7 +22,7 @@ contract DeployAltDA2_Test is Test {
     uint256 resolverRefundPercentage = 10;
 
     function setUp() public {
-        deployAltDA = new DeployAltDA2();
+        deployAltDA = new DeployAltDA();
 
         // Setup proxyAdmin
         proxyAdmin = IProxyAdmin(
@@ -34,7 +34,7 @@ contract DeployAltDA2_Test is Test {
     }
 
     function test_run_succeeds(
-        DeployAltDA2.Input memory _input,
+        DeployAltDA.Input memory _input,
         uint8 _resolverRefundPercentage // we use uint8 for a percentage value so that we don't need to reject almost
             // every uint256
     )
@@ -52,7 +52,7 @@ contract DeployAltDA2_Test is Test {
         vm.assume(_input.bondSize != 0);
 
         // Run deployment
-        DeployAltDA2.Output memory output = deployAltDA.run(_input);
+        DeployAltDA.Output memory output = deployAltDA.run(_input);
 
         // Verify everything is set up correctly
         assertTrue(address(output.dataAvailabilityChallengeImpl).code.length > 0, "200");
@@ -73,7 +73,7 @@ contract DeployAltDA2_Test is Test {
     function test_run_resolverRefundPercentageTooLarge_reverts(uint256 _resolverRefundPercentage) public {
         vm.assume(_resolverRefundPercentage > 100);
 
-        DeployAltDA2.Input memory input = defaultInput();
+        DeployAltDA.Input memory input = defaultInput();
         input.resolverRefundPercentage = _resolverRefundPercentage;
 
         vm.expectRevert("DeployAltDA: resolverRefundPercentage too large");
@@ -81,7 +81,7 @@ contract DeployAltDA2_Test is Test {
     }
 
     function test_run_nullInputs_reverts() public {
-        DeployAltDA2.Input memory input;
+        DeployAltDA.Input memory input;
 
         input = defaultInput();
         input.salt = bytes32(0);
@@ -114,8 +114,8 @@ contract DeployAltDA2_Test is Test {
         deployAltDA.run(input);
     }
 
-    function defaultInput() private view returns (DeployAltDA2.Input memory input_) {
-        input_ = DeployAltDA2.Input(
+    function defaultInput() private view returns (DeployAltDA.Input memory input_) {
+        input_ = DeployAltDA.Input(
             salt, proxyAdmin, challengeContractOwner, challengeWindow, resolveWindow, bondSize, resolverRefundPercentage
         );
     }

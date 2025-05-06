@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type DeployAltDA2Input struct {
+type DeployAltDAInput struct {
 	Salt                     common.Hash
 	ProxyAdmin               common.Address
 	ChallengeContractOwner   common.Address
@@ -17,14 +17,14 @@ type DeployAltDA2Input struct {
 	ResolverRefundPercentage *big.Int
 }
 
-type DeployAltDA2Output struct {
+type DeployAltDAOutput struct {
 	DataAvailabilityChallengeProxy common.Address
 	DataAvailabilityChallengeImpl  common.Address
 }
 
-type DeployAltDA2Script script.DeployScriptWithOutput[DeployAltDA2Input, DeployAltDA2Output]
+type DeployAltDAScript script.DeployScriptWithOutput[DeployAltDAInput, DeployAltDAOutput]
 
-// NewDeployAltDAScript loads and validates the DeployAltDA2 script contract
-func NewDeployAltDAScript(host *script.Host) (DeployAltDA2Script, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployAltDA2Input, DeployAltDA2Output](host, "DeployAltDA2.s.sol", "DeployAltDA2")
+// NewDeployAltDAScript loads and validates the DeployAltDA script contract
+func NewDeployAltDAScript(host *script.Host) (DeployAltDAScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[DeployAltDAInput, DeployAltDAOutput](host, "DeployAltDA.s.sol", "DeployAltDA")
 }

@@ -20,7 +20,7 @@ func TestNewDeployAltDAScript(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then we deploy
-		output, err := deploySuperchain.Run(DeployAltDA2Input{
+		output, err := deploySuperchain.Run(DeployAltDAInput{
 			Salt:                     common.BigToHash(big.NewInt(1)),
 			ProxyAdmin:               common.BigToAddress(big.NewInt(2)),
 			ChallengeContractOwner:   common.BigToAddress(big.NewInt(3)),

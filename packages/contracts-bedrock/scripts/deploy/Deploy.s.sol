@@ -17,7 +17,7 @@ import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeploySuperchain2 } from "scripts/deploy/DeploySuperchain2.s.sol";
 import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.sol";
-import { DeployAltDA2 } from "scripts/deploy/DeployAltDA2.s.sol";
+import { DeployAltDA } from "scripts/deploy/DeployAltDA.s.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
@@ -181,8 +181,8 @@ contract Deploy is Deployer {
             if (typeHash == keccakHash) {
                 console.log("Deploying OP AltDA");
 
-                DeployAltDA2 da2 = new DeployAltDA2();
-                DeployAltDA2.Input memory dii = DeployAltDA2.Input({
+                DeployAltDA da = new DeployAltDA();
+                DeployAltDA.Input memory dii = DeployAltDA.Input({
                     salt: _implSalt(),
                     proxyAdmin: IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin")),
                     challengeContractOwner: cfg.finalSystemOwner(),
@@ -192,7 +192,7 @@ contract Deploy is Deployer {
                     resolverRefundPercentage: cfg.daResolverRefundPercentage()
                 });
 
-                DeployAltDA2.Output memory dio = da2.run(dii);
+                DeployAltDA.Output memory dio = da.run(dii);
 
                 artifacts.save("DataAvailabilityChallengeProxy", address(dio.dataAvailabilityChallengeProxy));
                 artifacts.save("DataAvailabilityChallengeImpl", address(dio.dataAvailabilityChallengeImpl));
