@@ -164,18 +164,7 @@ func singleRoundConsolidation(
 			continue
 		}
 
-		agreedOutput := l2PreimageOracle.OutputByRoot(common.Hash(chain.Output), chain.ChainID)
-		agreedOutputV0, ok := agreedOutput.(*eth.OutputV0)
-		if !ok {
-			return fmt.Errorf("%w: version: %d", l2.ErrUnsupportedL2Output, agreedOutput.Version())
-		}
-		agreedBlockHash := common.Hash(agreedOutputV0.BlockHash)
-
 		progress := consolidateState.PendingProgress[i]
-		// It's possible that the optimistic block is not canonical.
-		// So we use the blockDataByHash hint to trigger a block rebuild to ensure that the block data, including receipts, are available.
-		_ = l2PreimageOracle.BlockDataByHash(agreedBlockHash, progress.BlockHash, chain.ChainID)
-
 		optimisticBlock, _ := l2PreimageOracle.ReceiptsByBlockHash(progress.BlockHash, chain.ChainID)
 
 		candidate := supervisortypes.BlockSeal{
@@ -273,7 +262,10 @@ func newConsolidateCheckDeps(
 		progress := transitionState.PendingProgress[i]
 		// This is the optimistic head. It's OK if it's replaced by a deposits-only block.
 		// Because by then the replacement block won't be used for hazard checks.
-		head := oracle.BlockByHash(progress.BlockHash, chain.ChainID)
+		head, err := fetchOptimisticBlock(oracle, progress.BlockHash, chain)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch optimistic block for chain %v: %w", chain.ChainID, err)
+		}
 		blockByHash := func(hash common.Hash) *ethtypes.Block {
 			return oracle.BlockByHash(hash, chain.ChainID)
 		}
@@ -291,6 +283,15 @@ func newConsolidateCheckDeps(
 		canonBlocks:      canonBlocks,
 		consolidateState: consolidateState,
 	}, nil
+}
+
+func fetchOptimisticBlock(oracle l2.Oracle, blockHash common.Hash, chain eth.ChainIDAndOutput) (*ethtypes.Block, error) {
+	agreedOutput := oracle.OutputByRoot(common.Hash(chain.Output), chain.ChainID)
+	agreedOutputV0, ok := agreedOutput.(*eth.OutputV0)
+	if !ok {
+		return nil, fmt.Errorf("%w: version: %d", l2.ErrUnsupportedL2Output, agreedOutput.Version())
+	}
+	return oracle.BlockDataByHash(agreedOutputV0.BlockHash, blockHash, chain.ChainID), nil
 }
 
 func (d *consolidateCheckDeps) Contains(chain eth.ChainID, query supervisortypes.ContainsQuery) (includedIn supervisortypes.BlockSeal, err error) {

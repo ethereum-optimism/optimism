@@ -8,11 +8,15 @@ import (
 	"reflect"
 	"testing"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	fpHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
+	sync2 "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
@@ -20,7 +24,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1391,13 +1397,57 @@ func WithInteropEnabled(t helpers.StatefulTesting, actors *dsl.InteropActors, de
 		f.DependencySet = depSet
 
 		for _, chain := range []*dsl.Chain{actors.ChainA, actors.ChainB} {
+			verifier, canonicalOnlyEngine := createVerifierWithOnlyCanonicalBlocks(t, actors.L1Miner, chain)
 			f.L2Sources = append(f.L2Sources, &fpHelpers.FaultProofProgramL2Source{
-				Node:        chain.Sequencer.L2Verifier,
-				Engine:      chain.SequencerEngine,
+				Node:        verifier,
+				Engine:      canonicalOnlyEngine,
 				ChainConfig: chain.L2Genesis.Config,
 			})
 		}
 	}
+}
+
+func createVerifierWithOnlyCanonicalBlocks(t helpers.StatefulTesting, l1Miner *helpers.L1Miner, chain *dsl.Chain) (*helpers.L2Verifier, *helpers.L2Engine) {
+	jwtPath := e2eutils.WriteDefaultJWT(t)
+	canonicalOnlyEngine := helpers.NewL2Engine(t, testlog.Logger(t, log.LvlInfo).New("role", "canonicalOnlyEngine"), chain.L2Genesis, jwtPath)
+	head := chain.Sequencer.L2Unsafe()
+	for i := uint64(1); i <= head.Number; i++ {
+		block, err := chain.SequencerEngine.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
+		require.NoErrorf(t, err, "failed to get block by number %v", i)
+		envelope, err := eth.BlockAsPayloadEnv(block, chain.L2Genesis.Config)
+		require.NoErrorf(t, err, "could not convert block %v to payload envelope")
+		result, err := canonicalOnlyEngine.EngineApi.NewPayloadV4(t.Ctx(), envelope.ExecutionPayload, []common.Hash{}, envelope.ParentBeaconBlockRoot, []hexutil.Bytes{})
+		require.NoErrorf(t, err, "could not import payload for block %v", i)
+		require.Equal(t, eth.ExecutionValid, result.Status)
+	}
+	fcuResult, err := canonicalOnlyEngine.EngineApi.ForkchoiceUpdatedV3(t.Ctx(), &eth.ForkchoiceState{
+		HeadBlockHash:      head.Hash,
+		SafeBlockHash:      head.Hash,
+		FinalizedBlockHash: head.Hash,
+	}, nil)
+	require.NoErrorf(t, err, "could not update fork choice for block %v", head.Hash)
+	require.Equal(t, eth.ExecutionValid, fcuResult.PayloadStatus.Status)
+
+	// Verify chain matches exactly
+	for i := uint64(0); i <= head.Number; i++ {
+		blockNum := new(big.Int).SetUint64(i)
+		expected, err := chain.SequencerEngine.EthClient().BlockByNumber(t.Ctx(), blockNum)
+		require.NoErrorf(t, err, "failed to get original block by number %v", i)
+		actual, err := canonicalOnlyEngine.EthClient().BlockByNumber(t.Ctx(), blockNum)
+		require.NoErrorf(t, err, "failed to get canonical-only block by number %v", i)
+		require.Equalf(t, expected.Hash(), actual.Hash(), "block %v does not match", i)
+	}
+
+	verifier := helpers.NewL2Verifier(t,
+		testlog.Logger(t, log.LvlInfo).New("role", "canonicalOnlyVerifier"),
+		l1Miner.L1Client(t, chain.RollupCfg),
+		l1Miner.BlobSource(),
+		altda.Disabled,
+		canonicalOnlyEngine.EngineClient(t, chain.RollupCfg),
+		chain.RollupCfg,
+		&sync2.Config{},
+		safedb.Disabled)
+	return verifier, canonicalOnlyEngine
 }
 
 func assertTime(t helpers.Testing, chain *dsl.Chain, unsafe, crossUnsafe, localSafe, safe uint64) {

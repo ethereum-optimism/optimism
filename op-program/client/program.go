@@ -21,10 +21,11 @@ import (
 var errInvalidConfig = errors.New("invalid config")
 
 type Config struct {
-	SkipValidation bool
-	InteropEnabled bool
-	DB             l2.KeyValueStore
-	StoreBlockData bool
+	SkipValidation   bool
+	InteropEnabled   bool
+	ForceHintChainID bool
+	DB               l2.KeyValueStore
+	StoreBlockData   bool
 }
 
 // Main executes the client program in a detached context and exits the current process.
@@ -63,7 +64,7 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 	pClient := preimage.NewOracleClient(preimageOracle)
 	hClient := preimage.NewHintWriter(preimageHinter)
 	l1PreimageOracle := l1.NewCachingOracle(l1.NewPreimageOracle(pClient, hClient))
-	l2PreimageOracle := l2.NewCachingOracle(l2.NewPreimageOracle(pClient, hClient, cfg.InteropEnabled))
+	l2PreimageOracle := l2.NewCachingOracle(l2.NewPreimageOracle(pClient, hClient, cfg.InteropEnabled || cfg.ForceHintChainID))
 
 	if cfg.InteropEnabled {
 		bootInfo := boot.BootstrapInterop(pClient)
@@ -73,6 +74,6 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 		return fmt.Errorf("%w: db config is required", errInvalidConfig)
 	}
 	bootInfo := boot.NewBootstrapClient(pClient).BootInfo()
-	derivationOptions := tasks.DerivationOptions{StoreBlockData: cfg.StoreBlockData}
+	derivationOptions := tasks.DerivationOptions{StoreBlockData: cfg.StoreBlockData, SkipValidation: cfg.SkipValidation}
 	return RunPreInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, cfg.DB, derivationOptions)
 }

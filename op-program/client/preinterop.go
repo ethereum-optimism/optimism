@@ -34,5 +34,9 @@ func RunPreInteropProgram(
 	if err != nil {
 		return err
 	}
+	if opts.SkipValidation {
+		logger.Info("Validation skipped", "blockHash", result.BlockHash, "outputRoot", result.OutputRoot)
+		return nil
+	}
 	return claim.ValidateClaim(logger, eth.Bytes32(bootInfo.L2Claim), result.OutputRoot)
 }
