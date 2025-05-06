@@ -1,6 +1,9 @@
 package dsl
 
-import "github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+import (
+	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+)
 
 // L2Batcher wraps a stack.L2Batcher interface for DSL operations
 type L2Batcher struct {
@@ -23,4 +26,8 @@ func (b *L2Batcher) String() string {
 // Escape returns the underlying stack.L2Batcher
 func (b *L2Batcher) Escape() stack.L2Batcher {
 	return b.inner
+}
+
+func (b *L2Batcher) ActivityAPI() apis.BatcherActivity {
+	return b.inner.ActivityAPI()
 }

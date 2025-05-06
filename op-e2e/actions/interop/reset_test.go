@@ -16,8 +16,7 @@ func TestReset(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	// No blocks yet
 	status := actors.ChainA.Sequencer.SyncStatus()
 	require.Equal(t, uint64(0), status.UnsafeL2.Number)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -87,6 +88,17 @@ func TestCanyonTimeOffset(t *testing.T) {
 		},
 	}
 	require.Equal(t, uint64(1234+1500), *config.CanyonTime(1234))
+}
+
+func TestForksCantActivateAtSamePostGenesisBlock(t *testing.T) {
+	postGenesisOffset := uint64(1500)
+	config := &UpgradeScheduleDeployConfig{}
+	for _, fork := range config.forks() {
+		config.SetForkTimeOffset(rollup.ForkName(fork.Name), &postGenesisOffset)
+	}
+	err := config.Check(testlog.Logger(t, log.LevelDebug))
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "Forks in general cannot activate at the same post-Genesis block"))
 }
 
 // TestCopy will copy a DeployConfig and ensure that the copy is equal to the original.
@@ -174,4 +186,36 @@ func TestUpgradeScheduleDeployConfig_ActivateForkAtOffset(t *testing.T) {
 			require.Nil(t, d.ForkTimeOffset(fork))
 		}
 	})
+}
+
+func TestUpgradeScheduleDeployConfig_SolidityForkNumber(t *testing.T) {
+	// Iterate over all of them in case more are added
+	for i, fork := range scheduleableForks[2:] {
+		if fork == "interop" {
+			continue
+		}
+
+		var d UpgradeScheduleDeployConfig
+		d.ActivateForkAtOffset(fork, 0)
+		require.EqualValues(t, i+1, d.SolidityForkNumber(uint64(42)))
+	}
+
+	// Also validate that each fork manually, for sanity
+	tests := []struct {
+		fork     rollup.ForkName
+		expected int64
+	}{
+		{rollup.Delta, 1},
+		{rollup.Ecotone, 2},
+		{rollup.Fjord, 3},
+		{rollup.Granite, 4},
+		{rollup.Holocene, 5},
+		{rollup.Isthmus, 6},
+		{rollup.Jovian, 7},
+	}
+	for _, tt := range tests {
+		var d UpgradeScheduleDeployConfig
+		d.ActivateForkAtGenesis(tt.fork)
+		require.EqualValues(t, tt.expected, d.SolidityForkNumber(uint64(42)))
+	}
 }

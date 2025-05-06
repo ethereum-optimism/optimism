@@ -647,7 +647,6 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		updateChans[i] = make(chan struct{}, 1)
 		innerWg.Add(1)
 		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
-		l.Log.Info("Started throttling loop for endpoint", "endpoint", endpoint)
 	}
 
 	for pb := range pendingBytesUpdated {

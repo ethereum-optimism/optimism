@@ -32,7 +32,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
-    GameType internal constant GAME_TYPE = GameType.wrap(4);
+    GameType internal immutable GAME_TYPE = GameTypes.SUPER_CANNON;
 
     /// @dev The initial bond for the game.
     uint256 internal initBond;

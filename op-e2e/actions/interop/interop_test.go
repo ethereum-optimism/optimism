@@ -23,7 +23,7 @@ func TestFullInterop(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 
 	// sync the supervisor, handle initial events emitted by the nodes
 	actors.ChainA.Sequencer.SyncSupervisor(t)
@@ -163,8 +163,7 @@ func TestFinality(gt *testing.T) {
 	testFinality := func(t helpers.StatefulTesting, extraBlocks int) {
 		is := dsl.SetupInterop(t)
 		actors := is.CreateActors()
-		actors.PrepareChainState(t)
-
+		actors.PrepareAndVerifyInitialState(t)
 		actors.Supervisor.ProcessFull(t)
 
 		// Build L2 block on chain A
@@ -242,8 +241,7 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	genesisB := actors.ChainB.Sequencer.SyncStatus()
 
 	// build L2 block on chain B with invalid executing message pointing to A.
@@ -357,8 +355,7 @@ func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	// We create a batch with some empty blocks before and after the cross-chain message,
 	// so multiple L2 blocks are all derived from the same L1 block.
 	actors.ChainA.Sequencer.ActL2EmptyBlock(t)
@@ -439,7 +436,7 @@ func TestInteropExecutingMessageOutOfRangeLogIndex(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	aliceA := setupUser(t, is, actors.ChainA, 0)
 
 	// Execute a fake log on chain A

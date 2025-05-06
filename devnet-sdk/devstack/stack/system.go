@@ -14,6 +14,7 @@ type System interface {
 	Network(id eth.ChainID) Network
 
 	Supervisor(m SupervisorMatcher) Supervisor
+	Sequencer(id SequencerMatcher) Sequencer
 
 	SuperchainIDs() []SuperchainID
 	ClusterIDs() []ClusterID
@@ -26,6 +27,7 @@ type System interface {
 	L1Networks() []L1Network
 	L2Networks() []L2Network
 	Supervisors() []Supervisor
+	Sequencers() []Sequencer
 }
 
 // ExtensibleSystem is an extension-interface to add new components to the system.
@@ -38,4 +40,5 @@ type ExtensibleSystem interface {
 	AddL1Network(v L1Network)
 	AddL2Network(v L2Network)
 	AddSupervisor(v Supervisor)
+	AddSequencer(v Sequencer)
 }

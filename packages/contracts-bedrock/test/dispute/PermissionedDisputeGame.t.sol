@@ -13,7 +13,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 
 contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
-    GameType internal constant GAME_TYPE = GameType.wrap(1);
+    GameType internal immutable GAME_TYPE = GameTypes.PERMISSIONED_CANNON;
     /// @dev Mock proposer key
     address internal constant PROPOSER = address(0xfacade9);
     /// @dev Mock challenger key

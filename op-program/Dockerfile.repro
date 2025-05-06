@@ -49,6 +49,10 @@ COPY --from=builder /app/op-program/bin/op-program-client64.elf .
 COPY --from=builder /app/op-program/bin/meta-mt64.json .
 COPY --from=builder /app/op-program/bin/prestate-mt64.bin.gz .
 COPY --from=builder /app/op-program/bin/prestate-proof-mt64.json .
+# Cannon64 Next VM files
+COPY --from=builder /app/op-program/bin/meta-mt64Next.json .
+COPY --from=builder /app/op-program/bin/prestate-mt64Next.bin.gz .
+COPY --from=builder /app/op-program/bin/prestate-proof-mt64Next.json .
 # Interop files
 COPY --from=builder /app/op-program/bin/meta-interop.json .
 COPY --from=builder /app/op-program/bin/prestate-interop.bin.gz .

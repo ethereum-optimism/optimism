@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
@@ -63,7 +63,8 @@ var _ require.TestingT = T(nil)
 // testingT implements the T interface by wrapping around a regular golang testing.T
 type testingT struct {
 	t      *testing.T
-	logger log.Logger
+	logger Logger
+	tracer trace.Tracer
 	ctx    context.Context
 	req    *require.Assertions
 	gate   *require.Assertions
@@ -107,8 +108,12 @@ func (t *testingT) Name() string {
 	return t.t.Name()
 }
 
-func (t *testingT) Logger() log.Logger {
+func (t *testingT) Logger() Logger {
 	return t.logger
+}
+
+func (t *testingT) Tracer() trace.Tracer {
+	return t.tracer
 }
 
 func (t *testingT) Ctx() context.Context {
@@ -120,12 +125,29 @@ func (t *testingT) Require() *require.Assertions {
 }
 
 func (t *testingT) Run(name string, fn func(T)) {
+	baseName := t.Name()
 	t.t.Run(name, func(subGoT *testing.T) {
 		ctx, cancel := context.WithCancel(t.ctx)
 		subGoT.Cleanup(cancel)
+
+		tracer := otel.GetTracerProvider().Tracer(baseName + "::" + name)
+		ctx, span := tracer.Start(ctx, name)
+		subGoT.Cleanup(func() {
+			span.End()
+		})
+		// we know the underlying implementation, but it's pretty ugly.
+		level := t.logger.(*logger).level
+		logger := &logger{
+			Logger: t.logger.New("subtest", name),
+			level:  level,
+			t:      t,
+			ctx:    ctx,
+		}
+
 		subT := &testingT{
 			t:      subGoT,
-			logger: t.logger.New("subtest", name),
+			logger: logger,
+			tracer: tracer,
 			ctx:    ctx,
 		}
 		subT.req = require.New(subT)
@@ -185,10 +207,18 @@ var _ T = (*testingT)(nil)
 func SerialT(t *testing.T) T {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	logger := testlog.Logger(t, log.LevelInfo)
+
+	tracer := otel.GetTracerProvider().Tracer(t.Name())
+	ctx, span := tracer.Start(ctx, t.Name())
+	t.Cleanup(func() {
+		span.End()
+	})
+	logger := NewLogger(ctx, t, log.LevelInfo).WithContext(ctx)
+
 	out := &testingT{
 		t:      t,
 		logger: logger,
+		tracer: tracer,
 		ctx:    ctx,
 	}
 	out.req = require.New(out)

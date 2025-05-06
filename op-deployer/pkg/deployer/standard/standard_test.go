@@ -138,7 +138,7 @@ func TestManagerImplementationAddrFor(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			addr, err := ManagerImplementationAddrFor(tc.chainID, tc.tag)
+			addr, err := OPCMImplAddressFor(tc.chainID, tc.tag)
 
 			if tc.expectError {
 				require.Error(t, err)

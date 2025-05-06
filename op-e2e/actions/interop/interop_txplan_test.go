@@ -74,7 +74,7 @@ func TestTxPlanDeployEventLogger(gt *testing.T) {
 
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 
 	aliceA := setupUser(t, is, actors.ChainA, 0)
 
@@ -402,7 +402,8 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
+
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
@@ -477,8 +478,7 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
@@ -576,8 +576,7 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	// only unsafe head of each chain progresses in this code block
 	var targetNum uint64
 	{
@@ -670,8 +669,7 @@ func TestExpiredMessage(gt *testing.T) {
 	expiryTime := uint64(6)
 	is := dsl.SetupInterop(t, dsl.SetMessageExpiryTime(expiryTime))
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
@@ -744,7 +742,7 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
@@ -874,7 +872,7 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
@@ -965,7 +963,7 @@ func TestCycleInTx(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
@@ -1048,7 +1046,7 @@ func TestCycleInBlock(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 
 	actors.ChainA.Sequencer.ActL2StartBlock(t)
@@ -1131,7 +1129,7 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
@@ -1226,7 +1224,7 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	is := dsl.SetupInterop(t)
 	actors := is.CreateActors()
-	actors.PrepareChainState(t)
+	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 

@@ -39,7 +39,7 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		return fmt.Errorf("unsupported L2 version: %s", intent.L2ContractsLocator.Tag)
 	}
 
-	if isL1Tag && hasPredeployedOPCM {
+	if hasPredeployedOPCM {
 		if intent.SuperchainConfigProxy != nil {
 			return fmt.Errorf("cannot set superchain config proxy for predeployed OPCM")
 		}

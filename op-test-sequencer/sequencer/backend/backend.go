@@ -16,6 +16,7 @@ import (
 
 type APIRouter interface {
 	AddRPC(route string) error
+	AddRPCWithAuthentication(route string, isAuthenticated *bool) error
 	AddAPIToRPC(route string, api rpc.API) error
 }
 
@@ -54,7 +55,14 @@ func (ba *Backend) setupSequencerFrontend(id seqtypes.SequencerID) error {
 	if err := ba.router.AddRPC(route); err != nil {
 		return fmt.Errorf("invalid sequencer RPC route: %w", err)
 	}
-	f := &frontend.SequencerFrontend{Sequencer: ba.ensemble.Sequencer(id)}
+
+	tx_route := "/tx/" + id.String()
+	isAuthenticated := false
+	if err := ba.router.AddRPCWithAuthentication(tx_route, &isAuthenticated); err != nil {
+		return fmt.Errorf("invalid sequencer RPC route: %w", err)
+	}
+
+	f := &frontend.SequencerFrontend{Sequencer: ba.ensemble.Sequencer(id), Logger: ba.logger}
 	if err := ba.router.AddAPIToRPC(route, rpc.API{
 		Namespace: "sequencer",
 		Service:   f,
@@ -62,12 +70,24 @@ func (ba *Backend) setupSequencerFrontend(id seqtypes.SequencerID) error {
 		return fmt.Errorf("invalid sequencer RPC frontend: %w", err)
 	}
 	ba.logger.Info("Added sequencer RPC route", "route", route)
+
+	ethTx := &frontend.EthTxFrontend{Sequencer: ba.ensemble.Sequencer(id), Logger: ba.logger}
+	if err := ba.router.AddAPIToRPC(tx_route, rpc.API{
+		Namespace: "eth",
+		Service:   ethTx,
+	}); err != nil {
+		return fmt.Errorf("invalid ethTx RPC frontend: %w", err)
+	}
+	ba.logger.Info("Added ethTx RPC route", "route", tx_route)
 	return nil
 }
 
-func (ba *Backend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
+func (ba *Backend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts seqtypes.BuildOpts) (work.BuildJob, error) {
 	ba.activeMu.RLock()
 	defer ba.activeMu.RUnlock()
+
+	ba.logger.Debug("Backend CreateJob", "builder_id", id, "opts", opts)
+
 	if !ba.active {
 		return nil, seqtypes.ErrBackendInactive
 	}

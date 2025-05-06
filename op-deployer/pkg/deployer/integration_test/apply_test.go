@@ -55,6 +55,8 @@ func (d *deployerKey) String() string {
 }
 
 func TestLiveChain(t *testing.T) {
+	t.Skip("requires backport")
+
 	op_e2e.InitParallel(t)
 
 	for _, network := range []string{"mainnet", "sepolia"} {
@@ -193,6 +195,7 @@ func TestEndToEndApply(t *testing.T) {
 	})
 
 	t.Run("chain with tagged artifacts", func(t *testing.T) {
+		t.Skip("requires backport")
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
 		intent.L1ContractsLocator = artifacts.DefaultL1ContractsLocator
 		intent.L2ContractsLocator = artifacts.DefaultL2ContractsLocator

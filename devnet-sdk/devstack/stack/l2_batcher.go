@@ -1,5 +1,7 @@
 package stack
 
+import "github.com/ethereum-optimism/optimism/op-service/apis"
+
 // L2BatcherID identifies a L2Batcher by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2BatcherID idWithChain
 
@@ -39,6 +41,5 @@ func (id L2BatcherID) Match(elems []L2Batcher) []L2Batcher {
 type L2Batcher interface {
 	Common
 	ID() L2BatcherID
-
-	// API to interact with batcher will be added here later
+	ActivityAPI() apis.BatcherActivity
 }

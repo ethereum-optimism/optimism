@@ -80,14 +80,10 @@ func (p *L1Accessor) AttachClient(client L1Source, subscribe bool) {
 	defer p.clientMu.Unlock()
 
 	// if we have a finality subscription, unsubscribe from it
-	if p.finalitySub != nil {
-		p.finalitySub.Unsubscribe()
-	}
+	p.UnsubscribeFinalityHandler()
 
 	// if we have a latest subscription, unsubscribe from it
-	if p.latestSub != nil {
-		p.latestSub.Unsubscribe()
-	}
+	p.UnsubscribeLatestHandler()
 
 	p.client = client
 
@@ -107,6 +103,12 @@ func (p *L1Accessor) SubscribeFinalityHandler() {
 		reqTimeout)
 }
 
+func (p *L1Accessor) UnsubscribeFinalityHandler() {
+	if p.finalitySub != nil {
+		p.finalitySub.Unsubscribe()
+	}
+}
+
 func (p *L1Accessor) SubscribeLatestHandler() {
 	p.latestSub = eth.PollBlockChanges(
 		p.log,
@@ -115,6 +117,12 @@ func (p *L1Accessor) SubscribeLatestHandler() {
 		eth.Unsafe,
 		3*time.Second,
 		reqTimeout)
+}
+
+func (p *L1Accessor) UnsubscribeLatestHandler() {
+	if p.latestSub != nil {
+		p.latestSub.Unsubscribe()
+	}
 }
 
 func (p *L1Accessor) SetConfDepth(depth uint64) {

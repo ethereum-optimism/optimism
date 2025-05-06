@@ -1,5 +1,7 @@
 package stack
 
+import "github.com/ethereum-optimism/optimism/op-service/apis"
+
 // L2ELNodeID identifies a L2ELNode by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2ELNodeID idWithChain
 
@@ -38,6 +40,7 @@ func (id L2ELNodeID) Match(elems []L2ELNode) []L2ELNode {
 // L2ELNode is a L2 ethereum execution-layer node
 type L2ELNode interface {
 	ID() L2ELNodeID
+	L2EthClient() apis.L2EthClient
 
 	ELNode
 }

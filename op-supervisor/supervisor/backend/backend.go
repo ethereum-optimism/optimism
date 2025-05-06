@@ -408,6 +408,9 @@ func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	su.sysCancel()
 	defer su.eventSys.Stop()
 
+	su.l1Accessor.UnsubscribeFinalityHandler()
+	su.l1Accessor.UnsubscribeLatestHandler()
+
 	su.chainProcessors.Clear()
 
 	su.syncNodesController.Close()

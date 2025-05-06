@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -40,7 +41,7 @@ type implP struct {
 	scopeName string
 
 	// logger is used for logging. Regular test errors will also be redirected to get logged here.
-	logger log.Logger
+	logger Logger
 
 	// fail will be called to register a critical failure.
 	// The implementer can choose to panic, crit-log, exit, etc. as preferred.
@@ -101,8 +102,12 @@ func (t *implP) Name() string {
 	return t.scopeName
 }
 
-func (t *implP) Logger() log.Logger {
+func (t *implP) Logger() Logger {
 	return t.logger
+}
+
+func (t *implP) Tracer() trace.Tracer {
+	return nil
 }
 
 func (t *implP) Ctx() context.Context {
@@ -160,7 +165,7 @@ func NewP(logger log.Logger, onFail func()) P {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &implP{
 		scopeName: "pkg",
-		logger:    logger,
+		logger:    &pkgLogger{logger},
 		fail:      onFail,
 		ctx:       ctx,
 		cancel:    cancel,

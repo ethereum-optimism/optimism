@@ -65,8 +65,7 @@ type InteropDSL struct {
 func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
 	setup := SetupInterop(t, opts...)
 	actors := setup.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	t.Logf("ChainA: %v, ChainB: %v", actors.ChainA.ChainID, actors.ChainB.ChainID)
 
 	allChains := []*Chain{actors.ChainA, actors.ChainB}

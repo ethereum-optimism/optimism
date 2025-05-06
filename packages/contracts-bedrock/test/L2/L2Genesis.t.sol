@@ -2,188 +2,135 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { L2Genesis } from "scripts/L2Genesis.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { Process } from "scripts/libraries/Process.sol";
+
+import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
+import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
+import { IL1FeeVault } from "interfaces/L2/IL1FeeVault.sol";
+import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableERC721Factory.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
+import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 
 /// @title L2GenesisTest
 /// @notice Test suite for L2Genesis script.
 contract L2GenesisTest is Test {
-    L2Genesis genesis;
+    L2Genesis.Input internal input;
+
+    L2Genesis internal genesis;
 
     function setUp() public {
         genesis = new L2Genesis();
-        // Note: to customize L1 addresses,
-        // simply pass in the L1 addresses argument for Genesis setup functions that depend on it.
-        // L1 addresses, or L1 artifacts, are not stored globally.
-        genesis.setUp();
     }
 
-    /// @notice Creates a temp file and returns the path to it.
-    function tmpfile() internal returns (string memory) {
-        return Process.bash("mktemp");
-    }
-
-    /// @notice Deletes a file at a given filesystem path. Does not force delete
-    ///         and does not recursively delete.
-    function deleteFile(string memory path) internal {
-        Process.bash(string.concat("rm ", path), true);
-    }
-
-    /// @notice Returns the number of top level keys in a JSON object at a given
-    ///         file path.
-    function getJSONKeyCount(string memory path) internal returns (uint256) {
-        bytes memory result =
-            bytes(Process.bash(string.concat("jq 'keys | length' < ", path, " | xargs cast abi-encode 'f(uint256)'")));
-        return abi.decode(result, (uint256));
-    }
-
-    /// @notice Helper function to run a function with a temporary dump file.
-    function withTempDump(function (string memory) internal f) internal {
-        string memory path = tmpfile();
-        f(path);
-        deleteFile(path);
-    }
-
-    /// @notice Helper function for reading the number of storage keys for a given account.
-    function getStorageKeysCount(string memory _path, address _addr) internal returns (uint256) {
-        return vm.parseUint(
-            Process.bash(
-                string.concat("jq -r '.[\"", vm.toLowercase(vm.toString(_addr)), "\"].storage | length' < ", _path)
-            )
-        );
-    }
-
-    /// @notice Returns the number of accounts that contain particular code at a given path to a genesis file.
-    function getCodeCount(string memory path, string memory name) internal returns (uint256) {
-        bytes memory code = vm.getDeployedCode(name);
-        bytes memory result = bytes(
-            Process.bash(
-                string.concat(
-                    "jq -r 'map_values(select(.code == \"",
-                    vm.toString(code),
-                    "\")) | length' < ",
-                    path,
-                    " | xargs cast abi-encode 'f(uint256)'"
-                )
-            )
-        );
-        return abi.decode(result, (uint256));
-    }
-
-    /// @notice Returns the number of accounts that have a particular slot set.
-    function getPredeployCountWithSlotSet(string memory path, bytes32 slot) internal returns (uint256) {
-        bytes memory result = bytes(
-            Process.bash(
-                string.concat(
-                    "jq 'map_values(.storage | select(has(\"",
-                    vm.toString(slot),
-                    "\"))) | keys | length' < ",
-                    path,
-                    " | xargs cast abi-encode 'f(uint256)'"
-                )
-            )
-        );
-        return abi.decode(result, (uint256));
-    }
-
-    /// @notice Returns the number of accounts that have a particular slot set to a particular value.
-    function getPredeployCountWithSlotSetToValue(
-        string memory path,
-        bytes32 slot,
-        bytes32 value
-    )
-        internal
-        returns (uint256)
-    {
-        bytes memory result = bytes(
-            Process.bash(
-                string.concat(
-                    "jq 'map_values(.storage | select(.\"",
-                    vm.toString(slot),
-                    "\" == \"",
-                    vm.toString(value),
-                    "\")) | length' < ",
-                    path,
-                    " | xargs cast abi-encode 'f(uint256)'"
-                )
-            )
-        );
-        return abi.decode(result, (uint256));
-    }
-
-    /// @notice Tests the genesis predeploys setup using a temp file for the case where useInterop is false.
-    function test_genesisPredeploys_notUsingInterop_works() external {
-        string memory path = tmpfile();
-        _test_genesis_predeploys(path, false);
-        deleteFile(path);
-    }
-
-    /// @notice Tests the genesis predeploys setup using a temp file for the case where useInterop is true.
-    function test_genesisPredeploys_usingInterop_works() external {
-        string memory path = tmpfile();
-        _test_genesis_predeploys(path, true);
-        deleteFile(path);
-    }
-
-    /// @notice Tests the genesis predeploys setup.
-    function _test_genesis_predeploys(string memory _path, bool _useInterop) internal {
-        // Set the useInterop value
-        vm.mockCall(address(genesis.cfg()), abi.encodeCall(genesis.cfg().useInterop, ()), abi.encode(_useInterop));
-
-        // Set the predeploy proxies into state
-        genesis.setPredeployProxies();
-        genesis.writeGenesisAllocs(_path);
-
-        // 2 predeploys do not have proxies
-        assertEq(getCodeCount(_path, "Proxy.sol:Proxy"), Predeploys.PREDEPLOY_COUNT - 2);
-
-        // 23 proxies have the implementation set if useInterop is true and 18 if useInterop is false
-        assertEq(getPredeployCountWithSlotSet(_path, Constants.PROXY_IMPLEMENTATION_ADDRESS), _useInterop ? 23 : 18);
-
-        // All proxies except 2 have the proxy 1967 admin slot set to the proxy admin
-        assertEq(
-            getPredeployCountWithSlotSetToValue(
-                _path, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(Predeploys.PROXY_ADMIN)))
-            ),
-            Predeploys.PREDEPLOY_COUNT - 2
-        );
-
-        // Also see Predeploys.t.test_predeploysSet_succeeds which uses L1Genesis for the CommonTest prestate.
-    }
-
-    /// @notice Tests the number of accounts in the genesis setup
-    function test_allocs_size_works() external {
-        withTempDump(_test_allocs_size);
-    }
-
-    /// @notice Creates mock L1Dependencies for testing purposes.
-    function _dummyL1Deps() internal pure returns (L1Dependencies memory deps_) {
-        return L1Dependencies({
-            l1CrossDomainMessengerProxy: payable(address(0x100000)),
-            l1StandardBridgeProxy: payable(address(0x100001)),
-            l1ERC721BridgeProxy: payable(address(0x100002))
+    function test_run_succeeds() external {
+        input = L2Genesis.Input({
+            l1ChainID: 1,
+            l2ChainID: 2,
+            l1CrossDomainMessengerProxy: payable(address(0x0000000000000000000000000000000000000001)),
+            l1StandardBridgeProxy: payable(address(0x0000000000000000000000000000000000000002)),
+            l1ERC721BridgeProxy: payable(address(0x0000000000000000000000000000000000000003)),
+            opChainProxyAdminOwner: address(0x0000000000000000000000000000000000000004),
+            sequencerFeeVaultRecipient: address(0x0000000000000000000000000000000000000005),
+            sequencerFeeVaultMinimumWithdrawalAmount: 1,
+            sequencerFeeVaultWithdrawalNetwork: 1,
+            baseFeeVaultRecipient: address(0x0000000000000000000000000000000000000006),
+            baseFeeVaultMinimumWithdrawalAmount: 1,
+            baseFeeVaultWithdrawalNetwork: 1,
+            l1FeeVaultRecipient: address(0x0000000000000000000000000000000000000007),
+            l1FeeVaultMinimumWithdrawalAmount: 1,
+            l1FeeVaultWithdrawalNetwork: 1,
+            governanceTokenOwner: address(0x0000000000000000000000000000000000000008),
+            fork: 7, // Jovian
+            useInterop: true,
+            enableGovernance: true,
+            fundDevAccounts: true
         });
+        genesis.run(input);
+
+        testProxyAdmin();
+        testPredeploys();
+        testVaults();
+        testGovernance();
+        testFactories();
+        testForks();
     }
 
-    /// @notice Tests the number of accounts in the genesis setup
-    function _test_allocs_size(string memory _path) internal {
-        genesis.cfg().setFundDevAccounts(false);
-        genesis.runWithLatestLocal(_dummyL1Deps());
-        genesis.writeGenesisAllocs(_path);
+    function testProxyAdmin() internal view {
+        assertEq(input.opChainProxyAdminOwner, IProxyAdmin(Predeploys.PROXY_ADMIN).owner());
+    }
 
-        uint256 expected = 0;
-        expected += 2048 - 2; // predeploy proxies
-        expected += 22; // predeploy implementations (excl. legacy erc20-style eth and legacy message sender)
-        expected += 256; // precompiles
-        expected += 14; // preinstalls
-        expected += 1; // 4788 deployer account
-        expected += 1; // 2935 deployer account
-        // 16 prefunded dev accounts are excluded
-        assertEq(expected, getJSONKeyCount(_path), "key count check");
+    function testPredeploys() internal view {
+        uint160 prefix = uint160(0x420) << 148;
 
-        // 3 slots: implementation, owner, admin
-        assertEq(3, getStorageKeysCount(_path, Predeploys.PROXY_ADMIN), "proxy admin storage check");
+        for (uint256 i = 0; i < Predeploys.PREDEPLOY_COUNT; i++) {
+            address addr = address(prefix | uint160(i));
+            // If it's not proxied, skip next checks.
+            if (Predeploys.notProxied(addr)) {
+                continue;
+            }
+
+            // All predeploys should have code
+            assertGt(addr.code.length, 0);
+            // All proxied predeploys should have the 1967 admin slot set to the ProxyAdmin
+            assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
+
+            // If it's not a supported predeploy, skip next checks.
+            if (!Predeploys.isSupportedPredeploy(addr, true)) {
+                continue;
+            }
+
+            // All proxied predeploys should have the 1967 admin slot set to the ProxyAdmin predeploy
+            address impl = Predeploys.predeployToCodeNamespace(addr);
+            assertGt(impl.code.length, 0);
+        }
+
+        assertGt(Predeploys.WETH.code.length, 0);
+        assertGt(Predeploys.GOVERNANCE_TOKEN.code.length, 0);
+    }
+
+    function testVaults() internal view {
+        IBaseFeeVault baseFeeVault = IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
+        IL1FeeVault l1FeeVault = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT));
+        ISequencerFeeVault sequencerFeeVault = ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+
+        assertEq(baseFeeVault.recipient(), input.baseFeeVaultRecipient);
+        assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.baseFeeVaultMinimumWithdrawalAmount);
+        assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(input.baseFeeVaultWithdrawalNetwork));
+
+        assertEq(l1FeeVault.recipient(), input.l1FeeVaultRecipient);
+        assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), input.l1FeeVaultMinimumWithdrawalAmount);
+        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(input.l1FeeVaultWithdrawalNetwork));
+
+        assertEq(sequencerFeeVault.recipient(), input.sequencerFeeVaultRecipient);
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), input.sequencerFeeVaultMinimumWithdrawalAmount);
+        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(input.sequencerFeeVaultWithdrawalNetwork));
+    }
+
+    function testGovernance() internal view {
+        IGovernanceToken token = IGovernanceToken(payable(Predeploys.GOVERNANCE_TOKEN));
+        assertEq(token.owner(), input.governanceTokenOwner);
+    }
+
+    function testFactories() internal view {
+        IOptimismMintableERC20Factory erc20Factory =
+            IOptimismMintableERC20Factory(payable(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY));
+        IOptimismMintableERC721Factory erc721Factory =
+            IOptimismMintableERC721Factory(payable(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY));
+
+        assertEq(erc20Factory.bridge(), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(erc721Factory.bridge(), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(erc721Factory.remoteChainID(), input.l1ChainID);
+    }
+
+    function testForks() internal view {
+        // The fork should be set to Isthmus at least. Check by validating the GasPriceOracle
+        IGasPriceOracle gasPriceOracle = IGasPriceOracle(payable(Predeploys.GAS_PRICE_ORACLE));
+        assertEq(gasPriceOracle.isEcotone(), true);
+        assertEq(gasPriceOracle.isFjord(), true);
+        assertEq(gasPriceOracle.isIsthmus(), true);
     }
 }
