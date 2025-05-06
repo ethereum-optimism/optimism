@@ -998,7 +998,7 @@ contract StandardValidatorTest is CommonTest {
         assertEq("", validate(true));
     }
 
-    function test_versions_succeeds() public {
+    function test_versions_succeeds() public view {
         // Assert that each version function returns the expected string value.
         assertTrue(bytes(validator.systemConfigVersion()).length > 0);
         assertTrue(bytes(validator.optimismPortalVersion()).length > 0);

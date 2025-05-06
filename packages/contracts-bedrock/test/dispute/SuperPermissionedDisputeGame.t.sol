@@ -20,7 +20,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 
 contract SuperPermissionedDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
-    GameType internal constant GAME_TYPE = GameTypes.SUPER_PERMISSIONED_CANNON;
+    GameType internal immutable GAME_TYPE = GameTypes.SUPER_PERMISSIONED_CANNON;
     /// @dev Mock proposer key
     address internal constant PROPOSER = address(0xfacade9);
     /// @dev Mock challenger key
