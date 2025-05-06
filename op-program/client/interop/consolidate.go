@@ -155,7 +155,6 @@ func singleRoundConsolidation(
 	if err != nil {
 		return fmt.Errorf("failed to create consolidate check deps: %w", err)
 	}
-	invalidChains := make(map[eth.ChainID]*ethtypes.Block)
 
 	for i, chain := range superRoot.Chains {
 		// Do not check chains that have been replaced with a deposits-only block.
@@ -187,23 +186,13 @@ func singleRoundConsolidation(
 			if !isInvalidMessageError(err) {
 				return err
 			}
-			invalidChains[chain.ChainID] = optimisticBlock
-		}
-	}
-
-	if len(invalidChains) == 0 {
-		return nil
-	}
-
-	for i, chain := range superRoot.Chains {
-		if optimisticBlock, ok := invalidChains[chain.ChainID]; ok {
-			chainAgreedPrestate := superRoot.Chains[i]
+			// Invalid executing message found. Replace with a deposit only block
 			replacementBlockHash, outputRoot, err := buildDepositOnlyBlock(
 				logger,
 				bootInfo,
 				l1PreimageOracle,
 				l2PreimageOracle,
-				chainAgreedPrestate,
+				chain,
 				tasks,
 				optimisticBlock,
 				// Update the preimage oracle database with the replaced block data
@@ -218,13 +207,16 @@ func singleRoundConsolidation(
 				"replacedBlock", eth.ToBlockID(optimisticBlock),
 				"replacementBlockHash", replacementBlockHash,
 				"outputRoot", outputRoot,
-				"replacedOutputRoot", superRoot.Chains[i].Output,
+				"replacedOutputRoot", chain.Output,
 			)
 			superRoot.Chains[i].Output = outputRoot
 			consolidateState.setReplaced(i, chain.ChainID, outputRoot, replacementBlockHash)
+			// Indicate that there was an invalid block so we have to re-check all chains.
+			// The re-check wil pick up invalid messages in any chains we haven't gotten to yet so don't waste time now.
+			return ErrInvalidBlockReplacement
 		}
 	}
-	return ErrInvalidBlockReplacement
+	return nil
 }
 
 func isInvalidMessageError(err error) bool {
