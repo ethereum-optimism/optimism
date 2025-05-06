@@ -173,7 +173,7 @@ impl<'a> IntoFuture for CheckAccessListRequest<'a> {
 
             result
                 .map_err(|_| InteropTxValidatorError::Timeout(timeout.as_secs()))?
-                .map_err(InteropTxValidatorError::other)
+                .map_err(InteropTxValidatorError::from_json_rpc)
         })
     }
 }
