@@ -15,6 +15,7 @@ use op_alloy_consensus::interop::SafetyLevel;
 use std::{
     borrow::Cow,
     future::IntoFuture,
+    sync::Arc,
     time::{Duration, Instant},
 };
 use tracing::trace;
@@ -24,44 +25,29 @@ use tracing::trace;
 pub const DEFAULT_SUPERVISOR_URL: &str = "http://localhost:1337/";
 
 /// The default request timeout to use
-const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(100);
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// Implementation of the supervisor trait for the interop.
 #[derive(Debug, Clone)]
 pub struct SupervisorClient {
-    client: ReqwestClient,
-    /// The default
-    safety: SafetyLevel,
-    /// The default request timeout
-    timeout: Duration,
-    /// Metrics for tracking supervisor operations
-    metrics: SupervisorMetrics,
+    /// Stores type's data.
+    inner: Arc<SupervisorClientInner>,
 }
 
 impl SupervisorClient {
-    /// Creates a new supervisor validator.
-    pub async fn new(supervisor_endpoint: impl Into<String>, safety: SafetyLevel) -> Self {
-        let client = ReqwestClient::builder()
-            .connect(supervisor_endpoint.into().as_str())
-            .await
-            .expect("building supervisor client");
-        Self {
-            client,
-            safety,
-            timeout: DEFAULT_REQUEST_TIMEOUT,
-            metrics: SupervisorMetrics::default(),
-        }
+    /// Returns a new [`SupervisorClientBuilder`].
+    pub fn builder(supervisor_endpoint: impl Into<String>) -> SupervisorClientBuilder {
+        SupervisorClientBuilder::new(supervisor_endpoint)
     }
 
-    /// Configures a custom timeout
-    pub const fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
-        self
+    /// Returns configured timeout. See [`SupervisorClientInner`].
+    pub fn timeout(&self) -> Duration {
+        self.inner.timeout
     }
 
-    /// Returns safely level
-    pub const fn safety(&self) -> SafetyLevel {
-        self.safety
+    /// Returns configured minimum safety level. See [`SupervisorClient`].
+    pub fn safety(&self) -> SafetyLevel {
+        self.inner.safety
     }
 
     /// Executes a `supervisor_checkAccessList` with the configured safety level.
@@ -71,12 +57,12 @@ impl SupervisorClient {
         executing_descriptor: ExecutingDescriptor,
     ) -> CheckAccessListRequest<'a> {
         CheckAccessListRequest {
-            client: self.client.clone(),
+            client: self.inner.client.clone(),
             inbox_entries: Cow::Borrowed(inbox_entries),
             executing_descriptor,
-            timeout: self.timeout,
-            safety: self.safety,
-            metrics: self.metrics.clone(),
+            timeout: self.inner.timeout,
+            safety: self.inner.safety,
+            metrics: self.inner.metrics.clone(),
         }
     }
 
@@ -124,6 +110,74 @@ impl SupervisorClient {
             return Some(Err(InvalidCrossTx::ValidationError(err)));
         }
         Some(Ok(()))
+    }
+}
+
+/// Holds supervisor data. Inner type of [`SupervisorClient`].
+#[derive(Debug, Clone)]
+pub struct SupervisorClientInner {
+    client: ReqwestClient,
+    /// The default
+    safety: SafetyLevel,
+    /// The default request timeout
+    timeout: Duration,
+    /// Metrics for tracking supervisor operations
+    metrics: SupervisorMetrics,
+}
+
+/// Builds [`SupervisorClient`].
+#[derive(Debug)]
+pub struct SupervisorClientBuilder {
+    /// Supervisor server's socket.
+    endpoint: String,
+    /// Timeout for requests.
+    ///
+    /// NOTE: this timeout is only effective if it's shorter than the timeout configured for the
+    /// underlying [`ReqwestClient`].
+    timeout: Duration,
+    /// Minimum [`SafetyLevel`] of cross-chain transactions accepted by this client.
+    safety: SafetyLevel,
+}
+
+impl SupervisorClientBuilder {
+    /// Creates a new builder.
+    pub fn new(supervisor_endpoint: impl Into<String>) -> Self {
+        Self {
+            endpoint: supervisor_endpoint.into(),
+            timeout: DEFAULT_REQUEST_TIMEOUT,
+            safety: SafetyLevel::CrossUnsafe,
+        }
+    }
+
+    /// Configures a custom timeout
+    pub const fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    /// Sets minimum safety level to accept for cross chain transactions.
+    pub const fn minimum_safety(mut self, min_safety: SafetyLevel) -> Self {
+        self.safety = min_safety;
+        self
+    }
+
+    /// Creates a new supervisor validator.
+    pub async fn build(self) -> SupervisorClient {
+        let Self { endpoint, timeout, safety } = self;
+
+        let client = ReqwestClient::builder()
+            .connect(endpoint.as_str())
+            .await
+            .expect("building supervisor client");
+
+        SupervisorClient {
+            inner: Arc::new(SupervisorClientInner {
+                client,
+                safety,
+                timeout,
+                metrics: SupervisorMetrics::default(),
+            }),
+        }
     }
 }
 
