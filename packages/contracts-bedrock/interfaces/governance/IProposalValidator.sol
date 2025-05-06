@@ -9,17 +9,15 @@ import {IOptimismGovernor} from "./IOptimismGovernor.sol";
 interface IProposalValidator {
     error ProposalValidator_InsufficientApprovals();
     error ProposalValidator_ProposalAlreadyApproved();
-    error ProposalValidator_ProposalAlreadyInVoting();
+    error ProposalValidator_ProposalAlreadySubmitted();
     error ProposalValidator_InsufficientVotingPower();
     error ProposalValidator_InvalidAttestation();
+    error ProposalValidator_ProposalDoesNotExist();
 
     struct ProposalData {
         address proposer;
-        address[] targets;
-        uint256[] values;
-        bytes[] calldatas;
-        string description;
         ProposalType proposalType;
+        uint8 proposalTypeConfigurator;
         bool inVoting;
         mapping(address => bool) delegateApprovals;
         uint256 remainingApprovalsRequired;
@@ -40,22 +38,23 @@ interface IProposalValidator {
     }
 
     event ProposalSubmitted(
-        uint256 indexed proposalId,
+        bytes32 indexed proposalHash,
         address indexed proposer,
         address[] targets,
         uint256[] values,
         bytes[] calldatas,
         string description,
-        ProposalType proposalType
+        ProposalType proposalType,
+        uint8 proposalTypeConfigurator
     );
 
     event ProposalApproved(
-        uint256 indexed proposalId,
+        bytes32 indexed proposalHash,
         address indexed approver
     );
 
     event ProposalMovedToVote(
-        uint256 indexed proposalId,
+        bytes32 indexed proposalHash,
         address indexed executor
     );
 
@@ -75,12 +74,18 @@ interface IProposalValidator {
         bytes[] memory _calldatas,
         string memory _description,
         ProposalType _proposalType,
+        uint8 _proposalTypeConfigurator,
         bytes32 _attestationUid
-    ) external returns (uint256 proposalId_);
+    ) external returns (bytes32 proposalHash_);
 
-    function approveProposal(uint256 _proposalId) external;
+    function approveProposal(bytes32 _proposalHash) external;
 
-    function moveToVote(uint256 _proposalId) external returns (uint256 governorProposalId_);
+    function moveToVote(
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description
+    ) external returns (uint256 governorProposalId_);
     
     function setMinimumVotingPower(uint256 _minimumVotingPower) external;
 

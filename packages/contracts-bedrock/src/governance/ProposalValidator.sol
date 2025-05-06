@@ -22,11 +22,12 @@ contract ProposalValidator is Ownable {
 
     /// @notice Thrown when a proposal doesn't have enough delegate approvals to move to vote.
     error ProposalValidator_InsufficientApprovals();
+
     /// @notice Thrown when a delegate attempts to approve a proposal they've already approved.
     error ProposalValidator_ProposalAlreadyApproved();
 
     /// @notice Thrown when attempting to move a proposal to vote that is already in voting.
-    error ProposalValidator_ProposalAlreadyInVoting();
+    error ProposalValidator_ProposalAlreadySubmitted();
 
     /// @notice Thrown when a delegate has insufficient voting power to approve a proposal.
     error ProposalValidator_InsufficientVotingPower();
@@ -34,27 +35,24 @@ contract ProposalValidator is Ownable {
     /// @notice Thrown when an invalid attestation is provided for a proposal.
     error ProposalValidator_InvalidAttestation();
 
+    /// @notice Thrown when a proposal does not exist.
+    error ProposalValidator_ProposalDoesNotExist();
+
     /*//////////////////////////////////////////////////////////////
                                  STRUCTS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Data structure for storing proposal information.
     /// @param proposer The address that submitted the proposal.
-    /// @param targets Target addresses for proposal calls.
-    /// @param values ETH values for proposal calls.
-    /// @param calldatas Function data for proposal calls.
-    /// @param description Description of the proposal.
     /// @param proposalType Type of the proposal from the ProposalType enum.
+    /// @param proposalTypeConfigurator Configuration value specific to the proposal type.
     /// @param inVoting Whether the proposal has been moved to the voting phase.
     /// @param delegateApprovals Mapping of delegate addresses to their approval status.
-    /// @param remainingApprovalsRequired Number of approvals still needed before being able to move for voting.
+    /// @param remainingApprovalsRequired Number of approvals still needed before voting.
     struct ProposalData {
         address proposer;
-        address[] targets;
-        uint256[] values;
-        bytes[] calldatas;
-        string description;
         ProposalType proposalType;
+        uint8 proposalTypeConfigurator;
         bool inVoting;
         mapping(address => bool) delegateApprovals;
         uint256 remainingApprovalsRequired;
@@ -93,32 +91,34 @@ contract ProposalValidator is Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Emitted when a new proposal is submitted to the validator contract.
-    /// @param proposalId The ID of the submitted proposal.
+    /// @param proposalHash The hash of the submitted proposal.
     /// @param proposer The address that submitted the proposal.
     /// @param targets Target addresses for proposal calls.
     /// @param values ETH values for proposal calls.
     /// @param calldatas Function data for proposal calls.
     /// @param description Description of the proposal.
     /// @param proposalType Type of the proposal.
+    /// @param proposalTypeConfigurator Configuration value specific to the proposal type.
     event ProposalSubmitted(
-        uint256 indexed proposalId,
+        bytes32 indexed proposalHash,
         address indexed proposer,
         address[] targets,
         uint256[] values,
         bytes[] calldatas,
         string description,
-        ProposalType proposalType
+        ProposalType proposalType,
+        uint8 proposalTypeConfigurator
     );
 
     /// @notice Emitted when a delegate approves a proposal.
-    /// @param proposalId The ID of the approved proposal.
+    /// @param proposalHash The hash of the approved proposal.
     /// @param approver The address of the delegate who approved the proposal.
-    event ProposalApproved(uint256 indexed proposalId, address indexed approver);
+    event ProposalApproved(bytes32 indexed proposalHash, address indexed approver);
 
     /// @notice Emitted when a proposal is moved to the voting phase in the governor contract.
-    /// @param proposalId The ID of the proposal moved to vote.
+    /// @param proposalHash The hash of the proposal moved to vote.
     /// @param executor The address that executed the move to vote.
-    event ProposalMovedToVote(uint256 indexed proposalId, address indexed executor);
+    event ProposalMovedToVote(bytes32 indexed proposalHash, address indexed executor);
 
     /// @notice Emitted when the minimum voting power is set.
     /// @param newMinimumVotingPower The new minimum voting power.
@@ -162,11 +162,8 @@ contract ProposalValidator is Ownable {
     /// @notice The immutable data for each proposal type.
     mapping(ProposalType => ImmutableProposalTypeData) private _proposalTypeData;
 
-    /// @notice Mapping of proposal IDs to their corresponding proposal data.
-    mapping(uint256 => ProposalData) private _proposals;
-
-    /// @notice Counter for generating unique proposal IDs.
-    uint256 private _proposalCounter;
+    /// @notice Mapping of proposal hash to their corresponding proposal data.
+    mapping(bytes32 => ProposalData) private _proposals;
 
     /// @notice Initializes the ProposalValidator contract.
     /// @param _owner The address that will own the contract.
@@ -206,52 +203,60 @@ contract ProposalValidator is Ownable {
         }
     }
 
-    /// @notice Submit a proposal for delegate approval.
-    /// @param _targets Target addresses for proposal calls.
-    /// @param _values ETH values for proposal calls.
-    /// @param _calldatas Function data for proposal calls.
-    /// @param _description Description of the proposal.
-    /// @param _proposalType Type of the proposal.
-    /// @param _attestationUid The UID of the attestation proving eligibility.
-    /// @return proposalId_ The ID of the submitted proposal.
+    /// @notice Submit a proposal for delegate approval
+    /// @param _targets Target addresses for proposal calls
+    /// @param _values ETH values for proposal calls
+    /// @param _calldatas Function data for proposal calls
+    /// @param _description Description of the proposal
+    /// @param _proposalType Type of the proposal
+    /// @return proposalHash_ The hash of the submitted proposal
     function submitProposal(
         address[] memory _targets,
         uint256[] memory _values,
         bytes[] memory _calldatas,
         string memory _description,
         ProposalType _proposalType,
+        uint8 _proposalTypeConfigurator,
         bytes32 _attestationUid
     )
         external
-        returns (uint256 proposalId_)
+        returns (bytes32 proposalHash_)
     {
         _validateProposal(_targets, _values, _calldatas, _proposalType, _attestationUid);
 
-        proposalId_ = ++_proposalCounter;
+        proposalHash_ = _hashProposal(_targets, _values, _calldatas, _description);
+        ProposalData storage proposal = _proposals[proposalHash_];
 
-        ProposalData storage proposal = _proposals[proposalId_];
+        if (proposal.proposer != address(0)) {
+            revert ProposalValidator_ProposalAlreadySubmitted();
+        }
+
         proposal.proposer = msg.sender;
-        proposal.targets = _targets;
-        proposal.values = _values;
-        proposal.calldatas = _calldatas;
-        proposal.description = _description;
         proposal.proposalType = _proposalType;
+        proposal.proposalTypeConfigurator = _proposalTypeConfigurator;
         proposal.inVoting = false;
         proposal.remainingApprovalsRequired = 4; // Hardcoded for now, will change with proposalTypes
 
-        emit ProposalSubmitted(proposalId_, msg.sender, _targets, _values, _calldatas, _description, _proposalType);
-
-        return proposalId_;
+        emit ProposalSubmitted(
+            proposalHash_,
+            msg.sender,
+            _targets,
+            _values,
+            _calldatas,
+            _description,
+            _proposalType,
+            _proposalTypeConfigurator
+        );
     }
 
-    /// @notice Approve a proposal (only callable by delegates with sufficient voting power).
-    /// @param _proposalId The ID of the proposal to approve.
-    function approveProposal(uint256 _proposalId) external {
+    /// @notice Approve a proposal (only callable by delegates with sufficient voting power)
+    /// @param _proposalHash The hash of the proposal to approve
+    function approveProposal(bytes32 _proposalHash) external {
         if (!canSignOff(msg.sender)) {
             revert ProposalValidator_InsufficientVotingPower();
         }
 
-        ProposalData storage proposal = _proposals[_proposalId];
+        ProposalData storage proposal = _proposals[_proposalHash];
 
         if (proposal.delegateApprovals[msg.sender]) {
             revert ProposalValidator_ProposalAlreadyApproved();
@@ -260,40 +265,54 @@ contract ProposalValidator is Ownable {
         proposal.delegateApprovals[msg.sender] = true;
         proposal.remainingApprovalsRequired--; // Expected overflow when all approvals are granted
 
-        emit ProposalApproved(_proposalId, msg.sender);
+        emit ProposalApproved(_proposalHash, msg.sender);
     }
 
-    /// @notice Move a proposal to voting phase after sufficient delegate approvals.
-    /// @dev After passing all checks, the proposal is submitted with a external call to the governor contract.
-    /// @param _proposalId The ID of the proposal to move to vote.
-    /// @return governorProposalId_ The proposal ID in the governor contract.
-    function moveToVote(uint256 _proposalId) external returns (uint256 governorProposalId_) {
-        ProposalData storage proposal = _proposals[_proposalId];
+    /// @notice Move a proposal to voting phase after sufficient delegate approvals
+    /// @param _targets Target addresses for proposal calls
+    /// @param _values ETH values for proposal calls
+    /// @param _calldatas Function data for proposal calls
+    /// @param _description Description of the proposal
+    /// @return governorProposalId_ The proposal ID in the governor contract
+    function moveToVote(
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description
+    )
+        external
+        returns (uint256 governorProposalId_)
+    {
+        // Verify that the provided data matches the proposalHash
+        bytes32 _proposalHash = _hashProposal(_targets, _values, _calldatas, _description);
+
+        ProposalData storage proposal = _proposals[_proposalHash];
+
+        if (proposal.proposer == address(0)) {
+            revert ProposalValidator_ProposalDoesNotExist();
+        }
 
         if (proposal.remainingApprovalsRequired > 0) {
             revert ProposalValidator_InsufficientApprovals();
         }
 
         if (proposal.inVoting) {
-            revert ProposalValidator_ProposalAlreadyInVoting();
+            revert ProposalValidator_ProposalAlreadySubmitted();
         }
 
         proposal.inVoting = true;
 
-        governorProposalId_ = GOVERNOR.propose(
-            proposal.targets, proposal.values, proposal.calldatas, proposal.description, uint8(proposal.proposalType)
-        );
+        governorProposalId_ =
+            GOVERNOR.propose(_targets, _values, _calldatas, _description, proposal.proposalTypeConfigurator);
 
-        emit ProposalMovedToVote(_proposalId, msg.sender);
-
-        return governorProposalId_;
+        emit ProposalMovedToVote(_proposalHash, msg.sender);
     }
 
     /// @notice Returns whether a delegate has enough voting power to approve a proposal.
     /// @param _delegate The address of the delegate to check.
     /// @return canSignOff_ True if the delegate has sufficient voting power, false otherwise.
     function canSignOff(address _delegate) public view returns (bool canSignOff_) {
-        return VOTING_TOKEN.balanceOf(_delegate) >= minimumVotingPower;
+        canSignOff_ = VOTING_TOKEN.balanceOf(_delegate) >= minimumVotingPower;
     }
 
     /// @notice Sets the minimum voting power required for a delegate to approve proposals.
@@ -371,7 +390,20 @@ contract ProposalValidator is Ownable {
         returns (bool isValid_)
     {
         (address approvedDelegate, uint8 proposalType) = abi.decode(_data, (address, uint8));
-        return approvedDelegate == msg.sender && proposalType == uint8(_expectedProposalType);
+        isValid_ = approvedDelegate == msg.sender && proposalType == uint8(_expectedProposalType);
+    }
+
+    function _hashProposal(
+        address[] memory _targets,
+        uint256[] memory _values,
+        bytes[] memory _calldatas,
+        string memory _description
+    )
+        internal
+        pure
+        returns (bytes32 proposalHash_)
+    {
+        return keccak256(abi.encode(_targets, _values, _calldatas, _description));
     }
 
     /// @notice Private function to set the minimum voting power and emit event.
