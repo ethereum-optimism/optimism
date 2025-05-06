@@ -92,7 +92,6 @@ contract DeployAltDA2 is Script {
         require(_input.challengeWindow != 0, "DeployAltDA: challengeWindow not set");
         require(_input.resolveWindow != 0, "DeployAltDA: resolveWindow not set");
         require(_input.bondSize != 0, "DeployAltDA: bondSize not set");
-        require(_input.resolverRefundPercentage != 0, "DeployAltDA: resolverRefundPercentage not set");
         require(_input.resolverRefundPercentage <= 100, "DeployAltDA: resolverRefundPercentage too large");
     }
 
