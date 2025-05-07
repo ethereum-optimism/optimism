@@ -27,26 +27,7 @@ func TestExample2(gt *testing.T) {
 	sys.Supervisor.VerifySyncStatus(dsl.WithAllLocalUnsafeHeadsAdvancedBy(4))
 }
 
-func TestExampleTxs(gt *testing.T) {
-	t := devtest.ParallelT(gt)
-	sys := SimpleInterop(t)
-	require := t.Require()
-
-	pre := eth.OneEther
-	alice := sys.FunderA.NewFundedEOA(pre)
-
-	bob := sys.Wallet.NewEOA(sys.L2ELA)
-	bob.VerifyBalanceExact(eth.ZeroWei)
-
-	transferred := eth.GWei(42)
-	tx := alice.Transfer(bob.Address(), transferred)
-	require.Equal(params.TxGas, tx.Included.Value().GasUsed, "transfers cost 21k gas")
-
-	alice.VerifyBalanceLessThan(pre.Sub(transferred)) // less than, because of the tx fee
-	bob.VerifyBalanceExact(transferred)
-}
-
-func TestExampleTracing(gt *testing.T) {
+func TestExampleTxsTracing(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	ctx := t.Ctx()
 	require := t.Require()

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -107,7 +108,7 @@ func (t *implP) Logger() Logger {
 }
 
 func (t *implP) Tracer() trace.Tracer {
-	return nil
+	return otel.Tracer(t.Name())
 }
 
 func (t *implP) Ctx() context.Context {
@@ -161,8 +162,8 @@ func (t *implP) _PackageOnly() {
 	panic("do not use - this method only forces the interface to be unique")
 }
 
-func NewP(logger log.Logger, onFail func()) P {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewP(ctx context.Context, logger log.Logger, onFail func()) P {
+	ctx, cancel := context.WithCancel(ctx)
 	out := &implP{
 		scopeName: "pkg",
 		logger:    &pkgLogger{logger},

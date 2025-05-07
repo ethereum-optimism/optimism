@@ -51,7 +51,7 @@ func UnmarshalTransitionState(data []byte) (*TransitionState, error) {
 	}
 	switch data[0] {
 	case IntermediateTransitionVersion:
-		return unmarshalTransitionSate(data)
+		return unmarshalTransitionState(data)
 	case eth.SuperRootVersionV1:
 		return &TransitionState{SuperRoot: data}, nil
 	default:
@@ -59,7 +59,7 @@ func UnmarshalTransitionState(data []byte) (*TransitionState, error) {
 	}
 }
 
-func unmarshalTransitionSate(data []byte) (*TransitionState, error) {
+func unmarshalTransitionState(data []byte) (*TransitionState, error) {
 	if len(data) == 0 {
 		return nil, eth.ErrInvalidSuperRoot
 	}
