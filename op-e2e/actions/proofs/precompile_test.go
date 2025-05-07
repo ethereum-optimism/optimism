@@ -212,10 +212,11 @@ func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture, testCfg *h
 	receipt := env.Alice.L2.LastTxReceipt(t)
 	receiptBlockTime := env.Engine.L2Chain().GetBlockByHash(receipt.BlockHash).Time()
 	rules := env.Engine.L2Chain().Config().Rules(receipt.BlockNumber, true, receiptBlockTime)
+	expectedResult := make([]byte, 0)
 	precompile, ok := vm.ActivePrecompiledContracts(rules)[testCase.Address]
-	if !ok {
-		t.Skip("precompile is not active")
-		return
+	if ok {
+		expectedResult, err = precompile.Run(testCase.Input)
+		require.NoError(t, err)
 	}
 
 	// sanity check Invoker precompile call
@@ -226,9 +227,7 @@ func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture, testCfg *h
 	precompileAddress := receipt.Logs[0].Topics[1]
 	var out struct{ Result []byte }
 	err = abi.UnpackIntoInterface(&out, "PrecompileInvoked", receipt.Logs[0].Data)
-	require.NoError(t, err)
 	precompileResult := out.Result
-	expectedResult, err := precompile.Run(testCase.Input)
 	require.NoError(t, err)
 	require.Equal(t, common.HexToAddress(precompileAddress.Hex()), testCase.Address)
 	require.Equal(t, expectedResult, precompileResult)
