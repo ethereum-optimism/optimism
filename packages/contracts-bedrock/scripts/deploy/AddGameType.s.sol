@@ -5,7 +5,6 @@ pragma solidity ^0.8.15;
 import { Script } from "forge-std/Script.sol";
 
 // Scripts
-import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
@@ -57,10 +56,10 @@ contract AddGameType is Script {
         IFaultDisputeGame faultDisputeGame;
     }
 
-    function run(Input memory _agi) public returns (Output memory _ago) {
-        addGameType(_agi, _ago);
-        checkOutput(_ago);
-        return _ago;
+    function run(Input memory _agi) public returns (Output memory ago_) {
+        addGameType(_agi, ago_);
+        checkOutput(ago_);
+        return ago_;
     }
 
     function addGameType(Input memory _agi, Output memory _ago) internal {
