@@ -10,7 +10,7 @@ var descriptions = map[string]string{
 	// SystemConfig validations
 	"SYSCON-10":  "SystemConfig version mismatch",
 	"SYSCON-20":  "SystemConfig gas limit is not set to 60,000,000",
-	"SYSCON-30":  "SystemConfig scalar is not set to 1",
+	"SYSCON-30":  "SystemConfig scalar is set to zero",
 	"SYSCON-40":  "SystemConfig implementation address mismatch",
 	"SYSCON-50":  "SystemConfig maxResourceLimit is not set to 20,000,000",
 	"SYSCON-60":  "SystemConfig elasticityMultiplier is not set to 10",
