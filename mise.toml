@@ -30,9 +30,9 @@ just = "1.37.0"
 # GitHub release, so we need to use the aliasing trick to get mise to not error
 # The git ref here should be on the `stable` branch.
 # Updated to use the specific nightly build
-forge = "nightly-7a7ad4ea7282c30477d7fc0f39bf631acde7e7bd"
-cast = "nightly-654c8f01721e43dbc8a53c7a3b022548cb82b2f9"
-anvil = "nightly-654c8f01721e43dbc8a53c7a3b022548cb82b2f9"
+forge = "1.1.0"
+cast = "1.1.0"
+anvil = "1.1.0"
 
 # Other dependencies
 codecov-uploader = "0.8.0"
