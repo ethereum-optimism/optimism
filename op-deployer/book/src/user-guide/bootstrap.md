@@ -12,7 +12,29 @@ focus on the most important ones, which should be run in the sequence listed bel
 **It is safe to call these commands from a hot wallet.** None of the contracts deployed by these command are "ownable,"
 so the deployment address has no further control over the system.
 
-# 1. bootstrap superchain
+# Consolidated Bootstrap (Recommended)
+
+For convenience, we've added a single command that combines the `superchain` and `implementations` bootstrap steps into one:
+
+```shell
+op-deployer bootstrap full \
+  --l1-rpc-url="<rpc url>" \
+  --private-key="<contract deployer private key>" \
+  --artifacts-locator="<locator>" \
+  --outfile="./.deployer/bootstrap_full.json" \
+  --superchain-proxy-admin-owner="<role address>" \
+  --protocol-versions-owner="<role address>" \
+  --guardian="<role address>" \
+  --mips-version="<1 or 2, for MIPS32 or MIPS64>"
+```
+
+This command will deploy everything needed for a new superchain and provide all the addresses in a single output file. Use this output file when configuring chains to join the superchain.
+
+# Individual Bootstrap Commands
+
+If you need more fine-grained control, you can still use the individual bootstrap commands:
+
+## 1. bootstrap superchain
 
 ```shell
 op-deployer bootstrap superchain \
@@ -45,7 +67,7 @@ This command will deploy several contracts, and output a JSON like the one below
 }
 ```
 
-# 2. bootstrap implementations
+## 2. bootstrap implementations
 
 ```shell
 op-deployer bootstrap implementations \
