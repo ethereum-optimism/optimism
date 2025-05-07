@@ -55,10 +55,10 @@ run() {
 
     # Deploy the contract with contender, this should be enough to check that the
     # builder is working as expected
-    contender setup -p $PREFUNDED_PRIV_KEY "/tmp/scenario.toml" $ROLLUP_BOOST_SOCKET
+    contender setup -p $PREFUNDED_PRIV_KEY "/tmp/scenario.toml" -r $ROLLUP_BOOST_SOCKET --optimism
 
     # Run the scenario on the builder
-    contender run -p $PREFUNDED_PRIV_KEY fill-block $OP_RETH_BUILDER_SOCKET
+    contender run -p $PREFUNDED_PRIV_KEY fill-block -r $OP_RETH_BUILDER_SOCKET --optimism
 }
 
 clean() {
