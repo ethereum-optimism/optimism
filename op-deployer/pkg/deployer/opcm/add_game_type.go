@@ -11,10 +11,10 @@ import (
 
 type AddGameTypeInput struct {
 	Prank                   common.Address
-	OPCM                    common.Address `abi:"opcm"`
-	SystemConfig            common.Address
-	ProxyAdmin              common.Address
-	DelayedWETH             common.Address
+	OPCMImpl                common.Address `abi:"opcmImpl"`
+	SystemConfigProxy       common.Address
+	OPChainProxyAdmin       common.Address `abi:"opChainProxyAdmin"`
+	DelayedWETHProxy        common.Address
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
 	DisputeMaxGameDepth     *big.Int
@@ -29,10 +29,10 @@ type AddGameTypeInput struct {
 
 type addGameTypeInputJSON struct {
 	Prank                   common.Address `json:"prank"`
-	OPCM                    common.Address `json:"opcm"`
-	SystemConfig            common.Address `json:"systemConfig"`
-	ProxyAdmin              common.Address `json:"proxyAdmin"`
-	DelayedWETH             common.Address `json:"delayedWETH"`
+	OPCMImpl                common.Address `json:"opcmimpl"`
+	SystemConfigProxy       common.Address `json:"systemConfigProxy"`
+	OPChainProxyAdmin       common.Address `json:"opChainProxyAdmin"`
+	DelayedWETHProxy        common.Address `json:"delayedWETHProxy"`
 	DisputeGameType         uint32         `json:"disputeGameType"`
 	DisputeAbsolutePrestate common.Hash    `json:"disputeAbsolutePrestate"`
 	DisputeMaxGameDepth     *hexutil.Big   `json:"disputeMaxGameDepth"`
@@ -52,10 +52,10 @@ func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
 	}
 
 	a.Prank = alias.Prank
-	a.OPCM = alias.OPCM
-	a.SystemConfig = alias.SystemConfig
-	a.ProxyAdmin = alias.ProxyAdmin
-	a.DelayedWETH = alias.DelayedWETH
+	a.OPCMImpl = alias.OPCMImpl
+	a.SystemConfigProxy = alias.SystemConfigProxy
+	a.OPChainProxyAdmin = alias.OPChainProxyAdmin
+	a.DelayedWETHProxy = alias.DelayedWETHProxy
 	a.DisputeGameType = alias.DisputeGameType
 	a.DisputeAbsolutePrestate = alias.DisputeAbsolutePrestate
 
@@ -84,10 +84,10 @@ func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
 func (a AddGameTypeInput) MarshalJSON() ([]byte, error) {
 	alias := addGameTypeInputJSON{
 		Prank:                   a.Prank,
-		OPCM:                    a.OPCM,
-		SystemConfig:            a.SystemConfig,
-		ProxyAdmin:              a.ProxyAdmin,
-		DelayedWETH:             a.DelayedWETH,
+		OPCMImpl:                a.OPCMImpl,
+		SystemConfigProxy:       a.SystemConfigProxy,
+		OPChainProxyAdmin:       a.OPChainProxyAdmin,
+		DelayedWETHProxy:        a.DelayedWETHProxy,
 		DisputeGameType:         a.DisputeGameType,
 		DisputeAbsolutePrestate: a.DisputeAbsolutePrestate,
 		DisputeClockExtension:   a.DisputeClockExtension,
@@ -113,8 +113,8 @@ func (a AddGameTypeInput) MarshalJSON() ([]byte, error) {
 }
 
 type AddGameTypeOutput struct {
-	DelayedWETH      common.Address `json:"delayedWETH"`
-	FaultDisputeGame common.Address `json:"faultDisputeGame"`
+	DelayedWETHProxy      common.Address `json:"delayedWETHProxy"`
+	FaultDisputeGameProxy common.Address `json:"faultDisputeGameProxy"`
 }
 
 type AddGameTypeScript script.DeployScriptWithOutput[AddGameTypeInput, AddGameTypeOutput]

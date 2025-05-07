@@ -22,13 +22,13 @@ contract AddGameType is Script {
         // Address that will be used for the DummyCaller contract
         address prank;
         // OPCM contract address
-        OPContractsManager opcm;
+        OPContractsManager opcmImpl;
         // SystemConfig contract address
-        ISystemConfig systemConfig;
+        ISystemConfig systemConfigProxy;
         // ProxyAdmin contract address
-        IProxyAdmin proxyAdmin;
+        IProxyAdmin opChainProxyAdmin;
         // DelayedWETH contract address (optional)
-        IDelayedWETH delayedWETH;
+        IDelayedWETH delayedWETHProxy;
         // Game type to add
         GameType disputeGameType;
         // Absolute prestate for the game
@@ -52,8 +52,8 @@ contract AddGameType is Script {
     }
 
     struct Output {
-        IDelayedWETH delayedWETH;
-        IFaultDisputeGame faultDisputeGame;
+        IDelayedWETH delayedWETHProxy;
+        IFaultDisputeGame faultDisputeGameProxy;
     }
 
     function run(Input memory _agi) public returns (Output memory ago_) {
@@ -67,9 +67,9 @@ contract AddGameType is Script {
         OPContractsManager.AddGameInput[] memory gameConfigs = new OPContractsManager.AddGameInput[](1);
         gameConfigs[0] = OPContractsManager.AddGameInput({
             saltMixer: _agi.saltMixer,
-            systemConfig: _agi.systemConfig,
-            proxyAdmin: _agi.proxyAdmin,
-            delayedWETH: _agi.delayedWETH,
+            systemConfig: _agi.systemConfigProxy,
+            proxyAdmin: _agi.opChainProxyAdmin,
+            delayedWETH: _agi.delayedWETHProxy,
             disputeGameType: _agi.disputeGameType,
             disputeAbsolutePrestate: _agi.disputeAbsolutePrestate,
             disputeMaxGameDepth: _agi.disputeMaxGameDepth,
@@ -85,7 +85,7 @@ contract AddGameType is Script {
         address prank = _agi.prank;
         bytes memory code = vm.getDeployedCode("AddGameType.s.sol:DummyCaller");
         vm.etch(prank, code);
-        vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcm)))));
+        vm.store(prank, bytes32(0), bytes32(uint256(uint160(address(_agi.opcmImpl)))));
         vm.label(prank, "DummyCaller");
 
         // Call into the DummyCaller to perform the delegatecall
@@ -96,13 +96,13 @@ contract AddGameType is Script {
         // Decode the result and set it in the output
         OPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (OPContractsManager.AddGameOutput[]));
         require(outputs.length == 1, "AddGameType: unexpected number of outputs");
-        _ago.delayedWETH = outputs[0].delayedWETH;
-        _ago.faultDisputeGame = outputs[0].faultDisputeGame;
+        _ago.delayedWETHProxy = outputs[0].delayedWETH;
+        _ago.faultDisputeGameProxy = outputs[0].faultDisputeGame;
     }
 
     function checkOutput(Output memory _ago) internal view {
-        DeployUtils.assertValidContractAddress(address(_ago.delayedWETH));
-        DeployUtils.assertValidContractAddress(address(_ago.faultDisputeGame));
+        DeployUtils.assertValidContractAddress(address(_ago.delayedWETHProxy));
+        DeployUtils.assertValidContractAddress(address(_ago.faultDisputeGameProxy));
     }
 }
 

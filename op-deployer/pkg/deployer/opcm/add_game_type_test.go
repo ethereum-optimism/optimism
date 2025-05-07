@@ -24,10 +24,10 @@ func compareBigInt(a, b *big.Int) bool {
 // equality checker.
 func compareAddGameTypeInputs(t *testing.T, expected, actual AddGameTypeInput) {
 	require.Equal(t, expected.Prank, actual.Prank)
-	require.Equal(t, expected.OPCM, actual.OPCM)
-	require.Equal(t, expected.SystemConfig, actual.SystemConfig)
-	require.Equal(t, expected.ProxyAdmin, actual.ProxyAdmin)
-	require.Equal(t, expected.DelayedWETH, actual.DelayedWETH)
+	require.Equal(t, expected.OPCMImpl, actual.OPCMImpl)
+	require.Equal(t, expected.SystemConfigProxy, actual.SystemConfigProxy)
+	require.Equal(t, expected.OPChainProxyAdmin, actual.OPChainProxyAdmin)
+	require.Equal(t, expected.DelayedWETHProxy, actual.DelayedWETHProxy)
 	require.Equal(t, expected.DisputeGameType, actual.DisputeGameType)
 	require.Equal(t, expected.DisputeAbsolutePrestate, actual.DisputeAbsolutePrestate)
 	require.Equal(t, expected.DisputeClockExtension, actual.DisputeClockExtension)
@@ -52,10 +52,10 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 			name: "basic",
 			input: AddGameTypeInput{
 				Prank:                   common.HexToAddress("0x1111111111111111111111111111111111111111"),
-				OPCM:                    common.HexToAddress("0x2222222222222222222222222222222222222222"),
-				SystemConfig:            common.HexToAddress("0x3333333333333333333333333333333333333333"),
-				ProxyAdmin:              common.HexToAddress("0x4444444444444444444444444444444444444444"),
-				DelayedWETH:             common.HexToAddress("0x5555555555555555555555555555555555555555"),
+				OPCMImpl:                common.HexToAddress("0x2222222222222222222222222222222222222222"),
+				SystemConfigProxy:       common.HexToAddress("0x3333333333333333333333333333333333333333"),
+				OPChainProxyAdmin:       common.HexToAddress("0x4444444444444444444444444444444444444444"),
+				DelayedWETHProxy:        common.HexToAddress("0x5555555555555555555555555555555555555555"),
 				DisputeGameType:         1,
 				DisputeAbsolutePrestate: common.HexToHash("0x6666666666666666666666666666666666666666666666666666666666666666"),
 				DisputeMaxGameDepth:     big.NewInt(100),
@@ -72,10 +72,10 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 			name: "nil big.Int fields",
 			input: AddGameTypeInput{
 				Prank:                   common.HexToAddress("0x1111111111111111111111111111111111111111"),
-				OPCM:                    common.HexToAddress("0x2222222222222222222222222222222222222222"),
-				SystemConfig:            common.HexToAddress("0x3333333333333333333333333333333333333333"),
-				ProxyAdmin:              common.HexToAddress("0x4444444444444444444444444444444444444444"),
-				DelayedWETH:             common.HexToAddress("0x5555555555555555555555555555555555555555"),
+				OPCMImpl:                common.HexToAddress("0x2222222222222222222222222222222222222222"),
+				SystemConfigProxy:       common.HexToAddress("0x3333333333333333333333333333333333333333"),
+				OPChainProxyAdmin:       common.HexToAddress("0x4444444444444444444444444444444444444444"),
+				DelayedWETHProxy:        common.HexToAddress("0x5555555555555555555555555555555555555555"),
 				DisputeGameType:         1,
 				DisputeAbsolutePrestate: common.HexToHash("0x6666666666666666666666666666666666666666666666666666666666666666"),
 				DisputeMaxGameDepth:     nil, // nil big.Int

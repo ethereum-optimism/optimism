@@ -2,6 +2,8 @@ package manage
 
 import (
 	"context"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum/go-ethereum/superchain"
 	"log/slog"
 	"math/big"
 	"os"
@@ -22,8 +24,13 @@ func TestAddGameType(t *testing.T) {
 	require.NotEmpty(t, rpcURL, "must specify RPC url via SEPOLIA_RPC_URL env var")
 
 	afacts, _ := testutil.LocalArtifacts(t)
-	v200SepoliaAddrs := validation.StandardVersionsSepolia["op-contracts/v2.0.0-rc.1"]
+	v200SepoliaAddrs := validation.StandardVersionsSepolia[standard.ContractsV200Tag]
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	supChain, err := superchain.GetChain(11155420)
+	require.NoError(t, err)
+	supChainConfig, err := supChain.Config()
+	require.NoError(t, err)
 
 	cfg := AddGameTypeConfig{
 		L1RPCUrl:         rpcURL,
@@ -31,10 +38,10 @@ func TestAddGameType(t *testing.T) {
 		ArtifactsLocator: afacts,
 		Input: opcm.AddGameTypeInput{
 			SaltMixer: "foo",
-			// The values below were pulled from the Superchain Registry.
-			SystemConfig:            common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-			ProxyAdmin:              common.HexToAddress("0x189aBAAaa82DfC015A588A7dbaD6F13b1D3485Bc"),
-			DelayedWETH:             common.HexToAddress("0x9C7750C1c7b39E6b0eFeec06A1F2cf06190f6018"),
+			// The values below were pulled from the Superchain Registry for OP Sepolia.
+			SystemConfigProxy:       *supChainConfig.Addresses.SystemConfigProxy,
+			OPChainProxyAdmin:       *supChainConfig.Addresses.ProxyAdmin,
+			DelayedWETHProxy:        *supChainConfig.Addresses.DelayedWETHProxy,
 			DisputeGameType:         999,
 			DisputeAbsolutePrestate: common.HexToHash("0x1234"),
 			DisputeMaxGameDepth:     big.NewInt(73),
@@ -44,8 +51,8 @@ func TestAddGameType(t *testing.T) {
 			InitialBond:             big.NewInt(0),
 			VM:                      common.Address(*v200SepoliaAddrs.Mips.Address),
 			Permissioned:            false,
-			Prank:                   common.HexToAddress("0x1Eb2fFc903729a0F03966B917003800b145F56E2"),
-			OPCM:                    common.Address(*v200SepoliaAddrs.OPContractsManager.Address),
+			Prank:                   *supChainConfig.Roles.ProxyAdminOwner,
+			OPCMImpl:                common.Address(*v200SepoliaAddrs.OPContractsManager.Address),
 		},
 		CacheDir: testCacheDir,
 	}
@@ -59,6 +66,6 @@ func TestAddGameType(t *testing.T) {
 	// Selector for addGameType
 	require.EqualValues(t, []byte{0x16, 0x61, 0xa2, 0xe9}, broadcasts[0].Data[0:4])
 
-	require.NotEqual(t, common.Address{}, output.DelayedWETH)
-	require.NotEqual(t, common.Address{}, output.FaultDisputeGame)
+	require.NotEqual(t, common.Address{}, output.DelayedWETHProxy)
+	require.NotEqual(t, common.Address{}, output.FaultDisputeGameProxy)
 }
