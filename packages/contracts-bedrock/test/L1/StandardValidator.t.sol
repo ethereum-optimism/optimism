@@ -4,94 +4,92 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Target contract
+// Contracts
 import { StandardValidator } from "src/L1/StandardValidator.sol";
 
 // Libraries
-import { GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
-import { Duration } from "src/dispute/lib/LibUDT.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
+import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IERC721Bridge } from "interfaces/universal/IERC721Bridge.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 
-contract StandardValidatorTest is CommonTest {
+/// @title StandardValidator_TestInit
+/// @notice Base contract for StandardValidator tests, handles common setup.
+contract StandardValidator_TestInit is CommonTest {
+    /// @notice StandardValidator instance, used for testing.
     StandardValidator validator;
-    address l1PAOMultisig;
-    address mips;
-    address guardian;
+
+    /// @notice Deploy input that was used to deploy the contracts being tested.
+    IOPContractsManager.DeployInput deployInput;
+
+    /// @notice The l2ChainId, either from config or from registry if fork test.
+    uint256 l2ChainId;
+
+    /// @notice The absolute prestate, either from config or dummy value if fork test.
+    Claim absolutePrestate;
+
+    /// @notice The challenger address, either from config or live system if fork test.
     address challenger;
 
-    bytes32 absolutePrestate;
-    uint256 l2ChainID;
+    /// @notice The PermissionedDisputeGame instance.
+    IPermissionedDisputeGame pdg;
 
-    address preimageOracle;
+    /// @notice The FaultDisputeGame instance.
+    IFaultDisputeGame fdg;
 
+    /// @notice The PreimageOracle instance.
+    IPreimageOracle preimageOracle;
+
+    /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
 
-        // Setup test addresses
-        superchainConfig = ISuperchainConfig(makeAddr("superchainConfig"));
-        l1PAOMultisig = makeAddr("l1PAOMultisig");
-        guardian = makeAddr("guardian");
-        challenger = makeAddr("challenger");
-
-        // Mock superchainConfig calls needed in setup
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.guardian, ()), abi.encode(guardian));
-        vm.mockCall(
-            address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(false)
-        );
-
-        // Setup mock contracts for validation
-        vm.prank(address(0));
-        proxyAdmin = IProxyAdmin(IProxy(payable(address(systemConfig))).admin());
-
-        absolutePrestate = bytes32(uint256(0xdead));
-        l2ChainID = 10;
-
-        // Setup mock dependency addresses
-        permissionedDisputeGame = IPermissionedDisputeGame(
-            address(IDisputeGameFactory(disputeGameFactory).gameImpls(GameTypes.PERMISSIONED_CANNON))
-        );
-        faultDisputeGame =
-            IFaultDisputeGame(address(IDisputeGameFactory(disputeGameFactory).gameImpls(GameTypes.CANNON)));
-        delayedWETHPermissionedGameProxy = IDelayedWETH(IFaultDisputeGame(address(permissionedDisputeGame)).weth());
-        delayedWeth = IDelayedWETH(IFaultDisputeGame(address(faultDisputeGame)).weth());
-        mips = address(IFaultDisputeGame(address(permissionedDisputeGame)).vm());
-        preimageOracle = address(IBigStepper(mips).oracle());
-
-        // Mock proxyAdmin owner
-        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(l1PAOMultisig));
-
         // Get the OPContractsManager and its implementations struct
-        OPContractsManager opcm = OPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
-        OPContractsManager.Implementations memory impls = opcm.implementations();
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
 
-        // Deploy validator with implementations from OPCM
+        // Grab the deploy input for later use.
+        deployInput = deploy.getDeployInput();
+
+        // Load the PermissionedDisputeGame once, we'll need it later.
+        pdg = IPermissionedDisputeGame(artifacts.mustGetAddress("PermissionedDisputeGame"));
+
+        // Load the PreimageOracle once, we'll need it later.
+        preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
+
+        // Values are slightly different for fork tests vs local tests. Most we can get from
+        // reasonable sources, challenger we need to get from live system because there's no other
+        // consistent way to get it right now. Means we're cheating a tiny bit for the challenger
+        // address in fork tests but it's fine.
+        if (isForkTest()) {
+            l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
+            absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+            challenger = pdg.challenger();
+        } else {
+            l2ChainId = deployInput.l2ChainId;
+            absolutePrestate = deployInput.disputeAbsolutePrestate;
+            challenger = deployInput.roles.challenger;
+        }
+
+        // Deploy the validator.
         validator = new StandardValidator(
             StandardValidator.Implementations({
                 systemConfigImpl: impls.systemConfigImpl,
@@ -106,911 +104,622 @@ contract StandardValidatorTest is CommonTest {
                 delayedWETHImpl: impls.delayedWETHImpl
             }),
             superchainConfig,
-            l1PAOMultisig,
+            proxyAdminOwner,
             challenger,
             302400
         );
+
+        // If this is not a fork test then we will also need to add the permissionless game to the
+        // DisputeGameFactory. Local tests don't create this game by default.
+        if (isForkTest()) {
+            // Load the FaultDisputeGame once, we'll need it later.
+            fdg = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
+        } else {
+            // Deploy the FaultDisputeGame.
+            fdg = IFaultDisputeGame(
+                DeployUtils.create1({
+                    _name: "FaultDisputeGame",
+                    _args: DeployUtils.encodeConstructor(
+                        abi.encodeCall(
+                            IFaultDisputeGame.__constructor__,
+                            (
+                                IFaultDisputeGame.GameConstructorParams({
+                                    gameType: GameTypes.CANNON,
+                                    absolutePrestate: absolutePrestate,
+                                    maxGameDepth: 73,
+                                    splitDepth: 30,
+                                    clockExtension: Duration.wrap(10800),
+                                    maxClockDuration: Duration.wrap(302400),
+                                    vm: mips,
+                                    weth: delayedWeth,
+                                    anchorStateRegistry: anchorStateRegistry,
+                                    l2ChainId: l2ChainId
+                                })
+                            )
+                        )
+                    )
+                })
+            );
+
+            // Add the FaultDisputeGame to the DisputeGameFactory.
+            vm.prank(disputeGameFactory.owner());
+            disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)));
+        }
     }
 
-    /// @notice Tests that validation succeeds with valid inputs and mocked dependencies
-    function test_validate_allowFailureTrue_succeeds() public {
-        // Mock all necessary calls for validation
-        _mockValidationCalls();
+    /// @notice Runs the StandardValidator.validate function.
+    /// @param _allowFailure Whether to allow failure.
+    /// @return The error message(s) from the validate function.
+    function _validate(bool _allowFailure) internal view returns (string memory) {
+        return validator.validate(
+            StandardValidator.ValidationInput({
+                proxyAdmin: proxyAdmin,
+                sysCfg: systemConfig,
+                absolutePrestate: absolutePrestate.raw(),
+                l2ChainID: l2ChainId
+            }),
+            _allowFailure
+        );
+    }
+}
 
-        // Validate with allowFailure = true
-        string memory errors = validate(true);
+/// @title StandardValidator_validate_Test
+/// @notice Tests the StandardValidator.validate function.
+contract StandardValidator_validate_Test is StandardValidator_TestInit {
+    /// @notice Tests that the validate function succeeds when all parameters are valid.
+    function test_validate_succeeds() public view {
+        string memory errors = _validate(false);
         assertEq(errors, "");
     }
 
-    /// @notice Tests validation of SuperchainConfig
-    function test_validate_superchainConfig_succeeds() public {
-        // Test invalid paused
-        _mockValidationCalls();
+    /// @notice Tests that the validate function succeeds when failures are allowed but no failures
+    ///         are present in the result.
+    function test_validate_allowFailureTrue_succeeds() public view {
+        string memory errors = _validate(true);
+        assertEq(errors, "");
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SuperchainConfig contract is paused.
+    function test_validate_superchainConfigPaused_succeeds() public {
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(true));
-        assertEq("SPRCFG-10", validate(true));
+        assertEq("SPRCFG-10", _validate(true));
     }
 
-    /// @notice Tests that validation fails with invalid proxy admin owner
-    function test_validate_proxyAdmin_succeeds() public {
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         ProxyAdmin owner is not correct.
+    function test_validate_invalidProxyAdminOwner_succeeds() public {
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
-
-        // Mocking the proxy admin like this will also break ownership checks
-        // for the DGF, DelayedWETH, and other contracts.
-        assertEq("PROXYA-10", validate(true));
+        assertEq("PROXYA-10,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true));
     }
 
-    /// @notice Tests validation of SystemConfig
-    function test_validate_systemConfig_succeeds() public {
-        // Test invalid version
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig version is invalid.
+    function test_validate_systemConfigInvalidVersion_succeeds() public {
         vm.mockCall(address(systemConfig), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("SYSCON-10", validate(true));
+        assertEq("SYSCON-10", _validate(true));
+    }
 
-        // Test invalid gas limit
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig gas limit is invalid.
+    function test_validate_systemConfigInvalidGasLimit_succeeds() public {
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(200_000_001)));
-        assertEq("SYSCON-20", validate(true));
+        assertEq("SYSCON-20", _validate(true));
+    }
 
-        // Test invalid scalar
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig scalar is invalid.
+    function test_validate_systemConfigInvalidScalar_succeeds() public {
         vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.scalar, ()), abi.encode(uint256(2) << 248));
-        assertEq("SYSCON-30", validate(true));
+        assertEq("SYSCON-30", _validate(true));
+    }
 
-        // Test invalid proxy implementation
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig proxy implementation is invalid.
+    function test_validate_systemConfigInvalidImplementation_succeeds() public {
         vm.mockCall(
             address(proxyAdmin),
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(systemConfig))),
             abi.encode(address(0xbad))
         );
-        assertEq("SYSCON-40", validate(true));
-
-        // Test invalid resource config - maxResourceLimit
-        _mockValidationCalls();
-        IResourceMetering.ResourceConfig memory badConfig = IResourceMetering.ResourceConfig({
-            maxResourceLimit: 1_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 1 gwei,
-            maximumBaseFee: type(uint128).max
-        });
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
-        assertEq("SYSCON-50", validate(true));
-
-        // Test invalid resource config - elasticityMultiplier
-        _mockValidationCalls();
-        badConfig.maxResourceLimit = 20_000_000;
-        badConfig.elasticityMultiplier = 5;
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
-        assertEq("SYSCON-60", validate(true));
-
-        // Test invalid resource config - baseFeeMaxChangeDenominator
-        _mockValidationCalls();
-        badConfig.elasticityMultiplier = 10;
-        badConfig.baseFeeMaxChangeDenominator = 4;
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
-        assertEq("SYSCON-70", validate(true));
-
-        // Test invalid resource config - systemTxMaxGas
-        _mockValidationCalls();
-        badConfig.baseFeeMaxChangeDenominator = 8;
-        badConfig.systemTxMaxGas = 500_000;
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
-        assertEq("SYSCON-80", validate(true));
-
-        // Test invalid resource config - minimumBaseFee
-        _mockValidationCalls();
-        badConfig.systemTxMaxGas = 1_000_000;
-        badConfig.minimumBaseFee = 2 gwei;
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
-        assertEq("SYSCON-90", validate(true));
-
-        // Test invalid resource config - maximumBaseFee
-        _mockValidationCalls();
-        badConfig.minimumBaseFee = 1 gwei;
-        badConfig.maximumBaseFee = 1_000_000;
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
-        assertEq("SYSCON-100", validate(true));
+        assertEq("SYSCON-40", _validate(true));
     }
 
-    /// @notice Tests validation of L1CrossDomainMessenger
-    function test_validate_l1CrossDomainMessenger_succeeds() public {
-        // Test invalid version
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig resourceConfig.maxResourceLimit is invalid.
+    function test_validate_systemConfigInvalidResourceConfigMaxResourceLimit_succeeds() public {
+        IResourceMetering.ResourceConfig memory badConfig = systemConfig.resourceConfig();
+        badConfig.maxResourceLimit = 1_000_000;
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
+        assertEq("SYSCON-50", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig resourceConfig.elasticityMultiplier is invalid.
+    function test_validate_systemConfigInvalidResourceConfigElasticityMultiplier_succeeds() public {
+        IResourceMetering.ResourceConfig memory badConfig = systemConfig.resourceConfig();
+        badConfig.elasticityMultiplier = 5;
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
+        assertEq("SYSCON-60", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig resourceConfig.baseFeeMaxChangeDenominator is invalid.
+    function test_validate_systemConfigInvalidResourceConfigBaseFeeMaxChangeDenominator_succeeds() public {
+        IResourceMetering.ResourceConfig memory badConfig = systemConfig.resourceConfig();
+        badConfig.baseFeeMaxChangeDenominator = 4;
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
+        assertEq("SYSCON-70", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig resourceConfig.systemTxMaxGas is invalid.
+    function test_validate_systemConfigInvalidResourceConfigSystemTxMaxGas_succeeds() public {
+        IResourceMetering.ResourceConfig memory badConfig = systemConfig.resourceConfig();
+        badConfig.systemTxMaxGas = 500_000;
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
+        assertEq("SYSCON-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig resourceConfig.minimumBaseFee is invalid.
+    function test_validate_systemConfigInvalidResourceConfigMinimumBaseFee_succeeds() public {
+        IResourceMetering.ResourceConfig memory badConfig = systemConfig.resourceConfig();
+        badConfig.minimumBaseFee = 2 gwei;
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
+        assertEq("SYSCON-90", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig resourceConfig.maximumBaseFee is invalid.
+    function test_validate_systemConfigInvalidResourceConfigMaximumBaseFee_succeeds() public {
+        IResourceMetering.ResourceConfig memory badConfig = systemConfig.resourceConfig();
+        badConfig.maximumBaseFee = 1_000_000;
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(badConfig));
+        assertEq("SYSCON-100", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig operatorFeeScalar is invalid.
+    function test_validate_systemConfigInvalidOperatorFeeScalar_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
+        assertEq("SYSCON-110", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig operatorFeeConstant is invalid.
+    function test_validate_systemConfigInvalidOperatorFeeConstant_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(1));
+        assertEq("SYSCON-120", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when both
+    ///         SystemConfig operatorFeeScalar and operatorFeeConstant are invalid.
+    function test_validate_systemConfigInvalidOperatorFeeScalarAndConstant_succeeds() public {
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(1));
+        assertEq("SYSCON-110,SYSCON-120", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1CrossDomainMessenger version is invalid.
+    function test_validate_l1CrossDomainMessengerInvalidVersion_succeeds() public {
         vm.mockCall(address(l1CrossDomainMessenger), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("L1xDM-10", validate(true));
+        assertEq("L1xDM-10", _validate(true));
+    }
 
-        // Test invalid OTHER_MESSENGER
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeCall(ICrossDomainMessenger.OTHER_MESSENGER, ()),
-            abi.encode(address(0xbad))
-        );
-        assertEq("L1xDM-30", validate(true));
-
-        // Test invalid otherMessenger
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1CrossDomainMessenger otherMessenger is invalid.
+    function test_validate_l1CrossDomainMessengerInvalidOtherMessenger_succeeds() public {
         vm.mockCall(
             address(l1CrossDomainMessenger),
             abi.encodeCall(ICrossDomainMessenger.otherMessenger, ()),
             abi.encode(address(0xbad))
         );
-        assertEq("L1xDM-40", validate(true));
+        assertEq("L1xDM-40", _validate(true));
+    }
 
-        // Test invalid PORTAL
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeCall(IL1CrossDomainMessenger.PORTAL, ()),
-            abi.encode(address(0xbad))
-        );
-        assertEq("L1xDM-50", validate(true));
-
-        // Test invalid portal
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1CrossDomainMessenger portal is invalid.
+    function test_validate_l1CrossDomainMessengerInvalidPortal_succeeds() public {
         vm.mockCall(
             address(l1CrossDomainMessenger),
             abi.encodeCall(IL1CrossDomainMessenger.portal, ()),
             abi.encode(address(0xbad))
         );
-        assertEq("L1xDM-60", validate(true));
+        assertEq("L1xDM-60", _validate(true));
+    }
 
-        // Test invalid systemConfig
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1CrossDomainMessenger systemConfig is invalid.
+    function test_validate_l1CrossDomainMessengerInvalidSystemConfig_succeeds() public {
         vm.mockCall(
             address(l1CrossDomainMessenger),
             abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()),
             abi.encode(address(0xbad))
         );
-        assertEq("L1xDM-70", validate(true));
+        assertEq("L1xDM-70", _validate(true));
     }
 
-    /// @notice Tests validation of OptimismMintableERC20Factory
-    function test_validate_optimismMintableERC20Factory_succeeds() public {
-        // Test invalid version
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismMintableERC20Factory version is invalid.
+    function test_validate_optimismMintableERC20FactoryInvalidVersion_succeeds() public {
         vm.mockCall(address(l1OptimismMintableERC20Factory), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("MERC20F-10", validate(true));
+        assertEq("MERC20F-10", _validate(true));
+    }
 
-        // Test invalid BRIDGE
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1OptimismMintableERC20Factory),
-            abi.encodeCall(IOptimismMintableERC20Factory.BRIDGE, ()),
-            abi.encode(address(0xbad))
-        );
-        assertEq("MERC20F-30", validate(true));
-
-        // Test invalid bridge
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismMintableERC20Factory bridge is invalid.
+    function test_validate_optimismMintableERC20FactoryInvalidBridge_succeeds() public {
         vm.mockCall(
             address(l1OptimismMintableERC20Factory),
             abi.encodeCall(IOptimismMintableERC20Factory.bridge, ()),
             abi.encode(address(0xbad))
         );
-        assertEq("MERC20F-40", validate(true));
+        assertEq("MERC20F-40", _validate(true));
     }
 
-    /// @notice Tests validation of L1ERC721Bridge
-    function test_validate_l1ERC721Bridge_succeeds() public {
-        // Test invalid version
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1ERC721Bridge version is invalid.
+    function test_validate_l1ERC721BridgeInvalidVersion_succeeds() public {
         vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("L721B-10", validate(true));
+        assertEq("L721B-10", _validate(true));
+    }
 
-        // Test invalid OTHER_BRIDGE
-        _mockValidationCalls();
-        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.OTHER_BRIDGE, ()), abi.encode(address(0xbad)));
-        assertEq("L721B-30", validate(true));
-
-        // Test invalid otherBridge
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1ERC721Bridge otherBridge is invalid.
+    function test_validate_l1ERC721BridgeInvalidOtherBridge_succeeds() public {
         vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.otherBridge, ()), abi.encode(address(0xbad)));
-        assertEq("L721B-40", validate(true));
+        assertEq("L721B-40", _validate(true));
+    }
 
-        // Test invalid MESSENGER
-        _mockValidationCalls();
-        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.MESSENGER, ()), abi.encode(address(0xbad)));
-        assertEq("L721B-50", validate(true));
-
-        // Test invalid messenger
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1ERC721Bridge messenger is invalid.
+    function test_validate_l1ERC721BridgeInvalidMessenger_succeeds() public {
         vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.messenger, ()), abi.encode(address(0xbad)));
-        assertEq("L721B-60", validate(true));
+        assertEq("L721B-60", _validate(true));
+    }
 
-        // Test invalid systemConfig
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1ERC721Bridge systemConfig is invalid.
+    function test_validate_l1ERC721BridgeInvalidSystemConfig_succeeds() public {
         vm.mockCall(
             address(l1ERC721Bridge), abi.encodeCall(IL1ERC721Bridge.systemConfig, ()), abi.encode(address(0xbad))
         );
-        assertEq("L721B-70", validate(true));
+        assertEq("L721B-70", _validate(true));
     }
 
-    /// @notice Tests validation of OptimismPortal
-    function test_validate_optimismPortal_succeeds() public {
-        // Test invalid version
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismPortal version is invalid.
+    function test_validate_optimismPortalInvalidVersion_succeeds() public {
         vm.mockCall(address(optimismPortal2), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("PORTAL-10", validate(true));
+        assertEq("PORTAL-10", _validate(true));
+    }
 
-        // Test invalid disputeGameFactory
-        _mockValidationCalls();
-        vm.mockCall(
-            address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.disputeGameFactory, ()),
-            abi.encode(address(0xbad))
-        );
-        assertEq("PORTAL-30", validate(true));
-
-        // Test invalid systemConfig
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismPortal systemConfig is invalid.
+    function test_validate_optimismPortalInvalidSystemConfig_succeeds() public {
         vm.mockCall(
             address(optimismPortal2), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(address(0xbad))
         );
-        assertEq("PORTAL-40", validate(true));
-
-        // Test invalid l2Sender
-        _mockValidationCalls();
-        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.l2Sender, ()), abi.encode(address(0xbad)));
-        assertEq("PORTAL-80", validate(true));
+        assertEq("PORTAL-40", _validate(true));
     }
 
-    /// @notice Tests validation of DisputeGameFactory
-    function test_validate_disputeGameFactory_succeeds() public {
-        // Test invalid version
-        _mockValidationCalls();
-        vm.mockCall(address(disputeGameFactory), abi.encodeCall(ISemver.version, ()), abi.encode("0.9.0"));
-        assertEq("DF-10", validate(true));
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismPortal l2Sender is invalid.
+    function test_validate_optimismPortalInvalidL2Sender_succeeds() public {
+        vm.mockCall(address(optimismPortal2), abi.encodeCall(IOptimismPortal2.l2Sender, ()), abi.encode(address(0xbad)));
+        assertEq("PORTAL-80", _validate(true));
+    }
 
-        // Test invalid implementation
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         DisputeGameFactory version is invalid.
+    function test_validate_disputeGameFactoryInvalidVersion_succeeds() public {
+        vm.mockCall(address(disputeGameFactory), abi.encodeCall(ISemver.version, ()), abi.encode("0.9.0"));
+        assertEq("DF-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         DisputeGameFactory implementation is invalid.
+    function test_validate_disputeGameFactoryInvalidImplementation_succeeds() public {
         vm.mockCall(
             address(proxyAdmin),
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(disputeGameFactory))),
             abi.encode(address(0xbad))
         );
-        assertEq("DF-20", validate(true));
+        assertEq("DF-20", _validate(true));
+    }
 
-        // Test invalid owner
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         DisputeGameFactory owner is invalid.
+    function test_validate_disputeGameFactoryInvalidOwner_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(address(0xbad))
         );
-        assertEq("DF-30", validate(true));
+        assertEq("DF-30", _validate(true));
     }
 
-    /// @notice Tests validation of PermissionedDisputeGame. The ASR, PreimageOracle, and DelayedWETH are
-    /// validated for each PDG and so are included here.
-    function test_validate_permissionedDisputeGame_succeeds() public {
-        _testDisputeGame(
-            "PDDG",
-            address(permissionedDisputeGame),
-            anchorStateRegistry,
-            delayedWETHPermissionedGameProxy,
-            GameTypes.PERMISSIONED_CANNON
-        );
-    }
-
-    function test_validate_permissionlessDisputeGame_succeeds() public {
-        _testDisputeGame("PLDG", address(faultDisputeGame), anchorStateRegistry, delayedWeth, GameTypes.CANNON);
-    }
-
-    /// @notice Tests validation of L1StandardBridge
-    function test_validate_l1StandardBridge_succeeds() public {
-        // Test invalid version
-        _mockValidationCalls();
-        vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("L1SB-10", validate(true));
-
-        // Test invalid MESSENGER
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IStandardBridge.MESSENGER, ()), abi.encode(address(0xbad))
-        );
-        assertEq("L1SB-30", validate(true));
-
-        // Test invalid messenger
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IStandardBridge.messenger, ()), abi.encode(address(0xbad))
-        );
-        assertEq("L1SB-40", validate(true));
-
-        // Test invalid OTHER_BRIDGE
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IStandardBridge.OTHER_BRIDGE, ()), abi.encode(address(0xbad))
-        );
-        assertEq("L1SB-50", validate(true));
-
-        // Test invalid otherBridge
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IStandardBridge.otherBridge, ()), abi.encode(address(0xbad))
-        );
-        assertEq("L1SB-60", validate(true));
-
-        // Test invalid systemConfig
-        _mockValidationCalls();
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IL1StandardBridge.systemConfig, ()), abi.encode(address(0xbad))
-        );
-        assertEq("L1SB-70", validate(true));
-    }
-
-    function _testDisputeGame(
-        string memory errorPrefix,
-        address _disputeGame,
-        IAnchorStateRegistry _asr,
-        IDelayedWETH _weth,
-        GameType _gameType
-    )
-        public
-        virtual
-    {
-        // Test null implementation
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame implementation is null.
+    function test_validate_permissionedDisputeGameNullImplementation_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (_gameType)),
+            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
             abi.encode(address(0))
         );
-        assertEq(string.concat(errorPrefix, "-10"), validate(true));
+        assertEq("PDDG-10", _validate(true));
+    }
 
-        // Test invalid version
-        _mockValidationCalls();
-        vm.mockCall(address(_disputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq(string.concat(errorPrefix, "-20"), validate(true));
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame version is invalid.
+    function test_validate_permissionedDisputeGameInvalidVersion_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        assertEq("PDDG-20", _validate(true));
+    }
 
-        // Test invalid game type
-        _mockValidationCalls();
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameType.wrap(123)));
-        assertEq(string.concat(errorPrefix, "-30"), validate(true));
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame game type is invalid.
+    function test_validate_permissionedDisputeGameInvalidGameType_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameTypes.CANNON));
+        assertEq("PDDG-30", _validate(true));
+    }
 
-        // Test invalid absolute prestate
-        _mockValidationCalls();
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame absolute prestate is invalid.
+    function test_validate_permissionedDisputeGameInvalidAbsolutePrestate_succeeds() public {
         vm.mockCall(
-            address(_disputeGame),
+            address(pdg),
             abi.encodeCall(IPermissionedDisputeGame.absolutePrestate, ()),
             abi.encode(bytes32(uint256(0xbad)))
         );
-        assertEq(string.concat(errorPrefix, "-40"), validate(true));
-
-        // Test invalid vm
-        _mockValidationCalls();
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        assertEq(string.concat(errorPrefix, "-50"), validate(true));
-
-        // Test invalid l2ChainId
-        _mockValidationCalls();
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(123));
-        assertEq(string.concat(errorPrefix, "-60"), validate(true));
-
-        // Test invalid l2BlockNumber
-        _mockValidationCalls();
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.l2BlockNumber, ()), abi.encode(1));
-        assertEq(string.concat(errorPrefix, "-70"), validate(true));
-
-        // Test invalid clockExtension
-        _mockValidationCalls();
-        vm.mockCall(
-            address(_disputeGame),
-            abi.encodeCall(IPermissionedDisputeGame.clockExtension, ()),
-            abi.encode(Duration.wrap(1000))
-        );
-        assertEq(string.concat(errorPrefix, "-80"), validate(true));
-
-        // Test invalid splitDepth
-        _mockValidationCalls();
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.splitDepth, ()), abi.encode(20));
-        assertEq(string.concat(errorPrefix, "-90"), validate(true));
-
-        // Test invalid maxGameDepth
-        _mockValidationCalls();
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.maxGameDepth, ()), abi.encode(50));
-        assertEq(string.concat(errorPrefix, "-100"), validate(true));
-
-        // Test invalid maxClockDuration
-        _mockValidationCalls();
-        vm.mockCall(
-            address(_disputeGame),
-            abi.encodeCall(IPermissionedDisputeGame.maxClockDuration, ()),
-            abi.encode(Duration.wrap(1000))
-        );
-        assertEq(string.concat(errorPrefix, "-110"), validate(true));
-
-        if (_gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-            _mockValidationCalls();
-            vm.mockCall(
-                address(_disputeGame),
-                abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
-                abi.encode(address(0xbad))
-            );
-            assertEq(string.concat(errorPrefix, "-120"), validate(true));
-        }
-
-        // Test invalid anchor state registry version
-        _mockValidationCalls();
-        vm.mockCall(address(_asr), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("PDDG-ANCHORP-10,PLDG-ANCHORP-10", validate(true));
-
-        // Test invalid anchor state registry factory
-        _mockValidationCalls();
-        vm.mockCall(
-            address(_asr), abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(address(0xbad))
-        );
-        assertEq("PDDG-ANCHORP-30,PLDG-ANCHORP-30", validate(true));
-
-        // Test invalid DelayedWETH version
-        _mockValidationCalls();
-        vm.mockCall(address(_weth), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq(string.concat(errorPrefix, "-DWETH-10"), validate(true));
-
-        // Test invalid DelayedWETH implementation for permissioned game
-        _mockValidationCalls();
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_weth))),
-            abi.encode(address(0xbad))
-        );
-        assertEq(string.concat(errorPrefix, "-DWETH-20"), validate(true));
-
-        // Test invalid DelayedWETH owner
-        _mockValidationCalls();
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(address(0xbad)));
-        assertEq(string.concat(errorPrefix, "-DWETH-30"), validate(true));
-
-        // Test invalid DelayedWETH delay
-        _mockValidationCalls();
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(2));
-        assertEq(string.concat(errorPrefix, "-DWETH-40"), validate(true));
-
-        // Since the preimage oracle is shared, the errors need to include both
-        // the permissioned and permissionless game type.
-
-        // Test invalid PreimageOracle version
-        _mockValidationCalls();
-        vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        assertEq("PDDG-PIMGO-10,PLDG-PIMGO-10", validate(true));
-
-        // Test invalid PreimageOracle challenge period
-        _mockValidationCalls();
-        vm.mockCall(address(preimageOracle), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(1000));
-        assertEq("PDDG-PIMGO-20,PLDG-PIMGO-20", validate(true));
-
-        // Test invalid PreimageOracle min proposal size for permissioned game
-        _mockValidationCalls();
-        vm.mockCall(address(preimageOracle), abi.encodeCall(IPreimageOracle.minProposalSize, ()), abi.encode(1000));
-        assertEq("PDDG-PIMGO-30,PLDG-PIMGO-30", validate(true));
-
-        // Test invalid anchor state registry implementation
-        _mockValidationCalls();
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(_asr))),
-            abi.encode(address(0xbad))
-        );
-        assertEq("PDDG-ANCHORP-20,PLDG-ANCHORP-20", validate(true));
+        assertEq("PDDG-40", _validate(true));
     }
 
-    function _mockValidationCalls() internal virtual {
-        // Mock OptimismPortal superchainConfig call
-        vm.mockCall(
-            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig)
-        );
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame challenger is invalid.
+    function test_validate_permissionedDisputeGameInvalidChallenger_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
+        assertEq("PDDG-120", _validate(true));
+    }
 
-        // Mock SystemConfig dependencies
-        vm.mockCall(
-            address(systemConfig), abi.encodeCall(ISystemConfig.disputeGameFactory, ()), abi.encode(disputeGameFactory)
-        );
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISemver.version, ()), abi.encode("2.3.0"));
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(60_000_000)));
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.scalar, ()), abi.encode(uint256(1) << 248));
-        vm.mockCall(
-            address(systemConfig),
-            abi.encodeCall(ISystemConfig.l1CrossDomainMessenger, ()),
-            abi.encode(l1CrossDomainMessenger)
-        );
-        vm.mockCall(
-            address(systemConfig), abi.encodeCall(ISystemConfig.optimismPortal, ()), abi.encode(optimismPortal2)
-        );
-        vm.mockCall(
-            address(systemConfig), abi.encodeCall(ISystemConfig.l1StandardBridge, ()), abi.encode(l1StandardBridge)
-        );
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.l1ERC721Bridge, ()), abi.encode(l1ERC721Bridge));
-        vm.mockCall(
-            address(systemConfig),
-            abi.encodeCall(ISystemConfig.optimismMintableERC20Factory, ()),
-            abi.encode(l1OptimismMintableERC20Factory)
-        );
-        vm.mockCall(
-            address(systemConfig), abi.encodeCall(ISystemConfig.superchainConfig, ()), abi.encode(superchainConfig)
-        );
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame VM address is invalid.
+    function test_validate_permissionedDisputeGameInvalidVM_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
+        assertEq("PDDG-50", _validate(true));
+    }
 
-        // Mock proxy implementations
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(systemConfig))),
-            abi.encode(validator.systemConfigImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(optimismPortal2))),
-            abi.encode(validator.optimismPortalImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1CrossDomainMessenger))),
-            abi.encode(validator.l1CrossDomainMessengerImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1StandardBridge))),
-            abi.encode(validator.l1StandardBridgeImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1ERC721Bridge))),
-            abi.encode(validator.l1ERC721BridgeImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
-            abi.encode(validator.optimismMintableERC20FactoryImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(disputeGameFactory))),
-            abi.encode(validator.disputeGameFactoryImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(anchorStateRegistry))),
-            abi.encode(validator.anchorStateRegistryImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWETHPermissionedGameProxy))),
-            abi.encode(validator.delayedWETHImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWeth))),
-            abi.encode(validator.delayedWETHImpl())
-        );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(anchorStateRegistry))),
-            abi.encode(validator.anchorStateRegistryImpl())
-        );
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame L2 Chain ID is invalid.
+    function test_validate_permissionedDisputeGameInvalidL2ChainId_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(l2ChainId + 1));
+        assertEq("PDDG-60", _validate(true));
+    }
 
-        // Mock AnchorStateRegistry
-        _mockAnchorStateRegistry(anchorStateRegistry, disputeGameFactory, GameTypes.PERMISSIONED_CANNON);
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame L2 Block Number is invalid.
+    function test_validate_permissionedDisputeGameInvalidL2BlockNumber_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2BlockNumber, ()), abi.encode(123));
+        assertEq("PDDG-70", _validate(true));
+    }
 
-        // Mock resource config
-        IResourceMetering.ResourceConfig memory config = IResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            systemTxMaxGas: 1_000_000,
-            minimumBaseFee: 1e9,
-            maximumBaseFee: type(uint128).max
-        });
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.resourceConfig, ()), abi.encode(config));
-
-        // Mock DisputeGameFactory
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame clockExtension is invalid.
+    function test_validate_permissionedDisputeGameInvalidClockExtension_succeeds() public {
         vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
-            abi.encode(permissionedDisputeGame)
+            address(pdg), abi.encodeCall(IPermissionedDisputeGame.clockExtension, ()), abi.encode(Duration.wrap(1000))
         );
+        assertEq("PDDG-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame splitDepth is invalid.
+    function test_validate_permissionedDisputeGameInvalidSplitDepth_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.splitDepth, ()), abi.encode(20));
+        assertEq("PDDG-90", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame maxGameDepth is invalid.
+    function test_validate_permissionedDisputeGameInvalidMaxGameDepth_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.maxGameDepth, ()), abi.encode(50));
+        assertEq("PDDG-100", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame maxClockDuration is invalid.
+    function test_validate_permissionedDisputeGameInvalidMaxClockDuration_succeeds() public {
+        vm.mockCall(
+            address(pdg), abi.encodeCall(IPermissionedDisputeGame.maxClockDuration, ()), abi.encode(Duration.wrap(1000))
+        );
+        assertEq("PDDG-110", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry version is invalid.
+    function test_validate_anchorStateRegistryInvalidVersion_succeeds() public {
+        vm.mockCall(address(anchorStateRegistry), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
+        assertEq("PDDG-ANCHORP-10,PLDG-ANCHORP-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         DelayedWETH version is invalid.
+    function test_validate_delayedWETHInvalidVersion_succeeds() public {
+        vm.mockCall(address(delayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
+
+        // One last mess here, during local tests delayedWeth refers to the contract attached to
+        // the FaultDisputeGame, but during fork tests it refers to the one attached to the
+        // PermissionedDisputeGame. We'll just branch based on the test type.
+        if (isForkTest()) {
+            assertEq("PDDG-DWETH-10", _validate(true));
+        } else {
+            assertEq("PLDG-DWETH-10", _validate(true));
+        }
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PreimageOracle version is invalid.
+    function test_validate_preimageOracleInvalidVersion_succeeds() public {
+        vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
+        assertEq("PDDG-PIMGO-10,PLDG-PIMGO-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) implementation is null.
+    function test_validate_faultDisputeGameNullImplementation_succeeds() public {
         vm.mockCall(
             address(disputeGameFactory),
             abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.CANNON)),
-            abi.encode(faultDisputeGame)
-        );
-        vm.mockCall(address(disputeGameFactory), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        vm.mockCall(
-            address(disputeGameFactory), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(l1PAOMultisig)
-        );
-
-        _mockDisputeGame(
-            address(faultDisputeGame), anchorStateRegistry, delayedWeth, absolutePrestate, GameTypes.CANNON
-        );
-        _mockDisputeGame(
-            address(permissionedDisputeGame),
-            anchorStateRegistry,
-            delayedWETHPermissionedGameProxy,
-            absolutePrestate,
-            GameTypes.PERMISSIONED_CANNON
-        );
-        vm.mockCall(
-            address(permissionedDisputeGame),
-            abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
-            abi.encode(challenger)
-        );
-
-        // Mock MIPS
-        vm.mockCall(address(mips), abi.encodeCall(IMIPS.oracle, ()), abi.encode(preimageOracle));
-
-        // Mock PreimageOracle
-        vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.2"));
-        vm.mockCall(address(preimageOracle), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(86400));
-        vm.mockCall(address(preimageOracle), abi.encodeCall(IPreimageOracle.minProposalSize, ()), abi.encode(126000));
-
-        // Mock L1CrossDomainMessenger
-        vm.mockCall(address(l1CrossDomainMessenger), abi.encodeCall(ISemver.version, ()), abi.encode("2.3.0"));
-        vm.mockCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeCall(ICrossDomainMessenger.OTHER_MESSENGER, ()),
-            abi.encode(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER))
-        );
-        vm.mockCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeCall(ICrossDomainMessenger.otherMessenger, ()),
-            abi.encode(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER))
-        );
-        vm.mockCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeCall(IL1CrossDomainMessenger.PORTAL, ()),
-            abi.encode(optimismPortal2)
-        );
-        vm.mockCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeCall(IL1CrossDomainMessenger.portal, ()),
-            abi.encode(optimismPortal2)
-        );
-        vm.mockCall(
-            address(l1CrossDomainMessenger),
-            abi.encodeCall(IL1CrossDomainMessenger.systemConfig, ()),
-            abi.encode(systemConfig)
-        );
-
-        // Mock OptimismPortal
-        vm.mockCall(address(optimismPortal2), abi.encodeCall(ISemver.version, ()), abi.encode("3.10.0"));
-        vm.mockCall(
-            address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.disputeGameFactory, ()),
-            abi.encode(disputeGameFactory)
-        );
-        vm.mockCall(
-            address(optimismPortal2), abi.encodeCall(IOptimismPortal2.systemConfig, ()), abi.encode(systemConfig)
-        );
-        vm.mockCall(
-            address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.guardian, ()),
-            abi.encode(superchainConfig.guardian())
-        );
-        vm.mockCall(
-            address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.paused, ()),
-            abi.encode(superchainConfig.paused(address(0)))
-        );
-        vm.mockCall(
-            address(optimismPortal2),
-            abi.encodeCall(IOptimismPortal2.l2Sender, ()),
-            abi.encode(address(0x000000000000000000000000000000000000dEaD))
-        );
-
-        // Mock SuperchainConfig
-        vm.mockCall(
-            address(superchainConfig), abi.encodeCall(ISuperchainConfig.guardian, ()), abi.encode(makeAddr("guardian"))
-        );
-        vm.mockCall(
-            address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(false)
-        );
-
-        // Mock L1StandardBridge
-        vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.1.0"));
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IStandardBridge.MESSENGER, ()), abi.encode(l1CrossDomainMessenger)
-        );
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IStandardBridge.messenger, ()), abi.encode(l1CrossDomainMessenger)
-        );
-        vm.mockCall(
-            address(l1StandardBridge),
-            abi.encodeCall(IStandardBridge.OTHER_BRIDGE, ()),
-            abi.encode(Predeploys.L2_STANDARD_BRIDGE)
-        );
-        vm.mockCall(
-            address(l1StandardBridge),
-            abi.encodeCall(IStandardBridge.otherBridge, ()),
-            abi.encode(Predeploys.L2_STANDARD_BRIDGE)
-        );
-        vm.mockCall(
-            address(l1StandardBridge), abi.encodeCall(IL1StandardBridge.systemConfig, ()), abi.encode(systemConfig)
-        );
-
-        // Mock L1ERC721Bridge
-        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.1.0"));
-        vm.mockCall(
-            address(l1ERC721Bridge),
-            abi.encodeCall(IERC721Bridge.OTHER_BRIDGE, ()),
-            abi.encode(Predeploys.L2_ERC721_BRIDGE)
-        );
-        vm.mockCall(
-            address(l1ERC721Bridge),
-            abi.encodeCall(IERC721Bridge.otherBridge, ()),
-            abi.encode(Predeploys.L2_ERC721_BRIDGE)
-        );
-        vm.mockCall(
-            address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.MESSENGER, ()), abi.encode(l1CrossDomainMessenger)
-        );
-        vm.mockCall(
-            address(l1ERC721Bridge), abi.encodeCall(IERC721Bridge.messenger, ()), abi.encode(l1CrossDomainMessenger)
-        );
-        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(IL1ERC721Bridge.systemConfig, ()), abi.encode(systemConfig));
-
-        // Mock OptimismMintableERC20Factory
-        vm.mockCall(address(l1OptimismMintableERC20Factory), abi.encodeCall(ISemver.version, ()), abi.encode("1.9.0"));
-        vm.mockCall(
-            address(l1OptimismMintableERC20Factory),
-            abi.encodeCall(IOptimismMintableERC20Factory.BRIDGE, ()),
-            abi.encode(l1StandardBridge)
-        );
-        vm.mockCall(
-            address(l1OptimismMintableERC20Factory),
-            abi.encodeCall(IOptimismMintableERC20Factory.bridge, ()),
-            abi.encode(l1StandardBridge)
-        );
-
-        _mockDelayedWETH(delayedWETHPermissionedGameProxy);
-        _mockDelayedWETH(delayedWeth);
-
-        // Mock operator fee calls with valid values
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(0));
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(0));
-
-        // Override version numbers for V300
-        vm.mockCall(address(l1ERC721Bridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.4.0"));
-        vm.mockCall(address(optimismPortal2), abi.encodeCall(ISemver.version, ()), abi.encode("3.14.0"));
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISemver.version, ()), abi.encode("2.5.0"));
-        vm.mockCall(address(l1OptimismMintableERC20Factory), abi.encodeCall(ISemver.version, ()), abi.encode("1.10.1"));
-        vm.mockCall(address(l1CrossDomainMessenger), abi.encodeCall(ISemver.version, ()), abi.encode("2.6.0"));
-        vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("2.3.0"));
-        vm.mockCall(address(disputeGameFactory), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.1"));
-        vm.mockCall(address(anchorStateRegistry), abi.encodeCall(ISemver.version, ()), abi.encode("2.2.2"));
-        vm.mockCall(address(delayedWETHPermissionedGameProxy), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
-        vm.mockCall(address(delayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.0"));
-        vm.mockCall(address(mips), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
-        vm.mockCall(address(permissionedDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
-        vm.mockCall(address(faultDisputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.4.1"));
-        vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.4"));
-    }
-
-    function _mockAnchorStateRegistry(
-        IAnchorStateRegistry _asr,
-        IDisputeGameFactory _disputeGameFactory,
-        GameType _gameType
-    )
-        internal
-    {
-        vm.mockCall(address(_asr), abi.encodeCall(ISemver.version, ()), abi.encode("2.0.0"));
-        vm.mockCall(
-            address(_asr), abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ()), abi.encode(_disputeGameFactory)
-        );
-        vm.mockCall(
-            address(_asr),
-            abi.encodeCall(IAnchorStateRegistry.anchors, (_gameType)),
-            abi.encode(Hash.wrap(0xdead000000000000000000000000000000000000000000000000000000000000), 0)
-        );
-        vm.mockCall(address(_asr), abi.encodeCall(IAnchorStateRegistry.systemConfig, ()), abi.encode(systemConfig));
-    }
-
-    function _mockDisputeGame(
-        address _disputeGame,
-        IAnchorStateRegistry _asr,
-        IDelayedWETH _weth,
-        bytes32 _absolutePrestate,
-        GameType _gameType
-    )
-        internal
-    {
-        vm.mockCall(address(_disputeGame), abi.encodeCall(ISemver.version, ()), abi.encode("1.3.1"));
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(_gameType));
-        vm.mockCall(
-            address(_disputeGame),
-            abi.encodeCall(IPermissionedDisputeGame.absolutePrestate, ()),
-            abi.encode(_absolutePrestate)
-        );
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(mips));
-        vm.mockCall(
-            address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.anchorStateRegistry, ()), abi.encode(_asr)
-        );
-        vm.mockCall(
-            address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(l2ChainID)
-        );
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.l2BlockNumber, ()), abi.encode(0));
-        vm.mockCall(
-            address(_disputeGame),
-            abi.encodeCall(IPermissionedDisputeGame.clockExtension, ()),
-            abi.encode(Duration.wrap(10800))
-        );
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.splitDepth, ()), abi.encode(30));
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.maxGameDepth, ()), abi.encode(73));
-        vm.mockCall(
-            address(_disputeGame),
-            abi.encodeCall(IPermissionedDisputeGame.maxClockDuration, ()),
-            abi.encode(Duration.wrap(302400))
-        );
-        vm.mockCall(address(_disputeGame), abi.encodeCall(IPermissionedDisputeGame.weth, ()), abi.encode(_weth));
-    }
-
-    function _mockDelayedWETH(IDelayedWETH _weth) public {
-        vm.mockCall(address(_weth), abi.encodeCall(ISemver.version, ()), abi.encode("1.1.0"));
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(l1PAOMultisig));
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1 weeks / 2));
-        vm.mockCall(address(_weth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(systemConfig));
-    }
-
-    function validate(bool _allowFailure) internal view returns (string memory) {
-        StandardValidator.ValidationInput memory input = StandardValidator.ValidationInput({
-            proxyAdmin: proxyAdmin,
-            sysCfg: systemConfig,
-            absolutePrestate: absolutePrestate,
-            l2ChainID: l2ChainID
-        });
-        return validator.validate(input, _allowFailure);
-    }
-
-    /// @notice Tests that validation reverts with error message when allowFailure is false
-    function test_validate_allowFailureFalse_reverts() public {
-        _mockValidationCalls();
-
-        // Mock null implementation for permissioned dispute game
-        vm.mockCall(
-            address(disputeGameFactory),
-            abi.encodeCall(IDisputeGameFactory.gameImpls, (GameTypes.PERMISSIONED_CANNON)),
             abi.encode(address(0))
         );
-
-        // Expect revert with PDDG-10 error message
-        vm.expectRevert("StandardValidator: PDDG-10");
-        validate(false);
+        assertEq("PLDG-10", _validate(true));
     }
 
-    /// @notice Tests validation of operator fee settings in SystemConfig
-    function test_validate_systemConfigOperatorFees_succeeds() public {
-        // Test invalid operator fee scalar
-        _mockValidationCalls();
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
-        assertEq("SYSCON-110", validate(true));
-
-        // Test invalid operator fee constant
-        _mockValidationCalls();
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(1));
-        assertEq("SYSCON-120", validate(true));
-
-        // Test both invalid
-        _mockValidationCalls();
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(1));
-        assertEq("SYSCON-110,SYSCON-120", validate(true));
-
-        // Test both valid (should be included in _mockValidationCalls, but let's be explicit)
-        _mockValidationCalls();
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(0));
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(0));
-        assertEq("", validate(true));
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) version is invalid.
+    function test_validate_faultDisputeGameInvalidVersion_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        assertEq("PLDG-20", _validate(true));
     }
 
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) game type is invalid.
+    function test_validate_faultDisputeGameInvalidGameType_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameTypes.PERMISSIONED_CANNON));
+        assertEq("PLDG-30", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) absolute prestate is invalid.
+    function test_validate_faultDisputeGameInvalidAbsolutePrestate_succeeds() public {
+        vm.mockCall(
+            address(fdg),
+            abi.encodeCall(IFaultDisputeGame.absolutePrestate, ()),
+            abi.encode(bytes32(uint256(0xbadbad))) // Different from the expected absolutePrestate
+        );
+        assertEq("PLDG-40", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) VM address is invalid.
+    function test_validate_faultDisputeGameInvalidVM_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(0xbad)));
+        assertEq("PLDG-50", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) L2 Chain ID is invalid.
+    function test_validate_faultDisputeGameInvalidL2ChainId_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2ChainId, ()), abi.encode(l2ChainId + 1));
+        assertEq("PLDG-60", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) L2 Block Number is invalid.
+    function test_validate_faultDisputeGameInvalidL2BlockNumber_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2BlockNumber, ()), abi.encode(123));
+        assertEq("PLDG-70", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) clockExtension is invalid.
+    function test_validate_faultDisputeGameInvalidClockExtension_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.clockExtension, ()), abi.encode(Duration.wrap(1000)));
+        assertEq("PLDG-80", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) splitDepth is invalid.
+    function test_validate_faultDisputeGameInvalidSplitDepth_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.splitDepth, ()), abi.encode(20));
+        assertEq("PLDG-90", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) maxGameDepth is invalid.
+    function test_validate_faultDisputeGameInvalidMaxGameDepth_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.maxGameDepth, ()), abi.encode(50));
+        assertEq("PLDG-100", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) maxClockDuration is invalid.
+    function test_validate_faultDisputeGameInvalidMaxClockDuration_succeeds() public {
+        vm.mockCall(
+            address(fdg), abi.encodeCall(IFaultDisputeGame.maxClockDuration, ()), abi.encode(Duration.wrap(1000))
+        );
+        assertEq("PLDG-110", _validate(true));
+    }
+
+    // L1StandardBridge Tests
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1StandardBridge version is invalid.
+    function test_validate_l1StandardBridgeInvalidVersion_succeeds() public {
+        vm.mockCall(address(l1StandardBridge), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
+        assertEq("L1SB-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1StandardBridge MESSENGER immutable is invalidly reported (mocked).
+    function test_validate_l1StandardBridgeInvalidMessengerImmutable_succeeds() public {
+        vm.mockCall(
+            address(l1StandardBridge), abi.encodeCall(IStandardBridge.MESSENGER, ()), abi.encode(address(0xbad))
+        );
+        assertEq("L1SB-30", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1StandardBridge messenger getter is invalid.
+    function test_validate_l1StandardBridgeInvalidMessengerGetter_succeeds() public {
+        vm.mockCall(
+            address(l1StandardBridge), abi.encodeCall(IStandardBridge.messenger, ()), abi.encode(address(0xbad))
+        );
+        assertEq("L1SB-40", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1StandardBridge OTHER_BRIDGE immutable is invalidly reported (mocked).
+    function test_validate_l1StandardBridgeInvalidOtherBridgeImmutable_succeeds() public {
+        vm.mockCall(
+            address(l1StandardBridge), abi.encodeCall(IStandardBridge.OTHER_BRIDGE, ()), abi.encode(address(0xbad))
+        );
+        assertEq("L1SB-50", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1StandardBridge otherBridge getter is invalid.
+    function test_validate_l1StandardBridgeInvalidOtherBridgeGetter_succeeds() public {
+        vm.mockCall(
+            address(l1StandardBridge), abi.encodeCall(IStandardBridge.otherBridge, ()), abi.encode(address(0xbad))
+        );
+        assertEq("L1SB-60", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1StandardBridge systemConfig is invalid.
+    function test_validate_l1StandardBridgeInvalidSystemConfig_succeeds() public {
+        vm.mockCall(
+            address(l1StandardBridge), abi.encodeCall(IL1StandardBridge.systemConfig, ()), abi.encode(address(0xbad))
+        );
+        assertEq("L1SB-70", _validate(true));
+    }
+
+    /// @notice Tests that the version getter functions on StandardValidator return non-empty strings.
     function test_versions_succeeds() public view {
-        // Assert that each version function returns the expected string value.
-        assertTrue(bytes(validator.systemConfigVersion()).length > 0);
-        assertTrue(bytes(validator.optimismPortalVersion()).length > 0);
-        assertTrue(bytes(validator.l1CrossDomainMessengerVersion()).length > 0);
-        assertTrue(bytes(validator.l1ERC721BridgeVersion()).length > 0);
-        assertTrue(bytes(validator.l1StandardBridgeVersion()).length > 0);
-        assertTrue(bytes(validator.mipsVersion()).length > 0);
-        assertTrue(bytes(validator.optimismMintableERC20FactoryVersion()).length > 0);
-        assertTrue(bytes(validator.disputeGameFactoryVersion()).length > 0);
-        assertTrue(bytes(validator.anchorStateRegistryVersion()).length > 0);
-        assertTrue(bytes(validator.delayedWETHVersion()).length > 0);
-        assertTrue(bytes(validator.permissionedDisputeGameVersion()).length > 0);
-        assertTrue(bytes(validator.preimageOracleVersion()).length > 0);
+        assertTrue(bytes(validator.systemConfigVersion()).length > 0, "systemConfigVersion empty");
+        assertTrue(bytes(validator.optimismPortalVersion()).length > 0, "optimismPortalVersion empty");
+        assertTrue(bytes(validator.l1CrossDomainMessengerVersion()).length > 0, "l1CrossDomainMessengerVersion empty");
+        assertTrue(bytes(validator.l1ERC721BridgeVersion()).length > 0, "l1ERC721BridgeVersion empty");
+        assertTrue(bytes(validator.l1StandardBridgeVersion()).length > 0, "l1StandardBridgeVersion empty");
+        assertTrue(bytes(validator.mipsVersion()).length > 0, "mipsVersion empty");
+        assertTrue(
+            bytes(validator.optimismMintableERC20FactoryVersion()).length > 0,
+            "optimismMintableERC20FactoryVersion empty"
+        );
+        assertTrue(bytes(validator.disputeGameFactoryVersion()).length > 0, "disputeGameFactoryVersion empty");
+        assertTrue(bytes(validator.anchorStateRegistryVersion()).length > 0, "anchorStateRegistryVersion empty");
+        assertTrue(bytes(validator.delayedWETHVersion()).length > 0, "delayedWETHVersion empty");
+        assertTrue(bytes(validator.permissionedDisputeGameVersion()).length > 0, "permissionedDisputeGameVersion empty");
+        assertTrue(bytes(validator.preimageOracleVersion()).length > 0, "preimageOracleVersion empty");
     }
 }

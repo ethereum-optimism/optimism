@@ -277,6 +277,7 @@ contract Deploy is Deployer {
 
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
+        artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("MipsSingleton", address(dio.mipsSingleton));
         artifacts.save("OPContractsManager", address(dio.opcm));
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
@@ -353,6 +354,7 @@ contract Deploy is Deployer {
         artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
+
         // Check if the permissionless game implementation is already set
         IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
