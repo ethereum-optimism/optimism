@@ -169,7 +169,8 @@ func (p *programExecutor) RunProgram(
 		hostcommon.WithSkipValidation(true),
 		hostcommon.WithDB(db),
 		hostcommon.WithStoreBlockData(true),
-		hostcommon.WithForceHintChainID(true), // Our prefetcher expects chain IDs but pre-interop does not specify them
+		// Our prefetcher expects chain IDs but pre-interop does not normally include them in hint data
+		hostcommon.WithForceHintChainID(true),
 	)
 }
 
