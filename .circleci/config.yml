@@ -1254,6 +1254,28 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
+      # Before we have a more sturdy log dump solution, we'll simply use the kurtosis-specific dump command
+      # to store all service logs as job artifacts
+      - run:
+          name: Dump kurtosis logs
+          when: on_fail
+          command: |
+            # Dump logs & specs
+            kurtosis dump ./.kurtosis-dump
+
+            # Remove spec.json files
+            rm -rf ./.kurtosis-dump/enclaves/**/*.json
+
+            # Remove all unnecessary logs
+            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
+            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
+            rm -rf ./.kurtosis-dump/enclaves/*/task-*
+      - when:
+          condition: always
+          steps:
+            - store_artifacts:
+                path: ./.kurtosis-dump/enclaves
+                destination: op-acceptance-tests/kurtosis-logs
       - when:
           condition: on_fail
           steps:
