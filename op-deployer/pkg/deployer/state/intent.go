@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -23,6 +24,9 @@ const (
 	IntentTypeStandard          IntentType = "standard"
 	IntentTypeCustom            IntentType = "custom"
 	IntentTypeStandardOverrides IntentType = "standard-overrides"
+	// New intent types for Upgrade 16 governance modes
+	IntentTypeStandardGoverned    IntentType = "standard-governed"     // Governed by Optimism: shared SuperchainConfig, L1PAO delegated to the Superchain multisig
+	IntentTypeStandardNonGoverned IntentType = "standard-non-governed" // Independent Governance: chain-specific SuperchainConfig, own L1PAO
 )
 
 var emptyAddress common.Address
@@ -220,6 +224,10 @@ func (c *Intent) Check() error {
 		err = c.validateCustomConfig()
 	case IntentTypeStandardOverrides:
 		err = c.validateCustomConfig()
+	case IntentTypeStandardGoverned:
+		err = c.validateStandardGovernedConfig()
+	case IntentTypeStandardNonGoverned:
+		err = c.validateStandardNonGovernedConfig()
 	default:
 		return fmt.Errorf("intent-type unsupported: %s", c.ConfigType)
 	}
@@ -281,8 +289,21 @@ func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash
 	case IntentTypeStandardOverrides:
 		intent, err = NewIntentStandardOverrides(l1ChainId, l2ChainIds)
 
+	case IntentTypeStandardGoverned:
+		intent, err = NewIntentStandardGoverned(l1ChainId, l2ChainIds)
+
+	case IntentTypeStandardNonGoverned:
+		intent, err = NewIntentStandardNonGoverned(l1ChainId, l2ChainIds)
+
 	default:
-		return Intent{}, fmt.Errorf("intent type not supported: %s (valid types: %s, %s, %s)", configType, IntentTypeStandard, IntentTypeCustom, IntentTypeStandardOverrides)
+		intentTypes := []string{
+			string(IntentTypeStandard),
+			string(IntentTypeCustom),
+			string(IntentTypeStandardOverrides),
+			string(IntentTypeStandardGoverned),
+			string(IntentTypeStandardNonGoverned),
+		}
+		return Intent{}, fmt.Errorf("intent type not supported: %s (valid types: %s)", configType, strings.Join(intentTypes, ", "))
 	}
 	if err != nil {
 		return
@@ -360,5 +381,159 @@ func NewIntentStandardOverrides(l1ChainId uint64, l2ChainIds []common.Hash) (Int
 	}
 	intent.ConfigType = IntentTypeStandardOverrides
 
+	return intent, nil
+}
+
+// validateStandardGovernedConfig validates that all values are set correctly for
+// a standard chain governed by Optimism
+func (c *Intent) validateStandardGovernedConfig() error {
+	// Must have OPCM address
+	if c.OPCMAddress == nil {
+		return fmt.Errorf("%w: opcmAddress cannot be nil", ErrIncompatibleValue)
+	}
+
+	// SuperchainConfigProxy is optional but can be set
+
+	// SuperchainRoles should be nil as they're managed by Optimism
+	if c.SuperchainRoles != nil {
+		return fmt.Errorf("%w: superchainRoles must be nil for standard-governed intent", ErrIncompatibleValue)
+	}
+
+	// Must have at least one chain
+	if len(c.Chains) == 0 {
+		return errors.New("must define at least one l2 chain")
+	}
+
+	// Validate each chain
+	for _, chain := range c.Chains {
+		if err := chain.Check(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateStandardNonGovernedConfig validates that all values are set correctly for
+// a standard chain with independent governance
+func (c *Intent) validateStandardNonGovernedConfig() error {
+	// Must have OPCM address
+	if c.OPCMAddress == nil {
+		return fmt.Errorf("%w: opcmAddress cannot be nil", ErrIncompatibleValue)
+	}
+
+	// SuperchainConfigProxy should be set for non-governed chains
+	if c.SuperchainConfigProxy == nil {
+		return fmt.Errorf("%w: superchainConfigProxy cannot be nil for standard-non-governed intent", ErrIncompatibleValue)
+	}
+
+	// SuperchainRoles is optional but can be set for non-governed mode
+	// if provided, validate that no addresses are zero
+	if c.SuperchainRoles != nil {
+		if err := c.SuperchainRoles.CheckNoZeroAddresses(); err != nil {
+			return err
+		}
+	}
+
+	// Must have at least one chain
+	if len(c.Chains) == 0 {
+		return errors.New("must define at least one l2 chain")
+	}
+
+	// Validate each chain
+	for _, chain := range c.Chains {
+		if err := chain.Check(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func NewIntentStandardGoverned(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
+	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainId, artifacts.DefaultL1ContractsLocator.Tag)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting OPCM impl address: %w", err)
+	}
+
+	intent := Intent{
+		ConfigType:         IntentTypeStandardGoverned,
+		L1ChainID:          l1ChainId,
+		L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
+		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+		OPCMAddress:        &opcmAddr,
+	}
+
+	challenger, err := standard.ChallengerAddressFor(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting challenger address: %w", err)
+	}
+	l1ProxyAdminOwner, err := standard.L1ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting L1ProxyAdminOwner: %w", err)
+	}
+	l2ProxyAdminOwner, err := standard.L2ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting OpChainProxyAdminOwner: %w", err)
+	}
+
+	for _, l2ChainID := range l2ChainIds {
+		intent.Chains = append(intent.Chains, &ChainIntent{
+			ID:                       l2ChainID,
+			Eip1559DenominatorCanyon: standard.Eip1559DenominatorCanyon,
+			Eip1559Denominator:       standard.Eip1559Denominator,
+			Eip1559Elasticity:        standard.Eip1559Elasticity,
+			Roles: ChainRoles{
+				Challenger:        challenger,
+				L1ProxyAdminOwner: l1ProxyAdminOwner,
+				L2ProxyAdminOwner: l2ProxyAdminOwner,
+			},
+		})
+	}
+	return intent, nil
+}
+
+func NewIntentStandardNonGoverned(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
+	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainId, artifacts.DefaultL1ContractsLocator.Tag)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting OPCM impl address: %w", err)
+	}
+
+	intent := Intent{
+		ConfigType:         IntentTypeStandardNonGoverned,
+		L1ChainID:          l1ChainId,
+		L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
+		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+		OPCMAddress:        &opcmAddr,
+		// SuperchainConfigProxy must be set by the user
+	}
+
+	// For a non-governed chain, we'll populate roles but the user can change them
+	challenger, err := standard.ChallengerAddressFor(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting challenger address: %w", err)
+	}
+	l1ProxyAdminOwner, err := standard.L1ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting L1ProxyAdminOwner: %w", err)
+	}
+	l2ProxyAdminOwner, err := standard.L2ProxyAdminOwner(l1ChainId)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting OpChainProxyAdminOwner: %w", err)
+	}
+
+	for _, l2ChainID := range l2ChainIds {
+		intent.Chains = append(intent.Chains, &ChainIntent{
+			ID:                       l2ChainID,
+			Eip1559DenominatorCanyon: standard.Eip1559DenominatorCanyon,
+			Eip1559Denominator:       standard.Eip1559Denominator,
+			Eip1559Elasticity:        standard.Eip1559Elasticity,
+			Roles: ChainRoles{
+				Challenger:        challenger,
+				L1ProxyAdminOwner: l1ProxyAdminOwner,
+				L2ProxyAdminOwner: l2ProxyAdminOwner,
+			},
+		})
+	}
 	return intent, nil
 }
