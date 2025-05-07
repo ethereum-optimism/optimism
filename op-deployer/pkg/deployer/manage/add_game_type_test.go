@@ -2,6 +2,12 @@ package manage
 
 import (
 	"context"
+	"log/slog"
+	"math/big"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -9,11 +15,6 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/validation"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
-	"log/slog"
-	"math/big"
-	"os"
-	"testing"
-	"time"
 )
 
 func TestAddGameType(t *testing.T) {

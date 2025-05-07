@@ -2,10 +2,11 @@ package opcm
 
 import (
 	"encoding/json"
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"math/big"
 )
 
 type AddGameTypeInput struct {
