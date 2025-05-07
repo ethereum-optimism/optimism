@@ -2,13 +2,14 @@ package manage
 
 import (
 	"context"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	"github.com/ethereum/go-ethereum/superchain"
 	"log/slog"
 	"math/big"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/ethereum/go-ethereum/superchain"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
