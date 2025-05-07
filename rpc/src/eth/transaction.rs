@@ -1,7 +1,7 @@
 //! Loads and formats OP transaction RPC response.
 
 use alloy_consensus::{transaction::Recovered, SignableTransaction, Transaction as _};
-use alloy_primitives::{Bytes, Sealable, Sealed, Signature, B256};
+use alloy_primitives::{Bytes, Signature, B256};
 use alloy_rpc_types_eth::TransactionInfo;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_rpc_types::{OpTransactionRequest, Transaction};
@@ -165,23 +165,7 @@ where
     }
 
     fn otterscan_api_truncate_input(tx: &mut Self::Transaction) {
-        let input = match tx.inner.inner.inner_mut() {
-            OpTxEnvelope::Eip1559(tx) => &mut tx.tx_mut().input,
-            OpTxEnvelope::Eip2930(tx) => &mut tx.tx_mut().input,
-            OpTxEnvelope::Legacy(tx) => &mut tx.tx_mut().input,
-            OpTxEnvelope::Eip7702(tx) => &mut tx.tx_mut().input,
-            OpTxEnvelope::Deposit(tx) => {
-                let (mut deposit, hash) = std::mem::replace(
-                    tx,
-                    Sealed::new_unchecked(Default::default(), Default::default()),
-                )
-                .split();
-                deposit.input = deposit.input.slice(..4);
-                let mut deposit = deposit.seal_unchecked(hash);
-                std::mem::swap(tx, &mut deposit);
-                return
-            }
-        };
+        let input = tx.inner.inner.inner_mut().input_mut();
         *input = input.slice(..4);
     }
 }
