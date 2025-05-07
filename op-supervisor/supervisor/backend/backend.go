@@ -189,6 +189,10 @@ func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
 			ChainID: x.ChainID,
 		})
 	case superevents.LocalSafeUpdateEvent:
+		su.emitter.Emit(superevents.ChainProcessEvent{
+			ChainID: x.ChainID,
+			Target:  x.NewLocalSafe.Derived.Number,
+		})
 		su.emitter.Emit(superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
 		})

@@ -113,6 +113,10 @@ func (s *ChainProcessor) OnEvent(ev event.Event) bool {
 }
 
 func (s *ChainProcessor) onRequest(target uint64) {
+	if target < s.nextNum() {
+		s.log.Debug("Indexing for target block already done", "target", target, "next", s.nextNum())
+		return
+	}
 	processed, err := s.rangeUpdate(target)
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
