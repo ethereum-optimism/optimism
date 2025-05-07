@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/telemetry"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 )

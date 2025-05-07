@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysext"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/telemetry"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
