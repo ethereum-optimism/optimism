@@ -35,5 +35,10 @@
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "PrecompileCallFailed",
+    "inputs": []
   }
 ]
