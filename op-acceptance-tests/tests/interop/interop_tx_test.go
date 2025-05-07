@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
@@ -30,6 +31,21 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGet
 		chainB := sys.L2s()[destChainIdx]
 
 		logger.Info("chain info", "sourceChain", chainA.ID(), "destChain", chainB.ID())
+
+		logger.Info("wait until both chains pass genesis")
+		require.Eventually(t, func() bool {
+			elclientA, err := chainA.Nodes()[0].GethClient()
+			require.NoError(t, err)
+			elclientB, err := chainB.Nodes()[0].GethClient()
+			require.NoError(t, err)
+			chainAUnsafeHeadNum, err := elclientA.BlockNumber(ctx)
+			require.NoError(t, err)
+			chainBUnsafeHeadNum, err := elclientB.BlockNumber(ctx)
+			require.NoError(t, err)
+			check := chainAUnsafeHeadNum > 0 && chainBUnsafeHeadNum > 0
+			logger.Info("wait until both chains pass genesis", "check", check, "chainA", chainAUnsafeHeadNum, "chainB", chainBUnsafeHeadNum)
+			return check
+		}, 3*time.Minute, 2*time.Second)
 
 		// userA is funded at chainA and want to initialize message at chain A
 		userA := sourceWalletGetter(ctx)
