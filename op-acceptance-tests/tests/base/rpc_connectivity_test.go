@@ -43,7 +43,7 @@ func rpcConnectivityTestScenario() systest.SystemTestFunc {
 				// Check if we can get chain ID
 				chainID, err := client.ChainID(ctx)
 				require.NoError(t, err, "failed to get chain ID from L2 execution RPC")
-				require.NotNil(t, chainID, "L2 chain ID is nil")
+				require.Equal(t, chainIdx, chainID, "L2 chain ID is not correct")
 
 				// Check if we can get the latest block number
 				blockNumber, err := client.BlockNumber(ctx)
