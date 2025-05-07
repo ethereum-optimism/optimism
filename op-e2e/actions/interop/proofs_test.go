@@ -1407,6 +1407,8 @@ func WithInteropEnabled(t helpers.StatefulTesting, actors *dsl.InteropActors, de
 	}
 }
 
+// createVerifierWithOnlyCanonicalBlocks creates a new L2Verifier and associated L2Engine that only has the canonical
+// blocks from chain in its database. Non-canonical blocks, their world state, receipts and other data are not available
 func createVerifierWithOnlyCanonicalBlocks(t helpers.StatefulTesting, l1Miner *helpers.L1Miner, chain *dsl.Chain) (*helpers.L2Verifier, *helpers.L2Engine) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	canonicalOnlyEngine := helpers.NewL2Engine(t, testlog.Logger(t, log.LvlInfo).New("role", "canonicalOnlyEngine"), chain.L2Genesis, jwtPath)
