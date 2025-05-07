@@ -3,7 +3,6 @@ package proofs
 import (
 	"context"
 	"encoding/binary"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -28,17 +27,13 @@ import (
 func Test_OPProgramAction_PrecompileHint(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
-	// Remove forks unsupported by the fault proof
-	forks := slices.DeleteFunc(helpers.Hardforks, func(hf *helpers.Hardfork) bool {
-		return hf == helpers.Regolith || hf == helpers.Canyon || hf == helpers.Delta
-	})
 
 	for _, test := range PrecompileTestFixtures {
 		testCase := test
 		matrix.AddTestCase(
 			test.Name,
 			nil,
-			forks,
+			helpers.FaultProofForks(),
 			func(t *testing.T, testCfg *helpers.TestCfg[any]) {
 				runPrecompileHintTest(t, testCase, testCfg)
 			},
@@ -158,30 +153,24 @@ func (p *precompileHintCounter) GetCount() int {
 }
 
 func Test_ProgramAction_Precompiles(gt *testing.T) {
-	matrix := helpers.NewMatrix[any]()
+	matrix := helpers.NewMatrix[PrecompileTestFixture]()
 	defer matrix.Run(gt)
-	// Remove forks unsupported by the fault proof
-	forks := slices.DeleteFunc(helpers.Hardforks, func(hf *helpers.Hardfork) bool {
-		return hf == helpers.Regolith || hf == helpers.Canyon || hf == helpers.Delta
-	})
-
 	for _, test := range PrecompileTestFixtures {
 		testCase := test
 		matrix.AddTestCase(
-			test.Name,
-			nil,
-			forks,
-			func(t *testing.T, testCfg *helpers.TestCfg[any]) {
-				runPrecompileTest(t, testCase, testCfg)
-			},
+			testCase.Name,
+			testCase,
+			helpers.FaultProofForks(),
+			runPrecompileTest,
 			helpers.ExpectNoError(),
 		)
 	}
 }
 
-func runPrecompileTest(gt *testing.T, testCase PrecompileTestFixture, testCfg *helpers.TestCfg[any]) {
+func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFixture]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
+	testCase := testCfg.Custom
 
 	// deploy invoker contract
 	env.Alice.L2.ActResetTxOpts(t)
