@@ -206,4 +206,10 @@ var Commands = []*cli.Command{
 		Flags:  cliapp.ProtectFlags(ValidatorFlags),
 		Action: ValidatorCLI,
 	},
+	{
+		Name:   "full",
+		Usage:  "Bootstrap both the Superchain and implementations in one step",
+		Flags:  cliapp.ProtectFlags(ConsolidatedFlags),
+		Action: ConsolidatedCLI,
+	},
 }
