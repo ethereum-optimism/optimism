@@ -19,10 +19,8 @@ use reth_node_api::{
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::isthmus;
 use reth_optimism_forks::{OpHardfork, OpHardforks};
-use reth_optimism_payload_builder::{
-    OpBuiltPayload, OpExecutionPayloadValidator, OpPayloadBuilderAttributes,
-};
-use reth_optimism_primitives::{OpBlock, OpPrimitives, ADDRESS_L2_TO_L1_MESSAGE_PASSER};
+use reth_optimism_payload_builder::{OpExecutionPayloadValidator, OpPayloadTypes};
+use reth_optimism_primitives::{OpBlock, ADDRESS_L2_TO_L1_MESSAGE_PASSER};
 use reth_primitives_traits::{RecoveredBlock, SealedBlock};
 use reth_provider::StateProviderFactory;
 use reth_trie_common::{HashedPostState, KeyHasher};
@@ -68,29 +66,6 @@ where
     type ExecutionPayloadEnvelopeV2 = ExecutionPayloadEnvelopeV2;
     type ExecutionPayloadEnvelopeV3 = OpExecutionPayloadEnvelopeV3;
     type ExecutionPayloadEnvelopeV4 = OpExecutionPayloadEnvelopeV4;
-}
-
-/// A default payload type for [`OpEngineTypes`]
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[non_exhaustive]
-pub struct OpPayloadTypes<N: NodePrimitives = OpPrimitives>(core::marker::PhantomData<N>);
-
-impl<N: NodePrimitives> PayloadTypes for OpPayloadTypes<N>
-where
-    OpBuiltPayload<N>: BuiltPayload<Primitives: NodePrimitives<Block = OpBlock>>,
-{
-    type ExecutionData = OpExecutionData;
-    type BuiltPayload = OpBuiltPayload<N>;
-    type PayloadAttributes = OpPayloadAttributes;
-    type PayloadBuilderAttributes = OpPayloadBuilderAttributes<N::SignedTx>;
-
-    fn block_to_payload(
-        block: SealedBlock<
-            <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
-        >,
-    ) -> Self::ExecutionData {
-        OpExecutionData::from_block_unchecked(block.hash(), &block.into_block())
-    }
 }
 
 /// Validator for Optimism engine API.
