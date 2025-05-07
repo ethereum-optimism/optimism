@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 // Contracts
 import { StandardValidator } from "src/L1/StandardValidator.sol";
