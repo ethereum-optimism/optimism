@@ -27,25 +27,25 @@ type AddGameTypeInput struct {
 	SaltMixer               string
 }
 
-func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
-	type addGameTypeInputJSON struct {
-		Prank                   common.Address `json:"prank"`
-		OPCM                    common.Address `json:"opcm"`
-		SystemConfig            common.Address `json:"systemConfig"`
-		ProxyAdmin              common.Address `json:"proxyAdmin"`
-		DelayedWETH             common.Address `json:"delayedWETH"`
-		DisputeGameType         uint32         `json:"disputeGameType"`
-		DisputeAbsolutePrestate common.Hash    `json:"disputeAbsolutePrestate"`
-		DisputeMaxGameDepth     *hexutil.Big   `json:"disputeMaxGameDepth"`
-		DisputeSplitDepth       *hexutil.Big   `json:"disputeSplitDepth"`
-		DisputeClockExtension   uint64         `json:"disputeClockExtension"`
-		DisputeMaxClockDuration uint64         `json:"disputeMaxClockDuration"`
-		InitialBond             *hexutil.Big   `json:"initialBond"`
-		VM                      common.Address `json:"vm"`
-		Permissioned            bool           `json:"permissioned"`
-		SaltMixer               string         `json:"saltMixer"`
-	}
+type addGameTypeInputJSON struct {
+	Prank                   common.Address `json:"prank"`
+	OPCM                    common.Address `json:"opcm"`
+	SystemConfig            common.Address `json:"systemConfig"`
+	ProxyAdmin              common.Address `json:"proxyAdmin"`
+	DelayedWETH             common.Address `json:"delayedWETH"`
+	DisputeGameType         uint32         `json:"disputeGameType"`
+	DisputeAbsolutePrestate common.Hash    `json:"disputeAbsolutePrestate"`
+	DisputeMaxGameDepth     *hexutil.Big   `json:"disputeMaxGameDepth"`
+	DisputeSplitDepth       *hexutil.Big   `json:"disputeSplitDepth"`
+	DisputeClockExtension   uint64         `json:"disputeClockExtension"`
+	DisputeMaxClockDuration uint64         `json:"disputeMaxClockDuration"`
+	InitialBond             *hexutil.Big   `json:"initialBond"`
+	VM                      common.Address `json:"vm"`
+	Permissioned            bool           `json:"permissioned"`
+	SaltMixer               string         `json:"saltMixer"`
+}
 
+func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
 	var alias addGameTypeInputJSON
 	if err := json.Unmarshal(b, &alias); err != nil {
 		return err
@@ -79,6 +79,37 @@ func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
 	a.SaltMixer = alias.SaltMixer
 
 	return nil
+}
+
+func (a AddGameTypeInput) MarshalJSON() ([]byte, error) {
+	alias := addGameTypeInputJSON{
+		Prank:                   a.Prank,
+		OPCM:                    a.OPCM,
+		SystemConfig:            a.SystemConfig,
+		ProxyAdmin:              a.ProxyAdmin,
+		DelayedWETH:             a.DelayedWETH,
+		DisputeGameType:         a.DisputeGameType,
+		DisputeAbsolutePrestate: a.DisputeAbsolutePrestate,
+		DisputeClockExtension:   a.DisputeClockExtension,
+		DisputeMaxClockDuration: a.DisputeMaxClockDuration,
+		VM:                      a.VM,
+		Permissioned:            a.Permissioned,
+		SaltMixer:               a.SaltMixer,
+	}
+
+	if a.DisputeMaxGameDepth != nil {
+		alias.DisputeMaxGameDepth = (*hexutil.Big)(a.DisputeMaxGameDepth)
+	}
+
+	if a.DisputeSplitDepth != nil {
+		alias.DisputeSplitDepth = (*hexutil.Big)(a.DisputeSplitDepth)
+	}
+
+	if a.InitialBond != nil {
+		alias.InitialBond = (*hexutil.Big)(a.InitialBond)
+	}
+
+	return json.Marshal(alias)
 }
 
 type AddGameTypeOutput struct {
