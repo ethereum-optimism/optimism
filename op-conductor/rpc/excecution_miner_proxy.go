@@ -10,7 +10,7 @@ import (
 
 var ExecutionMinerRPCNamespace = "miner"
 
-// ExecutionMinerProxyBackend implements an execution rpc proxy with a leadership check before each call.
+// ExecutionMinerProxyBackend implements an execution rpc proxy.
 type ExecutionMinerProxyBackend struct {
 	log    log.Logger
 	con    conductor
@@ -31,6 +31,7 @@ func (api *ExecutionMinerProxyBackend) SetMaxDASize(ctx context.Context, maxTxSi
 	var result bool
 	err := api.client.Client().Call(&result, "miner_setMaxDASize", maxTxSize, maxBlockSize)
 	if err != nil {
+		api.log.Warn("proxy miner_setMaxDASize call failed", "err", err)
 		return false
 	}
 	return result
