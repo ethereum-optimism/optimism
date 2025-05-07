@@ -104,19 +104,19 @@ func TestMultipleNetworksMustShareDisputeGameFactory(t *testing.T) {
 	}
 
 	t.Run("SameAddress", func(t *testing.T) {
-		actual, err := factoryAddressForNetworks([]string{"a1", "a2"}, source)
+		actual, err := FactoryAddressForNetworks([]string{"a1", "a2"}, source)
 		require.NoError(t, err)
 		require.Equal(t, actual, common.Address{0xAA})
 	})
 
 	t.Run("DifferentAddresses", func(t *testing.T) {
-		actual, err := factoryAddressForNetworks([]string{"a1", "a2", "b1"}, source)
+		actual, err := FactoryAddressForNetworks([]string{"a1", "a2", "b1"}, source)
 		require.ErrorContains(t, err, "different dispute game factories")
 		require.Equal(t, actual, common.Address{})
 	})
 
 	t.Run("SingleNetwork", func(t *testing.T) {
-		actual, err := factoryAddressForNetworks([]string{"b1"}, source)
+		actual, err := FactoryAddressForNetworks([]string{"b1"}, source)
 		require.NoError(t, err)
 		require.Equal(t, actual, common.Address{0xBB})
 	})

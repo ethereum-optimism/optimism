@@ -452,16 +452,12 @@ func parseTraceTypes(ctx *cli.Context) ([]types.TraceType, error) {
 	return traceTypes, nil
 }
 
-type chainAddressesSource func(network string) (superchain.AddressesConfig, error)
+type ChainAddressesSource func(network string) (superchain.AddressesConfig, error)
 
-var superchainAddressSource chainAddressesSource = func(network string) (superchain.AddressesConfig, error) {
+var superchainAddressSource ChainAddressesSource = func(network string) (superchain.AddressesConfig, error) {
 	chainCfg := chaincfg.ChainByName(network)
 	if chainCfg == nil {
-		var opts []string
-		for _, cfg := range superchain.Chains {
-			opts = append(opts, cfg.Name+"-"+cfg.Network)
-		}
-		return superchain.AddressesConfig{}, fmt.Errorf("unknown chain: %v (Valid options: %v)", network, strings.Join(opts, ", "))
+		return superchain.AddressesConfig{}, fmt.Errorf("unknown chain: %v (Valid options: %v)", network, strings.Join(chaincfg.AvailableNetworks(), ", "))
 	}
 	return chainCfg.Addresses, nil
 }
@@ -479,10 +475,10 @@ func FactoryAddress(ctx *cli.Context) (common.Address, error) {
 	if len(networks) == 0 {
 		return common.Address{}, fmt.Errorf("flag %v or %v is required", FactoryAddressFlag.Name, flags.NetworkFlagName)
 	}
-	return factoryAddressForNetworks(networks, superchainAddressSource)
+	return FactoryAddressForNetworks(networks, superchainAddressSource)
 }
 
-func factoryAddressForNetworks(networks []string, addressSource chainAddressesSource) (common.Address, error) {
+func FactoryAddressForNetworks(networks []string, addressSource ChainAddressesSource) (common.Address, error) {
 	var factoryAddress common.Address
 	for _, network := range networks {
 		addrs, err := addressSource(network)
