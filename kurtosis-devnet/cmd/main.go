@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/deploy"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
 	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"
+	"github.com/honeycombio/otel-config-go/otelconfig"
 	"github.com/urfave/cli/v2"
 )
 
@@ -80,6 +82,18 @@ func printWelcomeMessage() {
 }
 
 func mainAction(c *cli.Context) error {
+	ctx := c.Context
+
+	ctx, shutdown, err := telemetry.SetupOpenTelemetry(
+		ctx,
+		otelconfig.WithServiceName(c.App.Name),
+		otelconfig.WithServiceVersion(c.App.Version),
+	)
+	if err != nil {
+		return fmt.Errorf("error setting up OpenTelemetry: %w", err)
+	}
+	defer shutdown()
+
 	// Only show welcome message if not showing help or version
 	if !c.Bool("help") && !c.Bool("version") && c.NArg() == 0 {
 		printWelcomeMessage()
@@ -115,7 +129,7 @@ func mainAction(c *cli.Context) error {
 		return fmt.Errorf("error creating deployer: %w", err)
 	}
 
-	env, err := deployer.Deploy(c.Context, nil)
+	env, err := deployer.Deploy(ctx, nil)
 	if err != nil {
 		if autofixMode == autofixTypes.AutofixModeDisabled {
 			printAutofixMessage()

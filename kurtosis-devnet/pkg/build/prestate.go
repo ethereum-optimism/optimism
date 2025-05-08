@@ -2,10 +2,13 @@ package build
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"os/exec"
 	"text/template"
+
+	"go.opentelemetry.io/otel"
 )
 
 // PrestateBuilder handles building prestates using just commands
@@ -69,7 +72,10 @@ type prestateTemplateData struct {
 }
 
 // Build executes the prestate build command
-func (b *PrestateBuilder) Build(path string) error {
+func (b *PrestateBuilder) Build(ctx context.Context, path string) error {
+	_, span := otel.Tracer("prestate-builder").Start(ctx, "build prestate")
+	defer span.End()
+
 	if _, ok := b.builtPrestates[path]; ok {
 		return nil
 	}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -228,7 +229,7 @@ type templateData struct {
 
 // Build ensures the docker image for the given project is built, respecting concurrency limits.
 // It blocks until the specific requested build is complete. Other builds may run concurrently.
-func (b *DockerBuilder) Build(projectName, imageTag string) (string, error) {
+func (b *DockerBuilder) Build(ctx context.Context, projectName, imageTag string) (string, error) {
 	b.mu.Lock()
 	state, exists := b.buildStates[projectName]
 	if !exists {
@@ -241,7 +242,7 @@ func (b *DockerBuilder) Build(projectName, imageTag string) (string, error) {
 
 	if !exists {
 		state.once.Do(func() {
-			err := b.executeBuild(projectName, imageTag, state)
+			err := b.executeBuild(ctx, projectName, imageTag, state)
 			if err != nil {
 				state.err = err
 				state.result = ""
@@ -255,8 +256,9 @@ func (b *DockerBuilder) Build(projectName, imageTag string) (string, error) {
 	return state.result, state.err
 }
 
-func (b *DockerBuilder) executeBuild(projectName, initialImageTag string, state *buildState) error {
-	ctx := context.Background()
+func (b *DockerBuilder) executeBuild(ctx context.Context, projectName, initialImageTag string, state *buildState) error {
+	ctx, span := otel.Tracer("docker-builder").Start(ctx, fmt.Sprintf("build %s", projectName))
+	defer span.End()
 
 	log.Printf("Build started for project: %s (tag: %s)", projectName, initialImageTag)
 

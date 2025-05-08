@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +57,7 @@ _prestate-build target:
 
 			buildWg := &sync.WaitGroup{}
 			// Create template context with just the prestate function
-			tmplCtx := tmpl.NewTemplateContext(templater.localPrestateOption(buildWg))
+			tmplCtx := tmpl.NewTemplateContext(templater.localPrestateOption(context.Background(), buildWg))
 
 			// Test template with multiple calls to localPrestate
 			template := `first:

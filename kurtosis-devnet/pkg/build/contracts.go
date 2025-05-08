@@ -16,6 +16,7 @@ import (
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel"
 )
 
 // ContractBuilder handles building smart contracts using just commands
@@ -107,7 +108,10 @@ func NewContractBuilder(opts ...ContractBuilderOptions) *ContractBuilder {
 }
 
 // Build executes the contract build command
-func (b *ContractBuilder) Build(_ string) (string, error) {
+func (b *ContractBuilder) Build(ctx context.Context, _ string) (string, error) {
+	_, span := otel.Tracer("contract-builder").Start(ctx, "build contracts")
+	defer span.End()
+
 	// since we ignore layer for now, we can skip the build if the file already
 	// exists: it'll be the same file!
 	if url, ok := b.builtContracts[""]; ok {

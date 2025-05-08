@@ -7,6 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DockerManager defines the interface for Docker operations
@@ -24,6 +26,7 @@ func (d *DefaultDockerManager) DestroyDockerResources(ctx context.Context, encla
 type KurtosisEnclaveManager struct {
 	kurtosisCtx interfaces.KurtosisContextInterface
 	dockerMgr   DockerManager
+	tracer      trace.Tracer
 }
 
 type KurtosisEnclaveManagerOptions func(*KurtosisEnclaveManager)
@@ -41,7 +44,9 @@ func WithDockerManager(dockerMgr DockerManager) KurtosisEnclaveManagerOptions {
 }
 
 func NewKurtosisEnclaveManager(opts ...KurtosisEnclaveManagerOptions) (*KurtosisEnclaveManager, error) {
-	manager := &KurtosisEnclaveManager{}
+	manager := &KurtosisEnclaveManager{
+		tracer: otel.Tracer("enclave-manager"),
+	}
 
 	for _, opt := range opts {
 		opt(manager)
@@ -58,6 +63,9 @@ func NewKurtosisEnclaveManager(opts ...KurtosisEnclaveManagerOptions) (*Kurtosis
 }
 
 func (mgr *KurtosisEnclaveManager) GetEnclave(ctx context.Context, enclave string) (interfaces.EnclaveContext, error) {
+	ctx, span := mgr.tracer.Start(ctx, "get enclave")
+	defer span.End()
+
 	// Try to get existing enclave first
 	enclaveCtx, err := mgr.kurtosisCtx.GetEnclave(ctx, enclave)
 	if err != nil {
@@ -77,6 +85,9 @@ func (mgr *KurtosisEnclaveManager) GetEnclave(ctx context.Context, enclave strin
 
 // cleanupEnclave handles the common cleanup logic for both stopped and empty enclaves
 func (mgr *KurtosisEnclaveManager) cleanupEnclave(ctx context.Context, enclave string) error {
+	ctx, span := mgr.tracer.Start(ctx, "cleanup enclave")
+	defer span.End()
+
 	// Remove the enclave
 	err := mgr.kurtosisCtx.DestroyEnclave(ctx, enclave)
 	if err != nil {
@@ -103,6 +114,9 @@ func (mgr *KurtosisEnclaveManager) cleanupEnclave(ctx context.Context, enclave s
 }
 
 func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) error {
+	ctx, span := mgr.tracer.Start(ctx, "autofix enclave")
+	defer span.End()
+
 	fmt.Printf("Autofixing enclave '%s'\n", enclave)
 	status, err := mgr.kurtosisCtx.GetEnclaveStatus(ctx, enclave)
 	if err != nil {
@@ -125,6 +139,9 @@ func (mgr *KurtosisEnclaveManager) Autofix(ctx context.Context, enclave string) 
 }
 
 func (mgr *KurtosisEnclaveManager) Nuke(ctx context.Context) error {
+	ctx, span := mgr.tracer.Start(ctx, "nuke enclaves")
+	defer span.End()
+
 	enclaves, err := mgr.kurtosisCtx.Clean(ctx, true)
 	if err != nil {
 		fmt.Printf("failed to clean enclaves: %v", err)

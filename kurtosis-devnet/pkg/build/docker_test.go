@@ -2,6 +2,7 @@ package build
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -39,7 +40,7 @@ func TestDockerBuilder_Build_Success(t *testing.T) {
 	)
 
 	// Execute build
-	resultTag, err := builder.Build(projectName, initialTag)
+	resultTag, err := builder.Build(context.Background(), projectName, initialTag)
 
 	// Verify results
 	require.NoError(t, err)
@@ -59,7 +60,7 @@ func TestDockerBuilder_Build_CommandFailure(t *testing.T) {
 	)
 
 	// Try to build a project
-	result, err := builder.Build("test-project", "test-tag")
+	result, err := builder.Build(context.Background(), "test-project", "test-tag")
 
 	// Verify the result
 	require.NoError(t, err)
@@ -89,7 +90,7 @@ func TestDockerBuilder_Build_ConcurrencyLimit(t *testing.T) {
 			defer wg.Done()
 			projectName := fmt.Sprintf("concurrent-project-%d", idx)
 			initialTag := fmt.Sprintf("%s:enclave1", projectName)
-			_, err := builder.Build(projectName, initialTag)
+			_, err := builder.Build(context.Background(), projectName, initialTag)
 			assert.NoError(t, err, "Build %d failed", idx)
 		}(i)
 	}
@@ -123,7 +124,7 @@ func TestDockerBuilder_Build_DryRun(t *testing.T) {
 	)
 
 	// Execute build
-	resultTag, err := builder.Build(projectName, initialTag)
+	resultTag, err := builder.Build(context.Background(), projectName, initialTag)
 
 	// Verify results
 	require.NoError(t, err)
@@ -161,7 +162,7 @@ func TestDockerBuilder_Build_DuplicateCalls(t *testing.T) {
 	for i := 0; i < numCalls; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			results[idx], errors[idx] = builder.Build(projectName, initialTag)
+			results[idx], errors[idx] = builder.Build(context.Background(), projectName, initialTag)
 		}(i)
 	}
 
