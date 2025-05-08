@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createHTTPHandler creates a mock HTTP handler for testing, it accepts a callback which
-// is invoked when the expected request is received.
+// createHTTPHandler creates a mock HTTP handler for testing. If alwaysFails is true,
+// the handler will return a JSON-RPC MethodNotFound error response for any vaild request.
 func createHTTPHandler(t *testing.T, alwaysFails bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
