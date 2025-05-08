@@ -50,6 +50,7 @@ const (
 	UndefinedSysNr = ^Word(0)
 
 	SysMunmap        = 5011
+	SysMprotect      = 5010
 	SysGetAffinity   = 5196
 	SysMadvise       = 5027
 	SysRtSigprocmask = 5014

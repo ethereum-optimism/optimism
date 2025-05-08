@@ -159,6 +159,10 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0 = 0
 		v1 = 0
 	case arch.SysMunmap:
+	case arch.SysMprotect:
+		if !m.features.SupportNoopMprotect {
+			m.handleUnrecognizedSyscall(syscallNum)
+		}
 	case arch.SysGetAffinity:
 	case arch.SysMadvise:
 	case arch.SysRtSigprocmask:

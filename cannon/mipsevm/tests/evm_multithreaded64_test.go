@@ -442,6 +442,7 @@ func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 
 var NoopSyscalls64 = map[string]uint32{
 	"SysMunmap":        5011,
+	"SysMprotect":      5010,
 	"SysGetAffinity":   5196,
 	"SysMadvise":       5027,
 	"SysRtSigprocmask": 5014,
@@ -483,6 +484,9 @@ func getNoopSyscalls64(vmVersion versions.StateVersion) map[string]uint32 {
 	features := versions.FeaturesForVersion(vmVersion)
 	if !features.SupportNoopSysEventFd2 {
 		delete(noOpCalls, "SysEventFd2")
+	}
+	if !features.SupportNoopMprotect {
+		delete(noOpCalls, "SysMprotect")
 	}
 	return noOpCalls
 }

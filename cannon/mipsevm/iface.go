@@ -76,6 +76,7 @@ type Metadata interface {
 type FeatureToggles struct {
 	SupportNoopSysEventFd2 bool
 	SupportDclzDclo        bool
+	SupportNoopMprotect    bool
 }
 
 type FPVM interface {
