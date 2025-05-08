@@ -34,19 +34,17 @@ acceptance-test devnet="simple" gate="holocene":
             exit 0
         fi
 
-        # Run the appropriate devnet
-        just {{KURTOSIS_DIR}}/{{ devnet }}-devnet
-
         # Print which binary is being used
         BINARY_PATH=$(mise which op-acceptor)
         echo "Using mise-managed binary: $BINARY_PATH"
-
-        # Run the op-acceptor binary
-        DEVNET_ENV_URL="kt://{{devnet}}-devnet" "$BINARY_PATH" \
-            --testdir "{{REPO_ROOT}}" \
+        go run cmd/main.go \
+            --devnet "{{devnet}}-devnet" \
             --gate {{gate}} \
+            --testdir "{{REPO_ROOT}}" \
             --validators ./acceptance-tests.yaml \
-            --log.level debug
+            --log.level debug \
+            --kurtosis-dir "{{KURTOSIS_DIR}}" \
+            --acceptor "$BINARY_PATH"
     else
         echo "Mise not installed, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
