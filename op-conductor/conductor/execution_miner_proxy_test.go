@@ -109,7 +109,7 @@ func testSetMaxDASize(t *testing.T, compliantSequencer bool) {
 	// Start the the RPC server part of the conductor
 	err = conductor.rpcServer.Start()
 	require.NoError(t, err)
-	defer conductor.rpcServer.Stop()
+	defer func() { _ = conductor.rpcServer.Stop() }()
 
 	port, err := conductor.rpcServer.Port()
 	require.NoError(t, err)
