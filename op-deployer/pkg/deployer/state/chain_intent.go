@@ -2,12 +2,12 @@ package state
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
 
@@ -86,7 +86,6 @@ type ChainRoles struct {
 	Challenger        common.Address `json:"challenger" toml:"challenger"`
 }
 
-var ErrChainRoleZeroAddress = fmt.Errorf("ChainRole is set to zero address")
 var ErrFeeVaultZeroAddress = fmt.Errorf("chain has a fee vault set to zero address")
 var ErrNonStandardValue = fmt.Errorf("chain contains non-standard config value")
 var ErrEip1559ZeroValue = fmt.Errorf("eip1559 param is set to zero value")
@@ -97,7 +96,7 @@ func (c *ChainIntent) Check() error {
 		return fmt.Errorf("id must be set")
 	}
 
-	if err := c.Roles.CheckNoZeroAddresses(); err != nil {
+	if err := addresses.CheckNoZeroAddresses(c.Roles); err != nil {
 		return err
 	}
 
@@ -114,24 +113,6 @@ func (c *ChainIntent) Check() error {
 
 	if c.DangerousAltDAConfig.UseAltDA {
 		return c.DangerousAltDAConfig.Check(nil)
-	}
-
-	return nil
-}
-
-// Returns an error if any fields in ChainRoles is set to common.Address{}
-func (cr *ChainRoles) CheckNoZeroAddresses() error {
-	val := reflect.ValueOf(*cr)
-	typ := reflect.TypeOf(*cr)
-
-	// Iterate through all the fields
-	for i := 0; i < val.NumField(); i++ {
-		fieldValue := val.Field(i)
-		fieldName := typ.Field(i).Name
-
-		if fieldValue.Interface() == (common.Address{}) {
-			return fmt.Errorf("%w: %s", ErrChainRoleZeroAddress, fieldName)
-		}
 	}
 
 	return nil

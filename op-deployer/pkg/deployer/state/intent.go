@@ -99,7 +99,7 @@ func (c *Intent) validateCustomConfig() error {
 		if c.SuperchainRoles == nil {
 			return fmt.Errorf("%w: must set superchain roles if OPCM address is nil", ErrIncompatibleValue)
 		}
-		if err := c.SuperchainRoles.CheckNoZeroAddresses(); err != nil {
+		if err := addresses.CheckNoZeroAddresses(c.SuperchainRoles); err != nil {
 			return err
 		}
 	} else {

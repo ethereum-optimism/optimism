@@ -14,7 +14,7 @@ func TestValidateStandardValues(t *testing.T) {
 
 	err = intent.Check()
 	require.Error(t, err)
-	require.ErrorIs(t, err, ErrChainRoleZeroAddress)
+	require.ErrorIs(t, err, addresses.ErrZeroAddress)
 
 	setChainRoles(&intent)
 	err = intent.Check()
@@ -110,12 +110,12 @@ func TestValidateCustomValues(t *testing.T) {
 
 	err = intent.Check()
 	require.Error(t, err)
-	require.ErrorIs(t, err, addresses.ErrSuperchainRoleZeroAddress)
+	require.ErrorIs(t, err, addresses.ErrZeroAddress)
 
 	setSuperchainRoles(&intent)
 	err = intent.Check()
 	require.Error(t, err)
-	require.ErrorIs(t, err, ErrChainRoleZeroAddress)
+	require.ErrorIs(t, err, addresses.ErrZeroAddress)
 
 	setChainRoles(&intent)
 	err = intent.Check()
