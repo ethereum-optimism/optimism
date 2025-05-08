@@ -71,7 +71,7 @@ type ExecutionProxyAPI interface {
 // ExecutionMinerProxyAPI defines the methods proxied to the execution 'miner_' rpc backend
 // This should include all methods that are called by op-batcher or op-proposer
 type ExecutionMinerProxyAPI interface {
-	SetMaxDASize(ctx context.Context, maxTxSize hexutil.Big, maxBlockSize hexutil.Big) bool
+	SetMaxDASize(ctx context.Context, maxTxSize hexutil.Big, maxBlockSize hexutil.Big) (bool, error)
 }
 
 // NodeProxyAPI defines the methods proxied to the node 'optimism_' rpc backend

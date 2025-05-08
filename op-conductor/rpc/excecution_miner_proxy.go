@@ -27,12 +27,20 @@ func NewExecutionMinerProxyBackend(log log.Logger, con conductor, client *ethcli
 	}
 }
 
-func (api *ExecutionMinerProxyBackend) SetMaxDASize(ctx context.Context, maxTxSize hexutil.Big, maxBlockSize hexutil.Big) bool {
+func (api *ExecutionMinerProxyBackend) SetMaxDASize(ctx context.Context, maxTxSize hexutil.Big, maxBlockSize hexutil.Big) (bool, error) {
 	var result bool
 	err := api.client.Client().Call(&result, "miner_setMaxDASize", maxTxSize, maxBlockSize)
 	if err != nil {
-		api.log.Warn("proxy miner_setMaxDASize call failed", "err", err)
-		return false
+		api.log.Debug("proxy miner_setMaxDASize call failed",
+			"err", err,
+			"maxTxSize", maxTxSize,
+			"maxBlockSize", maxBlockSize,
+			"method", "miner_setMaxDASize")
+		return false, err
 	}
-	return result
+	api.log.Debug("successfully proxied miner_setMaxDASize call",
+		"maxTxSize", maxTxSize,
+		"maxBlockSize", maxBlockSize,
+		"result", result)
+	return result, nil
 }
