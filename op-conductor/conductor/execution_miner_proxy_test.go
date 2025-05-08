@@ -20,7 +20,7 @@ import (
 
 // createHTTPHandler creates a mock HTTP handler for testing, it accepts a callback which
 // is invoked when the expected request is received.
-func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFunc {
+func createHTTPHandler(t *testing.T, alwaysFails bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			var req struct {
@@ -32,17 +32,31 @@ func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFu
 			if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
 
 				if alwaysFails {
-					// TODO return a 200 but use a JSON RPC error response
-					http.Error(w, "Method Not Found", http.StatusInternalServerError)
-					if cb != nil {
-						cb()
+					w.Header().Set("Content-Type", "application/json")
+					errorResp := struct {
+						JSONRPC string      `json:"jsonrpc"`
+						ID      interface{} `json:"id"`
+						Error   struct {
+							Code    int    `json:"code"`
+							Message string `json:"message"`
+						} `json:"error"`
+					}{
+						JSONRPC: "2.0",
+						ID:      req.ID,
+						Error: struct {
+							Code    int    `json:"code"`
+							Message string `json:"message"`
+						}{
+							Code:    -32601, // Method not found error code
+							Message: "Method not found",
+						},
+					}
+					if err := json.NewEncoder(w).Encode(errorResp); err != nil {
+						t.Logf("Error writing response: %v", err)
 					}
 					return
 				}
 				if req.Method == "miner_setMaxDASize" && len(req.Params) == 2 {
-					if cb != nil {
-						cb()
-					}
 					w.Header().Set("Content-Type", "application/json")
 					_, err := w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":true}`))
 					if err != nil {
@@ -56,6 +70,8 @@ func createHTTPHandler(t *testing.T, cb func(), alwaysFails bool) http.HandlerFu
 	}
 }
 
+// TestSetMaxDASize tests the SetMaxDASize method of the ExecutionMinerProxyBackend
+// It ensures that the proxy is transparently proxying the call to the execution engine
 func TestSetMaxDASize(t *testing.T) {
 	t.Run("compliant sequencer", func(t *testing.T) {
 		testSetMaxDASize(t, true)
@@ -67,7 +83,7 @@ func TestSetMaxDASize(t *testing.T) {
 
 func testSetMaxDASize(t *testing.T, compliantSequencer bool) {
 	ctx := context.Background()
-	sequencer := httptest.NewServer(createHTTPHandler(t, nil, !compliantSequencer))
+	sequencer := httptest.NewServer(createHTTPHandler(t, !compliantSequencer))
 	defer sequencer.Close()
 
 	config := mockConfig(t)
@@ -114,7 +130,7 @@ func testSetMaxDASize(t *testing.T, compliantSequencer bool) {
 		t.Log("Proxied a successful miner_setMaxDASize call")
 	} else {
 		require.Error(t, err)
-		require.EqualError(t, err, "Simulated failure")
+		require.Contains(t, err.Error(), "Method not found")
 		t.Log("Proxied a failed miner_setMaxDASize call")
 	}
 }
