@@ -3,7 +3,7 @@ package upgrade
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 )
 
 var SimpleInterop presets.TestSetup[*presets.SimpleInterop]

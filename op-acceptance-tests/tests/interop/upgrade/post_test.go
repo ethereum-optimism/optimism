@@ -5,10 +5,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/dsl"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 

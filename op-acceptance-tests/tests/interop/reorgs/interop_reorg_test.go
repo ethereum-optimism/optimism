@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/devtest"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/presets"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
