@@ -226,7 +226,13 @@ var _ T = (*testingT)(nil)
 
 // SerialT wraps around a test-logger and turns it into a T for devstack testing.
 func SerialT(t *testing.T) T {
-	ctx, cancel := context.WithCancel(RootContext)
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if deadline, hasDeadline := t.Deadline(); hasDeadline {
+		ctx, cancel = context.WithDeadline(RootContext, deadline.Add(-30*time.Second))
+	} else {
+		ctx, cancel = context.WithCancel(RootContext)
+	}
 	t.Cleanup(cancel)
 
 	tracer := otel.Tracer(t.Name())
