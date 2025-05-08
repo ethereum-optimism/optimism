@@ -41,7 +41,7 @@ contract DisputeGameFactory_Init is CommonTest {
     }
 
     /// @notice Creates a new VM instance with the given absolute prestate
-    function _createVM(Claim _absolutePrestate) private returns (AlphabetVM vm_, IPreimageOracle preimageOracle_) {
+    function _createVM(Claim _absolutePrestate) internal returns (AlphabetVM vm_, IPreimageOracle preimageOracle_) {
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
         // actually test the clock extensions later on. This is not a realistic value.
         preimageOracle_ = IPreimageOracle(
@@ -58,7 +58,7 @@ contract DisputeGameFactory_Init is CommonTest {
         AlphabetVM _vm,
         GameType _gameType
     )
-        private
+        internal
         view
         returns (IFaultDisputeGame.GameConstructorParams memory params_)
     {
@@ -89,7 +89,7 @@ contract DisputeGameFactory_Init is CommonTest {
         params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
     }
 
-    function _setGame(address _gameImpl, GameType _gameType) private {
+    function _setGame(address _gameImpl, GameType _gameType) internal {
         vm.startPrank(disputeGameFactory.owner());
         disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
         disputeGameFactory.setInitBond(_gameType, 0.08 ether);

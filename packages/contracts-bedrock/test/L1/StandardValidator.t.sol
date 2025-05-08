@@ -2,7 +2,9 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { CommonTest } from "test/setup/CommonTest.sol";
+import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 // Target contract
 import { StandardValidator } from "src/L1/StandardValidator.sol";
@@ -11,6 +13,7 @@ import { StandardValidator } from "src/L1/StandardValidator.sol";
 import { GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -35,11 +38,10 @@ import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 
-contract StandardValidatorTest is CommonTest {
+contract StandardValidatorTest is DisputeGameFactory_Init {
     StandardValidator validator;
     address l1PAOMultisig;
     address mips;
@@ -73,6 +75,39 @@ contract StandardValidatorTest is CommonTest {
         absolutePrestate = bytes32(uint256(0xdead));
         l2ChainID = 10;
 
+        // Add cannon game type
+        Claim prestate = Claim.wrap(absolutePrestate);
+        (AlphabetVM vm_,) = _createVM(prestate);
+        IFaultDisputeGame.GameConstructorParams memory params =
+            _getGameConstructorParams(prestate, vm_, GameTypes.CANNON);
+        params.weth = IDelayedWETH(
+            DeployUtils.create1({
+                _name: "DelayedWETH",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (delayedWeth.delay())))
+            })
+        );
+        address gameImpl_ = DeployUtils.create1({
+            _name: "FaultDisputeGame",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (params)))
+        });
+        _setGame(gameImpl_, GameTypes.CANNON);
+
+        // Add permissioned cannon game type
+        params = _getGameConstructorParams(prestate, vm_, GameTypes.CANNON);
+        params.weth = IDelayedWETH(
+            DeployUtils.create1({
+                _name: "DelayedWETH",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (delayedWeth.delay())))
+            })
+        );
+        gameImpl_ = DeployUtils.create1({
+            _name: "PermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(IPermissionedDisputeGame.__constructor__, (params, makeAddr("defaultProposer"), challenger))
+            )
+        });
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
+
         // Setup mock dependency addresses
         permissionedDisputeGame = IPermissionedDisputeGame(
             address(IDisputeGameFactory(disputeGameFactory).gameImpls(GameTypes.PERMISSIONED_CANNON))
@@ -90,6 +125,7 @@ contract StandardValidatorTest is CommonTest {
         // Get the OPContractsManager and its implementations struct
         OPContractsManager opcm = OPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
         OPContractsManager.Implementations memory impls = opcm.implementations();
+        impls.mipsImpl = mips;
 
         // Deploy validator with implementations from OPCM
         validator = new StandardValidator(
