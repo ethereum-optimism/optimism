@@ -92,9 +92,8 @@ func (s *Supervisor) Stop() {
 	s.service = nil
 }
 
-func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option {
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
+func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
@@ -103,6 +102,7 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 		cluster, ok := orch.clusters.Get(clusterID)
 		require.True(ok, "need cluster to determine dependency set")
 
+		require.NotNil(cluster.depset, "need a dependency set")
 		cfg := &supervisorConfig.Config{
 			MetricsConfig: metrics.CLIConfig{
 				Enabled: false,
@@ -139,19 +139,18 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 			id:      supervisorID,
 			userRPC: "", // set on start
 			cfg:     cfg,
-			p:       o.P(),
+			p:       orch.P(),
 			logger:  plog,
 			service: nil, // set on start
 		}
 		orch.supervisors.Set(supervisorID, supervisorNode)
 		supervisorNode.Start()
 		orch.p.Cleanup(supervisorNode.Stop)
-	}
+	})
 }
 
-func WithManagedBySupervisor(l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID) stack.Option {
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
+func WithManagedBySupervisor(l2CLID stack.L2CLNodeID, supervisorID stack.SupervisorID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
 		l2CL, ok := orch.l2CLs.Get(l2CLID)
@@ -161,14 +160,14 @@ func WithManagedBySupervisor(l2CLID stack.L2CLNodeID, supervisorID stack.Supervi
 		s, ok := orch.supervisors.Get(supervisorID)
 		require.True(ok, "looking for supervisor")
 
-		ctx := o.P().Ctx()
-		rpcClient, err := client.NewRPC(ctx, o.P().Logger(), s.userRPC, client.WithLazyDial())
-		o.P().Require().NoError(err)
+		ctx := orch.P().Ctx()
+		rpcClient, err := client.NewRPC(ctx, orch.P().Logger(), s.userRPC, client.WithLazyDial())
+		orch.P().Require().NoError(err)
 		supClient := sources.NewSupervisorClient(rpcClient)
 
 		err = retry.Do0(ctx, 10, retry.Exponential(), func() error {
 			return supClient.AddL2RPC(ctx, interopEndpoint, secret)
 		})
 		require.NoError(err, "must connect CL node %s to supervisor %s", l2CLID, supervisorID)
-	}
+	})
 }

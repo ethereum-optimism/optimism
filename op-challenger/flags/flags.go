@@ -452,6 +452,16 @@ func parseTraceTypes(ctx *cli.Context) ([]types.TraceType, error) {
 	return traceTypes, nil
 }
 
+type ChainAddressesSource func(network string) (superchain.AddressesConfig, error)
+
+var superchainAddressSource ChainAddressesSource = func(network string) (superchain.AddressesConfig, error) {
+	chainCfg := chaincfg.ChainByName(network)
+	if chainCfg == nil {
+		return superchain.AddressesConfig{}, fmt.Errorf("unknown chain: %v (Valid options: %v)", network, strings.Join(chaincfg.AvailableNetworks(), ", "))
+	}
+	return chainCfg.Addresses, nil
+}
+
 func FactoryAddress(ctx *cli.Context) (common.Address, error) {
 	// Use FactoryAddressFlag in preference to Network. Allows overriding the default dispute game factory.
 	if ctx.IsSet(FactoryAddressFlag.Name) {
@@ -462,27 +472,30 @@ func FactoryAddress(ctx *cli.Context) (common.Address, error) {
 		return gameFactoryAddress, nil
 	}
 	networks := ctx.StringSlice(flags.NetworkFlagName)
-	if len(networks) > 1 {
-		return common.Address{}, fmt.Errorf("flag %v required when multiple networks specified", FactoryAddressFlag.Name)
-	}
 	if len(networks) == 0 {
 		return common.Address{}, fmt.Errorf("flag %v or %v is required", FactoryAddressFlag.Name, flags.NetworkFlagName)
 	}
+	return FactoryAddressForNetworks(networks, superchainAddressSource)
+}
 
-	network := networks[0]
-	chainCfg := chaincfg.ChainByName(network)
-	if chainCfg == nil {
-		var opts []string
-		for _, cfg := range superchain.Chains {
-			opts = append(opts, cfg.Name+"-"+cfg.Network)
+func FactoryAddressForNetworks(networks []string, addressSource ChainAddressesSource) (common.Address, error) {
+	var factoryAddress common.Address
+	for _, network := range networks {
+		addrs, err := addressSource(network)
+		if err != nil {
+			return common.Address{}, err
 		}
-		return common.Address{}, fmt.Errorf("unknown chain: %v (Valid options: %v)", network, strings.Join(opts, ", "))
+		if addrs.DisputeGameFactoryProxy == nil {
+			return common.Address{}, fmt.Errorf("dispute factory proxy not available for chain %v", network)
+		}
+		addr := *addrs.DisputeGameFactoryProxy
+		if factoryAddress == (common.Address{}) {
+			factoryAddress = addr
+		} else if factoryAddress != addr {
+			return common.Address{}, fmt.Errorf("specified networks use different dispute game factories, flag %v required", FactoryAddressFlag.Name)
+		}
 	}
-	addrs := chainCfg.Addresses
-	if addrs.DisputeGameFactoryProxy == nil {
-		return common.Address{}, fmt.Errorf("dispute factory proxy not available for chain %v", network)
-	}
-	return *addrs.DisputeGameFactoryProxy, nil
+	return factoryAddress, nil
 }
 
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.

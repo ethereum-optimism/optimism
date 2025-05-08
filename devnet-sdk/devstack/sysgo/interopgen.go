@@ -82,11 +82,10 @@ func (c *Cluster) hydrate(system stack.ExtensibleSystem) {
 
 // WithInteropGen is a system option that will create a L1 chain, superchain, cluster and L2 chains.
 func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
-	clusterID stack.ClusterID, l2IDs []stack.L2NetworkID, res ContractPaths) stack.Option {
+	clusterID stack.ClusterID, l2IDs []stack.L2NetworkID, res ContractPaths) stack.Option[*Orchestrator] {
 
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
-		require := o.P().Require()
+	return stack.Deploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
 
 		require.True(l1ID.ChainID().ToBig().IsInt64(), "interop gen uses small chain IDs")
 		genesisTime := uint64(time.Now().Add(time.Second * 2).Unix())
@@ -110,7 +109,7 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 		require.NoError(err)
 
 		// create a logger for the world configuration
-		logger := o.P().Logger().New("role", "world")
+		logger := orch.P().Logger().New("role", "world")
 		require.NoError(worldCfg.Check(logger))
 
 		// create the foundry artifacts and source map
@@ -175,5 +174,5 @@ func WithInteropGen(l1ID stack.L1NetworkID, superchainID stack.SuperchainID,
 			}
 			orch.l2Nets.Set(l2ID.ChainID(), l2Net)
 		}
-	}
+	})
 }

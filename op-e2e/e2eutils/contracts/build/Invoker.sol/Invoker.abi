@@ -1,0 +1,44 @@
+[
+  {
+    "type": "function",
+    "name": "invokePrecompile",
+    "inputs": [
+      {
+        "name": "_precompile",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_input",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "PrecompileInvoked",
+    "inputs": [
+      {
+        "name": "precompile",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "result",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "PrecompileCallFailed",
+    "inputs": []
+  }
+]

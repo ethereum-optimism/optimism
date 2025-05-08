@@ -140,6 +140,18 @@ func SetInteropOffsetForAllL2s(offset uint64) setupOption {
 	}
 }
 
+func SetInteropForkScheduledButInactive() setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		// Update in place to avoid making a copy and losing the change.
+		// Set to a year in the future. Far enough tests won't hit it
+		// but not so far it will overflow when added to current time.
+		val := uint64(365 * 24 * 60 * 60)
+		for key := range recipe.L2s {
+			recipe.L2s[key].InteropOffset = val
+		}
+	}
+}
+
 // SetupInterop creates an InteropSetup to instantiate actors on, with 2 L2 chains.
 func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 	recipe := interopgen.InteropDevRecipe{

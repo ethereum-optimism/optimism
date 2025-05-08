@@ -19,3 +19,11 @@ cd ../..
 
 mkdir -p bindings/inbox
 abigen --abi ./build/ICrossL2Inbox.sol/ICrossL2Inbox.abi --bin ./build/ICrossL2Inbox.sol/ICrossL2Inbox.bin --pkg inbox --out ./bindings/inbox/inbox.go
+
+cd build/Invoker.sol
+cat Invoker.json | jq -r '.bytecode.object' > Invoker.bin
+cat Invoker.json | jq '.abi' > Invoker.abi
+cd ../../
+
+mkdir -p bindings/invoker
+abigen --abi ./build/Invoker.sol/Invoker.abi --bin ./build/Invoker.sol/Invoker.bin --pkg invoker --out ./bindings/invoker/invoker.go

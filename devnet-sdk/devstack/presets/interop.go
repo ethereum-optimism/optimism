@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type SimpleInterop struct {
@@ -42,29 +44,34 @@ type SimpleInterop struct {
 	FunderB *dsl.Funder
 }
 
-func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.Option {
-	return func(orch stack.Orchestrator) {
-		if _, isSysGo := orch.(*sysgo.Orchestrator); isSysGo {
-			startInProcessSimpleInterop(orch)
-		}
-		*dest = func(t devtest.T) *SimpleInterop {
-			return hydrateSimpleInterop(t, orch)
-		}
+func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
+	return []*dsl.L2Network{
+		s.L2ChainA, s.L2ChainB,
 	}
 }
 
+func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.CommonOption {
+	return stack.Combine(
+		stack.MakeCommon(startInProcessSimpleInterop()),
+		stack.Finally(func(orch stack.Orchestrator, hook stack.SystemHook) {
+			*dest = func(t devtest.T) *SimpleInterop {
+				return hydrateSimpleInterop(t, orch, hook)
+			}
+		}))
+}
+
 // startInProcessSimpleInterop starts a new system that meets the simple interop criteria
-func startInProcessSimpleInterop(orch stack.Orchestrator) {
+func startInProcessSimpleInterop() stack.Option[*sysgo.Orchestrator] {
 	var ids sysgo.DefaultInteropSystemIDs
-	opt := sysgo.DefaultInteropSystem(&ids)
-	opt(orch)
+	return sysgo.DefaultInteropSystem(&ids)
 }
 
 // hydrateSimpleInterop hydrates the test specific view of a shared system and selects the resources required for
 // a simple interop system.
-func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
+func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator, hook stack.SystemHook) *SimpleInterop {
 	system := shim.NewSystem(t)
 	orch.Hydrate(system)
+	hook.PostHydrate(system)
 
 	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
 	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
@@ -97,4 +104,28 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator) *SimpleInterop {
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
 	return out
+}
+
+// WithSuggestedInteropActivationOffset suggests a hardfork time offset to use.
+// This is applied e.g. to the deployment if running against sysgo.
+func WithSuggestedInteropActivationOffset(offset uint64) stack.CommonOption {
+	return stack.MakeCommon(sysgo.WithDeployerOptions(
+		func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+			for _, l2Cfg := range builder.L2s() {
+				l2Cfg.WithForkAtOffset(rollup.Interop, &offset)
+			}
+		},
+	))
+}
+
+// WithInteropNotAtGenesis adds a test-gate that checks
+// if the interop hardfork is configured at a non-genesis time.
+func WithInteropNotAtGenesis() stack.CommonOption {
+	return stack.PostHydrate[stack.Orchestrator](func(sys stack.System) {
+		for _, l2Net := range sys.L2Networks() {
+			interopTime := l2Net.ChainConfig().InteropTime
+			sys.T().Gate().NotNil(interopTime, "must have interop")
+			sys.T().Gate().NotZero(*interopTime, "must not be at genesis")
+		}
+	})
 }

@@ -20,14 +20,14 @@ func TestSystem(gt *testing.T) {
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(logger, func() {
+	p := devtest.NewP(context.Background(), logger, func() {
 		gt.Helper()
 		gt.FailNow()
 	})
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p)
-	opt(orch)
+	stack.ApplyOptionLifecycle(opt, orch)
 
 	// Run two tests in parallel: see if we can share the same orchestrator
 	// between two test scopes, with two different hydrated system frontends.

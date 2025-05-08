@@ -37,10 +37,9 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
 }
 
-func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option {
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
-		require := o.P().Require()
+func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
 
 		l2Net, ok := orch.l2Nets.Get(id.ChainID)
 		require.True(ok, "L2 network required")
@@ -56,7 +55,7 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 			require.True(ok, "supervisor is required for interop")
 			supervisorRPC = sup.userRPC
 		}
-		logger := o.P().Logger().New("id", id)
+		logger := orch.P().Logger().New("id", id)
 
 		l2Geth, err := geth.InitL2(id.String(), l2Net.genesis, jwtPath,
 			func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
@@ -79,5 +78,5 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 			userRPC: l2Geth.UserRPC().RPC(),
 		}
 		require.True(orch.l2ELs.SetIfMissing(id, l2EL), "must be unique L2 EL node")
-	}
+	})
 }

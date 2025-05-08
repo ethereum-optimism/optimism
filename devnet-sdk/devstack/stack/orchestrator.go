@@ -45,17 +45,182 @@ type Orchestrator interface {
 // step 3: maybe try different things, if none work, test-skip
 // }
 
-// Option is used to define a function that inspects and/or changes a System.
-type Option func(orch Orchestrator)
+type SystemHook interface {
+	// PostHydrate runs after a system is hydrated, to run any checks
+	PostHydrate(sys System)
+}
+
+// ApplyOptionLifecycle applies all option lifecycle stages to the given orchestrator
+func ApplyOptionLifecycle[O Orchestrator](opt Option[O], orch O) {
+	opt.BeforeDeploy(orch)
+	opt.Deploy(orch)
+	opt.AfterDeploy(orch)
+	opt.Finally(orch, opt)
+}
+
+// Option is used to define a change that inspects and/or changes a System during the lifecycle.
+type Option[O Orchestrator] interface {
+	// BeforeDeploy runs before any chain is created/deployed
+	BeforeDeploy(orch O)
+	// Deploy runs the deployment
+	Deploy(orch O)
+	// AfterDeploy runs after chains are created/deployed
+	AfterDeploy(orch O)
+	// Finally runs at the very end.
+	// A system hook is available, to validate any produced systems
+	Finally(orch O, hook SystemHook)
+	// SystemHook is embedded: Options may expose system hooks
+	SystemHook
+}
+
+type CommonOption = Option[Orchestrator]
+
+// CombinedOption is a list of options.
+// For each option lifecycle stage, all options are applied, left to right.
+type CombinedOption[O Orchestrator] []Option[O]
+
+var _ CommonOption = (CombinedOption[Orchestrator])(nil)
+
+// Combine is a method to define a CombinedOption, more readable than a slice definition.
+func Combine[O Orchestrator](opts ...Option[O]) CombinedOption[O] {
+	return CombinedOption[O](opts)
+}
 
 // Add changes the option into a new Option that that first applies the receiver, and then the other options.
 // This is a convenience for bundling options together.
-func (fn *Option) Add(other ...Option) {
-	inner := *fn
-	*fn = func(orch Orchestrator) {
-		inner(orch)
-		for _, oFn := range other {
-			oFn(orch)
-		}
+func (c *CombinedOption[O]) Add(other ...Option[O]) {
+	*c = append(*c, other...)
+}
+
+func (c CombinedOption[O]) BeforeDeploy(orch O) {
+	for _, opt := range c {
+		opt.BeforeDeploy(orch)
+	}
+}
+
+func (c CombinedOption[O]) Deploy(orch O) {
+	for _, opt := range c {
+		opt.Deploy(orch)
+	}
+}
+
+func (c CombinedOption[O]) AfterDeploy(orch O) {
+	for _, opt := range c {
+		opt.AfterDeploy(orch)
+	}
+}
+
+func (c CombinedOption[O]) Finally(orch O, hook SystemHook) {
+	for _, opt := range c {
+		opt.Finally(orch, hook)
+	}
+}
+
+func (c CombinedOption[O]) PostHydrate(sys System) {
+	for _, opt := range c {
+		opt.PostHydrate(sys)
+	}
+}
+
+// FnOption defines an option with more flexible function instances per option lifecycle stage.
+// Each nil attribute is simply a no-op when not set.
+type FnOption[O Orchestrator] struct {
+	BeforeDeployFn func(orch O)
+	DeployFn       func(orch O)
+	AfterDeployFn  func(orch O)
+	FinallyFn      func(orch O, hook SystemHook)
+	PostHydrateFn  func(sys System)
+}
+
+var _ CommonOption = (*FnOption[Orchestrator])(nil)
+
+func (f FnOption[O]) BeforeDeploy(orch O) {
+	if f.BeforeDeployFn != nil {
+		f.BeforeDeployFn(orch)
+	}
+}
+
+func (f FnOption[O]) Deploy(orch O) {
+	if f.DeployFn != nil {
+		f.DeployFn(orch)
+	}
+}
+
+func (f FnOption[O]) AfterDeploy(orch O) {
+	if f.AfterDeployFn != nil {
+		f.AfterDeployFn(orch)
+	}
+}
+
+func (f FnOption[O]) Finally(orch O, hook SystemHook) {
+	if f.FinallyFn != nil {
+		f.FinallyFn(orch, hook)
+	}
+}
+
+func (f FnOption[O]) PostHydrate(sys System) {
+	if f.PostHydrateFn != nil {
+		f.PostHydrateFn(sys)
+	}
+}
+
+func BeforeDeploy[O Orchestrator](fn func(orch O)) Option[O] {
+	return FnOption[O]{BeforeDeployFn: fn}
+}
+
+func Deploy[O Orchestrator](fn func(orch O)) Option[O] {
+	return FnOption[O]{DeployFn: fn}
+}
+
+func AfterDeploy[O Orchestrator](fn func(orch O)) Option[O] {
+	return FnOption[O]{AfterDeployFn: fn}
+}
+
+func Finally[O Orchestrator](fn func(orch O, hook SystemHook)) Option[O] {
+	return FnOption[O]{FinallyFn: fn}
+}
+
+func PostHydrate[O Orchestrator](fn func(sys System)) Option[O] {
+	return FnOption[O]{PostHydrateFn: fn}
+}
+
+// MakeCommon makes the type-specific option a common option.
+// If the result runs with a different orchestrator type than expected
+// the actual typed option will not run.
+// This can be used to mix in customizations.
+// Later common options should verify the orchestrator has the properties it needs to have.
+func MakeCommon[O Orchestrator](opt Option[O]) CommonOption {
+	return FnOption[Orchestrator]{
+		BeforeDeployFn: func(orch Orchestrator) {
+			if o, ok := orch.(O); ok {
+				opt.BeforeDeploy(o)
+			} else {
+				orch.P().Logger().Debug("BeforeDeploy option does not apply to this orchestrator type")
+			}
+		},
+		DeployFn: func(orch Orchestrator) {
+			if o, ok := orch.(O); ok {
+				opt.Deploy(o)
+			} else {
+				orch.P().Logger().Debug("Deploy option does not apply to this orchestrator type")
+			}
+		},
+		AfterDeployFn: func(orch Orchestrator) {
+			if o, ok := orch.(O); ok {
+				opt.AfterDeploy(o)
+			} else {
+				orch.P().Logger().Debug("AfterDeploy option does not apply to this orchestrator type")
+			}
+		},
+		FinallyFn: func(orch Orchestrator, hook SystemHook) {
+			if o, ok := orch.(O); ok {
+				opt.Finally(o, hook)
+			} else {
+				orch.P().Logger().Debug("Finally option does not apply to this orchestrator type")
+			}
+		},
+		PostHydrateFn: func(sys System) {
+			opt.PostHydrate(sys)
+		},
 	}
 }

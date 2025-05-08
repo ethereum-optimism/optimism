@@ -32,6 +32,14 @@ contract ExecutingMessageEmittedTest is CommonTest {
         super.enableInterop();
         super.setUp();
 
+        {
+            // TODO: Remove this block when L2Genesis includes this contract.
+            vm.etch(
+                Predeploys.SUPERCHAIN_TOKEN_BRIDGE,
+                vm.getDeployedCode("SuperchainTokenBridge.sol:SuperchainTokenBridge")
+            );
+        }
+
         vm.etch(superchainERC20, vm.getDeployedCode("OptimismSuperchainERC20.sol:OptimismSuperchainERC20"));
     }
 

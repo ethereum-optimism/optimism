@@ -308,7 +308,7 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment) err
 		L1FeeVaultWithdrawalNetwork:              big.NewInt(int64(cfg.L1FeeVaultWithdrawalNetwork.ToUint8())),
 		GovernanceTokenOwner:                     cfg.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
-		UseInterop:                               true,
+		UseInterop:                               cfg.UseInterop,
 		EnableGovernance:                         cfg.EnableGovernance,
 		FundDevAccounts:                          cfg.FundDevAccounts,
 	}); err != nil {

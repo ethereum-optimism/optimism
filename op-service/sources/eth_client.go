@@ -569,3 +569,10 @@ func (s *EthClient) BalanceAt(ctx context.Context, account common.Address, block
 	err := s.client.CallContext(ctx, &result, "eth_getBalance", account, toBlockNumArg(blockNumber))
 	return (*big.Int)(&result), err
 }
+
+// CodeAtHash returns the contract code of the given account.
+func (s *EthClient) CodeAtHash(ctx context.Context, account common.Address, blockHash common.Hash) ([]byte, error) {
+	var result hexutil.Bytes
+	err := s.client.CallContext(ctx, &result, "eth_getCode", account, blockHash)
+	return result, err
+}

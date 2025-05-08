@@ -88,27 +88,27 @@ contract StandardValidator {
     }
 
     function systemConfigVersion() public pure returns (string memory) {
-        return "2.5.0";
+        return "3.2.0";
     }
 
     function optimismPortalVersion() public pure returns (string memory) {
-        return "3.14.0";
+        return "4.4.0";
     }
 
     function l1CrossDomainMessengerVersion() public pure returns (string memory) {
-        return "2.6.0";
+        return "2.8.0";
     }
 
     function l1ERC721BridgeVersion() public pure returns (string memory) {
-        return "2.4.0";
+        return "2.6.0";
     }
 
     function l1StandardBridgeVersion() public pure returns (string memory) {
-        return "2.3.0";
+        return "2.5.0";
     }
 
     function mipsVersion() public pure returns (string memory) {
-        return "1.0.0";
+        return "1.3.0";
     }
 
     function optimismMintableERC20FactoryVersion() public pure returns (string memory) {
@@ -116,19 +116,19 @@ contract StandardValidator {
     }
 
     function disputeGameFactoryVersion() public pure returns (string memory) {
-        return "1.0.1";
+        return "1.1.0";
     }
 
     function anchorStateRegistryVersion() public pure returns (string memory) {
-        return "2.2.2";
+        return "3.4.0";
     }
 
     function delayedWETHVersion() public pure returns (string memory) {
-        return "1.3.0";
+        return "1.5.0";
     }
 
     function permissionedDisputeGameVersion() public pure returns (string memory) {
-        return "1.4.1";
+        return "1.6.0";
     }
 
     function preimageOracleVersion() public pure returns (string memory) {
@@ -158,7 +158,7 @@ contract StandardValidator {
         ISemver _semver = ISemver(address(_sysCfg));
         _errors = internalRequire(stringEq(_semver.version(), systemConfigVersion()), "SYSCON-10", _errors);
         _errors = internalRequire(_sysCfg.gasLimit() <= uint64(200_000_000), "SYSCON-20", _errors);
-        _errors = internalRequire(_sysCfg.scalar() >> 248 == 1, "SYSCON-30", _errors);
+        _errors = internalRequire(_sysCfg.scalar() != 0, "SYSCON-30", _errors);
         _errors =
             internalRequire(_admin.getProxyImplementation(address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
 

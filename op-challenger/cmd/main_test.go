@@ -190,8 +190,8 @@ func TestGameFactoryAddress(t *testing.T) {
 		verifyArgsInvalid(t, "flag game-factory-address or network is required", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address"))
 	})
 
-	t.Run("RequiredWhenMultipleNetworksSupplied", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag game-factory-address required when multiple networks specified", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--network", "op-sepolia,op-mainnet"))
+	t.Run("RequiredWhenMultipleNetworksSuppliedWithDifferentFactories", func(t *testing.T) {
+		verifyArgsInvalid(t, "specified networks use different dispute game factories, flag game-factory-address required", addRequiredArgsExcept(types.TraceTypeAlphabet, "--game-factory-address", "--network", "op-sepolia,op-mainnet"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {

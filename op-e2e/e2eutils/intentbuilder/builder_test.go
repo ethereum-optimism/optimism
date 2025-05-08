@@ -159,14 +159,14 @@ func TestBuilder(t *testing.T) {
 				OperatorFeeConstant:      200,
 				DeployOverrides: map[string]any{
 					"l2BlockTime":                 uint64(2),
-					"l2GenesisRegolithTimeOffset": 0,
-					"l2GenesisCanyonTimeOffset":   0,
-					"l2GenesisDeltaTimeOffset":    0,
-					"l2GenesisEcotoneTimeOffset":  0,
-					"l2GenesisFjordTimeOffset":    0,
-					"l2GenesisGraniteTimeOffset":  0,
-					"l2GenesisHoloceneTimeOffset": 0,
-					"l2GenesisIsthmusTimeOffset":  isthmusOffset,
+					"l2GenesisRegolithTimeOffset": hexutil.Uint64(0),
+					"l2GenesisCanyonTimeOffset":   hexutil.Uint64(0),
+					"l2GenesisDeltaTimeOffset":    hexutil.Uint64(0),
+					"l2GenesisEcotoneTimeOffset":  hexutil.Uint64(0),
+					"l2GenesisFjordTimeOffset":    hexutil.Uint64(0),
+					"l2GenesisGraniteTimeOffset":  hexutil.Uint64(0),
+					"l2GenesisHoloceneTimeOffset": hexutil.Uint64(0),
+					"l2GenesisIsthmusTimeOffset":  hexutil.Uint64(isthmusOffset),
 				},
 				L2DevGenesisParams: &state.L2DevGenesisParams{
 					Prefund: map[common.Address]*hexutil.U256{

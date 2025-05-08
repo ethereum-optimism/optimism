@@ -53,10 +53,9 @@ func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
 	l1Net.(stack.ExtensibleL1Network).AddL1CLNode(frontend)
 }
 
-func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option {
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
-		require := o.P().Require()
+func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
 
 		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID)
 		require.True(ok, "L1 network must exist")
@@ -70,7 +69,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option 
 
 		blobPath := orch.p.TempDir()
 
-		logger := o.P().Logger().New("id", l1CLID)
+		logger := orch.P().Logger().New("id", l1CLID)
 		bcn := fakebeacon.NewBeacon(logger, e2eutils.NewBlobStore(), l1Net.genesis.Timestamp, blockTimeL1)
 		orch.p.Cleanup(func() {
 			_ = bcn.Close()
@@ -107,5 +106,5 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option 
 			beacon:         bcn,
 		}
 		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
-	}
+	})
 }

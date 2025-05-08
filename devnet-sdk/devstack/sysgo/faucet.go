@@ -55,10 +55,9 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
-func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Option {
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
-		require := o.P().Require()
+func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
 
 		require.Nil(orch.faucet, "can only support a single faucet-service in sysgo")
 
@@ -103,10 +102,10 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 				Faucets: faucets,
 			},
 		}
-		logger := o.P().Logger().New("id", "dev-faucet")
-		srv, err := faucet.FromConfig(o.P().Ctx(), cfg, logger)
+		logger := orch.P().Logger().New("id", "dev-faucet")
+		srv, err := faucet.FromConfig(orch.P().Ctx(), cfg, logger)
 		require.NoError(err, "must setup faucet service")
-		require.NoError(srv.Start(o.P().Ctx()))
+		require.NoError(srv.Start(orch.P().Ctx()))
 		orch.p.Cleanup(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel() // force-quit
@@ -116,5 +115,5 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 		})
 
 		orch.faucet = &FaucetService{service: srv}
-	}
+	})
 }

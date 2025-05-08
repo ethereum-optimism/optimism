@@ -21,6 +21,8 @@ type Orchestrator struct {
 
 	keys devkeys.Keys
 
+	wb *worldBuilder
+
 	// nil if no time travel is supported
 	timeTravelClock *clock.AdvancingClock
 

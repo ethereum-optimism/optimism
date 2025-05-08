@@ -229,9 +229,6 @@ contract L2Genesis is Script {
         if (_input.useInterop) {
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
-            setSuperchainETHBridge(); // 24
-            setETHLiquidity(); // 25
-            setSuperchainTokenBridge(); // 28
         }
     }
 

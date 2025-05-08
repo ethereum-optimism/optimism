@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -15,6 +16,12 @@ import (
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
+
+var (
+	// RootContext is the context that is used for the root of the test suite.
+	// It should be set for good before any tests are run.
+	RootContext = context.Background()
+)
 
 type T interface {
 	CommonT
@@ -51,6 +58,12 @@ type T interface {
 
 	// Gate provides everything that Require does, but skips instead of fails the test upon error.
 	Gate() *require.Assertions
+
+	// Deadline reports the time at which the test binary will have
+	// exceeded the timeout specified by the -timeout flag.
+	//
+	// The ok result is false if the -timeout flag indicates “no timeout” (0).
+	Deadline() (deadline time.Time, ok bool)
 
 	// This distinguishes the interface from other testing interfaces,
 	// such as the one used at package-level for shared system construction.
@@ -130,7 +143,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 		ctx, cancel := context.WithCancel(t.ctx)
 		subGoT.Cleanup(cancel)
 
-		tracer := otel.GetTracerProvider().Tracer(baseName + "::" + name)
+		tracer := otel.Tracer(baseName + "::" + name)
 		ctx, span := tracer.Start(ctx, name)
 		subGoT.Cleanup(func() {
 			span.End()
@@ -197,6 +210,14 @@ func (t *testingT) Gate() *require.Assertions {
 	return t.gate
 }
 
+// Deadline reports the time at which the test binary will have
+// exceeded the timeout specified by the -timeout flag.
+//
+// The ok result is false if the -timeout flag indicates “no timeout” (0).
+func (t *testingT) Deadline() (deadline time.Time, ok bool) {
+	return t.t.Deadline()
+}
+
 func (t *testingT) _TestOnly() {
 	panic("do not use - this method only forces the interface to be unique")
 }
@@ -205,10 +226,10 @@ var _ T = (*testingT)(nil)
 
 // SerialT wraps around a test-logger and turns it into a T for devstack testing.
 func SerialT(t *testing.T) T {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(RootContext)
 	t.Cleanup(cancel)
 
-	tracer := otel.GetTracerProvider().Tracer(t.Name())
+	tracer := otel.Tracer(t.Name())
 	ctx, span := tracer.Start(ctx, t.Name())
 	t.Cleanup(func() {
 		span.End()

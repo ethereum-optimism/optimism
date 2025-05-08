@@ -69,12 +69,11 @@ func (s *Sequencer) hydrate(sys stack.ExtensibleSystem) {
 	}))
 }
 
-func WithSequencer(sequencerID stack.SequencerID, l2CLID stack.L2CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option {
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
+func WithSequencer(sequencerID stack.SequencerID, l2CLID stack.L2CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 
-		logger := o.P().Logger().New("service", "op-test-sequencer", "id", sequencerID)
+		logger := orch.P().Logger().New("service", "op-test-sequencer", "id", sequencerID)
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")
@@ -214,5 +213,5 @@ func WithSequencer(sequencerID stack.SequencerID, l2CLID stack.L2CLNodeID, l1ELI
 		}
 		logger.Info("Sequencer User RPC", "http_endpoint", sequencerNode.userRPC)
 		orch.sequencers.Set(sequencerID, sequencerNode)
-	}
+	})
 }

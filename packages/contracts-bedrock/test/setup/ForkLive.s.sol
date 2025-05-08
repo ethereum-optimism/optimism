@@ -254,7 +254,9 @@ contract ForkLive is Deployer {
 
         address permissionlessDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
         if (permissionlessDisputeGame != address(0)) {
+            // Both names are used in different places, so we save both.
             artifacts.save("PermissionlessDisputeGame", address(permissionlessDisputeGame));
+            artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
         }
 
         IAnchorStateRegistry newAnchorStateRegistry =

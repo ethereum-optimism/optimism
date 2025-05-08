@@ -24,14 +24,14 @@ func TestL2CLResync(gt *testing.T) {
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(logger, func() {
+	p := devtest.NewP(context.Background(), logger, func() {
 		gt.Helper()
 		gt.FailNow()
 	})
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p)
-	opt(orch)
+	stack.ApplyOptionLifecycle(opt, orch)
 
 	t := devtest.SerialT(gt)
 	system := shim.NewSystem(t)
@@ -125,15 +125,14 @@ func TestL2CLSyncP2P(gt *testing.T) {
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(logger, func() {
+	p := devtest.NewP(context.Background(), logger, func() {
 		gt.Helper()
 		gt.FailNow()
 	})
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p)
-
-	opt(orch)
+	stack.ApplyOptionLifecycle(opt, orch)
 
 	t := devtest.SerialT(gt)
 	system := shim.NewSystem(t)
@@ -199,7 +198,8 @@ func TestL2CLSyncP2P(gt *testing.T) {
 		logger.Info("explicit reconnection of L2CL P2P between sequencer and verifier")
 		// wait until restarted L2CL can receive p2p API request
 		time.Sleep(waitTime)
-		WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL)(orch)
+
+		WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL).AfterDeploy(orch)
 
 		targetBlockNum2 := uint64(30)
 		require.Greater(t, targetBlockNum2, targetBlockNum1)
@@ -241,14 +241,14 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(logger, func() {
+	p := devtest.NewP(context.Background(), logger, func() {
 		gt.Helper()
 		gt.FailNow()
 	})
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p)
-	opt(orch)
+	stack.ApplyOptionLifecycle(opt, orch)
 
 	t := devtest.SerialT(gt)
 	system := shim.NewSystem(t)
@@ -306,7 +306,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 		}, 30*time.Second, waitTime)
 
 		logger.Info("disconnect p2p between L2CLs")
-		DisconnectL2CLP2P(ids.L2ACL, ids.L2A2CL)(orch)
+		DisconnectL2CLP2P(ids.L2ACL, ids.L2A2CL).AfterDeploy(orch)
 
 		// verifier lost its P2P connection with sequencer, and will advance its unsafe head by reading L1 but not by P2P
 		_, prevblockA2 := queryEL(eth.Unsafe)
@@ -333,7 +333,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 		}, 15*time.Second, waitTime)
 
 		logger.Info("explicit reconnection of L2CL P2P between sequencer and verifier")
-		WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL)(orch)
+		WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL).AfterDeploy(orch)
 
 		logger.Info("verifier catchs up sequencer unsafe chain with was unknown for verifier")
 		require.Eventually(t, func() bool {

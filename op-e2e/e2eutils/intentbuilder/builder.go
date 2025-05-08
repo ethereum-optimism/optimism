@@ -93,6 +93,7 @@ type Builder interface {
 	WithSuperchain() (Builder, SuperchainConfigurator)
 	WithL1(l1ChainID eth.ChainID) (Builder, L1Configurator)
 	WithL2(l2ChainID eth.ChainID) (Builder, L2Configurator)
+	L2s() (out []L2Configurator)
 	Build() (*state.Intent, error)
 }
 
@@ -182,6 +183,13 @@ func (b *intentBuilder) WithL2(l2ChainID eth.ChainID) (Builder, L2Configurator) 
 	}
 	b.intent.Chains = append(b.intent.Chains, chainIntent)
 	return b, &l2Configurator{builder: b, chainIndex: len(b.intent.Chains) - 1}
+}
+
+func (b *intentBuilder) L2s() (out []L2Configurator) {
+	for i := range b.intent.Chains {
+		out = append(out, &l2Configurator{builder: b, chainIndex: i})
+	}
+	return out
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {
@@ -380,7 +388,8 @@ func (c *l2Configurator) WithForkAtOffset(fork rollup.ForkName, offset *uint64) 
 	if offset == nil {
 		delete(c.builder.intent.Chains[c.chainIndex].DeployOverrides, key)
 	} else {
-		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = offset
+		// The typing is important, or op-deployer merge-JSON tricks will fail
+		c.builder.intent.Chains[c.chainIndex].DeployOverrides[key] = (*hexutil.Uint64)(offset)
 	}
 }
 

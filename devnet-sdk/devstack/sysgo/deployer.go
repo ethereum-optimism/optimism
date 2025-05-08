@@ -9,6 +9,7 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -31,62 +32,76 @@ const funderMnemonicIndex = 10_000
 
 type DeployerOption func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder)
 
-func WithDeployer(opts ...DeployerOption) stack.Option {
-	return func(o stack.Orchestrator) {
-		orch := o.(*Orchestrator)
-		require := o.P().Require()
-
-		wb := &worldBuilder{
-			p:       o.P(),
-			logger:  o.P().Logger(),
-			require: o.P().Require(),
-			keys:    orch.keys,
-			builder: intentbuilder.New(),
-		}
+func WithDeployerOptions(opts ...DeployerOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Require().NotNil(o.wb, "must have a world builder")
 		for _, opt := range opts {
-			opt(o.P(), orch.keys, wb.builder)
+			opt(o.P(), o.keys, o.wb.builder)
 		}
-		wb.Build()
+	})
+}
 
-		l1ID := stack.L1NetworkID(eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID))
-		superchainID := stack.SuperchainID("main")
-		clusterID := stack.ClusterID("main")
-
-		l1Net := &L1Network{
-			id:        l1ID,
-			genesis:   wb.outL1Genesis,
-			blockTime: 6,
-		}
-		orch.l1Nets.Set(l1ID.ChainID(), l1Net)
-
-		orch.superchains.Set(superchainID, &Superchain{
-			id:         superchainID,
-			deployment: wb.outSuperchainDeployment,
-		})
-		orch.clusters.Set(clusterID, &Cluster{
-			id:     clusterID,
-			depset: wb.outDepset,
-		})
-
-		for _, chainID := range wb.l2Chains {
-			l2Genesis, ok := wb.outL2Genesis[chainID]
-			require.True(ok, "L2 genesis must exist")
-			l2RollupCfg, ok := wb.outL2RollupCfg[chainID]
-			require.True(ok, "L2 rollup config must exist")
-			l2Dep, ok := wb.outL2Deployment[chainID]
-			require.True(ok, "L2 deployment must exist")
-
-			l2ID := stack.L2NetworkID(chainID)
-			l2Net := &L2Network{
-				id:         l2ID,
-				l1ChainID:  l1ID.ChainID(),
-				genesis:    l2Genesis,
-				rollupCfg:  l2RollupCfg,
-				deployment: l2Dep,
-				keys:       orch.keys,
+func WithDeployer() stack.Option[*Orchestrator] {
+	return stack.FnOption[*Orchestrator]{
+		BeforeDeployFn: func(o *Orchestrator) {
+			o.P().Require().Nil(o.wb, "must not already have a world builder")
+			o.wb = &worldBuilder{
+				p:       o.P(),
+				logger:  o.P().Logger(),
+				require: o.P().Require(),
+				keys:    o.keys,
+				builder: intentbuilder.New(),
 			}
-			orch.l2Nets.Set(l2ID.ChainID(), l2Net)
-		}
+		},
+		DeployFn: func(o *Orchestrator) {
+			o.P().Require().NotNil(o.wb, "must have a world builder")
+			o.wb.Build()
+		},
+		AfterDeployFn: func(o *Orchestrator) {
+			wb := o.wb
+			require := o.P().Require()
+			require.NotNil(o.wb, "must have a world builder")
+
+			l1ID := stack.L1NetworkID(eth.ChainIDFromUInt64(wb.output.AppliedIntent.L1ChainID))
+			superchainID := stack.SuperchainID("main")
+			clusterID := stack.ClusterID("main")
+
+			l1Net := &L1Network{
+				id:        l1ID,
+				genesis:   wb.outL1Genesis,
+				blockTime: 6,
+			}
+			o.l1Nets.Set(l1ID.ChainID(), l1Net)
+
+			o.superchains.Set(superchainID, &Superchain{
+				id:         superchainID,
+				deployment: wb.outSuperchainDeployment,
+			})
+			o.clusters.Set(clusterID, &Cluster{
+				id:     clusterID,
+				depset: wb.outDepset,
+			})
+
+			for _, chainID := range wb.l2Chains {
+				l2Genesis, ok := wb.outL2Genesis[chainID]
+				require.True(ok, "L2 genesis must exist")
+				l2RollupCfg, ok := wb.outL2RollupCfg[chainID]
+				require.True(ok, "L2 rollup config must exist")
+				l2Dep, ok := wb.outL2Deployment[chainID]
+				require.True(ok, "L2 deployment must exist")
+
+				l2ID := stack.L2NetworkID(chainID)
+				l2Net := &L2Network{
+					id:         l2ID,
+					l1ChainID:  l1ID.ChainID(),
+					genesis:    l2Genesis,
+					rollupCfg:  l2RollupCfg,
+					deployment: l2Dep,
+					keys:       o.keys,
+				}
+				o.l2Nets.Set(l2ID.ChainID(), l2Net)
+			}
+		},
 	}
 }
 
@@ -99,13 +114,16 @@ type worldBuilder struct {
 
 	builder intentbuilder.Builder
 
-	output                  *state.State
-	outL1Genesis            *core.Genesis
-	l2Chains                []eth.ChainID
-	outL2Genesis            map[eth.ChainID]*core.Genesis
-	outL2RollupCfg          map[eth.ChainID]*rollup.Config
-	outL2Deployment         map[eth.ChainID]*L2Deployment
-	outDepset               *depset.StaticConfigDependencySet
+	output          *state.State
+	outL1Genesis    *core.Genesis
+	l2Chains        []eth.ChainID
+	outL2Genesis    map[eth.ChainID]*core.Genesis
+	outL2RollupCfg  map[eth.ChainID]*rollup.Config
+	outL2Deployment map[eth.ChainID]*L2Deployment
+
+	// outDepset is nil if none of the chains has a scheduled interop activation time
+	outDepset *depset.StaticConfigDependencySet
+
 	outSuperchainDeployment *SuperchainDeployment
 }
 
@@ -176,6 +194,15 @@ func WithPrefundedL2(chainID eth.ChainID) DeployerOption {
 	}
 }
 
+// WithInteropAtGenesis activates interop at genesis for all known L2s
+func WithInteropAtGenesis() DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithForkAtOffset(rollup.Interop, new(uint64))
+		}
+	}
+}
+
 func (wb *worldBuilder) buildL1Genesis() {
 	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
 	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")
@@ -202,20 +229,25 @@ func (wb *worldBuilder) buildL2Genesis() {
 }
 
 func (wb *worldBuilder) buildDepSet() {
-	if wb.output.InteropDepSet == nil {
-		return
-	}
+	// Note: deployer has a dep set of itself, but it only supports the at-genesis case
+	// So we work around it, and build our own here for now.
+
 	// Deployer uses a different type than the dependency-set itself, so we have to convert
 	depSetContents := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for _, ch := range wb.output.Chains {
+	for chainIndex, ch := range wb.output.Chains {
 		id := eth.ChainIDFromBytes32(ch.ID)
-		deployerDep, ok := wb.output.InteropDepSet.Dependencies[id.String()]
-		wb.require.True(ok, "expecting deployer to use stringified chain IDs")
-		depSetContents[id] = &depset.StaticConfigDependency{
-			ChainIndex:     supervisortypes.ChainIndex(deployerDep.ChainIndex),
-			ActivationTime: deployerDep.ActivationTime,
-			HistoryMinTime: deployerDep.HistoryMinTime,
+		interopTime := wb.outL2Genesis[id].Config.InteropTime
+		if interopTime == nil {
+			continue
 		}
+		depSetContents[id] = &depset.StaticConfigDependency{
+			ChainIndex:     supervisortypes.ChainIndex(chainIndex),
+			ActivationTime: *interopTime,
+			HistoryMinTime: *interopTime,
+		}
+	}
+	if len(depSetContents) == 0 {
+		return // no dependency set output if no chain had interop active
 	}
 	staticDepSet, err := depset.NewStaticConfigDependencySet(depSetContents)
 	wb.require.NoError(err)
@@ -250,9 +282,24 @@ func (wb *worldBuilder) Build() {
 	intent, err := wb.builder.Build()
 	wb.require.NoError(err)
 
-	if len(intent.Chains) > 1 { // multiple L2s implies interop
-		intent.UseInterop = true
+	inDepSetAtGenesis := false
+	for _, ch := range intent.Chains {
+		v, ok := ch.DeployOverrides["l2GenesisInteropTimeOffset"]
+		if !ok {
+			continue
+		}
+		offset, ok := v.(*hexutil.Uint64)
+		if !ok {
+			continue
+		}
+		if *offset == 0 {
+			inDepSetAtGenesis = true
+		}
 	}
+	wb.logger.Info("Dependency set setting", "atGenesis", inDepSetAtGenesis)
+
+	// If any chains are activating interop at genesis, then set useInterop to true
+	intent.UseInterop = inDepSetAtGenesis
 
 	pipelineOpts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:   deployer.DeploymentTargetGenesis,

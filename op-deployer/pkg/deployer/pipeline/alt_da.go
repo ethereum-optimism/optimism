@@ -28,9 +28,13 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 		return nil
 	}
 
-	var dao opcm.DeployAltDAOutput
 	lgr.Info("deploying alt-da contracts")
-	dao, err = opcm.DeployAltDA(env.L1ScriptHost, opcm.DeployAltDAInput{
+	deployAltDAScript, err := opcm.NewDeployAltDAScript(env.L1ScriptHost)
+	if err != nil {
+		return fmt.Errorf("failed to load DeployAltDA script: %w", err)
+	}
+
+	output, err := deployAltDAScript.Run(opcm.DeployAltDAInput{
 		Salt:                     st.Create2Salt,
 		ProxyAdmin:               chainState.OpChainContracts.OpChainProxyAdminImpl,
 		ChallengeContractOwner:   chainIntent.Roles.L1ProxyAdminOwner,
@@ -43,8 +47,8 @@ func DeployAltDA(env *Env, intent *state.Intent, st *state.State, chainID common
 		return fmt.Errorf("failed to deploy alt-da contracts: %w", err)
 	}
 
-	chainState.OpChainContracts.AltDAChallengeProxy = dao.DataAvailabilityChallengeProxy
-	chainState.OpChainContracts.AltDAChallengeImpl = dao.DataAvailabilityChallengeImpl
+	chainState.OpChainContracts.AltDAChallengeProxy = output.DataAvailabilityChallengeProxy
+	chainState.OpChainContracts.AltDAChallengeImpl = output.DataAvailabilityChallengeImpl
 	return nil
 }
 
