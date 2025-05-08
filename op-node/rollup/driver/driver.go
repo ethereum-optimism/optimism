@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-node/metrics/metered"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
@@ -53,7 +54,7 @@ type Metrics interface {
 	RecordL1ReorgDepth(d uint64)
 
 	engine.Metrics
-	L1FetcherMetrics
+	metered.L1FetcherMetrics
 	event.Metrics
 	sequencing.Metrics
 }
@@ -185,7 +186,7 @@ func NewDriver(
 	l1Tracker := status.NewL1Tracker(l1)
 	sys.Register("l1-blocks", l1Tracker, opts)
 
-	l1 = NewMeteredL1Fetcher(l1Tracker, metrics)
+	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
 	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,

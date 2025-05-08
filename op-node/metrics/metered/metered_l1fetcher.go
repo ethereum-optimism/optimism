@@ -1,26 +1,37 @@
-package driver
+package metered
 
 import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type L1FetcherMetrics interface {
 	RecordL1RequestTime(method string, duration time.Duration)
 }
 
+type L1Fetcher interface {
+	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
+	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
+	L1BlockRefByHash(context.Context, common.Hash) (eth.L1BlockRef, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+}
+
 type MeteredL1Fetcher struct {
-	inner   derive.L1Fetcher
+	inner   L1Fetcher
 	metrics L1FetcherMetrics
 	now     func() time.Time
 }
 
-func NewMeteredL1Fetcher(inner derive.L1Fetcher, metrics L1FetcherMetrics) *MeteredL1Fetcher {
+var _ L1Fetcher = (*MeteredL1Fetcher)(nil)
+
+func NewMeteredL1Fetcher(inner L1Fetcher, metrics L1FetcherMetrics) *MeteredL1Fetcher {
 	return &MeteredL1Fetcher{
 		inner:   inner,
 		metrics: metrics,
@@ -56,8 +67,6 @@ func (m *MeteredL1Fetcher) FetchReceipts(ctx context.Context, blockHash common.H
 	defer m.recordTime("FetchReceipts")()
 	return m.inner.FetchReceipts(ctx, blockHash)
 }
-
-var _ derive.L1Fetcher = (*MeteredL1Fetcher)(nil)
 
 func (m *MeteredL1Fetcher) recordTime(method string) func() {
 	start := m.now()
