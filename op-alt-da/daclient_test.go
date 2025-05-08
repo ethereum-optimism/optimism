@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ func TestDAClientPrecomputed(t *testing.T) {
 
 	require.Equal(t, comm, NewKeccak256Commitment(input))
 
-	stored, err := client.GetInput(ctx, comm)
+	stored, err := client.GetInput(ctx, comm, eth.L1BlockRef{})
 	require.NoError(t, err)
 
 	require.Equal(t, input, stored)
@@ -47,12 +48,12 @@ func TestDAClientPrecomputed(t *testing.T) {
 	// set a bad commitment in the store
 	require.NoError(t, store.Put(ctx, comm.Encode(), []byte("bad data")))
 
-	_, err = client.GetInput(ctx, comm)
+	_, err = client.GetInput(ctx, comm, eth.L1BlockRef{})
 	require.ErrorIs(t, err, ErrCommitmentMismatch)
 
 	// test not found error
 	comm = NewKeccak256Commitment(RandomData(rng, 32))
-	_, err = client.GetInput(ctx, comm)
+	_, err = client.GetInput(ctx, comm, eth.L1BlockRef{})
 	require.ErrorIs(t, err, ErrNotFound)
 
 	// test storing bad data
@@ -64,7 +65,7 @@ func TestDAClientPrecomputed(t *testing.T) {
 	_, err = client.SetInput(ctx, input)
 	require.Error(t, err)
 
-	_, err = client.GetInput(ctx, NewKeccak256Commitment(input))
+	_, err = client.GetInput(ctx, NewKeccak256Commitment(input), eth.L1BlockRef{})
 	require.Error(t, err)
 }
 
@@ -98,7 +99,7 @@ func TestDAClientService(t *testing.T) {
 
 	require.Equal(t, comm.String(), NewKeccak256Commitment(input).String())
 
-	stored, err := client.GetInput(ctx, comm)
+	stored, err := client.GetInput(ctx, comm, eth.L1BlockRef{})
 	require.NoError(t, err)
 
 	require.Equal(t, input, stored)
@@ -107,12 +108,12 @@ func TestDAClientService(t *testing.T) {
 	require.NoError(t, store.Put(ctx, comm.Encode(), []byte("bad data")))
 
 	// assert no error as generic commitments cannot be verified client side
-	_, err = client.GetInput(ctx, comm)
+	_, err = client.GetInput(ctx, comm, eth.L1BlockRef{})
 	require.NoError(t, err)
 
 	// test not found error
 	comm = NewKeccak256Commitment(RandomData(rng, 32))
-	_, err = client.GetInput(ctx, comm)
+	_, err = client.GetInput(ctx, comm, eth.L1BlockRef{})
 	require.ErrorIs(t, err, ErrNotFound)
 
 	// test storing bad data
@@ -124,6 +125,6 @@ func TestDAClientService(t *testing.T) {
 	_, err = client.SetInput(ctx, input)
 	require.Error(t, err)
 
-	_, err = client.GetInput(ctx, NewKeccak256Commitment(input))
+	_, err = client.GetInput(ctx, NewKeccak256Commitment(input), eth.L1BlockRef{})
 	require.Error(t, err)
 }

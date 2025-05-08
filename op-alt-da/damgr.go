@@ -40,7 +40,10 @@ type L1Fetcher interface {
 
 // DAStorage interface for calling the DA storage server.
 type DAStorage interface {
-	GetInput(ctx context.Context, key CommitmentData) ([]byte, error)
+	// L1InclusionBlockNumber is the block at which the commitment was included in the batcher inbox.
+	// It is used to check if the commitment is expired, and should be sent as a query parameter
+	// to the DA server.
+	GetInput(ctx context.Context, key CommitmentData, L1InclusionBlock eth.L1BlockRef) ([]byte, error)
 	SetInput(ctx context.Context, img []byte) (CommitmentData, error)
 }
 
@@ -223,7 +226,7 @@ func (d *DA) GetInput(ctx context.Context, l1 L1Fetcher, comm CommitmentData, bl
 	d.log.Info("getting input", "comm", comm, "status", status)
 
 	// Fetch the input from the DA storage.
-	data, err := d.storage.GetInput(ctx, comm)
+	data, err := d.storage.GetInput(ctx, comm, blockId)
 	notFound := errors.Is(ErrNotFound, err)
 	if err != nil && !notFound {
 		d.log.Error("failed to get preimage", "err", err)
