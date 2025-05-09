@@ -64,3 +64,13 @@ func (o *Orchestrator) hydrateSupervisorsMaybe(sys stack.ExtensibleSystem) {
 		}
 	}
 }
+
+func (o *Orchestrator) hydrateSequencersMaybe(sys stack.ExtensibleSystem) {
+	// TODO(#15265) op-test-sequencer: add to devnet env and kurtosis
+	sys.AddSequencer(shim.NewSequencer(shim.SequencerConfig{
+		CommonConfig:       shim.NewCommonConfig(sys.T()),
+		ID:                 stack.SequencerID("dummy"),
+		Client:             nil,
+		L2SequencerClients: nil,
+	}))
+}
