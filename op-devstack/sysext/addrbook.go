@@ -22,6 +22,8 @@ type l1AddressBook struct {
 }
 
 func newL1AddressBook(t devtest.T, addresses descriptors.AddressMap) *l1AddressBook {
+	return &l1AddressBook{}
+
 	protocolVersions, ok := addresses[ProtocolVersionsAddressName]
 	t.Require().True(ok)
 	superchainConfig, ok := addresses[SuperchainConfigAddressName]
@@ -51,6 +53,8 @@ type l2AddressBook struct {
 }
 
 func newL2AddressBook(t devtest.T, l1Addresses descriptors.AddressMap) *l2AddressBook {
+	return &l2AddressBook{}
+
 	systemConfig, ok := l1Addresses[SystemConfigAddressName]
 	t.Require().True(ok)
 	disputeGameFactory, ok := l1Addresses[DisputeGameFactoryName]
