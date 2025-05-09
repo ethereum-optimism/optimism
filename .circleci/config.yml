@@ -1701,7 +1701,7 @@ jobs:
       - run:
           name: Store artifact in Bucket
           command: |
-            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-sink/metrics-authorship/metrics--authorship--op-acceptance-tests
+            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics--authorship--op-acceptance-tests
       # - store_artifacts:
       #     path: .metrics--authorship--op-e2e
       #     destination: metrics--authorship--op-e2e
@@ -2329,3 +2329,4 @@ workflows:
       - devnet-metrics-collect-authorship:
           context:
             - circleci-repo-readonly-authenticated-github-token
+            - oplabs-oplabs-network-data-bucket
