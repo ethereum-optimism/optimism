@@ -1280,7 +1280,7 @@ jobs:
           condition: on_fail
           steps:
             - discord-notification-failures-on-develop:
-                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
+                mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)" # stefano, changwan
                 message: "Acceptance tests failed for gate <<parameters.gate>> on devnet <<parameters.devnet>>"
 
   sanitize-op-program:
