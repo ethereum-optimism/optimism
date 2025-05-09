@@ -1701,10 +1701,8 @@ jobs:
       - run:
           name: Store artifact in Bucket
           command: |
-            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics--authorship--op-acceptance-tests
-      # - store_artifacts:
-      #     path: .metrics--authorship--op-e2e
-      #     destination: metrics--authorship--op-e2e
+            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics
+            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics-$CIRCLE_SHA1
 
 workflows:
   main:
