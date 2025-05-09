@@ -56,13 +56,7 @@ contract AddGameType is Script {
         IFaultDisputeGame faultDisputeGameProxy;
     }
 
-    function run(Input memory _agi) public returns (Output memory ago_) {
-        addGameType(_agi, ago_);
-        checkOutput(ago_);
-        return ago_;
-    }
-
-    function addGameType(Input memory _agi, Output memory _ago) internal {
+    function run(Input memory _agi) public returns (Output memory) {
         // Create the game input
         OPContractsManager.AddGameInput[] memory gameConfigs = new OPContractsManager.AddGameInput[](1);
         gameConfigs[0] = OPContractsManager.AddGameInput({
@@ -96,8 +90,10 @@ contract AddGameType is Script {
         // Decode the result and set it in the output
         OPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (OPContractsManager.AddGameOutput[]));
         require(outputs.length == 1, "AddGameType: unexpected number of outputs");
-        _ago.delayedWETHProxy = outputs[0].delayedWETH;
-        _ago.faultDisputeGameProxy = outputs[0].faultDisputeGame;
+        return Output({
+            delayedWETHProxy: outputs[0].delayedWETH,
+            faultDisputeGameProxy: outputs[0].faultDisputeGame
+        });
     }
 
     function checkOutput(Output memory _ago) internal view {
