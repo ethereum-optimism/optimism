@@ -20,14 +20,17 @@ import (
 // It ensures that the proxy is transparently proxying the call to the execution engine
 func TestSetMaxDASize(t *testing.T) {
 	t.Run("compliant sequencer", func(t *testing.T) {
-		testSetMaxDASize(t, true)
+		testSetMaxDASize(t, true, false)
 	})
 	t.Run("non-compliant sequencer", func(t *testing.T) {
-		testSetMaxDASize(t, false)
+		testSetMaxDASize(t, false, false)
+	})
+	t.Run("sequencer down", func(t *testing.T) {
+		testSetMaxDASize(t, true, true)
 	})
 }
 
-func testSetMaxDASize(t *testing.T, compliantSequencer bool) {
+func testSetMaxDASize(t *testing.T, compliantSequencer bool, sequencerDown bool) {
 	ctx := context.Background()
 	var expectationsFile string
 	if compliantSequencer {
@@ -35,29 +38,32 @@ func testSetMaxDASize(t *testing.T, compliantSequencer bool) {
 	} else {
 		expectationsFile = "testdata/non-compliant-sequencer.json"
 	}
+
 	sequencer := mockrpc.NewMockRPC(t, testlog.Logger(t, slog.LevelDebug), mockrpc.WithExpectationsFile(t, expectationsFile))
+	endpoint := sequencer.Endpoint()
 
 	config := mockConfig(t)
-	config.ExecutionRPC = sequencer.Endpoint()
-	config.NodeRPC = sequencer.Endpoint() // this won't be used but needs to be set to get the conductor to init properly
+	config.ExecutionRPC = endpoint
+	config.NodeRPC = endpoint // this won't be used but needs to be set to get the conductor to init properly
 	config.RPCEnableProxy = true
 	config.RPC.ListenAddr = "localhost"
 	config.RPC.ListenPort = 0 // Let the system pick a random port, which we will inspect later
 
+	logger, logs := testlog.CaptureLogger(t, slog.LevelDebug)
+
 	conductor, err := NewOpConductor(
 		ctx,
 		&config,
-		testlog.Logger(t, slog.LevelDebug),
+		logger,
 		&metrics.NoopMetricsImpl{},
 		"test-version",
 		&clientmocks.SequencerControl{}, // not used in this test
 		&consensusmocks.Consensus{},     // not used in this test
 		&healthmocks.HealthMonitor{},    // not used in this test
 	)
-
 	require.NoError(t, err)
 
-	// Start the the RPC server part of the conductor
+	// Start the RPC server part of the conductor
 	err = conductor.rpcServer.Start()
 	require.NoError(t, err)
 	defer func() { _ = conductor.rpcServer.Stop() }()
@@ -72,16 +78,32 @@ func testSetMaxDASize(t *testing.T, compliantSequencer bool) {
 	require.NoError(t, err)
 	defer rpcClient.Close()
 
+	if sequencerDown {
+		require.NoError(t, sequencer.Close())
+	}
+
 	var result bool
 	err = rpcClient.CallContext(ctx, &result, "miner_setMaxDASize", "0x1", "0x2")
+
+	if sequencerDown {
+		require.Error(t, err)
+		expectedLog := "proxy miner_setMaxDASize call failed"
+		r := logs.FindLog(testlog.NewMessageContainsFilter(expectedLog))
+		require.NotNil(t, r, "could not find log message containing '%s'", expectedLog)
+		return
+	}
 
 	if compliantSequencer {
 		require.NoError(t, err)
 		require.True(t, result)
-		t.Log("Proxied a successful miner_setMaxDASize call")
+		expectedLog := "successfully proxied miner_setMaxDASize call"
+		r := logs.FindLog(testlog.NewMessageContainsFilter(expectedLog))
+		require.NotNil(t, r, "could not find log message containing '%s'", expectedLog)
 	} else {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "Method not found")
-		t.Log("Proxied a failed miner_setMaxDASize call")
+		expectedLog := "proxy miner_setMaxDASize call returned an RPC error"
+		r := logs.FindLog(testlog.NewMessageContainsFilter(expectedLog))
+		require.NotNil(t, r, "could not find log message containing '%s'", expectedLog)
 	}
 }

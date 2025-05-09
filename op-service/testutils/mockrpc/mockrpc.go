@@ -73,6 +73,8 @@ type MockRPC struct {
 
 	lis net.Listener
 	err error
+
+	srv *http.Server
 }
 
 type Option func(*MockRPC)
@@ -113,6 +115,8 @@ func NewMockRPC(t *testing.T, lgr log.Logger, opts ...Option) *MockRPC {
 	srv := &http.Server{
 		Handler: m,
 	}
+
+	m.srv = srv
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -226,6 +230,10 @@ func (m *MockRPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (m *MockRPC) Close() error {
+	return m.srv.Shutdown(context.Background())
 }
 
 func (m *MockRPC) Endpoint() string {
