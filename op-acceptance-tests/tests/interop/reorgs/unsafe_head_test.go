@@ -167,7 +167,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 	err = wait.For(ctx, 5*time.Second, func() (bool, error) {
 		safeL2Head_A_supervisor := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
-		safeL2Head_A_sequencer := sys.L2CLNodeA.SafeL2BlockRef()
+		safeL2Head_A_sequencer := sys.L2CLA.SafeL2BlockRef()
 
 		if safeL2Head_A_sequencer.Number <= divergenceBlockNumber_A {
 			l.Info("Safe ref number is still behind divergence block number", "divergence", divergenceBlockNumber_A, "safe", safeL2Head_A_sequencer.Number)
