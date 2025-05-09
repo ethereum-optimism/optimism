@@ -1,6 +1,6 @@
 use super::OpNodeCore;
 use crate::{OpEthApi, OpEthApiError};
-use alloy_consensus::{transaction::Either, TxType};
+use alloy_consensus::TxType;
 use alloy_primitives::{Bytes, TxKind, U256};
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use op_revm::OpTransaction;
@@ -149,11 +149,7 @@ where
                 .map(|v| v.saturating_to())
                 .unwrap_or_default(),
             // EIP-7702 fields
-            authorization_list: authorization_list
-                .unwrap_or_default()
-                .into_iter()
-                .map(Either::Left)
-                .collect(),
+            authorization_list: authorization_list.unwrap_or_default(),
         };
 
         Ok(OpTransaction { base, enveloped_tx: Some(Bytes::new()), deposit: Default::default() })
