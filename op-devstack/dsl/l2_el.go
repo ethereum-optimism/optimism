@@ -1,9 +1,10 @@
 package dsl
 
 import (
+	"context"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"context"
 )
 
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
