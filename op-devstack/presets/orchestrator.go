@@ -102,15 +102,14 @@ func initOrchestrator(ctx context.Context, p devtest.P, opt stack.CommonOption) 
 	kind, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR")
 	if !ok {
 		p.Logger().Warn("Selecting sysgo as default devstack orchestrator")
-		kind = "sysgo"
+		kind = BackendSysGo
 	}
 
+	p.Logger().WithContext(ctx).Info("initializing orchestrator", "kind", kind)
 	switch kind {
-	case "sysgo":
-		p.Logger().WithContext(ctx).Info("initializing sysgo orchestrator")
+	case BackendSysGo:
 		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
-	case "sysext":
-		p.Logger().WithContext(ctx).Info("initializing sysext orchestrator")
+	case BackendSysExt:
 		lockedOrchestrator.Value = sysext.NewOrchestrator(p)
 	default:
 		p.Logger().Crit("Unknown devstack backend", "kind", kind)
