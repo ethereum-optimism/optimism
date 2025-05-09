@@ -2329,4 +2329,4 @@ workflows:
       - devnet-metrics-collect-authorship:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - oplabs-oplabs-network-data-bucket
+            - oplabs-tools-data-public-metrics-bucket
