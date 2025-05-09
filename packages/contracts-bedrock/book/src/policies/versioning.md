@@ -114,11 +114,11 @@ efforts on the trunk branch.
 The process is as follows:
 
 1. Make the fixes on `develop`. Increment the contracts semver as normal.
-2. Create a new release branch, named `proposal/op-contracts/X.Y.Z-rc.n+1` off of the rc tag.
+2. Create a new release branch, named `proposal/op-contracts/X.Y.Z` off of the rc tag.
 3. Cherry pick the fixes from `develop` into that branch. Instead of incrementing the semver as normal,
    append `-patch.n` to the end of the version number. The value of `n` should start at 1 and be
    incremented for each additional patch.
-4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.n+1`.
+4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.n`.
    Create a new release for this tag per the instructions above.
 
 Note: The reason for the larger semver increment on `develop` is to prevent a collision, wherein a
