@@ -85,7 +85,7 @@ func TestL2CLResync(gt *testing.T) {
 		advanced := prevBlockA.Number < blockA.Number && prevBlockB.Number < blockB.Number
 		prevBlockA, prevBlockB = blockA, blockB
 		return !advanced
-	}, 15*time.Second, waitTime)
+	}, 15*time.Second, waitTime*2)
 
 	// supervisor successfully connected with managed L2CLs
 }
