@@ -427,7 +427,7 @@ func TestInteropCrossSafeDependencyDelay(gt *testing.T) {
 
 	// Assert that the executing message in chain A only
 	// became cross-safe when the dependency of chain B became cross safe later.
-	source, err := actors.Supervisor.CrossDerivedFrom(t.Ctx(), actors.ChainA.ChainID, execTxIncludedIn.ID())
+	source, err := actors.Supervisor.CrossDerivedToSource(t.Ctx(), actors.ChainA.ChainID, execTxIncludedIn.ID())
 	require.NoError(t, err)
 	require.Equal(t, chainBSubmittedIn.NumberU64(), source.Number)
 }

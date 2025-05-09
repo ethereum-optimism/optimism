@@ -43,12 +43,6 @@ func (q *QueryFrontend) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {
 	return q.Supervisor.FinalizedL1(ctx)
 }
 
-// CrossDerivedFrom is deprecated, but remains for backwards compatibility to callers
-// it is equivalent to CrossDerivedToSource
-func (q *QueryFrontend) CrossDerivedFrom(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error) {
-	return q.Supervisor.CrossDerivedToSource(ctx, chainID, derived)
-}
-
 func (q *QueryFrontend) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error) {
 	return q.Supervisor.CrossDerivedToSource(ctx, chainID, derived)
 }
