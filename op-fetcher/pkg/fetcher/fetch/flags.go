@@ -27,7 +27,7 @@ var (
 	}
 	OutputFileFlag = &cli.StringFlag{
 		Name:  "output-file",
-		Usage: "file to write output json",
+		Usage: "(optional) file to write output json",
 	}
 )
 
