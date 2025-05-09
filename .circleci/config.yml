@@ -59,6 +59,9 @@ parameters:
   github-event-base64:
     type: string
     default: "__not_set__"
+  devnet-metrics-collect:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -2309,12 +2312,11 @@ workflows:
 
   devnet-metrics-collect:
     when:
-      and:
-        # FIXME change to develop after testing
-        - equal: ["jan/metrics--authors", <<pipeline.git.branch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
-
+      or:
+        - equal: [<< pipeline.trigger_source >>, "webhook"]
+        - and:
+          - equal: [true, << pipeline.parameters.devnet-metrics-collect >>]
+          - equal: [<< pipeline.trigger_source >>, "api"]
     jobs:
       - devnet-metrics-collect-authorship:
           context:
