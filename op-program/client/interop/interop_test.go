@@ -24,12 +24,10 @@ import (
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/types/interoptypes"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -171,14 +169,14 @@ const (
 )
 
 func TestDeriveBlockForConsolidateStep(t *testing.T) {
-	createExecMessage := func(initIncludedIn uint64, config *staticConfigSource, initChainIndex supervisortypes.ChainIndex) interoptypes.Message {
-		exec := interoptypes.Message{
-			Identifier: interoptypes.Identifier{
+	createExecMessage := func(initIncludedIn uint64, config *staticConfigSource, initChainIndex supervisortypes.ChainIndex) supervisortypes.Message {
+		exec := supervisortypes.Message{
+			Identifier: supervisortypes.Identifier{
 				Origin:      initiatingMessageOrigin,
 				BlockNumber: initIncludedIn,
 				LogIndex:    0,
 				Timestamp:   initIncludedIn * config.rollupCfgs[initChainIndex].BlockTime,
-				ChainID:     uint256.Int(eth.ChainIDFromBig(config.rollupCfgs[initChainIndex].L2ChainID)),
+				ChainID:     eth.ChainIDFromBig(config.rollupCfgs[initChainIndex].L2ChainID),
 			},
 			PayloadHash: initPayloadHash,
 		}
@@ -267,7 +265,7 @@ func TestDeriveBlockForConsolidateStep(t *testing.T) {
 				logBuilderFn: func(includeBlockNumbers map[supervisortypes.ChainIndex]uint64, config *staticConfigSource) map[supervisortypes.ChainIndex][]*gethTypes.Log {
 					init := createInitLog()
 					exec := createExecMessage(includeBlockNumbers[chainA], config, chainA)
-					exec.Identifier.ChainID = uint256.Int(eth.ChainIDFromUInt64(0xdeadbeef))
+					exec.Identifier.ChainID = eth.ChainIDFromUInt64(0xdeadbeef)
 					return map[supervisortypes.ChainIndex][]*gethTypes.Log{chainA: {init}, chainB: {convertExecutingMessageToLog(t, exec)}}
 				},
 				expectBlockReplacements: func(config *staticConfigSource) []supervisortypes.ChainIndex {
@@ -533,7 +531,7 @@ func createOutput(blockHash common.Hash) *eth.OutputV0 {
 	return &eth.OutputV0{BlockHash: blockHash}
 }
 
-func convertExecutingMessageToLog(t *testing.T, msg interoptypes.Message) *gethTypes.Log {
+func convertExecutingMessageToLog(t *testing.T, msg supervisortypes.Message) *gethTypes.Log {
 	id := msg.Identifier
 	data := make([]byte, 0, 32*5)
 	data = append(data, make([]byte, 12)...)
@@ -549,7 +547,7 @@ func convertExecutingMessageToLog(t *testing.T, msg interoptypes.Message) *gethT
 	require.Equal(t, len(data), 32*5)
 	return &gethTypes.Log{
 		Address: params.InteropCrossL2InboxAddress,
-		Topics:  []common.Hash{interoptypes.ExecutingMessageEventTopic, msg.PayloadHash},
+		Topics:  []common.Hash{supervisortypes.ExecutingMessageEventTopic, msg.PayloadHash},
 		Data:    data,
 	}
 }
@@ -613,12 +611,12 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 		initLog := &gethTypes.Log{Address: initiatingMessageOrigin, Topics: []common.Hash{initiatingMessageTopic}}
 		block1A, _ := createBlock(rng, configA, 1, gethTypes.Receipts{{Logs: []*gethTypes.Log{initLog}}})
 
-		exec := interoptypes.Message{
-			Identifier: interoptypes.Identifier{
+		exec := supervisortypes.Message{
+			Identifier: supervisortypes.Identifier{
 				Origin:      initiatingMessageOrigin,
 				BlockNumber: 1,
 				Timestamp:   block1A.Time(),
-				ChainID:     uint256.Int(eth.ChainIDFromBig(configB.L2ChainID)),
+				ChainID:     eth.ChainIDFromBig(configB.L2ChainID),
 			},
 			PayloadHash: initPayloadHash,
 		}

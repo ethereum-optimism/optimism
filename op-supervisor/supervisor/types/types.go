@@ -10,12 +10,11 @@ import (
 
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -24,6 +23,8 @@ var (
 	errUnrecognizedSafetyLevel = errors.New("unrecognized safety level")
 	errInvalidParentBlock      = errors.New("invalid parent block")
 )
+
+var ExecutingMessageEventTopic = crypto.Keccak256Hash([]byte("ExecutingMessage(bytes32,(address,uint256,uint256,uint256,uint256))"))
 
 // ChainIndex represents the lifetime of a chain in a dependency set.
 // Warning: JSON-encoded as string, in base-10.
@@ -132,6 +133,50 @@ func (m *Message) Checksum() MessageChecksum {
 
 func (m *Message) Access() Access {
 	return m.ToCheckSumArgs().Access()
+}
+
+func (m *Message) DecodeEvent(topics []common.Hash, data []byte) error {
+	if len(topics) != 2 { // event hash, indexed payloadHash
+		return fmt.Errorf("unexpected number of event topics: %d", len(topics))
+	}
+	if topics[0] != ExecutingMessageEventTopic {
+		return fmt.Errorf("unexpected event topic %q", topics[0])
+	}
+	if len(data) != 32*5 {
+		return fmt.Errorf("unexpected identifier data length: %d", len(data))
+	}
+	take := func(length uint) []byte {
+		taken := data[:length]
+		data = data[length:]
+		return taken
+	}
+	takeZeroes := func(length uint) error {
+		for _, v := range take(length) {
+			if v != 0 {
+				return errors.New("expected zero")
+			}
+		}
+		return nil
+	}
+	if err := takeZeroes(12); err != nil {
+		return fmt.Errorf("invalid address padding: %w", err)
+	}
+	m.Identifier.Origin = common.Address(take(20))
+	if err := takeZeroes(32 - 8); err != nil {
+		return fmt.Errorf("invalid block number padding: %w", err)
+	}
+	m.Identifier.BlockNumber = binary.BigEndian.Uint64(take(8))
+	if err := takeZeroes(32 - 4); err != nil {
+		return fmt.Errorf("invalid log index padding: %w", err)
+	}
+	m.Identifier.LogIndex = binary.BigEndian.Uint32(take(4))
+	if err := takeZeroes(32 - 8); err != nil {
+		return fmt.Errorf("invalid timestamp padding: %w", err)
+	}
+	m.Identifier.Timestamp = binary.BigEndian.Uint64(take(8))
+	m.Identifier.ChainID = eth.ChainIDFromBytes32([32]byte(take(32)))
+	m.PayloadHash = topics[1]
+	return nil
 }
 
 type ChecksumArgs struct {
