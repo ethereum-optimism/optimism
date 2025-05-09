@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestL2CLResync checks that unsafe head advances after restarting L2CL.
+// Resync is only possible when supervisor and L2CL reconnects.
 func TestL2CLResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := SimpleInterop(t)
