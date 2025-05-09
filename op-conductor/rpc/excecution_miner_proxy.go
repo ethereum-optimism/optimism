@@ -2,10 +2,12 @@ package rpc
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var ExecutionMinerRPCNamespace = "miner"
@@ -31,11 +33,21 @@ func (api *ExecutionMinerProxyBackend) SetMaxDASize(ctx context.Context, maxTxSi
 	var result bool
 	err := api.client.Client().Call(&result, "miner_setMaxDASize", maxTxSize, maxBlockSize)
 	if err != nil {
-		api.log.Debug("proxy miner_setMaxDASize call failed",
-			"err", err,
-			"maxTxSize", maxTxSize,
-			"maxBlockSize", maxBlockSize,
-			"method", "miner_setMaxDASize")
+		var rpcErr rpc.Error
+		switch {
+		case errors.As(err, &rpcErr):
+			api.log.Debug("proxy miner_setMaxDASize call returned an RPC error",
+				"err", err,
+				"maxTxSize", maxTxSize,
+				"maxBlockSize", maxBlockSize,
+				"method", "miner_setMaxDASize")
+		default:
+			api.log.Warn("proxy miner_setMaxDASize call failed",
+				"err", err,
+				"maxTxSize", maxTxSize,
+				"maxBlockSize", maxBlockSize,
+				"method", "miner_setMaxDASize")
+		}
 		return false, err
 	}
 	api.log.Debug("successfully proxied miner_setMaxDASize call",
