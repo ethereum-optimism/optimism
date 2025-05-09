@@ -48,7 +48,7 @@ func WithAllLocalUnsafeHeadsAdvancedBy(blocks uint64) func(cfg *VerifySyncStatus
 func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfig)) {
 	cfg := applyOpts(VerifySyncStatusConfig{}, opts...)
 	initial := s.FetchSyncStatus()
-	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
 		status := s.FetchSyncStatus()
@@ -69,7 +69,7 @@ func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfi
 
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
-	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
 		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)
@@ -87,7 +87,7 @@ func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 }
 
 func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
-	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
 		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)

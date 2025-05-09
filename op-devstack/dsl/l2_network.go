@@ -69,13 +69,13 @@ func (n *L2Network) CatchUpTo(o *L2Network) {
 func (n *L2Network) WaitForBlock() {
 	l2_el := n.inner.L2ELNode(match.FirstL2EL)
 
-	initial, err := l2_el.EthClient().InfoByLabel(n.ctx, "latest")
+	initial, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
 	n.require.NoError(err, "Expected to get latest block from L2 execution client")
 
 	initialHash := initial.Hash()
 
 	err = wait.For(n.ctx, 1000*time.Millisecond, func() (bool, error) {
-		latest, err := l2_el.EthClient().InfoByLabel(n.ctx, "latest")
+		latest, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
 		if err != nil {
 			return false, err
 		}
@@ -124,7 +124,7 @@ func (n *L2Network) PrintChain() {
 func (n *L2Network) UnsafeHeadRef() eth.BlockRef {
 	l2_el := n.inner.L2ELNode(match.FirstL2EL)
 
-	unsafeHead, err := l2_el.EthClient().InfoByLabel(n.ctx, "latest")
+	unsafeHead, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
 	n.require.NoError(err, "Expected to get latest block from L2 execution client")
 
 	unsafeHeadRef, err := l2_el.EthClient().BlockRefByHash(n.ctx, unsafeHead.Hash())

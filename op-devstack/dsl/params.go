@@ -2,4 +2,4 @@ package dsl
 
 import "time"
 
-const defaultTimeout = 30 * time.Second
+const DefaultTimeout = 30 * time.Second
