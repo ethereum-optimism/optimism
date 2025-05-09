@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	ProtocolVersionsAddressName = "protocolVersionsProxy"
-	SuperchainConfigAddressName = "superchainConfigProxy"
+	ProtocolVersionsAddressName = "ProtocolVersionsProxy"
+	SuperchainConfigAddressName = "SuperchainConfigProxy"
 
-	SystemConfigAddressName = "systemConfigProxy"
-	DisputeGameFactoryName  = "disputeGameFactoryProxy"
+	SystemConfigAddressName = "SystemConfigProxy"
+	DisputeGameFactoryName  = "DisputeGameFactoryProxy"
 )
 
 type l1AddressBook struct {
