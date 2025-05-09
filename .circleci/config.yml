@@ -1863,6 +1863,7 @@ workflows:
             devnet-sdk
             op-acceptance-tests
             kurtosis-devnet
+            op-devstack
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
