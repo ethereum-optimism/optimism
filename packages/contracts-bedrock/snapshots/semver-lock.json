@@ -204,8 +204,8 @@
     "sourceCodeHash": "0x42151e2547ec5270353977fd66e78fa1fde18f362d7021cf7ddce16d5201b3ec"
   },
   "src/vendor/asterisc/RISCV.sol:RISCV": {
-    "initCodeHash": "0x7329cca924e189eeaa2d883234f6cb5fd787c8bf3339d8298e721778c2947ce5",
-    "sourceCodeHash": "0x02025b303a8f37b4e541f8c7936a8651402a60ea0147a53176e06b51b15a1f84"
+    "initCodeHash": "0x4cd639f7da4eaf86a98eb3227fe285c0e8380ff5c79c4745aefed804cef52162",
+    "sourceCodeHash": "0x1d18c55a910212cc7572d2e8673c5f092db8352dda1137739c71df18d4ee1db1"
   },
   "src/vendor/eas/EAS.sol:EAS": {
     "initCodeHash": "0xbd79d6fff128b3da3e09ead84b805b7540740190488f2791a6b4e5b7aabf9cff",

@@ -7,11 +7,11 @@ variable "REPOSITORY" {
 }
 
 variable "KONA_VERSION" {
-  default = "0.1.0-beta.18"
+  default = "1.0.1"
 }
 
 variable "ASTERISC_VERSION" {
-  default = "v1.2.0"
+  default = "v1.3.0"
 }
 
 variable "GIT_COMMIT" {
