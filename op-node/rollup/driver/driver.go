@@ -35,8 +35,6 @@ type Metrics interface {
 	RecordPublishingError()
 	RecordDerivationError()
 
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
-
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordChannelInputBytes(inputCompressedBytes int)
@@ -154,6 +152,7 @@ type SequencerStateListener interface {
 
 type Drain interface {
 	Drain() error
+	Await() <-chan struct{}
 }
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
@@ -223,7 +222,6 @@ func NewDriver(
 		L2:             l2,
 		Log:            log,
 		Ctx:            driverCtx,
-		Drain:          drain.Drain,
 		ManagedMode:    managedMode,
 	}
 	sys.Register("sync", syncDeriver)
@@ -249,24 +247,20 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker:    statusTracker,
-		SyncDeriver:      syncDeriver,
-		sched:            schedDeriv,
-		emitter:          driverEmitter,
-		drain:            drain.Drain,
-		stateReq:         make(chan chan struct{}),
-		forceReset:       make(chan chan struct{}, 10),
-		driverConfig:     driverCfg,
-		driverCtx:        driverCtx,
-		driverCancel:     driverCancel,
-		log:              log,
-		sequencer:        sequencer,
-		metrics:          metrics,
-		l1HeadSig:        make(chan eth.L1BlockRef, 10),
-		l1SafeSig:        make(chan eth.L1BlockRef, 10),
-		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *eth.ExecutionPayloadEnvelope, 10),
-		altSync:          altSync,
+		statusTracker: statusTracker,
+		SyncDeriver:   syncDeriver,
+		sched:         schedDeriv,
+		emitter:       driverEmitter,
+		drain:         drain,
+		stateReq:      make(chan chan struct{}),
+		forceReset:    make(chan chan struct{}, 10),
+		driverConfig:  driverCfg,
+		driverCtx:     driverCtx,
+		driverCancel:  driverCancel,
+		log:           log,
+		sequencer:     sequencer,
+		metrics:       metrics,
+		altSync:       altSync,
 	}
 
 	return driver

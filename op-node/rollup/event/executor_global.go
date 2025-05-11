@@ -209,7 +209,10 @@ func (gs *GlobalSyncExec) DrainUntil(fn func(ev Event) bool, excl bool) error {
 			ev = AnnotatedEvent{}
 			stopExcl = true
 		} else {
-			gs.events.Pop()
+			popped := gs.events.Pop()
+			if ev != popped {
+				panic("expected popped event to match")
+			}
 		}
 		if stop {
 			stopIncl = true

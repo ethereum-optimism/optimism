@@ -16,9 +16,11 @@ type Registry interface {
 	// deriver may be nil, not all registrants have to process events.
 	// A non-nil deriver may implement AttachEmitter to automatically attach the Emitter to it,
 	// before the deriver itself becomes executable.
+	// A non-nil deriver may implement Unattach to close resources upon being unregistered.
 	Register(name string, deriver Deriver, opts ...RegisterOption) Emitter
 	// Unregister removes a named emitter,
 	// also removing it from the set of events-receiving derivers (if registered with non-nil deriver).
+	// If the originally attached Deriver implements Unattach it will be notified.
 	Unregister(name string) (old Emitter)
 }
 
@@ -36,6 +38,11 @@ type System interface {
 
 type AttachEmitter interface {
 	AttachEmitter(em Emitter)
+}
+
+// Unattach is called when a deriver/emitter is unregistered from the system.
+type Unattach interface {
+	Unattach()
 }
 
 type AnnotatedEvent struct {
@@ -189,6 +196,9 @@ func (s *Sys) unregister(name string) (previous Emitter) {
 		r.leaveExecutor()
 	}
 	delete(s.regs, name)
+	if cl, ok := r.deriv.(Unattach); ok {
+		cl.Unattach()
+	}
 	return r
 }
 

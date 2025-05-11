@@ -178,7 +178,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		L2:             eng,
 		Log:            log,
 		Ctx:            ctx,
-		Drain:          executor.Drain,
 		ManagedMode:    managedMode,
 	}, opts)
 

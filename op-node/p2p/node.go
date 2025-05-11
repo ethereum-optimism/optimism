@@ -110,6 +110,9 @@ func (n *NodeP2P) init(
 		return fmt.Errorf("failed to start p2p host: %w", err)
 	}
 
+	// Don't ingest blocks that we publish ourselves
+	gossipIn = NewFilterSelf(n.host.ID(), gossipIn)
+
 	// Enable extra features, if any. During testing we don't setup the most advanced host all the time.
 	if extra, ok := n.host.(ExtraHostFeatures); ok {
 		n.gater = extra.ConnectionGater()

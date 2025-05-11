@@ -94,6 +94,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 
 // ActL2StartBlock starts building of a new L2 block on top of the head
 func (s *L2Sequencer) ActL2StartBlock(t Testing) {
+	require.NoError(t, s.drainer.Drain()) // can't build when other work is still blocking
 	if !s.L2PipelineIdle {
 		t.InvalidAction("cannot start L2 build when derivation is not idle")
 		return

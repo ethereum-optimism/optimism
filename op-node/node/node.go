@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum"
 	gethevent "github.com/ethereum/go-ethereum/event"
@@ -25,9 +24,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -59,7 +60,7 @@ type OpNode struct {
 	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
 
 	eventSys   event.System
-	eventDrain event.Drainer
+	eventDrain driver.Drain
 
 	l1Source  *sources.L1Client     // L1 Client to fetch data from
 	l2Driver  *driver.Driver        // L2 Engine to Sync
@@ -68,7 +69,6 @@ type OpNode struct {
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pMu     gosync.Mutex          // protects p2pNode
 	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
-	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
 
 	safeDB closableSafeDB
@@ -81,6 +81,8 @@ type OpNode struct {
 	beacon *sources.L1BeaconClient
 
 	interopSys interop.SubSystem
+
+	apiEmitter event.Emitter // any API requests that need to emit events can emit from this
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -96,9 +98,6 @@ type OpNode struct {
 	cancel context.CancelCauseFunc
 	halted atomic.Bool
 }
-
-// The OpNode handles incoming gossip
-var _ p2p.GossipIn = (*OpNode)(nil)
 
 // New creates a new OpNode instance.
 // The provided ctx argument is for the span of initialization only;
@@ -133,10 +132,10 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string, m 
 
 func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
+	n.initEventSystem()
 	if err := n.initTracer(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init the trace: %w", err)
 	}
-	n.initEventSystem()
 	if err := n.initL1(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L1: %w", err)
 	}
@@ -178,13 +177,12 @@ func (n *OpNode) initEventSystem() {
 	sys.Register("node", event.DeriverFunc(n.onEvent))
 	n.eventSys = sys
 	n.eventDrain = executor
+	n.apiEmitter = sys.Register("node-api", nil)
 }
 
 func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
 	if cfg.Tracer != nil {
-		n.tracer = cfg.Tracer
-	} else {
-		n.tracer = new(noOpTracer)
+		n.eventSys.Register("tracer", NewTracerDeriver(cfg.Tracer))
 	}
 	return nil
 }
@@ -204,12 +202,23 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to validate the L1 config: %w", err)
 	}
 
+	emitter := n.eventSys.Register("l1-signals", nil)
+	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
+		emitter.Emit(status.L1UnsafeEvent{L1Unsafe: sig})
+	}
+	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
+		emitter.Emit(status.L1SafeEvent{L1Safe: sig})
+	}
+	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
+		emitter.Emit(finality.FinalizeL1Event{FinalizedL1: sig})
+	}
+
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
 	n.l1HeadsSub = gethevent.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (gethevent.Subscription, error) {
 		if err != nil {
 			n.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(ctx, n.l1Source, n.OnNewL1Head)
+		return eth.WatchHeadChanges(ctx, n.l1Source, onL1Head)
 	})
 	go func() {
 		err, ok := <-n.l1HeadsSub.Err()
@@ -221,9 +230,9 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 
 	// Poll for the safe L1 block and finalized block,
 	// which only change once per epoch at most and may be delayed.
-	n.l1SafeSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
+	n.l1SafeSub = eth.PollBlockChanges(n.log, n.l1Source, onL1Safe, eth.Safe,
 		cfg.L1EpochPollInterval, time.Second*10)
-	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
+	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, onL1Finalized, eth.Finalized,
 		cfg.L1EpochPollInterval, time.Second*10)
 	return nil
 }
@@ -522,8 +531,9 @@ func (n *OpNode) initP2P(cfg *Config) (err error) {
 		panic("p2p node already initialized")
 	}
 	if n.p2pEnabled() {
-		// TODO(protocol-quest#97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
-		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.l2Source, n.runCfg, n.metrics, false)
+		em := n.eventSys.Register("p2p-block-receiver", nil)
+		rec := p2p.NewBlockReceiver(n.log, em, n.metrics)
+		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, rec, n.l2Source, n.runCfg, n.metrics, false)
 		if err != nil {
 			return
 		}
@@ -575,46 +585,8 @@ func (n *OpNode) onEvent(ev event.Event) bool {
 	}
 }
 
-func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
-	n.tracer.OnNewL1Head(ctx, sig)
-
-	if n.l2Driver == nil {
-		return
-	}
-	// Pass on the event to the L2 Engine
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := n.l2Driver.OnL1Head(ctx, sig); err != nil {
-		n.log.Warn("failed to notify engine driver of L1 head change", "err", err)
-	}
-}
-
-func (n *OpNode) OnNewL1Safe(ctx context.Context, sig eth.L1BlockRef) {
-	if n.l2Driver == nil {
-		return
-	}
-	// Pass on the event to the L2 Engine
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := n.l2Driver.OnL1Safe(ctx, sig); err != nil {
-		n.log.Warn("failed to notify engine driver of L1 safe block change", "err", err)
-	}
-}
-
-func (n *OpNode) OnNewL1Finalized(ctx context.Context, sig eth.L1BlockRef) {
-	if n.l2Driver == nil {
-		return
-	}
-	// Pass on the event to the L2 Engine
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	if err := n.l2Driver.OnL1Finalized(ctx, sig); err != nil {
-		n.log.Warn("failed to notify engine driver of L1 finalized block change", "err", err)
-	}
-}
-
 func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	n.tracer.OnPublishL2Payload(ctx, signedEnvelope.Envelope)
+	n.apiEmitter.Emit(TracePublishBlockEvent{signedEnvelope.Envelope})
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
 		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
@@ -623,8 +595,7 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 }
 
 func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	n.tracer.OnPublishL2Payload(ctx, envelope)
-
+	n.apiEmitter.Emit(TracePublishBlockEvent{envelope})
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
@@ -634,28 +605,6 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, envelope, n.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
-	return nil
-}
-
-func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
-	// ignore if it's from ourselves
-	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil && from == p2pNode.Host().ID() {
-		return nil
-	}
-
-	n.tracer.OnUnsafeL2Payload(ctx, from, envelope)
-
-	n.log.Info("Received signed execution payload from p2p", "id", envelope.ExecutionPayload.ID(), "peer", from,
-		"txs", len(envelope.ExecutionPayload.Transactions))
-
-	// Pass on the event to the L2 Engine
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-	defer cancel()
-
-	if err := n.l2Driver.OnUnsafeL2Payload(ctx, envelope); err != nil {
-		n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", envelope.ExecutionPayload.ID())
-	}
-
 	return nil
 }
 
