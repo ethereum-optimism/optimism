@@ -175,7 +175,7 @@ func (n *OpNode) initEventSystem() {
 	executor := event.NewGlobalSynchronous(n.resourcesCtx)
 	sys := event.NewSystem(n.log, executor)
 	sys.AddTracer(event.NewMetricsTracer(n.metrics))
-	sys.Register("node", event.DeriverFunc(n.onEvent), event.DefaultRegisterOpts())
+	sys.Register("node", event.DeriverFunc(n.onEvent))
 	n.eventSys = sys
 	n.eventDrain = executor
 }
@@ -411,7 +411,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 			managedMode = ok
 		}
 		n.interopSys = sys
-		n.eventSys.Register("interop", n.interopSys, event.DefaultRegisterOpts())
+		n.eventSys.Register("interop", n.interopSys)
 	}
 
 	var sequencerConductor conductor.SequencerConductor = &conductor.NoOpConductor{}

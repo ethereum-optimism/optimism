@@ -178,25 +178,23 @@ func NewDriver(
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 
-	opts := event.DefaultRegisterOpts()
-
 	statusTracker := status.NewStatusTracker(log, metrics)
-	sys.Register("status", statusTracker, opts)
+	sys.Register("status", statusTracker)
 
 	l1Tracker := status.NewL1Tracker(l1)
-	sys.Register("l1-blocks", l1Tracker, opts)
+	sys.Register("l1-blocks", l1Tracker)
 
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
 	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil, opts))
+		sys.Register("engine-controller", nil))
 
 	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg), opts)
+		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
 
 	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
-	sys.Register("cl-sync", clSync, opts)
+	sys.Register("cl-sync", clSync)
 
 	var finalizer Finalizer
 	if cfg.AltDAEnabled() {
@@ -204,15 +202,15 @@ func NewDriver(
 	} else {
 		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1)
 	}
-	sys.Register("finalizer", finalizer, opts)
+	sys.Register("finalizer", finalizer)
 
 	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, driverCtx, l2), opts)
+		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, altDA, l2, metrics, managedMode)
 
 	sys.Register("pipeline",
-		derive.NewPipelineDeriver(driverCtx, derivationPipeline), opts)
+		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
 
 	syncDeriver := &SyncDeriver{
 		Derivation:     derivationPipeline,
@@ -228,12 +226,12 @@ func NewDriver(
 		Drain:          drain.Drain,
 		ManagedMode:    managedMode,
 	}
-	sys.Register("sync", syncDeriver, opts)
+	sys.Register("sync", syncDeriver)
 
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec), opts)
+	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
 
 	schedDeriv := NewStepSchedulingDeriver(log)
-	sys.Register("step-scheduler", schedDeriv, opts)
+	sys.Register("step-scheduler", schedDeriv)
 
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
@@ -241,15 +239,15 @@ func NewDriver(
 		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
-		sys.Register("origin-selector", findL1Origin, opts)
+		sys.Register("origin-selector", findL1Origin)
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
-		sys.Register("sequencer", sequencer, opts)
+		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
 	}
 
-	driverEmitter := sys.Register("driver", nil, opts)
+	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
 		statusTracker:    statusTracker,
 		SyncDeriver:      syncDeriver,

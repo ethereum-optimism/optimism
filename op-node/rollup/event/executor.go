@@ -14,6 +14,6 @@ func (fn ExecutableFunc) RunEvent(ev AnnotatedEvent) {
 }
 
 type Executor interface {
-	Add(d Executable, opts *ExecutorOpts) (leaveExecutor func())
+	Add(d Executable, cfg *ExecutorConfig) (leaveExecutor func())
 	Enqueue(ev AnnotatedEvent) error
 }
