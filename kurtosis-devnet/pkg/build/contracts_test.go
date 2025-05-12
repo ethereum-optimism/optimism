@@ -244,7 +244,7 @@ func TestContractBuilder_Build(t *testing.T) {
 			builder.enclaveManager = enclaveManager
 
 			// Execute build
-			output, err := builder.Build("")
+			output, err := builder.Build(context.Background(), "")
 
 			// Verify results
 			if tt.expectError {

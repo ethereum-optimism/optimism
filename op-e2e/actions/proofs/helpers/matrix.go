@@ -135,3 +135,14 @@ var (
 func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
 	return append(ForkMatrix{}, forks...)
 }
+
+func FaultProofForks() ForkMatrix {
+	var forks ForkMatrix
+	for _, hf := range Hardforks {
+		if hf == Regolith || hf == Canyon || hf == Delta {
+			continue
+		}
+		forks = append(forks, hf)
+	}
+	return forks
+}

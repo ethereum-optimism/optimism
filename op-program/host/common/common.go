@@ -25,10 +25,11 @@ type Prefetcher interface {
 }
 type PrefetcherCreator func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (Prefetcher, error)
 type programCfg struct {
-	prefetcher     PrefetcherCreator
-	skipValidation bool
-	db             l2.KeyValueStore
-	storeBlockData bool
+	prefetcher       PrefetcherCreator
+	skipValidation   bool
+	db               l2.KeyValueStore
+	storeBlockData   bool
+	forceHintChainID bool
 }
 
 type ProgramOpt func(c *programCfg)
@@ -60,6 +61,13 @@ func WithDB(db l2.KeyValueStore) ProgramOpt {
 func WithStoreBlockData(store bool) ProgramOpt {
 	return func(c *programCfg) {
 		c.storeBlockData = store
+	}
+}
+
+// WithForceHintChainID controls whether hints are forced to include the chain ID even if interop is disabled.
+func WithForceHintChainID(force bool) ProgramOpt {
+	return func(c *programCfg) {
+		c.forceHintChainID = force
 	}
 }
 
@@ -141,6 +149,7 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 		clientCfg.InteropEnabled = cfg.InteropEnabled
 		clientCfg.DB = programConfig.db
 		clientCfg.StoreBlockData = programConfig.storeBlockData
+		clientCfg.ForceHintChainID = programConfig.forceHintChainID
 		return cl.RunProgram(logger, pClientRW, hClientRW, clientCfg)
 	}
 }

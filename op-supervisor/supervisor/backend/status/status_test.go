@@ -87,8 +87,8 @@ func TestUpdateCrossSafe(t *testing.T) {
 	status, err := tracker.SyncStatus()
 	require.NoError(t, err)
 	require.Equal(t, chain1Safe.Derived.Timestamp, status.SafeTimestamp)
-	require.Equal(t, chain1Safe.Derived.ID(), status.Chains[chain1].Safe)
-	require.Equal(t, chain2Safe.Derived.ID(), status.Chains[chain2].Safe)
+	require.Equal(t, chain1Safe.Derived.ID(), status.Chains[chain1].CrossSafe)
+	require.Equal(t, chain2Safe.Derived.ID(), status.Chains[chain2].CrossSafe)
 }
 
 func TestUpdateFinalized(t *testing.T) {

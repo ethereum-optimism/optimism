@@ -11,11 +11,10 @@ This is a service that takes `SystemConfigProxy` and `L1StandardBridgeProxy` as 
 cd <repo-root>/op-fetcher
 just build-all
 ```
-2. Fetch data onchain for a single opchain and write results to json file
+2. Fetch data onchain for a single opchain and print results
 ```
-./bin/op-fetcher fetch \
+go run ./cmd fetch \
   --l1-rpc-url "<l1-rpc-url>" \
   --system-config "<system-config-proxy-address>" \
-  --l1-standard-bridge "<l1-standard-bridge-proxy-address>" \
-  --output-file "./.fetcher/out.json"
+  --l1-standard-bridge "<l1-standard-bridge-proxy-address>"
 ```

@@ -10,7 +10,7 @@ var descriptions = map[string]string{
 	// SystemConfig validations
 	"SYSCON-10":  "SystemConfig version mismatch",
 	"SYSCON-20":  "SystemConfig gas limit is not set to 60,000,000",
-	"SYSCON-30":  "SystemConfig scalar is not set to 1",
+	"SYSCON-30":  "SystemConfig scalar is set to zero",
 	"SYSCON-40":  "SystemConfig implementation address mismatch",
 	"SYSCON-50":  "SystemConfig maxResourceLimit is not set to 20,000,000",
 	"SYSCON-60":  "SystemConfig elasticityMultiplier is not set to 10",
@@ -59,7 +59,6 @@ var descriptions = map[string]string{
 	"PORTAL-40": "OptimismPortal systemConfig address mismatch",
 	"PORTAL-50": "OptimismPortal superchainConfig address mismatch",
 	"PORTAL-60": "OptimismPortal guardian address mismatch",
-	"PORTAL-70": "OptimismPortal paused state mismatch with superchainConfig",
 	"PORTAL-80": "OptimismPortal l2Sender not set to default value",
 
 	// Dispute Factory validations

@@ -59,6 +59,9 @@ parameters:
   github-event-base64:
     type: string
     default: "__not_set__"
+  devnet-metrics-collect:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -1254,11 +1257,33 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
+      # Before we have a more sturdy log dump solution, we'll simply use the kurtosis-specific dump command
+      # to store all service logs as job artifacts
+      - run:
+          name: Dump kurtosis logs
+          when: on_fail
+          command: |
+            # Dump logs & specs
+            kurtosis dump ./.kurtosis-dump
+
+            # Remove spec.json files
+            rm -rf ./.kurtosis-dump/enclaves/**/*.json
+
+            # Remove all unnecessary logs
+            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
+            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
+            rm -rf ./.kurtosis-dump/enclaves/*/task-*
+      - when:
+          condition: always
+          steps:
+            - store_artifacts:
+                path: ./.kurtosis-dump/enclaves
+                destination: op-acceptance-tests/kurtosis-logs
       - when:
           condition: on_fail
           steps:
             - discord-notification-failures-on-develop:
-                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
+                mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)" # stefano, changwan
                 message: "Acceptance tests failed for gate <<parameters.gate>> on devnet <<parameters.devnet>>"
 
   sanitize-op-program:
@@ -1661,6 +1686,24 @@ jobs:
             MESSAGE: << parameters.message >>
             LABEL_NAME: << parameters.label_name >>
 
+  devnet-metrics-collect-authorship:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    steps:
+      - utils/checkout-with-mise
+      - run:
+          name: Collect devnet metrics for op-acceptance-tests
+          command: ./devnet-sdk/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
+          oidc_token_file_path: /tmp/oidc_token.json
+      - run:
+          name: Store artifact in Bucket
+          command: |
+            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics
+            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics-$CIRCLE_SHA1
+
 workflows:
   main:
     when:
@@ -1813,6 +1856,7 @@ workflows:
             op-program
             op-service
             op-supervisor
+            op-test-sequencer
             op-deployer
             op-fetcher
             op-validator
@@ -1828,6 +1872,7 @@ workflows:
             devnet-sdk
             op-acceptance-tests
             kurtosis-devnet
+            op-devstack
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
@@ -1851,6 +1896,7 @@ workflows:
             - op-dispute-mon-docker-build
             - op-program-docker-build
             - op-supervisor-docker-build
+            - op-test-sequencer-docker-build
             - go-tests
             - sanitize-op-program
           context:
@@ -1871,6 +1917,7 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
           context:
@@ -1948,6 +1995,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-test-sequencer
                 - op-deployer
                 - cannon
                 - op-dripper
@@ -1979,6 +2027,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-test-sequencer
                 - op-deployer
                 - cannon
                 - op-dripper
@@ -1993,6 +2042,7 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
+            - op-test-sequencer-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
           context:
@@ -2150,6 +2200,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
           name: <<matrix.docker_name>>-docker-publish
@@ -2172,6 +2223,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
           name: <<matrix.op_component>>-cross-platform
@@ -2264,3 +2316,16 @@ workflows:
                 This issue will be closed now."
          context:
           - circleci-repo-optimism
+
+  devnet-metrics-collect:
+    when:
+      or:
+        - equal: [<< pipeline.trigger_source >>, "webhook"]
+        - and:
+          - equal: [true, << pipeline.parameters.devnet-metrics-collect >>]
+          - equal: [<< pipeline.trigger_source >>, "api"]
+    jobs:
+      - devnet-metrics-collect-authorship:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-tools-data-public-metrics-bucket

@@ -396,6 +396,7 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 }
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
+
 	switch fork {
 	case rollup.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
@@ -555,8 +556,30 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 	}
 }
 
+// SolidityForkNumber converts a genesis time to a fork number suitable for use with
+// the Fork enum in ForkUtils.sol.
+func (d *UpgradeScheduleDeployConfig) SolidityForkNumber(genesisTime uint64) int64 {
+	forks := d.forks()
+	for i := len(forks) - 1; i >= 0; i-- {
+		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
+			// Subtract 1 since Solidity has a "none" fork type
+			return int64(i - 1)
+		}
+		// the oldest L2AllocsMode is delta
+		if forks[i].Name == string(L2AllocsDelta) {
+			return 1
+		}
+	}
+	panic("should never reach here")
+}
+
+// Check ensures that:
+//  1. parent fork is before or at the same time as child fork
+//  2. forks cannot activate at the same post-Genesis block
 func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
-	// checkFork checks that fork A is before or at the same time as fork B
+	// checkFork checks that:
+	//  1. fork A is before or at the same time as fork B
+	//  2. fork A and B cannot activate at the same post-Genesis block
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
 		if a == nil && b == nil {
 			return nil
@@ -569,6 +592,9 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 		}
 		if *a > *b {
 			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+		}
+		if *a == *b && *a != 0 {
+			return fmt.Errorf("both fork %s and %s are set to %d: Forks in general cannot activate at the same post-Genesis block", aName, bName, *b)
 		}
 		return nil
 	}

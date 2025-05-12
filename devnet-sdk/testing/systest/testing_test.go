@@ -144,7 +144,7 @@ func (m *mockSupervisor) FinalizedL1(ctx context.Context) (eth.BlockRef, error) 
 	return eth.BlockRef{}, nil
 }
 
-func (m *mockSupervisor) CrossDerivedFrom(ctx context.Context, chainID eth.ChainID, blockID eth.BlockID) (eth.BlockRef, error) {
+func (m *mockSupervisor) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, blockID eth.BlockID) (eth.BlockRef, error) {
 	return eth.BlockRef{}, nil
 }
 

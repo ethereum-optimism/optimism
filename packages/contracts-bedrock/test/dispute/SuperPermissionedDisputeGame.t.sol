@@ -5,22 +5,16 @@ pragma solidity ^0.8.15;
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
-// Scripts
-import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-
 // Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
 // Interfaces
-import { IPreimageOracle } from "interfaces/dispute/IBigStepper.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 
 contract SuperPermissionedDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
-    GameType internal constant GAME_TYPE = GameType.wrap(1);
+    GameType internal constant GAME_TYPE = GameType.wrap(5);
     /// @dev Mock proposer key
     address internal constant PROPOSER = address(0xfacade9);
     /// @dev Mock challenger key
@@ -37,62 +31,19 @@ contract SuperPermissionedDisputeGame_Init is DisputeGameFactory_Init {
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
     function init(Claim rootClaim, Claim absolutePrestate, uint256 l2BlockNumber) public {
-        if (isForkTest()) {
-            // Fund the proposer on this fork.
-            vm.deal(PROPOSER, 100 ether);
-        } else {
-            // Set the time to a realistic date.
+        // Set the time to a realistic date.
+        if (!isForkTest()) {
             vm.warp(1690906994);
         }
+
+        // Fund the proposer.
+        vm.deal(PROPOSER, 100 ether);
 
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        IPreimageOracle oracle = IPreimageOracle(
-            DeployUtils.create1({
-                _name: "PreimageOracle",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
-            })
-        );
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate, oracle);
-
-        // Use a 7 day delayed WETH to simulate withdrawals.
-        IDelayedWETH _weth = IDelayedWETH(
-            DeployUtils.create1({
-                _name: "DelayedWETH",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (7 days)))
-            })
-        );
-
-        // Deploy an implementation of the fault game
-        gameImpl = IPermissionedDisputeGame(
-            DeployUtils.create1({
-                _name: "SuperPermissionedDisputeGame",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IPermissionedDisputeGame.__constructor__,
-                        (
-                            IFaultDisputeGame.GameConstructorParams({
-                                gameType: GAME_TYPE,
-                                absolutePrestate: absolutePrestate,
-                                maxGameDepth: 2 ** 3,
-                                splitDepth: 2 ** 2,
-                                clockExtension: Duration.wrap(3 hours),
-                                maxClockDuration: Duration.wrap(3.5 days),
-                                vm: _vm,
-                                weth: _weth,
-                                anchorStateRegistry: anchorStateRegistry,
-                                l2ChainId: 0
-                            }),
-                            PROPOSER,
-                            CHALLENGER
-                        )
-                    )
-                )
-            })
-        );
-        // Register the game implementation with the factory.
-        disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
+        (address _impl, AlphabetVM _vm,) = setupSuperPermissionedDisputeGame(absolutePrestate, PROPOSER, CHALLENGER);
+        gameImpl = IPermissionedDisputeGame(_impl);
 
         // Create a new game.
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);

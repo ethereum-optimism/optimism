@@ -114,6 +114,7 @@ func (p *programExecutor) RunProgram(
 	ctx context.Context,
 	prefetcher hostcommon.Prefetcher,
 	blockNum uint64,
+	output eth.Output,
 	chainID eth.ChainID,
 	db l2.KeyValueStore,
 ) error {
@@ -121,6 +122,12 @@ func (p *programExecutor) RunProgram(
 	newCfg.ExecCmd = "" // ensure we run the program in the same process
 	newCfg.L2ClaimBlockNumber = blockNum
 	newCfg.InteropEnabled = false
+	newCfg.L2OutputRoot = common.Hash(eth.OutputRoot(output))
+	outputV0, ok := output.(*eth.OutputV0)
+	if !ok {
+		return fmt.Errorf("unsupported output root type: %T", output)
+	}
+	newCfg.L2Head = outputV0.BlockHash
 	// Leave the newCfg.L2ChainID as is. It may be set to the customChainID for testing.
 	// newCfg.L2ChainConfigs and newCfg.Rollups will be reconfigured to the specified chainID for the program execution.
 
@@ -162,6 +169,8 @@ func (p *programExecutor) RunProgram(
 		hostcommon.WithSkipValidation(true),
 		hostcommon.WithDB(db),
 		hostcommon.WithStoreBlockData(true),
+		// Our prefetcher expects chain IDs but pre-interop does not normally include them in hint data
+		hostcommon.WithForceHintChainID(true),
 	)
 }
 

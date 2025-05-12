@@ -26,6 +26,12 @@ contract SuperchainETHBridge_Test is CommonTest {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
+
+        {
+            // TODO: Remove this block when L2Genesis includes this contract.
+            vm.etch(address(superchainETHBridge), vm.getDeployedCode("SuperchainETHBridge.sol:SuperchainETHBridge"));
+            vm.etch(address(ethLiquidity), vm.getDeployedCode("ETHLiquidity.sol:ETHLiquidity"));
+        }
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.

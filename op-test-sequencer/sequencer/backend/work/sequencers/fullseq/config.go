@@ -48,7 +48,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.SequencerID, opts *work.
 
 		chainID: c.ChainID,
 
-		log: opts.Log.New("chain", c.ChainID),
+		log: opts.Log.New("service", "op-test-sequencer", "chain", c.ChainID),
 		m:   opts.Metrics,
 
 		builder:   builder,

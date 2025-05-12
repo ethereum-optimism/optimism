@@ -12,12 +12,11 @@ import { Deployer } from "scripts/deploy/Deployer.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StateDiff } from "scripts/libraries/StateDiff.sol";
-import { Process } from "scripts/libraries/Process.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeploySuperchain2 } from "scripts/deploy/DeploySuperchain2.s.sol";
 import { DeployImplementations2 } from "scripts/deploy/DeployImplementations2.s.sol";
-import { DeployAltDA2 } from "scripts/deploy/DeployAltDA2.s.sol";
+import { DeployAltDA } from "scripts/deploy/DeployAltDA.s.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
@@ -30,8 +29,6 @@ import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
@@ -181,8 +178,8 @@ contract Deploy is Deployer {
             if (typeHash == keccakHash) {
                 console.log("Deploying OP AltDA");
 
-                DeployAltDA2 da2 = new DeployAltDA2();
-                DeployAltDA2.Input memory dii = DeployAltDA2.Input({
+                DeployAltDA da = new DeployAltDA();
+                DeployAltDA.Input memory dii = DeployAltDA.Input({
                     salt: _implSalt(),
                     proxyAdmin: IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin")),
                     challengeContractOwner: cfg.finalSystemOwner(),
@@ -192,7 +189,7 @@ contract Deploy is Deployer {
                     resolverRefundPercentage: cfg.daResolverRefundPercentage()
                 });
 
-                DeployAltDA2.Output memory dio = da2.run(dii);
+                DeployAltDA.Output memory dio = da.run(dii);
 
                 artifacts.save("DataAvailabilityChallengeProxy", address(dio.dataAvailabilityChallengeProxy));
                 artifacts.save("DataAvailabilityChallengeImpl", address(dio.dataAvailabilityChallengeImpl));
@@ -277,6 +274,7 @@ contract Deploy is Deployer {
 
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
+        artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
         artifacts.save("MipsSingleton", address(dio.mipsSingleton));
         artifacts.save("OPContractsManager", address(dio.opcm));
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
@@ -353,6 +351,7 @@ contract Deploy is Deployer {
         artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
+
         // Check if the permissionless game implementation is already set
         IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
@@ -371,8 +370,6 @@ contract Deploy is Deployer {
             _implementation: delayedWETHImpl,
             _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
         });
-
-        setCannonFaultGameImplementation();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -402,83 +399,6 @@ contract Deploy is Deployer {
         );
         require(EIP1967Helper.getAdmin(address(proxy)) == _proxyOwner, "Deploy: EIP1967Proxy admin not set");
         addr_ = address(proxy);
-    }
-
-    ///////////////////////////////////////////////////////////
-    //         Proofs setup helper functions                 //
-    ///////////////////////////////////////////////////////////
-
-    /// @notice Load the appropriate mips absolute prestate for devenets depending on config environment.
-    function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            return _loadDevnetMtMipsAbsolutePrestate();
-        } else {
-            console.log(
-                "[Cannon Dispute Game] Using absolute prestate from config: %x", cfg.faultGameAbsolutePrestate()
-            );
-            mipsAbsolutePrestate_ = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        }
-    }
-
-    function loadInteropDevnetAbsolutePrestate() internal returns (Claim interopDevnetAbsolutePrestate_) {
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof-interop.json");
-        if (bytes(Process.bash(string.concat("[[ -f ", filePath, " ]] && echo \"present\""))).length == 0) {
-            revert(
-                "Deploy: cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root"
-            );
-        }
-        interopDevnetAbsolutePrestate_ =
-            Claim.wrap(abi.decode(bytes(Process.bash(string.concat("cat ", filePath, " | jq -r .pre"))), (bytes32)));
-        console.log(
-            "[Cannon Dispute Game] Using devnet Interop Devnet Absolute Prestate: %s",
-            vm.toString(Claim.unwrap(interopDevnetAbsolutePrestate_))
-        );
-    }
-
-    /// @notice Loads the multithreaded mips absolute prestate from the prestate-proof-mt64 for devnets otherwise
-    ///         from the config.
-    function _loadDevnetMtMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
-        // Fetch the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof-mt64.json");
-        if (bytes(Process.bash(string.concat("[[ -f ", filePath, " ]] && echo \"present\""))).length == 0) {
-            revert(
-                "Deploy: MT-Cannon prestate dump not found, generate it with `make cannon-prestate-mt64` in the monorepo root"
-            );
-        }
-        mipsAbsolutePrestate_ =
-            Claim.wrap(abi.decode(bytes(Process.bash(string.concat("cat ", filePath, " | jq -r .pre"))), (bytes32)));
-        console.log(
-            "[MT-Cannon Dispute Game] Using devnet MIPS64 Absolute prestate: %s",
-            vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
-        );
-    }
-
-    /// @notice Sets the implementation for the `CANNON` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation() public {
-        console.log("Setting Cannon FaultDisputeGame implementation");
-        address opcm = artifacts.mustGetAddress("OPContractsManager");
-        IProxyAdmin proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
-
-        IOPContractsManager.AddGameInput[] memory addGameInput = new IOPContractsManager.AddGameInput[](1);
-        addGameInput[0] = IOPContractsManager.AddGameInput({
-            saltMixer: "CannonFaultGame",
-            systemConfig: ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy")),
-            proxyAdmin: proxyAdmin,
-            delayedWETH: IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy")),
-            disputeGameType: GameTypes.CANNON,
-            disputeAbsolutePrestate: loadMipsAbsolutePrestate(),
-            disputeMaxGameDepth: cfg.faultGameMaxDepth(),
-            disputeSplitDepth: cfg.faultGameSplitDepth(),
-            disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-            disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-            initialBond: 0.08 ether,
-            vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
-            permissioned: false
-        });
-
-        vm.prank(cfg.finalSystemOwner(), true);
-        (bool success,) = opcm.delegatecall(abi.encodeCall(IOPContractsManager.addGameType, (addGameInput)));
-        require(success, "Deploy: Cannon FaultDisputeGame implementation not set");
     }
 
     /// @notice Get the DeployInput struct to use for testing

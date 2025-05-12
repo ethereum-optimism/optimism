@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,7 +49,7 @@ artifacts: {{localContractArtifacts "l1"}}`
 		},
 	}
 
-	buf, err := templater.Render()
+	buf, err := templater.Render(context.Background())
 	require.NoError(t, err)
 
 	// Verify template rendering
@@ -103,7 +104,7 @@ prestateHash: {{ (localPrestate).Hashes.prestate_mt64 }}`
 		},
 	}
 
-	buf, err := templater.Render()
+	buf, err := templater.Render(context.Background())
 	require.NoError(t, err)
 
 	// --- Assertions ---
@@ -164,7 +165,7 @@ func TestLocalPrestateOption(t *testing.T) {
 	buildWg := &sync.WaitGroup{}
 
 	// Get the localPrestate option
-	option := templater.localPrestateOption(buildWg)
+	option := templater.localPrestateOption(context.Background(), buildWg)
 
 	// Create a template context with the option
 	ctx := tmpl.NewTemplateContext(option)
@@ -221,7 +222,7 @@ func TestLocalContractArtifactsOption(t *testing.T) {
 	}
 	buildWg := &sync.WaitGroup{}
 	// Get the localContractArtifacts option
-	option := templater.localContractArtifactsOption(buildWg)
+	option := templater.localContractArtifactsOption(context.Background(), buildWg)
 
 	// Create a template context with the option
 	ctx := tmpl.NewTemplateContext(option)

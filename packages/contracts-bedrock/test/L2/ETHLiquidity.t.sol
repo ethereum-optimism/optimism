@@ -27,6 +27,13 @@ contract ETHLiquidity_Test is CommonTest {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
+
+        {
+            // TODO: Remove this block when L2Genesis includes this contract.
+            vm.etch(address(superchainETHBridge), vm.getDeployedCode("SuperchainETHBridge.sol:SuperchainETHBridge"));
+            vm.etch(address(ethLiquidity), vm.getDeployedCode("ETHLiquidity.sol:ETHLiquidity"));
+            vm.deal(address(ethLiquidity), type(uint248).max);
+        }
     }
 
     /// @notice Tests that contract is set up with the correct starting balance.

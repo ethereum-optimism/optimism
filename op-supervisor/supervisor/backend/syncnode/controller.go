@@ -82,7 +82,7 @@ func (snc *SyncNodesController) AttachNodeController(chainID eth.ChainID, ctrl S
 
 	// create the managed node, register and return
 	node := NewManagedNode(logger, chainID, ctrl, snc.backend, noSubscribe)
-	snc.eventSys.Register(name, node, event.DefaultRegisterOpts())
+	snc.eventSys.Register(name, node)
 	controllersForChain.Set(node, struct{}{})
 	node.Start()
 	return node, nil

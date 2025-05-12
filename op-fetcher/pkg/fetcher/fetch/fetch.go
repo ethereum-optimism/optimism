@@ -42,17 +42,27 @@ func FetchChainInfoCLI() func(ctx *cli.Context) error {
 		}
 
 		fileData := script.CreateChainConfig(result)
-		jsonData, err := json.MarshalIndent(fileData, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal output: %w", err)
-		}
+		if outputFile == "" {
+			// Write to stdout when no output file is specified
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(fileData); err != nil {
+				return fmt.Errorf("failed to write output to stdout: %w", err)
+			}
+		} else {
+			// Write to the specified file
+			jsonData, err := json.MarshalIndent(fileData, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal output: %w", err)
+			}
 
-		err = os.WriteFile(outputFile, jsonData, 0o644)
-		if err != nil {
-			return fmt.Errorf("failed to write output to file: %w", err)
-		}
+			err = os.WriteFile(outputFile, jsonData, 0o644)
+			if err != nil {
+				return fmt.Errorf("failed to write output to file: %w", err)
+			}
 
-		fetcher.lgr.Info("completed fetching chain info", "outputFile", outputFile)
+			fetcher.lgr.Info("completed fetching chain info", "outputFile", outputFile)
+		}
 		return nil
 	}
 }

@@ -189,6 +189,29 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 		},
 	})
 	db.m.RecordCrossSafeRef(chain, lastCrossDerived)
+
+	// compare new cross-safe to recorded cross-unsafe
+	crossUnsafe, err := db.CrossUnsafe(chain)
+	if err != nil {
+		db.logger.Warn("cannot get CrossUnsafe ref from db", "err", err)
+		return nil // log error for cross-unsafe call, but ignore it, as this call is for cross-safe
+	}
+	if crossUnsafe.Number > lastCrossDerived.Number { // nothing to do
+		return nil
+	}
+
+	// if cross-unsafe block number is same or smaller than new cross-safe, make sure to update cross-unsafe to new cross-safe
+	if crossUnsafe.Hash.Cmp(lastCrossDerived.Hash) != 0 {
+		db.logger.Warn("Updated cross-unsafe due to cross-safe update", "chain", chain, "new cross-safe", lastCrossDerived, "current cross-unsafe", crossUnsafe)
+		err := db.UpdateCrossUnsafe(chain, types.BlockSeal{
+			Hash:      lastCrossDerived.Hash,
+			Number:    lastCrossDerived.Number,
+			Timestamp: lastCrossDerived.Time,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update cross-unsafe after processing a new cross-safe block: %w", err)
+		}
+	}
 	return nil
 }
 

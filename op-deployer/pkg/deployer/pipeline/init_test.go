@@ -85,7 +85,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			stdSuperchainRoles, err := state.GetStandardSuperchainRoles(l1ChainID)
 			require.NoError(t, err)
 
-			opcmAddr, err := standard.ManagerImplementationAddrFor(l1ChainID, artifacts.DefaultL1ContractsLocator.Tag)
+			opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, artifacts.DefaultL1ContractsLocator.Tag)
 			require.NoError(t, err)
 
 			intent := &state.Intent{

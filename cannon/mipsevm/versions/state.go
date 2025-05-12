@@ -64,6 +64,7 @@ func FeaturesForVersion(version StateVersion) mipsevm.FeatureToggles {
 	if version >= VersionMultiThreaded64_v4 {
 		features.SupportNoopSysEventFd2 = true
 		features.SupportDclzDclo = true
+		features.SupportNoopMprotect = true
 	}
 	return features
 }

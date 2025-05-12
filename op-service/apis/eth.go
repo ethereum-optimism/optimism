@@ -116,6 +116,10 @@ type EthBalance interface {
 	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
 }
 
+type EthCode interface {
+	CodeAtHash(ctx context.Context, account common.Address, blockHash common.Hash) ([]byte, error)
+}
+
 type EthClient interface {
 	ChainID
 	EthBlockInfo
@@ -129,6 +133,7 @@ type EthClient interface {
 	TransactionSender
 	EthNonce
 	EthBalance
+	EthCode
 }
 
 type EthExtendedClient interface {

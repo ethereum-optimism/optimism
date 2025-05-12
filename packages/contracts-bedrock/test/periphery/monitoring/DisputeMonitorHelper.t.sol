@@ -2,23 +2,29 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { CommonTest } from "test/setup/CommonTest.sol";
+import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Contracts
 import { DisputeMonitorHelper } from "src/periphery/monitoring/DisputeMonitorHelper.sol";
-import { GameTypes, Claim } from "src/dispute/lib/Types.sol";
+import { GameTypes, Claim, VMStatuses } from "src/dispute/lib/Types.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
-contract DisputeMonitorHelper_TestInit is CommonTest {
+contract DisputeMonitorHelper_TestInit is DisputeGameFactory_Init {
     DisputeMonitorHelper helper;
 
     function setUp() public override {
         super.setUp();
+
         helper = new DisputeMonitorHelper();
 
         // Skip everything for forked networks. Tests here involve carefully controlling the list
         // of games in the factory, which is not possible on forked networks.
         skipIfForkTest("DisputeMonitorHelper tests are not applicable to forked networks");
+
+        Claim absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(abi.encode(0))), VMStatuses.UNFINISHED);
+
+        setupFaultDisputeGame(absolutePrestate);
     }
 
     /// @notice Helper to create a game with a specific timestamp.

@@ -53,7 +53,7 @@ type DeployerState struct {
 // StateFile represents the structure of the state.json file
 type StateFile struct {
 	OpChainDeployments        []map[string]interface{} `json:"opChainDeployments"`
-	SuperChainDeployment      map[string]interface{}   `json:"superchainDeployment"`
+	SuperChainContracts       map[string]interface{}   `json:"superchainContracts"`
 	ImplementationsDeployment map[string]interface{}   `json:"implementationsDeployment"`
 }
 
@@ -283,7 +283,7 @@ func parseStateFile(r io.Reader) (*DeployerState, error) {
 
 	result.Addresses = mapDeployment(state.ImplementationsDeployment)
 	// merge the superchain and implementations addresses
-	for key, value := range mapDeployment(state.SuperChainDeployment) {
+	for key, value := range mapDeployment(state.SuperChainContracts) {
 		result.Addresses[key] = value
 	}
 

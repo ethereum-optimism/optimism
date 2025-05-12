@@ -68,6 +68,8 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 			dp.DeployConfig.ActivateForkAtGenesis(rollup.Holocene)
 		case Isthmus:
 			dp.DeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
+		default:
+			t.Fatalf("unhandled HF:%v", testCfg.Hardfork)
 		}
 
 		for _, override := range deployConfigOverrides {

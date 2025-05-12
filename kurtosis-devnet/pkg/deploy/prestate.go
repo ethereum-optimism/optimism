@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -25,7 +26,7 @@ type localPrestateHolder struct {
 	urlBuilder func(path ...string) string
 }
 
-func (h *localPrestateHolder) GetPrestateInfo() (*PrestateInfo, error) {
+func (h *localPrestateHolder) GetPrestateInfo(ctx context.Context) (*PrestateInfo, error) {
 	if h.info != nil {
 		return h.info, nil
 	}
@@ -59,7 +60,7 @@ func (h *localPrestateHolder) GetPrestateInfo() (*PrestateInfo, error) {
 	}
 
 	// Build all prestate files directly in the target directory
-	if err := h.builder.Build(buildDir); err != nil {
+	if err := h.builder.Build(ctx, buildDir); err != nil {
 		return nil, fmt.Errorf("failed to build prestates: %w", err)
 	}
 

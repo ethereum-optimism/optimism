@@ -24,6 +24,8 @@ type StatusTracker struct {
 type NodeSyncStatus struct {
 	CurrentL1   eth.L1BlockRef
 	LocalUnsafe eth.BlockRef
+	LocalSafe   types.BlockSeal
+	CrossUnsafe types.BlockSeal
 	CrossSafe   types.BlockSeal
 	Finalized   types.BlockSeal
 }
@@ -57,6 +59,12 @@ func (su *StatusTracker) OnEvent(ev event.Event) bool {
 	case superevents.LocalUnsafeUpdateEvent:
 		status := loadStatusRef(x.ChainID)
 		status.LocalUnsafe = x.NewLocalUnsafe
+	case superevents.LocalSafeUpdateEvent:
+		status := loadStatusRef(x.ChainID)
+		status.LocalSafe = x.NewLocalSafe.Derived
+	case superevents.CrossUnsafeUpdateEvent:
+		status := loadStatusRef(x.ChainID)
+		status.CrossUnsafe = x.NewCrossUnsafe
 	case superevents.CrossSafeUpdateEvent:
 		status := loadStatusRef(x.ChainID)
 		status.CrossSafe = x.NewCrossSafe.Derived
@@ -120,7 +128,9 @@ func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 
 		supervisorStatus.Chains[chainID] = &eth.SupervisorChainSyncStatus{
 			LocalUnsafe: nodeStatus.LocalUnsafe,
-			Safe:        nodeStatus.CrossSafe.ID(),
+			LocalSafe:   nodeStatus.LocalSafe.ID(),
+			CrossUnsafe: nodeStatus.CrossUnsafe.ID(),
+			CrossSafe:   nodeStatus.CrossSafe.ID(),
 			Finalized:   nodeStatus.Finalized.ID(),
 		}
 		firstChain = false

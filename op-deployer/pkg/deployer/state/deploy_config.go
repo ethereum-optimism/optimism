@@ -23,8 +23,6 @@ import (
 
 var (
 	l2GenesisBlockBaseFeePerGas = hexutil.Big(*(big.NewInt(1000000000)))
-
-	vaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
 )
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
@@ -57,9 +55,9 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				BaseFeeVaultWithdrawalNetwork:            "local",
 				L1FeeVaultWithdrawalNetwork:              "local",
 				SequencerFeeVaultWithdrawalNetwork:       "local",
-				SequencerFeeVaultMinimumWithdrawalAmount: vaultMinWithdrawalAmount,
-				BaseFeeVaultMinimumWithdrawalAmount:      vaultMinWithdrawalAmount,
-				L1FeeVaultMinimumWithdrawalAmount:        vaultMinWithdrawalAmount,
+				SequencerFeeVaultMinimumWithdrawalAmount: standard.VaultMinWithdrawalAmount,
+				BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
+				L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,
 				BaseFeeVaultRecipient:                    chainIntent.BaseFeeVaultRecipient,
 				L1FeeVaultRecipient:                      chainIntent.L1FeeVaultRecipient,
 				SequencerFeeVaultRecipient:               chainIntent.SequencerFeeVaultRecipient,
@@ -179,12 +177,6 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 	}
 
 	return cfg, nil
-}
-
-func mustHexBigFromHex(hex string) *hexutil.Big {
-	num := hexutil.MustDecodeBig(hex)
-	hexBig := hexutil.Big(*num)
-	return &hexBig
 }
 
 func calculateBatchInboxAddr(chainID common.Hash) common.Address {

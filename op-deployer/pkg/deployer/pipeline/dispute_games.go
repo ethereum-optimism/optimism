@@ -76,7 +76,12 @@ func deployDisputeGame(
 	var vmAddr common.Address
 	switch game.VMType {
 	case state.VMTypeAlphabet:
-		out, err := opcm.DeployAlphabetVM(env.L1ScriptHost, opcm.DeployAlphabetVMInput{
+		deployAlphabetVM, err := opcm.NewDeployAlphabetVMScript(env.L1ScriptHost)
+		if err != nil {
+			return fmt.Errorf("failed to load DeployAlphabetVM script: %w", err)
+		}
+
+		out, err := deployAlphabetVM.Run(opcm.DeployAlphabetVMInput{
 			AbsolutePrestate: game.DisputeAbsolutePrestate,
 			PreimageOracle:   oracleAddr,
 		})

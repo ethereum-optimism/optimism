@@ -107,15 +107,18 @@ discouraged. If a change is required to a release candidate after it has been ta
 
 ### Additional Release Candidates
 
-Sometimes additional release candidate versions are needed, in that case, the follow process should be used.
-This process is designed to (1) ensures fixes are made on both the release and the trunk branch
- and (2) avoids the need to stop development efforts on the trunk branch.
+Sometimes fixes or additional changes need to be added to a release candidate version. In that case
+we want to ensure fixes are made on both the release and the trunk branch, without stopping development
+efforts on the trunk branch.
 
+The process is as follows:
 
-1. Make the fixes on `develop`. *For whatever the normal semver level increment should be, bump that value by 5.*
-2. Create a new release branch, named `proposal/op-contracts/X.Y.Z-rc.n+1` off of the rc tag.
-3. Cherry pick the fixes from `develop` into that branch. *Bump the semvers as normal, ensuring that the resulting version is less than the one on `develop`.
-4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.2`.
+1. Make the fixes on `develop`. Increment the contracts semver as normal.
+2. Create a new release branch, named `proposal/op-contracts/X.Y.Z` off of the rc tag.
+3. Cherry pick the fixes from `develop` into that branch. Instead of incrementing the semver as normal,
+   append `-patch.n` to the end of the version number. The value of `n` should start at 1 and be
+   incremented for each additional patch.
+4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.n`.
    Create a new release for this tag per the instructions above.
 
 Note: The reason for the larger semver increment on `develop` is to prevent a collision, wherein a
@@ -124,27 +127,3 @@ contract could have the same semver, but different source/bytecode on the two br
 For example: if the current version of a contract is `1.1.1` and a minor bump is required (most common for a bug fix),
    then the fixed version should become `1.8.0` on `develop`. Then on the release branch is should become
    `1.2.0`.
-
-### Merging Back to Develop After Governance Approval
-
-A release will change a set of contracts, and those contracts may have changed on `develop` since the release candidate was created.
-
-If there have been no changes to a contract since the release candidate, the version of that contract stays at `X.Y.Z` and just has the `-rc.n` removed.
-For example, if the release candidate is `1.2.3-rc.1`, the resulting version on `develop` will be `1.2.3`.
-
-If there have been changes to a contract, the `X.Y.Z` will stay the same as whatever is the latest version on `develop`, with the `-beta.n` qualifier incremented.
-
-For example, given that ContractA is `1.2.3-rc.1` on develop, then the initial sequence of events is:
-
-- We create the release branch, and on that branch remove the `-rc.1`, giving a final ContractA version on that branch of `1.2.3`
-- Governance proposal is posted, pointing to the corresponding monorepo tag.
-- Governance approves the release.
-- Open a PR to merge the final versions of the contracts (ContractA) back into develop.
-
-Now there are two scenarios for the PR that merges the release branch back into develop:
-
-1. On develop, no changes have been made to ContractA. The PR therefore changes ContractA's version on develop from `1.2.3-rc.1` to `1.2.3`, and no other changes to ContractA occur.
-2. On develop, breaking changes have been made to ContractA for a new feature, and it's currently versioned as `2.0.0-beta.3`. The PR should bump the version to `2.0.0-beta.4` if it changes the source code of ContractA.
-    - In practice, this one unlikely to occur when using inheritance for feature development, as specified in [Smart Contract Feature Development](https://github.com/ethereum-optimism/design-docs/blob/main/smart-contract-feature-development.md) architecture. It's more likely that (1) is the case, and we merge the version change into the base contract.
-
-This flow also provides a dedicated branch for each release, making it easy to deploy a patch or bug fix, regardless of other changes that may have occurred on develop since the release.

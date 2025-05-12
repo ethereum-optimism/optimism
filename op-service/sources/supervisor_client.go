@@ -86,11 +86,6 @@ func (cl *SupervisorClient) FinalizedL1(ctx context.Context) (result eth.BlockRe
 	return result, err
 }
 
-func (cl *SupervisorClient) CrossDerivedFrom(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (result eth.BlockRef, err error) {
-	err = cl.client.CallContext(ctx, &result, "supervisor_crossDerivedFrom", chainID, derived)
-	return result, err
-}
-
 func (cl *SupervisorClient) UpdateLocalUnsafe(ctx context.Context, chainID eth.ChainID, head eth.BlockRef) (err error) {
 	err = cl.client.CallContext(ctx, nil, "supervisor_updateLocalUnsafe", chainID, head)
 	return err

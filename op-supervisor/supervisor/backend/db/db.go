@@ -219,7 +219,7 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 			db.logger.Info("Resuming, but found no DB contents", "chain", chain)
 			return true
 		}
-		db.logger.Info("Resuming, starting from last sealed block", "head", head)
+		db.logger.Info("Resuming, starting from last sealed block", "chain", chain, "head", head)
 		if err := logStore.Rewind(head); err != nil {
 			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", errRewindFailed, chain, head)
 			return false

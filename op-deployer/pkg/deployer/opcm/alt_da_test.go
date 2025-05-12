@@ -4,41 +4,34 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeployAltDA(t *testing.T) {
-	t.Parallel()
+func TestNewDeployAltDAScript(t *testing.T) {
+	t.Run("should not fail with current version of DeployAltDA contract", func(t *testing.T) {
+		// First we grab a test host
+		host1 := createTestHost(t)
 
-	_, artifacts := testutil.LocalArtifacts(t)
+		// Then we load the script
+		//
+		// This would raise an error if the Go types didn't match the ABI
+		deploySuperchain, err := NewDeployAltDAScript(host1)
+		require.NoError(t, err)
 
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		artifacts,
-	)
-	require.NoError(t, err)
+		// Then we deploy
+		output, err := deploySuperchain.Run(DeployAltDAInput{
+			Salt:                     common.BigToHash(big.NewInt(1)),
+			ProxyAdmin:               common.BigToAddress(big.NewInt(2)),
+			ChallengeContractOwner:   common.BigToAddress(big.NewInt(3)),
+			ChallengeWindow:          big.NewInt(4),
+			ResolveWindow:            big.NewInt(5),
+			BondSize:                 big.NewInt(6),
+			ResolverRefundPercentage: big.NewInt(7),
+		})
 
-	input := DeployAltDAInput{
-		Salt:                     common.HexToHash("0x1234"),
-		ProxyAdmin:               common.Address{'P'},
-		ChallengeContractOwner:   common.Address{'O'},
-		ChallengeWindow:          big.NewInt(100),
-		ResolveWindow:            big.NewInt(200),
-		BondSize:                 big.NewInt(300),
-		ResolverRefundPercentage: big.NewInt(50), // must be < 100
-	}
-
-	output, err := DeployAltDA(host, input)
-	require.NoError(t, err)
-
-	require.NotEmpty(t, output.DataAvailabilityChallengeProxy)
-	require.NotEmpty(t, output.DataAvailabilityChallengeImpl)
+		// And do some simple asserts
+		require.NoError(t, err)
+		require.NotNil(t, output)
+	})
 }

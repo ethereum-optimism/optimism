@@ -116,18 +116,16 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	executor := event.NewGlobalSynchronous(ctx)
 	sys := event.NewSystem(log, executor)
 	t.Cleanup(sys.Stop)
-	opts := event.DefaultRegisterOpts()
-	opts.Emitter = event.EmitterOpts{
-		Limiting: true,
+	opts := event.WithEmitLimiter(
 		// TestSyncBatchType/DerivationWithFlakyL1RPC does *a lot* of quick retries
 		// TestL2BatcherBatchType/ExtendedTimeWithoutL1Batches as well.
-		Rate:  rate.Limit(100_000),
-		Burst: 100_000,
-		OnLimited: func() {
+		rate.Limit(100_000),
+		100_000,
+		func() {
 			log.Warn("Hitting events rate-limit. An events code-path may be hot-looping.")
 			t.Fatal("Tests must not hot-loop events")
 		},
-	}
+	)
 
 	var interopSys interop.SubSystem
 	if cfg.InteropTime != nil {

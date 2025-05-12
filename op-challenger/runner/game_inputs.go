@@ -17,7 +17,7 @@ import (
 
 func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, typeName string, traceType types.TraceType) (utils.LocalGameInputs, error) {
 	switch traceType {
-	case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned:
+	case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned, types.TraceTypeSuperAsteriscKona:
 		if supervisorClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("trace type %s requires supervisor rpc to be set", traceType)
 		}
