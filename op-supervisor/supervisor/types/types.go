@@ -47,6 +47,11 @@ func (ci *ChainIndex) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// IsTopBitSet returns true if the top bit is set. Used to check for reserved values, such as NotFoundChainIndex.
+func (ci ChainIndex) IsTopBitSet() bool {
+	return ci&(1<<31) != 0
+}
+
 type Revision uint64
 
 // RevisionAny is used as indicator to ignore the revision during lookups.

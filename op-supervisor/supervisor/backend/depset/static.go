@@ -22,7 +22,7 @@ var errUsingReservedChainIndex = errors.New("using reserved chain index")
 // We are persisting these invalid, but not malformed, executing messages in our internal database, and
 // we need a mapping between all ChainIDs <> ChainIndexs. However ChainID is 32 bytes, and ChainIndex
 // is 4 bytes, so we need a reserved chain index for unknown chains.
-var NotFoundChainIndex = types.ChainIndex(3735928559) // 0xDEADBEEF
+const NotFoundChainIndex = types.ChainIndex(0xFFFF_FFFF)
 
 type StaticConfigDependency struct {
 	// ChainIndex is the unique short identifier of this chain.
@@ -220,8 +220,8 @@ func (ds *StaticConfigDependencySet) ChainIndexFromID(id eth.ChainID) (types.Cha
 func (ds *StaticConfigDependencySet) ChainIDFromIndex(index types.ChainIndex) (eth.ChainID, error) {
 	id, ok := ds.indexToID[index]
 	if !ok {
-		if index == NotFoundChainIndex {
-			return eth.ChainID{}, fmt.Errorf("provided index is reserved for unknown chains, so it cannot be translated to chain ID: %w", types.ErrUnknownChain)
+		if index.IsTopBitSet() {
+			return eth.ChainID{}, fmt.Errorf("provided index has its top bit set, and this subset is reserved for internal use: %w", types.ErrUnknownChain)
 		}
 		return eth.ChainID{}, fmt.Errorf("failed to translate chain index %s to chain ID: %w", index, types.ErrUnknownChain)
 	}
