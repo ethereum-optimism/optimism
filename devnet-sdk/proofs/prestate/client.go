@@ -9,6 +9,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // These constants should be in sync with op-program/chainconfig/chaincfg.go
@@ -63,34 +67,22 @@ func WithInteropDepSet(content io.Reader) PrestateBuilderOption {
 	}
 }
 
-type Dependency struct {
-	ChainIndex     uint32 `json:"chainIndex"`
-	ActivationTime uint64 `json:"activationTime"`
-	HistoryMinTime uint64 `json:"historyMinTime"`
-}
-
-type DependencySet struct {
-	Dependencies map[string]Dependency `json:"dependencies"`
-}
-
-func RenderInteropDepSet(chains []string) DependencySet {
-	deps := DependencySet{
-		Dependencies: make(map[string]Dependency),
-	}
-
-	for i, chain := range chains {
-		deps.Dependencies[chain] = Dependency{
-			ChainIndex:     uint32(i),
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
-	}
-
-	return deps
-}
-
 func generateInteropDepSet(chains []string) ([]byte, error) {
-	json, err := json.Marshal(RenderInteropDepSet(chains))
+	deps := make(map[eth.ChainID]*depset.StaticConfigDependency)
+	for i, chain := range chains {
+		id, err := eth.ParseDecimalChainID(chain)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse chain ID: %w", err)
+		}
+		deps[id] = &depset.StaticConfigDependency{ChainIndex: types.ChainIndex(i)}
+	}
+
+	interopDepSet, err := depset.NewStaticConfigDependencySet(deps)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create interop dependency set: %w", err)
+	}
+
+	json, err := json.Marshal(interopDepSet)
 	if err != nil {
 		return nil, err
 	}

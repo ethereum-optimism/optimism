@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func GenerateInteropDepset(ctx context.Context, pEnv *Env, globalIntent *state.Intent, st *state.State) error {
@@ -16,14 +18,21 @@ func GenerateInteropDepset(ctx context.Context, pEnv *Env, globalIntent *state.I
 		return nil
 	}
 
-	var chains []string
-	for _, chain := range globalIntent.Chains {
-		chains = append(chains, chain.ID.Big().String())
+	lgr.Info("creating interop dependency set...")
+	deps := make(map[eth.ChainID]*depset.StaticConfigDependency)
+	for i, chain := range globalIntent.Chains {
+		id, err := eth.ParseDecimalChainID(chain.ID.String())
+		if err != nil {
+			return fmt.Errorf("failed to parse chain ID: %w", err)
+		}
+		deps[id] = &depset.StaticConfigDependency{ChainIndex: types.ChainIndex(i)}
 	}
 
-	lgr.Info("rendering the interop dependency set...")
-	depSet := prestate.RenderInteropDepSet(chains)
-	st.InteropDepSet = &depSet
+	interopDepSet, err := depset.NewStaticConfigDependencySet(deps)
+	if err != nil {
+		return fmt.Errorf("failed to create interop dependency set: %w", err)
+	}
+	st.InteropDepSet = interopDepSet
 
 	if err := pEnv.StateWriter.WriteState(st); err != nil {
 		return fmt.Errorf("failed to write state: %w", err)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/proofs/prestate"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -37,7 +38,7 @@ type State struct {
 	PrestateManifest *prestate.PrestateManifest `json:"prestateManifest"`
 
 	// InteropDepSet contains the interop dependency set render by the prestate SDK if interop is enabled
-	InteropDepSet *prestate.DependencySet `json:"interopDepSet,omitempty"`
+	InteropDepSet *depset.StaticConfigDependencySet `json:"interopDepSet,omitempty"`
 
 	// SuperchainDeployment contains the addresses of the Superchain
 	// deployment. It only contains the proxies because the implementations
