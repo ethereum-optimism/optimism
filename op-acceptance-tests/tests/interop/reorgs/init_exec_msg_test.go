@@ -42,19 +42,19 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		pk, err := crypto.GenerateKey()
 		require.NoError(t, err)
 		alice = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELA)
-		sys.FaucetA.Fund(alice.Address(), eth.ThousandEther)
+		sys.FaucetA.Fund(alice.Address(), eth.OneEther)
 
 		// bob is on chain B
 		pk, err = crypto.GenerateKey()
 		require.NoError(t, err)
 		bob = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELB)
-		sys.FaucetB.Fund(bob.Address(), eth.ThousandEther)
+		sys.FaucetB.Fund(bob.Address(), eth.OneEther)
 
 		// cathrine is on chain A
 		pk, err = crypto.GenerateKey()
 		require.NoError(t, err)
 		cathrine = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELA)
-		sys.FaucetA.Fund(cathrine.Address(), eth.ThousandEther)
+		sys.FaucetA.Fund(cathrine.Address(), eth.OneEther)
 
 		l.Info("alice", "address", alice.Address())
 		l.Info("bob", "address", bob.Address())
@@ -200,7 +200,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 
 		// include simple transfer tx in opened block
 		{
-			to := cathrine.PlanTransfer(alice.Address(), eth.OneEther)
+			to := cathrine.PlanTransfer(alice.Address(), eth.OneGWei)
 			opt := txplan.Combine(to)
 			ptx := txplan.NewPlannedTx(opt)
 			signed_tx, err := ptx.Signed.Eval(ctx)

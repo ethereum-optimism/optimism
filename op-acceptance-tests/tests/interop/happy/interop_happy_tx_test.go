@@ -47,23 +47,16 @@ func TestInteropHappyTx(gt *testing.T) {
 		pk, err := crypto.GenerateKey()
 		require.NoError(t, err)
 		alice = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELA)
-		sys.FaucetA.Fund(alice.Address(), eth.ThousandEther)
+		sys.FaucetA.Fund(alice.Address(), eth.OneEther)
 
 		// bob is on chain B
 		pk, err = crypto.GenerateKey()
 		require.NoError(t, err)
 		bob = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELB)
-		sys.FaucetB.Fund(bob.Address(), eth.ThousandEther)
-
-		// cathrine is on chain A
-		pk, err = crypto.GenerateKey()
-		require.NoError(t, err)
-		cathrine = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELA)
-		sys.FaucetA.Fund(cathrine.Address(), eth.ThousandEther)
+		sys.FaucetB.Fund(bob.Address(), eth.OneEther)
 
 		l.Info("alice", "address", alice.Address())
 		l.Info("bob", "address", bob.Address())
-		l.Info("cathrine", "address", cathrine.Address())
 	}
 
 	sys.L1Network.WaitForBlock()
