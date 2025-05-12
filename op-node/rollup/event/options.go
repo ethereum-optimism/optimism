@@ -5,12 +5,12 @@ import "golang.org/x/time/rate"
 type ExecutorConfig struct {
 	// Priority. Higher = more important.
 	// For synchronous executors this may help decide which deriver receives the event first.
-	Priority uint64
+	Priority Priority
 }
 
 // WithExecPriority sets the executor priority. Higher = more important.
 // This directs which deriver first executes an event, if there is a synchronous choice.
-func WithExecPriority(priority uint64) RegisterOption {
+func WithExecPriority(priority Priority) RegisterOption {
 	return func(cfg *RegisterConfig) {
 		cfg.Executor.Priority = priority
 	}
@@ -25,7 +25,7 @@ type EmitterConfig struct {
 	// Priority. Higher = more important.
 	// Events from more important emitters will be prioritized
 	// for execution over queued up events with lower priority.
-	Priority uint64
+	Priority Priority
 }
 
 func WithEmitLimiter(rate rate.Limit, burst int, onLimited func()) RegisterOption {
@@ -46,7 +46,7 @@ func WithNoEmitLimiter() RegisterOption {
 // WithEmitPriority sets the emitter priority. Higher = more important.
 // This directs when an emitted event is processed:
 // it may be prioritized over other emitters of lesser importance.
-func WithEmitPriority(priority uint64) RegisterOption {
+func WithEmitPriority(priority Priority) RegisterOption {
 	return func(cfg *RegisterConfig) {
 		cfg.Emitter.Priority = priority
 	}
@@ -70,22 +70,17 @@ const eventsLimit = rate.Limit(10_000)
 // past the rate limit before the rate limit becomes applicable.
 const eventsBurst = 500
 
-const (
-	defaultExecPriority = 100
-	defaultEmitPriority = 100
-)
-
 func defaultRegisterConfig() *RegisterConfig {
 	return &RegisterConfig{
 		Executor: ExecutorConfig{
-			Priority: defaultExecPriority,
+			Priority: Normal,
 		},
 		Emitter: EmitterConfig{
 			Limiting:  true,
 			Rate:      eventsLimit,
 			Burst:     eventsBurst,
 			OnLimited: nil,
-			Priority:  defaultEmitPriority,
+			Priority:  Normal,
 		},
 	}
 }

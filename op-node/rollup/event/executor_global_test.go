@@ -20,7 +20,7 @@ func TestGlobalExecutor(t *testing.T) {
 		count += 1
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, &ExecutorConfig{Priority: defaultEmitPriority})
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	require.NoError(t, exec.Drain(), "can drain, even if empty")
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -46,7 +46,7 @@ func TestQueueSanityLimit(t *testing.T) {
 		count += 1
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, &ExecutorConfig{Priority: defaultEmitPriority})
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 	// emit 1 too many events
 	for i := 0; i < sanityEventLimit; i++ {
@@ -85,7 +85,7 @@ func TestSynchronousCyclic(t *testing.T) {
 		}
 	})
 	exec = NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, &ExecutorConfig{Priority: defaultEmitPriority})
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: CyclicEvent{Count: 0}}))
 	require.NoError(t, exec.Drain())
@@ -100,7 +100,7 @@ func TestDrainCancel(t *testing.T) {
 		cancel()
 	})
 	exec := NewGlobalSynchronous(ctx)
-	leave := exec.Add(ex, &ExecutorConfig{Priority: defaultEmitPriority})
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -121,7 +121,7 @@ func TestDrainUntilCancel(t *testing.T) {
 		}
 	})
 	exec := NewGlobalSynchronous(ctx)
-	leave := exec.Add(ex, &ExecutorConfig{Priority: defaultEmitPriority})
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -143,7 +143,7 @@ func TestDrainUntilExcl(t *testing.T) {
 		count += 1
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, &ExecutorConfig{Priority: defaultEmitPriority})
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -175,10 +175,10 @@ func TestPrioritized(t *testing.T) {
 		items = append(items, fmt.Sprintf("ex4: %d", ev.EmitContext))
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave1 := exec.Add(ex1, &ExecutorConfig{Priority: 100})
-	leave2 := exec.Add(ex2, &ExecutorConfig{Priority: 500})
-	leave3 := exec.Add(ex3, &ExecutorConfig{Priority: 200})
-	leave4 := exec.Add(ex4, &ExecutorConfig{Priority: 200})
+	leave1 := exec.Add(ex1, &ExecutorConfig{Priority: Low})
+	leave2 := exec.Add(ex2, &ExecutorConfig{Priority: High})
+	leave3 := exec.Add(ex3, &ExecutorConfig{Priority: Normal})
+	leave4 := exec.Add(ex4, &ExecutorConfig{Priority: Normal})
 	defer leave1()
 	defer leave2()
 	defer leave3()
@@ -187,17 +187,17 @@ func TestPrioritized(t *testing.T) {
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{
 		Event:        FooEvent{},
 		EmitContext:  0,
-		EmitPriority: 1000,
+		EmitPriority: Low,
 	}))
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{
 		Event:        TestEvent{},
 		EmitContext:  1,
-		EmitPriority: 3000,
+		EmitPriority: High,
 	}))
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{
 		Event:        TestEvent{},
 		EmitContext:  2,
-		EmitPriority: 2000,
+		EmitPriority: Normal,
 	}))
 	require.NoError(t, exec.Drain())
 
@@ -225,13 +225,13 @@ ex1: 0
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{
 		Event:        TestEvent{},
 		EmitContext:  3,
-		EmitPriority: 2000,
+		EmitPriority: High,
 	}))
 	// And another. FIFO.
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{
 		Event:        TestEvent{},
 		EmitContext:  4,
-		EmitPriority: 2000,
+		EmitPriority: High,
 	}))
 	require.NoError(t, exec.Drain())
 	out = "\n" + strings.Join(items, "\n") + "\n"
@@ -254,7 +254,7 @@ func TestAwait(t *testing.T) {
 		count += 1
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, &ExecutorConfig{Priority: defaultEmitPriority})
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 
 	// this event should be picked up as pre-existing queued event

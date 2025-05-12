@@ -40,8 +40,8 @@ type AttachEmitter interface {
 
 type AnnotatedEvent struct {
 	Event        Event
-	EmitContext  uint64 // uniquely identifies the emission of the event, useful for debugging and creating diagrams
-	EmitPriority uint64 // how important the emitter is, higher is more important
+	EmitContext  uint64   // uniquely identifies the emission of the event, useful for debugging and creating diagrams
+	EmitPriority Priority // how important the emitter is, higher is more important
 }
 
 // systemActor is a deriver and/or emitter, registered in System with a name.
@@ -63,7 +63,7 @@ type systemActor struct {
 	// How important this actor is as emitter. Higher is more important.
 	// Emitted events from actors with a higher emit priority
 	// will be prioritized over other queued up events.
-	emitPriority uint64
+	emitPriority Priority
 }
 
 // Emit is called by the end-user
@@ -261,7 +261,7 @@ func (s *Sys) recordEmit(name string, ev AnnotatedEvent, derivContext uint64, em
 // emit an event [ev] during the derivation of another event, referenced by derivContext.
 // If the event was emitted not as part of deriver event execution, then the derivContext is 0.
 // The name of the emitter is provided to further contextualize the event.
-func (s *Sys) emit(name string, derivContext uint64, ev Event, emitPriority uint64) {
+func (s *Sys) emit(name string, derivContext uint64, ev Event, emitPriority Priority) {
 	emitContext := s.emitContext.Add(1)
 	annotated := AnnotatedEvent{Event: ev, EmitContext: emitContext, EmitPriority: emitPriority}
 

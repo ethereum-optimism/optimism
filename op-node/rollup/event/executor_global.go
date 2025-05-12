@@ -20,9 +20,7 @@ type eventsList struct {
 
 type prioritizedEvents struct {
 	// keyed by priority. May contain empty lists.
-	byPriority map[uint64]*eventsList
-	// keys, sorted priorities, high to low
-	keys []uint64
+	byPriority [priorityCount]*eventsList
 
 	// number of events
 	count uint64
@@ -34,17 +32,10 @@ type prioritizedEvents struct {
 
 // Add enqueues the given event.
 func (a *prioritizedEvents) Add(event AnnotatedEvent) {
-	p, ok := a.byPriority[event.EmitPriority]
-	if !ok {
-		// Start tracking events with this priority level
-		p = &eventsList{Events: make([]AnnotatedEvent, 0, 100)}
-		a.byPriority[event.EmitPriority] = p
-		// Register the new priority as key, and sort so it's prioritized right.
-		a.keys = append(a.keys, event.EmitPriority)
-		sort.Slice(a.keys, func(i, j int) bool {
-			return a.keys[i] > a.keys[j]
-		})
+	if !event.EmitPriority.Valid() {
+		event.EmitPriority = Normal // if the priority is invalid, try to correct it
 	}
+	p := a.byPriority[event.EmitPriority-priorityMin]
 	p.Events = append(p.Events, event)
 	a.count += 1
 }
@@ -52,8 +43,8 @@ func (a *prioritizedEvents) Add(event AnnotatedEvent) {
 // Pop returns the highest-priority event, and removes it at the same time.
 // Returns a zeroed AnnotatedEvent if there is no event to pop.
 func (a *prioritizedEvents) Pop() AnnotatedEvent {
-	for _, priority := range a.keys {
-		pe := a.byPriority[priority]
+	for i := range a.byPriority {
+		pe := a.byPriority[priorityCount-1-i] // highest priority first
 		if len(pe.Events) > 0 {
 			out := pe.Events[0]
 			pe.Events = pe.Events[1:]
@@ -67,8 +58,8 @@ func (a *prioritizedEvents) Pop() AnnotatedEvent {
 // Peek returns the highest-priority event, without removing it.
 // Returns a zeroed AnnotatedEvent if there is no event to peek.
 func (a *prioritizedEvents) Peek() AnnotatedEvent {
-	for _, priority := range a.keys {
-		pe := a.byPriority[priority]
+	for i := range a.byPriority {
+		pe := a.byPriority[priorityCount-1-i] // highest priority first
 		if len(pe.Events) > 0 {
 			return pe.Events[0]
 		}
@@ -101,11 +92,15 @@ type GlobalSyncExec struct {
 var _ Executor = (*GlobalSyncExec)(nil)
 
 func NewGlobalSynchronous(ctx context.Context) *GlobalSyncExec {
+	var byPriority [priorityCount]*eventsList
+	for i := range byPriority {
+		// pre-allocate with some default capacity
+		byPriority[i] = &eventsList{make([]AnnotatedEvent, 0, 100)}
+	}
 	return &GlobalSyncExec{
 		ctx: ctx,
 		events: prioritizedEvents{
-			byPriority: make(map[uint64]*eventsList),
-			keys:       nil,
+			byPriority: byPriority,
 			count:      0,
 		},
 		queued: nil,
@@ -142,7 +137,7 @@ func (gs *GlobalSyncExec) Enqueue(ev AnnotatedEvent) error {
 	gs.eventsLock.Lock()
 	defer gs.eventsLock.Unlock()
 	// sanity limit, never queue too many events
-	if gs.events.count >= sanityEventLimit {
+	if gs.events.Count() >= sanityEventLimit {
 		return fmt.Errorf("something is very wrong, queued up too many events! Dropping event %q", ev.Event)
 	}
 	gs.events.Add(ev)
@@ -244,7 +239,7 @@ func (gs *GlobalSyncExec) DrainUntil(fn func(ev Event) bool, excl bool) error {
 type globalHandle struct {
 	g        atomic.Pointer[GlobalSyncExec]
 	d        Executable
-	priority uint64
+	priority Priority
 }
 
 func (gh *globalHandle) onEvent(ev AnnotatedEvent) {
