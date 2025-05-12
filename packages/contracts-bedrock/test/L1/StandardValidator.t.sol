@@ -313,7 +313,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         SystemConfig gas limit is invalid.
     function test_validate_systemConfigInvalidGasLimit_succeeds() public {
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(200_000_001)));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(500_000_001)));
         assertEq("SYSCON-20", _validate(true));
     }
 

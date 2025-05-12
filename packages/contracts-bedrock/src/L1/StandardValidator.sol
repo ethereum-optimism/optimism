@@ -170,7 +170,7 @@ contract StandardValidator {
 
     /// @notice Returns the expected SystemConfig version.
     function systemConfigVersion() public pure returns (string memory) {
-        return "3.3.0";
+        return "3.4.0";
     }
 
     /// @notice Returns the expected OptimismPortal version.
@@ -267,7 +267,7 @@ contract StandardValidator {
     {
         ISemver _semver = ISemver(address(_sysCfg));
         _errors = internalRequire(LibString.eq(_semver.version(), systemConfigVersion()), "SYSCON-10", _errors);
-        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(200_000_000), "SYSCON-20", _errors);
+        _errors = internalRequire(_sysCfg.gasLimit() <= uint64(500_000_000), "SYSCON-20", _errors);
         _errors = internalRequire(_sysCfg.scalar() != 0, "SYSCON-30", _errors);
         _errors =
             internalRequire(_admin.getProxyImplementation(address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
