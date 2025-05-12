@@ -59,12 +59,9 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 
 	if faucet, ok := net.Services["faucet"]; ok {
 		for _, instance := range faucet {
-			for _, endpoint := range instance.Endpoints {
-				endpoint.Path = fmt.Sprintf("chain/%s", l2.ChainID().String())
-			}
 			l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, instance, RPCProtocol),
+				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", l2.ChainID().String())),
 				ID:           stack.FaucetID{Key: instance.Name, ChainID: l2.ChainID()},
 			}))
 		}
@@ -79,7 +76,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 
 	elService, ok := node.Services[ELServiceName]
 	require.True(ok, "need L2 EL service for chain", l2ID)
-	elClient := o.rpcClient(l2Net.T(), elService, RPCProtocol)
+	elClient := o.rpcClient(l2Net.T(), elService, RPCProtocol, "/")
 	l2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
@@ -103,7 +100,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	require.True(ok, "need L2 CL service for chain", l2ID)
 
 	// it's an RPC, but 'http' in kurtosis descriptor
-	clClient := o.rpcClient(l2Net.T(), clService, HTTPProtocol)
+	clClient := o.rpcClient(l2Net.T(), clService, HTTPProtocol, "/")
 	l2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
 		ID: stack.L2CLNodeID{
 			Key:     clService.Name,
@@ -131,7 +128,7 @@ func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stac
 		l2Proxyd := shim.NewL2ELNode(shim.L2ELNodeConfig{
 			ELNodeConfig: shim.ELNodeConfig{
 				CommonConfig: shim.NewCommonConfig(l2Net.T()),
-				Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol),
+				Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
 				ChainID:      l2ID.ChainID(),
 			},
 			ID: stack.L2ELNodeID{
@@ -162,7 +159,7 @@ func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack
 				Key:     instance.Name,
 				ChainID: l2ID.ChainID(),
 			},
-			Client: o.rpcClient(l2Net.T(), instance, HTTPProtocol),
+			Client: o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
 		}))
 	}
 }
@@ -185,7 +182,7 @@ func (o *Orchestrator) hydrateProposerMaybe(net *descriptors.L2Chain, l2Net stac
 				Key:     instance.Name,
 				ChainID: l2ID.ChainID(),
 			},
-			Client: o.rpcClient(l2Net.T(), instance, HTTPProtocol),
+			Client: o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
 		}))
 	}
 }

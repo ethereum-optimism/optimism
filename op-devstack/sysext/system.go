@@ -60,7 +60,7 @@ func (o *Orchestrator) hydrateSupervisorsMaybe(sys stack.ExtensibleSystem) {
 				sys.AddSupervisor(shim.NewSupervisor(shim.SupervisorConfig{
 					CommonConfig: shim.NewCommonConfig(sys.T()),
 					ID:           id,
-					Client:       o.rpcClient(sys.T(), instance, RPCProtocol),
+					Client:       o.rpcClient(sys.T(), instance, RPCProtocol, "/"),
 				}))
 			}
 		}

@@ -31,7 +31,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 		l1.AddL1ELNode(shim.NewL1ELNode(shim.L1ELNodeConfig{
 			ELNodeConfig: shim.ELNodeConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, elService, RPCProtocol),
+				Client:       o.rpcClient(t, elService, RPCProtocol, "/"),
 				ChainID:      l1ID,
 			},
 			ID: stack.L1ELNodeID{
@@ -49,18 +49,15 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 				ChainID: l1ID,
 			},
 			CommonConfig: commonConfig,
-			Client:       o.httpClient(t, clService, HTTPProtocol),
+			Client:       o.httpClient(t, clService, HTTPProtocol, "/"),
 		}))
 	}
 
 	if faucet, ok := env.Env.L1.Services["faucet"]; ok {
 		for _, instance := range faucet {
-			for _, endpoint := range instance.Endpoints {
-				endpoint.Path = fmt.Sprintf("chain/%s", l1.ChainID().String())
-			}
 			l1.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, instance, RPCProtocol),
+				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String())),
 				ID:           stack.FaucetID{Key: instance.Name, ChainID: l1ID},
 			}))
 		}

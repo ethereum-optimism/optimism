@@ -3,6 +3,7 @@ package sysext
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -22,10 +23,13 @@ const (
 	FeatureInterop = "interop"
 )
 
-func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string) client.RPC {
+func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string, path string) client.RPC {
 	t.Helper()
 
 	endpoint, header, err := orch.findProtocolService(service, protocol)
+	t.Require().NoError(err)
+
+	endpoint, err = url.JoinPath(endpoint, path)
 	t.Require().NoError(err)
 
 	opts := []client.RPCOption{}
@@ -33,7 +37,7 @@ func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, p
 		opts = append(opts, client.WithLazyDial())
 	}
 
-	if orch.env.Env.ReverseProxyURL != "" && !orch.useDirectCnx {
+	if orch.env.Env.ReverseProxyURL != "" && len(header) > 0 && !orch.useDirectCnx {
 		opts = append(
 			opts,
 			client.WithGethRPCOptions(
@@ -52,10 +56,13 @@ func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, p
 	return cl
 }
 
-func (orch *Orchestrator) httpClient(t devtest.T, service *descriptors.Service, protocol string) *client.BasicHTTPClient {
+func (orch *Orchestrator) httpClient(t devtest.T, service *descriptors.Service, protocol string, path string) *client.BasicHTTPClient {
 	t.Helper()
 
 	endpoint, header, err := orch.findProtocolService(service, protocol)
+	t.Require().NoError(err)
+
+	endpoint, err = url.JoinPath(endpoint, path)
 	t.Require().NoError(err)
 
 	opts := []client.BasicHTTPClientOption{}
@@ -74,16 +81,15 @@ func (orch *Orchestrator) httpClient(t devtest.T, service *descriptors.Service, 
 func (orch *Orchestrator) findProtocolService(service *descriptors.Service, protocol string) (string, http.Header, error) {
 	for proto, endpoint := range service.Endpoints {
 		if proto == protocol {
-			if orch.env.Env.ReverseProxyURL != "" && !orch.useDirectCnx {
-				return descriptors.AppendPath(orch.env.Env.ReverseProxyURL, endpoint.Path), endpoint.ReverseProxyHeader, nil
+			if orch.env.Env.ReverseProxyURL != "" && len(endpoint.ReverseProxyHeader) > 0 && !orch.useDirectCnx {
+				return orch.env.Env.ReverseProxyURL, endpoint.ReverseProxyHeader, nil
 			}
 
 			port := endpoint.Port
 			if orch.usePrivatePorts {
 				port = endpoint.PrivatePort
 			}
-			url := descriptors.AppendPath(fmt.Sprintf("http://%s:%d", endpoint.Host, port), endpoint.Path)
-			return url, nil, nil
+			return fmt.Sprintf("http://%s:%d", endpoint.Host, port), nil, nil
 		}
 	}
 	return "", nil, fmt.Errorf("protocol %s not found", protocol)
