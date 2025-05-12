@@ -9,6 +9,7 @@ import (
 
 const (
 	FeatureInterop = "interop"
+	FeatureFaucet  = "faucet"
 )
 
 // ChainSpec represents the network parameters for a chain
@@ -50,8 +51,14 @@ type SuperchainConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+// FaucetConfig represents the faucet section in the YAML
+type FaucetConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // OptimismPackage represents the optimism_package section in the YAML
 type OptimismPackage struct {
+	Faucet      FaucetConfig                `yaml:"faucet"`
 	Superchains map[string]SuperchainConfig `yaml:"superchains"`
 	Chains      []ChainConfig               `yaml:"chains"`
 }
@@ -77,15 +84,20 @@ type featureExtractor func(YAMLSpec, string) bool
 
 var featuresMap = map[string]featureExtractor{
 	FeatureInterop: interopExtractor,
+	FeatureFaucet:  faucetExtractor,
 }
 
-func interopExtractor(yamlSpec YAMLSpec, chainName string) bool {
+func interopExtractor(yamlSpec YAMLSpec, _feature string) bool {
 	for _, superchain := range yamlSpec.OptimismPackage.Superchains {
 		if superchain.Enabled {
 			return true
 		}
 	}
 	return false
+}
+
+func faucetExtractor(yamlSpec YAMLSpec, _feature string) bool {
+	return yamlSpec.OptimismPackage.Faucet.Enabled
 }
 
 // ExtractData parses a YAML document and returns the chain specifications
