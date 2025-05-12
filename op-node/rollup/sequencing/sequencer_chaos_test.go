@@ -262,15 +262,8 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 	ex := event.NewGlobalSynchronous(context.Background())
 	sys := event.NewSystem(logger, ex)
 	sys.AddTracer(event.NewLogTracer(logger, log.LevelInfo))
-
-	opts := &event.RegisterOpts{
-		Executor: event.ExecutorOpts{
-			Capacity: 200,
-		},
-		Emitter: event.EmitterOpts{
-			Limiting: false, // We're rapidly simulating with fake clock, so don't rate-limit
-		},
-	}
+	// We're rapidly simulating with fake clock, so don't rate-limit
+	opts := event.WithNoEmitLimiter()
 	sys.Register("sequencer", seq, opts)
 
 	rng := rand.New(rand.NewSource(seed))

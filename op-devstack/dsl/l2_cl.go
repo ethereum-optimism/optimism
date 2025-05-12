@@ -8,14 +8,16 @@ import (
 // L2CLNode wraps a stack.L2CLNode interface for DSL operations
 type L2CLNode struct {
 	commonImpl
-	inner stack.L2CLNode
+	inner   stack.L2CLNode
+	control stack.ControlPlane
 }
 
 // NewL2CLNode creates a new L2CLNode DSL wrapper
-func NewL2CLNode(inner stack.L2CLNode) *L2CLNode {
+func NewL2CLNode(inner stack.L2CLNode, control stack.ControlPlane) *L2CLNode {
 	return &L2CLNode{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
+		control:    control,
 	}
 }
 
@@ -33,4 +35,12 @@ func (cl *L2CLNode) SafeL2BlockRef() eth.L2BlockRef {
 	cl.require.NoError(err, "Expected to get sync status")
 
 	return syncStatus.SafeL2
+}
+
+func (cl *L2CLNode) Start() {
+	cl.control.L2CLNodeState(cl.inner.ID(), stack.Start)
+}
+
+func (cl *L2CLNode) Stop() {
+	cl.control.L2CLNodeState(cl.inner.ID(), stack.Stop)
 }

@@ -81,6 +81,7 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		// TODO(#15139): set log-level filter, reduce noise
 		//log.SetDefault(t.Log.New("logger", "global"))
 
+		detectBackend(p.Logger())
 		initOrchestrator(ctx, p, stack.Combine(opts...))
 
 		errCode = m.Run()
@@ -99,21 +100,14 @@ func initOrchestrator(ctx context.Context, p devtest.P, opt stack.CommonOption) 
 	if lockedOrchestrator.Value != nil {
 		return
 	}
-	kind, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR")
-	if !ok {
-		p.Logger().Warn("Selecting sysgo as default devstack orchestrator")
-		kind = "sysgo"
-	}
-
-	switch kind {
-	case "sysgo":
-		p.Logger().WithContext(ctx).Info("initializing sysgo orchestrator")
+	p.Logger().WithContext(ctx).Info("initializing orchestrator", "backend", globalBackend)
+	switch globalBackend {
+	case SysGo:
 		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
-	case "sysext":
-		p.Logger().WithContext(ctx).Info("initializing sysext orchestrator")
+	case SysExt:
 		lockedOrchestrator.Value = sysext.NewOrchestrator(p)
 	default:
-		p.Logger().Crit("Unknown devstack backend", "kind", kind)
+		panic(fmt.Sprintf("Unknown backend for initializing orchestrator: %s", globalBackend))
 	}
 	stack.ApplyOptionLifecycle(opt, lockedOrchestrator.Value)
 }

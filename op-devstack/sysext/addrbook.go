@@ -22,17 +22,8 @@ type l1AddressBook struct {
 }
 
 func newL1AddressBook(t devtest.T, addresses descriptors.AddressMap) *l1AddressBook {
-	protocolVersions, ok := addresses[ProtocolVersionsAddressName]
-	t.Require().True(ok)
-	superchainConfig, ok := addresses[SuperchainConfigAddressName]
-	t.Require().True(ok)
-
-	book := &l1AddressBook{
-		protocolVersions: protocolVersions,
-		superchainConfig: superchainConfig,
-	}
-
-	return book
+	// TODO(#15817) op-devstack: sysext: fix address book
+	return &l1AddressBook{}
 }
 
 func (a *l1AddressBook) ProtocolVersionsAddr() common.Address {
@@ -51,15 +42,8 @@ type l2AddressBook struct {
 }
 
 func newL2AddressBook(t devtest.T, l1Addresses descriptors.AddressMap) *l2AddressBook {
-	systemConfig, ok := l1Addresses[SystemConfigAddressName]
-	t.Require().True(ok)
-	disputeGameFactory, ok := l1Addresses[DisputeGameFactoryName]
-	t.Require().True(ok)
-
-	return &l2AddressBook{
-		systemConfig:       systemConfig,
-		disputeGameFactory: disputeGameFactory,
-	}
+	// TODO(#15817) op-devstack: sysext: fix address book
+	return &l2AddressBook{}
 }
 
 func (a *l2AddressBook) SystemConfigProxyAddr() common.Address {

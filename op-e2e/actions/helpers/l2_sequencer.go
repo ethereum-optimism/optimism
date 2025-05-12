@@ -70,18 +70,16 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	asyncGossip := async.NoOpGossiper{}
 	seq := sequencing.NewSequencer(t.Ctx(), log, cfg, attrBuilder, l1OriginSelector,
 		seqStateListener, conduc, asyncGossip, metr)
-	opts := event.DefaultRegisterOpts()
-	opts.Emitter = event.EmitterOpts{
-		Limiting: true,
+	opts := event.WithEmitLimiter(
 		// TestSyncBatchType/DerivationWithFlakyL1RPC does *a lot* of quick retries
 		// TestL2BatcherBatchType/ExtendedTimeWithoutL1Batches as well.
-		Rate:  rate.Limit(100_000),
-		Burst: 100_000,
-		OnLimited: func() {
+		rate.Limit(100_000),
+		100_000,
+		func() {
 			log.Warn("Hitting events rate-limit. An events code-path may be hot-looping.")
 			t.Fatal("Tests must not hot-loop events")
 		},
-	}
+	)
 	ver.eventSys.Register("sequencer", seq, opts)
 	ver.eventSys.Register("origin-selector", originSelector, opts)
 	require.NoError(t, seq.Init(t.Ctx(), true))

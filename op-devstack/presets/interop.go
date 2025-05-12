@@ -32,8 +32,8 @@ type SimpleInterop struct {
 	L2ELA *dsl.L2ELNode
 	L2ELB *dsl.L2ELNode
 
-	L2CLNodeA *dsl.L2CLNode
-	L2CLNodeB *dsl.L2CLNode
+	L2CLA *dsl.L2CLNode
+	L2CLB *dsl.L2CLNode
 
 	Wallet *dsl.HDWallet
 
@@ -50,28 +50,23 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 	}
 }
 
-func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.CommonOption {
-	return stack.Combine(
-		stack.MakeCommon(startInProcessSimpleInterop()),
-		stack.Finally(func(orch stack.Orchestrator, hook stack.SystemHook) {
-			*dest = func(t devtest.T) *SimpleInterop {
-				return hydrateSimpleInterop(t, orch, hook)
-			}
-		}))
-}
-
 // startInProcessSimpleInterop starts a new system that meets the simple interop criteria
 func startInProcessSimpleInterop() stack.Option[*sysgo.Orchestrator] {
 	var ids sysgo.DefaultInteropSystemIDs
 	return sysgo.DefaultInteropSystem(&ids)
 }
 
-// hydrateSimpleInterop hydrates the test specific view of a shared system and selects the resources required for
-// a simple interop system.
-func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator, hook stack.SystemHook) *SimpleInterop {
+func ConfigureSimpleInterop() stack.CommonOption {
+	if globalBackend == SysGo {
+		return stack.MakeCommon(startInProcessSimpleInterop())
+	}
+	return nil
+}
+
+func NewSimpleInterop(t devtest.T) *SimpleInterop {
 	system := shim.NewSystem(t)
+	orch := Orchestrator()
 	orch.Hydrate(system)
-	hook.PostHydrate(system)
 
 	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
 	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
@@ -93,8 +88,8 @@ func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator, hook stack.Syste
 		L2ChainB:     dsl.NewL2Network(l2B),
 		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
 		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
-		L2CLNodeA:    dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL))),
-		L2CLNodeB:    dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL))),
+		L2CLA:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		L2CLB:        dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
 		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
 		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
 		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),

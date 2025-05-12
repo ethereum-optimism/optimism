@@ -1,4 +1,4 @@
-package upgrade
+package sync
 
 import (
 	"testing"
@@ -9,8 +9,6 @@ import (
 var SimpleInterop presets.TestSetup[*presets.SimpleInterop]
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m,
-		presets.NewSimpleInterop(&SimpleInterop),
-		presets.WithSuggestedInteropActivationOffset(30),
-		presets.WithInteropNotAtGenesis())
+	SimpleInterop = presets.NewSimpleInterop
+	presets.DoMain(m, presets.ConfigureSimpleInterop())
 }

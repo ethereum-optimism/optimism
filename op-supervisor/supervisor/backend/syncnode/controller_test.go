@@ -239,7 +239,7 @@ func TestAttachNodeController(t *testing.T) {
 	ex := event.NewGlobalSynchronous(context.Background())
 	eventSys := event.NewSystem(logger, ex)
 	controller := NewSyncNodesController(logger, depSet, eventSys, &mockBackend{})
-	eventSys.Register("controller", controller, event.DefaultRegisterOpts())
+	eventSys.Register("controller", controller)
 	require.Zero(t, controller.controllers.Len(), "controllers should be empty to start")
 
 	// Attach a controller for chain 900

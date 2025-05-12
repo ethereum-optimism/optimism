@@ -5,10 +5,14 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -114,4 +118,34 @@ func (u *EOA) VerifyBalanceLessThan(v eth.ETH) {
 func (u *EOA) VerifyBalanceExact(v eth.ETH) {
 	actual := u.balance()
 	u.t.Require().Equal(v, actual, "must have expected balance")
+}
+
+func (u *EOA) DeployEventLogger() common.Address {
+	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(common.FromHex(bindings.EventloggerBin)))
+	res, err := tx.Included.Eval(u.ctx)
+	u.t.Require().NoError(err, "failed to deploy EventLogger")
+	eventLoggerAddress := res.ContractAddress
+	u.log.Info("deployed EventLogger", "chainID", tx.ChainID.Value(), "address", eventLoggerAddress)
+	return eventLoggerAddress
+}
+
+func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) (*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], *types.Receipt) {
+	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](u.Plan())
+	tx.Content.Set(trigger)
+	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
+	u.t.Require().NoError(err, "init msg receipt not found")
+	u.log.Info("init message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
+	return tx, receipt
+}
+
+func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], eventIdx int) (*txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput], *types.Receipt) {
+	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](u.Plan())
+	tx.Content.DependOn(&initIntent.Result)
+	tx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initIntent.Result, eventIdx))
+	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
+	u.t.Require().NoError(err, "exec msg receipt not found")
+	u.log.Info("exec message included", "chain", u.ChainID(), "block", receipt.BlockNumber)
+	// Check single ExecutingMessage triggered
+	u.t.Require().Equal(1, len(receipt.Logs))
+	return tx, receipt
 }

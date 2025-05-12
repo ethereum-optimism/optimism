@@ -2,6 +2,7 @@ package descriptors
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
@@ -10,11 +11,20 @@ import (
 
 type PortInfo struct {
 	Host        string `json:"host"`
+	Path        string `json:"path,omitempty"`
 	Scheme      string `json:"scheme,omitempty"`
 	Port        int    `json:"port,omitempty"`
 	PrivatePort int    `json:"private_port,omitempty"`
 
 	ReverseProxyHeader http.Header `json:"reverse_proxy_header,omitempty"`
+}
+
+func AppendPath(baseURL, path string) string {
+	url := baseURL
+	if path != "" {
+		url += fmt.Sprintf("/%s", path)
+	}
+	return url
 }
 
 // EndpointMap is a map of service names to their endpoints.

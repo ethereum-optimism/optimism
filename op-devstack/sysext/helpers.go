@@ -75,14 +75,15 @@ func (orch *Orchestrator) findProtocolService(service *descriptors.Service, prot
 	for proto, endpoint := range service.Endpoints {
 		if proto == protocol {
 			if orch.env.Env.ReverseProxyURL != "" && !orch.useDirectCnx {
-				return orch.env.Env.ReverseProxyURL, endpoint.ReverseProxyHeader, nil
+				return descriptors.AppendPath(orch.env.Env.ReverseProxyURL, endpoint.Path), endpoint.ReverseProxyHeader, nil
 			}
 
 			port := endpoint.Port
 			if orch.usePrivatePorts {
 				port = endpoint.PrivatePort
 			}
-			return fmt.Sprintf("http://%s:%d", endpoint.Host, port), nil, nil
+			url := descriptors.AppendPath(fmt.Sprintf("http://%s:%d", endpoint.Host, port), endpoint.Path)
+			return url, nil, nil
 		}
 	}
 	return "", nil, fmt.Errorf("protocol %s not found", protocol)

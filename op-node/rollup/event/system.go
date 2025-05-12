@@ -16,7 +16,7 @@ type Registry interface {
 	// deriver may be nil, not all registrants have to process events.
 	// A non-nil deriver may implement AttachEmitter to automatically attach the Emitter to it,
 	// before the deriver itself becomes executable.
-	Register(name string, deriver Deriver, opts *RegisterOpts) Emitter
+	Register(name string, deriver Deriver, opts ...RegisterOption) Emitter
 	// Unregister removes a named emitter,
 	// also removing it from the set of events-receiving derivers (if registered with non-nil deriver).
 	Unregister(name string) (old Emitter)
@@ -39,8 +39,9 @@ type AttachEmitter interface {
 }
 
 type AnnotatedEvent struct {
-	Event       Event
-	EmitContext uint64 // uniquely identifies the emission of the event, useful for debugging and creating diagrams
+	Event        Event
+	EmitContext  uint64   // uniquely identifies the emission of the event, useful for debugging and creating diagrams
+	EmitPriority Priority // how important the emitter is, higher is more important
 }
 
 // systemActor is a deriver and/or emitter, registered in System with a name.
@@ -58,6 +59,11 @@ type systemActor struct {
 
 	// 0 if event does not originate from Deriver-handling of another event
 	currentEvent uint64
+
+	// How important this actor is as emitter. Higher is more important.
+	// Emitted events from actors with a higher emit priority
+	// will be prioritized over other queued up events.
+	emitPriority Priority
 }
 
 // Emit is called by the end-user
@@ -65,7 +71,7 @@ func (r *systemActor) Emit(ev Event) {
 	if r.ctx.Err() != nil {
 		return
 	}
-	r.sys.emit(r.name, r.currentEvent, ev)
+	r.sys.emit(r.name, r.currentEvent, ev, r.emitPriority)
 }
 
 // RunEvent is called by the events executor.
@@ -120,12 +126,17 @@ func NewSystem(log log.Logger, ex Executor) *Sys {
 	}
 }
 
-func (s *Sys) Register(name string, deriver Deriver, opts *RegisterOpts) Emitter {
+func (s *Sys) Register(name string, deriver Deriver, opts ...RegisterOption) Emitter {
 	s.regsLock.Lock()
 	defer s.regsLock.Unlock()
 
 	if _, ok := s.regs[name]; ok {
 		panic(fmt.Errorf("a deriver/emitter with name %q already exists", name))
+	}
+
+	cfg := defaultRegisterConfig()
+	for _, opt := range opts {
+		opt(cfg)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -135,12 +146,14 @@ func (s *Sys) Register(name string, deriver Deriver, opts *RegisterOpts) Emitter
 		sys:    s,
 		ctx:    ctx,
 		cancel: cancel,
+		// prioritize the outgoing messages
+		emitPriority: cfg.Emitter.Priority,
 	}
 	s.regs[name] = r
 	var em Emitter = r
-	if opts.Emitter.Limiting {
-		limitedCallback := opts.Emitter.OnLimited
-		em = NewLimiter(ctx, r, opts.Emitter.Rate, opts.Emitter.Burst, func() {
+	if cfg.Emitter.Limiting {
+		limitedCallback := cfg.Emitter.OnLimited
+		em = NewLimiter(ctx, r, cfg.Emitter.Rate, cfg.Emitter.Burst, func() {
 			r.sys.recordRateLimited(name, r.currentEvent)
 			if limitedCallback != nil {
 				limitedCallback()
@@ -154,7 +167,7 @@ func (s *Sys) Register(name string, deriver Deriver, opts *RegisterOpts) Emitter
 		if attachTo, ok := deriver.(AttachEmitter); ok {
 			attachTo.AttachEmitter(em)
 		}
-		r.leaveExecutor = s.executor.Add(r, &opts.Executor)
+		r.leaveExecutor = s.executor.Add(r, &cfg.Executor)
 	}
 	return em
 }
@@ -248,9 +261,9 @@ func (s *Sys) recordEmit(name string, ev AnnotatedEvent, derivContext uint64, em
 // emit an event [ev] during the derivation of another event, referenced by derivContext.
 // If the event was emitted not as part of deriver event execution, then the derivContext is 0.
 // The name of the emitter is provided to further contextualize the event.
-func (s *Sys) emit(name string, derivContext uint64, ev Event) {
+func (s *Sys) emit(name string, derivContext uint64, ev Event, emitPriority Priority) {
 	emitContext := s.emitContext.Add(1)
-	annotated := AnnotatedEvent{Event: ev, EmitContext: emitContext}
+	annotated := AnnotatedEvent{Event: ev, EmitContext: emitContext, EmitPriority: emitPriority}
 
 	// As soon as anything emits a critical event,
 	// make the system aware, before the executor event schedules it for processing.

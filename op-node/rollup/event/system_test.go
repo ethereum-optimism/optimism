@@ -29,7 +29,7 @@ func TestSysTracing(t *testing.T) {
 	logTracer := NewLogTracer(lgr, log.LevelDebug)
 	sys.AddTracer(logTracer)
 
-	em := sys.Register("foo", foo, DefaultRegisterOpts())
+	em := sys.Register("foo", foo)
 	em.Emit(TestEvent{})
 	require.Equal(t, 0, count, "no event processing before synchronous executor explicitly drains")
 	require.NoError(t, ex.Drain())
@@ -86,9 +86,9 @@ func TestSystemBroadcast(t *testing.T) {
 		}
 		return true
 	})
-	fooEm := sys.Register("foo", foo, DefaultRegisterOpts())
+	fooEm := sys.Register("foo", foo)
 	fooEm.Emit(TestEvent{})
-	barEm := sys.Register("bar", bar, DefaultRegisterOpts())
+	barEm := sys.Register("bar", bar)
 	barEm.Emit(TestEvent{})
 	// events are broadcast to every deriver, regardless who sends them
 	require.NoError(t, ex.Drain())
@@ -121,8 +121,8 @@ func TestCriticalError(t *testing.T) {
 	})
 	exec := NewGlobalSynchronous(context.Background())
 	sys := NewSystem(logger, exec)
-	emitterA := sys.Register("a", deriverFn, DefaultRegisterOpts())
-	emitterB := sys.Register("b", deriverFn, DefaultRegisterOpts())
+	emitterA := sys.Register("a", deriverFn)
+	emitterB := sys.Register("b", deriverFn)
 
 	require.NoError(t, exec.Drain(), "can drain, even if empty")
 	emitterA.Emit(TestEvent{})

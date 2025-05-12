@@ -3,6 +3,7 @@ package dsl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -48,7 +49,7 @@ func WithAllLocalUnsafeHeadsAdvancedBy(blocks uint64) func(cfg *VerifySyncStatus
 func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfig)) {
 	cfg := applyOpts(VerifySyncStatusConfig{}, opts...)
 	initial := s.FetchSyncStatus()
-	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
 		status := s.FetchSyncStatus()
@@ -69,7 +70,7 @@ func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfi
 
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
-	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
 		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)
@@ -87,7 +88,7 @@ func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 }
 
 func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
-	ctx, cancel := context.WithTimeout(s.ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
 		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)
@@ -99,4 +100,24 @@ func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
 	s.require.NoError(err, "Failed to fetch sync status")
 
 	return syncStatus.Chains[chainID].CrossSafe
+}
+
+func (s *Supervisor) AdvanceUnsafeHead(chainID eth.ChainID, block uint64) {
+	initial := s.FetchSyncStatus()
+	chInitial, ok := initial.Chains[chainID]
+	s.require.True(ok, fmt.Sprintf("chain sync status not found: chain id: %d", chainID))
+	required := chInitial.LocalUnsafe.Number + block
+	attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
+	err := retry.Do0(s.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+		func() error {
+			chStatus := s.FetchSyncStatus().Chains[chainID]
+			s.log.Info("Supervisor view of unsafe head", "chain", chainID, "unsafe", chStatus.LocalUnsafe)
+			if chStatus.LocalUnsafe.Number < required {
+				s.log.Info("Unsafe head sync status not ready",
+					"chain", chainID, "initialUnsafe", chInitial.LocalUnsafe, "currentUnsafe", chStatus.LocalUnsafe, "minRequired", required)
+				return fmt.Errorf("expected head to advance")
+			}
+			return nil
+		})
+	s.require.NoError(err)
 }

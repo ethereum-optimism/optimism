@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -14,14 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/stretchr/testify/require"
 )
-
-var SimpleInterop presets.TestSetup[*presets.SimpleInterop]
-
-// TestMain creates the test-setups against the shared backend
-func TestMain(m *testing.M) {
-	// Other setups may be added here, hydrated from the same orchestrator
-	presets.DoMain(m, presets.NewSimpleInterop(&SimpleInterop))
-}
 
 // TestReorgUnsafeHead starts an interop chain with an op-test-sequencer, which takes control over sequencing the L2 chain and introduces a reorg on the unsafe head
 func TestReorgUnsafeHead(gt *testing.T) {
@@ -56,13 +47,13 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	sys.L2ChainA.WaitForBlock()
 	sys.L2ChainA.WaitForBlock()
 
-	unsafeHead, err := sys.L2CLNodeA.Escape().RollupAPI().StopSequencer(ctx)
+	unsafeHead, err := sys.L2CLA.Escape().RollupAPI().StopSequencer(ctx)
 	require.NoError(t, err, "Expected to be able to call StopSequencer API, but got error")
 
 	// wait for the sequencer to become inactive
 	var active bool
 	err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-		active, err = sys.L2CLNodeA.Escape().RollupAPI().SequencerActive(ctx)
+		active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
 		return !active, err
 	})
 	require.NoError(t, err, "Expected to be able to call SequencerActive API, and wait for inactive state for sequencer, but got error")
@@ -141,12 +132,12 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	newUnsafeHeadRef := sys.L2ChainA.UnsafeHeadRef()
 	l.Info("Continue sequencing with consensus node (op-node)", "unsafeHead", newUnsafeHeadRef)
 
-	err = sys.L2CLNodeA.Escape().RollupAPI().StartSequencer(ctx, newUnsafeHeadRef.Hash)
+	err = sys.L2CLA.Escape().RollupAPI().StartSequencer(ctx, newUnsafeHeadRef.Hash)
 	require.NoError(t, err, "Expected to be able to start sequencer on rollup node")
 
 	// wait for the sequencer to become active
 	err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-		active, err = sys.L2CLNodeA.Escape().RollupAPI().SequencerActive(ctx)
+		active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
 		return active, err
 	})
 	require.NoError(t, err, "Expected to be able to call SequencerActive API, and wait for an active state for sequencer, but got error")
@@ -167,7 +158,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 	err = wait.For(ctx, 5*time.Second, func() (bool, error) {
 		safeL2Head_A_supervisor := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
-		safeL2Head_A_sequencer := sys.L2CLNodeA.SafeL2BlockRef()
+		safeL2Head_A_sequencer := sys.L2CLA.SafeL2BlockRef()
 
 		if safeL2Head_A_sequencer.Number <= divergenceBlockNumber_A {
 			l.Info("Safe ref number is still behind divergence block number", "divergence", divergenceBlockNumber_A, "safe", safeL2Head_A_sequencer.Number)

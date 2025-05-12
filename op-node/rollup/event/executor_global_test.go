@@ -2,7 +2,10 @@ package event
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -17,7 +20,7 @@ func TestGlobalExecutor(t *testing.T) {
 		count += 1
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, nil)
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	require.NoError(t, exec.Drain(), "can drain, even if empty")
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -43,7 +46,7 @@ func TestQueueSanityLimit(t *testing.T) {
 		count += 1
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, nil)
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 	// emit 1 too many events
 	for i := 0; i < sanityEventLimit; i++ {
@@ -82,7 +85,7 @@ func TestSynchronousCyclic(t *testing.T) {
 		}
 	})
 	exec = NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, nil)
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: CyclicEvent{Count: 0}}))
 	require.NoError(t, exec.Drain())
@@ -97,7 +100,7 @@ func TestDrainCancel(t *testing.T) {
 		cancel()
 	})
 	exec := NewGlobalSynchronous(ctx)
-	leave := exec.Add(ex, nil)
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -118,7 +121,7 @@ func TestDrainUntilCancel(t *testing.T) {
 		}
 	})
 	exec := NewGlobalSynchronous(ctx)
-	leave := exec.Add(ex, nil)
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -140,7 +143,7 @@ func TestDrainUntilExcl(t *testing.T) {
 		count += 1
 	})
 	exec := NewGlobalSynchronous(context.Background())
-	leave := exec.Add(ex, nil)
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
 	defer leave()
 
 	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}}))
@@ -155,4 +158,168 @@ func TestDrainUntilExcl(t *testing.T) {
 	require.Equal(t, 2, count, "Foo is processed, remainder is not, stop is inclusive now")
 	require.NoError(t, exec.Drain())
 	require.Equal(t, 4, count, "Done")
+}
+
+func TestPrioritized(t *testing.T) {
+	items := []string{}
+	ex1 := ExecutableFunc(func(ev AnnotatedEvent) {
+		items = append(items, fmt.Sprintf("ex1: %d", ev.EmitContext))
+	})
+	ex2 := ExecutableFunc(func(ev AnnotatedEvent) {
+		items = append(items, fmt.Sprintf("ex2: %d", ev.EmitContext))
+	})
+	ex3 := ExecutableFunc(func(ev AnnotatedEvent) {
+		items = append(items, fmt.Sprintf("ex3: %d", ev.EmitContext))
+	})
+	ex4 := ExecutableFunc(func(ev AnnotatedEvent) {
+		items = append(items, fmt.Sprintf("ex4: %d", ev.EmitContext))
+	})
+	exec := NewGlobalSynchronous(context.Background())
+	leave1 := exec.Add(ex1, &ExecutorConfig{Priority: Low})
+	leave2 := exec.Add(ex2, &ExecutorConfig{Priority: High})
+	leave3 := exec.Add(ex3, &ExecutorConfig{Priority: Normal})
+	leave4 := exec.Add(ex4, &ExecutorConfig{Priority: Normal})
+	defer leave1()
+	defer leave2()
+	defer leave3()
+	defer leave4()
+
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{
+		Event:        FooEvent{},
+		EmitContext:  0,
+		EmitPriority: Low,
+	}))
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{
+		Event:        TestEvent{},
+		EmitContext:  1,
+		EmitPriority: High,
+	}))
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{
+		Event:        TestEvent{},
+		EmitContext:  2,
+		EmitPriority: Normal,
+	}))
+	require.NoError(t, exec.Drain())
+
+	out := "\n" + strings.Join(items, "\n") + "\n"
+	// Enqueued events are executed based on their emit priority.
+	// Once an event is selected, the event is executed by executors in order of executor priority.
+	expected := `
+ex2: 1
+ex3: 1
+ex4: 1
+ex1: 1
+ex2: 2
+ex3: 2
+ex4: 2
+ex1: 2
+ex2: 0
+ex3: 0
+ex4: 0
+ex1: 0
+`
+	require.Equal(t, expected, out)
+	items = []string{}
+	// Try emit another event, with a previously seen priority.
+	// Other priorities may not have any events.
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{
+		Event:        TestEvent{},
+		EmitContext:  3,
+		EmitPriority: High,
+	}))
+	// And another. FIFO.
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{
+		Event:        TestEvent{},
+		EmitContext:  4,
+		EmitPriority: High,
+	}))
+	require.NoError(t, exec.Drain())
+	out = "\n" + strings.Join(items, "\n") + "\n"
+	expected = `
+ex2: 3
+ex3: 3
+ex4: 3
+ex1: 3
+ex2: 4
+ex3: 4
+ex4: 4
+ex1: 4
+`
+	require.Equal(t, expected, out)
+}
+
+func TestAwait(t *testing.T) {
+	count := 0
+	ex := ExecutableFunc(func(ev AnnotatedEvent) {
+		count += 1
+	})
+	exec := NewGlobalSynchronous(context.Background())
+	leave := exec.Add(ex, &ExecutorConfig{Priority: Normal})
+	defer leave()
+
+	// this event should be picked up as pre-existing queued event
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}, EmitContext: 1}))
+	require.NotZero(t, exec.events.Count())
+	ch := exec.Await()
+	select {
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout")
+	case _, ok := <-ch:
+		require.False(t, ok, "should be unblocked now")
+	}
+	require.NoError(t, exec.Drain())
+	require.Zero(t, exec.events.Count())
+
+	// Here we expect to not have any events, yet.
+	ch = exec.Await()
+	select {
+	case <-ch:
+		t.Fatal("should not be unlocked yet")
+	default:
+	}
+	// Enqueue an event, see if it unblocks the await as expected
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}, EmitContext: 2}))
+	require.NotZero(t, exec.events.Count())
+	select {
+	case _, ok := <-ch:
+		require.False(t, ok, "should be unblocked now")
+	default:
+		t.Fatal("should not be blocked")
+	}
+	require.NoError(t, exec.Drain())
+	require.Zero(t, exec.events.Count())
+
+	// Now try a pre-existing await, followed by multiple queued events, to drain all at once.
+	ch = exec.Await()
+	select {
+	case <-ch:
+		t.Fatal("should not be unlocked yet")
+	default:
+	}
+	ch2 := exec.Await()
+	require.Equal(t, ch, ch2, "should reuse the same channel")
+
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}, EmitContext: 3}))
+
+	ch3 := exec.Await()
+	require.NotEqual(t, ch, ch3, "enqueue should replace the await channel")
+
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}, EmitContext: 4}))
+	require.NoError(t, exec.Enqueue(AnnotatedEvent{Event: TestEvent{}, EmitContext: 5}))
+	require.Equal(t, uint64(3), exec.events.Count())
+
+	select {
+	case _, ok := <-ch:
+		require.False(t, ok, "original should be unblocked since a while")
+	default:
+		t.Fatal("should not be blocked")
+	}
+	select {
+	case _, ok := <-ch3:
+		require.False(t, ok, "later channel should be unblocked also")
+	default:
+		t.Fatal("should not be blocked")
+	}
+	require.NoError(t, exec.Drain())
+	require.Zero(t, exec.events.Count())
 }

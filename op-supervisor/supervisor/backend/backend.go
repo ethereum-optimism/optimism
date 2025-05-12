@@ -129,10 +129,10 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 
 	// create initial per-chain resources
 	chainsDBs := db.NewChainsDB(logger, depSet, m)
-	eventSys.Register("chainsDBs", chainsDBs, event.DefaultRegisterOpts())
+	eventSys.Register("chainsDBs", chainsDBs)
 
 	l1Accessor := l1access.NewL1Accessor(sysCtx, logger, nil)
-	eventSys.Register("l1Accessor", l1Accessor, event.DefaultRegisterOpts())
+	eventSys.Register("l1Accessor", l1Accessor)
 
 	// create the supervisor backend
 	super := &SupervisorBackend{
@@ -152,16 +152,16 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 
 		rpcVerificationWarnings: cfg.RPCVerificationWarnings,
 	}
-	eventSys.Register("backend", super, event.DefaultRegisterOpts())
-	eventSys.Register("rewinder", super.rewinder, event.DefaultRegisterOpts())
+	eventSys.Register("backend", super)
+	eventSys.Register("rewinder", super.rewinder)
 
 	// create node controller
 	super.syncNodesController = syncnode.NewSyncNodesController(logger, depSet, eventSys, super)
-	eventSys.Register("sync-controller", super.syncNodesController, event.DefaultRegisterOpts())
+	eventSys.Register("sync-controller", super.syncNodesController)
 
 	// create status tracker
 	super.statusTracker = status.NewStatusTracker(depSet.Chains())
-	eventSys.Register("status", super.statusTracker, event.DefaultRegisterOpts())
+	eventSys.Register("status", super.statusTracker)
 
 	// Initialize the resources of the supervisor backend.
 	// Stop the supervisor if any of the resources fails to be initialized.
@@ -219,23 +219,22 @@ func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Conf
 		}
 	}
 
-	eventOpts := event.DefaultRegisterOpts()
 	// initialize all cross-unsafe processors
 	for _, chainID := range chains {
 		worker := cross.NewCrossUnsafeWorker(su.logger, chainID, su.chainDBs)
-		su.eventSys.Register(fmt.Sprintf("cross-unsafe-%s", chainID), worker, eventOpts)
+		su.eventSys.Register(fmt.Sprintf("cross-unsafe-%s", chainID), worker)
 	}
 	// initialize all cross-safe processors
 	for _, chainID := range chains {
 		worker := cross.NewCrossSafeWorker(su.logger, chainID, su.chainDBs)
-		su.eventSys.Register(fmt.Sprintf("cross-safe-%s", chainID), worker, eventOpts)
+		su.eventSys.Register(fmt.Sprintf("cross-safe-%s", chainID), worker)
 	}
 	// For each chain initialize a chain processor service,
 	// after cross-unsafe workers are ready to receive updates
 	for _, chainID := range chains {
 		logProcessor := processors.NewLogProcessor(chainID, su.chainDBs, su.depSet)
 		chainProcessor := processors.NewChainProcessor(su.sysContext, su.logger, chainID, logProcessor, su.chainDBs)
-		su.eventSys.Register(fmt.Sprintf("events-%s", chainID), chainProcessor, eventOpts)
+		su.eventSys.Register(fmt.Sprintf("events-%s", chainID), chainProcessor)
 		su.chainProcessors.Set(chainID, chainProcessor)
 	}
 	// initialize sync sources

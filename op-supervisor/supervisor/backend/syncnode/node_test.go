@@ -25,12 +25,12 @@ func TestEventResponse(t *testing.T) {
 	eventSys := event.NewSystem(logger, ex)
 
 	mon := &eventMonitor{}
-	eventSys.Register("monitor", mon, event.DefaultRegisterOpts())
+	eventSys.Register("monitor", mon)
 
 	node := NewManagedNode(logger, chainID, syncCtrl, backend, false)
-	eventSys.Register("node", node, event.DefaultRegisterOpts())
+	eventSys.Register("node", node)
 
-	emitter := eventSys.Register("test", nil, event.DefaultRegisterOpts())
+	emitter := eventSys.Register("test", nil)
 
 	crossUnsafe := 0
 	crossSafe := 0
@@ -100,10 +100,10 @@ func TestPrepareReset(t *testing.T) {
 	eventSys := event.NewSystem(logger, ex)
 
 	mon := &eventMonitor{}
-	eventSys.Register("monitor", mon, event.DefaultRegisterOpts())
+	eventSys.Register("monitor", mon)
 
 	node := NewManagedNode(logger, chainID, syncCtrl, backend, false)
-	eventSys.Register("node", node, event.DefaultRegisterOpts())
+	eventSys.Register("node", node)
 
 	// mock: return a block of the same number as requested
 	syncCtrl.blockRefByNumFn = func(ctx context.Context, number uint64) (eth.BlockRef, error) {
