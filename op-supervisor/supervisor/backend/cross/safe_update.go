@@ -122,7 +122,7 @@ func (c *CrossSafeWorker) OnEvent(ev event.Event) bool {
 			if errors.Is(err, types.ErrFuture) {
 				c.logger.Debug("Worker awaits additional blocks", "err", err)
 			} else {
-				c.logger.Warn("Failed to process work", "worker", "cross-safe", "err", err)
+				c.logger.Warn("Failed to process work", "err", err)
 			}
 		}
 	default:
@@ -134,7 +134,7 @@ func (c *CrossSafeWorker) OnEvent(ev event.Event) bool {
 var _ event.Deriver = (*CrossUnsafeWorker)(nil)
 
 func NewCrossSafeWorker(logger log.Logger, chainID eth.ChainID, d CrossSafeDeps) *CrossSafeWorker {
-	logger = logger.New("chain", chainID)
+	logger = logger.New("chain", chainID, "worker", "cross-safe")
 	return &CrossSafeWorker{
 		logger:  logger,
 		chainID: chainID,
