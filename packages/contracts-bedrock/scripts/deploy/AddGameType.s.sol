@@ -90,10 +90,7 @@ contract AddGameType is Script {
         // Decode the result and set it in the output
         OPContractsManager.AddGameOutput[] memory outputs = abi.decode(result, (OPContractsManager.AddGameOutput[]));
         require(outputs.length == 1, "AddGameType: unexpected number of outputs");
-        return Output({
-            delayedWETHProxy: outputs[0].delayedWETH,
-            faultDisputeGameProxy: outputs[0].faultDisputeGame
-        });
+        return Output({ delayedWETHProxy: outputs[0].delayedWETH, faultDisputeGameProxy: outputs[0].faultDisputeGame });
     }
 
     function checkOutput(Output memory _ago) internal view {
