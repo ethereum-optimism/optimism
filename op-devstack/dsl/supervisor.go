@@ -3,6 +3,7 @@ package dsl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -99,4 +100,24 @@ func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
 	s.require.NoError(err, "Failed to fetch sync status")
 
 	return syncStatus.Chains[chainID].CrossSafe
+}
+
+func (s *Supervisor) AdvanceUnsafeHead(chainID eth.ChainID, block uint64) {
+	initial := s.FetchSyncStatus()
+	chInitial, ok := initial.Chains[chainID]
+	s.require.True(ok, fmt.Sprintf("chain sync status not found: chain id: %d", chainID))
+	required := chInitial.LocalUnsafe.Number + block
+	attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
+	err := retry.Do0(s.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+		func() error {
+			chStatus := s.FetchSyncStatus().Chains[chainID]
+			s.log.Info("Supervisor view of unsafe head", "chain", chainID, "unsafe", chStatus.LocalUnsafe)
+			if chStatus.LocalUnsafe.Number < required {
+				s.log.Info("Unsafe head sync status not ready",
+					"chain", chainID, "initialUnsafe", chInitial.LocalUnsafe, "currentUnsafe", chStatus.LocalUnsafe, "minRequired", required)
+				return fmt.Errorf("expected head to advance")
+			}
+			return nil
+		})
+	s.require.NoError(err)
 }
