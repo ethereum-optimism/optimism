@@ -21,10 +21,7 @@ func GenerateInteropDepset(ctx context.Context, pEnv *Env, globalIntent *state.I
 	lgr.Info("creating interop dependency set...")
 	deps := make(map[eth.ChainID]*depset.StaticConfigDependency)
 	for i, chain := range globalIntent.Chains {
-		id, err := eth.ParseDecimalChainID(chain.ID.String())
-		if err != nil {
-			return fmt.Errorf("failed to parse chain ID: %w", err)
-		}
+		id := eth.ChainIDFromBytes32(chain.ID)
 		deps[id] = &depset.StaticConfigDependency{ChainIndex: types.ChainIndex(i)}
 	}
 
