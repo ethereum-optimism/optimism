@@ -72,11 +72,13 @@ contract StandardValidator {
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
+        address _guardian,
         address _l1PAOMultisig,
         address _challenger,
         uint256 _withdrawalDelaySeconds
     ) {
         superchainConfig = _superchainConfig;
+        guardian = _guardian;
         l1PAOMultisig = _l1PAOMultisig;
         challenger = _challenger;
         withdrawalDelaySeconds = _withdrawalDelaySeconds;
@@ -102,7 +104,9 @@ contract StandardValidator {
         view
         returns (address, string memory)
     {
-        if (_overrides.guardian != address(0)) return (_overrides.guardian, string.concat("HAS_OVERRIDES", _errors));
+        if (_overrides.guardian != address(0)) {
+            return (_overrides.guardian, string.concat("OVERRIDES_GUARDIAN", _errors));
+        }
         return (guardian, _errors);
     }
 
@@ -115,7 +119,7 @@ contract StandardValidator {
         returns (address, string memory)
     {
         if (_overrides.l1PAOMultisig != address(0)) {
-            return (_overrides.l1PAOMultisig, string.concat("HAS_OVERRIDES", _errors));
+            return (_overrides.l1PAOMultisig, string.concat("OVERRIDES_L1PAOMULTISIG", _errors));
         }
         return (l1PAOMultisig, _errors);
     }
@@ -129,7 +133,7 @@ contract StandardValidator {
         returns (address, string memory)
     {
         if (_overrides.challenger != address(0)) {
-            return (_overrides.challenger, string.concat("HAS_OVERRIDES", _errors));
+            return (_overrides.challenger, string.concat("OVERRIDES_CHALLENGER", _errors));
         }
         return (challenger, _errors);
     }

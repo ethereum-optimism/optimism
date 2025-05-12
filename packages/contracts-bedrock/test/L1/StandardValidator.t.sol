@@ -146,6 +146,7 @@ contract StandardValidator_TestInit is CommonTest {
                 anchorStateRegistryImpl: impls.anchorStateRegistryImpl,
                 delayedWETHImpl: impls.delayedWETHImpl
             }),
+            cfg.superchainConfigGuardian(),
             superchainConfig,
             proxyAdminOwner,
             challenger,
