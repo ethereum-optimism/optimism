@@ -161,8 +161,8 @@ func (ds *StaticConfigDependencySet) hydrate() error {
 	ds.indexToID = make(map[types.ChainIndex]eth.ChainID)
 	ds.chainIDs = make([]eth.ChainID, 0, len(ds.dependencies))
 	for id, dep := range ds.dependencies {
-		if dep.ChainIndex == NotFoundChainIndex {
-			return fmt.Errorf("%w: chain %s cannot have the reserved chain index for NotFound chains: %d", errUsingReservedChainIndex, id, NotFoundChainIndex)
+		if dep.ChainIndex.IsTopBitSet() {
+			return fmt.Errorf("%w: chain %s cannot have the top bit set, and this subset is reserved for internal use: %d", errUsingReservedChainIndex, id, dep.ChainIndex)
 		}
 		if existing, ok := ds.indexToID[dep.ChainIndex]; ok {
 			return fmt.Errorf("%w: chain %s cannot have the same index (%d) as chain %s", errDuplicateChainIndex, id, dep.ChainIndex, existing)
