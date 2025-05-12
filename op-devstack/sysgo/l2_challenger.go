@@ -22,9 +22,9 @@ import (
 )
 
 type L2Challenger struct {
-	id        stack.L2ChallengerID
-	service   cliapp.Lifecycle
-	clusterID *stack.ClusterID
+	id       stack.L2ChallengerID
+	service  cliapp.Lifecycle
+	l2NetIDs []stack.L2NetworkID
 }
 
 func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
@@ -32,9 +32,11 @@ func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig: shim.NewCommonConfig(system.T()),
 		ID:           p.id,
 	})
-	cluster := system.Cluster(p.clusterID)
-	l2Net := system.L2Network(stack.L2NetworkID(cluster.DependencySet().Chains()[0]))
-	l2Net.(stack.ExtensibleL2Network).AddL2Challenger(bFrontend)
+
+	for _, netID := range p.l2NetIDs {
+		l2Net := system.L2Network(netID)
+		l2Net.(stack.ExtensibleL2Network).AddL2Challenger(bFrontend)
+	}
 }
 
 func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
@@ -56,6 +58,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 
 		l2Geneses := make([]*core.Genesis, 0, len(l2ELIDs))
 		rollupCfgs := make([]*rollup.Config, 0, len(l2ELIDs))
+		l2NetIDs := make([]stack.L2NetworkID, 0, len(l2ELIDs))
 		var disputeGameFactoryAddr common.Address
 		var interopScheduled bool
 
@@ -77,6 +80,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 
 			l2Geneses = append(l2Geneses, l2Net.genesis)
 			rollupCfgs = append(rollupCfgs, l2Net.rollupCfg)
+			l2NetIDs = append(l2NetIDs, l2Net.id)
 		}
 
 		dir := orch.P().TempDir()
@@ -150,9 +154,9 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 		})
 
 		c := &L2Challenger{
-			id:        challengerID,
-			service:   svc,
-			clusterID: clusterID,
+			id:       challengerID,
+			service:  svc,
+			l2NetIDs: l2NetIDs,
 		}
 		orch.challengers.Set(challengerID, c)
 	})
