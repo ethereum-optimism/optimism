@@ -30,7 +30,7 @@ func (fl FeatureList) Contains(feature string) bool {
 
 // EnclaveSpec represents the parsed chain specifications from the YAML
 type EnclaveSpec struct {
-	Chains   []ChainSpec
+	Chains   []*ChainSpec
 	Features FeatureList
 }
 
@@ -104,13 +104,13 @@ func (s *Spec) ExtractData(r io.Reader) (*EnclaveSpec, error) {
 	}
 
 	result := &EnclaveSpec{
-		Chains:   make([]ChainSpec, 0, len(yamlSpec.OptimismPackage.Chains)),
+		Chains:   make([]*ChainSpec, 0, len(yamlSpec.OptimismPackage.Chains)),
 		Features: features,
 	}
 
 	// Extract chain specifications
 	for _, chain := range yamlSpec.OptimismPackage.Chains {
-		result.Chains = append(result.Chains, ChainSpec{
+		result.Chains = append(result.Chains, &ChainSpec{
 			Name:      chain.NetworkParams.Name,
 			NetworkID: chain.NetworkParams.NetworkID,
 		})
