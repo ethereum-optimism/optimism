@@ -119,7 +119,7 @@ func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSy
 		L2BBatcher:   stack.L2BatcherID{Key: "main", ChainID: l2BID},
 		L2AProposer:  stack.L2ProposerID{Key: "main", ChainID: l2AID},
 		L2BProposer:  stack.L2ProposerID{Key: "main", ChainID: l2BID},
-		L2Challenger: stack.L2ChallengerID{Key: "main", ClusterID: clusterID},
+		L2Challenger: "main", // TODO(#15057): Support multiple pre-interop challengers
 	}
 	return ids
 }
@@ -168,7 +168,7 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, nil, &ids.Supervisor))
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, nil, &ids.Supervisor))
 
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, &ids.Supervisor, nil, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, nil, []stack.L2ELNodeID{
 		ids.L2AEL, ids.L2BEL,
 	}))
 

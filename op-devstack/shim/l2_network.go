@@ -128,7 +128,6 @@ func (p *presetL2Network) L2Challenger(m stack.L2ChallengerMatcher) stack.L2Chal
 func (p *presetL2Network) AddL2Challenger(v stack.L2Challenger) {
 	id := v.ID()
 
-	p.require().Equal(p.Cluster().ID(), id.ClusterID, "l2 challenger %s must be on cluster %s", id, p.Cluster().ID())
 	p.require().True(p.challengers.SetIfMissing(id, v), "l2 challenger %s must not already exist", id)
 }
 

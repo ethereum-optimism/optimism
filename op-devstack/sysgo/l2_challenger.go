@@ -22,8 +22,9 @@ import (
 )
 
 type L2Challenger struct {
-	id      stack.L2ChallengerID
-	service cliapp.Lifecycle
+	id        stack.L2ChallengerID
+	service   cliapp.Lifecycle
+	clusterID *stack.ClusterID
 }
 
 func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
@@ -31,13 +32,13 @@ func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
 		CommonConfig: shim.NewCommonConfig(system.T()),
 		ID:           p.id,
 	})
-	cluster := system.Cluster(p.id.ClusterID)
+	cluster := system.Cluster(p.clusterID)
 	l2Net := system.L2Network(stack.L2NetworkID(cluster.DependencySet().Chains()[0]))
 	l2Net.(stack.ExtensibleL2Network).AddL2Challenger(bFrontend)
 }
 
 func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
-	supervisorID *stack.SupervisorID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 		require.False(orch.challengers.Has(challengerID), "challenger must not already exist")
@@ -53,13 +54,13 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok)
 
-		cluster, ok := orch.clusters.Get(challengerID.ClusterID)
-		require.True(ok)
-		l2Geneses := make([]*core.Genesis, 0, len(cluster.depset.Chains()))
-		rollupCfgs := make([]*rollup.Config, 0, len(cluster.depset.Chains()))
+		l2Geneses := make([]*core.Genesis, 0, len(l2ELIDs))
+		rollupCfgs := make([]*rollup.Config, 0, len(l2ELIDs))
 		var disputeGameFactoryAddr common.Address
 		var interopScheduled bool
-		for _, chainID := range cluster.depset.Chains() {
+
+		for _, l2ELID := range l2ELIDs {
+			chainID := l2ELID.ChainID
 			l2Net, ok := orch.l2Nets.Get(chainID)
 			require.Truef(ok, "l2Net %s not found", chainID)
 			factory := l2Net.deployment.DisputeGameFactoryProxyAddr()
@@ -83,6 +84,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 		var prestateVariant challenger.PrestateVariant
 		if interopScheduled {
 			require.NotNil(supervisorID, "need supervisor to connect to in interop")
+			require.NotNil(clusterID, "need cluster in interop")
 			supervisorNode, ok := orch.supervisors.Get(*supervisorID)
 			require.True(ok)
 			l2ELRPCs := make([]string, len(l2ELIDs))
@@ -93,6 +95,8 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 			}
 			prestateVariant = challenger.InteropVariant
 			cfg = config.NewInteropConfig(disputeGameFactoryAddr, l1EL.userRPC, l1CL.beaconHTTPAddr, supervisorNode.userRPC, l2ELRPCs, dir, types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned)
+			cluster, ok := orch.clusters.Get(*clusterID)
+			require.True(ok)
 			challenger.WithDepset(orch.P(), cluster.depset)(&cfg)
 		} else {
 			require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
@@ -146,8 +150,9 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 		})
 
 		c := &L2Challenger{
-			id:      challengerID,
-			service: svc,
+			id:        challengerID,
+			service:   svc,
+			clusterID: clusterID,
 		}
 		orch.challengers.Set(challengerID, c)
 	})
