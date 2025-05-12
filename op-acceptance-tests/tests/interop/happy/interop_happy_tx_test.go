@@ -40,8 +40,8 @@ func TestInteropHappyTx(gt *testing.T) {
 	sys := SimpleInterop(t)
 	l := sys.Log
 
-	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
-	var alice, bob, cathrine *dsl.EOA
+	// two EOAs for triggering the init and exec interop txs
+	var alice, bob *dsl.EOA
 	{
 		// alice is on chain A
 		pk, err := crypto.GenerateKey()

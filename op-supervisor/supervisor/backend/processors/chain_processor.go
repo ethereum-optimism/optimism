@@ -291,7 +291,7 @@ func (s *ChainProcessor) process(ctx context.Context, next eth.BlockRef, receipt
 			// If no logs were written successfully then the rewind wouldn't have done anything anyway.
 			s.log.Error("Failed to rewind after error processing block", "block", next, "parent", next.ParentID(), "err", err)
 		} else {
-			s.log.Debug("Successfully rewinded database to the previous block", "block", next, "parent", next.ParentID())
+			s.log.Debug("Successfully rewound database to the previous block", "block", next, "parent", next.ParentID())
 		}
 		return err
 	}

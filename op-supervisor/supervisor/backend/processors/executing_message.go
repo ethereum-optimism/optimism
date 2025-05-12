@@ -1,6 +1,7 @@
 package processors
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -31,8 +32,12 @@ func DecodeExecutingMessageLog(l *ethTypes.Log, depSet depset.ChainIndexFromID) 
 
 	var chainIndex types.ChainIndex
 	index, err := depSet.ChainIndexFromID(eth.ChainID(msg.Identifier.ChainID))
-	if err != nil { // not found
-		chainIndex = depset.NotFoundChainIndex
+	if err != nil {
+		if errors.Is(err, types.ErrUnknownChain) {
+			chainIndex = depset.NotFoundChainIndex
+		} else {
+			return nil, fmt.Errorf("failed to translate chain ID %s to chain index: %w", msg.Identifier.ChainID, err)
+		}
 	} else {
 		chainIndex = index
 	}
