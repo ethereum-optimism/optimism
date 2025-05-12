@@ -61,6 +61,17 @@ impl OpReceipt {
         }
     }
 
+    /// Consumes this and returns the inner [`Receipt`].
+    pub fn into_receipt(self) -> Receipt {
+        match self {
+            Self::Legacy(receipt) |
+            Self::Eip2930(receipt) |
+            Self::Eip1559(receipt) |
+            Self::Eip7702(receipt) => receipt,
+            Self::Deposit(receipt) => receipt.inner,
+        }
+    }
+
     /// Returns length of RLP-encoded receipt fields with the given [`Bloom`] without an RLP header.
     pub fn rlp_encoded_fields_length(&self, bloom: &Bloom) -> usize {
         match self {
