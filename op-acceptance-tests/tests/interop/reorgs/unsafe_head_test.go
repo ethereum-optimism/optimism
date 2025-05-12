@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -14,15 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/stretchr/testify/require"
 )
-
-var SimpleInterop presets.TestSetup[*presets.SimpleInterop]
-
-// TestMain creates the test-setups against the shared backend
-func TestMain(m *testing.M) {
-	SimpleInterop = presets.NewSimpleInterop
-	// Other setups may be added here, hydrated from the same orchestrator
-	presets.DoMain(m, presets.ConfigureSimpleInterop())
-}
 
 // TestReorgUnsafeHead starts an interop chain with an op-test-sequencer, which takes control over sequencing the L2 chain and introduces a reorg on the unsafe head
 func TestReorgUnsafeHead(gt *testing.T) {
