@@ -37,7 +37,7 @@ func (cl *L2CLNode) SafeL2BlockRef() eth.L2BlockRef {
 	return syncStatus.SafeL2
 }
 
-func (cl *L2CLNode) Restart() {
+func (cl *L2CLNode) Start() {
 	cl.control.L2CLNodeState(cl.inner.ID(), stack.Start)
 }
 

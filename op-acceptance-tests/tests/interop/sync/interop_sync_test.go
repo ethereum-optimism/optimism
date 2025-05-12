@@ -59,8 +59,8 @@ func TestL2CLResync(gt *testing.T) {
 	}, 10*time.Second, waitTime)
 
 	logger.Info("restart L2CL nodes")
-	sys.L2CLA.Restart()
-	sys.L2CLB.Restart()
+	sys.L2CLA.Start()
+	sys.L2CLB.Start()
 
 	// L2CL may advance a few blocks without supervisor connection, but eventually it will stop without the connection
 	// we must check that unsafe head is advancing due to reconnection
