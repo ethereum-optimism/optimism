@@ -45,18 +45,18 @@ func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.BlockRef {
 
 func (el *L2ELNode) Advance(label eth.BlockLabel, block uint64) CheckFunc {
 	return func() error {
-		initial := el.BlockRefByLabel(eth.Unsafe)
+		initial := el.BlockRefByLabel(label)
 		target := initial.Number + block
 		el.log.Info("expecting chain to advance", "chain", el.inner.ChainID(), "label", label, "target", target)
 		attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				unsafeHead := el.BlockRefByLabel(eth.Unsafe)
-				if unsafeHead.Number >= target {
+				head := el.BlockRefByLabel(label)
+				if head.Number >= target {
 					el.log.Info("chain advanced", "chain", el.inner.ChainID(), "target", target)
 					return nil
 				}
-				el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", unsafeHead.Number, "target", target)
+				el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
 				return fmt.Errorf("expected head to advance: %s", label)
 			})
 	}
@@ -65,13 +65,13 @@ func (el *L2ELNode) Advance(label eth.BlockLabel, block uint64) CheckFunc {
 func (el *L2ELNode) DoesNotAdvance(label eth.BlockLabel) CheckFunc {
 	return func() error {
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
-		initial := el.BlockRefByLabel(eth.Unsafe)
+		initial := el.BlockRefByLabel(label)
 		attempts := 5 // check few times to make sure head does not advance
 		for range attempts {
 			time.Sleep(2 * time.Second)
-			unsafeHead := el.BlockRefByLabel(eth.Unsafe)
-			el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", unsafeHead.Number, "target", initial.Number)
-			if unsafeHead.Hash == initial.Hash {
+			head := el.BlockRefByLabel(label)
+			el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", initial.Number)
+			if head.Hash == initial.Hash {
 				continue
 			}
 			return fmt.Errorf("expected head not to advance: %s", label)
