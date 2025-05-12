@@ -95,27 +95,31 @@ type DefaultInteropSystemIDs struct {
 
 	L2AProposer stack.L2ProposerID
 	L2BProposer stack.L2ProposerID
+
+	L2Challenger stack.L2ChallengerID
 }
 
 func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSystemIDs {
+	clusterID := stack.ClusterID("main")
 	ids := DefaultInteropSystemIDs{
-		L1:          stack.L1NetworkID(l1ID),
-		L1EL:        stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
-		L1CL:        stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
-		Superchain:  "main", // TODO(#15244): hardcoded to match the deployer default ID
-		Cluster:     "main",
-		Supervisor:  "1-primary", // prefix with number for ordering of supervisors
-		Sequencer:   "dev",
-		L2A:         stack.L2NetworkID(l2AID),
-		L2ACL:       stack.L2CLNodeID{Key: "sequencer", ChainID: l2AID},
-		L2AEL:       stack.L2ELNodeID{Key: "sequencer", ChainID: l2AID},
-		L2B:         stack.L2NetworkID(l2BID),
-		L2BCL:       stack.L2CLNodeID{Key: "sequencer", ChainID: l2BID},
-		L2BEL:       stack.L2ELNodeID{Key: "sequencer", ChainID: l2BID},
-		L2ABatcher:  stack.L2BatcherID{Key: "main", ChainID: l2AID},
-		L2BBatcher:  stack.L2BatcherID{Key: "main", ChainID: l2BID},
-		L2AProposer: stack.L2ProposerID{Key: "main", ChainID: l2AID},
-		L2BProposer: stack.L2ProposerID{Key: "main", ChainID: l2BID},
+		L1:           stack.L1NetworkID(l1ID),
+		L1EL:         stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
+		L1CL:         stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
+		Superchain:   "main", // TODO(#15244): hardcoded to match the deployer default ID
+		Cluster:      clusterID,
+		Supervisor:   "1-primary", // prefix with number for ordering of supervisors
+		Sequencer:    "dev",
+		L2A:          stack.L2NetworkID(l2AID),
+		L2ACL:        stack.L2CLNodeID{Key: "sequencer", ChainID: l2AID},
+		L2AEL:        stack.L2ELNodeID{Key: "sequencer", ChainID: l2AID},
+		L2B:          stack.L2NetworkID(l2BID),
+		L2BCL:        stack.L2CLNodeID{Key: "sequencer", ChainID: l2BID},
+		L2BEL:        stack.L2ELNodeID{Key: "sequencer", ChainID: l2BID},
+		L2ABatcher:   stack.L2BatcherID{Key: "main", ChainID: l2AID},
+		L2BBatcher:   stack.L2BatcherID{Key: "main", ChainID: l2BID},
+		L2AProposer:  stack.L2ProposerID{Key: "main", ChainID: l2AID},
+		L2BProposer:  stack.L2ProposerID{Key: "main", ChainID: l2BID},
+		L2Challenger: stack.L2ChallengerID{Key: "main", ClusterID: clusterID},
 	}
 	return ids
 }
@@ -164,7 +168,9 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, nil, &ids.Supervisor))
 	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, nil, &ids.Supervisor))
 
-	// TODO(#15057): maybe L2 challenger
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, &ids.Supervisor, nil, []stack.L2ELNodeID{
+		ids.L2AEL, ids.L2BEL,
+	}))
 
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
 

@@ -197,8 +197,8 @@ func (o *Orchestrator) hydrateChallengerMaybe(net *descriptors.L2Chain, l2Net st
 		l2Net.AddL2Challenger(shim.NewL2Challenger(shim.L2ChallengerConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			ID: stack.L2ChallengerID{
-				Key:     instance.Name,
-				ChainID: l2ID.ChainID(),
+				Key:       instance.Name,
+				ClusterID: l2Net.Cluster().ID(),
 			},
 		}))
 	}

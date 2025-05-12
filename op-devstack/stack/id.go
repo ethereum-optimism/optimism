@@ -75,6 +75,50 @@ func (id *idWithChain) unmarshalText(kind Kind, data []byte) error {
 	return nil
 }
 
+// idWithCluster is comparable, can be copied, contains a cluster-ID,
+// and has type-safe text encoding/decoding to prevent accidental mixups.
+type idWithCluster struct {
+	Key       string
+	ClusterID ClusterID
+}
+
+func (id idWithCluster) string(kind Kind) string {
+	return fmt.Sprintf("%s-%s-%s", kind, id.Key, id.ClusterID)
+}
+
+func (id idWithCluster) marshalText(kind Kind) ([]byte, error) {
+	k := id.Key
+	if len(k) > maxIDLength {
+		return nil, errInvalidID
+	}
+	k = fmt.Sprintf("%s-%s-%s", kind, k, id.ClusterID)
+	return []byte(k), nil
+}
+
+func (id *idWithCluster) unmarshalText(kind Kind, data []byte) error {
+	kindData, mainData, ok := bytes.Cut(data, []byte("-"))
+	if !ok {
+		return fmt.Errorf("expected kind-prefix, but id has none: %q", data)
+	}
+	if x := string(kindData); x != string(kind) {
+		return fmt.Errorf("id %q has unexpected kind %q, expected %q", string(data), x, kind)
+	}
+	before, after, ok := bytes.Cut(mainData, []byte("-"))
+	if !ok {
+		return fmt.Errorf("expected cluster separator, but found none: %q", string(data))
+	}
+	var clusterID ClusterID
+	if err := clusterID.UnmarshalText(after); err != nil {
+		return fmt.Errorf("failed to unmarshal cluster part: %w", err)
+	}
+	if len(before) > maxIDLength {
+		return errInvalidID
+	}
+	id.Key = string(before)
+	id.ClusterID = clusterID
+	return nil
+}
+
 // idChainID is comparable, can be copied, contains only a chain-ID,
 // and has type-safe text encoding/decoding to prevent accidental mixups.
 type idOnlyChainID eth.ChainID
@@ -157,6 +201,18 @@ func lessIDWithChain(a, b idWithChain) bool {
 	}
 	if a.Key == b.Key {
 		return a.ChainID.Cmp(b.ChainID) < 0
+	}
+	return true
+}
+
+// lessIDWithCluster is a helper function to compare two idWithCluster objects.
+// It does not use generics, since idWithCluster is a concrete type with struct fields and no accessor methods in the types that wrap this type.
+func lessIDWithCluster(a, b idWithCluster) bool {
+	if a.Key > b.Key {
+		return false
+	}
+	if a.Key == b.Key {
+		return a.ClusterID < b.ClusterID
 	}
 	return true
 }

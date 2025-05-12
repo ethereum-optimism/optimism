@@ -40,8 +40,8 @@ type Orchestrator struct {
 	supervisors locks.RWMap[stack.SupervisorID, *Supervisor]
 	sequencers  locks.RWMap[stack.SequencerID, *Sequencer]
 	batchers    locks.RWMap[stack.L2BatcherID, *L2Batcher]
-	//challengers locks.RWMap[stack.L2ChallengerID, *L2Challenger] // TODO(#15057): op-challenger support
-	proposers locks.RWMap[stack.L2ProposerID, *L2Proposer]
+	challengers locks.RWMap[stack.L2ChallengerID, *L2Challenger]
+	proposers   locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
 	faucet *FaucetService
 
@@ -95,6 +95,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.supervisors.Range(rangeHydrateFn[stack.SupervisorID, *Supervisor](sys))
 	o.sequencers.Range(rangeHydrateFn[stack.SequencerID, *Sequencer](sys))
 	o.batchers.Range(rangeHydrateFn[stack.L2BatcherID, *L2Batcher](sys))
+	o.challengers.Range(rangeHydrateFn[stack.L2ChallengerID, *L2Challenger](sys))
 	o.proposers.Range(rangeHydrateFn[stack.L2ProposerID, *L2Proposer](sys))
 	o.faucet.hydrate(sys)
 	o.sysHook.PostHydrate(sys)

@@ -112,7 +112,7 @@ func WithInvalidCannonPrestate() Option {
 	}
 }
 
-func WithDepset(t *testing.T, ds *depset.StaticConfigDependencySet) Option {
+func WithDepset(t MinimalT, ds *depset.StaticConfigDependencySet) Option {
 	return func(c *config.Config) {
 		b, err := ds.MarshalJSON()
 		require.NoError(t, err)
@@ -122,9 +122,15 @@ func WithDepset(t *testing.T, ds *depset.StaticConfigDependencySet) Option {
 	}
 }
 
+type MinimalT interface {
+	require.TestingT
+	TempDir() string
+	Logf(format string, args ...interface{})
+}
+
 // FindMonorepoRoot finds the relative path to the monorepo root
 // Different tests might be nested in subdirectories of the op-e2e dir.
-func FindMonorepoRoot(t *testing.T) string {
+func FindMonorepoRoot(t MinimalT) string {
 	path := "./"
 	// Only search up 5 directories
 	// Avoids infinite recursion if the root isn't found for some reason
@@ -137,11 +143,12 @@ func FindMonorepoRoot(t *testing.T) string {
 		require.NoErrorf(t, err, "Failed to stat %v even though it existed", path)
 		return path
 	}
-	t.Fatalf("Could not find monorepo root, trying up to %v", path)
+	t.Logf("Could not find monorepo root, trying up to %v", path)
+	t.FailNow()
 	return ""
 }
 
-func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) {
+func ApplyCannonConfig(c *config.Config, t MinimalT, rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) {
 	require := require.New(t)
 	root := FindMonorepoRoot(t)
 	c.Cannon.VmBin = root + "cannon/bin/cannon"
@@ -174,28 +181,28 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Conf
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+		ApplyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+		ApplyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 
 func WithSuperCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperCannon)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+		ApplyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 
 func WithSuperPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperPermissioned)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+		ApplyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
 	}
 }
 
