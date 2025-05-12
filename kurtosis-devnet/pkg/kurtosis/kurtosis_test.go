@@ -172,7 +172,7 @@ func (m *mockKurtosisContext) DestroyEnclave(ctx context.Context, name string) e
 
 func TestDeploy(t *testing.T) {
 	testSpec := &spec.EnclaveSpec{
-		Chains: []spec.ChainSpec{
+		Chains: []*spec.ChainSpec{
 			{
 				Name:      "op-kurtosis",
 				NetworkID: "1234",
@@ -275,7 +275,7 @@ func TestDeploy(t *testing.T) {
 
 func TestGetEnvironmentInfo(t *testing.T) {
 	testSpec := &spec.EnclaveSpec{
-		Chains: []spec.ChainSpec{
+		Chains: []*spec.ChainSpec{
 			{
 				Name:      "op-kurtosis",
 				NetworkID: "1234",
@@ -396,7 +396,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 		{
 			name: "with interop feature - depset fetched",
 			spec: &spec.EnclaveSpec{
-				Chains: []spec.ChainSpec{
+				Chains: []*spec.ChainSpec{
 					{
 						Name:      "op-kurtosis",
 						NetworkID: "1234",
@@ -457,7 +457,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 		{
 			name: "without interop feature - depset not fetched",
 			spec: &spec.EnclaveSpec{
-				Chains: []spec.ChainSpec{
+				Chains: []*spec.ChainSpec{
 					{
 						Name:      "op-kurtosis",
 						NetworkID: "1234",

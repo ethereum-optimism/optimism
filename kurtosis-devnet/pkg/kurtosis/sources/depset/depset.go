@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	depsetFileNamePrefix = "dependency_set"
+	depsetFileNamePrefix = "superchain-depset-"
 )
 
 // extractor implements the interfaces.DepsetExtractor interface
@@ -56,12 +56,13 @@ func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) (map[s
 			return nil, fmt.Errorf("failed to get artifact: %w", err)
 		}
 
+		fname := artifactName + ".json"
 		buffer := &bytes.Buffer{}
-		if err := a.ExtractFiles(ktfs.NewArtifactFileWriter(artifactName, buffer)); err != nil {
+		if err := a.ExtractFiles(ktfs.NewArtifactFileWriter(fname, buffer)); err != nil {
 			return nil, fmt.Errorf("failed to extract dependency set: %w", err)
 		}
 
-		depsetName := strings.TrimSuffix(strings.TrimPrefix(artifactName, depsetFileNamePrefix+"-"), ".json")
+		depsetName := strings.TrimPrefix(artifactName, depsetFileNamePrefix)
 		depsets[depsetName] = descriptors.DepSet(buffer.Bytes())
 	}
 

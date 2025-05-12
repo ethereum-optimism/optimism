@@ -8,52 +8,39 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
-type ChainSpec struct {
-	spec.ChainSpec
-	DepSets map[string]descriptors.DepSet
-}
+const (
+	l1Placeholder = ""
+)
 
 // ServiceFinder is the main entry point for finding services and their endpoints
 type ServiceFinder struct {
 	services        inspect.ServiceMap
 	nodeServices    []string
 	l2ServicePrefix string
-	l2Networks      []ChainSpec
-	globalServices  []string
+
+	l2Chains []*spec.ChainSpec
+	depsets  map[string]descriptors.DepSet
+
+	triagedServices []*triagedService
 }
 
 // ServiceFinderOption configures a ServiceFinder
 type ServiceFinderOption func(*ServiceFinder)
 
-// WithNodeServices sets the node service identifiers
-func WithNodeServices(services []string) ServiceFinderOption {
+// WithL2Chains sets the L2 networks
+func WithL2Chains(networks []*spec.ChainSpec) ServiceFinderOption {
 	return func(f *ServiceFinder) {
-		f.nodeServices = services
+		f.l2Chains = networks
 	}
 }
 
-// WithL2ServicePrefix sets the prefix used to identify L2 services
-func WithL2ServicePrefix(prefix string) ServiceFinderOption {
+// WithDepSets sets the dependency sets
+func WithDepSets(depsets map[string]descriptors.DepSet) ServiceFinderOption {
 	return func(f *ServiceFinder) {
-		f.l2ServicePrefix = prefix
-	}
-}
-
-// WithL2Networks sets the L2 networks
-func WithL2Networks(networks []ChainSpec) ServiceFinderOption {
-	return func(f *ServiceFinder) {
-		f.l2Networks = networks
-	}
-}
-
-// WithGlobalServices sets the global services
-func WithGlobalServices(services []string) ServiceFinderOption {
-	return func(f *ServiceFinder) {
-		f.globalServices = services
+		f.depsets = depsets
 	}
 }
 
@@ -63,187 +50,233 @@ func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) 
 		services:        services,
 		nodeServices:    []string{"cl", "el"},
 		l2ServicePrefix: "op-",
-		globalServices:  []string{"op-faucet"},
 	}
 	for _, opt := range opts {
 		opt(f)
 	}
+
+	f.triage()
 	return f
+}
+
+type chainAcceptor func(*spec.ChainSpec) bool
+
+type serviceParser func(string) (int, chainAcceptor, bool)
+
+type triagedService struct {
+	tag    string // service tag
+	idx    int    // service index (for nodes)
+	svc    *descriptors.Service
+	accept chainAcceptor
+}
+
+func acceptAll(c *spec.ChainSpec) bool {
+	return true
+}
+
+func acceptNameOrID(s string) chainAcceptor {
+	return func(c *spec.ChainSpec) bool {
+		return c.Name == s || c.NetworkID == s
+	}
+}
+
+func acceptNamesOrIDs(names ...string) chainAcceptor {
+	acceptors := make([]chainAcceptor, 0)
+	for _, name := range names {
+		acceptors = append(acceptors, acceptNameOrID(name))
+	}
+	return combineAcceptors(acceptors...)
+}
+
+func acceptL1() chainAcceptor {
+	return acceptNameOrID(l1Placeholder)
+}
+
+func combineAcceptors(acceptors ...chainAcceptor) chainAcceptor {
+	return func(c *spec.ChainSpec) bool {
+		for _, acceptor := range acceptors {
+			if acceptor(c) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func (f *ServiceFinder) triageNode(prefix string) serviceParser {
+	return func(serviceName string) (int, chainAcceptor, bool) {
+		extractIndex := func(s string) int {
+			// Extract numeric index from service name
+			parts := strings.Split(s, "-")
+			if idx, err := strconv.ParseUint(parts[0], 10, 32); err == nil {
+				return int(idx) - 1
+			}
+			return 0
+		}
+
+		if strings.HasPrefix(serviceName, prefix) { // L1
+			idx := extractIndex(strings.TrimPrefix(serviceName, prefix))
+			return idx, acceptL1(), true
+		}
+
+		l2Prefix := f.l2ServicePrefix + prefix
+		if strings.HasPrefix(serviceName, l2Prefix) {
+			serviceName = strings.TrimPrefix(serviceName, l2Prefix)
+			// first we have the chain ID
+			parts := strings.Split(serviceName, "-")
+			chainID := parts[0]
+			idx := extractIndex(parts[1])
+			return idx, acceptNameOrID(chainID), true
+		}
+
+		return 0, nil, false
+	}
+}
+
+func (f *ServiceFinder) triageExclusiveL2Service(prefix string) serviceParser {
+	idx := -1
+	return func(serviceName string) (int, chainAcceptor, bool) {
+		if strings.HasPrefix(serviceName, prefix) {
+			suffix := strings.TrimPrefix(serviceName, prefix)
+			return idx, acceptNameOrID(suffix), true
+		}
+		return idx, nil, false
+	}
+}
+
+func (f *ServiceFinder) triageMultiL2Service(prefix string) serviceParser {
+	idx := -1
+	return func(serviceName string) (int, chainAcceptor, bool) {
+		if strings.HasPrefix(serviceName, prefix) {
+			suffix := strings.TrimPrefix(serviceName, prefix)
+			parts := strings.Split(suffix, "-")
+			// parts[0] is the service ID
+			return idx, acceptNamesOrIDs(parts[1:]...), true
+		}
+		return idx, nil, false
+	}
+}
+
+func (f *ServiceFinder) triageSuperchainService(prefix string) serviceParser {
+	idx := -1
+	return func(serviceName string) (int, chainAcceptor, bool) {
+		if strings.HasPrefix(serviceName, prefix) {
+			suffix := strings.TrimPrefix(serviceName, prefix)
+			parts := strings.Split(suffix, "-")
+			// parts[0] is the service ID
+			ds, ok := f.depsets[parts[1]]
+			if !ok {
+				return idx, nil, false
+			}
+			var depSet depset.StaticConfigDependencySet
+			if err := json.Unmarshal(ds, &depSet); err != nil {
+				return idx, nil, false
+			}
+
+			chains := make([]string, 0)
+			for _, chain := range depSet.Chains() {
+				chains = append(chains, chain.String())
+			}
+			return idx, acceptNamesOrIDs(chains...), true
+		}
+		return idx, nil, false
+	}
+}
+
+func (f *ServiceFinder) triageUniversalL2Service(name string) serviceParser {
+	idx := -1
+	return func(serviceName string) (int, chainAcceptor, bool) {
+		if serviceName == name {
+			return idx, acceptAll, true
+		}
+		return idx, nil, false
+	}
+}
+
+func (f *ServiceFinder) triage() {
+	rules := map[string]serviceParser{
+		"el":         f.triageNode("el-"),
+		"cl":         f.triageNode("cl-"),
+		"batcher":    f.triageExclusiveL2Service("op-batcher-"),
+		"proposer":   f.triageExclusiveL2Service("op-proposer-"),
+		"proxyd":     f.triageExclusiveL2Service("proxyd-"),
+		"supervisor": f.triageSuperchainService("op-supervisor-"),
+		"challenger": f.triageMultiL2Service("op-challenger-"),
+		"faucet":     f.triageUniversalL2Service("op-faucet"),
+	}
+
+	triagedServices := []*triagedService{}
+	for serviceName, ports := range f.services {
+		endpoints := make(descriptors.EndpointMap)
+		for portName, portInfo := range ports {
+			endpoints[portName] = portInfo
+		}
+		svc := &descriptors.Service{
+			Name:      serviceName,
+			Endpoints: endpoints,
+		}
+		for tag, rule := range rules {
+			if idx, accept, ok := rule(serviceName); ok {
+				triagedServices = append(triagedServices, &triagedService{
+					tag:    tag,
+					idx:    idx,
+					accept: accept,
+					svc:    svc,
+				})
+			}
+		}
+	}
+
+	f.triagedServices = triagedServices
+}
+
+func (f *ServiceFinder) findChainServices(chain *spec.ChainSpec) ([]descriptors.Node, descriptors.RedundantServiceMap) {
+	var nodes []descriptors.Node
+	services := make(descriptors.RedundantServiceMap)
+
+	var selected []*triagedService
+	for _, svc := range f.triagedServices {
+		if svc.accept(chain) {
+			if svc.idx >= len(nodes) {
+				// just resize the slice, that'll create "0" items for the new indices.
+				// We don't expect more than a few nodes per chain, so this is fine.
+				nodes = make([]descriptors.Node, svc.idx+1)
+			}
+			if svc.idx < 0 { // not a node service
+				// create a dummy entry for the service
+				services[svc.tag] = nil
+			}
+			selected = append(selected, svc)
+		}
+	}
+
+	// Now our slice is the right size, and our map has the right keys, we can just fill in the data
+	for _, svc := range selected {
+		if svc.idx >= 0 {
+			node := nodes[svc.idx]
+			if node.Services == nil {
+				node.Services = make(descriptors.ServiceMap)
+			}
+			node.Services[svc.tag] = svc.svc
+			nodes[svc.idx] = node
+		} else {
+			services[svc.tag] = append(services[svc.tag], svc.svc)
+		}
+	}
+
+	return nodes, services
 }
 
 // FindL1Services finds L1 nodes.
 func (f *ServiceFinder) FindL1Services() ([]descriptors.Node, descriptors.RedundantServiceMap) {
-	return f.findRPCEndpoints(func(serviceName string) (string, int, bool) {
-		// Find node services and global services
-		allServices := append(f.nodeServices, f.globalServices...)
-		for _, service := range allServices {
-			if strings.HasPrefix(serviceName, service) {
-				// strip the L2 prefix if it's there.
-				name := strings.TrimPrefix(serviceName, f.l2ServicePrefix)
-				tag, idx := f.serviceTag(name)
-				return tag, idx, true
-			}
-		}
-		return "", 0, false
-	})
+	chain := &spec.ChainSpec{
+		Name:      l1Placeholder,
+		NetworkID: l1Placeholder,
+	}
+	return f.findChainServices(chain)
 }
 
 // FindL2Services finds L2 nodes and services for a specific network
-func (f *ServiceFinder) FindL2Services(s ChainSpec) ([]descriptors.Node, descriptors.RedundantServiceMap) {
-	network := s.Name
-	networkID := s.NetworkID
-	return f.findRPCEndpoints(func(serviceName string) (string, int, bool) {
-		possibleSuffixes := []string{"-" + network, "-" + networkID}
-		for _, suffix := range possibleSuffixes {
-			if strings.HasSuffix(serviceName, suffix) {
-				name := strings.TrimSuffix(serviceName, suffix)
-				tag, idx := f.serviceTag(strings.TrimPrefix(name, f.l2ServicePrefix))
-				return tag, idx, true
-			}
-		}
-
-		// skip over the other L2 services
-		for _, l2Network := range f.l2Networks {
-			if strings.HasSuffix(serviceName, "-"+l2Network.Name) || strings.HasSuffix(serviceName, "-"+l2Network.NetworkID) {
-				return "", 0, false
-			}
-		}
-
-		// supervisor is special: itcovers multiple networks, so we need to
-		// identify the depset this chain belongs to
-		if strings.HasPrefix(serviceName, "op-supervisor") {
-			// temporary backward-compatible hack for single op-supervisor instance
-			if serviceName == "op-supervisor" {
-				return "supervisor", 0, true
-			}
-
-			for dsName, ds := range s.DepSets {
-				suffix := "-" + dsName
-				if !strings.HasSuffix(serviceName, suffix) {
-					// not the right depset for this supervisor, skip it
-					continue
-				}
-				var depSet depset.StaticConfigDependencySet
-				if err := json.Unmarshal(ds, &depSet); err != nil {
-					return "", 0, false
-				}
-				var chainID eth.ChainID
-				if err := chainID.UnmarshalText([]byte(s.NetworkID)); err != nil {
-					return "", 0, false
-				}
-				if depSet.HasChain(chainID) {
-					name := strings.TrimSuffix(serviceName, suffix)
-					tag, idx := f.serviceTag(strings.TrimPrefix(name, f.l2ServicePrefix))
-					return tag, idx, true
-				}
-			}
-			// this supervisor is irrelevant to this chain, skip it
-			return "", 0, false
-		}
-
-		// challenger is special too, and right now there's no way to identify which L2s it covers
-		// TODO: fix this horror, right now we're forced to assume there's only one.
-		if strings.HasPrefix(serviceName, "op-challenger") {
-			return "challenger", 0, true
-		}
-
-		// Some services don't have a network suffix, as they span multiple chains
-		if strings.HasPrefix(serviceName, f.l2ServicePrefix) {
-			tag, idx := f.serviceTag(strings.TrimPrefix(serviceName, f.l2ServicePrefix))
-			return tag, idx, true
-		}
-		return "", 0, false
-	})
-}
-
-// findRPCEndpoints looks for services matching the given predicate that have an RPC port
-func (f *ServiceFinder) findRPCEndpoints(matchService func(string) (string, int, bool)) ([]descriptors.Node, descriptors.RedundantServiceMap) {
-	serviceMap := make(descriptors.RedundantServiceMap)
-	var nodes []descriptors.Node
-
-	for serviceName, ports := range f.services {
-		if serviceIdentifier, num, ok := matchService(serviceName); ok {
-			var allocated bool
-			for _, service := range f.nodeServices {
-				if serviceIdentifier == service {
-					if num > len(nodes) {
-						// Extend the slice to accommodate the required index
-						for i := len(nodes); i < num; i++ {
-							nodes = append(nodes, descriptors.Node{
-								Services: make(descriptors.ServiceMap),
-							})
-						}
-					}
-					endpoints := make(descriptors.EndpointMap)
-					for portName, portInfo := range ports {
-						endpoints[portName] = portInfo
-					}
-					nodes[num-1].Services[serviceIdentifier] = &descriptors.Service{
-						Name:      serviceName,
-						Endpoints: endpoints,
-					}
-					allocated = true
-				}
-			}
-			if !allocated {
-				endpoints := make(descriptors.EndpointMap)
-				for portName, portInfo := range ports {
-					endpoints[portName] = portInfo
-				}
-				serviceMap[serviceIdentifier] = []*descriptors.Service{
-					&descriptors.Service{
-						Name:      serviceName,
-						Endpoints: endpoints,
-					},
-				}
-			}
-		}
-	}
-	return nodes, serviceMap
-}
-
-// serviceTag returns the shorthand service tag and index if it's a service with multiple instances
-func (f *ServiceFinder) serviceTag(serviceName string) (string, int) {
-	// Find last occurrence of a number sequence
-	lastStart := -1
-	lastEnd := -1
-
-	// Scan through the string to find number sequences
-	for i := 0; i < len(serviceName); i++ {
-		if serviceName[i] >= '0' && serviceName[i] <= '9' {
-			start := i
-			// Find end of this number sequence
-			for i < len(serviceName) && serviceName[i] >= '0' && serviceName[i] <= '9' {
-				i++
-			}
-			lastStart = start
-			lastEnd = i
-		}
-	}
-
-	if lastStart == -1 {
-		return serviceName, 0
-	}
-
-	idx, err := strconv.Atoi(serviceName[lastStart:lastEnd])
-	if err != nil {
-		return serviceName, 0
-	}
-
-	// If there are multiple numbers, return just the base name
-	// Find the first number sequence
-	firstStart := strings.IndexFunc(serviceName, func(r rune) bool {
-		return r >= '0' && r <= '9'
-	})
-	if firstStart != lastStart {
-		// Multiple numbers found, return just the base name
-		tag := serviceName[:firstStart]
-		tag = strings.TrimRight(tag, "-")
-		return tag, idx
-	}
-
-	// Single number case
-	tag := serviceName[:lastStart]
-	tag = strings.TrimRight(tag, "-")
-	return tag, idx
+func (f *ServiceFinder) FindL2Services(s *spec.ChainSpec) ([]descriptors.Node, descriptors.RedundantServiceMap) {
+	return f.findChainServices(s)
 }

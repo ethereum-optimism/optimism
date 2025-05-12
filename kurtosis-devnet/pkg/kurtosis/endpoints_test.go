@@ -1,447 +1,380 @@
 package kurtosis
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestFindRPCEndpoints(t *testing.T) {
-	testServices := make(inspect.ServiceMap)
-
-	testServices["el-1-geth-lighthouse"] = inspect.PortMap{
-		"metrics":       {Port: 52643},
-		"tcp-discovery": {Port: 52644},
-		"udp-discovery": {Port: 51936},
-		"engine-rpc":    {Port: 52642},
-		"rpc":           {Port: 52645},
-		"ws":            {Port: 52646},
+func TestFindChainServices(t *testing.T) {
+	// Create test chains based on the scenario
+	chain1 := &spec.ChainSpec{
+		Name:      "op-kurtosis-1",
+		NetworkID: "2151908",
 	}
-
-	testServices["op-batcher-op-kurtosis"] = inspect.PortMap{
-		"http": {Port: 53572},
+	chain2 := &spec.ChainSpec{
+		Name:      "op-kurtosis-2",
+		NetworkID: "2151909",
 	}
+	chains := []*spec.ChainSpec{chain1, chain2}
 
-	testServices["op-cl-1-op-node-op-geth-op-kurtosis"] = inspect.PortMap{
-		"udp-discovery": {Port: 50990},
-		"http":          {Port: 53503},
-		"tcp-discovery": {Port: 53504},
-	}
+	// Create mock dependency set
+	depSets := createTestDepSets(t)
 
-	testServices["op-el-1-op-geth-op-node-1234"] = inspect.PortMap{
-		"udp-discovery": {Port: 53233},
-		"engine-rpc":    {Port: 53399},
-		"metrics":       {Port: 53400},
-		"rpc":           {Port: 53402},
-		"ws":            {Port: 53403},
-		"tcp-discovery": {Port: 53401},
-	}
+	// Create mock service map based on inspect data from the scenario
+	services := createTestServiceMap()
 
-	testServices["vc-1-geth-lighthouse"] = inspect.PortMap{
-		"metrics": {Port: 53149},
-	}
-
-	testServices["cl-1-lighthouse-geth"] = inspect.PortMap{
-		"metrics":       {Port: 52691},
-		"tcp-discovery": {Port: 52692},
-		"udp-discovery": {Port: 58275},
-		"http":          {Port: 52693},
-	}
-
-	tests := []struct {
-		name         string
-		services     inspect.ServiceMap
-		findFn       func(*ServiceFinder) ([]descriptors.Node, descriptors.RedundantServiceMap)
-		wantNodes    []descriptors.Node
-		wantServices descriptors.RedundantServiceMap
-	}{
-		{
-			name:     "find L1 endpoints",
-			services: testServices,
-			findFn: func(f *ServiceFinder) ([]descriptors.Node, descriptors.RedundantServiceMap) {
-				return f.FindL1Services()
-			},
-			wantNodes: []descriptors.Node{
-				{
-					Services: descriptors.ServiceMap{
-						"cl": &descriptors.Service{
-							Name: "cl-1-lighthouse-geth",
-							Endpoints: descriptors.EndpointMap{
-								"metrics":       {Port: 52691},
-								"tcp-discovery": {Port: 52692},
-								"udp-discovery": {Port: 58275},
-								"http":          {Port: 52693},
-							},
-						},
-						"el": &descriptors.Service{
-							Name: "el-1-geth-lighthouse",
-							Endpoints: descriptors.EndpointMap{
-								"metrics":       {Port: 52643},
-								"tcp-discovery": {Port: 52644},
-								"udp-discovery": {Port: 51936},
-								"engine-rpc":    {Port: 52642},
-								"rpc":           {Port: 52645},
-								"ws":            {Port: 52646},
-							},
-						},
-					},
-				},
-			},
-			wantServices: descriptors.RedundantServiceMap{},
-		},
-		{
-			name:     "find op-kurtosis L2 endpoints",
-			services: testServices,
-			findFn: func(f *ServiceFinder) ([]descriptors.Node, descriptors.RedundantServiceMap) {
-				return f.FindL2Services(ChainSpec{
-					ChainSpec: spec.ChainSpec{
-						Name:      "op-kurtosis",
-						NetworkID: "1234",
-					},
-					DepSets: map[string]descriptors.DepSet{},
-				})
-			},
-			wantNodes: []descriptors.Node{
-				{
-					Services: descriptors.ServiceMap{
-						"cl": &descriptors.Service{
-							Name: "op-cl-1-op-node-op-geth-op-kurtosis",
-							Endpoints: descriptors.EndpointMap{
-								"udp-discovery": {Port: 50990},
-								"http":          {Port: 53503},
-								"tcp-discovery": {Port: 53504},
-							},
-						},
-						"el": &descriptors.Service{
-							Name: "op-el-1-op-geth-op-node-1234",
-							Endpoints: descriptors.EndpointMap{
-								"udp-discovery": {Port: 53233},
-								"engine-rpc":    {Port: 53399},
-								"metrics":       {Port: 53400},
-								"tcp-discovery": {Port: 53401},
-								"rpc":           {Port: 53402},
-								"ws":            {Port: 53403},
-							},
-						},
-					},
-				},
-			},
-			wantServices: descriptors.RedundantServiceMap{
-				"batcher": []*descriptors.Service{
-					&descriptors.Service{
-						Name: "op-batcher-op-kurtosis",
-						Endpoints: descriptors.EndpointMap{
-							"http": {Port: 53572},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "custom host in endpoint",
-			services: inspect.ServiceMap{
-				"op-batcher-custom-host": inspect.PortMap{
-					"http": {Host: "custom.host", Port: 8080},
-				},
-			},
-			findFn: func(f *ServiceFinder) ([]descriptors.Node, descriptors.RedundantServiceMap) {
-				return f.FindL2Services(ChainSpec{
-					ChainSpec: spec.ChainSpec{
-						Name:      "custom-host",
-						NetworkID: "0000",
-					},
-					DepSets: map[string]descriptors.DepSet{},
-				})
-			},
-			wantNodes: nil,
-			wantServices: descriptors.RedundantServiceMap{
-				"batcher": []*descriptors.Service{
-					&descriptors.Service{
-						Name: "op-batcher-custom-host",
-						Endpoints: descriptors.EndpointMap{
-							"http": {Host: "custom.host", Port: 8080},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			finder := NewServiceFinder(tt.services, WithL2Networks([]ChainSpec{
-				{ChainSpec: spec.ChainSpec{Name: "op-kurtosis", NetworkID: "1234"}},
-				{ChainSpec: spec.ChainSpec{Name: "network1", NetworkID: "1111"}},
-				{ChainSpec: spec.ChainSpec{Name: "network2", NetworkID: "2222"}},
-				{ChainSpec: spec.ChainSpec{Name: "custom-host", NetworkID: "0000"}},
-			}))
-			gotNodes, gotServices := tt.findFn(finder)
-			assert.Equal(t, tt.wantNodes, gotNodes)
-			assert.Equal(t, tt.wantServices, gotServices)
-		})
-	}
-}
-
-func TestFindL2ServicesSkipsOtherNetworks(t *testing.T) {
-	n1 := ChainSpec{
-		ChainSpec: spec.ChainSpec{
-			Name:      "network1",
-			NetworkID: "1111",
-		},
-		DepSets: map[string]descriptors.DepSet{},
-	}
-	n2 := ChainSpec{
-		ChainSpec: spec.ChainSpec{
-			Name:      "network2",
-			NetworkID: "2222",
-		},
-		DepSets: map[string]descriptors.DepSet{},
-	}
-	n3 := ChainSpec{
-		ChainSpec: spec.ChainSpec{
-			Name:      "network3",
-			NetworkID: "3333",
-		},
-		DepSets: map[string]descriptors.DepSet{},
-	}
-
-	// Create a service map with services from multiple L2 networks
-	services := inspect.ServiceMap{
-		// network1 services
-		"op-batcher-network1": inspect.PortMap{
-			"http": {Port: 8080},
-		},
-		"op-proposer-network1": inspect.PortMap{
-			"http": {Port: 8082},
-		},
-		"op-cl-1-op-node-op-geth-network1": inspect.PortMap{
-			"http": {Port: 8084},
-		},
-
-		// network2 services
-		"op-batcher-network2": inspect.PortMap{
-			"http": {Port: 8081},
-		},
-		"op-proposer-2222": inspect.PortMap{
-			"http": {Port: 8083},
-		},
-		"op-cl-1-op-node-op-geth-network2": inspect.PortMap{
-			"http": {Port: 8085},
-		},
-
-		// network3 services
-		"op-batcher-network3": inspect.PortMap{
-			"http": {Port: 8086},
-		},
-		"op-proposer-network3": inspect.PortMap{
-			"http": {Port: 8087},
-		},
-		"op-cl-1-op-node-op-geth-network3": inspect.PortMap{
-			"http": {Port: 8088},
-		},
-
-		// Common service without network suffix
-		"op-common-service": inspect.PortMap{
-			"http": {Port: 8089},
-		},
-	}
-
+	// Create service finder with the test data
 	finder := NewServiceFinder(
 		services,
-		WithL2Networks([]ChainSpec{n1, n2, n3}),
+		WithL2Chains(chains),
+		WithDepSets(depSets),
 	)
 
-	// Test finding services for network2
-	t.Run("find network2 services", func(t *testing.T) {
-		nodes, serviceMap := finder.FindL2Services(n2)
+	// Test triage directly to ensure services are correctly triaged
+	t.Run("triage services", func(t *testing.T) {
+		assert.NotNil(t, finder.triagedServices, "Triaged services should not be nil")
+		assert.NotEmpty(t, finder.triagedServices, "Triaged services should not be empty")
 
-		// Verify nodes
-		assert.Len(t, nodes, 1)
-		if len(nodes) > 0 {
-			assert.Contains(t, nodes[0].Services, "cl")
-			assert.Equal(t, "op-cl-1-op-node-op-geth-network2", nodes[0].Services["cl"].Name)
+		// Count service types
+		tagCount := make(map[string]int)
+		for _, svc := range finder.triagedServices {
+			tagCount[svc.tag]++
 		}
 
-		// Verify services
-		assert.Len(t, serviceMap, 3) // batcher, proposer, common-service
-		assert.Contains(t, serviceMap, "batcher")
-		assert.Contains(t, serviceMap, "proposer")
-		assert.Contains(t, serviceMap, "common-service")
-		assert.Equal(t, "op-batcher-network2", serviceMap["batcher"][0].Name)
-		assert.Equal(t, "op-proposer-2222", serviceMap["proposer"][0].Name)
-		assert.Equal(t, "op-common-service", serviceMap["common-service"][0].Name)
-
-		// Verify network1 and network3 services are not included
-		for _, service := range serviceMap {
-			assert.NotContains(t, service[0].Name, "network1")
-			assert.NotContains(t, service[0].Name, "network3")
-		}
+		// Verify expected service counts
+		assert.Equal(t, 3, tagCount["cl"], "Should have 3 CL services")
+		assert.Equal(t, 3, tagCount["el"], "Should have 3 EL service")
+		assert.Equal(t, 2, tagCount["batcher"], "Should have 2 batcher services")
+		assert.Equal(t, 2, tagCount["proposer"], "Should have 2 proposer services")
+		assert.Equal(t, 2, tagCount["proxyd"], "Should have 2 proxyd services")
+		assert.Equal(t, 1, tagCount["challenger"], "Should have 1 challenger service")
+		assert.Equal(t, 1, tagCount["supervisor"], "Should have 1 supervisor service")
+		assert.Equal(t, 1, tagCount["faucet"], "Should have 1 faucet service")
 	})
 
-	// Test with a network that doesn't exist
-	t.Run("find non-existent network services", func(t *testing.T) {
-		nodes, serviceMap := finder.FindL2Services(ChainSpec{
-			ChainSpec: spec.ChainSpec{
-				Name:      "non-existent",
-				NetworkID: "plop",
-			},
-			DepSets: map[string]descriptors.DepSet{},
-		})
+	// Test L1 service discovery
+	t.Run("L1 services", func(t *testing.T) {
+		nodes, services := finder.FindL1Services()
 
-		// Should only find common services
-		assert.Len(t, nodes, 0)
-		assert.Len(t, serviceMap, 1)
-		assert.Contains(t, serviceMap, "common-service")
-		assert.Equal(t, "op-common-service", serviceMap["common-service"][0].Name)
+		// Verify L1 nodes
+		assert.Equal(t, 1, len(nodes), "Should have exactly 1 node")
+
+		// Verify L1 services
+		assert.Equal(t, 1, len(services), "Should have exactly 1 service")
+		assert.Contains(t, services, "faucet", "Should have faucet service")
+	})
+
+	// Test L2 services for both chains
+	t.Run("L2 chain1 services", func(t *testing.T) {
+		nodes, services := finder.FindL2Services(chain1)
+
+		assert.Equal(t, 1, len(nodes), "Should have exactly 1 node")
+		assert.Equal(t, 6, len(services), "Should have exactly 6 services")
+
+		assert.Contains(t, services, "batcher", "Should have batcher service")
+		assert.Contains(t, services, "proposer", "Should have proposer service")
+		assert.Contains(t, services, "proxyd", "Should have proxyd service")
+		assert.Contains(t, services, "challenger", "Should have challenger service")
+		assert.Contains(t, services, "supervisor", "Should have supervisor service")
+		assert.Contains(t, services, "faucet", "Should have faucet service")
 	})
 }
 
-func TestServiceTag(t *testing.T) {
-	finder := NewServiceFinder(inspect.ServiceMap{})
+// createTestServiceMap creates a service map based on the provided scenario output
+func createTestServiceMap() inspect.ServiceMap {
+	services := inspect.ServiceMap{
+		// L1 Services - must match pattern expected by triageNode function
+		"cl-1-teku-geth": {
+			"http":          &descriptors.PortInfo{Port: 32777},
+			"metrics":       &descriptors.PortInfo{Port: 32778},
+			"tcp-discovery": &descriptors.PortInfo{Port: 32779},
+			"udp-discovery": &descriptors.PortInfo{Port: 32769},
+		},
+		"el-1-geth-teku": {
+			"engine-rpc":    &descriptors.PortInfo{Port: 32774},
+			"metrics":       &descriptors.PortInfo{Port: 32775},
+			"rpc":           &descriptors.PortInfo{Port: 32772},
+			"tcp-discovery": &descriptors.PortInfo{Port: 32776},
+			"udp-discovery": &descriptors.PortInfo{Port: 32768},
+			"ws":            &descriptors.PortInfo{Port: 32773},
+		},
+		"fileserver": {
+			"http": &descriptors.PortInfo{Port: 32771},
+		},
+		"grafana": {
+			"http": &descriptors.PortInfo{Port: 32815},
+		},
+		"prometheus": {
+			"http": &descriptors.PortInfo{Port: 32814},
+		},
 
-	tests := []struct {
-		name      string
-		input     string
-		wantTag   string
-		wantIndex int
-	}{
-		{
-			name:      "simple service without index",
-			input:     "batcher",
-			wantTag:   "batcher",
-			wantIndex: 0,
+		// L2 Chain1 Services
+		"op-batcher-op-kurtosis-1": {
+			"http":    &descriptors.PortInfo{Port: 32791},
+			"metrics": &descriptors.PortInfo{Port: 32792},
 		},
-		{
-			name:      "service with index 1",
-			input:     "node-1",
-			wantTag:   "node",
-			wantIndex: 1,
+		"op-proposer-op-kurtosis-1": {
+			"http":    &descriptors.PortInfo{Port: 32793},
+			"metrics": &descriptors.PortInfo{Port: 32794},
 		},
-		{
-			name:      "service with index 2",
-			input:     "node-2",
-			wantTag:   "node",
-			wantIndex: 2,
+		"op-cl-2151908-1-op-node-op-geth-op-kurtosis-1": {
+			"http":          &descriptors.PortInfo{Port: 32785},
+			"metrics":       &descriptors.PortInfo{Port: 32786},
+			"rpc-interop":   &descriptors.PortInfo{Port: 32788},
+			"tcp-discovery": &descriptors.PortInfo{Port: 32787},
+			"udp-discovery": &descriptors.PortInfo{Port: 32771},
 		},
-		{
-			name:      "service with double digit index",
-			input:     "node-10",
-			wantTag:   "node",
-			wantIndex: 10,
+		"op-el-2151908-1-op-geth-op-node-op-kurtosis-1": {
+			"engine-rpc":    &descriptors.PortInfo{Port: 32782},
+			"metrics":       &descriptors.PortInfo{Port: 32783},
+			"rpc":           &descriptors.PortInfo{Port: 32780},
+			"tcp-discovery": &descriptors.PortInfo{Port: 32784},
+			"udp-discovery": &descriptors.PortInfo{Port: 32770},
+			"ws":            &descriptors.PortInfo{Port: 32781},
 		},
-		{
-			name:      "service with index in the middle",
-			input:     "node-1-suffix",
-			wantTag:   "node",
-			wantIndex: 1,
+		"proxyd-2151908": {
+			"http":    &descriptors.PortInfo{Port: 32790},
+			"metrics": &descriptors.PortInfo{Port: 32789},
 		},
-		{
-			name:      "service with multiple hyphens",
-			input:     "multi-part-name-1",
-			wantTag:   "multi-part-name",
-			wantIndex: 1,
+
+		// L2 Chain2 Services
+		"op-batcher-op-kurtosis-2": {
+			"http":    &descriptors.PortInfo{Port: 32806},
+			"metrics": &descriptors.PortInfo{Port: 32807},
 		},
-		{
-			name:      "service with multiple numbers",
-			input:     "node-42-1",
-			wantTag:   "node",
-			wantIndex: 1,
+		"op-proposer-op-kurtosis-2": {
+			"http":    &descriptors.PortInfo{Port: 32808},
+			"metrics": &descriptors.PortInfo{Port: 32809},
+		},
+		"op-cl-2151909-1-op-node-op-geth-op-kurtosis-2": {
+			"http":          &descriptors.PortInfo{Port: 32800},
+			"metrics":       &descriptors.PortInfo{Port: 32801},
+			"rpc-interop":   &descriptors.PortInfo{Port: 32803},
+			"tcp-discovery": &descriptors.PortInfo{Port: 32802},
+			"udp-discovery": &descriptors.PortInfo{Port: 32773},
+		},
+		"op-el-2151909-1-op-geth-op-node-op-kurtosis-2": {
+			"engine-rpc":    &descriptors.PortInfo{Port: 32797},
+			"metrics":       &descriptors.PortInfo{Port: 32798},
+			"rpc":           &descriptors.PortInfo{Port: 32795},
+			"tcp-discovery": &descriptors.PortInfo{Port: 32799},
+			"udp-discovery": &descriptors.PortInfo{Port: 32772},
+			"ws":            &descriptors.PortInfo{Port: 32796},
+		},
+		"proxyd-2151909": {
+			"http":    &descriptors.PortInfo{Port: 32805},
+			"metrics": &descriptors.PortInfo{Port: 32804},
+		},
+
+		// Shared L2 Services
+		"op-faucet": {
+			"rpc": &descriptors.PortInfo{Port: 32813},
+		},
+		"op-challenger-service-2151908-2151909": {
+			"metrics": &descriptors.PortInfo{Port: 32812},
+		},
+		"op-supervisor-service-superchain": {
+			"metrics": &descriptors.PortInfo{Port: 32811},
+			"rpc":     &descriptors.PortInfo{Port: 32810},
+		},
+		"validator-key-generation-cl-validator-keystore": {},
+	}
+
+	return services
+}
+
+// createTestDepSets creates test dependency sets for the test
+func createTestDepSets(t *testing.T) map[string]descriptors.DepSet {
+	// Create the dependency set for the superchain
+	depSetData := map[eth.ChainID]*depset.StaticConfigDependency{
+		eth.ChainIDFromUInt64(2151908): {
+			ChainIndex:     2151908,
+			ActivationTime: 0,
+			HistoryMinTime: 0,
+		},
+		eth.ChainIDFromUInt64(2151909): {
+			ChainIndex:     2151909,
+			ActivationTime: 0,
+			HistoryMinTime: 0,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotTag, gotIndex := finder.serviceTag(tt.input)
-			assert.Equal(t, tt.wantTag, gotTag)
-			assert.Equal(t, tt.wantIndex, gotIndex)
-		})
+	depSet, err := depset.NewStaticConfigDependencySet(depSetData)
+	require.NoError(t, err)
+
+	jsonData, err := json.Marshal(depSet)
+	require.NoError(t, err)
+
+	return map[string]descriptors.DepSet{
+		"superchain": descriptors.DepSet(jsonData),
 	}
 }
 
-func TestFindL2ServicesWithSupervisors(t *testing.T) {
-	// Create dependency sets as raw JSON
-	depSet1 := []byte(`{"dependencies":{"1111":{"activationTime":0,"chainIndex":"1111","historyMinTime":0}}}`)
-	depSet2 := []byte(`{"dependencies":{"2222":{"activationTime":0,"chainIndex":"2222","historyMinTime":0}}}`)
-
-	// Create test services with supervisors for different networks
-	services := inspect.ServiceMap{
-		// Network1 supervisor with depSet1
-		"op-supervisor-depset1": inspect.PortMap{
-			"rpc": {Port: 8080},
-		},
-		// Network2 supervisor with depSet2
-		"op-supervisor-depset2": inspect.PortMap{
-			"rpc": {Port: 8081},
-		},
-		// extra supervisor
-		"op-supervisor-depset3": inspect.PortMap{
-			"rpc": {Port: 8083},
-		},
+// TestTriageFunctions tests the actual implementation of triage functions
+func TestTriageFunctions(t *testing.T) {
+	// Create a minimal finder with default values
+	finder := &ServiceFinder{
+		services:        make(inspect.ServiceMap),
+		nodeServices:    []string{"cl", "el"},
+		l2ServicePrefix: "op-",
 	}
 
-	// Create chain specs for the networks
-	n1 := ChainSpec{
-		ChainSpec: spec.ChainSpec{
-			Name:      "network1",
-			NetworkID: "1111",
-		},
-		DepSets: map[string]descriptors.DepSet{
-			"depset1": depSet1,
-		},
-	}
-	n2 := ChainSpec{
-		ChainSpec: spec.ChainSpec{
-			Name:      "network2",
-			NetworkID: "2222",
-		},
-		DepSets: map[string]descriptors.DepSet{
-			"depset2": depSet2,
-		},
-	}
+	// Test the triageNode function for recognizing services
+	t.Run("triageNode", func(t *testing.T) {
+		// Test CL node parser
+		parser := finder.triageNode("cl-")
 
-	finder := NewServiceFinder(
-		services,
-		WithL2Networks([]ChainSpec{n1, n2}),
-	)
+		// Test L1 node format
+		idx, accept, ok := parser("cl-1-teku-geth")
+		assert.True(t, ok, "Should recognize L1 CL node")
+		assert.Equal(t, 0, idx, "Should extract index 0 from L1 CL node")
+		assert.True(t, accept(&spec.ChainSpec{Name: l1Placeholder}), "Should accept L1")
 
-	tests := []struct {
-		name      string
-		chainSpec ChainSpec
-		wantName  string
-		wantPort  int
-	}{
-		{
-			name:      "network1 supervisor",
-			chainSpec: n1,
-			wantName:  "op-supervisor-depset1",
-			wantPort:  8080,
-		},
-		{
-			name:      "network2 supervisor",
-			chainSpec: n2,
-			wantName:  "op-supervisor-depset2",
-			wantPort:  8081,
-		},
-	}
+		// Test L2 node format
+		idx, accept, ok = parser("op-cl-2151908-1-op-node-op-geth-op-kurtosis-1")
+		assert.True(t, ok, "Should recognize L2 CL node")
+		assert.Equal(t, 0, idx, "Should extract index 0 from L2 CL node")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "2151908"}), "Should accept matching chain ID")
+		assert.False(t, accept(&spec.ChainSpec{NetworkID: "2151909"}), "Should not accept different chain ID")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, serviceMap := finder.FindL2Services(tt.chainSpec)
+		// Test with various suffixes to see what is recognized
+		_, _, ok = parser("cl-1-teku-geth-with-extra-parts")
+		assert.True(t, ok, "Should recognize L1 CL node regardless of suffix")
 
-			// Debug output
-			t.Logf("Service map: %+v", serviceMap)
-			for k, v := range serviceMap {
-				t.Logf("Service %s: %+v", k, v)
-			}
+		_, _, ok = parser("op-cl-2151908-1-op-node-op-geth-op-kurtosis-1-with-extra-parts")
+		assert.True(t, ok, "Should recognize L2 CL node regardless of suffix")
 
-			// Verify supervisor services
-			assert.Len(t, serviceMap, 1) // just the supervisor service
-			assert.Contains(t, serviceMap, "supervisor")
-			assert.Equal(t, tt.wantName, serviceMap["supervisor"][0].Name)
-			assert.Equal(t, tt.wantPort, serviceMap["supervisor"][0].Endpoints["rpc"].Port)
-		})
-	}
+		// This is considered invalid
+		_, _, ok = parser("cl")
+		assert.False(t, ok, "Should not recognize simple 'cl'")
+
+		_, _, ok = parser("op-cl")
+		assert.False(t, ok, "Should not recognize simple 'op-cl'")
+	})
+
+	// Test the exclusive L2 service parser (batcher, proposer, proxyd)
+	t.Run("triageExclusiveL2Service", func(t *testing.T) {
+		parser := finder.triageExclusiveL2Service("op-batcher-")
+
+		// Valid format
+		idx, accept, ok := parser("op-batcher-123456")
+		assert.True(t, ok, "Should recognize batcher")
+		assert.Equal(t, -1, idx, "Exclusive services have -1 index")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept chain with matching ID")
+		assert.False(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should not accept chain with different ID")
+
+		// With suffix
+		_, _, ok = parser("op-batcher-123456-with-suffix")
+		assert.True(t, ok, "Should recognize batcher regardless of suffix")
+
+		// Invalid formats
+		_, _, ok = parser("batcher-123456")
+		assert.False(t, ok, "Should not recognize batcher without op- prefix")
+
+		_, _, ok = parser("op-batcher")
+		assert.False(t, ok, "Should not recognize op-batcher without chain ID")
+	})
+
+	// Test the multi-chain service parser (challenger)
+	t.Run("triageMultiL2Service", func(t *testing.T) {
+		parser := finder.triageMultiL2Service("op-challenger-")
+
+		// Valid format with service identifier and two chain IDs
+		idx, accept, ok := parser("op-challenger-any-123456-654321")
+		assert.True(t, ok, "Should recognize challenger for two chains")
+		assert.Equal(t, -1, idx, "Multi-chain services have -1 index")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept first chain")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept second chain")
+		assert.False(t, accept(&spec.ChainSpec{NetworkID: "789012"}), "Should not accept unrelated chain")
+
+		// Valid format with service identifier and one chain ID
+		_, accept, ok = parser("op-challenger-any-123456")
+		assert.True(t, ok, "Should recognize challenger for one chain")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept the only chain")
+		assert.False(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should not accept different chain")
+
+		// Invalid formats
+		_, _, ok = parser("challenger-123456")
+		assert.False(t, ok, "Should not recognize challenger without prefix")
+
+		_, _, ok = parser("op-challenger")
+		assert.False(t, ok, "Should not recognize op-challenger without service ID")
+	})
+
+	// Test the superchain service parser (supervisor)
+	t.Run("triageSuperchainService", func(t *testing.T) {
+		// Create some chains for the dependency set
+		chain1 := eth.ChainIDFromUInt64(123456)
+		chain2 := eth.ChainIDFromUInt64(654321)
+
+		// Create a dependency set
+		depSetData := map[eth.ChainID]*depset.StaticConfigDependency{
+			chain1: {ChainIndex: 123456},
+			chain2: {ChainIndex: 654321},
+		}
+		depSet, err := depset.NewStaticConfigDependencySet(depSetData)
+		require.NoError(t, err)
+
+		// Serialize dependency set
+		jsonData, err := json.Marshal(depSet)
+		require.NoError(t, err)
+
+		// Create a new finder with the dependency set
+		finderWithDS := &ServiceFinder{
+			services:        make(inspect.ServiceMap),
+			nodeServices:    []string{"cl", "el"},
+			l2ServicePrefix: "op-",
+			depsets: map[string]descriptors.DepSet{
+				"superchain": descriptors.DepSet(jsonData),
+			},
+		}
+
+		parser := finderWithDS.triageSuperchainService("op-supervisor-")
+
+		// Valid format - "op-supervisor-{service_id}-{depset_name}"
+		idx, accept, ok := parser("op-supervisor-id-superchain")
+		assert.True(t, ok, "Should recognize supervisor")
+		assert.Equal(t, -1, idx, "Superchain services have -1 index")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept chain1")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept chain2")
+		assert.False(t, accept(&spec.ChainSpec{NetworkID: "789012"}), "Should not accept unrelated chain")
+
+		// Invalid formats
+		_, _, ok = parser("supervisor-superchain")
+		assert.False(t, ok, "Should not recognize supervisor without prefix")
+
+		_, _, ok = parser("op-supervisor")
+		assert.False(t, ok, "Should not recognize op-supervisor without service ID and depset name")
+
+		// Test with non-existing depset
+		_, _, ok = parser("op-supervisor-id-nonexistent")
+		assert.False(t, ok, "Should not recognize supervisor with non-existent depset")
+	})
+
+	// Test the universal L2 service parser (faucet)
+	t.Run("triageUniversalL2Service", func(t *testing.T) {
+		parser := finder.triageUniversalL2Service("op-faucet")
+
+		// Valid format
+		idx, accept, ok := parser("op-faucet")
+		assert.True(t, ok, "Should recognize faucet")
+		assert.Equal(t, -1, idx, "Universal services have -1 index")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept any chain")
+		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept any chain")
+
+		// Invalid formats
+		_, _, ok = parser("faucet")
+		assert.False(t, ok, "Should not recognize faucet without prefix")
+
+		_, _, ok = parser("op-faucet-with-suffix")
+		assert.False(t, ok, "Should not recognize op-faucet with suffix")
+	})
 }
