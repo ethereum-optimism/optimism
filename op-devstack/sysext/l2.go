@@ -1,6 +1,7 @@
 package sysext
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
@@ -57,6 +58,9 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	o.hydrateL2ProxydMaybe(net, l2)
 
 	if faucet, ok := net.Services["faucet"]; ok {
+		for _, endpoint := range faucet.Endpoints {
+			endpoint.Path = fmt.Sprintf("chain/%s", l2.ChainID().String())
+		}
 		l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 			CommonConfig: commonConfig,
 			Client:       o.rpcClient(t, faucet, RPCProtocol),

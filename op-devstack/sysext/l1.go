@@ -1,6 +1,8 @@
 package sysext
 
 import (
+	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -52,6 +54,9 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 	}
 
 	if faucet, ok := env.Env.L1.Services["faucet"]; ok {
+		for _, endpoint := range faucet.Endpoints {
+			endpoint.Path = fmt.Sprintf("chain/%s", l1.ChainID().String())
+		}
 		l1.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 			CommonConfig: commonConfig,
 			Client:       o.rpcClient(t, faucet, RPCProtocol),
