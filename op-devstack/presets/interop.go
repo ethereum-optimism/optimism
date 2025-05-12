@@ -1,9 +1,6 @@
 package presets
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -53,38 +50,23 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 	}
 }
 
-func NewSimpleInterop(dest *TestSetup[*SimpleInterop]) stack.CommonOption {
-	kind, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR")
-	if !ok {
-		kind = BackendSysGo
-	}
-	opt := stack.Finally(func(orch stack.Orchestrator, hook stack.SystemHook) {
-		*dest = func(t devtest.T) *SimpleInterop {
-			return hydrateSimpleInterop(t, orch, hook)
-		}
-	})
-	switch kind {
-	case BackendSysGo:
-		opt = stack.Combine(opt, stack.MakeCommon(startInProcessSimpleInterop()))
-	case BackendSysExt:
-	default:
-		panic(fmt.Sprintf("Unknown devstack backend: %s", kind))
-	}
-	return opt
-}
-
 // startInProcessSimpleInterop starts a new system that meets the simple interop criteria
 func startInProcessSimpleInterop() stack.Option[*sysgo.Orchestrator] {
 	var ids sysgo.DefaultInteropSystemIDs
 	return sysgo.DefaultInteropSystem(&ids)
 }
 
-// hydrateSimpleInterop hydrates the test specific view of a shared system and selects the resources required for
-// a simple interop system.
-func hydrateSimpleInterop(t devtest.T, orch stack.Orchestrator, hook stack.SystemHook) *SimpleInterop {
+func ConfigureSimpleInterop() stack.CommonOption {
+	if globalBackend == SysGo {
+		return stack.MakeCommon(startInProcessSimpleInterop())
+	}
+	return nil
+}
+
+func NewSimpleInterop(t devtest.T) *SimpleInterop {
 	system := shim.NewSystem(t)
+	orch := Orchestrator()
 	orch.Hydrate(system)
-	hook.PostHydrate(system)
 
 	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
 	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors

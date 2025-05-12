@@ -9,5 +9,6 @@ import (
 var SimpleInterop presets.TestSetup[*presets.SimpleInterop]
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.NewSimpleInterop(&SimpleInterop))
+	SimpleInterop = presets.NewSimpleInterop
+	presets.DoMain(m, presets.ConfigureSimpleInterop())
 }
