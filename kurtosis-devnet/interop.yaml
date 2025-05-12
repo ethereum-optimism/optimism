@@ -21,12 +21,9 @@ optimism_package:
     enabled: true
     image: {{ $local_images.op_faucet }}
   superchains:
-    superchain:
-      enabled: true
-      participants: "*"
+    superchain: {}
   supervisors:
     supervisor:
-      enabled: true
       superchain: superchain
       image: {{ $local_images.op_supervisor }}
       extra_params:
