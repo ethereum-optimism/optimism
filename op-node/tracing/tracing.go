@@ -8,14 +8,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/telemetry"
+	"github.com/honeycombio/otel-config-go/otelconfig"
 )
 
 const (
@@ -53,25 +51,13 @@ func InitTracing(tracingEnabled bool, serviceName string, tracerName string) err
 		serviceName = "op-node"
 	}
 
-	var exporter sdktrace.SpanExporter
-	var err error
-	// refer to https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/ for
-	// how to configure the otlp exporter endpoints using env variables
-	exporter, err = otlptracehttp.New(context.Background())
+	_, _, err := telemetry.SetupOpenTelemetry(context.Background(), otelconfig.WithServiceName(serviceName))
 	if err != nil {
-		return fmt.Errorf("failed to initialize stdout exporter: %w", err)
+		return fmt.Errorf("failed to setup OpenTelemetry: %w", err)
 	}
-
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(serviceName),
-		)),
-	)
-	otel.SetTracerProvider(tp)
 	tracer = otel.Tracer(tracerName)
 	return nil
+
 }
 
 func StartTraceProcessL2Payload(envelope *eth.ExecutionPayloadEnvelope) *eth.ExecutionPayloadEnvelopeWithContext {

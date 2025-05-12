@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/honeycombio/otel-config-go/otelconfig"
 	"go.opentelemetry.io/otel"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -55,7 +56,7 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			Pid:    false,
 		})
 
-		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())
+		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background(), otelconfig.WithServiceName("devstack"))
 		if err != nil {
 			logger.Warn("Failed to setup OpenTelemetry", "error", err)
 		} else {

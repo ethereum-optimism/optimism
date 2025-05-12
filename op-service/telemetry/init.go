@@ -13,7 +13,7 @@ const (
 	tracesEndpointEnvVar  = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
 	metricsEndpointEnvVar = "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
 
-	defaultServiceName    = "devstack"
+	defaultServiceName    = "optimism"
 	defaultServiceVersion = "0.0.0"
 )
 
