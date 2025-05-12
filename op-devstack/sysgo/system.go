@@ -119,7 +119,7 @@ func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSy
 		L2BBatcher:   stack.L2BatcherID{Key: "main", ChainID: l2BID},
 		L2AProposer:  stack.L2ProposerID{Key: "main", ChainID: l2AID},
 		L2BProposer:  stack.L2ProposerID{Key: "main", ChainID: l2BID},
-		L2Challenger: "main", // TODO(#15057): Support multiple pre-interop challengers
+		L2Challenger: "main",
 	}
 	return ids
 }
