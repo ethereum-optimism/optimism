@@ -69,8 +69,8 @@ func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	return result, err
 }
 
-func (r *RollupClient) PostUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelopeWithContext) error {
-	return r.rpc.CallContext(ctx, nil, "admin_postUnsafePayload", envelope.ExecutionPayloadEnvelope)
+func (r *RollupClient) PostUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
+	return r.rpc.CallContext(ctx, nil, "admin_postUnsafePayload", envelope)
 }
 
 func (r *RollupClient) OverrideLeader(ctx context.Context) error {

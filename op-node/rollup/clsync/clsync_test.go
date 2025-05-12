@@ -1,6 +1,7 @@
 package clsync
 
 import (
+	"context"
 	"errors"
 	"math/big"
 	"math/rand" // nosemgrep
@@ -102,6 +103,10 @@ func TestCLSync(t *testing.T) {
 		BlockHash:     refA1.Hash,
 		Transactions:  []eth.Data{a1L1Info},
 	}}
+	payloadA1WithContext := &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: payloadA1,
+		TraceContext:             context.Background(),
+	}
 	a2L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA2.SequenceNumber, aL1Info, refA2.Time)
 	require.NoError(t, err)
 	payloadA2 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
@@ -120,6 +125,10 @@ func TestCLSync(t *testing.T) {
 		BlockHash:     refA2.Hash,
 		Transactions:  []eth.Data{a2L1Info},
 	}}
+	payloadA2WithContext := &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: payloadA2,
+		TraceContext:             context.Background(),
+	}
 
 	metrics := &testutils.TestDerivationMetrics{}
 
@@ -132,7 +141,7 @@ func TestCLSync(t *testing.T) {
 		cl.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		emitter.AssertExpectations(t)
 
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
@@ -154,7 +163,7 @@ func TestCLSync(t *testing.T) {
 		cl.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		emitter.AssertExpectations(t)
 
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
@@ -177,7 +186,7 @@ func TestCLSync(t *testing.T) {
 		cl.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		emitter.AssertExpectations(t)
 
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
@@ -198,7 +207,7 @@ func TestCLSync(t *testing.T) {
 		cl.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA2})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA2WithContext})
 		emitter.AssertExpectations(t)
 
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
@@ -222,14 +231,14 @@ func TestCLSync(t *testing.T) {
 		require.Nil(t, cl.unsafePayloads.Peek(), "no payloads yet")
 
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		emitter.AssertExpectations(t)
 
 		lowest := cl.LowestQueuedUnsafeBlock()
 		require.Equal(t, refA1, lowest, "expecting A1 next")
 
 		// payload A1 should be possible to process on top of A0
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
+		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    refA0,
 			SafeL2Head:      refA0,
@@ -247,13 +256,13 @@ func TestCLSync(t *testing.T) {
 
 		// repeat for A2
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA2})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA2WithContext})
 		emitter.AssertExpectations(t)
 
 		lowest = cl.LowestQueuedUnsafeBlock()
 		require.Equal(t, refA2, lowest, "expecting A2 next")
 
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA2})
+		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA2WithContext})
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    refA1,
 			SafeL2Head:      refA0,
@@ -278,16 +287,16 @@ func TestCLSync(t *testing.T) {
 		cl.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		emitter.AssertExpectations(t)
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA2})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA2WithContext})
 		emitter.AssertExpectations(t)
 
 		lowest := cl.LowestQueuedUnsafeBlock()
 		require.Equal(t, refA1, lowest, "expecting A1 next")
 
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
+		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    refA0,
 			SafeL2Head:      refA0,
@@ -298,7 +307,7 @@ func TestCLSync(t *testing.T) {
 
 		// Now pretend the payload was processed: we can drop A1 now.
 		// The CL-sync will try to immediately continue with A2.
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA2})
+		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA2WithContext})
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    refA1,
 			SafeL2Head:      refA0,
@@ -323,10 +332,10 @@ func TestCLSync(t *testing.T) {
 		cl.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		emitter.AssertExpectations(t)
 
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
+		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    refA0,
 			SafeL2Head:      refA0,
@@ -339,7 +348,7 @@ func TestCLSync(t *testing.T) {
 		require.NotNil(t, cl.unsafePayloads.Peek(), "no pop because temporary error")
 
 		// Pretend we are still stuck on the same forkchoice. The CL-sync will retry sneding the payload.
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
+		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    refA0,
 			SafeL2Head:      refA0,
@@ -365,11 +374,11 @@ func TestCLSync(t *testing.T) {
 
 		// CLSync gets payload and requests engine state, to later determine if payload should be forwarded
 		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+		cl.OnEvent(ReceivedUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		emitter.AssertExpectations(t)
 
 		// Engine signals, CLSync sends the payload
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
+		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1WithContext})
 		cl.OnEvent(engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    refA0,
 			SafeL2Head:      refA0,

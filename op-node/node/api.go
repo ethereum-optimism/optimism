@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -34,7 +35,7 @@ type driverClient interface {
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
-	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelopeWithContext) error
+	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 	OverrideLeader(ctx context.Context) error
 	ConductorEnabled(ctx context.Context) (bool, error)
 	SetRecoverMode(ctx context.Context, mode bool) error
@@ -76,7 +77,7 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 
 // PostUnsafePayload is a special API that allows posting an unsafe payload to the L2 derivation pipeline.
 // It should only be used by op-conductor for sequencer failover scenarios.
-func (n *adminAPI) PostUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelopeWithContext) error {
+func (n *adminAPI) PostUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	payload := envelope.ExecutionPayload
 	if actual, ok := envelope.CheckBlockHash(); !ok {
 		log.Error("payload has bad block hash", "bad_hash", payload.BlockHash.String(), "actual", actual.String())
@@ -197,4 +198,23 @@ func (a *opstackAPI) CommitBlockV1(ctx context.Context, envelope *opsigner.Signe
 
 func (a *opstackAPI) PublishBlockV1(ctx context.Context, signed *opsigner.SignedExecutionPayloadEnvelope) error {
 	return a.publisher.PublishBlock(ctx, signed)
+}
+
+// rpcDriver adapts the driver.Driver to the driverClient interface with overrides for the OnUnsafeL2Payload method.
+// This is necessary because the driverClient interface expects a *eth.ExecutionPayloadEnvelopeWithContext for tracing
+// but the rpc server does not pass in a context.
+type rpcDriver struct {
+	*driver.Driver
+}
+
+func (w *rpcDriver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
+	payloadWithContext := &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: payload,
+		TraceContext:             context.Background(),
+	}
+	return w.Driver.OnUnsafeL2Payload(ctx, payloadWithContext)
+}
+
+func newRpcDriver(d *driver.Driver) driverClient {
+	return &rpcDriver{Driver: d}
 }

@@ -41,7 +41,7 @@ type SequencerActivity interface {
 }
 
 type UnsignedPayloadPoster interface {
-	PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelopeWithContext) error
+	PostUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 
 type RollupConductor interface {

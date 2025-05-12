@@ -452,7 +452,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initRPCServer(cfg *Config) error {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup,
-		n.l2Source.L2Client, n.l2Driver, n.safeDB,
+		n.l2Source.L2Client, newRpcDriver(n.l2Driver), n.safeDB,
 		n.log, n.metrics, n.appVersion)
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		server.AddAPI(rpc.API{
@@ -470,7 +470,7 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 	if cfg.RPC.EnableAdmin {
 		server.AddAPI(rpc.API{
 			Namespace: "admin",
-			Service:   NewAdminAPI(n.l2Driver, n.log),
+			Service:   NewAdminAPI(newRpcDriver(n.l2Driver), n.log),
 		})
 		n.log.Info("Admin RPC enabled")
 	}
