@@ -21,7 +21,8 @@ optimism_package:
     enabled: true
     image: {{ $local_images.op_faucet }}
   superchains:
-    superchain: {}
+    superchain:
+      enabled: true
   supervisors:
     supervisor:
       superchain: superchain
