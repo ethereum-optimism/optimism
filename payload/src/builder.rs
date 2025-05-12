@@ -8,7 +8,6 @@ use crate::{
 };
 use alloy_consensus::{Transaction, Typed2718};
 use alloy_primitives::{Bytes, B256, U256};
-use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -26,6 +25,7 @@ use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{transaction::OpTransaction, ADDRESS_L2_TO_L1_MESSAGE_PASSER};
 use reth_optimism_txpool::{
+    estimated_da_size::DataAvailabilitySized,
     interop::{is_valid_interop, MaybeInteropTransaction},
     OpPooledTx,
 };
@@ -144,9 +144,8 @@ where
         best: impl FnOnce(BestTransactionsAttributes) -> Txs + Send + Sync + 'a,
     ) -> Result<BuildOutcome<OpBuiltPayload<N>>, PayloadBuilderError>
     where
-        Txs: PayloadTransactions<
-            Transaction: PoolTransaction<Consensus = N::SignedTx> + MaybeInteropTransaction,
-        >,
+        Txs:
+            PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
     {
         let BuildArguments { mut cached_reads, config, cancel, best_payload } = args;
 
@@ -287,9 +286,8 @@ impl<Txs> OpBuilder<'_, Txs> {
         EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx = OpNextBlockEnvAttributes>,
         ChainSpec: EthChainSpec + OpHardforks,
         N: OpPayloadPrimitives,
-        Txs: PayloadTransactions<
-            Transaction: PoolTransaction<Consensus = N::SignedTx> + MaybeInteropTransaction,
-        >,
+        Txs:
+            PayloadTransactions<Transaction: PoolTransaction<Consensus = N::SignedTx> + OpPooledTx>,
     {
         let Self { best } = self;
         debug!(target: "payload_builder", id=%ctx.payload_id(), parent_header = ?ctx.parent().hash(), parent_number = ctx.parent().number, "building new payload");
@@ -458,22 +456,23 @@ impl ExecutionInfo {
     ///   maximum allowed DA limit per block.
     pub fn is_tx_over_limits(
         &self,
-        tx: &(impl Encodable + Transaction),
+        tx_da_size: u64,
         block_gas_limit: u64,
         tx_data_limit: Option<u64>,
         block_data_limit: Option<u64>,
+        tx_gas_limit: u64,
     ) -> bool {
-        if tx_data_limit.is_some_and(|da_limit| tx.length() as u64 > da_limit) {
+        if tx_data_limit.is_some_and(|da_limit| tx_da_size > da_limit) {
             return true;
         }
 
         if block_data_limit
-            .is_some_and(|da_limit| self.cumulative_da_bytes_used + (tx.length() as u64) > da_limit)
+            .is_some_and(|da_limit| self.cumulative_da_bytes_used + tx_da_size > da_limit)
         {
             return true;
         }
 
-        self.cumulative_gas_used + tx.gas_limit() > block_gas_limit
+        self.cumulative_gas_used + tx_gas_limit > block_gas_limit
     }
 }
 
@@ -629,8 +628,7 @@ where
         info: &mut ExecutionInfo,
         builder: &mut impl BlockBuilder<Primitives = Evm::Primitives>,
         mut best_txs: impl PayloadTransactions<
-            Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>>
-                             + MaybeInteropTransaction,
+            Transaction: PoolTransaction<Consensus = TxTy<Evm::Primitives>> + OpPooledTx,
         >,
     ) -> Result<Option<()>, PayloadBuilderError> {
         let block_gas_limit = builder.evm_mut().block().gas_limit;
@@ -640,8 +638,15 @@ where
 
         while let Some(tx) = best_txs.next(()) {
             let interop = tx.interop_deadline();
+            let tx_da_size = tx.estimated_da_size();
             let tx = tx.into_consensus();
-            if info.is_tx_over_limits(tx.inner(), block_gas_limit, tx_da_limit, block_da_limit) {
+            if info.is_tx_over_limits(
+                tx_da_size,
+                block_gas_limit,
+                tx_da_limit,
+                block_da_limit,
+                tx.gas_limit(),
+            ) {
                 // we can't fit this transaction into the block, so we need to mark it as
                 // invalid which also removes all dependent transaction from
                 // the iterator before we can continue
@@ -694,7 +699,7 @@ where
             // add gas used by the transaction to cumulative gas used, before creating the
             // receipt
             info.cumulative_gas_used += gas_used;
-            info.cumulative_da_bytes_used += tx.length() as u64;
+            info.cumulative_da_bytes_used += tx_da_size;
 
             // update add to total fees
             let miner_fee = tx
