@@ -61,7 +61,7 @@ optimism_package:
     image: {{ localDockerImage "op-deployer" }}
     l1_artifacts_locator: {{ localContractArtifacts "l1" }}
     l2_artifacts_locator: {{ localContractArtifacts "l2" }}
-    global_deploy_overrides:
+    overrides:
       faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
   global_log_level: "info"
   global_node_selectors: {}
