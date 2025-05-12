@@ -71,12 +71,14 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 func (n *L2CLNode) rememberPort() {
 	userRPCPort, err := n.opNode.UserRPCPort()
 	n.p.Require().NoError(err)
-	interopRPCPort, err := n.opNode.InteropRPCPort()
-	n.p.Require().NoError(err)
 	n.cfg.RPC.ListenPort = userRPCPort
+
 	cfg, ok := n.cfg.InteropConfig.(*interop.Config)
 	n.p.Require().True(ok)
-	cfg.RPCPort = interopRPCPort
+
+	if interopRPCPort, err := n.opNode.InteropRPCPort(); err == nil {
+		cfg.RPCPort = interopRPCPort
+	}
 	n.cfg.InteropConfig = cfg
 }
 

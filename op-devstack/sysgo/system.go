@@ -6,6 +6,70 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+type DefaultMinimalSystemIDs struct {
+	L1   stack.L1NetworkID
+	L1EL stack.L1ELNodeID
+	L1CL stack.L1CLNodeID
+
+	L2   stack.L2NetworkID
+	L2CL stack.L2CLNodeID
+	L2EL stack.L2ELNodeID
+
+	L2Batcher  stack.L2BatcherID
+	L2Proposer stack.L2ProposerID
+}
+
+func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs {
+	ids := DefaultMinimalSystemIDs{
+		L1:         stack.L1NetworkID(l1ID),
+		L1EL:       stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
+		L1CL:       stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
+		L2:         stack.L2NetworkID(l2ID),
+		L2CL:       stack.L2CLNodeID{Key: "sequencer", ChainID: l2ID},
+		L2EL:       stack.L2ELNodeID{Key: "sequencer", ChainID: l2ID},
+		L2Batcher:  stack.L2BatcherID{Key: "main", ChainID: l2ID},
+		L2Proposer: stack.L2ProposerID{Key: "main", ChainID: l2ID},
+	}
+	return ids
+}
+
+func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
+	l1ID := eth.ChainIDFromUInt64(900)
+	l2ID := eth.ChainIDFromUInt64(901)
+	ids := NewDefaultMinimalSystemIDs(l1ID, l2ID)
+
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L2.ChainID()),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithL2ELNode(ids.L2EL, nil))
+	opt.Add(WithL2CLNode(ids.L2CL, true, ids.L1CL, ids.L1EL, ids.L2EL))
+
+	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
+	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 // struct of the services, so we can access them later and do not have to guess their IDs.
 type DefaultInteropSystemIDs struct {
 	L1   stack.L1NetworkID
