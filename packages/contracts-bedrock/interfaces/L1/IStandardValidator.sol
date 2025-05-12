@@ -27,6 +27,12 @@ interface IStandardValidator {
         uint256 l2ChainID;
     }
 
+    struct ValidationOverrides {
+        address guardian;
+        address l1PAOMultisig;
+        address challenger;
+    }
+
     function anchorStateRegistryImpl() external view returns (address);
     function anchorStateRegistryVersion() external pure returns (string memory);
     function challenger() external view returns (address);
@@ -38,6 +44,7 @@ interface IStandardValidator {
     function l1CrossDomainMessengerVersion() external pure returns (string memory);
     function l1ERC721BridgeImpl() external view returns (address);
     function l1ERC721BridgeVersion() external pure returns (string memory);
+    function guardian() external view returns (address);
     function l1PAOMultisig() external view returns (address);
     function l1StandardBridgeImpl() external view returns (address);
     function l1StandardBridgeVersion() external pure returns (string memory);
@@ -54,13 +61,23 @@ interface IStandardValidator {
     function systemConfigVersion() external pure returns (string memory);
     function withdrawalDelaySeconds() external view returns (uint256);
 
+    function validate(
+        ValidationInput memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+        external
+        view
+        returns (string memory);
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory);
 
     function __constructor__(
         IStandardValidator.Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
+        address _guardian,
         address _l1PAOMultisig,
         address _challenger,
         uint256 _withdrawalDelaySeconds
-    ) external;
+    )
+        external;
 }

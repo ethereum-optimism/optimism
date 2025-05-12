@@ -19,6 +19,7 @@ contract DeployStandardValidatorInput is BaseDeployIO {
 
     // Required inputs
     ISuperchainConfig internal _superchainConfig;
+    address internal _guardian;
     address internal _l1PAOMultisig;
     address internal _mips;
     address internal _challenger;
@@ -42,6 +43,9 @@ contract DeployStandardValidatorInput is BaseDeployIO {
         if (_sel == this.superchainConfig.selector) {
             require(_value != address(0), "DeployStandardValidator: superchainConfig cannot be empty");
             _superchainConfig = ISuperchainConfig(_value);
+        } else if (_sel == this.guardian.selector) {
+            require(_value != address(0), "DeployStandardValidator: guardian cannot be empty");
+            _guardian = _value;
         } else if (_sel == this.l1PAOMultisig.selector) {
             require(_value != address(0), "DeployStandardValidator: l1PAOMultisig cannot be empty");
             _l1PAOMultisig = _value;
@@ -114,6 +118,11 @@ contract DeployStandardValidatorInput is BaseDeployIO {
     function superchainConfig() public view returns (ISuperchainConfig) {
         require(address(_superchainConfig) != address(0), "DeployStandardValidator: superchainConfig not set");
         return _superchainConfig;
+    }
+
+    function guardian() public view returns (address) {
+        require(_guardian != address(0), "DeployStandardValidator: guardian not set");
+        return _guardian;
     }
 
     function l1PAOMultisig() public view returns (address) {
@@ -257,6 +266,7 @@ contract DeployStandardValidator is Script {
                     (
                         getImplementations(_si),
                         _si.superchainConfig(),
+                        _si.guardian(),
                         _si.l1PAOMultisig(),
                         _si.challenger(),
                         _si.withdrawalDelaySeconds()
