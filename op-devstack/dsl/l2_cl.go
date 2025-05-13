@@ -10,14 +10,16 @@ type L2CLNode struct {
 	commonImpl
 	inner   stack.L2CLNode
 	control stack.ControlPlane
+	chainID eth.ChainID
 }
 
 // NewL2CLNode creates a new L2CLNode DSL wrapper
-func NewL2CLNode(inner stack.L2CLNode, control stack.ControlPlane) *L2CLNode {
+func NewL2CLNode(inner stack.L2CLNode, control stack.ControlPlane, chainID eth.ChainID) *L2CLNode {
 	return &L2CLNode{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
 		control:    control,
+		chainID:    chainID,
 	}
 }
 
