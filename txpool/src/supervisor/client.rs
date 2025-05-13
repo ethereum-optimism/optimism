@@ -1,17 +1,24 @@
 //! This is our custom implementation of validator struct
 
 use crate::{
+    interop::MaybeInteropTransaction,
     supervisor::{
         metrics::SupervisorMetrics, parse_access_list_items_to_inbox_entries, ExecutingDescriptor,
         InteropTxValidatorError,
     },
     InvalidCrossTx,
 };
+use alloy_consensus::Transaction;
 use alloy_eips::eip2930::AccessList;
 use alloy_primitives::{TxHash, B256};
 use alloy_rpc_client::ReqwestClient;
-use futures_util::future::BoxFuture;
+use futures_util::{
+    future::BoxFuture,
+    stream::{self, StreamExt},
+    Stream,
+};
 use op_alloy_consensus::interop::SafetyLevel;
+use reth_transaction_pool::PoolTransaction;
 use std::{
     borrow::Cow,
     future::IntoFuture,
@@ -110,6 +117,49 @@ impl SupervisorClient {
             return Some(Err(InvalidCrossTx::ValidationError(err)));
         }
         Some(Ok(()))
+    }
+
+    /// Creates a stream that revalidates interop transactions against the supervisor.
+    /// Returns
+    /// An implementation of `Stream` that is `Send`-able and tied to the lifetime `'a` of `self`.
+    /// Each item yielded by the stream is a tuple `(TItem, Option<Result<(), InvalidCrossTx>>)`.
+    ///   - The first element is the original `TItem` that was revalidated.
+    ///   - The second element is the `Option<Result<(), InvalidCrossTx>>` describes the outcome
+    ///     - `None`: Transaction was not identified as a cross-chain candidate by initial checks.
+    ///     - `Some(Ok(()))`: Supervisor confirmed the transaction is valid.
+    ///     - `Some(Err(InvalidCrossTx))`: Supervisor indicated the transaction is invalid.
+    pub fn revalidate_interop_txs_stream<'a, TItem, InputIter>(
+        &'a self,
+        txs_to_revalidate: InputIter,
+        current_timestamp: u64,
+        revalidation_window: u64,
+        max_concurrent_queries: usize,
+    ) -> impl Stream<Item = (TItem, Option<Result<(), InvalidCrossTx>>)> + Send + 'a
+    where
+        InputIter: IntoIterator<Item = TItem> + Send + 'a,
+        InputIter::IntoIter: Send + 'a,
+        TItem:
+            MaybeInteropTransaction + PoolTransaction + Transaction + Clone + Send + Sync + 'static,
+    {
+        stream::iter(txs_to_revalidate.into_iter().map(move |tx_item| {
+            let client_for_async_task = self.clone();
+
+            async move {
+                let validation_result = client_for_async_task
+                    .is_valid_cross_tx(
+                        tx_item.access_list(),
+                        tx_item.hash(),
+                        current_timestamp,
+                        Some(revalidation_window),
+                        true,
+                    )
+                    .await;
+
+                // return the original transaction paired with its validation result.
+                (tx_item, validation_result)
+            }
+        }))
+        .buffered(max_concurrent_queries)
     }
 }
 
