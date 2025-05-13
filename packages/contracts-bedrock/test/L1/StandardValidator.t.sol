@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
-
-// Contracts
-import { StandardValidator } from "src/L1/StandardValidator.sol";
 
 // Libraries
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
@@ -34,6 +31,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IStandardValidator } from "interfaces/L1/IStandardValidator.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the StandardValidator. Far easier
@@ -41,7 +39,7 @@ import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 ///         the validation function to revert.
 contract BadDisputeGameFactoryReturner {
     /// @notice Address of the StandardValidator instance.
-    StandardValidator public immutable validator;
+    IStandardValidator public immutable validator;
 
     /// @notice Address of the real DisputeGameFactory instance.
     IDisputeGameFactory public immutable realDisputeGameFactory;
@@ -53,7 +51,7 @@ contract BadDisputeGameFactoryReturner {
     /// @param _realDisputeGameFactory The real DisputeGameFactory instance.
     /// @param _fakeDisputeGameFactory The fake DisputeGameFactory instance.
     constructor(
-        StandardValidator _validator,
+        IStandardValidator _validator,
         IDisputeGameFactory _realDisputeGameFactory,
         IDisputeGameFactory _fakeDisputeGameFactory
     ) {
@@ -76,7 +74,7 @@ contract BadDisputeGameFactoryReturner {
 /// @notice Base contract for StandardValidator tests, handles common setup.
 contract StandardValidator_TestInit is CommonTest {
     /// @notice StandardValidator instance, used for testing.
-    StandardValidator validator;
+    IStandardValidator validator;
 
     /// @notice Deploy input that was used to deploy the contracts being tested.
     IOPContractsManager.DeployInput deployInput;
@@ -133,24 +131,34 @@ contract StandardValidator_TestInit is CommonTest {
         }
 
         // Deploy the validator.
-        validator = new StandardValidator(
-            StandardValidator.Implementations({
-                systemConfigImpl: impls.systemConfigImpl,
-                optimismPortalImpl: impls.optimismPortalImpl,
-                l1CrossDomainMessengerImpl: impls.l1CrossDomainMessengerImpl,
-                l1StandardBridgeImpl: impls.l1StandardBridgeImpl,
-                l1ERC721BridgeImpl: impls.l1ERC721BridgeImpl,
-                optimismMintableERC20FactoryImpl: impls.optimismMintableERC20FactoryImpl,
-                disputeGameFactoryImpl: impls.disputeGameFactoryImpl,
-                mipsImpl: impls.mipsImpl,
-                anchorStateRegistryImpl: impls.anchorStateRegistryImpl,
-                delayedWETHImpl: impls.delayedWETHImpl
-            }),
-            superchainConfig,
-            deploy.cfg().superchainConfigGuardian(),
-            proxyAdminOwner,
-            challenger,
-            302400
+        validator = IStandardValidator(
+            DeployUtils.create1({
+                _name: "StandardValidator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IStandardValidator.__constructor__,
+                        (
+                            IStandardValidator.Implementations({
+                                systemConfigImpl: impls.systemConfigImpl,
+                                optimismPortalImpl: impls.optimismPortalImpl,
+                                l1CrossDomainMessengerImpl: impls.l1CrossDomainMessengerImpl,
+                                l1StandardBridgeImpl: impls.l1StandardBridgeImpl,
+                                l1ERC721BridgeImpl: impls.l1ERC721BridgeImpl,
+                                optimismMintableERC20FactoryImpl: impls.optimismMintableERC20FactoryImpl,
+                                disputeGameFactoryImpl: impls.disputeGameFactoryImpl,
+                                mipsImpl: impls.mipsImpl,
+                                anchorStateRegistryImpl: impls.anchorStateRegistryImpl,
+                                delayedWETHImpl: impls.delayedWETHImpl
+                            }),
+                            superchainConfig,
+                            deploy.cfg().superchainConfigGuardian(),
+                            proxyAdminOwner,
+                            challenger,
+                            302400
+                        )
+                    )
+                )
+            })
         );
 
         // Deploy the BadDisputeGameFactoryReturner once.
@@ -198,9 +206,9 @@ contract StandardValidator_TestInit is CommonTest {
     /// @notice Runs the StandardValidator.validate function.
     /// @param _allowFailure Whether to allow failure.
     /// @return The error message(s) from the validate function.
-    function _validate(bool _allowFailure) internal view returns (string memory) {
+    function _validate(bool _allowFailure) internal returns (string memory) {
         return validator.validate(
-            StandardValidator.ValidationInput({
+            IStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
@@ -209,20 +217,50 @@ contract StandardValidator_TestInit is CommonTest {
             _allowFailure
         );
     }
+
+    /// @notice Runs the StandardValidator.validate function.
+    /// @param _allowFailure Whether to allow failure.
+    /// @return The error message(s) from the validate function.
+    function _validate(
+        bool _allowFailure,
+        IStandardValidator.ValidationOverrides memory _overrides
+    )
+        internal
+        returns (string memory)
+    {
+        return validator.validate(
+            IStandardValidator.ValidationInput({
+                proxyAdmin: proxyAdmin,
+                sysCfg: systemConfig,
+                absolutePrestate: absolutePrestate.raw(),
+                l2ChainID: l2ChainId
+            }),
+            _allowFailure,
+            _overrides
+        );
+    }
+
+    function _defaultValidationOverrides() internal pure returns (IStandardValidator.ValidationOverrides memory) {
+        return IStandardValidator.ValidationOverrides({
+            guardian: address(0),
+            l1PAOMultisig: address(0),
+            challenger: address(0)
+        });
+    }
 }
 
 /// @title StandardValidator_validate_Test
 /// @notice Tests the StandardValidator.validate function.
 contract StandardValidator_validate_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function succeeds when all parameters are valid.
-    function test_validate_succeeds() public view {
+    function test_validate_succeeds() public {
         string memory errors = _validate(false);
         assertEq(errors, "");
     }
 
     /// @notice Tests that the validate function succeeds when failures are allowed but no failures
     ///         are present in the result.
-    function test_validate_allowFailureTrue_succeeds() public view {
+    function test_validate_allowFailureTrue_succeeds() public {
         string memory errors = _validate(true);
         assertEq(errors, "");
     }
@@ -239,6 +277,14 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     function test_validate_invalidProxyAdminOwner_succeeds() public {
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
         assertEq("PROXYA-10,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true));
+    }
+
+    /// @notice Tests that the validate function (with an overriden ProxyAdmin owner) successfully returns the right
+    ///         error when the ProxyAdmin owner is not correct.
+    function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xbad);
+        assertEq("OVERRIDES_L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -683,6 +729,14 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     function test_validate_permissionedDisputeGameInvalidChallenger_succeeds() public {
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
         assertEq("PDDG-120", _validate(true));
+    }
+
+    /// @notice Tests that the validate function (with an overriden PermissionedDisputeGame challenger) successfully
+    ///         returns the right error when the PermissionedDisputeGame challenger is invalid.
+    function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.challenger = address(0xbad);
+        assertEq("OVERRIDES_CHALLENGER,PDDG-120", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the

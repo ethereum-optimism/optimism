@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Libraries
 import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
@@ -96,46 +96,78 @@ contract StandardValidator {
         mipsImpl = _implementations.mipsImpl;
     }
 
-    function expectedGuardian(
-        ValidationOverrides memory _overrides,
-        string memory _errors
-    )
-        internal
-        view
-        returns (address, string memory)
-    {
+    bytes32 constant OVERRIDES_GUARDIAN_TSTORE_SLOT = 0xea0e499a0ac72eae4682cf24b47990daf76d5744f9e4d3eb78e5846e9505073d; // keccak256("StandardValidator.overrides.guardian");
+    bytes32 constant OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT =
+        0x339f30846cb2cd5e991f9a80fe2341dc2fffe74bb939549b9fbab9242e47245a; // keccak256("StandardValidator.overrides.l1PAOMultisig");
+    bytes32 constant OVERRIDES_CHALLENGER_TSTORE_SLOT =
+        0x44d7b400f8dfb79d5158f5eca2e36d9a7a2e0ca59075c45b3196ebb85445ea6e; // keccak256("StandardValidator.overrides.challenger");
+
+    function tstoreOverriden(bytes32 _slot) private {
+        assembly ("memory-safe") {
+            tstore(_slot, 0x01)
+        }
+    }
+
+    function getOverridesString() private view returns (string memory) {
+        string memory overridesError;
+
+        bool guardianOverriden;
+        bool l1PAOMultisigOverriden;
+        bool challengerOverriden;
+
+        assembly ("memory-safe") {
+            guardianOverriden := tload(OVERRIDES_GUARDIAN_TSTORE_SLOT)
+            l1PAOMultisigOverriden := tload(OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT)
+            challengerOverriden := tload(OVERRIDES_CHALLENGER_TSTORE_SLOT)
+        }
+
+        if (guardianOverriden) {
+            overridesError = string.concat(overridesError, "OVERRIDES_GUARDIAN");
+        }
+
+        if (l1PAOMultisigOverriden) {
+            if (bytes(overridesError).length > 0) overridesError = string.concat(overridesError, ",");
+            overridesError = string.concat(overridesError, "OVERRIDES_L1PAOMULTISIG");
+        }
+
+        if (challengerOverriden) {
+            if (bytes(overridesError).length > 0) overridesError = string.concat(overridesError, ",");
+            overridesError = string.concat(overridesError, "OVERRIDES_CHALLENGER");
+        }
+
+        return overridesError;
+    }
+
+    function clearOverrides() private {
+        assembly ("memory-safe") {
+            tstore(OVERRIDES_GUARDIAN_TSTORE_SLOT, 0x00)
+            tstore(OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT, 0x00)
+            tstore(OVERRIDES_CHALLENGER_TSTORE_SLOT, 0x00)
+        }
+    }
+
+    function expectedGuardian(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.guardian != address(0)) {
-            return (_overrides.guardian, string.concat("OVERRIDES_GUARDIAN", _errors));
+            tstoreOverriden(OVERRIDES_GUARDIAN_TSTORE_SLOT);
+            return _overrides.guardian;
         }
-        return (guardian, _errors);
+        return guardian;
     }
 
-    function expectedL1PAOMultisig(
-        ValidationOverrides memory _overrides,
-        string memory _errors
-    )
-        internal
-        view
-        returns (address, string memory)
-    {
+    function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.l1PAOMultisig != address(0)) {
-            return (_overrides.l1PAOMultisig, string.concat("OVERRIDES_L1PAOMULTISIG", _errors));
+            tstoreOverriden(OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT);
+            return _overrides.l1PAOMultisig;
         }
-        return (l1PAOMultisig, _errors);
+        return l1PAOMultisig;
     }
 
-    function expectedChallenger(
-        ValidationOverrides memory _overrides,
-        string memory _errors
-    )
-        internal
-        view
-        returns (address, string memory)
-    {
+    function expectedChallenger(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.challenger != address(0)) {
-            return (_overrides.challenger, string.concat("OVERRIDES_CHALLENGER", _errors));
+            tstoreOverriden(OVERRIDES_CHALLENGER_TSTORE_SLOT);
+            return _overrides.challenger;
         }
-        return (challenger, _errors);
+        return challenger;
     }
 
     function systemConfigVersion() public pure returns (string memory) {
@@ -197,11 +229,9 @@ contract StandardValidator {
         ValidationOverrides memory _overrides
     )
         internal
-        view
         returns (string memory)
     {
-        address _l1PAOMultisig = address(0);
-        (_l1PAOMultisig, _errors) = expectedL1PAOMultisig(_overrides, _errors);
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
         _errors = internalRequire(_admin.owner() == _l1PAOMultisig, "PROXYA-10", _errors);
         return _errors;
     }
@@ -362,7 +392,6 @@ contract StandardValidator {
         ValidationOverrides memory _overrides
     )
         internal
-        view
         returns (string memory)
     {
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
@@ -371,8 +400,7 @@ contract StandardValidator {
             _admin.getProxyImplementation(address(_factory)) == disputeGameFactoryImpl, "DF-20", _errors
         );
 
-        address _l1PAOMultisig = address(0);
-        (_l1PAOMultisig, _errors) = expectedL1PAOMultisig(_overrides, _errors);
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
         _errors = internalRequire(_factory.owner() == _l1PAOMultisig, "DF-30", _errors);
         return _errors;
     }
@@ -386,7 +414,6 @@ contract StandardValidator {
         ValidationOverrides memory _overrides
     )
         internal
-        view
         returns (string memory)
     {
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
@@ -412,9 +439,8 @@ contract StandardValidator {
             _overrides,
             "PDDG"
         );
-        address _challenger = address(0);
-        (_challenger, _errors) = expectedChallenger(_overrides, _errors);
-        _errors = internalRequire(_game.challenger() == challenger, "PDDG-120", _errors);
+        address _challenger = expectedChallenger(_overrides);
+        _errors = internalRequire(_game.challenger() == _challenger, "PDDG-120", _errors);
 
         return _errors;
     }
@@ -428,7 +454,6 @@ contract StandardValidator {
         ValidationOverrides memory _overrides
     )
         internal
-        view
         returns (string memory)
     {
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
@@ -470,7 +495,6 @@ contract StandardValidator {
         string memory _errorPrefix
     )
         internal
-        view
         returns (string memory)
     {
         bool validGameVM = address(_game.vm()) == address(mipsImpl);
@@ -518,7 +542,6 @@ contract StandardValidator {
         string memory _errorPrefix
     )
         internal
-        view
         returns (string memory)
     {
         _errorPrefix = string.concat(_errorPrefix, "-DWETH");
@@ -530,8 +553,7 @@ contract StandardValidator {
             string.concat(_errorPrefix, "-20"),
             _errors
         );
-        address _l1PAOMultisig = address(0);
-        (_l1PAOMultisig, _errors) = expectedL1PAOMultisig(_overrides, _errors);
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
         _errors =
             internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
@@ -615,7 +637,7 @@ contract StandardValidator {
         return keccak256(bytes(_a)) == keccak256(bytes(_b));
     }
 
-    function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
+    function validate(ValidationInput memory _input, bool _allowFailure) external returns (string memory) {
         return validate(
             _input,
             _allowFailure,
@@ -629,7 +651,6 @@ contract StandardValidator {
         ValidationOverrides memory _overrides
     )
         public
-        view
         returns (string memory)
     {
         string memory _errors = "";
@@ -650,8 +671,17 @@ contract StandardValidator {
             _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
         );
 
+        string memory overridesString = getOverridesString();
+        if (bytes(overridesString).length > 0 && bytes(_errors).length > 0) {
+            _errors = string.concat(overridesString, ",", _errors);
+        }
+
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("StandardValidator: ", _errors));
+        }
+
+        if (bytes(overridesString).length > 0) {
+            clearOverrides();
         }
 
         return _errors;

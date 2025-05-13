@@ -67,9 +67,8 @@ interface IStandardValidator {
         ValidationOverrides memory _overrides
     )
         external
-        view
         returns (string memory);
-    function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory);
+    function validate(ValidationInput memory _input, bool _allowFailure) external returns (string memory);
 
     function __constructor__(
         IStandardValidator.Implementations memory _implementations,
