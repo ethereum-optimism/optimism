@@ -998,7 +998,9 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("L1SB-70", _validate(true));
     }
 
-    function test_validateMultipleOverrides_succeeds() public {
+    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overriden) successfully returns
+    ///         the right error when both are invalid.
+    function test_validateL1PAOMultisigAndChallengerOverrides_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xace);
         overrides.challenger = address(0xbad);
@@ -1006,6 +1008,27 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
             "OVERRIDES_L1PAOMULTISIG,OVERRIDES_CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-120,PLDG-DWETH-30",
             _validate(true, overrides)
         );
+    }
+
+    /// @notice Tests that the validate function (with the Guardian, L1PAOMultisig and Challenger overriden)
+    ///         successfully returns no error when there is none. That is, it never returns the overriden strings alone.
+    function test_validateOverrides_noErrors_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = IStandardValidator.ValidationOverrides({
+            guardian: address(0xace),
+            l1PAOMultisig: address(0xbad),
+            challenger: address(0xc0ffee)
+        });
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.owner, ()),
+            abi.encode(overrides.l1PAOMultisig)
+        );
+        vm.mockCall(
+            address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(overrides.challenger)
+        );
+
+        assertEq("", _validate(true, overrides));
     }
 
     /// @notice Tests that the version getter functions on StandardValidator return non-empty strings.
