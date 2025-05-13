@@ -82,25 +82,27 @@ func (cl *L2CLNode) ChainID() eth.ChainID {
 
 func (cl *L2CLNode) Advance(label string, delta uint64, attempts int) CheckFunc {
 	return func() error {
-		cl.log.Info("expecting chain to advance", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "delta", delta)
 		initial := cl.HeadBlockRef(label)
 		target := initial.Number + delta
-		return cl.Reach(label, target, attempts)
+		cl.log.Info("expecting chain to advance", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "delta", delta)
+		return cl.Reach(label, target, attempts)()
 	}
 }
 
-func (cl *L2CLNode) Reach(label string, target uint64, attempts int) error {
-	cl.log.Info("expecting chain to reach", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target)
-	return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
-		func() error {
-			head := cl.HeadBlockRef(label)
-			if head.Number >= target {
-				cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.chainID, "target", target)
-				return nil
-			}
-			cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target, "current", head.Number)
-			return fmt.Errorf("expected head to advance: %s", label)
-		})
+func (cl *L2CLNode) Reach(label string, target uint64, attempts int) CheckFunc {
+	return func() error {
+		cl.log.Info("expecting chain to reach", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target)
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head := cl.HeadBlockRef(label)
+				if head.Number >= target {
+					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.chainID, "target", target)
+					return nil
+				}
+				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target, "current", head.Number)
+				return fmt.Errorf("expected head to advance: %s", label)
+			})
+	}
 }
 
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
