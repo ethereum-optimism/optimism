@@ -19,16 +19,16 @@ var errDuplicateChainIndex = errors.New("duplicate chain index")
 
 type StaticConfigDependency struct {
 	// ChainIndex is the unique short identifier of this chain.
-	ChainIndex types.ChainIndex `json:"chainIndex"`
+	ChainIndex types.ChainIndex `json:"chainIndex" toml:"chain_index"`
 
 	// ActivationTime is when the chain becomes part of the dependency set.
 	// This is the minimum timestamp of the inclusion of an executing message.
-	ActivationTime uint64 `json:"activationTime"`
+	ActivationTime uint64 `json:"activationTime" toml:"activation_time"`
 
 	// HistoryMinTime is what the lower bound of data is to store.
 	// This is the minimum timestamp of an initiating message to be accessible to others.
 	// This is set to 0 when all data since genesis is executable.
-	HistoryMinTime uint64 `json:"historyMinTime"`
+	HistoryMinTime uint64 `json:"historyMinTime" toml:"history_min_time"`
 }
 
 // StaticConfigDependencySet statically declares a DependencySet.
