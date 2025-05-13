@@ -69,7 +69,10 @@ where
 
         let tx_type = if request.authorization_list.is_some() {
             TxType::Eip7702
-        } else if request.sidecar.is_some() || request.max_fee_per_blob_gas.is_some() {
+        } else if request.sidecar.is_some() ||
+            request.blob_versioned_hashes.is_some() ||
+            request.max_fee_per_blob_gas.is_some()
+        {
             TxType::Eip4844
         } else if request.max_fee_per_gas.is_some() || request.max_priority_fee_per_gas.is_some() {
             TxType::Eip1559
