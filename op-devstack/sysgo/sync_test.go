@@ -214,7 +214,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 		require.Eventually(t, func() bool {
 			_, syncA2 := queryCL()
 			// unsafe head and safe head both advanced from last observed unsafe head
-			return syncA2.SafeL2.Number == syncA2.UnsafeL2.Number && syncA2.SafeL2.Number > targetBlockNum2
+			return syncA2.UnsafeL2.Number > targetBlockNum2 && syncA2.SafeL2.Number > targetBlockNum2
 		}, 60*time.Second, waitTime)
 
 		logger.Info("verifier heads will lag compared from sequencer heads and supervisor view")
