@@ -86,7 +86,7 @@ jobs:
   merge:
     runs-on: ubuntu-latest
     needs:
-      - build
+      - release
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
