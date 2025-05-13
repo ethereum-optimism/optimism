@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -12,7 +13,7 @@ import (
 // Resync is only possible when supervisor and L2CL reconnects.
 func TestL2CLResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 	logger := sys.Log.With("Test", "TestL2CLResync")
 
 	logger.Info("check unsafe chains are advancing")

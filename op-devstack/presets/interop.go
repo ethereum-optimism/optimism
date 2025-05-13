@@ -50,17 +50,9 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 	}
 }
 
-// startInProcessSimpleInterop starts a new system that meets the simple interop criteria
-func startInProcessSimpleInterop() stack.Option[*sysgo.Orchestrator] {
-	var ids sysgo.DefaultInteropSystemIDs
-	return sysgo.DefaultInteropSystem(&ids)
-}
-
-func ConfigureSimpleInterop() stack.CommonOption {
-	if globalBackend == SysGo {
-		return stack.MakeCommon(startInProcessSimpleInterop())
-	}
-	return nil
+// WithSimpleInterop specifies a system that meets the SimpleInterop criteria.
+func WithSimpleInterop() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultInteropSystem(&sysgo.DefaultInteropSystemIDs{}))
 }
 
 func NewSimpleInterop(t devtest.T) *SimpleInterop {

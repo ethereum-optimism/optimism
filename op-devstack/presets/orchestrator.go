@@ -26,6 +26,13 @@ import (
 // unless explicitly told otherwise using a WithOrchestrator option.
 var lockedOrchestrator locks.RWValue[stack.Orchestrator]
 
+type backendKind string
+
+const (
+	backendKindSysGo  backendKind = "sysgo"
+	backendKindSysExt backendKind = "sysext"
+)
+
 // DoMain runs M with the pre- and post-processing of tests,
 // to setup the default global orchestrator and global logger.
 // This will os.Exit(code) and not return.
@@ -81,7 +88,6 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		// TODO(#15139): set log-level filter, reduce noise
 		//log.SetDefault(t.Log.New("logger", "global"))
 
-		detectBackend(p.Logger())
 		initOrchestrator(ctx, p, stack.Combine(opts...))
 
 		errCode = m.Run()
@@ -100,15 +106,21 @@ func initOrchestrator(ctx context.Context, p devtest.P, opt stack.CommonOption) 
 	if lockedOrchestrator.Value != nil {
 		return
 	}
-	p.Logger().WithContext(ctx).Info("initializing orchestrator", "backend", globalBackend)
-	switch globalBackend {
-	case SysGo:
+
+	backend := backendKindSysGo
+	if override, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR"); ok {
+		backend = backendKind(override)
+	}
+	switch backend {
+	case backendKindSysGo:
 		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
-	case SysExt:
+	case backendKindSysExt:
 		lockedOrchestrator.Value = sysext.NewOrchestrator(p)
 	default:
-		panic(fmt.Sprintf("Unknown backend for initializing orchestrator: %s", globalBackend))
+		panic(fmt.Sprintf("Unknown backend for initializing orchestrator: %s", backend))
 	}
+
+	p.Logger().WithContext(ctx).Info("initializing orchestrator", "backend", backend)
 	stack.ApplyOptionLifecycle(opt, lockedOrchestrator.Value)
 }
 

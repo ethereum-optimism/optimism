@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -19,7 +20,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 	l := sys.Log
 
 	ia := sys.Sequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())

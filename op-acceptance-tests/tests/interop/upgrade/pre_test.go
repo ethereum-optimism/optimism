@@ -8,13 +8,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 func TestPreNoInbox(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 	require := t.Require()
 
 	t.Logger().Info("Starting")

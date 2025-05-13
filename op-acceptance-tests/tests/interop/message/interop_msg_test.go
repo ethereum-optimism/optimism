@@ -6,13 +6,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // TestInitExecMsg tests basic interop messaging
 func TestInitExecMsg(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
 	alice := sys.FunderA.NewFundedEOA(eth.ThousandEther)
 	bob := sys.FunderB.NewFundedEOA(eth.ThousandEther)

@@ -8,13 +8,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 func TestPostInbox(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
 		activationBlock := net.AwaitActivation(t, net.Escape().ChainConfig().InteropTime)
