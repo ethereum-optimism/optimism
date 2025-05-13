@@ -25,6 +25,12 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 contract StandardValidator {
+    bytes32 constant OVERRIDES_GUARDIAN_TSTORE_SLOT = 0xea0e499a0ac72eae4682cf24b47990daf76d5744f9e4d3eb78e5846e9505073d; // keccak256("StandardValidator.overrides.guardian");
+    bytes32 constant OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT =
+        0x339f30846cb2cd5e991f9a80fe2341dc2fffe74bb939549b9fbab9242e47245a; // keccak256("StandardValidator.overrides.l1PAOMultisig");
+    bytes32 constant OVERRIDES_CHALLENGER_TSTORE_SLOT =
+        0x44d7b400f8dfb79d5158f5eca2e36d9a7a2e0ca59075c45b3196ebb85445ea6e; // keccak256("StandardValidator.overrides.challenger");
+
     ISuperchainConfig public superchainConfig;
     address public l1PAOMultisig;
     address public challenger;
@@ -95,12 +101,6 @@ contract StandardValidator {
         delayedWETHImpl = _implementations.delayedWETHImpl;
         mipsImpl = _implementations.mipsImpl;
     }
-
-    bytes32 constant OVERRIDES_GUARDIAN_TSTORE_SLOT = 0xea0e499a0ac72eae4682cf24b47990daf76d5744f9e4d3eb78e5846e9505073d; // keccak256("StandardValidator.overrides.guardian");
-    bytes32 constant OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT =
-        0x339f30846cb2cd5e991f9a80fe2341dc2fffe74bb939549b9fbab9242e47245a; // keccak256("StandardValidator.overrides.l1PAOMultisig");
-    bytes32 constant OVERRIDES_CHALLENGER_TSTORE_SLOT =
-        0x44d7b400f8dfb79d5158f5eca2e36d9a7a2e0ca59075c45b3196ebb85445ea6e; // keccak256("StandardValidator.overrides.challenger");
 
     function tstoreOverriden(bytes32 _slot) private {
         assembly ("memory-safe") {
@@ -672,16 +672,15 @@ contract StandardValidator {
         );
 
         string memory overridesString = getOverridesString();
-        if (bytes(overridesString).length > 0 && bytes(_errors).length > 0) {
-            _errors = string.concat(overridesString, ",", _errors);
+        if (bytes(overridesString).length > 0) {
+            if (bytes(_errors).length > 0) {
+                _errors = string.concat(overridesString, ",", _errors);
+            }
+            clearOverrides();
         }
 
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("StandardValidator: ", _errors));
-        }
-
-        if (bytes(overridesString).length > 0) {
-            clearOverrides();
         }
 
         return _errors;

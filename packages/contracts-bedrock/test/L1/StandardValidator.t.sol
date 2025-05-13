@@ -998,6 +998,16 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("L1SB-70", _validate(true));
     }
 
+    function test_validateMultipleOverrides_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xace);
+        overrides.challenger = address(0xbad);
+        assertEq(
+            "OVERRIDES_L1PAOMULTISIG,OVERRIDES_CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-120,PLDG-DWETH-30",
+            _validate(true, overrides)
+        );
+    }
+
     /// @notice Tests that the version getter functions on StandardValidator return non-empty strings.
     function test_versions_succeeds() public view {
         assertTrue(bytes(validator.systemConfigVersion()).length > 0, "systemConfigVersion empty");
