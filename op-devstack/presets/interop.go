@@ -116,3 +116,35 @@ func WithInteropNotAtGenesis() stack.CommonOption {
 		}
 	})
 }
+
+type RedundancyInterop struct {
+	SimpleInterop
+
+	L2ELA2 *dsl.L2ELNode
+	L2CLA2 *dsl.L2CLNode
+}
+
+// startInProcessRedundancyInterop starts a new system that meets the simple interop criteria
+func startInProcessRedundancyInterop() stack.Option[*sysgo.Orchestrator] {
+	var ids sysgo.DefaultRedundancyInteropSystemIDs
+	return sysgo.DefaultRedundancyInteropSystem(&ids)
+}
+
+func ConfigureRedundancyInterop() stack.CommonOption {
+	if globalBackend == SysGo {
+		return stack.MakeCommon(startInProcessRedundancyInterop())
+	}
+	return nil
+}
+
+func NewRedundancyInterop(t devtest.T) *RedundancyInterop {
+	simpleInterop := NewSimpleInterop(t)
+	orch := Orchestrator()
+	l2A := simpleInterop.L2ChainA.Escape()
+	out := &RedundancyInterop{
+		SimpleInterop: *simpleInterop,
+		L2ELA2:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL))),
+		L2CLA2:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane(), l2A.ChainID()),
+	}
+	return out
+}
