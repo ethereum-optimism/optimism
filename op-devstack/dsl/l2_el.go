@@ -79,3 +79,11 @@ func (el *L2ELNode) DoesNotAdvance(label eth.BlockLabel) CheckFunc {
 		return nil
 	}
 }
+
+func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	block, err := el.inner.EthClient().BlockRefByNumber(ctx, num)
+	el.require.NoError(err, "block not found using block label")
+	return block
+}
