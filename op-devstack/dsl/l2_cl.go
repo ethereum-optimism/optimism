@@ -96,7 +96,7 @@ func (cl *L2CLNode) Reach(label string, target uint64, attempts int) CheckFunc {
 			func() error {
 				head := cl.HeadBlockRef(label)
 				if head.Number >= target {
-					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.chainID, "target", target)
+					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target)
 					return nil
 				}
 				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target, "current", head.Number)

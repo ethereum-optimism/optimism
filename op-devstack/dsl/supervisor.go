@@ -110,17 +110,17 @@ func (s *Supervisor) SyncView(chainID eth.ChainID, label string) eth.BlockID {
 
 func (s *Supervisor) AdvanceHead(chainID eth.ChainID, block uint64, label string, attempts int) {
 	chInitial := s.SyncView(chainID, label)
-	required := chInitial.Number + block
+	target := chInitial.Number + block
 	err := retry.Do0(s.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
 			chStatus := s.SyncView(chainID, label)
 			s.log.Info("Supervisor view",
-				"chain", chainID, "label", label, "initial", chInitial.Number, "current", chStatus.Number, "required", required)
-			if chStatus.Number < required {
-				return fmt.Errorf("expected head to advance")
+				"chain", chainID, "label", label, "initial", chInitial.Number, "current", chStatus.Number, "target", target)
+			if chStatus.Number >= target {
+				s.log.Info("Supervisor view advanced", "chain", chainID, "label", label, "target", target)
+				return nil
 			}
-			s.log.Info("Supervisor view advanced", "chain", chainID, "label", label, "required", required)
-			return nil
+			return fmt.Errorf("expected head to advance: %s", label)
 		})
 	s.require.NoError(err)
 }
