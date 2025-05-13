@@ -140,22 +140,15 @@ pub enum ExecutionMode {
     DryRun,
     // Not sending any requests
     Disabled,
-    // Defaulting to op-geth payloads
-    Fallback,
 }
 
 impl ExecutionMode {
-    fn is_get_payload_enabled(&self) -> bool {
-        // get payload is only enabled in 'enabled' mode
-        matches!(self, ExecutionMode::Enabled)
+    fn is_dry_run(&self) -> bool {
+        matches!(self, ExecutionMode::DryRun)
     }
 
     fn is_disabled(&self) -> bool {
         matches!(self, ExecutionMode::Disabled)
-    }
-
-    fn is_fallback_enabled(&self) -> bool {
-        matches!(self, ExecutionMode::Fallback)
     }
 }
 
@@ -618,67 +611,76 @@ impl RollupBoostServer {
         payload_id: PayloadId,
         version: Version,
     ) -> RpcResult<OpExecutionPayloadEnvelope> {
-        let l2_client_future = self.l2_client.get_payload(payload_id, version);
-        let builder_client_future = Box::pin(async move {
-            let execution_mode = self.execution_mode();
-            if !execution_mode.is_get_payload_enabled() {
-                info!(message = "dry run mode is enabled, skipping get payload builder call");
+        let l2_fut = self.l2_client.get_payload(payload_id, version);
 
-                // We are in dry run mode, so we do not want to call the builder.
-                return Err(ErrorObject::owned(
-                    INVALID_REQUEST_CODE,
-                    "Dry run mode is enabled",
-                    None::<String>,
-                ));
-            }
+        // If execution mode is disabled, return the l2 payload without sending
+        // the request to the builder
+        if self.execution_mode().is_disabled() {
+            return match l2_fut.await {
+                Ok(payload) => {
+                    self.probes.set_health(Health::Healthy);
+                    let context = PayloadSource::L2;
+                    tracing::Span::current().record("payload_source", context.to_string());
+                    counter!("rpc.blocks_created", "source" => context.to_string()).increment(1);
 
+                    let execution_payload = ExecutionPayload::from(payload.clone());
+                    info!(
+                        message = "returning block",
+                        "hash" = %execution_payload.block_hash(),
+                        "number" = %execution_payload.block_number(),
+                        %context,
+                        %payload_id,
+                    );
+
+                    Ok(payload)
+                }
+
+                Err(e) => {
+                    self.probes.set_health(Health::ServiceUnavailable);
+                    Err(e.into())
+                }
+            };
+        }
+
+        // Forward the get payload request to the builder
+        let builder_fut = async {
             if let Some(cause) = self.payload_trace_context.trace_id(&payload_id) {
                 tracing::Span::current().follows_from(cause);
             }
-
             if !self.payload_trace_context.has_builder_payload(&payload_id) {
-                // block builder won't build a block without attributes
                 info!(message = "builder has no payload, skipping get_payload call to builder");
-                return Ok(None);
+                return RpcResult::Ok(None);
             }
 
-            let builder = self.builder_client.clone();
-            let payload = builder.get_payload(payload_id, version).await?;
-
-            // Send the payload to the local execution engine with engine_newPayload to validate the block from the builder.
-            // Otherwise, we do not want to risk the network to a halt since op-node will not be able to propose the block.
-            // If validation fails, return the local block since that one has already been validated.
+            // Get payload and validate with the local l2 client
+            let payload = self.builder_client.get_payload(payload_id, version).await?;
             let _ = self
                 .l2_client
                 .new_payload(NewPayload::from(payload.clone()))
                 .await?;
 
             Ok(Some(payload))
-        });
+        };
 
-        let (l2_payload, builder_payload) = tokio::join!(l2_client_future, builder_client_future);
-        let (payload, context) = match (builder_payload, l2_payload) {
-            (Ok(Some(builder)), Ok(l2_payload)) => {
-                // builder successfully returned a payload
-                self.probes.set_health(Health::Healthy);
-                if self.execution_mode().is_fallback_enabled() {
-                    // Default to op-geth's payload
-                    Ok((l2_payload, PayloadSource::L2))
+        let (l2_payload, builder_payload) = tokio::join!(l2_fut, builder_fut);
+
+        // Evaluate the builder and l2 response and select the final payload
+        let (payload, context) = {
+            let l2_payload =
+                l2_payload.inspect_err(|_| self.probes.set_health(Health::ServiceUnavailable))?;
+            self.probes.set_health(Health::Healthy);
+
+            if let Ok(Some(payload)) = builder_payload {
+                if self.execution_mode().is_dry_run() {
+                    (l2_payload, PayloadSource::L2)
                 } else {
-                    Ok((builder, PayloadSource::Builder))
+                    (payload, PayloadSource::Builder)
                 }
-            }
-            (_, Ok(l2)) => {
-                // builder failed to return a payload
+            } else {
                 self.probes.set_health(Health::PartialContent);
-                Ok((l2, PayloadSource::L2))
+                (l2_payload, PayloadSource::L2)
             }
-            (_, Err(e)) => {
-                // builder and l2 failed to return a payload
-                self.probes.set_health(Health::ServiceUnavailable);
-                Err(e)
-            }
-        }?;
+        };
 
         tracing::Span::current().record("payload_source", context.to_string());
         // To maintain backwards compatibility with old metrics, we need to record blocks built

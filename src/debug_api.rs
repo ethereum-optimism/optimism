@@ -152,17 +152,5 @@ mod tests {
         // Verify again with get_execution_mode
         let status = client.get_execution_mode().await.unwrap();
         assert_eq!(status.execution_mode, ExecutionMode::Enabled);
-
-        // Test setting fallback execution mode
-        let result = client
-            .set_execution_mode(ExecutionMode::Fallback)
-            .await
-            .unwrap();
-
-        assert_eq!(result.execution_mode, ExecutionMode::Fallback);
-
-        // Verify again with get_execution_mode
-        let status = client.get_execution_mode().await.unwrap();
-        assert_eq!(status.execution_mode, ExecutionMode::Fallback);
     }
 }
