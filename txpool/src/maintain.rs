@@ -159,16 +159,17 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
         if let CanonStateNotification::Commit { new } = event {
             let timestamp = new.tip().timestamp();
             let mut to_remove = Vec::new();
-            let mut to_revalidate: Vec<<Pool as TransactionPool>::Transaction> = Vec::new();
+            let mut to_revalidate = Vec::new();
             let mut interop_count = 0;
 
-            for tx_arc_wrapper in pool.pooled_transactions() {
-                if let Some(interop_deadline_val) = tx_arc_wrapper.transaction.interop_deadline() {
+            // scan all pooled interop transactions
+            for pooled_tx in pool.pooled_transactions() {
+                if let Some(interop_deadline_val) = pooled_tx.transaction.interop_deadline() {
                     interop_count += 1;
                     if !is_valid_interop(interop_deadline_val, timestamp) {
-                        to_remove.push(*tx_arc_wrapper.transaction.hash());
+                        to_remove.push(*pooled_tx.transaction.hash());
                     } else if is_stale_interop(interop_deadline_val, timestamp, OFFSET_TIME) {
-                        to_revalidate.push(tx_arc_wrapper.transaction.clone());
+                        to_revalidate.push(pooled_tx.transaction.clone());
                     }
                 }
             }
