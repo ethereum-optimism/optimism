@@ -227,7 +227,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         // Set the SuperchainConfig contract.
         superchainConfig = _superchainConfig;
 
-        // Clear out the old dispute game factory address, it's derived now.
+        // Clear out the old dispute game factory address, it's derived now. We get rid of this
+        // storage slot because it doesn't use structured storage and we can't use a spacer
+        // variable to block it off.
         bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
         Storage.setAddress(disputeGameFactorySlot, address(0));
     }

@@ -127,7 +127,6 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
 
         // Now perform upgrade logic.
         systemConfig = _systemConfig;
-        spacer_50_0_20 = address(0);
     }
 
     /// @inheritdoc StandardBridge

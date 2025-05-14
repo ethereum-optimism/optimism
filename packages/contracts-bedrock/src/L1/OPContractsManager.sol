@@ -720,7 +720,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
                 // Upgrade the OptimismPortal contract first so that the SystemConfig will have
                 // the SuperchainConfig reference required in the ETHLockbox.
-                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox, _opChainConfigs[i].systemConfigProxy);
+                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox);
 
                 // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);

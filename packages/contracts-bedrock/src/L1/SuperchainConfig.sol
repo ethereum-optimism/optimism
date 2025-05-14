@@ -81,6 +81,9 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
 
         // Now perform upgrade logic.
         // Transfer the guardian into the new variable and clear the old storage slot.
+        // We generally do not clear out old storage slots but in the case of the SuperchainConfig
+        // these are the only spacer slots, they aren't cleanly represented by spacer variables,
+        // and we can get rid of them now and never think about them again later.
         bytes32 guardianSlot = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
         _setGuardian(Storage.getAddress(guardianSlot));
         Storage.setBytes32(guardianSlot, bytes32(0));

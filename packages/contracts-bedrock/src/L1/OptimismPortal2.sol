@@ -281,11 +281,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry and SystemConfig
     /// @param _anchorStateRegistry AnchorStateRegistry contract.
     /// @param _ethLockbox ETHLockbox contract.
-    /// @param _systemConfig SystemConfig contract.
     function upgrade(
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox,
-        ISystemConfig _systemConfig
+        IETHLockbox _ethLockbox
     )
         external
         reinitializer(initVersion())
@@ -296,8 +294,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Now perform upgrade logic.
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
-        systemConfig = _systemConfig;
-        spacer_53_1_20 = address(0);
     }
 
     /// @notice Getter for the current paused status.

@@ -2107,13 +2107,7 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
     }
 
     /// @notice Tests that the upgrade() function succeeds.
-    function testFuzz_upgrade_succeeds(
-        address _newAnchorStateRegistry,
-        uint256 _balance,
-        address _newSystemConfig
-    )
-        external
-    {
+    function testFuzz_upgrade_succeeds(address _newAnchorStateRegistry, uint256 _balance) external {
         // Prevent overflow on an upgrade context
         _balance = bound(_balance, 0, type(uint256).max - address(ethLockbox).balance);
 
@@ -2132,9 +2126,7 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
 
         // Call the upgrade function.
         vm.prank(address(optimismPortal2.proxyAdmin()));
-        optimismPortal2.upgrade(
-            IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox), ISystemConfig(_newSystemConfig)
-        );
+        optimismPortal2.upgrade(IAnchorStateRegistry(_newAnchorStateRegistry), IETHLockbox(ethLockbox));
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(optimismPortal2), bytes32(slot.slot));
@@ -2143,7 +2135,6 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
         // Assert the portal is properly upgraded.
         assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
         assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
-        assertEq(address(optimismPortal2.systemConfig()), _newSystemConfig);
 
         // Balance has not updated.
         assertEq(address(optimismPortal2).balance, _balance);
@@ -2168,16 +2159,12 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
 
         // Trigger first upgrade.
         vm.prank(address(optimismPortal2.proxyAdmin()));
-        optimismPortal2.upgrade(
-            IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
-        );
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
 
         // Try to trigger second upgrade.
         vm.prank(address(optimismPortal2.proxyAdmin()));
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal2.upgrade(
-            IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
-        );
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
     }
 
     /// @notice Tests that the upgrade() function reverts if called after initialization.
@@ -2197,9 +2184,7 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
 
         // Try to trigger upgrade().
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal2.upgrade(
-            IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
-        );
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
     }
 
     /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
@@ -2219,9 +2204,7 @@ contract OptimismPortal2_upgrade_Test is CommonTest {
 
         // Call the `upgrade` function with the sender
         vm.prank(_sender);
-        optimismPortal2.upgrade(
-            IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox), ISystemConfig(address(0xdeadbeef))
-        );
+        optimismPortal2.upgrade(IAnchorStateRegistry(address(0xdeadbeef)), IETHLockbox(ethLockbox));
     }
 }
 

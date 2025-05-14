@@ -68,7 +68,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
 
         // Now perform upgrade logic.
         systemConfig = _systemConfig;
-        spacer_251_0_20 = address(0);
     }
 
     /// @inheritdoc CrossDomainMessenger

@@ -70,7 +70,6 @@ contract L1ERC721Bridge is ERC721Bridge, ProxyAdminOwnedBase, ReinitializableBas
 
         // Now perform upgrade logic.
         systemConfig = _systemConfig;
-        spacer_50_0_20 = address(0);
     }
 
     /// @inheritdoc ERC721Bridge
