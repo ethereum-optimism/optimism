@@ -229,7 +229,7 @@ func SerialT(t *testing.T) T {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	if deadline, hasDeadline := t.Deadline(); hasDeadline {
-		ctx, cancel = context.WithDeadline(RootContext, deadline.Add(-30*time.Second))
+		ctx, cancel = context.WithDeadline(RootContext, deadline.Add(-3*time.Second))
 	} else {
 		ctx, cancel = context.WithCancel(RootContext)
 	}
