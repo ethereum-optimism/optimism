@@ -223,6 +223,7 @@ var optionalFlags = []cli.Flag{
 	ThrottleTxSizeFlag,
 	ThrottleBlockSizeFlag,
 	ThrottleAlwaysBlockSizeFlag,
+	AdditionalThrottlingEndpointsFlag,
 	PreferLocalSafeL2Flag,
 }
 
