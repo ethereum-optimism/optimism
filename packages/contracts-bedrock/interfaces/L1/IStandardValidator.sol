@@ -32,11 +32,6 @@ interface IStandardValidator {
         address challenger;
     }
 
-    enum ValidationOverridesEnum {
-        L1PAOMultisig,
-        Challenger
-    }
-
     function anchorStateRegistryImpl() external view returns (address);
     function anchorStateRegistryVersion() external pure returns (string memory);
     function challenger() external view returns (address);
@@ -70,8 +65,9 @@ interface IStandardValidator {
         ValidationOverrides memory _overrides
     )
         external
+        view
         returns (string memory);
-    function validate(ValidationInput memory _input, bool _allowFailure) external returns (string memory);
+    function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory);
 
     function __constructor__(
         IStandardValidator.Implementations memory _implementations,

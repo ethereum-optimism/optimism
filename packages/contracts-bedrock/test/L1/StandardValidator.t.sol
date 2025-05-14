@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.15;
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -205,7 +205,7 @@ contract StandardValidator_TestInit is CommonTest {
     /// @notice Runs the StandardValidator.validate function.
     /// @param _allowFailure Whether to allow failure.
     /// @return The error message(s) from the validate function.
-    function _validate(bool _allowFailure) internal returns (string memory) {
+    function _validate(bool _allowFailure) internal view returns (string memory) {
         return validator.validate(
             IStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
@@ -225,6 +225,7 @@ contract StandardValidator_TestInit is CommonTest {
         IStandardValidator.ValidationOverrides memory _overrides
     )
         internal
+        view
         returns (string memory)
     {
         return validator.validate(
@@ -248,14 +249,14 @@ contract StandardValidator_TestInit is CommonTest {
 /// @notice Tests the StandardValidator.validate function.
 contract StandardValidator_validate_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function succeeds when all parameters are valid.
-    function test_validate_succeeds() public {
+    function test_validate_succeeds() public view {
         string memory errors = _validate(false);
         assertEq(errors, "");
     }
 
     /// @notice Tests that the validate function succeeds when failures are allowed but no failures
     ///         are present in the result.
-    function test_validate_allowFailureTrue_succeeds() public {
+    function test_validate_allowFailureTrue_succeeds() public view {
         string memory errors = _validate(true);
         assertEq(errors, "");
     }
@@ -290,7 +291,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
 
     /// @notice Tests that the validate function (with an overriden ProxyAdmin owner) successfully returns the right
     ///         error when the ProxyAdmin owner is not correct.
-    function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public {
+    function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         assertEq("OVERRIDES-L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, overrides));
@@ -751,7 +752,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
 
     /// @notice Tests that the validate function (with an overriden PermissionedDisputeGame challenger) successfully
     ///         returns the right error when the PermissionedDisputeGame challenger is invalid.
-    function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public {
+    function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.challenger = address(0xbad);
         assertEq("OVERRIDES-CHALLENGER,PDDG-120", _validate(true, overrides));
@@ -1018,7 +1019,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
 
     /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overriden) successfully returns
     ///         the right error when both are invalid.
-    function test_validateL1PAOMultisigAndChallengerOverrides_succeeds() public {
+    function test_validateL1PAOMultisigAndChallengerOverrides_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xace);
         overrides.challenger = address(0xbad);
