@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
@@ -385,12 +385,12 @@ type System struct {
 	clients map[string]*ethclient.Client
 }
 
-func (sys *System) PrestateVariant() challenger.PrestateVariant {
+func (sys *System) PrestateVariant() shared.PrestateVariant {
 	switch sys.AllocType() {
 	case config.AllocTypeMTCannonNext:
-		return challenger.MTCannonNextVariant
+		return shared.MTCannonNextVariant
 	default:
-		return challenger.MTCannonVariant
+		return shared.MTCannonVariant
 	}
 }
 
