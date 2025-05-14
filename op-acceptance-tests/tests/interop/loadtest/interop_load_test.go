@@ -122,7 +122,7 @@ func TestExecFromSameAddressInALoop(gt *testing.T) {
 			includedBlock, err := tx.IncludedBlock.Eval(t.Ctx())
 			t.Require().NoError(err)
 			for {
-				// TODO can we use proxyd to see if something is crossafe?
+				// NOTE: it may be desirable to query proxyd instead of the supervisor if/when the devstack supports it.
 				crossSafeID, err := sys.Supervisor.Escape().QueryAPI().CrossSafe(t.Ctx(), l2ELB.ChainID())
 				t.Require().NoError(err)
 				if includedBlock.ID().Number <= crossSafeID.Derived.Number {
