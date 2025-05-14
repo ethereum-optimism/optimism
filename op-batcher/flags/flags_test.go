@@ -97,3 +97,12 @@ func TestEnvVarFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestThrottlingEndpoints(t *testing.T) {
+	for _, f := range Flags {
+		if f.Names()[0] == AdditionalThrottlingEndpointsFlag.Name {
+			return
+		}
+	}
+	t.Error("Throttling endpoints flag not found")
+}
