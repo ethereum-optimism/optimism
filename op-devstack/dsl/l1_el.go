@@ -5,15 +5,16 @@ import "github.com/ethereum-optimism/optimism/op-devstack/stack"
 // L1ELNode wraps a stack.L1ELNode interface for DSL operations
 type L1ELNode struct {
 	commonImpl
-	elNode
+	*elNode
 	inner stack.L1ELNode
 }
 
 // NewL1ELNode creates a new L1ELNode DSL wrapper
 func NewL1ELNode(inner stack.L1ELNode) *L1ELNode {
+	common := commonFromT(inner.T())
 	return &L1ELNode{
-		commonImpl: commonFromT(inner.T()),
-		elNode:     elNode{inner: inner},
+		commonImpl: common,
+		elNode:     newELNode(common, inner),
 		inner:      inner,
 	}
 }

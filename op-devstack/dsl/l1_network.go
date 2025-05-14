@@ -1,11 +1,8 @@
 package dsl
 
 import (
-	"time"
-
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -37,25 +34,5 @@ func (n *L1Network) Escape() stack.L1Network {
 }
 
 func (n *L1Network) WaitForBlock() {
-	l1_el := n.inner.L1ELNode(match.FirstL1EL)
-
-	initial, err := l1_el.EthClient().InfoByLabel(n.ctx, "latest")
-	n.require.NoError(err, "Expected to get latest block from L1 execution client")
-
-	err = wait.For(n.ctx, 500*time.Millisecond, func() (bool, error) {
-		newBlock, err := l1_el.EthClient().InfoByLabel(n.ctx, "latest")
-		if err != nil {
-			return false, err
-		}
-
-		if initial.Hash().Cmp(newBlock.Hash()) == 0 {
-			n.log.Info("Still same L1 block detected as initial", "block", eth.InfoToL1BlockRef(newBlock))
-
-			return false, nil
-		}
-
-		n.log.Info("New L1 block detected", "new_block", eth.InfoToL1BlockRef(newBlock), "prev_block", eth.InfoToL1BlockRef(initial))
-		return true, nil
-	})
-	n.require.NoError(err, "Expected to get latest block from L1 execution client for comparison")
+	NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForBlock()
 }

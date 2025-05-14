@@ -13,15 +13,16 @@ import (
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {
 	commonImpl
-	elNode
+	*elNode
 	inner stack.L2ELNode
 }
 
 // NewL2ELNode creates a new L2ELNode DSL wrapper
 func NewL2ELNode(inner stack.L2ELNode) *L2ELNode {
+	common := commonFromT(inner.T())
 	return &L2ELNode{
-		commonImpl: commonFromT(inner.T()),
-		elNode:     elNode{inner: inner},
+		commonImpl: common,
+		elNode:     newELNode(common, inner),
 		inner:      inner,
 	}
 }

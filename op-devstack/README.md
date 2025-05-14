@@ -124,7 +124,7 @@ and returns a typed output that the test then may use.
 ## Design choices
 
 - Interfaces FIRST. Composes much better.
-- Incremental system composition.
+- Incremental system composition. In the DSL package, maximize reusability by implementing DSL methods on the "lowest common denominator", e.g. prefer EL over Network. In tests, maximize readability by using the highest level of abstraction possible.
 - Type-safety is important. Internals may be more verbose where needed.
 - Everything is a resource and has a typed ID
 - Embedding and composition de-dup a lot of code.

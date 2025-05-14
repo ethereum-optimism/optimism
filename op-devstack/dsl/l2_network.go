@@ -67,31 +67,7 @@ func (n *L2Network) CatchUpTo(o *L2Network) {
 }
 
 func (n *L2Network) WaitForBlock() {
-	l2_el := n.inner.L2ELNode(match.FirstL2EL)
-
-	initial, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
-	n.require.NoError(err, "Expected to get latest block from L2 execution client")
-
-	initialHash := initial.Hash()
-
-	err = wait.For(n.ctx, 1000*time.Millisecond, func() (bool, error) {
-		latest, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
-		if err != nil {
-			return false, err
-		}
-
-		newHash := latest.Hash()
-
-		if initialHash.Cmp(newHash) == 0 {
-			n.log.Info("Still same block detected", "number", latest.NumberU64(), "chain", n.ChainID(), "initial_block_hash", initialHash, "new_block_hash", newHash)
-
-			return false, nil
-		}
-
-		n.log.Info("New block detected", "chain", n.ChainID(), "prev_block_hash", initialHash, "new_block_hash", newHash, "time", latest.Time())
-		return true, nil
-	})
-	n.require.NoError(err, "Expected to get latest block from L2 execution client for comparison")
+	NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL)).WaitForBlock()
 }
 
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests
