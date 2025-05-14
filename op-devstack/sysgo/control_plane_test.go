@@ -35,7 +35,7 @@ func TestControlPlane(gt *testing.T) {
 	)
 	gt.Cleanup(p.Close)
 
-	orch := NewOrchestrator(p)
+	orch := NewOrchestrator(p, stack.Combine[*Orchestrator]())
 	stack.ApplyOptionLifecycle(opt, orch)
 
 	control := orch.ControlPlane()

@@ -30,7 +30,7 @@ func TestL2CLSyncP2P(gt *testing.T) {
 	})
 	gt.Cleanup(p.Close)
 
-	orch := NewOrchestrator(p)
+	orch := NewOrchestrator(p, stack.Combine[*Orchestrator]())
 	stack.ApplyOptionLifecycle(opt, orch)
 
 	t := devtest.SerialT(gt)
@@ -146,7 +146,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	})
 	gt.Cleanup(p.Close)
 
-	orch := NewOrchestrator(p)
+	orch := NewOrchestrator(p, stack.Combine[*Orchestrator]())
 	stack.ApplyOptionLifecycle(opt, orch)
 
 	t := devtest.SerialT(gt)

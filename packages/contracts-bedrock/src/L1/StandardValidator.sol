@@ -63,6 +63,11 @@ contract StandardValidator {
         uint256 l2ChainID;
     }
 
+    struct ValidationOverrides {
+        address l1PAOMultisig;
+        address challenger;
+    }
+
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
@@ -86,6 +91,35 @@ contract StandardValidator {
         anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
         delayedWETHImpl = _implementations.delayedWETHImpl;
         mipsImpl = _implementations.mipsImpl;
+    }
+
+    function getOverridesString(ValidationOverrides memory _overrides) private pure returns (string memory) {
+        string memory overridesError;
+
+        if (_overrides.l1PAOMultisig != address(0)) {
+            overridesError = string.concat(overridesError, "OVERRIDES-L1PAOMULTISIG");
+        }
+
+        if (_overrides.challenger != address(0)) {
+            if (bytes(overridesError).length > 0) overridesError = string.concat(overridesError, ",");
+            overridesError = string.concat(overridesError, "OVERRIDES-CHALLENGER");
+        }
+
+        return overridesError;
+    }
+
+    function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal view returns (address) {
+        if (_overrides.l1PAOMultisig != address(0)) {
+            return _overrides.l1PAOMultisig;
+        }
+        return l1PAOMultisig;
+    }
+
+    function expectedChallenger(ValidationOverrides memory _overrides) internal view returns (address) {
+        if (_overrides.challenger != address(0)) {
+            return _overrides.challenger;
+        }
+        return challenger;
     }
 
     function systemConfigVersion() public pure returns (string memory) {
@@ -141,8 +175,17 @@ contract StandardValidator {
         return _errors;
     }
 
-    function assertValidProxyAdmin(string memory _errors, IProxyAdmin _admin) internal view returns (string memory) {
-        _errors = internalRequire(_admin.owner() == l1PAOMultisig, "PROXYA-10", _errors);
+    function assertValidProxyAdmin(
+        string memory _errors,
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
+        _errors = internalRequire(_admin.owner() == _l1PAOMultisig, "PROXYA-10", _errors);
         return _errors;
     }
 
@@ -298,7 +341,8 @@ contract StandardValidator {
     function assertValidDisputeGameFactory(
         string memory _errors,
         ISystemConfig _sysCfg,
-        IProxyAdmin _admin
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides
     )
         internal
         view
@@ -309,7 +353,9 @@ contract StandardValidator {
         _errors = internalRequire(
             _admin.getProxyImplementation(address(_factory)) == disputeGameFactoryImpl, "DF-20", _errors
         );
-        _errors = internalRequire(_factory.owner() == l1PAOMultisig, "DF-30", _errors);
+
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
+        _errors = internalRequire(_factory.owner() == _l1PAOMultisig, "DF-30", _errors);
         return _errors;
     }
 
@@ -318,7 +364,8 @@ contract StandardValidator {
         ISystemConfig _sysCfg,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
-        IProxyAdmin _admin
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides
     )
         internal
         view
@@ -344,9 +391,11 @@ contract StandardValidator {
             _l2ChainID,
             _admin,
             GameTypes.PERMISSIONED_CANNON,
+            _overrides,
             "PDDG"
         );
-        _errors = internalRequire(_game.challenger() == challenger, "PDDG-120", _errors);
+        address _challenger = expectedChallenger(_overrides);
+        _errors = internalRequire(_game.challenger() == _challenger, "PDDG-120", _errors);
 
         (Hash anchorRoot,) = _game.anchorStateRegistry().getAnchorRoot();
         bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
@@ -366,7 +415,8 @@ contract StandardValidator {
         ISystemConfig _sysCfg,
         bytes32 _absolutePrestate,
         uint256 _l2ChainID,
-        IProxyAdmin _admin
+        IProxyAdmin _admin,
+        ValidationOverrides memory _overrides
     )
         internal
         view
@@ -383,7 +433,16 @@ contract StandardValidator {
         }
 
         _errors = assertValidDisputeGame(
-            _errors, _sysCfg, _game, _factory, _absolutePrestate, _l2ChainID, _admin, GameTypes.CANNON, "PLDG"
+            _errors,
+            _sysCfg,
+            _game,
+            _factory,
+            _absolutePrestate,
+            _l2ChainID,
+            _admin,
+            GameTypes.CANNON,
+            _overrides,
+            "PLDG"
         );
 
         (Hash anchorRoot,) = _game.anchorStateRegistry().getAnchorRoot();
@@ -403,6 +462,7 @@ contract StandardValidator {
         uint256 _l2ChainID,
         IProxyAdmin _admin,
         GameType _gameType,
+        ValidationOverrides memory _overrides,
         string memory _errorPrefix
     )
         internal
@@ -433,7 +493,7 @@ contract StandardValidator {
             Duration.unwrap(_game.maxClockDuration()) == 302400, string.concat(_errorPrefix, "-110"), _errors
         );
 
-        _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _errorPrefix);
+        _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
         _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
@@ -450,6 +510,7 @@ contract StandardValidator {
         ISystemConfig _sysCfg,
         IDelayedWETH _weth,
         IProxyAdmin _admin,
+        ValidationOverrides memory _overrides,
         string memory _errorPrefix
     )
         internal
@@ -465,7 +526,9 @@ contract StandardValidator {
             string.concat(_errorPrefix, "-20"),
             _errors
         );
-        _errors = internalRequire(_weth.proxyAdminOwner() == l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
+        address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
+        _errors =
+            internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
         _errors = internalRequire(_weth.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-50"), _errors);
         return _errors;
@@ -547,29 +610,57 @@ contract StandardValidator {
         return keccak256(bytes(_a)) == keccak256(bytes(_b));
     }
 
-    function validate(ValidationInput memory _input, bool _allowFailure) public view returns (string memory) {
+    function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
+        return
+            validate(_input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) }));
+    }
+
+    function validate(
+        ValidationInput memory _input,
+        bool _allowFailure,
+        ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
         string memory _errors = "";
 
         _errors = assertValidSuperchainConfig(_errors);
-        _errors = assertValidProxyAdmin(_errors, _input.proxyAdmin);
+        _errors = assertValidProxyAdmin(_errors, _input.proxyAdmin, _overrides);
         _errors = assertValidSystemConfig(_errors, _input.sysCfg, _input.proxyAdmin);
         _errors = assertValidL1CrossDomainMessenger(_errors, _input.sysCfg, _input.proxyAdmin);
         _errors = assertValidL1StandardBridge(_errors, _input.sysCfg, _input.proxyAdmin);
         _errors = assertValidOptimismMintableERC20Factory(_errors, _input.sysCfg, _input.proxyAdmin);
         _errors = assertValidL1ERC721Bridge(_errors, _input.sysCfg, _input.proxyAdmin);
         _errors = assertValidOptimismPortal(_errors, _input.sysCfg, _input.proxyAdmin);
-        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _input.proxyAdmin);
+        _errors = assertValidDisputeGameFactory(_errors, _input.sysCfg, _input.proxyAdmin, _overrides);
         _errors = assertValidPermissionedDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin
+            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
         );
         _errors = assertValidPermissionlessDisputeGame(
-            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin
+            _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
         );
 
-        if (bytes(_errors).length > 0 && !_allowFailure) {
-            revert(string.concat("StandardValidator: ", _errors));
+        string memory overridesString = getOverridesString(_overrides);
+        string memory finalErrors = _errors;
+
+        // Handle overrides if present
+        if (bytes(overridesString).length > 0) {
+            // If we have both overrides and errors, combine them
+            if (bytes(_errors).length > 0) {
+                finalErrors = string.concat(overridesString, ",", _errors);
+            } else {
+                // If we only have overrides, use them as the final message
+                finalErrors = overridesString;
+            }
         }
 
-        return _errors;
+        // Handle validation failure
+        if (bytes(_errors).length > 0 && !_allowFailure) {
+            revert(string.concat("StandardValidator: ", finalErrors));
+        }
+
+        return finalErrors;
     }
 }

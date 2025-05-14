@@ -44,6 +44,10 @@ type Orchestrator struct {
 
 	controlPlane *ControlPlane
 
+	// sysHook is called after hydration of a new test-scope system frontend,
+	// essentially a test-case preamble.
+	sysHook stack.SystemHook
+
 	jwtPath     string
 	jwtSecret   [32]byte
 	jwtPathOnce sync.Once
@@ -55,8 +59,8 @@ func (o *Orchestrator) ControlPlane() stack.ControlPlane {
 
 var _ stack.Orchestrator = (*Orchestrator)(nil)
 
-func NewOrchestrator(p devtest.P) *Orchestrator {
-	o := &Orchestrator{p: p}
+func NewOrchestrator(p devtest.P, hook stack.SystemHook) *Orchestrator {
+	o := &Orchestrator{p: p, sysHook: hook}
 	o.controlPlane = &ControlPlane{o: o}
 	return o
 }
@@ -90,6 +94,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.batchers.Range(rangeHydrateFn[stack.L2BatcherID, *L2Batcher](sys))
 	o.proposers.Range(rangeHydrateFn[stack.L2ProposerID, *L2Proposer](sys))
 	o.faucet.hydrate(sys)
+	o.sysHook.PostHydrate(sys)
 }
 
 type hydrator interface {
