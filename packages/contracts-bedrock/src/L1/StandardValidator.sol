@@ -29,7 +29,6 @@ contract StandardValidator {
     address public l1PAOMultisig;
     address public challenger;
     uint256 public withdrawalDelaySeconds;
-    address public guardian;
 
     // Implementation addresses as state variables
     address public l1ERC721BridgeImpl;
@@ -64,13 +63,11 @@ contract StandardValidator {
     }
 
     struct ValidationOverrides {
-        address guardian;
         address l1PAOMultisig;
         address challenger;
     }
 
     enum ValidationOverridesEnum {
-        Guardian,
         L1PAOMultisig,
         Challenger
     }
@@ -78,13 +75,11 @@ contract StandardValidator {
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
-        address _guardian,
         address _l1PAOMultisig,
         address _challenger,
         uint256 _withdrawalDelaySeconds
     ) {
         superchainConfig = _superchainConfig;
-        guardian = _guardian;
         l1PAOMultisig = _l1PAOMultisig;
         challenger = _challenger;
         withdrawalDelaySeconds = _withdrawalDelaySeconds;
@@ -109,29 +104,22 @@ contract StandardValidator {
     }
 
     function getOverridesString() private view returns (string memory) {
-        bool guardianOverriden;
         bool l1PAOMultisigOverriden;
         bool challengerOverriden;
 
         assembly ("memory-safe") {
-            guardianOverriden := tload(0x00)
-            l1PAOMultisigOverriden := tload(0x01)
-            challengerOverriden := tload(0x02)
+            l1PAOMultisigOverriden := tload(0x00)
+            challengerOverriden := tload(0x01)
         }
 
         string memory overridesError;
 
-        if (guardianOverriden) {
-            overridesError = "OVERRIDES-GUARDIAN";
-        }
-
         if (l1PAOMultisigOverriden) {
-            if (guardianOverriden) overridesError = string.concat(overridesError, ",");
             overridesError = string.concat(overridesError, "OVERRIDES-L1PAOMULTISIG");
         }
 
         if (challengerOverriden) {
-            if (guardianOverriden || l1PAOMultisigOverriden) overridesError = string.concat(overridesError, ",");
+            if (l1PAOMultisigOverriden) overridesError = string.concat(overridesError, ",");
             overridesError = string.concat(overridesError, "OVERRIDES-CHALLENGER");
         }
 
@@ -142,16 +130,7 @@ contract StandardValidator {
         assembly ("memory-safe") {
             tstore(0x00, 0x00)
             tstore(0x01, 0x00)
-            tstore(0x02, 0x00)
         }
-    }
-
-    function expectedGuardian(ValidationOverrides memory _overrides) internal returns (address) {
-        if (_overrides.guardian != address(0)) {
-            tstoreOverriden(ValidationOverridesEnum.Guardian);
-            return _overrides.guardian;
-        }
-        return guardian;
     }
 
     function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal returns (address) {
@@ -638,11 +617,8 @@ contract StandardValidator {
     }
 
     function validate(ValidationInput memory _input, bool _allowFailure) external returns (string memory) {
-        return validate(
-            _input,
-            _allowFailure,
-            ValidationOverrides({ guardian: address(0), l1PAOMultisig: address(0), challenger: address(0) })
-        );
+        return
+            validate(_input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) }));
     }
 
     function validate(

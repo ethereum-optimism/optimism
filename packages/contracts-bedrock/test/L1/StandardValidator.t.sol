@@ -151,7 +151,6 @@ contract StandardValidator_TestInit is CommonTest {
                                 delayedWETHImpl: impls.delayedWETHImpl
                             }),
                             superchainConfig,
-                            deploy.cfg().superchainConfigGuardian(),
                             proxyAdminOwner,
                             challenger,
                             302400
@@ -241,11 +240,7 @@ contract StandardValidator_TestInit is CommonTest {
     }
 
     function _defaultValidationOverrides() internal pure returns (IStandardValidator.ValidationOverrides memory) {
-        return IStandardValidator.ValidationOverrides({
-            guardian: address(0),
-            l1PAOMultisig: address(0),
-            challenger: address(0)
-        });
+        return IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) });
     }
 }
 
@@ -1036,11 +1031,8 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function (with the Guardian, L1PAOMultisig and Challenger overriden)
     ///         successfully returns no error when there is none. That is, it never returns the overriden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
-        IStandardValidator.ValidationOverrides memory overrides = IStandardValidator.ValidationOverrides({
-            guardian: address(0xace),
-            l1PAOMultisig: address(0xbad),
-            challenger: address(0xc0ffee)
-        });
+        IStandardValidator.ValidationOverrides memory overrides =
+            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
         vm.mockCall(
             address(disputeGameFactory),

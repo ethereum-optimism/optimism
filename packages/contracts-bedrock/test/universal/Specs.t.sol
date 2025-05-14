@@ -904,7 +904,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "LivenessModule", _sel: _getSel("version()") });
 
         _addSpec({ _name: "StandardValidator", _sel: _getSel("superchainConfig()") });
-        _addSpec({ _name: "StandardValidator", _sel: _getSel("guardian()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("l1PAOMultisig()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("challenger()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("l1ERC721BridgeImpl()") });
@@ -933,7 +932,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "StandardValidator", _sel: _getSel("validate((address,address,bytes32,uint256),bool)") });
         _addSpec({
             _name: "StandardValidator",
-            _sel: _getSel("validate((address,address,bytes32,uint256),bool,(address,address,address))")
+            _sel: _getSel("validate((address,address,bytes32,uint256),bool,(address,address))")
         });
     }
 
