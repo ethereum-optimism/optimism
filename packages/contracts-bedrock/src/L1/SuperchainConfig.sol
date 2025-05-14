@@ -26,6 +26,9 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @notice Thrown when attempting to pause an identifier that is already paused
     error SuperchainConfig_AlreadyPaused(address identifier);
 
+    /// @notice Thrown when attempting to extend a pause that is not already paused.
+    error SuperchainConfig_NotAlreadyPaused(address identifier);
+
     /// @notice Enum representing different types of updates.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
     enum UpdateType {
@@ -106,9 +109,7 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @param _identifier The address identifier for the pause.
     function pause(address _identifier) external {
         // Only the Guardian can pause the system.
-        if (msg.sender != guardian) {
-            revert SuperchainConfig_OnlyGuardian();
-        }
+        _assertOnlyGuardian();
 
         // Cannot pause if the identifier is already paused to prevent re-pausing without either
         // unpausing, extending, or resetting the pause timestamp.
@@ -125,9 +126,7 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @param _identifier The address identifier to unpause.
     function unpause(address _identifier) external {
         // Only the Guardian can unpause the system.
-        if (msg.sender != guardian) {
-            revert SuperchainConfig_OnlyGuardian();
-        }
+        _assertOnlyGuardian();
 
         // Unpause the system.
         pauseTimestamps[_identifier] = 0;
@@ -138,8 +137,11 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @param _identifier The address identifier to extend.
     function extend(address _identifier) external {
         // Only the Guardian can extend the pause.
-        if (msg.sender != guardian) {
-            revert SuperchainConfig_OnlyGuardian();
+        _assertOnlyGuardian();
+
+        // Cannot extend the pause if not already paused.
+        if (pauseTimestamps[_identifier] == 0) {
+            revert SuperchainConfig_NotAlreadyPaused(_identifier);
         }
 
         // Reset the pause timestamp.
@@ -178,5 +180,12 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     function _setGuardian(address _guardian) internal {
         guardian = _guardian;
         emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
+    }
+
+    /// @notice Asserts that the caller is the guardian.
+    function _assertOnlyGuardian() internal view {
+        if (msg.sender != guardian) {
+            revert SuperchainConfig_OnlyGuardian();
+        }
     }
 }

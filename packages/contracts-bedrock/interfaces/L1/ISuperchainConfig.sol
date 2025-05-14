@@ -15,6 +15,7 @@ interface ISuperchainConfig is IProxyAdminOwnedBase {
 
     error SuperchainConfig_OnlyGuardian();
     error SuperchainConfig_AlreadyPaused(address identifier);
+    error SuperchainConfig_NotAlreadyPaused(address identifier);
     error ReinitializableBase_ZeroInitVersion();
 
     function guardian() external view returns (address);

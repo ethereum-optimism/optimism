@@ -271,6 +271,15 @@ contract SuperchainConfig_Extend_Test is SuperchainConfig_TestInit {
         vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
         superchainConfig.extend(address(this));
     }
+
+    /// @notice Tests that `extend` reverts when the identifier is not already paused.
+    function test_extend_notAlreadyPaused_reverts() external {
+        vm.prank(superchainConfig.guardian());
+        vm.expectRevert(
+            abi.encodeWithSelector(ISuperchainConfig.SuperchainConfig_NotAlreadyPaused.selector, address(this))
+        );
+        superchainConfig.extend(address(this));
+    }
 }
 
 /// @title SuperchainConfig_Pausable_Test
