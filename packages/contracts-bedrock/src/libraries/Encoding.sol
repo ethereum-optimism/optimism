@@ -244,7 +244,7 @@ library Encoding {
         }
 
         // Start with version byte and timestamp.
-        bytes memory encoded = bytes.concat(bytes1(0x01), bytes8(_superRootProof.timestamp));
+        bytes memory encoded = bytes.concat(bytes1(_superRootProof.version), bytes8(_superRootProof.timestamp));
 
         // Add each output root (chainId + root)
         for (uint256 i = 0; i < _superRootProof.outputRoots.length; i++) {
