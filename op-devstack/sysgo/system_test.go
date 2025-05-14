@@ -26,7 +26,7 @@ func TestSystem(gt *testing.T) {
 	})
 	gt.Cleanup(p.Close)
 
-	orch := NewOrchestrator(p)
+	orch := NewOrchestrator(p, stack.Combine[*Orchestrator]())
 	stack.ApplyOptionLifecycle(opt, orch)
 
 	// Run two tests in parallel: see if we can share the same orchestrator

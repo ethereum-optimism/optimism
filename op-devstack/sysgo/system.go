@@ -109,7 +109,7 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
-	opt.Add(stack.Finally(func(orch *Orchestrator, hook stack.SystemHook) {
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
 	}))
 
@@ -149,7 +149,7 @@ func DefaultRedundancyInteropSystem(dest *DefaultRedundancyInteropSystemIDs) sta
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
-	opt.Add(stack.Finally(func(orch *Orchestrator, hook stack.SystemHook) {
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
 	}))
 
