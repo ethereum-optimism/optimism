@@ -10,9 +10,9 @@ use tracing::{Level, info};
 use crate::{
     DebugClient, PayloadSource, ProxyLayer, RollupBoostServer, RpcClient,
     client::rpc::{BuilderArgs, L2ClientArgs},
+    debug_api::ExecutionMode,
     init_metrics, init_tracing,
     probe::ProbeLayer,
-    server::ExecutionMode,
 };
 
 #[derive(Clone, Parser, Debug)]

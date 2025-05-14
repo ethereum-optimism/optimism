@@ -6,7 +6,26 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::server::ExecutionMode;
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionMode {
+    // Normal execution, sending all requests
+    Enabled,
+    // Not sending get_payload requests
+    DryRun,
+    // Not sending any requests
+    Disabled,
+}
+
+impl ExecutionMode {
+    pub fn is_dry_run(&self) -> bool {
+        matches!(self, ExecutionMode::DryRun)
+    }
+
+    pub fn is_disabled(&self) -> bool {
+        matches!(self, ExecutionMode::Disabled)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SetExecutionModeRequest {

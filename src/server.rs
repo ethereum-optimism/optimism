@@ -1,7 +1,9 @@
-use crate::HealthHandle;
-use crate::client::rpc::RpcClient;
-use crate::debug_api::DebugServer;
-use crate::probe::{Health, Probes};
+use crate::{
+    HealthHandle,
+    client::rpc::RpcClient,
+    debug_api::DebugServer,
+    probe::{Health, Probes},
+};
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use metrics::counter;
@@ -10,23 +12,22 @@ use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use std::sync::Arc;
 
+use crate::debug_api::ExecutionMode;
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
 use jsonrpsee::RpcModule;
 use jsonrpsee::core::{RegisterMethodError, RpcResult, async_trait};
+use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::types::ErrorObject;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
-use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 use tracing::{info, instrument};
-
-use jsonrpsee::proc_macros::rpc;
 
 const CACHE_SIZE: u64 = 100;
 
@@ -107,27 +108,6 @@ impl PayloadTraceContext {
                 self.payload_id.remove(payload_id);
             }
         }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
-#[serde(rename_all = "snake_case")]
-pub enum ExecutionMode {
-    // Normal execution, sending all requests
-    Enabled,
-    // Not sending get_payload requests
-    DryRun,
-    // Not sending any requests
-    Disabled,
-}
-
-impl ExecutionMode {
-    fn is_dry_run(&self) -> bool {
-        matches!(self, ExecutionMode::DryRun)
-    }
-
-    fn is_disabled(&self) -> bool {
-        matches!(self, ExecutionMode::Disabled)
     }
 }
 
