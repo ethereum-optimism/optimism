@@ -390,7 +390,7 @@ contract StandardValidator {
         bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
         _errors = internalRequire(
             _anchorRoot != bytes32(0)
-                || _anchorRoot != bytes32(0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead),
+                && _anchorRoot != bytes32(0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead),
             "PLDG-130",
             _errors
         );
