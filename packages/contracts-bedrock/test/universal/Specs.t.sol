@@ -908,6 +908,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "StandardValidator", _sel: _getSel("challenger()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("l1ERC721BridgeImpl()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("optimismPortalImpl()") });
+        _addSpec({ _name: "StandardValidator", _sel: _getSel("ethLockboxImpl()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("systemConfigImpl()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("optimismMintableERC20FactoryImpl()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("l1CrossDomainMessengerImpl()") });
@@ -920,6 +921,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "StandardValidator", _sel: _getSel("permissionedDisputeGameVersion()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("mipsVersion()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("optimismPortalVersion()") });
+        _addSpec({ _name: "StandardValidator", _sel: _getSel("ethLockboxVersion()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("anchorStateRegistryVersion()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("delayedWETHVersion()") });
         _addSpec({ _name: "StandardValidator", _sel: _getSel("disputeGameFactoryVersion()") });

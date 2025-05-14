@@ -15,6 +15,11 @@
           },
           {
             "internalType": "address",
+            "name": "ethLockboxImpl",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "systemConfigImpl",
             "type": "address"
           },
@@ -163,6 +168,32 @@
   {
     "inputs": [],
     "name": "disputeGameFactoryVersion",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ethLockboxImpl",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ethLockboxVersion",
     "outputs": [
       {
         "internalType": "string",
