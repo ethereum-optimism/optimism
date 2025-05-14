@@ -125,14 +125,20 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @notice Allows the Guardian to set the respected game type.
     /// @param _gameType The new respected game type.
     function setRespectedGameType(GameType _gameType) external {
-        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        // Only the Guardian can set the respected game type.
+        _assertOnlyGuardian();
+
+        // Set the respected game type.
         respectedGameType = _gameType;
         emit RespectedGameTypeSet(_gameType);
     }
 
     /// @notice Allows the Guardian to update the retirement timestamp.
     function updateRetirementTimestamp() external {
-        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        // Only the Guardian can update the retirement timestamp.
+        _assertOnlyGuardian();
+
+        // Update the retirement timestamp.
         retirementTimestamp = uint64(block.timestamp);
         emit RetirementTimestampSet(block.timestamp);
     }
@@ -140,7 +146,10 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @notice Allows the Guardian to blacklist a dispute game.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        // Only the Guardian can blacklist a dispute game.
+        _assertOnlyGuardian();
+
+        // Blacklist the dispute game.
         disputeGameBlacklist[_disputeGame] = true;
         emit DisputeGameBlacklisted(_disputeGame);
     }
@@ -330,5 +339,12 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         // Update the anchor game.
         anchorGame = game;
         emit AnchorUpdated(game);
+    }
+
+    /// @notice Asserts that the caller is the Guardian.
+    function _assertOnlyGuardian() internal view {
+        if (msg.sender != systemConfig.guardian()) {
+            revert AnchorStateRegistry_Unauthorized();
+        }
     }
 }
