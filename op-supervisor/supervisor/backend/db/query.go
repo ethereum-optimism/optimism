@@ -105,7 +105,12 @@ func (db *ChainsDB) findRevision(chainID eth.ChainID, block eth.BlockID) (types.
 		if !ok {
 			return types.Revision(0), types.ErrUnknownChain
 		}
-		return ldb.LastRevision()
+		rev, err := ldb.LastRevision()
+		// During non-Genesis Interop activation, there may not be any safe data yet.
+		if errors.Is(err, types.ErrFuture) {
+			return types.Revision(0), nil
+		}
+		return rev, err
 	}
 	return rev, nil
 }

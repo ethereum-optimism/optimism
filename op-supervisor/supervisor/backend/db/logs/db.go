@@ -134,6 +134,12 @@ func (db *DB) updateEntryCountMetric() {
 	db.m.RecordDBEntryCount("log", db.store.Size())
 }
 
+func (db *DB) IsEmpty() bool {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	return db.lastEntryContext.nextEntryIndex == 0
+}
+
 func (db *DB) IteratorStartingAt(sealedNum uint64, logsSince uint32) (Iterator, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
@@ -171,8 +177,8 @@ func (db *DB) FindSealedBlock(number uint64) (seal types.BlockSeal, err error) {
 	}, nil
 }
 
-// StartingBlock returns the first block seal in the DB, if any.
-func (db *DB) StartingBlock() (seal types.BlockSeal, err error) {
+// FirstSealedBlock returns the first block seal in the DB, if any.
+func (db *DB) FirstSealedBlock() (seal types.BlockSeal, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	iter := db.newIterator(0)
@@ -185,7 +191,7 @@ func (db *DB) StartingBlock() (seal types.BlockSeal, err error) {
 		Hash:      h,
 		Number:    n,
 		Timestamp: t,
-	}, err
+	}, nil
 }
 
 // OpenBlock returns the Executing Messages for the block at the given number.
@@ -194,8 +200,10 @@ func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, exe
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 
+	// TODO: need to fix assumption that the first block is block 0
+	// This is only true for genesis-Interop chains.
 	if blockNum == 0 {
-		seal, err := db.StartingBlock()
+		seal, err := db.FirstSealedBlock()
 		if err != nil {
 			retErr = err
 			return

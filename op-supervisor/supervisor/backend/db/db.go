@@ -23,6 +23,8 @@ import (
 type LogStorage interface {
 	io.Closer
 
+	IsEmpty() bool
+
 	AddLog(logHash common.Hash, parentBlock eth.BlockID,
 		logIdx uint32, execMsg *types.ExecutingMessage) error
 
@@ -30,6 +32,7 @@ type LogStorage interface {
 
 	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
 
+	// FirstSealedBlock() (block types.BlockSeal, err error)
 	LatestSealedBlock() (id eth.BlockID, ok bool)
 
 	// FindSealedBlock finds the requested block by number, to check if it exists,
@@ -165,11 +168,47 @@ func (db *ChainsDB) AttachEmitter(em event.Emitter) {
 
 func (db *ChainsDB) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
-	case superevents.AnchorEvent:
-		db.logger.Info("Received chain anchor information",
-			"chain", x.ChainID, "derived", x.Anchor.Derived, "source", x.Anchor.Source)
-		db.initFromAnchor(x.ChainID, x.Anchor)
+	case superevents.UnsafeActivationBlockEvent:
+		if !db.isInitialized(x.ChainID) {
+			db.logger.Info("Initializing logs DB from unsafe activation block",
+				"chain", x.ChainID, "block", x.Unsafe)
+			// Note that isInitialized is only true after full initialization,
+			// not only the logs db.
+			if err := db.maybeInitFromUnsafe(x.ChainID, x.Unsafe); err != nil {
+				db.logger.Error("Error initializing logs DB from unsafe activation block",
+					"chain", x.ChainID, "block", x.Unsafe, "err", err)
+				return false
+			}
+			return true
+		} else {
+			db.logger.Warn("Received unsafe activation block on initialized DB",
+				"chain", x.ChainID, "block", x.Unsafe)
+			// TODO(#15774): handle reorg
+		}
+		return false
+	case superevents.SafeActivationBlockEvent:
+		if !db.isInitialized(x.ChainID) {
+			db.logger.Info("Initializing full DB from safe activation block",
+				"chain", x.ChainID, "block", x.Safe)
+			// Note that isInitialized is only true after full initialization,
+			// not only the logs db.
+			db.initFromAnchor(x.ChainID, x.Safe)
+			return true
+		} else {
+			db.logger.Warn("Received safe activation block on initialized DB",
+				"chain", x.ChainID, "block", x.Safe)
+			// TODO(#15774): handle reorg
+		}
+		return false
 	case superevents.LocalDerivedEvent:
+		if !db.isInitialized(x.ChainID) {
+			// Initialization is handled by SafeActivationBlockEvent, which will probably only be
+			// received by the ChainsDB after this event here. So we need to skip processing this
+			// event here.
+			db.logger.Debug("Received derived event before DB is initialized (expected for activation block)",
+				"chain", x.ChainID, "derived", x.Derived, "node", x.NodeID)
+			return false
+		}
 		db.UpdateLocalSafe(x.ChainID, x.Derived.Source, x.Derived.Derived, x.NodeID)
 	case superevents.FinalizedL1RequestEvent:
 		db.onFinalizedL1(x.FinalizedL1)

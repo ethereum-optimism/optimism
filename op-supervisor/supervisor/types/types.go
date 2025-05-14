@@ -418,6 +418,17 @@ func (s BlockSeal) WithParent(parent eth.BlockID) (eth.BlockRef, error) {
 	}, nil
 }
 
+// WithZeroParent returns [s] with a zero parent hash. This should only be used
+// where a BlockRef is required, but from the calling context it is guaranteed that
+// the parent hash is not needed.
+func (s BlockSeal) WithZeroParent() eth.BlockRef {
+	return eth.BlockRef{
+		Hash:   s.Hash,
+		Number: s.Number,
+		Time:   s.Timestamp,
+	}
+}
+
 func (s BlockSeal) ForceWithParent(parent eth.BlockID) eth.BlockRef {
 	return eth.BlockRef{
 		Hash:       s.Hash,

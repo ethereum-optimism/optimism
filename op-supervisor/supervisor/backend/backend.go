@@ -81,8 +81,10 @@ type SupervisorBackend struct {
 	rpcVerificationWarnings bool
 }
 
-var _ event.AttachEmitter = (*SupervisorBackend)(nil)
-var _ frontend.Backend = (*SupervisorBackend)(nil)
+var (
+	_ event.AttachEmitter = (*SupervisorBackend)(nil)
+	_ frontend.Backend    = (*SupervisorBackend)(nil)
+)
 
 var (
 	errAlreadyStopped        = errors.New("already stopped")
@@ -97,7 +99,8 @@ var (
 var verifyAccessWithRPCTimeout = 10 * time.Second
 
 func NewSupervisorBackend(ctx context.Context, logger log.Logger,
-	m Metrics, cfg *config.Config, eventExec event.Executor) (*SupervisorBackend, error) {
+	m Metrics, cfg *config.Config, eventExec event.Executor,
+) (*SupervisorBackend, error) {
 	// attempt to prepare the data directory
 	if err := db.PrepDataDir(cfg.Datadir); err != nil {
 		return nil, err
@@ -176,6 +179,17 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.LocalUnsafeReceivedEvent:
+		if !su.cfgSet.IsInterop(x.ChainID, x.NewLocalUnsafe.Time) {
+			su.logger.Warn("ignoring local unsafe received event for pre-interop block", "chainID", x.ChainID, "unsafe", x.NewLocalUnsafe)
+			return false
+		} else if su.cfgSet.IsInteropActivationBlock(x.ChainID, x.NewLocalUnsafe.Time) {
+			su.emitter.Emit(superevents.UnsafeActivationBlockEvent{
+				ChainID: x.ChainID,
+				Unsafe:  x.NewLocalUnsafe,
+			})
+			// don't process events of the activation block
+			return true
+		}
 		su.emitter.Emit(superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
 			Target:  x.NewLocalUnsafe.Number,
@@ -188,6 +202,16 @@ func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
 		su.emitter.Emit(superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
 		})
+	case superevents.LocalDerivedEvent:
+		if !su.cfgSet.IsInterop(x.ChainID, x.Derived.Derived.Time) {
+			su.logger.Warn("ignoring local derived event for pre-interop block", "chainID", x.ChainID, "derived", x.Derived.Derived)
+			return false
+		} else if su.cfgSet.IsInteropActivationBlock(x.ChainID, x.Derived.Derived.Time) {
+			su.emitter.Emit(superevents.SafeActivationBlockEvent{
+				ChainID: x.ChainID,
+				Safe:    x.Derived,
+			})
+		}
 	case superevents.LocalSafeUpdateEvent:
 		su.emitter.Emit(superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
@@ -299,6 +323,20 @@ func (su *SupervisorBackend) openChainDBs(chainID eth.ChainID) error {
 
 	su.chainDBs.AddCrossUnsafeTracker(chainID)
 
+	// If Interop is active at genesis, emit SafeActivationBlockEvent so that the DB
+	// can initialize, if needed.
+	genesis := su.cfgSet.Genesis(chainID)
+	if su.cfgSet.IsInterop(chainID, genesis.L2.Timestamp) {
+		su.emitter.Emit(superevents.SafeActivationBlockEvent{
+			ChainID: chainID,
+			Safe: types.DerivedBlockRefPair{
+				// Initialization skips parent checks, so zero parents are ok.
+				Source:  genesis.L1.WithZeroParent(),
+				Derived: genesis.L2.WithZeroParent(),
+			},
+		})
+	}
+
 	return nil
 }
 
@@ -314,11 +352,6 @@ func (su *SupervisorBackend) AttachSyncNode(ctx context.Context, src syncnode.Sy
 	if !su.cfgSet.HasChain(chainID) {
 		return nil, fmt.Errorf("chain %s is not part of the interop dependency set: %w", chainID, types.ErrUnknownChain)
 	}
-	// before attaching the sync source to the backend at all,
-	// query the anchor point to initialize the database
-	if err := su.QueryAnchorpoint(chainID, src); err != nil {
-		return nil, fmt.Errorf("failed to query anchor point: %w", err)
-	}
 	err = su.AttachProcessorSource(chainID, src)
 	if err != nil {
 		return nil, fmt.Errorf("failed to attach sync source to processor: %w", err)
@@ -328,18 +361,6 @@ func (su *SupervisorBackend) AttachSyncNode(ctx context.Context, src syncnode.Sy
 		return nil, fmt.Errorf("failed to attach sync source to node: %w", err)
 	}
 	return su.syncNodesController.AttachNodeController(chainID, src, noSubscribe)
-}
-
-func (su *SupervisorBackend) QueryAnchorpoint(chainID eth.ChainID, src syncnode.SyncNode) error {
-	anchor, err := src.AnchorPoint(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get anchor point: %w", err)
-	}
-	su.emitter.Emit(superevents.AnchorEvent{
-		ChainID: chainID,
-		Anchor:  anchor,
-	})
-	return nil
 }
 
 func (su *SupervisorBackend) AttachProcessorSource(chainID eth.ChainID, src processors.Source) error {
@@ -364,7 +385,7 @@ func (su *SupervisorBackend) attachL1RPC(ctx context.Context, l1RPCAddr string) 
 	su.logger.Info("attaching L1 RPC to L1 processor", "rpc", l1RPCAddr)
 
 	logger := su.logger.New("l1-rpc", l1RPCAddr)
-	l1RPC, err := client.NewRPC(ctx, logger, l1RPCAddr)
+	l1RPC, err := client.NewRPC(ctx, logger, l1RPCAddr, client.WithLazyDial())
 	if err != nil {
 		return fmt.Errorf("failed to setup L1 RPC: %w", err)
 	}
@@ -523,7 +544,8 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 }
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
+	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor,
+) error {
 	switch minSafety {
 	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
 		// valid safety level
@@ -662,7 +684,7 @@ func (su *SupervisorBackend) FinalizedL1(ctx context.Context) (eth.BlockRef, err
 	return v, nil
 }
 
-func (su *SupervisorBackend) AnchorPoint(ctx context.Context, chainID eth.ChainID) (types.DerivedBlockSealPair, error) {
+func (su *SupervisorBackend) ActivationBlock(ctx context.Context, chainID eth.ChainID) (types.DerivedBlockSealPair, error) {
 	return su.chainDBs.AnchorPoint(chainID)
 }
 

@@ -26,18 +26,18 @@ func (db *ChainsDB) AddLog(
 }
 
 // SealBlock seals the block in the logDB.
-// it wraps an inner function, blocking the call if the database is not initialized.
+// The database needs to be initialized.
 func (db *ChainsDB) SealBlock(chain eth.ChainID, block eth.BlockRef) error {
-	if !db.isInitialized(chain) {
-		return fmt.Errorf("cannot SealBlock on uninitialized database: %w", types.ErrUninitialized)
-	}
-	return db.initializedSealBlock(chain, block)
+	return db.sealBlock(chain, block, false)
 }
 
-func (db *ChainsDB) initializedSealBlock(chain eth.ChainID, block eth.BlockRef) error {
+func (db *ChainsDB) sealBlock(chain eth.ChainID, block eth.BlockRef, mayInit bool) error {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
 		return fmt.Errorf("cannot SealBlock: %w: %v", types.ErrUnknownChain, chain)
+	}
+	if !mayInit && logDB.IsEmpty() {
+		return fmt.Errorf("cannot SealBlock on uninitialized database: %w", types.ErrUninitialized)
 	}
 	err := logDB.SealBlock(block.ParentHash, block.ID(), block.Time)
 	if err != nil {
@@ -97,7 +97,7 @@ func (db *ChainsDB) UpdateLocalSafe(chain eth.ChainID, source eth.BlockRef, last
 }
 
 func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.BlockRef, lastDerived eth.BlockRef, nodeId string) {
-	logger := db.logger.New("chain", chain, "source", source, "lastDerived", lastDerived)
+	logger := db.logger.New("chain", chain, "source", source, "lastDerived", lastDerived, "nodeId", nodeId)
 	localDB, ok := db.localDBs.Get(chain)
 	if !ok {
 		logger.Error("Cannot update local-safe DB, unknown chain")
@@ -110,7 +110,7 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 			return
 		}
 		if errors.Is(err, types.ErrDataCorruption) {
-			logger.Warn("TODO", "err", err)
+			logger.Error("DB coruption occurred", "err", err)
 			return
 		}
 		logger.Warn("Failed to update local safe", "err", err)
@@ -136,9 +136,9 @@ func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.Block
 	if !ok {
 		return fmt.Errorf("cannot UpdateCrossUnsafe: %w: %s", types.ErrUnknownChain, chain)
 	}
-	if !db.isInitialized(chain) {
-		return fmt.Errorf("cannot UpdateCrossUnsafe on uninitialized database: %w", types.ErrUninitialized)
-	}
+	// Cross unsafe is stateless, fine to always update to latest value.
+	// Also allows to already track it during Interop activation phase when the safe chain hasn't
+	// crossed Interop yet, so the ChainsDB isn't fully initialized yet.
 	v.Set(crossUnsafe)
 	db.logger.Info("Updated cross-unsafe", "chain", chain, "crossUnsafe", crossUnsafe)
 	db.emitter.Emit(superevents.CrossUnsafeUpdateEvent{
@@ -219,14 +219,19 @@ func (db *ChainsDB) onFinalizedL1(finalized eth.BlockRef) {
 		return
 	}
 	db.finalizedL1.Value = finalized
-	db.logger.Info("Updated finalized L1", "finalizedL1", finalized)
+	db.logger.Debug("Updated finalized L1", "finalizedL1", finalized)
 	db.finalizedL1.Unlock()
 
+	// TODO: There seems to be no consumer of this event?
 	db.emitter.Emit(superevents.FinalizedL1UpdateEvent{
 		FinalizedL1: finalized,
 	})
 	// whenever the L1 Finalized changes, the L2 Finalized may change, notify subscribers
 	for _, chain := range db.depSet.Chains() {
+		if !db.isInitialized(chain) {
+			continue
+		}
+
 		fin, err := db.Finalized(chain)
 		if err != nil {
 			db.logger.Warn("Unable to determine finalized L2 block", "chain", chain, "l1Finalized", finalized)

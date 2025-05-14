@@ -55,7 +55,8 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		sfcd.candidateCrossSafeFn = func() (candidate types.DerivedBlockRefPair, err error) {
 			return types.DerivedBlockRefPair{
 					Source:  eth.BlockRef{},
-					Derived: eth.BlockRef{Number: 3, Hash: common.BytesToHash([]byte{0x01})}},
+					Derived: eth.BlockRef{Number: 3, Hash: common.BytesToHash([]byte{0x01})},
+				},
 				errors.New("some error")
 		}
 		l1Source := eth.BlockID{}
@@ -94,7 +95,8 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		sfcd.candidateCrossSafeFn = func() (candidate types.DerivedBlockRefPair, err error) {
 			return types.DerivedBlockRefPair{
 					Source:  eth.BlockRef{Number: 9},
-					Derived: eth.BlockRef{}},
+					Derived: eth.BlockRef{},
+				},
 				nil
 		}
 		l1Source := eth.BlockID{Number: 8}

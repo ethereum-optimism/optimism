@@ -12,6 +12,12 @@ import (
 
 var errInvalidateMismatch = fmt.Errorf("cannot invalidate mismatching block")
 
+func (db *DB) IsEmpty() bool {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	return db.store.Size() == 0
+}
+
 func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
@@ -21,7 +27,8 @@ func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision typ
 // ReplaceInvalidatedBlock replaces the current Invalidated block with the given replacement.
 // The to-be invalidated hash must be provided for consistency checks.
 func (db *DB) ReplaceInvalidatedBlock(inv reads.Invalidator, replacementDerived eth.BlockRef, invalidated common.Hash) (
-	out types.DerivedBlockRefPair, err error) {
+	out types.DerivedBlockRefPair, err error,
+) {
 	release, err := inv.TryInvalidate(reads.InvalidationRules{
 		reads.DerivedInvalidation{Timestamp: replacementDerived.Time},
 		// source block stays the same, so nothing to invalidate there.

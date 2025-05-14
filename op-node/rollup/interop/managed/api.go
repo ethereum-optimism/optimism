@@ -39,12 +39,17 @@ func (ib *InteropAPI) InvalidateBlock(ctx context.Context, seal supervisortypes.
 	return ib.backend.InvalidateBlock(ctx, seal)
 }
 
+// TODO(#16140): remove
 func (ib *InteropAPI) AnchorPoint(ctx context.Context) (supervisortypes.DerivedBlockRefPair, error) {
 	return ib.backend.AnchorPoint(ctx)
 }
 
 func (ib *InteropAPI) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error {
 	return ib.backend.Reset(ctx, lUnsafe, xUnsafe, lSafe, xSafe, finalized)
+}
+
+func (ib *InteropAPI) ResetPreInterop(ctx context.Context) error {
+	return ib.backend.ResetPreInterop(ctx)
 }
 
 func (ib *InteropAPI) FetchReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error) {
