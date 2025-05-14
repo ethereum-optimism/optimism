@@ -1027,6 +1027,10 @@ contract OPContractsManager_TestInit is Test {
         chainDeployOutput1 = createChainContracts(100);
         chainDeployOutput2 = createChainContracts(101);
 
+        // Mock the SuperchainConfig.paused function to return false.
+        // Otherwise migration will fail!
+        vm.mockCall(address(superchainConfigProxy), ISuperchainConfig.paused.selector, abi.encode(false));
+
         // Fund the lockboxes for testing.
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
