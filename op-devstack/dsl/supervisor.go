@@ -71,6 +71,15 @@ func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfi
 	s.require.NoError(err, "Expected sync status not found")
 }
 
+func (s *Supervisor) AwaitMinL1(minL1 uint64) {
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		return s.FetchSyncStatus().MinSyncedL1.Number >= minL1, nil
+	})
+	s.require.NoError(err, "Expected sync status not found")
+}
+
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)

@@ -24,6 +24,7 @@ type SimpleInterop struct {
 	ControlPlane stack.ControlPlane
 
 	L1Network *dsl.L1Network
+	L1EL      *dsl.L1ELNode
 
 	L2ChainA *dsl.L2Network
 	L2ChainB *dsl.L2Network
@@ -69,6 +70,7 @@ func NewSimpleInterop(t devtest.T) *SimpleInterop {
 
 	t.Gate().Equal(len(system.Sequencers()), 1, "expected exactly one sequencer")
 
+	l1Net := system.L1Network(match.FirstL1Network)
 	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
 	l2B := system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &SimpleInterop{
@@ -78,7 +80,8 @@ func NewSimpleInterop(t devtest.T) *SimpleInterop {
 		Sequencer:    dsl.NewSequencer(system.Sequencer(match.Assume(t, match.FirstSequencer))),
 		Supervisor:   dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane()),
 		ControlPlane: orch.ControlPlane(),
-		L1Network:    dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
+		L1Network:    dsl.NewL1Network(l1Net),
+		L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
 		L2ChainA:     dsl.NewL2Network(l2A),
 		L2ChainB:     dsl.NewL2Network(l2B),
 		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
@@ -106,6 +109,26 @@ func WithSuggestedInteropActivationOffset(offset uint64) stack.CommonOption {
 			}
 		},
 	))
+}
+
+// WithSequencingWindow suggests a sequencing window to use, and checks the maximum sequencing window.
+// The sequencing windows are expressed in number of L1 execution-layer blocks till sequencing window expiry.
+// This is applied e.g. to the chain configuration setup if running against sysgo.
+func WithSequencingWindow(suggestedSequencingWindow uint64, maxSequencingWindow uint64) stack.CommonOption {
+	return stack.Combine(
+		stack.MakeCommon(sysgo.WithDeployerOptions(
+			sysgo.WithSequencingWindow(suggestedSequencingWindow),
+		)),
+		// We can't configure sysext sequencing window, so we go with whatever is configured.
+		// The post-hydrate function will check that the sequencing window is within expected bounds.
+		stack.PostHydrate[stack.Orchestrator](func(sys stack.System) {
+			for _, l2Net := range sys.L2Networks() {
+				cfg := l2Net.RollupConfig()
+				l2Net.T().Gate().LessOrEqual(cfg.SeqWindowSize, maxSequencingWindow,
+					"sequencing window of chain %s must fit in max sequencing window size", l2Net.ChainID())
+			}
+		}),
+	)
 }
 
 // WithInteropNotAtGenesis adds a test-gate that checks

@@ -82,6 +82,6 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
 	block, err := el.inner.EthClient().BlockRefByNumber(ctx, num)
-	el.require.NoError(err, "block not found using block label")
+	el.require.NoError(err, "block not found using block number %d", num)
 	return block
 }

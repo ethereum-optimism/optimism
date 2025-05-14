@@ -32,26 +32,28 @@ func (el *elNode) ChainID() eth.ChainID {
 	return el.inner.ChainID()
 }
 
-func (el *elNode) WaitForBlock() {
+func (el *elNode) WaitForBlock() eth.BlockRef {
 	initial, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 	el.require.NoError(err, "Expected to get latest block from execution client")
-
+	initialRef := eth.InfoToL1BlockRef(initial)
+	var newRef eth.BlockRef
 	err = wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
 		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 		if err != nil {
 			return false, err
 		}
 
-		if initial.Hash().Cmp(newBlock.Hash()) == 0 {
-			el.log.Info("Still same block detected as initial", "block", eth.InfoToL1BlockRef(newBlock))
-
+		newRef = eth.InfoToL1BlockRef(newBlock)
+		if initialRef == newRef {
+			el.log.Info("Still same block detected as initial", "block", initialRef)
 			return false, nil
 		}
 
-		el.log.Info("New block detected", "new_block", eth.InfoToL1BlockRef(newBlock), "prev_block", eth.InfoToL1BlockRef(initial))
+		el.log.Info("New block detected", "new_block", newRef, "prev_block", initialRef)
 		return true, nil
 	})
 	el.require.NoError(err, "Expected to get latest block from execution client for comparison")
+	return newRef
 }
 
 func (el *elNode) stackEL() stack.ELNode {

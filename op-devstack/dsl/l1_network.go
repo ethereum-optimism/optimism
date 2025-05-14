@@ -33,6 +33,6 @@ func (n *L1Network) Escape() stack.L1Network {
 	return n.inner
 }
 
-func (n *L1Network) WaitForBlock() {
-	NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForBlock()
+func (n *L1Network) WaitForBlock() eth.BlockRef {
+	return NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForBlock()
 }

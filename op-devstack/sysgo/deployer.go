@@ -219,6 +219,13 @@ func WithInteropAtGenesis() DeployerOption {
 	}
 }
 
+// WithSequencingWindow overrides the number of L1 blocks in a sequencing window, applied to all L2s.
+func WithSequencingWindow(n uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("sequencerWindowSize", uint64(n))
+	}
+}
+
 func (wb *worldBuilder) buildL1Genesis() {
 	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
 	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")

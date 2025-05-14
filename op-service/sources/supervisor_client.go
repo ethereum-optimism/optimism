@@ -71,6 +71,11 @@ func (cl *SupervisorClient) LocalUnsafe(ctx context.Context, chainID eth.ChainID
 	return result, err
 }
 
+func (cl *SupervisorClient) LocalSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error) {
+	err = cl.client.CallContext(ctx, &result, "supervisor_localSafe", chainID)
+	return result, err
+}
+
 func (cl *SupervisorClient) CrossSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error) {
 	err = cl.client.CallContext(ctx, &result, "supervisor_crossSafe", chainID)
 	return result, err

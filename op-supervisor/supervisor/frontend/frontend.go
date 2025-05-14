@@ -31,6 +31,10 @@ func (q *QueryFrontend) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (e
 	return q.Supervisor.LocalUnsafe(ctx, chainID)
 }
 
+func (q *QueryFrontend) LocalSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error) {
+	return q.Supervisor.LocalSafe(ctx, chainID)
+}
+
 func (q *QueryFrontend) CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error) {
 	return q.Supervisor.CrossSafe(ctx, chainID)
 }

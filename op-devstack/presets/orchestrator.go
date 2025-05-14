@@ -106,7 +106,6 @@ func initOrchestrator(ctx context.Context, p devtest.P, opt stack.CommonOption) 
 	if lockedOrchestrator.Value != nil {
 		return
 	}
-
 	backend := backendKindSysGo
 	if override, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR"); ok {
 		backend = backendKind(override)
