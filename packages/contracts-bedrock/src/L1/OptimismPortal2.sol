@@ -231,12 +231,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when trying to migrate to the same AnchorStateRegistry.
     error OptimismPortal_MigratingToSameRegistry();
 
-    /// @notice Reverts when paused.
-    modifier whenNotPaused() {
-        if (paused()) revert OptimismPortal_CallPaused();
-        _;
-    }
-
     /// @notice Semantic version.
     /// @custom:semver 4.4.0
     function version() public pure virtual returns (string memory) {
@@ -399,6 +393,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
     function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
+        // Migration can only be triggered when the system is not paused because the migration can
+        // potentially unpause the system as a result of the modified ETHLockbox address.
+        _assertNotPaused();
+
         // Migration can only be triggered by the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
 
@@ -446,8 +444,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         bytes[] calldata _withdrawalProof
     )
         external
-        whenNotPaused
     {
+        // Cannot prove withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the OptimismPortal is using Super Roots.
         if (!superRootsActive) {
             revert OptimismPortal_WrongProofMethod();
@@ -472,8 +472,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         bytes[] calldata _withdrawalProof
     )
         external
-        whenNotPaused
     {
+        // Cannot prove withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the OptimismPortal is using Output Roots.
         if (superRootsActive) {
             revert OptimismPortal_WrongProofMethod();
@@ -611,7 +613,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Finalizes a withdrawal transaction.
     /// @param _tx Withdrawal transaction to finalize.
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external whenNotPaused {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
@@ -623,8 +625,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         address _proofSubmitter
     )
         public
-        whenNotPaused
     {
+        // Cannot finalize withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
@@ -786,6 +790,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
+    }
+
+    /// @notice Asserts that the contract is not paused.
+    function _assertNotPaused() internal view {
+        if (paused()) {
+            revert OptimismPortal_CallPaused();
+        }
     }
 
     /// @notice Checks if a target address is unsafe.

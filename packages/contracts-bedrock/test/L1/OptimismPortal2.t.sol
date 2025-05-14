@@ -415,6 +415,18 @@ contract OptimismPortal2_Test is CommonTest {
         assertEq(accountAccesses[2].storageAccesses.length, 0);
     }
 
+    /// @notice Tests that `migrateToSuperRoots` reverts when the system is paused.
+    function test_migrateToSuperRoots_paused_reverts() external {
+        vm.startPrank(optimismPortal2.guardian());
+        systemConfig.superchainConfig().pause(address(0));
+        vm.stopPrank();
+
+        address caller = optimismPortal2.proxyAdminOwner();
+        vm.expectRevert(IOptimismPortal.OptimismPortal_CallPaused.selector);
+        vm.prank(caller);
+        optimismPortal2.migrateToSuperRoots(IETHLockbox(address(1)), IAnchorStateRegistry(address(1)));
+    }
+
     /// @dev Tests that `migrateToSuperRoots` reverts if the caller is not the proxy admin owner.
     function testFuzz_migrateToSuperRoots_notProxyAdminOwner_reverts(address _caller) external {
         vm.assume(_caller != optimismPortal2.proxyAdminOwner());
