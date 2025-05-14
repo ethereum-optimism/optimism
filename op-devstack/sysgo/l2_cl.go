@@ -23,6 +23,7 @@ import (
 	nodeSync "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -36,14 +37,15 @@ import (
 type L2CLNode struct {
 	mu sync.Mutex
 
-	id         stack.L2CLNodeID
-	opNode     *opnode.Opnode
-	userRPC    string
-	interopRPC string
-	cfg        *node.Config
-	p          devtest.P
-	logger     log.Logger
-	el         stack.L2ELNodeID
+	id               stack.L2CLNodeID
+	opNode           *opnode.Opnode
+	userRPC          string
+	interopEndpoint  string
+	interopJwtSecret eth.Bytes32
+	cfg              *node.Config
+	p                devtest.P
+	logger           log.Logger
+	el               stack.L2ELNodeID
 }
 
 var _ stack.Lifecycle = (*L2CLNode)(nil)
@@ -55,9 +57,11 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	system.T().Cleanup(rpcCl.Close)
 
 	sysL2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
-		CommonConfig: shim.NewCommonConfig(system.T()),
-		ID:           n.id,
-		Client:       rpcCl,
+		CommonConfig:     shim.NewCommonConfig(system.T()),
+		ID:               n.id,
+		Client:           rpcCl,
+		InteropEndpoint:  n.interopEndpoint,
+		InteropJwtSecret: n.interopJwtSecret,
 	})
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
@@ -93,8 +97,9 @@ func (n *L2CLNode) Start() {
 
 	// store endpoints to reuse when restart
 	n.userRPC = opNode.UserRPC().RPC()
-	interopRPC, _ := opNode.InteropRPC()
-	n.interopRPC = interopRPC
+	interopEndpoint, interopJwtSecret := opNode.InteropRPC()
+	n.interopEndpoint = interopEndpoint
+	n.interopJwtSecret = interopJwtSecret
 	// for p2p endpoints / node keys, they are already persistent, stored at p2p configs
 
 	n.rememberPort()

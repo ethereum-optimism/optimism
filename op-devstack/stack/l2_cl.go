@@ -2,6 +2,7 @@ package stack
 
 import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // L2CLNodeID identifies a L2CLNode by name and chainID, is type-safe, and can be value-copied and used as map key.
@@ -46,6 +47,7 @@ type L2CLNode interface {
 
 	RollupAPI() apis.RollupClient
 	P2PAPI() apis.P2PClient
+	InteropRPC() (endpoint string, jwtSecret eth.Bytes32)
 
 	// ELs returns the engine(s) that this L2CLNode is connected to.
 	// This may be empty, if the L2CL is not connected to any.

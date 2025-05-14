@@ -16,13 +16,15 @@ import (
 
 type Supervisor struct {
 	commonImpl
-	inner stack.Supervisor
+	inner   stack.Supervisor
+	control stack.ControlPlane
 }
 
-func NewSupervisor(inner stack.Supervisor) *Supervisor {
+func NewSupervisor(inner stack.Supervisor, control stack.ControlPlane) *Supervisor {
 	return &Supervisor{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
+		control:    control,
 	}
 }
 
@@ -140,4 +142,18 @@ func (s *Supervisor) AdvancedUnsafeHead(chainID eth.ChainID, block uint64) {
 
 func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, block uint64, attempts int) {
 	s.AdvancedL2Head(chainID, block, types.CrossSafe, attempts)
+}
+
+func (s *Supervisor) Start() {
+	s.control.SupervisorState(s.inner.ID(), stack.Start)
+}
+
+func (s *Supervisor) Stop() {
+	s.control.SupervisorState(s.inner.ID(), stack.Stop)
+}
+
+func (s *Supervisor) AddManagedL2CL(cl *L2CLNode) {
+	interopEndpoint, secret := cl.inner.InteropRPC()
+	err := s.inner.AdminAPI().AddL2RPC(s.ctx, interopEndpoint, secret)
+	s.require.NoError(err, "failed to connect L2CL to supervisor")
 }

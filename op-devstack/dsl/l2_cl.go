@@ -96,6 +96,23 @@ func (cl *L2CLNode) Advanced(lvl types.SafetyLevel, delta uint64, attempts int) 
 	}
 }
 
+func (cl *L2CLNode) DoesNotAdvance(label string, attempts int) CheckFunc {
+	return func() error {
+		initial := cl.HeadBlockRef(label)
+		cl.log.Info("expecting chain not to advance", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", initial.Number)
+		for range attempts {
+			time.Sleep(2 * time.Second)
+			head := cl.HeadBlockRef(label)
+			cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", initial.Number, "current", head.Number)
+			if head.Hash == initial.Hash {
+				continue
+			}
+			return fmt.Errorf("expected head not to advance: %s", label)
+		}
+		return nil
+	}
+}
+
 // Reached returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
@@ -110,6 +127,26 @@ func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) 
 				}
 				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target, "current", head.Number)
 				return fmt.Errorf("expected head to advance: %s", lvl)
+			})
+	}
+}
+
+func (cl *L2CLNode) Rewind(label string, delta uint64, attempts int) CheckFunc {
+	return func() error {
+		initial := cl.HeadBlockRef(label)
+		cl.require.GreaterOrEqual(initial.Number, delta, "cannot rewind before genesis")
+		target := initial.Number - delta
+		cl.log.Info("expecting chain to rewind", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target, "delta", delta)
+		// check rewind more aggressively, in shorter interval
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 500 * time.Millisecond},
+			func() error {
+				head := cl.HeadBlockRef(label)
+				if head.Number <= target {
+					cl.log.Info("chain rewinded", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target)
+					return nil
+				}
+				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target, "current", head.Number)
+				return fmt.Errorf("expected head to rewind: %s", label)
 			})
 	}
 }
