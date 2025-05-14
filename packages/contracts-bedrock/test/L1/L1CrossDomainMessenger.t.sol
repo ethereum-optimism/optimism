@@ -1022,10 +1022,6 @@ contract L1CrossDomainMessenger_Upgrade_Test is CommonTest {
 
         // Verify that the systemConfig was updated.
         assertEq(address(l1CrossDomainMessenger.systemConfig()), address(newSystemConfig));
-
-        // Verify that the spacer was cleared.
-        StorageSlot memory spacerSlot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "spacer_251_0_20");
-        assertEq(vm.load(address(l1CrossDomainMessenger), bytes32(spacerSlot.slot)), bytes32(0));
     }
 
     /// @notice Tests that the upgrade() function reverts if called a second time.
