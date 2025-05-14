@@ -1029,7 +1029,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         );
     }
 
-    /// @notice Tests that the validate function (with the Guardian, L1PAOMultisig and Challenger overriden)
+    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overriden)
     ///         successfully returns no error when there is none. That is, it never returns the overriden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides =
@@ -1045,6 +1045,20 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         );
 
         assertEq("OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER", _validate(true, overrides));
+    }
+
+    /// @notice Tests that the validate function (with overrides)and allow failure set to false, returns the errors with
+    ///         the overrides prepended.
+    function test_validateOverrides_notAllowFailurePrependsOverrides_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides =
+            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+
+        vm.expectRevert(
+            bytes(
+                "StandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-120,PLDG-DWETH-30"
+            )
+        );
+        _validate(false, overrides);
     }
 
     /// @notice Tests that the version getter functions on StandardValidator return non-empty strings.
