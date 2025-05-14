@@ -34,11 +34,13 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the StandardValidator. Far easier
 ///         than the alternative ways of mocking this value since the normal vm.mockCall will cause
 ///         the validation function to revert.
+
 contract BadDisputeGameFactoryReturner {
     /// @notice Address of the StandardValidator instance.
     StandardValidator public immutable validator;
@@ -191,6 +193,17 @@ contract StandardValidator_TestInit is CommonTest {
             // Add the FaultDisputeGame to the DisputeGameFactory.
             vm.prank(disputeGameFactory.owner());
             disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)));
+
+            vm.mockCall(
+                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
+                abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
+                abi.encode(1)
+            );
+            vm.mockCall(
+                address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
+                abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
+                abi.encode(1)
+            );
         }
     }
 
