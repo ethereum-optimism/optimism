@@ -279,12 +279,26 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("PROXYA-10,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true));
     }
 
+    /// @notice Tests that the validate function successfully returns the right overrides error when the
+    ///         ProxyAdmin owner is overriden but is correct.
+    function test_validate_overridenProxyAdminOwner_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xbad);
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.owner, ()),
+            abi.encode(overrides.l1PAOMultisig)
+        );
+        assertEq("OVERRIDES-L1PAOMULTISIG", _validate(true, overrides));
+    }
+
     /// @notice Tests that the validate function (with an overriden ProxyAdmin owner) successfully returns the right
     ///         error when the ProxyAdmin owner is not correct.
     function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
-        assertEq("OVERRIDES_L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, overrides));
+        assertEq("OVERRIDES-L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -731,12 +745,21 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("PDDG-120", _validate(true));
     }
 
+    /// @notice Tests that the validate function successfully returns the right overrides error when the
+    ///         PermissionedDisputeGame challenger is overriden but is correct.
+    function test_validate_overridenPermissionedDisputeGameChallenger_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.challenger = address(0xbad);
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
+        assertEq("OVERRIDES-CHALLENGER", _validate(true, overrides));
+    }
+
     /// @notice Tests that the validate function (with an overriden PermissionedDisputeGame challenger) successfully
     ///         returns the right error when the PermissionedDisputeGame challenger is invalid.
     function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.challenger = address(0xbad);
-        assertEq("OVERRIDES_CHALLENGER,PDDG-120", _validate(true, overrides));
+        assertEq("OVERRIDES-CHALLENGER,PDDG-120", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1005,7 +1028,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         overrides.l1PAOMultisig = address(0xace);
         overrides.challenger = address(0xbad);
         assertEq(
-            "OVERRIDES_L1PAOMULTISIG,OVERRIDES_CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-120,PLDG-DWETH-30",
+            "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-120,PLDG-DWETH-30",
             _validate(true, overrides)
         );
     }
@@ -1028,7 +1051,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
             address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(overrides.challenger)
         );
 
-        assertEq("", _validate(true, overrides));
+        assertEq("OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER", _validate(true, overrides));
     }
 
     /// @notice Tests that the version getter functions on StandardValidator return non-empty strings.

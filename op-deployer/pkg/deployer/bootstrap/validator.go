@@ -40,6 +40,7 @@ type ValidatorConfig struct {
 type ValidatorInput struct {
 	Release                          string         `json:"release"`
 	SuperchainConfig                 common.Address `json:"superchainConfig"`
+	Guardian                         common.Address `json:"guardian"`
 	L1PAOMultisig                    common.Address `json:"l1PAOMultisig"`
 	Challenger                       common.Address `json:"challenger"`
 	SuperchainConfigImpl             common.Address `json:"superchainConfigImpl"`

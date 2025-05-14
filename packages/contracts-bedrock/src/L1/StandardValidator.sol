@@ -25,12 +25,6 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 contract StandardValidator {
-    bytes32 constant OVERRIDES_GUARDIAN_TSTORE_SLOT = 0xea0e499a0ac72eae4682cf24b47990daf76d5744f9e4d3eb78e5846e9505073d; // keccak256("StandardValidator.overrides.guardian");
-    bytes32 constant OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT =
-        0x339f30846cb2cd5e991f9a80fe2341dc2fffe74bb939549b9fbab9242e47245a; // keccak256("StandardValidator.overrides.l1PAOMultisig");
-    bytes32 constant OVERRIDES_CHALLENGER_TSTORE_SLOT =
-        0x44d7b400f8dfb79d5158f5eca2e36d9a7a2e0ca59075c45b3196ebb85445ea6e; // keccak256("StandardValidator.overrides.challenger");
-
     ISuperchainConfig public superchainConfig;
     address public l1PAOMultisig;
     address public challenger;
@@ -75,6 +69,12 @@ contract StandardValidator {
         address challenger;
     }
 
+    enum ValidationOverridesEnum {
+        Guardian,
+        L1PAOMultisig,
+        Challenger
+    }
+
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
@@ -102,37 +102,37 @@ contract StandardValidator {
         mipsImpl = _implementations.mipsImpl;
     }
 
-    function tstoreOverriden(bytes32 _slot) private {
+    function tstoreOverriden(ValidationOverridesEnum _override) private {
         assembly ("memory-safe") {
-            tstore(_slot, 0x01)
+            tstore(_override, 0x01)
         }
     }
 
     function getOverridesString() private view returns (string memory) {
-        string memory overridesError;
-
         bool guardianOverriden;
         bool l1PAOMultisigOverriden;
         bool challengerOverriden;
 
         assembly ("memory-safe") {
-            guardianOverriden := tload(OVERRIDES_GUARDIAN_TSTORE_SLOT)
-            l1PAOMultisigOverriden := tload(OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT)
-            challengerOverriden := tload(OVERRIDES_CHALLENGER_TSTORE_SLOT)
+            guardianOverriden := tload(0x00)
+            l1PAOMultisigOverriden := tload(0x01)
+            challengerOverriden := tload(0x02)
         }
 
+        string memory overridesError;
+
         if (guardianOverriden) {
-            overridesError = string.concat(overridesError, "OVERRIDES_GUARDIAN");
+            overridesError = "OVERRIDES-GUARDIAN";
         }
 
         if (l1PAOMultisigOverriden) {
-            if (bytes(overridesError).length > 0) overridesError = string.concat(overridesError, ",");
-            overridesError = string.concat(overridesError, "OVERRIDES_L1PAOMULTISIG");
+            if (guardianOverriden) overridesError = string.concat(overridesError, ",");
+            overridesError = string.concat(overridesError, "OVERRIDES-L1PAOMULTISIG");
         }
 
         if (challengerOverriden) {
-            if (bytes(overridesError).length > 0) overridesError = string.concat(overridesError, ",");
-            overridesError = string.concat(overridesError, "OVERRIDES_CHALLENGER");
+            if (guardianOverriden || l1PAOMultisigOverriden) overridesError = string.concat(overridesError, ",");
+            overridesError = string.concat(overridesError, "OVERRIDES-CHALLENGER");
         }
 
         return overridesError;
@@ -140,15 +140,15 @@ contract StandardValidator {
 
     function clearOverrides() private {
         assembly ("memory-safe") {
-            tstore(OVERRIDES_GUARDIAN_TSTORE_SLOT, 0x00)
-            tstore(OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT, 0x00)
-            tstore(OVERRIDES_CHALLENGER_TSTORE_SLOT, 0x00)
+            tstore(0x00, 0x00)
+            tstore(0x01, 0x00)
+            tstore(0x02, 0x00)
         }
     }
 
     function expectedGuardian(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.guardian != address(0)) {
-            tstoreOverriden(OVERRIDES_GUARDIAN_TSTORE_SLOT);
+            tstoreOverriden(ValidationOverridesEnum.Guardian);
             return _overrides.guardian;
         }
         return guardian;
@@ -156,7 +156,7 @@ contract StandardValidator {
 
     function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.l1PAOMultisig != address(0)) {
-            tstoreOverriden(OVERRIDES_L1PAOMULTISIG_TSTORE_SLOT);
+            tstoreOverriden(ValidationOverridesEnum.L1PAOMultisig);
             return _overrides.l1PAOMultisig;
         }
         return l1PAOMultisig;
@@ -164,7 +164,7 @@ contract StandardValidator {
 
     function expectedChallenger(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.challenger != address(0)) {
-            tstoreOverriden(OVERRIDES_CHALLENGER_TSTORE_SLOT);
+            tstoreOverriden(ValidationOverridesEnum.Challenger);
             return _overrides.challenger;
         }
         return challenger;
@@ -672,17 +672,26 @@ contract StandardValidator {
         );
 
         string memory overridesString = getOverridesString();
+        string memory finalErrors = _errors;
+
+        // Handle overrides if present
         if (bytes(overridesString).length > 0) {
+            // If we have both overrides and errors, combine them
             if (bytes(_errors).length > 0) {
-                _errors = string.concat(overridesString, ",", _errors);
+                finalErrors = string.concat(overridesString, ",", _errors);
+            } else {
+                // If we only have overrides, use them as the final message
+                finalErrors = overridesString;
             }
+
             clearOverrides();
         }
 
+        // Handle validation failure
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("StandardValidator: ", _errors));
         }
 
-        return _errors;
+        return finalErrors;
     }
 }
