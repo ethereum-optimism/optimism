@@ -70,6 +70,14 @@ func (n *L2Network) WaitForBlock() {
 	NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL)).WaitForBlock()
 }
 
+func (n *L2Network) PublicRPC() *L2ELNode {
+	if proxyds := match.Proxyd.Match(n.Escape().L2ELNodes()); len(proxyds) > 0 {
+		return NewL2ELNode(proxyds[0])
+	}
+	// Fallback since sysgo doesn't have proxyd support at the moment, and may never get it.
+	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL))
+}
+
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests
 func (n *L2Network) PrintChain() {
 	l2_el := n.inner.L2ELNode(match.FirstL2EL)
