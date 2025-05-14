@@ -652,16 +652,16 @@ contract StandardValidator {
                 // If we only have overrides, use them as the final message
                 finalErrors = overridesString;
             }
+
+            // Clear overrides
+            tstoreOverriden(ValidationOverridesEnum.L1PAOMultisig, false);
+            tstoreOverriden(ValidationOverridesEnum.Challenger, false);
         }
 
         // Handle validation failure
         if (bytes(_errors).length > 0 && !_allowFailure) {
             revert(string.concat("StandardValidator: ", finalErrors));
         }
-
-        // Clear overrides
-        tstoreOverriden(ValidationOverridesEnum.L1PAOMultisig, false);
-        tstoreOverriden(ValidationOverridesEnum.Challenger, false);
 
         return finalErrors;
     }
