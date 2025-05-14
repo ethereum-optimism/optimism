@@ -247,6 +247,7 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 				chain.L1Addresses = descriptors.AddressMap(deployment.L1Addresses)
 				chain.Addresses = descriptors.AddressMap(deployment.L2Addresses)
 				chain.Config = deployment.Config
+				chain.RollupConfig = deployment.RollupConfig
 				chain.Wallets = d.getWallets(deployment.L2Wallets)
 				chain.L1Wallets = d.getWallets(deployment.L1Wallets)
 			}

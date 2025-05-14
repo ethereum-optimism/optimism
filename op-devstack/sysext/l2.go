@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -32,16 +31,12 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 			CommonConfig: commonConfig,
 			ChainConfig:  net.Config,
 		},
-		ID: l2ID,
-		RollupConfig: &rollup.Config{
-			L1ChainID: l1.ChainID().ToBig(),
-			L2ChainID: l2ID.ChainID().ToBig(),
-			// TODO this rollup config should be loaded from kurtosis artifacts
-		},
-		Deployment: newL2AddressBook(t, net.L1Addresses),
-		Keys:       o.defineSystemKeys(t),
-		Superchain: system.Superchain(stack.SuperchainID(env.Env.Name)),
-		L1:         l1,
+		ID:           l2ID,
+		RollupConfig: net.RollupConfig,
+		Deployment:   newL2AddressBook(t, net.L1Addresses),
+		Keys:         o.defineSystemKeys(t),
+		Superchain:   system.Superchain(stack.SuperchainID(env.Env.Name)),
+		L1:           l1,
 	}
 	if o.isInterop() {
 		cfg.Cluster = system.Cluster(stack.ClusterID(env.Env.Name))
