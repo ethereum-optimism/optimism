@@ -4,7 +4,7 @@ use http::{HeaderValue, header::AUTHORIZATION};
 use std::{
     iter::once,
     task::{Context, Poll},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tower::{Layer, Service};
 use tower_http::sensitive_headers::{SetSensitiveRequestHeaders, SetSensitiveRequestHeadersLayer};
@@ -75,9 +75,10 @@ pub fn secret_to_bearer_header(secret: &JwtSecret) -> HeaderValue {
         "Bearer {}",
         secret
             .encode(&Claims {
-                iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
-                    + Duration::from_secs(60))
-                .as_secs(),
+                iat: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 exp: None,
             })
             .unwrap()
