@@ -80,4 +80,4 @@ To clean up the devnet, you can run:
 make devnet-down; make devnet-clean
 ```
 
-This will run a local devnet with an unmodified op-geth as the builder and rollup boost. To run the devnet with `op-rbuilder`, checkout the instructions in the [rbuilder repo](https://github.com/flashbots/rbuilder/tree/develop/crates/op-rbuilder#local-devnet).
+This will run a local devnet with an unmodified op-geth as the builder and rollup boost. To run the devnet with `op-rbuilder`, checkout the instructions in the [rbuilder repo](https://github.com/flashbots/op-rbuilder?tab=readme-ov-file#local-devnet).
