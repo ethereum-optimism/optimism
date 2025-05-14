@@ -24,7 +24,6 @@ cargo run -- [OPTIONS]
 - `--log-level <LEVEL>`: Log level (default: info)
 - `--log-format <FORMAT>`: Log format (default: text)
 - `--metrics`: Enable metrics (default: false)
-- `--no-boost-sync`: Disables using the proposer to sync the builder node (default: true)
 - `--debug-host <HOST>`: Host to run the server on (default: 127.0.0.1)
 - `--debug-server-port <PORT>`: Port to run the debug server on (default: 5555)
 
@@ -98,13 +97,6 @@ By default, `rollup-boost` will proxy all RPC calls from the proposer `op-node` 
 - `engine_getPayloadV3`: this is used to get the builder block.
 - `miner_*`: this allows the builder to be aware of changes in effective gas price, extra data, and [DA throttling requests](https://docs.optimism.io/builders/chain-operators/configuration/batcher) from the batcher.
 - `eth_sendRawTransaction*`: this forwards transactions the proposer receives to the builder for block building. This call may not come from the proposer `op-node`, but directly from the rollup's rpc engine.
-
-### Boost Sync
-
-By default, `rollup-boost` will sync the builder with the proposer `op-node`. After the builder is synced, boost sync improves the performance of keeping the builder in sync with the tip of the chainby removing the need to receive chain updates via p2p via the builder `op-node`. This entails additional engine api calls that are multiplexed to the builder from rollup-boost:
-
-- `engine_forkchoiceUpdatedV3`: this call will be multiplexed to the builder regardless of whether the call contains payload attributes or not.
-- `engine_newPayloadV3`: ensures the builder has the latest block if the local payload was used.
 
 ## Debug API
 
