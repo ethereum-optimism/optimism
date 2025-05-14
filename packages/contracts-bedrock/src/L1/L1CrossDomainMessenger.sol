@@ -36,8 +36,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ProxyAdminOwnedBase, Re
     address private spacer_253_0_20;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.8.0
-    string public constant version = "2.8.0";
+    /// @custom:semver 2.9.0
+    string public constant version = "2.9.0";
 
     /// @notice Contract of the SystemConfig.
     ISystemConfig public systemConfig;

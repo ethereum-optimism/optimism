@@ -322,6 +322,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "identifier",
+        "type": "address"
+      }
+    ],
+    "name": "SuperchainConfig_NotAlreadyPaused",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "SuperchainConfig_OnlyGuardian",
     "type": "error"

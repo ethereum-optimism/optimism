@@ -789,11 +789,6 @@
         "internalType": "contract IETHLockbox",
         "name": "_ethLockbox",
         "type": "address"
-      },
-      {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
-        "type": "address"
       }
     ],
     "name": "upgrade",
