@@ -672,7 +672,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "AnchorStateRegistry-SOT"
+                        _contractName: "AnchorStateRegistry-U16"
                     })
                 );
 
@@ -714,7 +714,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "ETHLockbox"
+                        _contractName: "ETHLockbox-U16"
                     })
                 );
 
