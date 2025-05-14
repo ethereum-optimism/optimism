@@ -33,11 +33,11 @@ func (el *elNode) ChainID() eth.ChainID {
 }
 
 func (el *elNode) WaitForBlock() {
-	initial, err := el.inner.EthClient().InfoByLabel(el.ctx, "latest")
+	initial, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 	el.require.NoError(err, "Expected to get latest block from execution client")
 
 	err = wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
-		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, "latest")
+		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 		if err != nil {
 			return false, err
 		}
