@@ -74,8 +74,11 @@ func (n *L2Network) WaitForBlock() eth.BlockRef {
 
 func (n *L2Network) PublicRPC() *L2ELNode {
 	if proxyds := match.Proxyd.Match(n.Escape().L2ELNodes()); len(proxyds) > 0 {
+		n.log.Info("PublicRPC - Using proxyd", "network", n.String())
 		return NewL2ELNode(proxyds[0])
 	}
+
+	n.log.Info("PublicRPC - Using fallback instead of proxyd", "network", n.String())
 	// Fallback since sysgo doesn't have proxyd support at the moment, and may never get it.
 	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL))
 }
@@ -85,22 +88,45 @@ func (n *L2Network) PrintChain() {
 	l2_el := n.inner.L2ELNode(match.FirstL2EL)
 	l2_cl := n.inner.L2CLNode(match.FirstL2CL)
 
-	unsafeHeadRef := n.UnsafeHeadRef()
+	l1_el := n.inner.L1().L1ELNode(match.FirstL1EL)
+
+	biAddr := n.inner.RollupConfig().BatchInboxAddress
+	dgfAddr := n.inner.Deployment().DisputeGameFactoryProxyAddr()
+
+	ref := n.unsafeHeadRef()
 
 	var entries []string
-	for i := unsafeHeadRef.Number; i > 0; i-- {
-		ref, err := l2_el.EthClient().BlockRefByNumber(n.ctx, i)
-		n.require.NoError(err, "Expected to get block ref by number")
-
-		l2blockref, err := l2_el.L2EthClient().L2BlockRefByHash(n.ctx, ref.Hash)
+	totalL2Txs := 0
+	for i := ref.Number; i > 0; i-- {
+		ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
 		n.require.NoError(err, "Expected to get block ref by hash")
 
-		entries = append(entries, fmt.Sprintln("Time: ", ref.Time, "Number: ", ref.Number, "Hash: ", ref.Hash.Hex(), "Parent: ", ref.ParentID().Hash.Hex(), "L1 Origin: ", l2blockref.L1Origin))
+		_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
+		n.require.NoError(err, "Expected to get block ref by hash")
+
+		_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
+		n.require.NoError(err, "Expected to get info and txs by hash from L1")
+
+		var batchTxs, dgfTxs int
+		for _, tx := range txs {
+			to := tx.To()
+			if to != nil && *to == biAddr {
+				batchTxs++
+			}
+			if to != nil && *to == dgfAddr {
+				dgfTxs++
+			}
+		}
+
+		entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
+		totalL2Txs += len(l2Txs)
 	}
 
 	syncStatus, err := l2_cl.RollupAPI().SyncStatus(n.ctx)
 	n.require.NoError(err, "Expected to get sync status")
 
+	entries = append(entries, "")
+	entries = append(entries, fmt.Sprintf("Total L2 Txs: %d", totalL2Txs))
 	entries = append(entries, "")
 	entries = append(entries, "Supervisor Sync view")
 	entries = append(entries, "")
@@ -116,13 +142,13 @@ func (n *L2Network) PrintChain() {
 	spew.Dump(entries)
 }
 
-func (n *L2Network) UnsafeHeadRef() eth.BlockRef {
+func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
 	l2_el := n.inner.L2ELNode(match.FirstL2EL)
 
 	unsafeHead, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
 	n.require.NoError(err, "Expected to get latest block from L2 execution client")
 
-	unsafeHeadRef, err := l2_el.EthClient().BlockRefByHash(n.ctx, unsafeHead.Hash())
+	unsafeHeadRef, err := l2_el.L2EthClient().L2BlockRefByHash(n.ctx, unsafeHead.Hash())
 	n.require.NoError(err, "Expected to get block ref by hash")
 
 	return unsafeHeadRef

@@ -27,6 +27,7 @@ var _ stack.L2ELNode = (*rpcL2ELNode)(nil)
 func NewL2ELNode(cfg L2ELNodeConfig) stack.L2ELNode {
 	require.Equal(cfg.T, cfg.ID.ChainID(), cfg.ELNodeConfig.ChainID, "chainID must be configured to match node chainID")
 	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
+	require.NotNil(cfg.T, cfg.RollupCfg, "rollup config must be configured")
 	l2Client, err := sources.NewL2Client(cfg.ELNodeConfig.Client, cfg.T.Logger(), nil, sources.L2ClientSimpleConfig(cfg.RollupCfg, false, 10, 10))
 	require.NoError(cfg.T, err)
 

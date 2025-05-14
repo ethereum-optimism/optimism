@@ -49,5 +49,5 @@ type TestSequencer interface {
 
 	AdminAPI() apis.TestSequencerAdminAPI
 	BuildAPI() apis.TestSequencerBuildAPI
-	IndividualAPI(chainID eth.ChainID) apis.TestSequencerIndividualAPI
+	ControlAPI(chainID eth.ChainID) apis.TestSequencerControlAPI
 }

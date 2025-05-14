@@ -65,7 +65,7 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 		log:               log.Root(), // geth logger is global anyway. Would be nice to replace with a local logger though.
 		blockTime:         blockTime,
 		finalizedDistance: finalizedDistance,
-		safeDistance:      4,
+		safeDistance:      10,
 		engineAPI:         catalyst.NewConsensusAPI(gethInstance.Backend),
 		beacon:            beaconSrv,
 	}

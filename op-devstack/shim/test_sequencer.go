@@ -10,18 +10,18 @@ import (
 
 type TestSequencerConfig struct {
 	CommonConfig
-	ID                 stack.TestSequencerID
-	Client             client.RPC
-	L2SequencerClients map[eth.ChainID]client.RPC
+	ID             stack.TestSequencerID
+	Client         client.RPC
+	ControlClients map[eth.ChainID]client.RPC
 }
 
 type rpcTestSequencer struct {
 	commonImpl
 	id stack.TestSequencerID
 
-	client       client.RPC
-	api          apis.TestSequencerAPI
-	l2sequencers map[eth.ChainID]apis.TestSequencerIndividualAPI
+	client   client.RPC
+	api      apis.TestSequencerAPI
+	controls map[eth.ChainID]apis.TestSequencerControlAPI
 }
 
 var _ stack.TestSequencer = (*rpcTestSequencer)(nil)
@@ -35,9 +35,9 @@ func NewTestSequencer(cfg TestSequencerConfig) stack.TestSequencer {
 		api:        sources.NewBuilderClient(cfg.Client),
 	}
 
-	s.l2sequencers = make(map[eth.ChainID]apis.TestSequencerIndividualAPI)
-	for k, v := range cfg.L2SequencerClients {
-		s.l2sequencers[k] = sources.NewIndividualClient(v)
+	s.controls = make(map[eth.ChainID]apis.TestSequencerControlAPI)
+	for k, v := range cfg.ControlClients {
+		s.controls[k] = sources.NewControlClient(v)
 	}
 	return s
 }
@@ -54,6 +54,6 @@ func (r *rpcTestSequencer) BuildAPI() apis.TestSequencerBuildAPI {
 	return r.api
 }
 
-func (r *rpcTestSequencer) IndividualAPI(chainID eth.ChainID) apis.TestSequencerIndividualAPI {
-	return r.l2sequencers[chainID]
+func (r *rpcTestSequencer) ControlAPI(chainID eth.ChainID) apis.TestSequencerControlAPI {
+	return r.controls[chainID]
 }

@@ -29,7 +29,7 @@ type TestSequencerAdminAPI interface {
 	Stop(ctx context.Context) error
 }
 
-type TestSequencerIndividualAPI interface {
+type TestSequencerControlAPI interface {
 	BuildJob() (seqtypes.BuildJobID, error)
 	Commit(ctx context.Context) error
 	IncludeTx(ctx context.Context, tx hexutil.Bytes) error

@@ -121,7 +121,8 @@ func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stac
 				Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
 				ChainID:      l2ID.ChainID(),
 			},
-			ID: stack.NewL2ELNodeID(instance.Name, l2ID.ChainID()),
+			RollupCfg: l2Net.RollupConfig(),
+			ID:        stack.NewL2ELNodeID(instance.Name, l2ID.ChainID()),
 		})
 		l2Proxyd.SetLabel(match.LabelVendor, string(match.Proxyd))
 		l2Net.AddL2ELNode(l2Proxyd)

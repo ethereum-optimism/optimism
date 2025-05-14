@@ -53,7 +53,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	sys := presets.NewSimpleInterop(t)
 	l := sys.Log
 
-	ia := sys.TestSequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2ChainA.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
@@ -173,7 +173,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	var originalParentHash_A common.Hash
 	// sequence a second block with op-test-sequencer
 	{
-		currentUnsafeRef := sys.L2ChainA.UnsafeHeadRef()
+		currentUnsafeRef := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
 
 		l.Info("Unsafe head after invalid exec msg has been included in chain A", "chain", sys.L2ChainA.ChainID(), "unsafeHead", currentUnsafeRef, "parent", currentUnsafeRef.ParentID())
 

@@ -30,7 +30,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	l := sys.Log
 
-	ia := sys.TestSequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2ChainA.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
@@ -164,10 +164,10 @@ func TestReorgInitExecMsg(gt *testing.T) {
 
 	// sequence a second block with op-test-sequencer
 	{
-		currentUnsafeRef := sys.L2ChainA.UnsafeHeadRef()
-		l.Info("Current unsafe ref", "unsafeHead", currentUnsafeRef)
+		unsafe := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+		l.Info("Current unsafe ref", "unsafeHead", unsafe)
 		err := ia.New(ctx, seqtypes.BuildOpts{
-			Parent:   currentUnsafeRef.Hash,
+			Parent:   unsafe.Hash,
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")

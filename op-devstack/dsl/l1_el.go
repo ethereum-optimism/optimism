@@ -1,6 +1,7 @@
 package dsl
 
 import (
+	"context"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -47,4 +48,20 @@ func (el *L1ELNode) EstimateBlockTime() time.Duration {
 	deltaTime := latest.Time - lowerBlock.Time
 	deltaNum := latest.Number - lowerBlock.Number
 	return time.Duration(deltaTime) * time.Second / time.Duration(deltaNum)
+}
+
+func (el *L1ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L1BlockRef {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	block, err := el.inner.EthClient().BlockRefByLabel(ctx, label)
+	el.require.NoError(err, "block not found using block label")
+	return block
+}
+
+func (el *L1ELNode) BlockRefByNumber(number uint64) eth.L1BlockRef {
+	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
+	defer cancel()
+	block, err := el.inner.EthClient().BlockRefByNumber(ctx, number)
+	el.require.NoError(err, "block not found using block number %d", number)
+	return block
 }

@@ -64,7 +64,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 		require.True(ok, "L1 network must exist")
 
 		blockTimeL1 := l1Net.blockTime
-		l1FinalizedDistance := uint64(3)
+		l1FinalizedDistance := uint64(20)
 		l1Clock := clock.SystemClock
 		if orch.timeTravelClock != nil {
 			l1Clock = orch.timeTravelClock

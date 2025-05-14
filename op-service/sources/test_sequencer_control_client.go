@@ -12,19 +12,19 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-type IndividualClient struct {
+type ControlClient struct {
 	client client.RPC
 }
 
-var _ apis.TestSequencerIndividualAPI = (*IndividualClient)(nil)
+var _ apis.TestSequencerControlAPI = (*ControlClient)(nil)
 
-func NewIndividualClient(client client.RPC) *IndividualClient {
-	return &IndividualClient{
+func NewControlClient(client client.RPC) *ControlClient {
+	return &ControlClient{
 		client: client,
 	}
 }
 
-func (sc *IndividualClient) BuildJob() (result seqtypes.BuildJobID, err error) {
+func (sc *ControlClient) BuildJob() (result seqtypes.BuildJobID, err error) {
 	err = sc.client.CallContext(context.Background(), &result, "sequencer_buildJob")
 	if err != nil {
 		return result, fmt.Errorf("failed to build job for individual sequencer: %w", err)
@@ -32,12 +32,12 @@ func (sc *IndividualClient) BuildJob() (result seqtypes.BuildJobID, err error) {
 	return
 }
 
-func (sc *IndividualClient) Stop(ctx context.Context) (result common.Hash, err error) {
+func (sc *ControlClient) Stop(ctx context.Context) (result common.Hash, err error) {
 	err = sc.client.CallContext(ctx, &result, "sequencer_stop")
 	return result, err
 }
 
-func (sc *IndividualClient) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
+func (sc *ControlClient) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
 	err := sc.client.CallContext(ctx, nil, "sequencer_includeTx", tx)
 	if err != nil {
 		return fmt.Errorf("failed to include tx for Individual Sequencer: %w", err)
@@ -45,7 +45,7 @@ func (sc *IndividualClient) IncludeTx(ctx context.Context, tx hexutil.Bytes) err
 	return nil
 }
 
-func (sc *IndividualClient) Start(ctx context.Context, head common.Hash) error {
+func (sc *ControlClient) Start(ctx context.Context, head common.Hash) error {
 	err := sc.client.CallContext(ctx, nil, "sequencer_start", head)
 	if err != nil {
 		return fmt.Errorf("failed to start Individual Sequencer: %w", err)
@@ -53,34 +53,34 @@ func (sc *IndividualClient) Start(ctx context.Context, head common.Hash) error {
 	return nil
 }
 
-func (sc *IndividualClient) PrebuiltEnvelope(ctx context.Context, block *eth.ExecutionPayloadEnvelope) error {
+func (sc *ControlClient) PrebuiltEnvelope(ctx context.Context, block *eth.ExecutionPayloadEnvelope) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_prebuiltEnvelope", block)
 }
 
-func (sc *IndividualClient) Commit(ctx context.Context) error {
+func (sc *ControlClient) Commit(ctx context.Context) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_commit")
 }
 
-func (sc *IndividualClient) New(ctx context.Context, opts seqtypes.BuildOpts) error {
+func (sc *ControlClient) New(ctx context.Context, opts seqtypes.BuildOpts) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_new", opts)
 }
 
-func (sc *IndividualClient) Open(ctx context.Context) error {
+func (sc *ControlClient) Open(ctx context.Context) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_open")
 }
 
-func (sc *IndividualClient) Next(ctx context.Context) error {
+func (sc *ControlClient) Next(ctx context.Context) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_next")
 }
 
-func (sc *IndividualClient) Publish(ctx context.Context) error {
+func (sc *ControlClient) Publish(ctx context.Context) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_publish")
 }
 
-func (sc *IndividualClient) Seal(ctx context.Context) error {
+func (sc *ControlClient) Seal(ctx context.Context) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_seal")
 }
 
-func (sc *IndividualClient) Sign(ctx context.Context) error {
+func (sc *ControlClient) Sign(ctx context.Context) error {
 	return sc.client.CallContext(ctx, nil, "sequencer_sign")
 }

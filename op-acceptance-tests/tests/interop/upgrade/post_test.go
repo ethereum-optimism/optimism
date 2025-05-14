@@ -120,8 +120,8 @@ func testSupervisorSafetyProgression(t devtest.T, sys *presets.SimpleInterop) {
 		sys.L2CLA.AdvancedFn(stypes.CrossUnsafe, delta, 30),
 		sys.L2CLB.AdvancedFn(stypes.CrossUnsafe, delta, 30),
 
-		sys.L2CLA.AdvancedFn(stypes.CrossSafe, delta, 30),
-		sys.L2CLB.AdvancedFn(stypes.CrossSafe, delta, 30),
+		sys.L2CLA.AdvancedFn(stypes.CrossSafe, delta, 60),
+		sys.L2CLB.AdvancedFn(stypes.CrossSafe, delta, 60),
 	)
 
 	logger.Info("Supervisor safety progression validation completed successfully")

@@ -34,10 +34,10 @@ func (el *L2ELNode) Escape() stack.L2ELNode {
 	return el.inner
 }
 
-func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.BlockRef {
+func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.EthClient().BlockRefByLabel(ctx, label)
+	block, err := el.inner.L2EthClient().L2BlockRefByLabel(ctx, label)
 	el.require.NoError(err, "block not found using block label")
 	return block
 }
@@ -79,10 +79,10 @@ func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel) CheckFunc {
 	}
 }
 
-func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
+func (el *L2ELNode) BlockRefByNumber(num uint64) eth.L2BlockRef {
 	ctx, cancel := context.WithTimeout(el.ctx, DefaultTimeout)
 	defer cancel()
-	block, err := el.inner.EthClient().BlockRefByNumber(ctx, num)
+	block, err := el.inner.L2EthClient().L2BlockRefByNumber(ctx, num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
 }
