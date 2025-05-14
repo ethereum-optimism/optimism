@@ -352,7 +352,7 @@ contract StandardValidator {
         bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
         _errors = internalRequire(_anchorRoot != bytes32(0), "PDDG-130", _errors);
 
-        if (_anchorRoot == bytes32(0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead)) {
+        if (_anchorRoot == bytes32(hex"dead")) {
             _errors = internalRequire(_game.l2SequenceNumber() == 0, "PDDG-140", _errors);
         } else {
             _errors = internalRequire(_game.l2SequenceNumber() != 0, "PDDG-150", _errors);
@@ -388,12 +388,7 @@ contract StandardValidator {
 
         (Hash anchorRoot,) = _game.anchorStateRegistry().getAnchorRoot();
         bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
-        _errors = internalRequire(
-            _anchorRoot != bytes32(0)
-                && _anchorRoot != bytes32(0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead),
-            "PLDG-130",
-            _errors
-        );
+        _errors = internalRequire(_anchorRoot != bytes32(0) && _anchorRoot != bytes32(hex"dead"), "PLDG-130", _errors);
         _errors = internalRequire(_game.l2SequenceNumber() != 0, "PLDG-140", _errors);
 
         return _errors;
