@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -31,7 +32,7 @@ import (
 func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	sys := RedundancyInterop(t)
+	sys := presets.NewRedundancyInterop(t)
 	logger := sys.Log.With("Test", "TestUnsafeChainKnownToL2CL")
 	require := sys.T.Require()
 

@@ -124,17 +124,8 @@ type RedundancyInterop struct {
 	L2CLA2 *dsl.L2CLNode
 }
 
-// startInProcessRedundancyInterop starts a new system that meets the simple interop criteria
-func startInProcessRedundancyInterop() stack.Option[*sysgo.Orchestrator] {
-	var ids sysgo.DefaultRedundancyInteropSystemIDs
-	return sysgo.DefaultRedundancyInteropSystem(&ids)
-}
-
-func ConfigureRedundancyInterop() stack.CommonOption {
-	if globalBackend == SysGo {
-		return stack.MakeCommon(startInProcessRedundancyInterop())
-	}
-	return nil
+func WithRedundancyInterop() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultRedundancyInteropSystem(&sysgo.DefaultRedundancyInteropSystemIDs{}))
 }
 
 func NewRedundancyInterop(t devtest.T) *RedundancyInterop {
