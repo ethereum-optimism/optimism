@@ -16,6 +16,7 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 /// @dev WARNING: This contract is ONLY designed to be used with either the Optimism Proxy
 ///      implementation or the Optimism ResolvedDelegateProxy implementation. It is not safe to use
 ///      this contract with any other proxy implementation.
+///      WARNING: Multiple OP Stack chains may share the same ProxyAdmin owner address.
 abstract contract ProxyAdminOwnedBase {
     /// @notice Thrown when the ProxyAdmin owner of the current contract is not the same as the
     ///         ProxyAdmin owner of the other Proxy address provided.

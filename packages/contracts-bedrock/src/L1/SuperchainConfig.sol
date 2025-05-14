@@ -159,7 +159,7 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @notice Checks if the system is currently paused for a specific identifier.
     /// @param _identifier The address identifier to check.
     /// @return True if the system is paused for this identifier and not expired.
-    function paused(address _identifier) public view returns (bool) {
+    function paused(address _identifier) external view returns (bool) {
         uint256 timestamp = pauseTimestamps[_identifier];
         if (timestamp == 0) return false;
         return block.timestamp < timestamp + PAUSE_EXPIRY;

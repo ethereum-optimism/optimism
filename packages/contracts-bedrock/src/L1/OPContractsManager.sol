@@ -1917,7 +1917,8 @@ contract OPContractsManager is ISemver {
         _performDelegateCall(address(opcmGameTypeAdder), data);
     }
 
-    /// @notice Migrates the Optimism contracts to the latest version. This is a stub for now.
+    /// @notice Migrates the Optimism contracts to the latest version.
+    /// @param _input Input parameters for the migration.
     function migrate(OPContractsManagerInteropMigrator.MigrateInput calldata _input) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 

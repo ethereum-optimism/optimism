@@ -146,7 +146,7 @@ contract DeputyPauseModule is ISemver, EIP712 {
         _setDeputy(_deputy, _deputySignature);
     }
 
-    /// @notice Calls the Foundation Safe's `execTransactionFromModuleReturnData()` function with
+    /// @notice Calls the Guardian Safe's `execTransactionFromModuleReturnData()` function with
     ///         the arguments necessary to call `pause()` on the SuperchainConfig.
     ///         Front-running this function is completely safe, it'll pause either way.
     /// @param _nonce Signature nonce.

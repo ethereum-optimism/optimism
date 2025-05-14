@@ -307,13 +307,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
+    function superchainConfig() external view returns (ISuperchainConfig) {
         return systemConfig.superchainConfig();
     }
 
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
-    function guardian() public view returns (address) {
+    function guardian() external view returns (address) {
         return systemConfig.guardian();
     }
 
@@ -672,8 +672,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
 
-        // Send ETH back to the Lockbox or it'll get stuck here.
-        if (!success) {
+        // Send ETH back to the Lockbox or it'll get stuck here and would need to be moved back via
+        // the migrateLiquidity function.
+        if (!success && _tx.value > 0) {
             ethLockbox.lockETH{ value: _tx.value }();
         }
 
