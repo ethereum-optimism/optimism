@@ -97,9 +97,9 @@ contract StandardValidator {
         mipsImpl = _implementations.mipsImpl;
     }
 
-    function tstoreOverriden(ValidationOverridesEnum _override) private {
+    function tstoreOverriden(ValidationOverridesEnum _override, bool _value) private {
         assembly ("memory-safe") {
-            tstore(_override, 0x01)
+            tstore(_override, _value)
         }
     }
 
@@ -126,16 +126,9 @@ contract StandardValidator {
         return overridesError;
     }
 
-    function clearOverrides() private {
-        assembly ("memory-safe") {
-            tstore(0x00, 0x00)
-            tstore(0x01, 0x00)
-        }
-    }
-
     function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.l1PAOMultisig != address(0)) {
-            tstoreOverriden(ValidationOverridesEnum.L1PAOMultisig);
+            tstoreOverriden(ValidationOverridesEnum.L1PAOMultisig, true);
             return _overrides.l1PAOMultisig;
         }
         return l1PAOMultisig;
@@ -143,7 +136,7 @@ contract StandardValidator {
 
     function expectedChallenger(ValidationOverrides memory _overrides) internal returns (address) {
         if (_overrides.challenger != address(0)) {
-            tstoreOverriden(ValidationOverridesEnum.Challenger);
+            tstoreOverriden(ValidationOverridesEnum.Challenger, true);
             return _overrides.challenger;
         }
         return challenger;
@@ -660,7 +653,9 @@ contract StandardValidator {
                 finalErrors = overridesString;
             }
 
-            clearOverrides();
+            // Clear overrides
+            tstoreOverriden(ValidationOverridesEnum.L1PAOMultisig, false);
+            tstoreOverriden(ValidationOverridesEnum.Challenger, false);
         }
 
         // Handle validation failure
