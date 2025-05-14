@@ -200,18 +200,18 @@ contract StandardValidator_TestInit is CommonTest {
             // Add the FaultDisputeGame to the DisputeGameFactory.
             vm.prank(disputeGameFactory.owner());
             disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)));
-
-            vm.mockCall(
-                address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
-                abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-                abi.encode(1)
-            );
-            vm.mockCall(
-                address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
-                abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-                abi.encode(1)
-            );
         }
+
+        vm.mockCall(
+            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
+            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
+            abi.encode(1)
+        );
+        vm.mockCall(
+            address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
+            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
+            abi.encode(1)
+        );
     }
 
     /// @notice Runs the StandardValidator.validate function.
