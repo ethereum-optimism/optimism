@@ -66,6 +66,7 @@ where
     type ExecutionPayloadEnvelopeV2 = ExecutionPayloadEnvelopeV2;
     type ExecutionPayloadEnvelopeV3 = OpExecutionPayloadEnvelopeV3;
     type ExecutionPayloadEnvelopeV4 = OpExecutionPayloadEnvelopeV4;
+    type ExecutionPayloadEnvelopeV5 = OpExecutionPayloadEnvelopeV4;
 }
 
 /// Validator for Optimism engine API.
@@ -234,7 +235,10 @@ pub fn validate_withdrawals_presence(
                     .to_error(VersionSpecificValidationError::NoWithdrawalsPostShanghai))
             }
         }
-        EngineApiMessageVersion::V2 | EngineApiMessageVersion::V3 | EngineApiMessageVersion::V4 => {
+        EngineApiMessageVersion::V2 |
+        EngineApiMessageVersion::V3 |
+        EngineApiMessageVersion::V4 |
+        EngineApiMessageVersion::V5 => {
             if is_shanghai && !has_withdrawals {
                 return Err(message_validation_kind
                     .to_error(VersionSpecificValidationError::NoWithdrawalsPostShanghai))
