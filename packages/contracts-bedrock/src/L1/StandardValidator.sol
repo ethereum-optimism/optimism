@@ -6,6 +6,7 @@ import { GameType, Claim, GameTypes } from "src/dispute/lib/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -347,6 +348,16 @@ contract StandardValidator {
         );
         _errors = internalRequire(_game.challenger() == challenger, "PDDG-120", _errors);
 
+        (Hash anchorRoot,) = _game.anchorStateRegistry().getAnchorRoot();
+        bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
+        _errors = internalRequire(_anchorRoot != bytes32(0), "PDDG-130", _errors);
+
+        if (_anchorRoot == bytes32(0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead)) {
+            _errors = internalRequire(_game.l2SequenceNumber() == 0, "PDDG-140", _errors);
+        } else {
+            _errors = internalRequire(_game.l2SequenceNumber() != 0, "PDDG-150", _errors);
+        }
+
         return _errors;
     }
 
@@ -374,6 +385,16 @@ contract StandardValidator {
         _errors = assertValidDisputeGame(
             _errors, _sysCfg, _game, _factory, _absolutePrestate, _l2ChainID, _admin, GameTypes.CANNON, "PLDG"
         );
+
+        (Hash anchorRoot,) = _game.anchorStateRegistry().getAnchorRoot();
+        bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
+        _errors = internalRequire(
+            _anchorRoot != bytes32(0)
+                || _anchorRoot != bytes32(0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead),
+            "PLDG-130",
+            _errors
+        );
+        _errors = internalRequire(_game.l2SequenceNumber() != 0, "PLDG-140", _errors);
 
         return _errors;
     }
