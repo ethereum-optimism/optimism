@@ -100,6 +100,9 @@ func (db *ChainsDB) UpdateLocalSafe(chain eth.ChainID, source eth.BlockRef, last
 }
 
 func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.BlockRef, lastDerived eth.BlockRef, nodeId string) {
+	// TODO: remove notion of anchor block
+	// if first interop activation block is seen, it's set as cross-(un)safe block
+	// pre-interop, don't emit UpdateLocalSafeFailedEvent
 	logger := db.logger.New("chain", chain, "source", source, "lastDerived", lastDerived)
 	localDB, ok := db.localDBs.Get(chain)
 	if !ok {
@@ -229,11 +232,16 @@ func (db *ChainsDB) onFinalizedL1(finalized eth.BlockRef) {
 	db.logger.Info("Updated finalized L1", "finalizedL1", finalized)
 	db.finalizedL1.Unlock()
 
+	// TODO: There seems to be no consumer of this event?
 	db.emitter.Emit(superevents.FinalizedL1UpdateEvent{
 		FinalizedL1: finalized,
 	})
 	// whenever the L1 Finalized changes, the L2 Finalized may change, notify subscribers
 	for _, chain := range db.depSet.Chains() {
+		if !db.isInitialized(chain) {
+			continue
+		}
+
 		fin, err := db.Finalized(chain)
 		if err != nil {
 			db.logger.Warn("Unable to determine finalized L2 block", "chain", chain, "l1Finalized", finalized)

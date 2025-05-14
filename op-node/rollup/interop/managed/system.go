@@ -54,6 +54,7 @@ type ManagedMode struct {
 }
 
 func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *ManagedMode {
+	log = log.With("mode", "managed", "chainId", cfg.L2ChainID)
 	out := &ManagedMode{
 		log:       log,
 		cfg:       cfg,
@@ -113,21 +114,34 @@ func (m *ManagedMode) AttachEmitter(em event.Emitter) {
 	m.emitter = em
 }
 
+// Outgoing events to supervisor
 func (m *ManagedMode) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		msg := x.Err.Error()
 		m.events.Send(&supervisortypes.ManagedEvent{Reset: &msg})
 	case engine.UnsafeUpdateEvent:
+		if !m.cfg.IsInterop(x.Ref.Time) {
+			m.log.Debug("Ignoring non-Interop local unsafe update", "unsafe", x.Ref)
+			return false
+		}
 		ref := x.Ref.BlockRef()
 		m.events.Send(&supervisortypes.ManagedEvent{UnsafeBlock: &ref})
 	case engine.LocalSafeUpdateEvent:
+		if !m.cfg.IsInterop(x.Ref.Time) {
+			m.log.Debug("Ignoring non-Interop local safe update", "derivedFrom", x.Source, "derived", x.Ref)
+			return false
+		}
 		m.log.Info("Emitting local safe update because of L2 block", "derivedFrom", x.Source, "derived", x.Ref)
 		m.events.Send(&supervisortypes.ManagedEvent{DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
 			Source:  x.Source,
 			Derived: x.Ref.BlockRef(),
 		}})
 	case derive.DeriverL1StatusEvent:
+		if !m.cfg.IsInterop(x.LastL2.Time) {
+			m.log.Debug("Ignoring non-Interop L1 traversal", "origin", x.Origin, "lastL2", x.LastL2)
+			return false
+		}
 		m.log.Info("Emitting local safe update because of L1 traversal", "derivedFrom", x.Origin, "derived", x.LastL2)
 		m.events.Send(&supervisortypes.ManagedEvent{
 			DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
@@ -258,7 +272,10 @@ const (
 	InternalErrorRPCErrcode    = -32603
 	BlockNotFoundRPCErrCode    = -39001
 	ConflictingBlockRPCErrCode = -39002
+	InteropInactiveRPCErrCode  = -39003
 )
+
+// TODO: add ResetPreInterop, called by supervisor if bisection went pre-Interop. Emit ResetEngineRequestEvent.
 
 func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error {
 	logger := m.log.New(

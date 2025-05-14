@@ -7,6 +7,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 
@@ -39,9 +40,11 @@ func NewRPCSyncNode(name string, cl client.RPC, opts []client.RPCOption, logger 
 	}
 }
 
-var _ SyncSource = (*RPCSyncNode)(nil)
-var _ SyncControl = (*RPCSyncNode)(nil)
-var _ SyncNode = (*RPCSyncNode)(nil)
+var (
+	_ SyncSource  = (*RPCSyncNode)(nil)
+	_ SyncControl = (*RPCSyncNode)(nil)
+	_ SyncNode    = (*RPCSyncNode)(nil)
+)
 
 func (rs *RPCSyncNode) ReconnectRPC(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
@@ -156,8 +159,15 @@ func (rs *RPCSyncNode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error
 }
 
 func (rs *RPCSyncNode) AnchorPoint(ctx context.Context) (types.DerivedBlockRefPair, error) {
-	var out types.DerivedBlockRefPair
+	var (
+		out     types.DerivedBlockRefPair
+		jsonErr gethrpc.Error
+	)
 	err := rs.cl.CallContext(ctx, &out, "interop_anchorPoint")
+	// Translate an interop-inactive error into a ErrFuture.
+	if errors.As(err, &jsonErr) && jsonErr.ErrorCode() == managed.InteropInactiveRPCErrCode {
+		return types.DerivedBlockRefPair{}, types.ErrFuture
+	}
 	return out, err
 }
 

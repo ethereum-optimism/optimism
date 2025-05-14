@@ -183,6 +183,8 @@ func (t *resetTracker) bisect() error {
 		t.managed.log.Debug("midpoint of range is consistent. pushing up start of range", "i", i)
 		t.a = nodeI
 	}
+	// TODO: need additional logic to handle bottoming out
+	// need to explicitly track that we bottomed out, so PreInteropReset rpc is called
 	return nil
 }
 

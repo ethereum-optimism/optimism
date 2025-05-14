@@ -160,11 +160,24 @@ func (db *ChainsDB) AttachEmitter(em event.Emitter) {
 
 func (db *ChainsDB) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
+	case superevents.LocalUnsafeReceivedEvent:
+		if db.depSet.IsInterop(x.ChainID, x.NewLocalUnsafe.Time) && !db.isInitialized(x.ChainID) {
+			db.logger.Info("Querying anchorpoint to initialize DB",
+				"chain", x.ChainID, "unsafe", x.NewLocalUnsafe)
+			db.emitter.Emit(superevents.QueryAnchorEvent{ChainID: x.ChainID})
+		}
+		return false
 	case superevents.AnchorEvent:
 		db.logger.Info("Received chain anchor information",
 			"chain", x.ChainID, "derived", x.Anchor.Derived, "source", x.Anchor.Source)
 		db.initFromAnchor(x.ChainID, x.Anchor)
 	case superevents.LocalDerivedEvent:
+		if db.depSet.IsInterop(x.ChainID, x.Derived.Derived.Time) && !db.isInitialized(x.ChainID) {
+			db.logger.Info("Querying anchorpoint to initialize DB",
+				"chain", x.ChainID, "derived", x.Derived.Derived)
+			db.emitter.Emit(superevents.QueryAnchorEvent{ChainID: x.ChainID})
+		}
+		// TODO: how do we want to handle above initialization case?
 		db.UpdateLocalSafe(x.ChainID, x.Derived.Source, x.Derived.Derived, x.NodeID)
 	case superevents.FinalizedL1RequestEvent:
 		db.onFinalizedL1(x.FinalizedL1)

@@ -79,6 +79,8 @@ func testDependencySetSerialization(
 		})
 	require.NoError(t, err)
 
+	id900 := eth.ChainIDFromUInt64(900)
+
 	t.Run("DefaultExpiryWindow", func(t *testing.T) {
 		data, err := marshal(depSet)
 		require.NoError(t, err)
@@ -138,7 +140,6 @@ func testDependencySetSerialization(
 	})
 
 	t.Run("chain index round trip", func(t *testing.T) {
-		id900 := eth.ChainIDFromUInt64(900)
 		idx, _ := depSet.ChainIndexFromID(id900)
 		idBack, _ := depSet.ChainIDFromIndex(idx)
 		require.Equal(t, id900, idBack)
@@ -150,6 +151,12 @@ func testDependencySetSerialization(
 	t.Run("HasChain", func(t *testing.T) {
 		require.True(t, depSet.HasChain(eth.ChainIDFromUInt64(900)))
 		require.False(t, depSet.HasChain(eth.ChainIDFromUInt64(902)))
+	})
+
+	t.Run("IsInterop", func(t *testing.T) {
+		require.True(t, depSet.IsInterop(id900, 42))
+		require.False(t, depSet.IsInterop(id900, 41))
+		require.False(t, depSet.IsInterop(eth.ChainIDFromUInt64(999), 1000))
 	})
 
 }

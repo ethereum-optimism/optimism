@@ -221,3 +221,8 @@ func (ds *StaticConfigDependencySet) MessageExpiryWindow() uint64 {
 	}
 	return ds.overrideMessageExpiryWindow
 }
+
+func (ds *StaticConfigDependencySet) IsInterop(chainID eth.ChainID, timestamp uint64) bool {
+	dep, ok := ds.dependencies[chainID]
+	return ok && dep.ActivationTime <= timestamp
+}

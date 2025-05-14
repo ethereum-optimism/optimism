@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // ForceInitialized marks the chain database as initialized, even if it is not.
@@ -27,15 +28,21 @@ func (db *ChainsDB) initFromAnchor(id eth.ChainID, anchor types.DerivedBlockRefP
 	}
 	db.logger.Debug("initializing chain database from anchor point")
 
-	// Initialize the local and cross safe databases
-	if err := db.maybeInitSafeDB(id, anchor); err != nil {
-		db.logger.Warn("failed to initialize local and cross safe databases", "err", err)
-		return
-	}
-
 	// Initialize the events database
 	if err := db.maybeInitEventsDB(id, anchor); err != nil {
 		db.logger.Warn("failed to initialize events database", "err", err)
+		return
+	}
+
+	if anchor.Source.Hash == (common.Hash{}) {
+		db.logger.Warn("Skipping safe database initialization due to unsafe anchor",
+			"chain", id, "anchor", anchor.Derived)
+		return
+	}
+
+	// Initialize the local and cross safe databases
+	if err := db.maybeInitSafeDB(id, anchor); err != nil {
+		db.logger.Warn("failed to initialize local and cross safe databases", "err", err)
 		return
 	}
 
@@ -77,7 +84,7 @@ func (db *ChainsDB) maybeInitSafeDB(id eth.ChainID, anchor types.DerivedBlockRef
 
 func (db *ChainsDB) maybeInitEventsDB(id eth.ChainID, anchor types.DerivedBlockRefPair) error {
 	logger := db.logger.New("chain", id, "derived", anchor.Derived, "source", anchor.Source)
-	seal, _, _, err := db.OpenBlock(id, 0)
+	seal, err := db.FindSealedBlock(id, anchor.Derived.Number)
 	if errors.Is(err, types.ErrFuture) {
 		logger.Debug("initializing events database")
 		err := db.initializedSealBlock(id, anchor.Derived)
@@ -89,6 +96,7 @@ func (db *ChainsDB) maybeInitEventsDB(id eth.ChainID, anchor types.DerivedBlockR
 		return fmt.Errorf("failed to check if logDB is initialized: %w", err)
 	} else {
 		logger.Debug("Events database already initialized")
+		// TODO: to allow for reorgs, we may want to handle this differently
 		if seal.Hash != anchor.Derived.Hash {
 			return fmt.Errorf("events database (%s) does not match anchor point (%s): %w",
 				seal,

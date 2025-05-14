@@ -204,6 +204,10 @@ func (m mockDependencySet) ChainIndexFromID(chain eth.ChainID) (types.ChainIndex
 	return types.ChainIndex(v.Uint64() + 1000), nil
 }
 
+func (m mockDependencySet) IsInterop(chainID eth.ChainID, timestamp uint64) bool{
+	return true
+}
+
 func (m mockDependencySet) Chains() []eth.ChainID {
 	return nil
 }

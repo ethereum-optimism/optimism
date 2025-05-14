@@ -14,7 +14,6 @@ type DependencySetSource interface {
 // DependencySet is an initialized dependency set, ready to answer queries
 // of what is and what is not part of the dependency set.
 type DependencySet interface {
-
 	// CanExecuteAt determines if an executing message is valid at all.
 	// I.e. if the chain may be executing messages at the given timestamp.
 	// This may return an error if the query temporarily cannot be answered.
@@ -38,6 +37,8 @@ type DependencySet interface {
 
 	// MessageExpiryWindow returns the message expiry window to use for this dependency set.
 	MessageExpiryWindow() uint64
+
+	IsInterop(chainID eth.ChainID, timestamp uint64) bool
 
 	ChainIndexFromID
 	ChainIDFromIndex

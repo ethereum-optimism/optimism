@@ -119,6 +119,14 @@ func (ev LocalDerivedOriginUpdateEvent) String() string {
 	return "local-derived-origin-update"
 }
 
+type QueryAnchorEvent struct {
+	ChainID eth.ChainID
+}
+
+func (ev QueryAnchorEvent) String() string {
+	return "query-anchor"
+}
+
 type AnchorEvent struct {
 	ChainID eth.ChainID
 	Anchor  types.DerivedBlockRefPair

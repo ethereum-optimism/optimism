@@ -63,8 +63,10 @@ type ChainProcessor struct {
 	maxFetcherThreads int
 }
 
-var _ event.AttachEmitter = (*ChainProcessor)(nil)
-var _ event.Deriver = (*ChainProcessor)(nil)
+var (
+	_ event.AttachEmitter = (*ChainProcessor)(nil)
+	_ event.Deriver       = (*ChainProcessor)(nil)
+)
 
 func NewChainProcessor(systemContext context.Context, log log.Logger, chain eth.ChainID, processor LogProcessor, rewinder DatabaseRewinder) *ChainProcessor {
 	out := &ChainProcessor{
@@ -94,6 +96,7 @@ func (s *ChainProcessor) AddSource(cl Source) {
 func (s *ChainProcessor) nextNum() uint64 {
 	headNum, ok := s.rewinder.LatestBlockNum(s.chain)
 	if !ok {
+		// TODO: need to check what we should do here for non-genesis interop
 		return 0 // genesis. We could change this to start at a later block.
 	}
 	return headNum + 1

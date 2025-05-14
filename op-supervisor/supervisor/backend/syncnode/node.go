@@ -40,11 +40,9 @@ type backend interface {
 }
 
 const (
-	internalTimeout            = time.Second * 30
-	nodeTimeout                = time.Second * 10
-	maxWalkBackAttempts        = 300
-	blockNotFoundRPCErrCode    = -39001
-	conflictingBlockRPCErrCode = -39002
+	internalTimeout     = time.Second * 30
+	nodeTimeout         = time.Second * 10
+	maxWalkBackAttempts = 300
 )
 
 type ManagedNode struct {
@@ -72,8 +70,10 @@ type ManagedNode struct {
 	resetTracker *resetTracker
 }
 
-var _ event.AttachEmitter = (*ManagedNode)(nil)
-var _ event.Deriver = (*ManagedNode)(nil)
+var (
+	_ event.AttachEmitter = (*ManagedNode)(nil)
+	_ event.Deriver       = (*ManagedNode)(nil)
+)
 
 func NewManagedNode(log log.Logger, id eth.ChainID, node SyncControl, backend backend, noSubscribe bool) *ManagedNode {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -102,6 +102,7 @@ func (m *ManagedNode) AttachEmitter(em event.Emitter) {
 	m.emitter = em
 }
 
+// Outgoing events/signals
 func (m *ManagedNode) OnEvent(ev event.Event) bool {
 	// if we're resetting, ignore all events
 	if m.resetTracker.isResetting() {
@@ -143,6 +144,11 @@ func (m *ManagedNode) OnEvent(ev event.Event) bool {
 		if x.ChainID != m.chainID {
 			return false
 		}
+	case superevents.QueryAnchorEvent:
+		if x.ChainID != m.chainID {
+			return false
+		}
+		m.onQueryAnchorpoint()
 	default:
 		return false
 	}
@@ -246,6 +252,7 @@ func (m *ManagedNode) PullEvents(ctx context.Context) (pulledAny bool, err error
 	}
 }
 
+// Incoming events
 func (m *ManagedNode) onNodeEvent(ev *types.ManagedEvent) {
 	if m.resetTracker.isResetting() {
 		m.log.Debug("Ignoring event during ongoing reset", "event", ev)
@@ -255,6 +262,7 @@ func (m *ManagedNode) onNodeEvent(ev *types.ManagedEvent) {
 		m.log.Warn("Received nil event")
 		return
 	}
+	// TODO: need to make sure reset pre-interop handled correctly
 	if ev.Reset != nil {
 		m.onResetEvent(*ev.Reset)
 	}
@@ -347,6 +355,22 @@ func (m *ManagedNode) onFinalizedL2(seal types.BlockSeal) {
 		m.log.Warn("Node failed finality updating", "update", seal, "err", err)
 		return
 	}
+}
+
+func (m *ManagedNode) onQueryAnchorpoint() {
+	m.log.Info("Querying node for anchorpoint")
+	ctx, cancel := context.WithTimeout(m.ctx, nodeTimeout)
+	defer cancel()
+	anchor, err := m.Node.AnchorPoint(ctx)
+	if err != nil {
+		m.log.Warn("Node failed to provide anchorpoint", "err", err)
+		return
+	}
+	m.log.Debug("Node provided anchorpoint", "anchorpoint", anchor)
+	m.emitter.Emit(superevents.AnchorEvent{
+		ChainID: m.chainID,
+		Anchor:  anchor,
+	})
 }
 
 func (m *ManagedNode) onUnsafeBlock(unsafeRef eth.BlockRef) {
