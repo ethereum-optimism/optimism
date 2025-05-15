@@ -37,19 +37,19 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	logger := sys.Log.With("Test", "TestUnsafeChainKnownToL2CL")
 	require := sys.T.Require()
 
-	logger.Info("make sure verifier safe head advances")
+	logger.Info("Make sure verifier safe head advances")
 	dsl.CheckAll(t,
 		sys.L2CLA.Advanced(types.CrossSafe, 5, 30),
 		sys.L2CLA2.Advanced(types.CrossSafe, 5, 30),
 	)
 
 	safeA2 := sys.L2ELA2.BlockRefByLabel(eth.Safe)
-	logger.Info("verifier advanced safe head", "number", safeA2.Number)
+	logger.Info("Verifier advanced safe head", "number", safeA2.Number)
 	unsafeA2 := sys.L2ELA2.BlockRefByLabel(eth.Unsafe)
-	logger.Info("verifier advanced unsafe head", "number", unsafeA2.Number)
+	logger.Info("Verifier advanced unsafe head", "number", unsafeA2.Number)
 
 	// For making verifier stop advancing unsafe head via P2P
-	logger.Info("disconnect p2p between L2CLs")
+	logger.Info("Disconnect p2p between L2CLs")
 	sys.L2CLA.DisconnectPeer(sys.L2CLA2)
 	sys.L2CLA2.DisconnectPeer(sys.L2CLA)
 
@@ -58,28 +58,28 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	sys.L2CLA2.Stop()
 
 	delta := uint64(10)
-	logger.Info("wait until supervisor reaches safe head", "delta", delta)
+	logger.Info("Wait until supervisor reaches safe head", "delta", delta)
 	sys.Supervisor.AdvancedSafeHead(sys.L2ChainA.ChainID(), delta, 30)
 
 	// Restarted verifier will advance its unsafe head by reading L1 but not by P2P
-	logger.Info("restart verifier")
+	logger.Info("Restart verifier")
 	sys.L2CLA2.Start()
 
 	safeA2 = sys.L2ELA2.BlockRefByLabel(eth.Safe)
-	logger.Info("verifier safe head after restart", "number", safeA2.Number)
+	logger.Info("Verifier safe head after restart", "number", safeA2.Number)
 	unsafeA2 = sys.L2ELA2.BlockRefByLabel(eth.Unsafe)
-	logger.Info("verifier unsafe head after restart", "number", unsafeA2.Number)
+	logger.Info("Verifier unsafe head after restart", "number", unsafeA2.Number)
 
 	// Make sure there are unsafe blocks to be consolidated:
 	// To check verifier does not have to process blocks since unsafe blocks are already processed
 	require.Greater(unsafeA2.Number, safeA2.Number)
 
-	logger.Info("make sure verifier unsafe head was consolidated to safe")
+	logger.Info("Make sure verifier unsafe head was consolidated to safe")
 	dsl.CheckAll(t, sys.L2CLA2.Reached(types.CrossSafe, unsafeA2.Number, 30))
 
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	target := safeA.Number + delta
-	logger.Info("make sure verifier unsafe head advances due to safe head advances", "target", target, "delta", delta)
+	logger.Info("Make sure verifier unsafe head advances due to safe head advances", "target", target, "delta", delta)
 	dsl.CheckAll(t, sys.L2CLA2.Reached(types.LocalUnsafe, target, 30))
 
 	block := sys.L2ELA2.BlockRefByNumber(unsafeA2.Number)

@@ -48,7 +48,7 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	require := sys.T.Require()
 
 	delta := uint64(10)
-	logger.Info("make sure verifiers advances unsafe head", "delta", delta)
+	logger.Info("Make sure verifiers advances unsafe head", "delta", delta)
 	dsl.CheckAll(t,
 		sys.L2CLA.Advanced(types.LocalUnsafe, delta, 30), sys.L2CLA2.Advanced(types.LocalUnsafe, delta, 30),
 		sys.L2CLB.Advanced(types.LocalUnsafe, delta, 30), sys.L2CLB2.Advanced(types.LocalUnsafe, delta, 30),
@@ -57,16 +57,16 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	safeHeadViewA2 := sys.SupervisorSecondary.SafeBlockID(sys.L2CLA.ChainID())
 	safeHeadViewB2 := sys.SupervisorSecondary.SafeBlockID(sys.L2CLB.ChainID())
 
-	logger.Info("stop secondary supervisor")
+	logger.Info("Stop secondary supervisor")
 	sys.SupervisorSecondary.Stop()
 
 	safeHeadA2 := sys.L2CLA2.SafeL2BlockRef()
 	safeHeadB2 := sys.L2CLB2.SafeL2BlockRef()
 	require.Equal(safeHeadViewA2.Hash, safeHeadA2.Hash)
 	require.Equal(safeHeadViewB2.Hash, safeHeadB2.Hash)
-	logger.Info("secondary supervisor(stopped) safe head view", "chainA", safeHeadA2, "chainB", safeHeadB2)
+	logger.Info("Secondary supervisor(stopped) safe head view", "chainA", safeHeadA2, "chainB", safeHeadB2)
 
-	logger.Info("sequencers advances safe heads but not verifiers", "delta", delta)
+	logger.Info("Sequencers advances safe heads but not verifiers", "delta", delta)
 	dsl.CheckAll(t,
 		// verifier CLs cannot advance their safe head because secondary supervisor is down
 		sys.L2CLA2.NotAdvanced(types.CrossSafe, 30), sys.L2CLB2.NotAdvanced(types.CrossSafe, 30),
@@ -74,49 +74,49 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 		sys.L2CLA.Advanced(types.CrossSafe, delta, 30), sys.L2CLB.Advanced(types.CrossSafe, delta, 30),
 	)
 
-	logger.Info("connect verifier CLs to primary supervisor to advance verifier safe heads")
+	logger.Info("Connect verifier CLs to primary supervisor to advance verifier safe heads")
 	sys.Supervisor.AddManagedL2CL(sys.L2CLA2)
 	sys.Supervisor.AddManagedL2CL(sys.L2CLB2)
 
 	target := max(sys.L2CLA.SafeL2BlockRef().Number, sys.L2CLB.SafeL2BlockRef().Number) + delta
-	logger.Info("every CLs advance safe heads", "delta", delta, "target", target)
+	logger.Info("Every CLs advance safe heads", "delta", delta, "target", target)
 	dsl.CheckAll(t,
 		sys.L2CLA.Reached(types.CrossSafe, target, 30), sys.L2CLA2.Reached(types.CrossSafe, target, 30),
 		sys.L2CLB.Reached(types.CrossSafe, target, 30), sys.L2CLB2.Reached(types.CrossSafe, target, 30),
 	)
 
-	logger.Info("stop primary supervisor to disconnect every CL connection")
+	logger.Info("Stop primary supervisor to disconnect every CL connection")
 	sys.Supervisor.Stop()
 
-	logger.Info("restart primary supervisor")
+	logger.Info("Restart primary supervisor")
 	sys.Supervisor.Start()
 
-	logger.Info("no CL connected to supervisor so every CL safe head will not advance")
+	logger.Info("No CL connected to supervisor so every CL safe head will not advance")
 	dsl.CheckAll(t,
 		sys.L2CLA.NotAdvanced(types.CrossSafe, 30), sys.L2CLA2.NotAdvanced(types.CrossSafe, 30),
 		sys.L2CLB.NotAdvanced(types.CrossSafe, 30), sys.L2CLB2.NotAdvanced(types.CrossSafe, 30),
 	)
 
-	logger.Info("reconnect sequencer CLs to primary supervisor")
+	logger.Info("Reconnect sequencer CLs to primary supervisor")
 	sys.Supervisor.AddManagedL2CL(sys.L2CLA)
 	sys.Supervisor.AddManagedL2CL(sys.L2CLB)
 
-	logger.Info("restart secondary supervisor")
+	logger.Info("Restart secondary supervisor")
 	sys.SupervisorSecondary.Start()
 
-	logger.Info("reconnect verifier CLs to secondary supervisor")
+	logger.Info("Reconnect verifier CLs to secondary supervisor")
 	sys.SupervisorSecondary.AddManagedL2CL(sys.L2CLA2)
 	sys.SupervisorSecondary.AddManagedL2CL(sys.L2CLB2)
 
 	rewind := uint64(3)
-	logger.Info("check verifier CLs safe head rewinded", "rewind", rewind)
+	logger.Info("Check verifier CLs safe head rewinded", "rewind", rewind)
 	dsl.CheckAll(t,
 		sys.L2CLA2.Rewinded(types.CrossSafe, rewind, 30),
 		sys.L2CLB2.Rewinded(types.CrossSafe, rewind, 30),
 	)
 
 	target = max(sys.L2CLA.SafeL2BlockRef().Number, sys.L2CLB.SafeL2BlockRef().Number) + delta
-	logger.Info("every CLs advance safe heads", "delta", delta, "target", target)
+	logger.Info("Every CLs advance safe heads", "delta", delta, "target", target)
 	dsl.CheckAll(t,
 		sys.L2CLA.Reached(types.CrossSafe, target, 30), sys.L2CLA2.Reached(types.CrossSafe, target, 30),
 		sys.L2CLB.Reached(types.CrossSafe, target, 30), sys.L2CLB2.Reached(types.CrossSafe, target, 30),
