@@ -26,6 +26,9 @@ type rpcL2CLNode struct {
 	p2pClient    apis.P2PClient
 	els          locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
 
+	// Store interop ws endpoints and secrets to provide to the supervisor,
+	// when reconnection happens using the supervisor's admin_addL2RPC method.
+	// These fields are not intended for manual dial-in or initializing client.RPC
 	interopEndpoint  string
 	interopJwtSecret eth.Bytes32
 }
