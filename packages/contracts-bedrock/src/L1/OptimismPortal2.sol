@@ -331,8 +331,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @custom:legacy
     /// @notice Getter for the retirement timestamp. Note that this value NO LONGER reflects the
-    ///         timestamp at which the respected game type. Game retirement and respected game type
-    ///         value have been decoupled, this function now only returns the retirement timestamp.
+    ///         timestamp at which the respected game type was updated. Game retirement and
+    ///         respected game type value have been decoupled, this function now only returns the
+    ///         retirement timestamp.
     function respectedGameTypeUpdatedAt() external view returns (uint64) {
         return anchorStateRegistry.retirementTimestamp();
     }
@@ -672,8 +673,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
 
-        // Send ETH back to the Lockbox or it'll get stuck here and would need to be moved back via
-        // the migrateLiquidity function.
+        // Send ETH back to the Lockbox in the case of a failed transaction or it'll get stuck here
+        // and would need to be moved back via the migrateLiquidity function.
         if (!success && _tx.value > 0) {
             ethLockbox.lockETH{ value: _tx.value }();
         }
