@@ -205,7 +205,7 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 
 	// Upon evaluation of the option, export the contents we created.
 	// Ids here are static, but other things may be exported too.
-	opt.Add(stack.Finally(func(orch *Orchestrator, hook stack.SystemHook) {
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
 	}))
 
