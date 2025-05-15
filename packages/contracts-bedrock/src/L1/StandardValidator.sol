@@ -110,11 +110,6 @@ contract StandardValidator {
     }
 
     /// @notice Constructor for the StandardValidator contract.
-    /// @param _implementations Struct containing the implementation addresses of the L1 contracts.
-    /// @param _superchainConfig The SuperchainConfig contract.
-    /// @param _l1PAOMultisig The L1 PAO multisig address.
-    /// @param _challenger The challenger address for permissioned dispute games.
-    /// @param _withdrawalDelaySeconds The withdrawal delay in seconds for the DelayedWETH contract.
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
@@ -142,7 +137,6 @@ contract StandardValidator {
     }
 
     /// @notice Returns a string representing the overrides that are set.
-    /// @param _overrides The overrides to check.
     function getOverridesString(ValidationOverrides memory _overrides) private pure returns (string memory) {
         string memory overridesError;
 
@@ -159,7 +153,6 @@ contract StandardValidator {
     }
 
     /// @notice Returns the expected L1 PAO multisig address.
-    /// @param _overrides The overrides to check.
     function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal view returns (address) {
         if (_overrides.l1PAOMultisig != address(0)) {
             return _overrides.l1PAOMultisig;
@@ -168,7 +161,6 @@ contract StandardValidator {
     }
 
     /// @notice Returns the expected challenger address.
-    /// @param _overrides The overrides to check.
     function expectedChallenger(ValidationOverrides memory _overrides) internal view returns (address) {
         if (_overrides.challenger != address(0)) {
             return _overrides.challenger;
@@ -242,16 +234,12 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the SuperchainConfig contract is valid.
-    /// @param _errors The current error string.
     function assertValidSuperchainConfig(string memory _errors) internal view returns (string memory) {
         _errors = internalRequire(!superchainConfig.paused(address(0)), "SPRCFG-10", _errors);
         return _errors;
     }
 
     /// @notice Asserts that the ProxyAdmin contract is valid.
-    /// @param _errors The current error string.
-    /// @param _admin The ProxyAdmin contract.
-    /// @param _overrides The validation overrides.
     function assertValidProxyAdmin(
         string memory _errors,
         IProxyAdmin _admin,
@@ -267,9 +255,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the SystemConfig contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
     function assertValidSystemConfig(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -302,9 +287,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
     function assertValidL1CrossDomainMessenger(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -337,9 +319,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the L1StandardBridge contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
     function assertValidL1StandardBridge(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -366,9 +345,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
     function assertValidOptimismMintableERC20Factory(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -393,9 +369,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the L1ERC721Bridge contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
     function assertValidL1ERC721Bridge(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -421,9 +394,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the OptimismPortal contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
     function assertValidOptimismPortal(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -447,9 +417,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the ETHLockbox contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
     function assertValidETHLockbox(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -472,10 +439,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the DisputeGameFactory contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _admin The ProxyAdmin contract.
-    /// @param _overrides The validation overrides.
     function assertValidDisputeGameFactory(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -498,12 +461,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the PermissionedDisputeGame contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _absolutePrestate The absolute prestate of the game.
-    /// @param _l2ChainID The L2 chain ID.
-    /// @param _admin The ProxyAdmin contract.
-    /// @param _overrides The validation overrides.
     function assertValidPermissionedDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -556,12 +513,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the PermissionlessDisputeGame contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _absolutePrestate The absolute prestate of the game.
-    /// @param _l2ChainID The L2 chain ID.
-    /// @param _admin The ProxyAdmin contract.
-    /// @param _overrides The validation overrides.
     function assertValidPermissionlessDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -607,16 +558,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that a DisputeGame contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _game The DisputeGame contract.
-    /// @param _factory The DisputeGameFactory contract.
-    /// @param _absolutePrestate The absolute prestate of the game.
-    /// @param _l2ChainID The L2 chain ID.
-    /// @param _admin The ProxyAdmin contract.
-    /// @param _gameType The type of the dispute game.
-    /// @param _overrides The validation overrides.
-    /// @param _errorPrefix The prefix for error messages.
     function assertValidDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -670,12 +611,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the DelayedWETH contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _weth The DelayedWETH contract.
-    /// @param _admin The ProxyAdmin contract.
-    /// @param _overrides The validation overrides.
-    /// @param _errorPrefix The prefix for error messages.
     function assertValidDelayedWETH(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -707,12 +642,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the AnchorStateRegistry contract is valid.
-    /// @param _errors The current error string.
-    /// @param _sysCfg The SystemConfig contract.
-    /// @param _dgf The DisputeGameFactory contract.
-    /// @param _asr The AnchorStateRegistry contract.
-    /// @param _admin The ProxyAdmin contract.
-    /// @param _errorPrefix The prefix for error messages.
     function assertValidAnchorStateRegistry(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -745,9 +674,6 @@ contract StandardValidator {
     }
 
     /// @notice Asserts that the PreimageOracle contract is valid.
-    /// @param _errors The current error string.
-    /// @param _oracle The PreimageOracle contract.
-    /// @param _errorPrefix The prefix for error messages.
     function assertValidPreimageOracle(
         string memory _errors,
         IPreimageOracle _oracle,
@@ -768,9 +694,6 @@ contract StandardValidator {
     }
 
     /// @notice Internal function to require a condition to be true, otherwise append an error message.
-    /// @param _condition The condition to check.
-    /// @param _message The error message to append if the condition is false.
-    /// @param _errors The current error string.
     function internalRequire(
         bool _condition,
         string memory _message,
@@ -792,24 +715,17 @@ contract StandardValidator {
     }
 
     /// @notice Compares two strings and returns true if they are equal.
-    /// @param _a The first string.
-    /// @param _b The second string.
     function stringEq(string memory _a, string memory _b) internal pure returns (bool) {
         return keccak256(bytes(_a)) == keccak256(bytes(_b));
     }
 
     /// @notice Validates the configuration of the L1 contracts.
-    /// @param _input The input parameters for the validation process.
-    /// @param _allowFailure Whether to allow the validation to fail without reverting.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         return
             validate(_input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) }));
     }
 
     /// @notice Validates the configuration of the L1 contracts.
-    /// @param _input The input parameters for the validation process.
-    /// @param _allowFailure Whether to allow the validation to fail without reverting.
-    /// @param _overrides The validation overrides.
     function validate(
         ValidationInput memory _input,
         bool _allowFailure,
