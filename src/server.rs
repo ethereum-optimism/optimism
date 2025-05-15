@@ -562,28 +562,25 @@ impl RollupBoostServer {
         let parent_hash = execution_payload.parent_hash();
         info!(message = "received new_payload", "block_hash" = %block_hash, "version" = new_payload.version().as_str());
 
+        if let Some(causes) = self
+            .payload_trace_context
+            .trace_ids_from_parent_hash(&parent_hash)
+            .await
+        {
+            causes.iter().for_each(|cause| {
+                tracing::Span::current().follows_from(cause);
+            });
+        }
+
+        self.payload_trace_context
+            .remove_by_parent_hash(&parent_hash)
+            .await;
+
         // async call to builder to sync the builder node
-        let execution_mode = self.execution_mode();
-        if !execution_mode.is_disabled() {
-            if let Some(causes) = self
-                .payload_trace_context
-                .trace_ids_from_parent_hash(&parent_hash)
-                .await
-            {
-                causes.iter().for_each(|cause| {
-                    tracing::Span::current().follows_from(cause);
-                });
-            }
-
-            self.payload_trace_context
-                .remove_by_parent_hash(&parent_hash)
-                .await;
-
+        if !self.execution_mode().is_disabled() {
             let builder = self.builder_client.clone();
             let new_payload_clone = new_payload.clone();
-            tokio::spawn(async move {
-                let _ = builder.new_payload(new_payload_clone).await;
-            });
+            tokio::spawn(async move { builder.new_payload(new_payload_clone).await });
         }
         Ok(self.l2_client.new_payload(new_payload).await?)
     }

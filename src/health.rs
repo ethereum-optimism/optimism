@@ -218,7 +218,7 @@ mod tests {
             max_unsafe_interval: 5,
         };
 
-        let _ = health_handle.spawn();
+        health_handle.spawn();
         tokio::time::sleep(Duration::from_secs(2)).await;
         assert!(matches!(probes.health(), Health::Healthy));
         Ok(())
@@ -248,7 +248,7 @@ mod tests {
             max_unsafe_interval: 5,
         };
 
-        let _ = health_handle.spawn();
+        health_handle.spawn();
         tokio::time::sleep(Duration::from_secs(2)).await;
         assert!(matches!(probes.health(), Health::PartialContent));
         Ok(())
@@ -272,7 +272,7 @@ mod tests {
             max_unsafe_interval: 5,
         };
 
-        let _ = health_handle.spawn();
+        health_handle.spawn();
         tokio::time::sleep(Duration::from_secs(2)).await;
         assert!(matches!(probes.health(), Health::PartialContent));
         Ok(())
