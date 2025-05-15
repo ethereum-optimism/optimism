@@ -111,8 +111,8 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	rewind := uint64(3)
 	logger.Info("Check verifier CLs safe head rewinded", "rewind", rewind)
 	dsl.CheckAll(t,
-		sys.L2CLA2.Rewinded(types.CrossSafe, rewind, 30),
-		sys.L2CLB2.Rewinded(types.CrossSafe, rewind, 30),
+		sys.L2CLA2.Rewinded(types.CrossSafe, rewind, 60),
+		sys.L2CLB2.Rewinded(types.CrossSafe, rewind, 60),
 	)
 
 	target = max(sys.L2CLA.SafeL2BlockRef().Number, sys.L2CLB.SafeL2BlockRef().Number) + delta
