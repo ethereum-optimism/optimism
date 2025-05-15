@@ -117,22 +117,22 @@ func WithInteropNotAtGenesis() stack.CommonOption {
 	})
 }
 
-type RedundancyInterop struct {
+type RedundantInterop struct {
 	SimpleInterop
 
 	L2ELA2 *dsl.L2ELNode
 	L2CLA2 *dsl.L2CLNode
 }
 
-func WithRedundancyInterop() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultRedundancyInteropSystem(&sysgo.DefaultRedundancyInteropSystemIDs{}))
+func WithRedundantInterop() stack.CommonOption {
+	return stack.MakeCommon(sysgo.RedundantInteropSystem(&sysgo.RedundantInteropSystemIDs{}))
 }
 
-func NewRedundancyInterop(t devtest.T) *RedundancyInterop {
+func NewRedundantInterop(t devtest.T) *RedundantInterop {
 	simpleInterop := NewSimpleInterop(t)
 	orch := Orchestrator()
 	l2A := simpleInterop.L2ChainA.Escape()
-	out := &RedundancyInterop{
+	out := &RedundantInterop{
 		SimpleInterop: *simpleInterop,
 		L2ELA2:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL))),
 		L2CLA2:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane(), l2A.ChainID()),

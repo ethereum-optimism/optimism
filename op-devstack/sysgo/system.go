@@ -116,18 +116,18 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	return opt
 }
 
-type DefaultRedundancyInteropSystemIDs struct {
+type RedundantInteropSystemIDs struct {
 	DefaultInteropSystemIDs
 
 	L2A2CL stack.L2CLNodeID
 	L2A2EL stack.L2ELNodeID
 }
 
-func DefaultRedundancyInteropSystem(dest *DefaultRedundancyInteropSystemIDs) stack.Option[*Orchestrator] {
+func RedundantInteropSystem(dest *RedundantInteropSystemIDs) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2AID := eth.ChainIDFromUInt64(901)
 	l2BID := eth.ChainIDFromUInt64(902)
-	ids := DefaultRedundancyInteropSystemIDs{
+	ids := RedundantInteropSystemIDs{
 		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
 		L2A2CL:                  stack.L2CLNodeID{Key: "verifier", ChainID: l2AID},
 		L2A2EL:                  stack.L2ELNodeID{Key: "verifier", ChainID: l2AID},

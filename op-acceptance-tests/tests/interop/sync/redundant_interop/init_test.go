@@ -7,5 +7,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithRedundancyInterop())
+	presets.DoMain(m, presets.WithRedundantInterop())
 }

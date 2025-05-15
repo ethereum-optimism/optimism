@@ -32,7 +32,7 @@ import (
 func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewRedundancyInterop(t)
+	sys := presets.NewRedundantInterop(t)
 	logger := sys.Log.With("Test", "TestUnsafeChainKnownToL2CL")
 	require := sys.T.Require()
 

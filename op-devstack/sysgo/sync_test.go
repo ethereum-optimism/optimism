@@ -19,8 +19,8 @@ import (
 // TestL2CLSyncP2P checks that unsafe head is propagated from sequencer to verifier.
 // Tests started/restarted L2CL advances unsafe head via P2P connection.
 func TestL2CLSyncP2P(gt *testing.T) {
-	var ids DefaultRedundancyInteropSystemIDs
-	opt := DefaultRedundancyInteropSystem(&ids)
+	var ids RedundantInteropSystemIDs
+	opt := RedundantInteropSystem(&ids)
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
@@ -135,8 +135,8 @@ func TestL2CLSyncP2P(gt *testing.T) {
 // - The verifier will quickly catch up with the sequencer unsafe head as well as the supervisor.
 // - The verifier will process previously unknown unsafe blocks and advance its unsafe head.
 func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
-	var ids DefaultRedundancyInteropSystemIDs
-	opt := DefaultRedundancyInteropSystem(&ids)
+	var ids RedundantInteropSystemIDs
+	opt := RedundantInteropSystem(&ids)
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
