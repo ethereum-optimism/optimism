@@ -126,7 +126,7 @@ contract StandardValidator {
     }
 
     function optimismPortalVersion() public pure returns (string memory) {
-        return "4.5.0";
+        return "4.6.0";
     }
 
     function l1CrossDomainMessengerVersion() public pure returns (string memory) {
