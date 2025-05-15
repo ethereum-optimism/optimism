@@ -56,7 +56,7 @@ func TestTracer(t *testing.T) {
 	require.Equal(t, "P2P out: "+id.String()+"\n", tr.got)
 	tr.got = ""
 
-	require.Nil(t, d.ctx.Err())
+	require.NoError(t, d.ctx.Err())
 	d.Unattach()
-	require.NotNil(t, d.ctx.Err())
+	require.Error(t, d.ctx.Err())
 }

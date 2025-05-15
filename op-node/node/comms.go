@@ -34,7 +34,7 @@ type TracerDeriver struct {
 }
 
 var _ event.Deriver = (*TracerDeriver)(nil)
-var _ event.Unattach = (*TracerDeriver)(nil)
+var _ event.Unattacher = (*TracerDeriver)(nil)
 
 func NewTracerDeriver(tracer Tracer) *TracerDeriver {
 	ctx, cancel := context.WithCancel(context.Background())

@@ -338,7 +338,6 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 	require.Equal(t, crossSafe.Derived, localUnsafe)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	status = actors.ChainB.Sequencer.SyncStatus()
-	t.Logf("FOOOO unsafe L2: %s", status.UnsafeL2)
 	require.Equal(t, status.LocalSafeL2, status.UnsafeL2, "block follows on replacement block, derived to deconflict from previous empty block on L1")
 	require.Equal(t, crossSafe.Derived, status.UnsafeL2.ParentID(), "builds on the new post-replacement chain")
 
