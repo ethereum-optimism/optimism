@@ -34,6 +34,7 @@ op-revm.workspace = true
 # optimism
 op-alloy-consensus.workspace = true
 op-alloy-flz.workspace = true
+op-alloy-rpc-types.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-primitives.workspace = true
