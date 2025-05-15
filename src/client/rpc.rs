@@ -208,8 +208,7 @@ impl RpcClient {
         parent_beacon_block_root: B256,
     ) -> ClientResult<PayloadStatus> {
         info!("Sending new_payload_v3 to {}", self.payload_source);
-        let execution_payload = ExecutionPayload::from(payload.clone());
-        let block_hash = execution_payload.block_hash();
+        let block_hash = payload.payload_inner.payload_inner.block_hash;
         tracing::Span::current().record("block_hash", block_hash.to_string());
 
         let res = self
