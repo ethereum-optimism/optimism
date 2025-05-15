@@ -221,3 +221,7 @@ func (ds *StaticConfigDependencySet) MessageExpiryWindow() uint64 {
 	}
 	return ds.overrideMessageExpiryWindow
 }
+
+func (ds *StaticConfigDependencySet) Dependencies() map[eth.ChainID]*StaticConfigDependency {
+	return ds.dependencies
+}
