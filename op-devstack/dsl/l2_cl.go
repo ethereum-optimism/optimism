@@ -41,10 +41,7 @@ func (cl *L2CLNode) Escape() stack.L2CLNode {
 }
 
 func (cl *L2CLNode) SafeL2BlockRef() eth.L2BlockRef {
-	syncStatus, err := cl.Escape().RollupAPI().SyncStatus(cl.ctx)
-	cl.require.NoError(err, "Expected to get sync status")
-
-	return syncStatus.SafeL2
+	return cl.HeadBlockRef(types.CrossSafe)
 }
 
 func (cl *L2CLNode) Start() {
