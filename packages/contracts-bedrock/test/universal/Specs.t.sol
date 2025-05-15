@@ -330,6 +330,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("upgrade()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("pause(address)"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("paused(address)") });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("paused()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("unpause(address)"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("version()") });
         _addSpec({ _name: "SuperchainConfig", _sel: _getSel("pausable(address)") });

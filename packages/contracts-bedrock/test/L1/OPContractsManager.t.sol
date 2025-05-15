@@ -1044,7 +1044,9 @@ contract OPContractsManager_TestInit is Test {
 
         // Mock the SuperchainConfig.paused function to return false.
         // Otherwise migration will fail!
-        vm.mockCall(address(superchainConfigProxy), ISuperchainConfig.paused.selector, abi.encode(false));
+        // We use abi.encodeWithSignature because paused is overloaded.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(address(superchainConfigProxy), abi.encodeWithSignature("paused(address)"), abi.encode(false));
 
         // Fund the lockboxes for testing.
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);

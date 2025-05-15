@@ -575,7 +575,11 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
     /// transaction is sent.
     function test_pause_superchainPauseFails_reverts() external {
         // Make sure that the SuperchainConfig paused() returns false.
-        vm.mockCall(address(superchainConfig), abi.encodePacked(superchainConfig.paused.selector), abi.encode(false));
+        // We use abi.encodeWithSignature because paused is overloaded.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(superchainConfig), abi.encodeWithSignature("paused(address)", address(0)), abi.encode(false)
+        );
 
         // Expect a revert.
         vm.expectRevert(IDeputyPauseModule.DeputyPauseModule_SuperchainNotPaused.selector);
