@@ -6,8 +6,9 @@ use crate::{
 };
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
+use futures::{StreamExt as _, stream};
 use metrics::counter;
-use moka::sync::Cache;
+use moka::future::Cache;
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -50,62 +51,71 @@ impl PayloadTraceContext {
         }
     }
 
-    fn store(
+    async fn store(
         &self,
         payload_id: PayloadId,
         parent_hash: B256,
         builder_has_payload: bool,
         trace_id: Option<tracing::Id>,
     ) {
-        self.payload_id.insert(
-            payload_id,
-            PayloadTrace {
-                builder_has_payload,
-                trace_id,
-            },
-        );
+        self.payload_id
+            .insert(
+                payload_id,
+                PayloadTrace {
+                    builder_has_payload,
+                    trace_id,
+                },
+            )
+            .await;
         self.block_hash_to_payload_ids
             .entry(parent_hash)
             .and_upsert_with(|o| match o {
                 Some(e) => {
                     let mut payloads = e.into_value();
                     payloads.push(payload_id);
-                    payloads
+                    std::future::ready(payloads)
                 }
-                None => {
-                    vec![payload_id]
-                }
-            });
+                None => std::future::ready(vec![payload_id]),
+            })
+            .await;
     }
 
-    fn trace_ids_from_parent_hash(&self, parent_hash: &B256) -> Option<Vec<tracing::Id>> {
-        self.block_hash_to_payload_ids
-            .get(parent_hash)
-            .map(|payload_ids| {
-                payload_ids
-                    .iter()
-                    .filter_map(|payload_id| {
-                        self.payload_id.get(payload_id).and_then(|x| x.trace_id)
+    async fn trace_ids_from_parent_hash(&self, parent_hash: &B256) -> Option<Vec<tracing::Id>> {
+        match self.block_hash_to_payload_ids.get(parent_hash).await {
+            Some(payload_ids) => Some(
+                stream::iter(payload_ids.iter())
+                    .filter_map(|payload_id| async {
+                        self.payload_id
+                            .get(payload_id)
+                            .await
+                            .and_then(|x| x.trace_id)
                     })
                     .collect()
-            })
+                    .await,
+            ),
+            None => None,
+        }
     }
 
-    fn trace_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
-        self.payload_id.get(payload_id).and_then(|x| x.trace_id)
-    }
-
-    fn has_builder_payload(&self, payload_id: &PayloadId) -> bool {
+    async fn trace_id(&self, payload_id: &PayloadId) -> Option<tracing::Id> {
         self.payload_id
             .get(payload_id)
+            .await
+            .and_then(|x| x.trace_id)
+    }
+
+    async fn has_builder_payload(&self, payload_id: &PayloadId) -> bool {
+        self.payload_id
+            .get(payload_id)
+            .await
             .map(|x| x.builder_has_payload)
             .unwrap_or_default()
     }
 
-    fn remove_by_parent_hash(&self, block_hash: &B256) {
-        if let Some(payload_ids) = self.block_hash_to_payload_ids.remove(block_hash) {
+    async fn remove_by_parent_hash(&self, block_hash: &B256) {
+        if let Some(payload_ids) = self.block_hash_to_payload_ids.remove(block_hash).await {
             for payload_id in payload_ids.iter() {
-                self.payload_id.remove(payload_id);
+                self.payload_id.remove(payload_id).await;
             }
         }
     }
@@ -286,12 +296,14 @@ impl EngineApiServer for RollupBoostServer {
                         "builder_building" = false,
                     );
 
-                    self.payload_trace_context.store(
-                        payload_id,
-                        fork_choice_state.head_block_hash,
-                        false,
-                        span.id(),
-                    );
+                    self.payload_trace_context
+                        .store(
+                            payload_id,
+                            fork_choice_state.head_block_hash,
+                            false,
+                            span.id(),
+                        )
+                        .await;
                 }
 
                 // We always return the value from the l2 client
@@ -313,12 +325,14 @@ impl EngineApiServer for RollupBoostServer {
                         "builder_building" = builder_result.is_ok(),
                     );
 
-                    self.payload_trace_context.store(
-                        payload_id,
-                        fork_choice_state.head_block_hash,
-                        builder_result.is_ok(),
-                        span.id(),
-                    );
+                    self.payload_trace_context
+                        .store(
+                            payload_id,
+                            fork_choice_state.head_block_hash,
+                            builder_result.is_ok(),
+                            span.id(),
+                        )
+                        .await;
                 }
 
                 return Ok(l2_response);
@@ -554,6 +568,7 @@ impl RollupBoostServer {
             if let Some(causes) = self
                 .payload_trace_context
                 .trace_ids_from_parent_hash(&parent_hash)
+                .await
             {
                 causes.iter().for_each(|cause| {
                     tracing::Span::current().follows_from(cause);
@@ -561,7 +576,8 @@ impl RollupBoostServer {
             }
 
             self.payload_trace_context
-                .remove_by_parent_hash(&parent_hash);
+                .remove_by_parent_hash(&parent_hash)
+                .await;
 
             let builder = self.builder_client.clone();
             let new_payload_clone = new_payload.clone();
@@ -610,10 +626,14 @@ impl RollupBoostServer {
 
         // Forward the get payload request to the builder
         let builder_fut = async {
-            if let Some(cause) = self.payload_trace_context.trace_id(&payload_id) {
+            if let Some(cause) = self.payload_trace_context.trace_id(&payload_id).await {
                 tracing::Span::current().follows_from(cause);
             }
-            if !self.payload_trace_context.has_builder_payload(&payload_id) {
+            if !self
+                .payload_trace_context
+                .has_builder_payload(&payload_id)
+                .await
+            {
                 info!(message = "builder has no payload, skipping get_payload call to builder");
                 return RpcResult::Ok(None);
             }
