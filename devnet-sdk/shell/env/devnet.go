@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/kt"
@@ -77,10 +78,17 @@ func LoadDevnetFromURL(devnetURL string) (*DevnetEnv, error) {
 	}
 
 	var ctrl surfaceGetter
-	// we're safe here as fetchDevnetData above ensures the scheme is supported
-	ctrlFactory := schemeToBackend[parsedURL.Scheme].ctrlFactory
-	if ctrlFactory != nil {
-		ctrl = ctrlFactory(env)
+	scheme := parsedURL.Scheme
+	if val, ok := os.LookupEnv(EnvCtrlVar); ok {
+		scheme = val
+	}
+	backend, ok := schemeToBackend[scheme]
+	if !ok {
+		return nil, fmt.Errorf("invalid scheme to lookup control interface: %s", scheme)
+	}
+
+	if backend.ctrlFactory != nil {
+		ctrl = backend.ctrlFactory(env)
 	}
 
 	return &DevnetEnv{
