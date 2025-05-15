@@ -39,8 +39,8 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 
 	logger.Info("make sure verifier safe head advances")
 	dsl.CheckAll(t,
-		sys.L2CLA.Advance(types.CrossSafe, 5, 30),
-		sys.L2CLA2.Advance(types.CrossSafe, 5, 30),
+		sys.L2CLA.Advanced(types.CrossSafe, 5, 30),
+		sys.L2CLA2.Advanced(types.CrossSafe, 5, 30),
 	)
 
 	safeA2 := sys.L2ELA2.BlockRefByLabel(eth.Safe)
@@ -59,7 +59,7 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 
 	delta := uint64(10)
 	logger.Info("wait until supervisor reaches safe head", "delta", delta)
-	sys.Supervisor.AdvanceSafeHead(sys.L2ChainA.ChainID(), delta, 30)
+	sys.Supervisor.AdvancedSafeHead(sys.L2ChainA.ChainID(), delta, 30)
 
 	// Restarted verifier will advance its unsafe head by reading L1 but not by P2P
 	logger.Info("restart verifier")
@@ -75,12 +75,12 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	require.Greater(unsafeA2.Number, safeA2.Number)
 
 	logger.Info("make sure verifier unsafe head was consolidated to safe")
-	dsl.CheckAll(t, sys.L2CLA2.Reach(types.CrossSafe, unsafeA2.Number, 30))
+	dsl.CheckAll(t, sys.L2CLA2.Reached(types.CrossSafe, unsafeA2.Number, 30))
 
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	target := safeA.Number + delta
 	logger.Info("make sure verifier unsafe head advances due to safe head advances", "target", target, "delta", delta)
-	dsl.CheckAll(t, sys.L2CLA2.Reach(types.LocalUnsafe, target, 30))
+	dsl.CheckAll(t, sys.L2CLA2.Reached(types.LocalUnsafe, target, 30))
 
 	block := sys.L2ELA2.BlockRefByNumber(unsafeA2.Number)
 	require.Equal(unsafeA2.Hash, block.Hash)

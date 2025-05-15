@@ -60,6 +60,7 @@ func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 	return syncStatus
 }
 
+// HeadBlockRef fetches L2CL sync status and returns block ref with given safety level
 func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
 	syncStatus := cl.SyncStatus()
 	var blockRef eth.L2BlockRef
@@ -84,16 +85,20 @@ func (cl *L2CLNode) ChainID() eth.ChainID {
 	return cl.chainID
 }
 
-func (cl *L2CLNode) Advance(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
+// Advanced returns a lambda that checks the L2CL chain head with given safety level advanced more than delta block number
+// Composable with other lambdas to wait in parallel
+func (cl *L2CLNode) Advanced(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		target := initial.Number + delta
 		cl.log.Info("expecting chain to advance", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "delta", delta)
-		return cl.Reach(lvl, target, attempts)()
+		return cl.Reached(lvl, target, attempts)()
 	}
 }
 
-func (cl *L2CLNode) Reach(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
+// Reached returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
+// Composable with other lambdas to wait in parallel
+func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
 	return func() error {
 		cl.log.Info("expecting chain to reach", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target)
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},

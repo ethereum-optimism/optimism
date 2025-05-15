@@ -89,10 +89,11 @@ func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 }
 
 func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
-	return s.SyncView(chainID, types.CrossSafe)
+	return s.L2HeadBlockID(chainID, types.CrossSafe)
 }
 
-func (s *Supervisor) SyncView(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
+// L2HeadBlockID fetches supervisor sync status and returns block id with given safety level
+func (s *Supervisor) L2HeadBlockID(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
 	supervisorSyncStatus := s.FetchSyncStatus()
 	supervisorChainSyncStatus, ok := supervisorSyncStatus.Chains[chainID]
 	s.require.True(ok, "chain id not found in supervisor sync status")
@@ -114,12 +115,13 @@ func (s *Supervisor) SyncView(chainID eth.ChainID, lvl types.SafetyLevel) eth.Bl
 	return blockID
 }
 
-func (s *Supervisor) AdvanceHead(chainID eth.ChainID, block uint64, lvl types.SafetyLevel, attempts int) {
-	chInitial := s.SyncView(chainID, lvl)
-	target := chInitial.Number + block
+// AdvancedL2Head checks the supervisor view of L2CL chain head with given safety level advanced more than delta block number
+func (s *Supervisor) AdvancedL2Head(chainID eth.ChainID, delta uint64, lvl types.SafetyLevel, attempts int) {
+	chInitial := s.L2HeadBlockID(chainID, lvl)
+	target := chInitial.Number + delta
 	err := retry.Do0(s.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
-			chStatus := s.SyncView(chainID, lvl)
+			chStatus := s.L2HeadBlockID(chainID, lvl)
 			s.log.Info("Supervisor view",
 				"chain", chainID, "label", lvl, "initial", chInitial.Number, "current", chStatus.Number, "target", target)
 			if chStatus.Number >= target {
@@ -131,11 +133,11 @@ func (s *Supervisor) AdvanceHead(chainID eth.ChainID, block uint64, lvl types.Sa
 	s.require.NoError(err)
 }
 
-func (s *Supervisor) AdvanceUnsafeHead(chainID eth.ChainID, block uint64) {
+func (s *Supervisor) AdvancedUnsafeHead(chainID eth.ChainID, block uint64) {
 	attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
-	s.AdvanceHead(chainID, block, types.LocalUnsafe, attempts)
+	s.AdvancedL2Head(chainID, block, types.LocalUnsafe, attempts)
 }
 
-func (s *Supervisor) AdvanceSafeHead(chainID eth.ChainID, block uint64, attempts int) {
-	s.AdvanceHead(chainID, block, types.CrossSafe, attempts)
+func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, block uint64, attempts int) {
+	s.AdvancedL2Head(chainID, block, types.CrossSafe, attempts)
 }
