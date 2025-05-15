@@ -176,7 +176,10 @@ func runOpAcceptor(ctx context.Context, tracer trace.Tracer, devnet string, gate
 		"--validators", validators,
 		"--log.level", logLevel,
 	)
-	acceptorCmd.Env = append(env, fmt.Sprintf("DEVNET_ENV_URL=kt://%s", devnet))
+	acceptorCmd.Env = append(env,
+		fmt.Sprintf("DEVNET_ENV_URL=kt://%s", devnet),
+		"DEVSTACK_ORCHESTRATOR=sysext", // make devstack-based tests use the provisioned devnet
+	)
 	acceptorCmd.Stdout = os.Stdout
 	acceptorCmd.Stderr = os.Stderr
 	if err := acceptorCmd.Run(); err != nil {
