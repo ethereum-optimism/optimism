@@ -34,7 +34,7 @@
 /docker-bake.hcl @ethereum-optimism/monorepo-ops-reviewers
 
 # Contracts
-/packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock     @ethereum-optimism/contract-reviewers #[min:2]
 
 # Security docs
 /docs @ethereum-optimism/evm-safety
