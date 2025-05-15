@@ -11,42 +11,20 @@ import (
 
 // TestL2CLAheadOfSupervisor tests the below scenario:
 // L2CL ahead of supervisor, aka supervisor needs to reset the L2CL, to reproduce old data. Currently supervisor has only managed mode implemented, so the supervisor will ask the L2CL to reset back.
-// To create this out-of-sync scenario, we follow the steps below:
-// 0. System setup
-// - Two supervisor initialized, each managing two L2CLs per chains.
-// - Primary supervisor manages sequencer L2CLs for chain A, B.
-// - Secondary supervisor manages verifier L2CLs for chain A, B.
-// - Each L2CLs per chain is connected via P2P.
-// 1. Make sequencers (L2CL), verifiers (L2CL), and supervisors sync for a few blocks.
-// - Sequencer and verifier are connected via P2P, which makes their unsafe heads in sync.
-// - Both L2CLs are in managed mode, digesting L1 blocks from the supervisor and reporting unsafe and safe blocks back to the supervisor.
-// - Wait enough for both L2CLs advance unsafe heads.
-// 2. Stop Secondary supervisor.
-// - Verifiers stops advancing safe heads because there is no supervisor to provide them L1 data.
-// - Verifiers advances unsafe head because they still have P2P connection with each sequencers.
-// - Wait enough to make sequencers and primary supervisor advance safe head enough.
-// 3. Connect verifiers (L2CL) to primary supervisor.
-// - Primary supervisor has safe heads synced with sequencers.
-// - After connection, verifiers will sync with primary supervisor, matching supervisor safe head view.
-// - Secondary supervisor and verifiers becomes out-of-sync with safe heads.
-// - Every L2CLs advance safe head.
-// 4. Stop primary supervisor.
-// - Every L2CL safe heads will stop advancing.
-// - For disconnecting every L2CLs from the supervisor.
-// 5. Restart primary supervisor and reconnect sequencers (L2CL) to primary supervisor.
-// - Sequencers will resume advancing safe heads, but not verifiers.
-// 6. Restart Secondary supervisor and reconnect verifiers (L2CL) to Secondary supervisor.
-// - Secondary supervisor will compare its safe head knowledge with L2CLs, and find out L2CLs are ahead of the Secondary supervisor.
-// - Secondary supervisor asks the verifiers (L2CL) to rewind(reset) back to match Secondary supervisor safe head view.
-// - After rewinding(reset), verifier will advance safe heads again because Secondary supervisor gives L1 data to the verifiers.
-// - Wait until verifiers advance safe head enough
 func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	t := devtest.SerialT(gt)
 
+	// Two supervisor initialized, each managing two L2CLs per chains.
+	// Primary supervisor manages sequencer L2CLs for chain A, B.
+	// Secondary supervisor manages verifier L2CLs for chain A, B.
+	// Each L2CLs per chain is connected via P2P.
 	sys := presets.NewMultiSupervisorInterop(t)
 	logger := sys.Log.With("Test", "TestL2CLAheadOfSupervisor")
 	require := sys.T.Require()
 
+	// Make sequencers (L2CL), verifiers (L2CL), and supervisors sync for a few blocks.
+	// Sequencer and verifier are connected via P2P, which makes their unsafe heads in sync.
+	// Both L2CLs are in managed mode, digesting L1 blocks from the supervisor and reporting unsafe and safe blocks back to the supervisor.
 	delta := uint64(10)
 	logger.Info("Make sure verifiers advances unsafe head", "delta", delta)
 	dsl.CheckAll(t,
@@ -66,18 +44,26 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	require.Equal(safeHeadViewB2.Hash, safeHeadB2.Hash)
 	logger.Info("Secondary supervisor(stopped) safe head view", "chainA", safeHeadA2, "chainB", safeHeadB2)
 
+	// Wait enough to make sequencers and primary supervisor advance safe head enough.
 	logger.Info("Sequencers advances safe heads but not verifiers", "delta", delta)
 	dsl.CheckAll(t,
-		// verifier CLs cannot advance their safe head because secondary supervisor is down
+		// verifier CLs cannot advance their safe head because secondary supervisor is down, no supervisor to provide them L1 data.
 		sys.L2CLA2.NotAdvanced(types.CrossSafe, 30), sys.L2CLB2.NotAdvanced(types.CrossSafe, 30),
-		// sequencer CLs advance
+		// sequencer CLs advance their safe heads
 		sys.L2CLA.Advanced(types.CrossSafe, delta, 30), sys.L2CLB.Advanced(types.CrossSafe, delta, 30),
+		// All the L2CLs advance their unsafe heads
+		// Verifiers advances unsafe head because they still have P2P connection with each sequencers
+		sys.L2CLA.Advanced(types.LocalUnsafe, delta, 30), sys.L2CLB.Advanced(types.LocalUnsafe, delta, 30),
+		sys.L2CLA2.Advanced(types.LocalUnsafe, delta, 30), sys.L2CLB2.Advanced(types.LocalUnsafe, delta, 30),
 	)
 
+	// Primary supervisor has safe heads synced with sequencers.
+	// After connection, verifiers will sync with primary supervisor, matching supervisor safe head view.
 	logger.Info("Connect verifier CLs to primary supervisor to advance verifier safe heads")
 	sys.Supervisor.AddManagedL2CL(sys.L2CLA2)
 	sys.Supervisor.AddManagedL2CL(sys.L2CLB2)
 
+	// Secondary supervisor and verifiers becomes out-of-sync with safe heads.
 	target := max(sys.L2CLA.SafeL2BlockRef().Number, sys.L2CLB.SafeL2BlockRef().Number) + delta
 	logger.Info("Every CLs advance safe heads", "delta", delta, "target", target)
 	dsl.CheckAll(t,
@@ -97,6 +83,7 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 		sys.L2CLB.NotAdvanced(types.CrossSafe, 30), sys.L2CLB2.NotAdvanced(types.CrossSafe, 30),
 	)
 
+	// Sequencers will resume advancing safe heads, but not verifiers.
 	logger.Info("Reconnect sequencer CLs to primary supervisor")
 	sys.Supervisor.AddManagedL2CL(sys.L2CLA)
 	sys.Supervisor.AddManagedL2CL(sys.L2CLB)
@@ -108,6 +95,8 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	sys.SupervisorSecondary.AddManagedL2CL(sys.L2CLA2)
 	sys.SupervisorSecondary.AddManagedL2CL(sys.L2CLB2)
 
+	// Secondary supervisor will compare its safe head knowledge with L2CLs, and find out L2CLs are ahead of the Secondary supervisor.
+	// Secondary supervisor asks the verifiers (L2CL) to rewind(reset) back to match Secondary supervisor safe head view.
 	rewind := uint64(3)
 	logger.Info("Check verifier CLs safe head rewinded", "rewind", rewind)
 	dsl.CheckAll(t,
@@ -115,6 +104,8 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 		sys.L2CLB2.Rewinded(types.CrossSafe, rewind, 60),
 	)
 
+	// After rewinding(reset), verifier will advance safe heads again because Secondary supervisor gives L1 data to the verifiers.
+	// Wait until verifiers advance safe head enough
 	target = max(sys.L2CLA.SafeL2BlockRef().Number, sys.L2CLB.SafeL2BlockRef().Number) + delta
 	logger.Info("Every CLs advance safe heads", "delta", delta, "target", target)
 	dsl.CheckAll(t,
