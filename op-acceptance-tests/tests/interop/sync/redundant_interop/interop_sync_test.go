@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestUnsafeChainKnownToL2CL tests the below scenario:
@@ -38,8 +39,8 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 
 	logger.Info("make sure verifier safe head advances")
 	dsl.CheckAll(t,
-		sys.L2CLA.Advance("SafeL2", 5, 30),
-		sys.L2CLA2.Advance("SafeL2", 5, 30),
+		sys.L2CLA.Advance(types.CrossSafe, 5, 30),
+		sys.L2CLA2.Advance(types.CrossSafe, 5, 30),
 	)
 
 	safeA2 := sys.L2ELA2.BlockRefByLabel(eth.Safe)
@@ -74,12 +75,12 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	require.Greater(unsafeA2.Number, safeA2.Number)
 
 	logger.Info("make sure verifier unsafe head was consolidated to safe")
-	dsl.CheckAll(t, sys.L2CLA2.Reach("SafeL2", unsafeA2.Number, 30))
+	dsl.CheckAll(t, sys.L2CLA2.Reach(types.CrossSafe, unsafeA2.Number, 30))
 
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	target := safeA.Number + delta
 	logger.Info("make sure verifier unsafe head advances due to safe head advances", "target", target, "delta", delta)
-	dsl.CheckAll(t, sys.L2CLA2.Reach("UnsafeL2", target, 30))
+	dsl.CheckAll(t, sys.L2CLA2.Reach(types.LocalUnsafe, target, 30))
 
 	block := sys.L2ELA2.BlockRefByNumber(unsafeA2.Number)
 	require.Equal(unsafeA2.Hash, block.Hash)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -12,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/status"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type Supervisor struct {
@@ -89,47 +89,53 @@ func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 }
 
 func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
-	return s.SyncView(chainID, "CrossSafe")
+	return s.SyncView(chainID, types.CrossSafe)
 }
 
-func (s *Supervisor) SyncView(chainID eth.ChainID, label string) eth.BlockID {
+func (s *Supervisor) SyncView(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
 	supervisorSyncStatus := s.FetchSyncStatus()
 	supervisorChainSyncStatus, ok := supervisorSyncStatus.Chains[chainID]
 	s.require.True(ok, "chain id not found in supervisor sync status")
-	targetWrap := reflect.ValueOf(supervisorChainSyncStatus).Elem().FieldByName(label)
-	s.require.True(targetWrap.IsValid(), "invalid label")
-	target := targetWrap.Interface()
-	blockRef, ok := target.(eth.BlockRef)
-	if ok {
-		return blockRef.ID()
+	var blockID eth.BlockID
+	switch lvl {
+	case types.Finalized:
+		blockID = supervisorChainSyncStatus.Finalized
+	case types.CrossSafe:
+		blockID = supervisorChainSyncStatus.CrossSafe
+	case types.LocalSafe:
+		blockID = supervisorChainSyncStatus.LocalSafe
+	case types.CrossUnsafe:
+		blockID = supervisorChainSyncStatus.CrossUnsafe
+	case types.LocalUnsafe:
+		blockID = supervisorChainSyncStatus.LocalUnsafe.ID()
+	default:
+		s.require.NoError(errors.New("invalid safety level"))
 	}
-	blockID, ok := target.(eth.BlockID)
-	s.require.True(ok, "invalid type")
 	return blockID
 }
 
-func (s *Supervisor) AdvanceHead(chainID eth.ChainID, block uint64, label string, attempts int) {
-	chInitial := s.SyncView(chainID, label)
+func (s *Supervisor) AdvanceHead(chainID eth.ChainID, block uint64, lvl types.SafetyLevel, attempts int) {
+	chInitial := s.SyncView(chainID, lvl)
 	target := chInitial.Number + block
 	err := retry.Do0(s.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 		func() error {
-			chStatus := s.SyncView(chainID, label)
+			chStatus := s.SyncView(chainID, lvl)
 			s.log.Info("Supervisor view",
-				"chain", chainID, "label", label, "initial", chInitial.Number, "current", chStatus.Number, "target", target)
+				"chain", chainID, "label", lvl, "initial", chInitial.Number, "current", chStatus.Number, "target", target)
 			if chStatus.Number >= target {
-				s.log.Info("Supervisor view advanced", "chain", chainID, "label", label, "target", target)
+				s.log.Info("Supervisor view advanced", "chain", chainID, "label", lvl, "target", target)
 				return nil
 			}
-			return fmt.Errorf("expected head to advance: %s", label)
+			return fmt.Errorf("expected head to advance: %s", lvl)
 		})
 	s.require.NoError(err)
 }
 
 func (s *Supervisor) AdvanceUnsafeHead(chainID eth.ChainID, block uint64) {
 	attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
-	s.AdvanceHead(chainID, block, "LocalUnsafe", attempts)
+	s.AdvanceHead(chainID, block, types.LocalUnsafe, attempts)
 }
 
 func (s *Supervisor) AdvanceSafeHead(chainID eth.ChainID, block uint64, attempts int) {
-	s.AdvanceHead(chainID, block, "CrossSafe", attempts)
+	s.AdvanceHead(chainID, block, types.CrossSafe, attempts)
 }

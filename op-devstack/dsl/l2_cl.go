@@ -2,14 +2,15 @@ package dsl
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // L2CLNode wraps a stack.L2CLNode interface for DSL operations
@@ -62,45 +63,51 @@ func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {
 	return syncStatus
 }
 
-func (cl *L2CLNode) HeadBlockRef(label string) eth.BlockRef {
+func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
 	syncStatus := cl.SyncStatus()
-	targetWrap := reflect.ValueOf(syncStatus).Elem().FieldByName(label)
-	cl.require.True(targetWrap.IsValid(), "invalid label")
-	target := targetWrap.Interface()
-	L2Block, ok := target.(eth.L2BlockRef)
-	if ok {
-		return L2Block.BlockRef()
+	var blockRef eth.L2BlockRef
+	switch lvl {
+	case types.Finalized:
+		blockRef = syncStatus.FinalizedL2
+	case types.CrossSafe:
+		blockRef = syncStatus.SafeL2
+	case types.LocalSafe:
+		blockRef = syncStatus.LocalSafeL2
+	case types.CrossUnsafe:
+		blockRef = syncStatus.CrossUnsafeL2
+	case types.LocalUnsafe:
+		blockRef = syncStatus.UnsafeL2
+	default:
+		cl.require.NoError(errors.New("invalid safety level"))
 	}
-	L1Block, ok := target.(eth.L1BlockRef)
-	cl.require.True(ok, "invalid type")
-	return L1Block
+	return blockRef
 }
 
 func (cl *L2CLNode) ChainID() eth.ChainID {
 	return cl.chainID
 }
 
-func (cl *L2CLNode) Advance(label string, delta uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) Advance(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
 	return func() error {
-		initial := cl.HeadBlockRef(label)
+		initial := cl.HeadBlockRef(lvl)
 		target := initial.Number + delta
-		cl.log.Info("expecting chain to advance", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "delta", delta)
-		return cl.Reach(label, target, attempts)()
+		cl.log.Info("expecting chain to advance", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "delta", delta)
+		return cl.Reach(lvl, target, attempts)()
 	}
 }
 
-func (cl *L2CLNode) Reach(label string, target uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) Reach(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
 	return func() error {
-		cl.log.Info("expecting chain to reach", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target)
+		cl.log.Info("expecting chain to reach", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target)
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
-				head := cl.HeadBlockRef(label)
+				head := cl.HeadBlockRef(lvl)
 				if head.Number >= target {
-					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target)
+					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target)
 					return nil
 				}
-				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", label, "target", target, "current", head.Number)
-				return fmt.Errorf("expected head to advance: %s", label)
+				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target, "current", head.Number)
+				return fmt.Errorf("expected head to advance: %s", lvl)
 			})
 	}
 }
