@@ -144,7 +144,7 @@ func NewRedundantInterop(t devtest.T) *RedundantInterop {
 }
 
 type MultiSupervisorInterop struct {
-	RedundancyInterop
+	RedundantInterop
 
 	SupervisorSecondary *dsl.Supervisor
 
@@ -157,12 +157,12 @@ func WithMultiSupervisorInterop() stack.CommonOption {
 }
 
 func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
-	redundancyInterop := NewRedundancyInterop(t)
+	redundancyInterop := NewRedundantInterop(t)
 	orch := Orchestrator()
 
 	l2B := redundancyInterop.system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &MultiSupervisorInterop{
-		RedundancyInterop:   *redundancyInterop,
+		RedundantInterop:    *redundancyInterop,
 		SupervisorSecondary: dsl.NewSupervisor(redundancyInterop.system.Supervisor(match.Assume(t, match.SecondSupervisor)), orch.ControlPlane()),
 		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL))),
 		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane(), l2B.ChainID()),

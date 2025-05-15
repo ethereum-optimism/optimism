@@ -157,7 +157,7 @@ func RedundantInteropSystem(dest *RedundantInteropSystemIDs) stack.Option[*Orche
 }
 
 type MultiSupervisorInteropSystemIDs struct {
-	DefaultRedundancyInteropSystemIDs
+	RedundantInteropSystemIDs
 
 	SupervisorSecondary stack.SupervisorID
 
@@ -170,7 +170,7 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 	l2AID := eth.ChainIDFromUInt64(901)
 	l2BID := eth.ChainIDFromUInt64(902)
 	ids := MultiSupervisorInteropSystemIDs{
-		DefaultRedundancyInteropSystemIDs: DefaultRedundancyInteropSystemIDs{
+		RedundantInteropSystemIDs: RedundantInteropSystemIDs{
 			DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
 			L2A2CL:                  stack.L2CLNodeID{Key: "verifier", ChainID: l2AID},
 			L2A2EL:                  stack.L2ELNodeID{Key: "verifier", ChainID: l2AID},
