@@ -222,7 +222,7 @@ func (ds *StaticConfigDependencySet) MessageExpiryWindow() uint64 {
 	return ds.overrideMessageExpiryWindow
 }
 
-// Dependencies returns a copy of the dependencies map
+// Dependencies returns a deep copy of the dependencies map
 func (ds *StaticConfigDependencySet) Dependencies() map[eth.ChainID]*StaticConfigDependency {
 	copied := make(map[eth.ChainID]*StaticConfigDependency, len(ds.dependencies))
 	for chainId, dep := range ds.dependencies {
