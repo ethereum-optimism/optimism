@@ -40,7 +40,7 @@ func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSy
 		L1CL:        stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
 		Superchain:  "main", // TODO(#15244): hardcoded to match the deployer default ID
 		Cluster:     "main",
-		Supervisor:  "primary",
+		Supervisor:  "1-primary", // prefix with number for ordering of supervisors
 		Sequencer:   "dev",
 		L2A:         stack.L2NetworkID(l2AID),
 		L2ACL:       stack.L2CLNodeID{Key: "sequencer", ChainID: l2AID},
@@ -175,7 +175,7 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 			L2A2CL:                  stack.L2CLNodeID{Key: "verifier", ChainID: l2AID},
 			L2A2EL:                  stack.L2ELNodeID{Key: "verifier", ChainID: l2AID},
 		},
-		SupervisorSecondary: "secondary",
+		SupervisorSecondary: "2-secondary", // prefix with number for ordering of supervisors
 		L2B2CL:              stack.L2CLNodeID{Key: "verifier", ChainID: l2BID},
 		L2B2EL:              stack.L2ELNodeID{Key: "verifier", ChainID: l2BID},
 	}
