@@ -27,25 +27,60 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
+/// @title StandardValidator
+/// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
+/// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
+/// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
+/// before and after an upgrade.
 contract StandardValidator {
+    /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
+
+    /// @notice The L1 PAO multisig address.
     address public l1PAOMultisig;
+
+    /// @notice The challenger address for permissioned dispute games.
     address public challenger;
+
+    /// @notice The withdrawal delay in seconds for the DelayedWETH contract.
     uint256 public withdrawalDelaySeconds;
 
     // Implementation addresses as state variables
+
+    /// @notice The L1ERC721Bridge implementation address.
     address public l1ERC721BridgeImpl;
+
+    /// @notice The OptimismPortal implementation address.
     address public optimismPortalImpl;
+
+    /// @notice The ETHLockbox implementation address.
     address public ethLockboxImpl;
+
+    /// @notice The SystemConfig implementation address.
     address public systemConfigImpl;
+
+    /// @notice The OptimismMintableERC20Factory implementation address.
     address public optimismMintableERC20FactoryImpl;
+
+    /// @notice The L1CrossDomainMessenger implementation address.
     address public l1CrossDomainMessengerImpl;
+
+    /// @notice The L1StandardBridge implementation address.
     address public l1StandardBridgeImpl;
+
+    /// @notice The DisputeGameFactory implementation address.
     address public disputeGameFactoryImpl;
+
+    /// @notice The AnchorStateRegistry implementation address.
     address public anchorStateRegistryImpl;
+
+    /// @notice The DelayedWETH implementation address.
     address public delayedWETHImpl;
+
+    /// @notice The MIPS implementation address.
     address public mipsImpl;
 
+    /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
@@ -60,6 +95,7 @@ contract StandardValidator {
         address mipsImpl;
     }
 
+    /// @notice Struct containing the input parameters for the validation process.
     struct ValidationInput {
         IProxyAdmin proxyAdmin;
         ISystemConfig sysCfg;
@@ -67,11 +103,18 @@ contract StandardValidator {
         uint256 l2ChainID;
     }
 
+    /// @notice Struct containing override parameters for the validation process.
     struct ValidationOverrides {
         address l1PAOMultisig;
         address challenger;
     }
 
+    /// @notice Constructor for the StandardValidator contract.
+    /// @param _implementations Struct containing the implementation addresses of the L1 contracts.
+    /// @param _superchainConfig The SuperchainConfig contract.
+    /// @param _l1PAOMultisig The L1 PAO multisig address.
+    /// @param _challenger The challenger address for permissioned dispute games.
+    /// @param _withdrawalDelaySeconds The withdrawal delay in seconds for the DelayedWETH contract.
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
@@ -98,6 +141,9 @@ contract StandardValidator {
         mipsImpl = _implementations.mipsImpl;
     }
 
+    /// @notice Returns a string representing the overrides that are set.
+    /// @param _overrides The overrides to check.
+    /// @return A string representing the overrides that are set.
     function getOverridesString(ValidationOverrides memory _overrides) private pure returns (string memory) {
         string memory overridesError;
 
@@ -113,6 +159,9 @@ contract StandardValidator {
         return overridesError;
     }
 
+    /// @notice Returns the expected L1 PAO multisig address.
+    /// @param _overrides The overrides to check.
+    /// @return The expected L1 PAO multisig address.
     function expectedL1PAOMultisig(ValidationOverrides memory _overrides) internal view returns (address) {
         if (_overrides.l1PAOMultisig != address(0)) {
             return _overrides.l1PAOMultisig;
@@ -120,6 +169,9 @@ contract StandardValidator {
         return l1PAOMultisig;
     }
 
+    /// @notice Returns the expected challenger address.
+    /// @param _overrides The overrides to check.
+    /// @return The expected challenger address.
     function expectedChallenger(ValidationOverrides memory _overrides) internal view returns (address) {
         if (_overrides.challenger != address(0)) {
             return _overrides.challenger;
@@ -127,63 +179,97 @@ contract StandardValidator {
         return challenger;
     }
 
+    /// @notice Returns the expected SystemConfig version.
+    /// @return The expected SystemConfig version.
     function systemConfigVersion() public pure returns (string memory) {
         return "3.3.0";
     }
 
+    /// @notice Returns the expected OptimismPortal version.
+    /// @return The expected OptimismPortal version.
     function optimismPortalVersion() public pure returns (string memory) {
         return "4.6.0";
     }
 
+    /// @notice Returns the expected L1CrossDomainMessenger version.
+    /// @return The expected L1CrossDomainMessenger version.
     function l1CrossDomainMessengerVersion() public pure returns (string memory) {
         return "2.9.0";
     }
 
+    /// @notice Returns the expected L1ERC721Bridge version.
+    /// @return The expected L1ERC721Bridge version.
     function l1ERC721BridgeVersion() public pure returns (string memory) {
         return "2.7.0";
     }
 
+    /// @notice Returns the expected L1StandardBridge version.
+    /// @return The expected L1StandardBridge version.
     function l1StandardBridgeVersion() public pure returns (string memory) {
         return "2.6.0";
     }
 
+    /// @notice Returns the expected MIPS version.
+    /// @return The expected MIPS version.
     function mipsVersion() public pure returns (string memory) {
         return "1.3.0";
     }
 
+    /// @notice Returns the expected OptimismMintableERC20Factory version.
+    /// @return The expected OptimismMintableERC20Factory version.
     function optimismMintableERC20FactoryVersion() public pure returns (string memory) {
         return "1.10.1";
     }
 
+    /// @notice Returns the expected DisputeGameFactory version.
+    /// @return The expected DisputeGameFactory version.
     function disputeGameFactoryVersion() public pure returns (string memory) {
         return "1.2.0";
     }
 
+    /// @notice Returns the expected AnchorStateRegistry version.
+    /// @return The expected AnchorStateRegistry version.
     function anchorStateRegistryVersion() public pure returns (string memory) {
         return "3.5.0";
     }
 
+    /// @notice Returns the expected DelayedWETH version.
+    /// @return The expected DelayedWETH version.
     function delayedWETHVersion() public pure returns (string memory) {
         return "1.5.0";
     }
 
+    /// @notice Returns the expected PermissionedDisputeGame version.
+    /// @return The expected PermissionedDisputeGame version.
     function permissionedDisputeGameVersion() public pure returns (string memory) {
         return "1.7.0";
     }
 
+    /// @notice Returns the expected PreimageOracle version.
+    /// @return The expected PreimageOracle version.
     function preimageOracleVersion() public pure returns (string memory) {
         return "1.1.4";
     }
 
+    /// @notice Returns the expected ETHLockbox version.
+    /// @return The expected ETHLockbox version.
     function ethLockboxVersion() public pure returns (string memory) {
         return "1.2.0";
     }
 
+    /// @notice Asserts that the SuperchainConfig contract is valid.
+    /// @param _errors The current error string.
+    /// @return The updated error string.
     function assertValidSuperchainConfig(string memory _errors) internal view returns (string memory) {
         _errors = internalRequire(!superchainConfig.paused(address(0)), "SPRCFG-10", _errors);
         return _errors;
     }
 
+    /// @notice Asserts that the ProxyAdmin contract is valid.
+    /// @param _errors The current error string.
+    /// @param _admin The ProxyAdmin contract.
+    /// @param _overrides The validation overrides.
+    /// @return The updated error string.
     function assertValidProxyAdmin(
         string memory _errors,
         IProxyAdmin _admin,
@@ -198,6 +284,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the SystemConfig contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @return The updated error string.
     function assertValidSystemConfig(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -229,6 +320,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the L1CrossDomainMessenger contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @return The updated error string.
     function assertValidL1CrossDomainMessenger(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -260,6 +356,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the L1StandardBridge contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @return The updated error string.
     function assertValidL1StandardBridge(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -285,6 +386,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the OptimismMintableERC20Factory contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @return The updated error string.
     function assertValidOptimismMintableERC20Factory(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -308,6 +414,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the L1ERC721Bridge contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @return The updated error string.
     function assertValidL1ERC721Bridge(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -332,6 +443,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the OptimismPortal contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @return The updated error string.
     function assertValidOptimismPortal(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -354,6 +470,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the ETHLockbox contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @return The updated error string.
     function assertValidETHLockbox(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -375,6 +496,12 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the DisputeGameFactory contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @param _overrides The validation overrides.
+    /// @return The updated error string.
     function assertValidDisputeGameFactory(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -396,6 +523,14 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the PermissionedDisputeGame contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _absolutePrestate The absolute prestate of the game.
+    /// @param _l2ChainID The L2 chain ID.
+    /// @param _admin The ProxyAdmin contract.
+    /// @param _overrides The validation overrides.
+    /// @return The updated error string.
     function assertValidPermissionedDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -447,6 +582,14 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the PermissionlessDisputeGame contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _absolutePrestate The absolute prestate of the game.
+    /// @param _l2ChainID The L2 chain ID.
+    /// @param _admin The ProxyAdmin contract.
+    /// @param _overrides The validation overrides.
+    /// @return The updated error string.
     function assertValidPermissionlessDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -491,6 +634,18 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that a DisputeGame contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _game The DisputeGame contract.
+    /// @param _factory The DisputeGameFactory contract.
+    /// @param _absolutePrestate The absolute prestate of the game.
+    /// @param _l2ChainID The L2 chain ID.
+    /// @param _admin The ProxyAdmin contract.
+    /// @param _gameType The type of the dispute game.
+    /// @param _overrides The validation overrides.
+    /// @param _errorPrefix The prefix for error messages.
+    /// @return The updated error string.
     function assertValidDisputeGame(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -543,6 +698,14 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the DelayedWETH contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _weth The DelayedWETH contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @param _overrides The validation overrides.
+    /// @param _errorPrefix The prefix for error messages.
+    /// @return The updated error string.
     function assertValidDelayedWETH(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -573,6 +736,14 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the AnchorStateRegistry contract is valid.
+    /// @param _errors The current error string.
+    /// @param _sysCfg The SystemConfig contract.
+    /// @param _dgf The DisputeGameFactory contract.
+    /// @param _asr The AnchorStateRegistry contract.
+    /// @param _admin The ProxyAdmin contract.
+    /// @param _errorPrefix The prefix for error messages.
+    /// @return The updated error string.
     function assertValidAnchorStateRegistry(
         string memory _errors,
         ISystemConfig _sysCfg,
@@ -604,6 +775,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Asserts that the PreimageOracle contract is valid.
+    /// @param _errors The current error string.
+    /// @param _oracle The PreimageOracle contract.
+    /// @param _errorPrefix The prefix for error messages.
+    /// @return The updated error string.
     function assertValidPreimageOracle(
         string memory _errors,
         IPreimageOracle _oracle,
@@ -623,6 +799,11 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Internal function to require a condition to be true, otherwise append an error message.
+    /// @param _condition The condition to check.
+    /// @param _message The error message to append if the condition is false.
+    /// @param _errors The current error string.
+    /// @return The updated error string.
     function internalRequire(
         bool _condition,
         string memory _message,
@@ -643,11 +824,28 @@ contract StandardValidator {
         return _errors;
     }
 
+    /// @notice Compares two strings and returns true if they are equal.
+    /// @param _a The first string.
+    /// @param _b The second string.
+    /// @return True if the strings are equal, false otherwise.
+    function stringEq(string memory _a, string memory _b) internal pure returns (bool) {
+        return keccak256(bytes(_a)) == keccak256(bytes(_b));
+    }
+
+    /// @notice Validates the configuration of the L1 contracts.
+    /// @param _input The input parameters for the validation process.
+    /// @param _allowFailure Whether to allow the validation to fail without reverting.
+    /// @return A string containing any errors found during validation.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         return
             validate(_input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) }));
     }
 
+    /// @notice Validates the configuration of the L1 contracts.
+    /// @param _input The input parameters for the validation process.
+    /// @param _allowFailure Whether to allow the validation to fail without reverting.
+    /// @param _overrides The validation overrides.
+    /// @return A string containing any errors found during validation.
     function validate(
         ValidationInput memory _input,
         bool _allowFailure,
