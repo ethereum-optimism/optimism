@@ -1,6 +1,6 @@
 use super::OpNodeCore;
 use crate::{OpEthApi, OpEthApiError};
-use alloy_consensus::{transaction::Either, TxType};
+use alloy_consensus::transaction::Either;
 use alloy_primitives::{Bytes, TxKind, U256};
 use alloy_rpc_types_eth::transaction::TransactionRequest;
 use op_revm::OpTransaction;
@@ -67,17 +67,7 @@ where
             return Err(RpcInvalidTransactionError::BlobTransactionMissingBlobHashes.into_eth_err())
         }
 
-        let tx_type = if request.authorization_list.is_some() {
-            TxType::Eip7702
-        } else if request.has_eip4844_fields() {
-            TxType::Eip4844
-        } else if request.has_eip1559_fields() {
-            TxType::Eip1559
-        } else if request.access_list.is_some() {
-            TxType::Eip2930
-        } else {
-            TxType::Legacy
-        } as u8;
+        let tx_type = request.minimal_tx_type() as u8;
 
         let TransactionRequest {
             from,
