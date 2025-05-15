@@ -19,9 +19,39 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
+
+// SatisfyExecMsgContraint waits supervisor to index initiating message,
+// and destination chain has advanced enough to satisfy messaging time invariant.
+func SatisfyExecMsgContraint(t systest.T, logger log.Logger, sys system.InteropSystem, initBlockNum uint64, initTimestamp uint64) {
+	ctx := t.Context()
+
+	supervisor, err := sys.Supervisor(ctx)
+	require.NoError(t, err)
+	sourceChain, destChain := sys.L2s()[0], sys.L2s()[1]
+
+	elclientDest, err := destChain.Nodes()[0].GethClient()
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		syncStatus, err := supervisor.SyncStatus(ctx)
+		require.NoError(t, err)
+		chainAView, ok := syncStatus.Chains[eth.ChainIDFromBig(sourceChain.ID())]
+		require.True(t, ok)
+		chainBView, ok := syncStatus.Chains[eth.ChainIDFromBig(destChain.ID())]
+		require.True(t, ok)
+		blockB, err := elclientDest.BlockByNumber(ctx, big.NewInt(int64(chainBView.LocalUnsafe.Number)))
+		require.NoError(t, err)
+		checkA := chainAView.LocalUnsafe.Number >= initBlockNum
+		checkB := blockB.Header().Time >= initTimestamp
+		logger.Info("wait until supervisor indexes source chain block with initiating message", "check", checkA, "supervisor", chainAView.LocalUnsafe.Number, "chainA", initBlockNum)
+		logger.Info("wait until supervisor indexes dest chain head which passes timestamp invariant", "check", checkB, "supervisor", blockB.Header().Time, "chainA", initTimestamp)
+		return checkA && checkB
+	}, 20*time.Second, 2*time.Second)
+}
 
 // initAndExecMsg tests below scenario:
 // Transaction initiates, and then executes message
@@ -44,6 +74,11 @@ func initAndExecMsg(
 		receiptA, err := txA.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)
 		logger.Info("initiate message included", "block", receiptA.BlockHash)
+
+		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
+		require.NoError(t, err)
+		// wait for supervisor and destination chain be in sync
+		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate message on chain B
 		txB := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](opts[1])
@@ -87,6 +122,11 @@ func initAndExecMultipleMsg(
 		logger.Info("initiate messages included", "block", receiptA.BlockHash)
 		require.Equal(t, 2, len(receiptA.Logs))
 
+		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
+		require.NoError(t, err)
+		// wait for supervisor and destination chain be in sync
+		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+
 		// Intent to validate messages on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
 		txB.Content.DependOn(&txA.Result)
@@ -125,6 +165,11 @@ func execSameMsgTwice(
 		receiptA, err := txA.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)
 		logger.Info("initiate message included", "block", receiptA.BlockHash)
+
+		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
+		require.NoError(t, err)
+		// wait for supervisor and destination chain be in sync
+		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate same message two times on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
@@ -175,6 +220,11 @@ func execMsgDifferentTopicCount(
 			require.Equal(t, topicCnt, len(receiptA.Logs[index].Topics))
 		}
 
+		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
+		require.NoError(t, err)
+		// wait for supervisor and destination chain be in sync
+		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+
 		// Intent to validate message on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
 		txB.Content.DependOn(&txA.Result)
@@ -222,6 +272,11 @@ func execMsgOpagueData(
 		require.Equal(t, emptyInitTrigger.OpaqueData, receiptA.Logs[0].Data)
 		require.Equal(t, largeInitTrigger.OpaqueData, receiptA.Logs[1].Data)
 
+		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
+		require.NoError(t, err)
+		// wait for supervisor and destination chain be in sync
+		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+
 		// Intent to validate messages on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
 		txB.Content.DependOn(&txA.Result)
@@ -266,6 +321,11 @@ func execMsgDifferEventIndexInSingleTx(
 		require.NoError(t, err)
 		logger.Info("initiate messages included", "block", receiptA.BlockHash)
 		require.Equal(t, eventCnt, len(receiptA.Logs))
+
+		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
+		require.NoError(t, err)
+		// wait for supervisor and destination chain be in sync
+		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate messages on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
@@ -381,6 +441,11 @@ func executeMessageInvalidAttributes(
 		receiptA, err := txA.PlannedTx.Included.Eval(ctx)
 		require.NoError(t, err)
 		logger.Info("initiate messages included", "block", receiptA.BlockHash)
+
+		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
+		require.NoError(t, err)
+		// wait for supervisor and destination chain be in sync
+		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// construct txplan opts for testing failed validating messages
 		optsForFail := txplan.Combine(

@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -92,25 +91,7 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGet
 			ChainId:     chainA.ID(),
 		}
 
-		supervisor, err := sys.Supervisor(ctx)
-		require.NoError(t, err)
-
-		// enforce supervisor views
-		require.Eventually(t, func() bool {
-			syncStatus, err := supervisor.SyncStatus(ctx)
-			require.NoError(t, err)
-			chainAView, ok := syncStatus.Chains[eth.ChainIDFromBig(chainA.ID())]
-			require.True(t, ok)
-			chainBView, ok := syncStatus.Chains[eth.ChainIDFromBig(chainB.ID())]
-			require.True(t, ok)
-			blockB, err := elclientB.BlockByNumber(ctx, big.NewInt(int64(chainBView.LocalUnsafe.Number)))
-			require.NoError(t, err)
-			checkA := chainAView.LocalUnsafe.Number >= identifier.BlockNumber.Uint64()
-			checkB := blockB.Header().Time >= identifier.Timestamp.Uint64()
-			logger.Info("wait until supervisor indexes chain A block with initiating message", "check", checkA, "supervisor", chainAView.LocalUnsafe.Number, "chainA", identifier.BlockNumber.Uint64())
-			logger.Info("wait until supervisor indexes chain B head which passes timestamp invariant", "check", checkB, "supervisor", blockB.Header().Time, "chainA", identifier.Timestamp.Uint64())
-			return checkA && checkB
-		}, 20*time.Second, 2*time.Second)
+		SatisfyExecMsgContraint(t, logger, sys, identifier.BlockNumber.Uint64(), identifier.Timestamp.Uint64())
 
 		// Execute message
 		logger.Info("Execute message", "address", sha256PrecompileAddr, "message", dummyMessage)
