@@ -714,11 +714,6 @@ contract StandardValidator {
         return _errors;
     }
 
-    /// @notice Compares two strings and returns true if they are equal.
-    function stringEq(string memory _a, string memory _b) internal pure returns (bool) {
-        return keccak256(bytes(_a)) == keccak256(bytes(_b));
-    }
-
     /// @notice Validates the configuration of the L1 contracts.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         return
