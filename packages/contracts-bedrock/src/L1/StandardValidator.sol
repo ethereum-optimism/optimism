@@ -496,18 +496,10 @@ contract StandardValidator {
             _overrides,
             "PDDG"
         );
+
+        // Challenger is specific to the PermissionedDisputeGame contract.
         address _challenger = expectedChallenger(_overrides);
-        _errors = internalRequire(_game.challenger() == _challenger, "PDDG-120", _errors);
-
-        (Hash anchorRoot,) = _game.anchorStateRegistry().getAnchorRoot();
-        bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
-
-        _errors = internalRequire(_anchorRoot != bytes32(0), "PDDG-130", _errors);
-        if (_anchorRoot == bytes32(hex"dead")) {
-            _errors = internalRequire(_game.l2SequenceNumber() == 0, "PDDG-140", _errors);
-        } else {
-            _errors = internalRequire(_game.l2SequenceNumber() != 0, "PDDG-150", _errors);
-        }
+        _errors = internalRequire(_game.challenger() == _challenger, "PDDG-130", _errors);
 
         return _errors;
     }
@@ -548,12 +540,6 @@ contract StandardValidator {
             "PLDG"
         );
 
-        (Hash anchorRoot,) = _game.anchorStateRegistry().getAnchorRoot();
-        bytes32 _anchorRoot = Hash.unwrap(anchorRoot);
-        _errors = internalRequire(_anchorRoot != bytes32(0), "PLDG-130", _errors);
-        _errors = internalRequire(_anchorRoot != bytes32(hex"dead"), "PLDG-140", _errors);
-        _errors = internalRequire(_game.l2SequenceNumber() != 0, "PLDG-150", _errors);
-
         return _errors;
     }
 
@@ -574,21 +560,21 @@ contract StandardValidator {
         view
         returns (string memory)
     {
-        bool validGameVM = address(_game.vm()) == address(mipsImpl);
+        IAnchorStateRegistry _asr = _game.anchorStateRegistry();
+        (Hash anchorRoot,) = _asr.getAnchorRoot();
 
         _errors = internalRequire(
             LibString.eq(_game.version(), permissionedDisputeGameVersion()), string.concat(_errorPrefix, "-20"), _errors
         );
-        IAnchorStateRegistry _asr = _game.anchorStateRegistry();
         _errors = internalRequire(
             GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
         );
         _errors = internalRequire(
             Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
         );
-        _errors = internalRequire(validGameVM, string.concat(_errorPrefix, "-50"), _errors);
+        _errors = internalRequire(address(_game.vm()) == mipsImpl, string.concat(_errorPrefix, "-50"), _errors);
         _errors = internalRequire(_game.l2ChainId() == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
-        _errors = internalRequire(_game.l2BlockNumber() == 0, string.concat(_errorPrefix, "-70"), _errors);
+        _errors = internalRequire(_game.l2SequenceNumber() == 0, string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
             Duration.unwrap(_game.clockExtension()) == 10800, string.concat(_errorPrefix, "-80"), _errors
         );
@@ -597,13 +583,14 @@ contract StandardValidator {
         _errors = internalRequire(
             Duration.unwrap(_game.maxClockDuration()) == 302400, string.concat(_errorPrefix, "-110"), _errors
         );
+        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
 
         _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
         _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
         // the contract is likely to revert.
-        if (validGameVM) {
+        if (address(_game.vm()) == mipsImpl) {
             _errors = assertValidPreimageOracle(_errors, _game.vm().oracle(), _errorPrefix);
         }
 

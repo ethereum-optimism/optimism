@@ -202,17 +202,6 @@ contract StandardValidator_TestInit is CommonTest {
             vm.prank(disputeGameFactory.owner());
             disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)));
         }
-
-        vm.mockCall(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(1)
-        );
-        vm.mockCall(
-            address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(1)
-        );
     }
 
     /// @notice Runs the StandardValidator.validate function.
@@ -795,9 +784,9 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PermissionedDisputeGame L2 Block Number is invalid.
-    function test_validate_permissionedDisputeGameInvalidL2BlockNumber_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2BlockNumber, ()), abi.encode(123));
+    ///         PermissionedDisputeGame L2 Sequence Number is invalid.
+    function test_validate_permissionedDisputeGameInvalidL2SequenceNumber_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IDisputeGame.l2SequenceNumber, ()), abi.encode(123));
         assertEq("PDDG-70", _validate(true));
     }
 
@@ -834,76 +823,21 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame anchor root is 0.
+    function test_validate_permissionedDisputeGameZeroAnchorRoot_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(bytes32(0), 1)
+        );
+        assertEq("PDDG-120,PLDG-120", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame challenger is invalid.
     function test_validate_permissionedDisputeGameInvalidChallenger_succeeds() public {
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
-        assertEq("PDDG-120", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the anchor root is
-    ///         bytes32(hex"dead") but the l2 sequence number is not 0.
-    function test_validate_0xdeadAnchorRootAndNonZeroSequenceNumber_succeeds() public {
-        uint256 randomSequenceNumber = 1; // this does not correspond to the sequence number of the games.
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
-            abi.encode(bytes32(hex"dead"), randomSequenceNumber)
-        );
-        assertEq("PDDG-140,PLDG-140", _validate(true));
-    }
-
-    function test_validate_0xdeadAnchorRootAndZeroSequenceNumber_succeeds() public {
-        uint256 randomSequenceNumber = 1; // this does not correspond to the sequence number of the games.
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
-            abi.encode(bytes32(hex"dead"), randomSequenceNumber)
-        );
-
-        // Set the sequence number returned by the games to be 0
-        vm.mockCall(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(0)
-        );
-        vm.mockCall(
-            address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(0)
-        );
-        assertEq("PLDG-140,PLDG-150", _validate(true));
-    }
-
-    function test_validate_0x00AnchorRoot_succeeds() public {
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
-            abi.encode(bytes32(hex"00"), 1)
-        );
-        assertEq("PDDG-130,PLDG-130", _validate(true));
-    }
-
-    function test_validate_nonZeroOrDeadAnchorRootAndZeroSequenceNumber_succeeds() public {
-        uint256 randomSequenceNumber = 1; // this does not correspond to the sequence number of the games.
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
-            abi.encode(bytes32(hex"01"), randomSequenceNumber)
-        );
-
-        // Set the sequence number returned by the games to be 0
-        vm.mockCall(
-            address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(0)
-        );
-        vm.mockCall(
-            address(disputeGameFactory.gameImpls(GameTypes.CANNON)),
-            abi.encodeCall(IDisputeGame.l2SequenceNumber, ()),
-            abi.encode(0)
-        );
-
-        assertEq("PDDG-150,PLDG-150", _validate(true));
+        assertEq("PDDG-130", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right overrides error when the
@@ -920,7 +854,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.challenger = address(0xbad);
-        assertEq("OVERRIDES-CHALLENGER,PDDG-120", _validate(true, overrides));
+        assertEq("OVERRIDES-CHALLENGER,PDDG-130", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1138,9 +1072,9 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) L2 Block Number is invalid.
-    function test_validate_faultDisputeGameInvalidL2BlockNumber_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2BlockNumber, ()), abi.encode(123));
+    ///         FaultDisputeGame (permissionless) L2 Sequence Number is invalid.
+    function test_validate_faultDisputeGameInvalidL2SequenceNumber_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IDisputeGame.l2SequenceNumber, ()), abi.encode(123));
         assertEq("PLDG-70", _validate(true));
     }
 
@@ -1243,7 +1177,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         overrides.l1PAOMultisig = address(0xace);
         overrides.challenger = address(0xbad);
         assertEq(
-            "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-120,PLDG-DWETH-30",
+            "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-130,PLDG-DWETH-30",
             _validate(true, overrides)
         );
     }
@@ -1275,7 +1209,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
 
         vm.expectRevert(
             bytes(
-                "StandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-120,PLDG-DWETH-30"
+                "StandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-130,PLDG-DWETH-30"
             )
         );
         _validate(false, overrides);
