@@ -138,6 +138,10 @@ func TestSignExtend_32bit(t *testing.T) {
 		{name: "idx 8, unsigned, nonzero upper bits", data: 0xFFFF_FF75, index: 8, expected: 0x0000_0075},
 		{name: "idx 16, signed, nonzero upper bits", data: 0x1234_A123, index: 16, expected: 0xFFFF_A123},
 		{name: "idx 16, unsigned, nonzero upper bits", data: 0x1234_7123, index: 16, expected: 0x0000_7123},
+
+		// Test cases to specifically verify ~mask implementation
+		{name: "~mask test idx 8", data: 0xFF, index: 8, expected: 0xFFFFFFFF},
+		{name: "~mask test idx 16", data: 0x8000, index: 16, expected: 0xFFFF8000},
 	}
 
 	for _, c := range cases {
