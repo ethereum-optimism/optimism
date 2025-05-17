@@ -51,10 +51,13 @@ func InitTracing(tracingEnabled bool, serviceName string, tracerName string) err
 		serviceName = "op-node"
 	}
 
-	_, _, err := telemetry.SetupOpenTelemetry(context.Background(), otelconfig.WithServiceName(serviceName))
+	_, _, err := telemetry.SetupOpenTelemetry(context.Background(),
+		otelconfig.WithServiceName(serviceName),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to setup OpenTelemetry: %w", err)
 	}
+	// print out all configs of the tracer
 	tracer = otel.Tracer(tracerName)
 	return nil
 
@@ -114,6 +117,7 @@ func startSpanFromContext(ctx context.Context, spanName string, envelope *eth.Ex
 		span.End()
 		cancel()
 	}()
+	fmt.Println("span started", span.SpanContext().IsValid())
 
 	// Return the context with the span and the enhanced envelope
 	return &eth.ExecutionPayloadEnvelopeWithContext{
@@ -125,6 +129,7 @@ func startSpanFromContext(ctx context.Context, spanName string, envelope *eth.Ex
 // endSpanByName ends a span by its name and removes it from the context
 func endSpanByName(ctx context.Context, spanName string) context.Context {
 	if span := getSpanByName(ctx, spanName); span != nil {
+		fmt.Println("ending span", span.SpanContext().IsValid())
 		span.End()
 		// Remove the span from the context
 		if spans, ok := ctx.Value(spansContextKey).(map[string]trace.Span); ok {

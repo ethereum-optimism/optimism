@@ -29,18 +29,21 @@ func SetupOpenTelemetry(ctx context.Context, opts ...otelconfig.Option) (context
 		otelconfig.WithServiceName(envOrDefault(serviceNameEnvVar, defaultServiceName)),
 		otelconfig.WithServiceVersion(envOrDefault(serviceVersionEnvVar, defaultServiceVersion)),
 		otelconfig.WithPropagators(defaultPropagators),
+		otelconfig.WithLogLevel("debug"),
+		otelconfig.WithExporterInsecure(true),
+		otelconfig.WithTracesExporterInsecure(true),
+		otelconfig.WithTracesExporterProtocol(otelconfig.ProtocolGRPC),
+		otelconfig.WithTracesExporterEndpoint(os.Getenv(tracesEndpointEnvVar)),
 	}
-
 	// do not use localhost:4317 by default, we want telemetry to be opt-in and
 	// explicit.
 	// The caller is still able to override this by passing in their own opts.
-	if os.Getenv(tracesEndpointEnvVar) == "" {
-		defaultOpts = append(defaultOpts, otelconfig.WithTracesEnabled(false))
-	}
-	if os.Getenv(metricsEndpointEnvVar) == "" {
-		defaultOpts = append(defaultOpts, otelconfig.WithMetricsEnabled(false))
-	}
-
+	// if os.Getenv(tracesEndpointEnvVar) == "" {
+	// 	defaultOpts = append(defaultOpts, otelconfig.WithTracesEnabled(false))
+	// }
+	// if os.Getenv(metricsEndpointEnvVar) == "" {
+	// 	defaultOpts = append(defaultOpts, otelconfig.WithMetricsEnabled(false))
+	// }
 	opts = append(defaultOpts, opts...)
 	otelShutdown, err := otelconfig.ConfigureOpenTelemetry(opts...)
 	if err != nil {
