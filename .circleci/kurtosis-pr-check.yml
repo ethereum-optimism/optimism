@@ -11,39 +11,18 @@ jobs:
       - image: cimg/go:1.21
     resource_class: medium
     steps:
-      - checkout
-      - run:
-          name: Install Kurtosis
-          command: |
-            echo "Installing Kurtosis CLI..."
-            curl -sSL https://get.kurtosis.com/install.sh | bash
-            echo 'export PATH="$HOME/.kurtosis/bin:$PATH"' >> $BASH_ENV
-            source $BASH_ENV
-            kurtosis version
+      - utils/checkout-with-mise
       - run:
           name: Start Kurtosis Engine
           command: |
             kurtosis engine start
             kurtosis engine status
       - run:
-          name: Build Required Docker Images
-          working_directory: kurtosis-devnet
-          command: |
-            # Install just
-            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
-            export PATH="$HOME/.local/bin:$PATH"
-
-            # Build the minimal set of Docker images required for the check
-            just op-node-image
-            just op-batcher-image
-            just op-proposer-image
-      - run:
           name: Run Kurtosis Simple Deployment Check
           working_directory: kurtosis-devnet
           command: |
-            export PATH="$HOME/.local/bin:$PATH"
-
             # Attempt to deploy the simple devnet (most lightweight option)
+            # just simple-devnet will build the necessary dependencies automatically
             just simple-devnet
 
             # Verify the devnet is running properly
