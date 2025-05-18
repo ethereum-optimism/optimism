@@ -2,7 +2,10 @@ use alloy_consensus::{
     Eip2718EncodableReceipt, Eip658Value, Receipt, ReceiptWithBloom, RlpDecodableReceipt,
     RlpEncodableReceipt, TxReceipt, Typed2718,
 };
-use alloy_eips::{eip2718::Eip2718Result, Decodable2718, Encodable2718};
+use alloy_eips::{
+    eip2718::{Eip2718Result, IsTyped2718},
+    Decodable2718, Encodable2718,
+};
 use alloy_primitives::{Bloom, Log};
 use alloy_rlp::{BufMut, Decodable, Encodable, Header};
 use op_alloy_consensus::{OpDepositReceipt, OpTxType};
@@ -359,6 +362,12 @@ impl TxReceipt for OpReceipt {
 impl Typed2718 for OpReceipt {
     fn ty(&self) -> u8 {
         self.tx_type().into()
+    }
+}
+
+impl IsTyped2718 for OpReceipt {
+    fn is_type(type_id: u8) -> bool {
+        <OpTxType as IsTyped2718>::is_type(type_id)
     }
 }
 
