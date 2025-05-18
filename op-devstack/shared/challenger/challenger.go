@@ -202,9 +202,9 @@ func applyCommonChallengerOpts(cfg *config.Config, options ...Option) error {
 // Different tests might be nested in subdirectories of the op-e2e dir.
 func findMonorepoRoot() (string, error) {
 	path := "./"
-	// Only search up 5 directories
+	// Only search a limited number of directories
 	// Avoids infinite recursion if the root isn't found for some reason
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		_, err := os.Stat(path + "op-devstack")
 		if errors.Is(err, os.ErrNotExist) {
 			path = path + "../"
