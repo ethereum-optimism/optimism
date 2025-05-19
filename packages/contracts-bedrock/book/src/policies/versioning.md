@@ -99,7 +99,7 @@ To accommodate this, once contract changes are ready for governance approval, th
 5. Check "set as pre-release" since it's not yet governance approved
 6. Uncheck "Set as the latest release" and "Create a discussion for this release".
 7. Click publish release.
-8. After governance vote passes, edit the relase to uncheck "set as pre-release", and remove the `-rc.1` tag.
+8. After governance vote passes, edit the release to uncheck "set as pre-release", and remove the `-rc.1` tag.
 
 Although the tools exist to apply a [code freeze](./code-freezes.md) to specific contracts, this is
 discouraged. If a change is required to a release candidate after it has been tagged, the
