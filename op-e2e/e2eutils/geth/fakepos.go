@@ -2,6 +2,7 @@ package geth
 
 import (
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"math/rand"
 	"time"
@@ -226,13 +227,12 @@ func (f *fakePoS) Start() error {
 }
 
 func (f *fakePoS) Stop() error {
-	if f.sub != nil {
-		f.sub.Unsubscribe()
+	if f.sub == nil || f.clock == nil {
+		return errors.New("fakePoS not started, but stop was called")
 	}
-	if f.clock != nil {
-		if advancing, ok := f.clock.(*clock.AdvancingClock); ok {
-			advancing.Stop()
-		}
+	f.sub.Unsubscribe()
+	if advancing, ok := f.clock.(*clock.AdvancingClock); ok {
+		advancing.Stop()
 	}
 	return nil
 }
