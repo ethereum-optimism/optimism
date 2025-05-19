@@ -22,12 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var SimpleInterop presets.TestSetup[*presets.SimpleInterop]
-
 // TestMain creates the test-setups against the shared backend
 func TestMain(m *testing.M) {
 	// Other setups may be added here, hydrated from the same orchestrator
-	presets.DoMain(m, presets.NewSimpleInterop(&SimpleInterop))
+	presets.DoMain(m, presets.WithSimpleInterop())
 }
 
 // TestInteropHappyTx is testing that a valid init message, followed by a valid exec message are correctly
@@ -37,7 +35,7 @@ func TestInteropHappyTx(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	ctx := t.Ctx()
 
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 	l := sys.Log
 
 	// two EOAs for triggering the init and exec interop txs
@@ -131,8 +129,8 @@ func TestInteropHappyTx(gt *testing.T) {
 	err := wait.For(ctx, 5*time.Second, func() (bool, error) {
 		safeL2Head_supervisor_A := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
 		safeL2Head_supervisor_B := sys.Supervisor.SafeBlockID(sys.L2ChainB.ChainID()).Hash
-		safeL2Head_sequencer_A := sys.L2CLNodeA.SafeL2BlockRef()
-		safeL2Head_sequencer_B := sys.L2CLNodeB.SafeL2BlockRef()
+		safeL2Head_sequencer_A := sys.L2CLA.SafeL2BlockRef()
+		safeL2Head_sequencer_B := sys.L2CLB.SafeL2BlockRef()
 
 		if safeL2Head_sequencer_A.Number < crossSafeMinimumBlock_A {
 			l.Info("Safe ref number is still behind", "block_a", crossSafeMinimumBlock_A, "safe", safeL2Head_sequencer_A.Number)
