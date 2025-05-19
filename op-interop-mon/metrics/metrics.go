@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -13,6 +15,8 @@ var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
+	RecordInitiatingMessageStats(chainID string, blockHeight uint64, status string, value float64)
+	RecordExecutingMessageStats(chainID string, blockHeight uint64, blockHash string, status string, value float64)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -28,6 +32,11 @@ type Metrics struct {
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
+
+	// Message metrics
+	executingMessages     prometheus.GaugeVec
+	initiatingMessages    prometheus.GaugeVec
+	terminalStatusChanges prometheus.GaugeVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -61,6 +70,25 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "up",
 			Help:      "1 if the op-interop-mon has finished starting up",
 		}),
+		executingMessages: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "executing_messages",
+			Help:      "Number of messages being executed",
+		}, []string{
+			"chain_id",
+			"block_height",
+			"block_hash",
+			"status",
+		}),
+		initiatingMessages: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "initiating_messages",
+			Help:      "Number of messages being initiated",
+		}, []string{
+			"chain_id",
+			"block_height",
+			"status",
+		}),
 	}
 }
 
@@ -79,3 +107,62 @@ func (m *Metrics) RecordUp() {
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
 }
+
+// RecordExecutingMessageStats records metrics for messages being executed
+func (m *Metrics) RecordExecutingMessageStats(
+	chainID string,
+	blockHeight uint64,
+	blockHash string,
+	status string,
+	value float64,
+) {
+	m.executingMessages.WithLabelValues(
+		chainID,
+		fmt.Sprintf("%d", blockHeight),
+		blockHash,
+		status,
+	).Set(value)
+}
+
+// RecordInitiatingMessageStats records metrics for messages being initiated
+func (m *Metrics) RecordInitiatingMessageStats(
+	chainID string,
+	blockHeight uint64,
+	status string,
+	value float64,
+) {
+	m.initiatingMessages.WithLabelValues(
+		chainID,
+		fmt.Sprintf("%d", blockHeight),
+		status,
+	).Set(value)
+}
+
+//// RecordTerminalStatusChange records a terminal status change with detailed logging
+//func (m *Metrics) RecordTerminalStatusChange(
+//executingChainID string,
+//initiatingChainID string,
+//executingBlockHeight uint64,
+//initiatingBlockHeight uint64,
+//executingBlockHash string,
+//initiatingBlockHash string,
+//oldStatus string,
+//newStatus string,
+//logger log.Logger,
+//) {
+//m.terminalStatusChanges.WithLabelValues(
+//executingChainID,
+//initiatingChainID,
+//).Inc()
+
+//logger.Warn("Terminal status change detected",
+//"executing_chain_id", executingChainID,
+//"initiating_chain_id", initiatingChainID,
+//"executing_block_height", executingBlockHeight,
+//"initiating_block_height", initiatingBlockHeight,
+//"executing_block_hash", executingBlockHash,
+//"initiating_block_hash", initiatingBlockHash,
+//"old_status", oldStatus,
+//"new_status", newStatus,
+//)
+//}

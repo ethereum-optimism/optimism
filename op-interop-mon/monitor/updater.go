@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var logNotFoundErr = errors.New("log not found")
+var ErrLogNotFound = errors.New("log not found")
 
 // TODO: make this configurable
 var updateInterval = 1 * time.Second
@@ -28,7 +28,7 @@ var _ UpdaterClient = &ethclient.Client{}
 // Updaters are responsible for updating jobs from a chain for the Maintainer to track
 type Updater interface {
 	Start(ctx context.Context) error
-	Enqueue(job Job)
+	Enqueue(job *Job)
 	Stop() error
 }
 
@@ -37,19 +37,19 @@ type RPCUpdater struct {
 	client  UpdaterClient
 	chainID eth.ChainID
 
-	inbox    chan Job
-	callback func(Job)
+	inbox    chan *Job
+	callback func(*Job)
 	closed   chan struct{}
 
 	log log.Logger
 }
 
-func NewUpdater(chainID eth.ChainID, client UpdaterClient, callback func(Job), log log.Logger) *RPCUpdater {
+func NewUpdater(chainID eth.ChainID, client UpdaterClient, callback func(*Job), log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
 		chainID:  chainID,
 		client:   client,
 		log:      log.New("component", "rpc_updater", "chain_id", chainID),
-		inbox:    make(chan Job, 1000),
+		inbox:    make(chan *Job, 1000),
 		callback: callback,
 		closed:   make(chan struct{}),
 	}
@@ -70,7 +70,7 @@ func (t *RPCUpdater) Run(ctx context.Context) {
 			return
 		// if the inbox has a new job, process the job and send the jobs to the outbox
 		case job := <-t.inbox:
-			err := t.UpdateJob(&job)
+			err := t.UpdateJob(job)
 			if err != nil {
 				t.log.Error("error updating job", "error", err)
 				continue
@@ -100,7 +100,7 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 		return
 	}
 	log, err := t.findLogEvent(receipts, *job)
-	if err == logNotFoundErr {
+	if err == ErrLogNotFound {
 		t.log.Error("log not found", "error", err)
 		job.UpdateStatus(jobStatusInvalid)
 		return
@@ -127,11 +127,11 @@ func (t *RPCUpdater) findLogEvent(receipts []*types.Receipt, job Job) (*types.Lo
 			}
 		}
 	}
-	return nil, logNotFoundErr
+	return nil, ErrLogNotFound
 }
 
 // todo: make this a priority queue
-func (t *RPCUpdater) Enqueue(job Job) {
+func (t *RPCUpdater) Enqueue(job *Job) {
 	if t.Stopped() {
 		return
 	}

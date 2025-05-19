@@ -14,7 +14,7 @@ import (
 
 // JobFilter is a function that turns any executing messages from a slice of receipts
 // into a slice of jobs which can be added to the Maintainer's inbox
-type JobFilter func(receipts []*types.Receipt) []Job
+type JobFilter func(receipts []*types.Receipt) []*Job
 
 // FinderClient is a client that can be used to find new blocks and their receipts
 // it is satisfied by the ethclient.Client type
@@ -40,12 +40,12 @@ type RPCFinder struct {
 	subErr   <-chan error
 	inbox    chan *types.Header
 	toJobs   JobFilter
-	callback func(Job)
+	callback func(*Job)
 	closed   chan struct{}
 	log      log.Logger
 }
 
-func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(Job), log log.Logger) *RPCFinder {
+func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
 	return &RPCFinder{
 		chainID:  chainID,
 		client:   client,
@@ -125,7 +125,7 @@ func (t *RPCFinder) Run(ctx context.Context) {
 }
 
 // ProcessBlock retrieves a block of receipts, converts them to jobs, and returns the jobs to be tracked
-func (t *RPCFinder) ProcessBlock(ctx context.Context, header *types.Header) (cases []Job, err error) {
+func (t *RPCFinder) ProcessBlock(ctx context.Context, header *types.Header) (cases []*Job, err error) {
 	receipts, err := t.GetBlockReceipts(ctx, header.Number)
 	if err != nil {
 		return nil, err
