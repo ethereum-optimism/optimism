@@ -59,7 +59,7 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 		return nil, nil, err
 	}
 
-	fakepos := &fakePoS{
+	fakepos := &FakePoS{
 		clock:             c,
 		eth:               gethInstance.Backend,
 		log:               log.Root(), // geth logger is global anyway. Would be nice to replace with a local logger though.
@@ -73,7 +73,7 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 	// Instead of running a whole beacon node, we run this fake-proof-of-stake sidecar that sequences L1 blocks using the Engine API.
 	gethInstance.Node.RegisterLifecycle(fakepos)
 
-	return gethInstance, &FakePoS{fakePoS: fakepos}, nil
+	return gethInstance, fakepos, nil
 }
 
 func defaultNodeConfig(name string, jwtPath string) *node.Config {

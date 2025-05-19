@@ -180,8 +180,9 @@ func TestControlPlaneFakePoS(gt *testing.T) {
 	el := system.L1Network(ids.L1).L1ELNode(match.FirstL1EL)
 
 	// progress chain
+	blockTime := time.Second * 6
 	for range 2 {
-		time.Sleep(time.Second * 6)
+		time.Sleep(blockTime)
 
 		head, err := el.EthClient().InfoByLabel(ctx, "latest")
 		require.NoError(t, err)
@@ -197,7 +198,7 @@ func TestControlPlaneFakePoS(gt *testing.T) {
 	// L1 chain won't progress since fakePoS is stopped
 	// Wait and check that L1 chain won't progress
 	for range 2 {
-		time.Sleep(time.Second * 6)
+		time.Sleep(blockTime)
 
 		other, err := el.EthClient().InfoByLabel(ctx, "latest")
 		require.NoError(t, err)

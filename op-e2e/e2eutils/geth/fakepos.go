@@ -27,23 +27,9 @@ type Beacon interface {
 	StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1) error
 }
 
-// FakePoS is a testing-only utility to attach to Geth
-// the exported struct is used by the devstack to control the fakePoS module, and adheres to the devstack.Lifecycle interface
-type FakePoS struct {
-	fakePoS *fakePoS
-}
-
-func (f *FakePoS) Start() {
-	_ = f.fakePoS.Start()
-}
-
-func (f *FakePoS) Stop() {
-	_ = f.fakePoS.Stop()
-}
-
 // fakePoS is a testing-only utility to attach to Geth,
 // to build a fake proof-of-stake L1 chain with fixed block time and basic lagging safe/finalized blocks.
-type fakePoS struct {
+type FakePoS struct {
 	clock     clock.Clock
 	eth       *eth.Ethereum
 	log       log.Logger
@@ -60,13 +46,13 @@ type fakePoS struct {
 	beacon Beacon
 }
 
-func (f *fakePoS) FakeBeaconBlockRoot(time uint64) common.Hash {
+func (f *FakePoS) FakeBeaconBlockRoot(time uint64) common.Hash {
 	var dat [8]byte
 	binary.LittleEndian.PutUint64(dat[:], time)
 	return crypto.Keccak256Hash(dat[:])
 }
 
-func (f *fakePoS) Start() error {
+func (f *FakePoS) Start() error {
 	if advancing, ok := f.clock.(*clock.AdvancingClock); ok {
 		advancing.Start()
 	}
@@ -226,7 +212,7 @@ func (f *fakePoS) Start() error {
 	return nil
 }
 
-func (f *fakePoS) Stop() error {
+func (f *FakePoS) Stop() error {
 	if f.sub == nil || f.clock == nil {
 		return errors.New("fakePoS not started, but stop was called")
 	}
