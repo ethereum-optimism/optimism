@@ -100,13 +100,12 @@ type DefaultInteropSystemIDs struct {
 }
 
 func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSystemIDs {
-	clusterID := stack.ClusterID("main")
 	ids := DefaultInteropSystemIDs{
 		L1:           stack.L1NetworkID(l1ID),
 		L1EL:         stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
 		L1CL:         stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
 		Superchain:   "main", // TODO(#15244): hardcoded to match the deployer default ID
-		Cluster:      clusterID,
+		Cluster:      stack.ClusterID("main"),
 		Supervisor:   "1-primary", // prefix with number for ordering of supervisors
 		Sequencer:    "dev",
 		L2A:          stack.L2NetworkID(l2AID),
