@@ -29,7 +29,7 @@ op-deployer bootstrap superchain \
 Defaults to `OPStackSupport` value read from `op-geth`, but can be overridden by these flags.
 
 ### --superchain-proxy-admin-owner, --protocol-versions-owner, --guardian
-In a dev environment, these can all be hot wallet EOAs. In a production environment, `--guardian` should be an HSM (hardward security module) protected hot wallet and the other two should be multisig cold-wallets (e.g. Gnosis Safes).
+In a dev environment, these can all be hot wallet EOAs. In a production environment, `--guardian` should be an HSM (hardware security module) protected hot wallet and the other two should be multisig cold-wallets (e.g. Gnosis Safes).
 
 ### Output
 
@@ -63,7 +63,7 @@ op-deployer bootstrap implementations \
 
 This command will deploy implementations, blueprints, and the OPCM. Deployments are (for the most part)
 deterministic, so contracts will only be deployed once per chain as long as the implementation and constructor args
-remain the same. This applies to the `op-deployer apply` pipeline - that is, if someone else ran `op-deployer boostrap implementations`
+remain the same. This applies to the `op-deployer apply` pipeline - that is, if someone else ran `op-deployer bootstrap implementations`
 at some point on a given L1 chain, then the `apply` pipeline will re-use those implementations.
 
 The command will output a JSON like the one below:
