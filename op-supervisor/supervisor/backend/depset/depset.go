@@ -38,6 +38,8 @@ type DependencySet interface {
 	// MessageExpiryWindow returns the message expiry window to use for this dependency set.
 	MessageExpiryWindow() uint64
 
+	// TODO: we also need IsInteropActivationBlock, and possibly don't want
+	//  these to be functions of this interface.
 	IsInterop(chainID eth.ChainID, timestamp uint64) bool
 
 	ChainIndexFromID

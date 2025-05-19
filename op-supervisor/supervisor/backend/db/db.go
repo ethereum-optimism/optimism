@@ -161,6 +161,11 @@ func (db *ChainsDB) AttachEmitter(em event.Emitter) {
 func (db *ChainsDB) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.LocalUnsafeReceivedEvent:
+		// TODO: instead of querying the anchor on any interop-active unsafe block (while db is uninitialized),
+		// we should assume that the activation block will come by here and then initialize
+		// the logs db from it.
+		// Future unsafe blocks will then, via the chain processor, already add more logs.
+		// And probably cleaner to handle this in the supervisor backend, not here.
 		if db.depSet.IsInterop(x.ChainID, x.NewLocalUnsafe.Time) && !db.isInitialized(x.ChainID) {
 			db.logger.Info("Querying anchorpoint to initialize DB",
 				"chain", x.ChainID, "unsafe", x.NewLocalUnsafe)
@@ -168,16 +173,24 @@ func (db *ChainsDB) OnEvent(ev event.Event) bool {
 		}
 		return false
 	case superevents.AnchorEvent:
+		// TODO: Anchor should only be used if Interop is active at genesis.
 		db.logger.Info("Received chain anchor information",
 			"chain", x.ChainID, "derived", x.Anchor.Derived, "source", x.Anchor.Source)
 		db.initFromAnchor(x.ChainID, x.Anchor)
 	case superevents.LocalDerivedEvent:
+		// TODO: instead of querying the anchor on any interop-active safe block (while db is uninitialized),
+		// we should assume that the activation block will come by here and then initialize
+		// the derived db from it.
+		// If the activation block isn't seen (while db is uninitialized), we should
+		// request the node to perform a pre-interop reset.
+		// And probably cleaner to handle this in the supervisor backend, not here.
 		if db.depSet.IsInterop(x.ChainID, x.Derived.Derived.Time) && !db.isInitialized(x.ChainID) {
 			db.logger.Info("Querying anchorpoint to initialize DB",
 				"chain", x.ChainID, "derived", x.Derived.Derived)
 			db.emitter.Emit(superevents.QueryAnchorEvent{ChainID: x.ChainID})
 		}
-		// TODO: how do we want to handle above initialization case?
+		// We don't need to check if the interop is active for the following update,
+		// because a managed mode sends derived events only post-Interop.
 		db.UpdateLocalSafe(x.ChainID, x.Derived.Source, x.Derived.Derived, x.NodeID)
 	case superevents.FinalizedL1RequestEvent:
 		db.onFinalizedL1(x.FinalizedL1)

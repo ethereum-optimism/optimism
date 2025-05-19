@@ -119,6 +119,14 @@ func (ev LocalDerivedOriginUpdateEvent) String() string {
 	return "local-derived-origin-update"
 }
 
+type ResetPreInteropRequestEvent struct {
+	ChainID eth.ChainID
+}
+
+func (ev ResetPreInteropRequestEvent) String() string {
+	return "reset-pre-interop-request"
+}
+
 type QueryAnchorEvent struct {
 	ChainID eth.ChainID
 }

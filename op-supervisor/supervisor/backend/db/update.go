@@ -116,7 +116,7 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 			return
 		}
 		if errors.Is(err, types.ErrDataCorruption) {
-			logger.Warn("TODO", "err", err)
+			logger.Error("DB coruption occurred", "err", err)
 			return
 		}
 		logger.Warn("Failed to update local safe", "err", err)

@@ -154,6 +154,10 @@ func (rs *RPCSyncNode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 	return rs.cl.CallContext(ctx, nil, "interop_reset", lUnsafe, xUnsafe, lSafe, xSafe, finalized)
 }
 
+func (rs *RPCSyncNode) ResetPreInterop(ctx context.Context) error {
+	return rs.cl.CallContext(ctx, nil, "interop_resetPreInterop")
+}
+
 func (rs *RPCSyncNode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
 	return rs.cl.CallContext(ctx, nil, "interop_provideL1", nextL1)
 }

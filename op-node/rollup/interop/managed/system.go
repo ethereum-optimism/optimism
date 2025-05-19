@@ -254,6 +254,15 @@ func (m *ManagedMode) InvalidateBlock(ctx context.Context, seal supervisortypes.
 }
 
 func (m *ManagedMode) AnchorPoint(ctx context.Context) (supervisortypes.DerivedBlockRefPair, error) {
+	// TODO: maybe cache non-genesis anchor point when seeing safe Interop activation block?
+	//  Only needed if we don't test for activation block in the supervisor.
+	if !m.cfg.IsInterop(m.cfg.Genesis.L2Time) {
+		return supervisortypes.DerivedBlockRefPair{}, &gethrpc.JsonError{
+			Code:    InteropInactiveRPCErrCode,
+			Message: "Interop inactive at genesis",
+		}
+	}
+
 	l1Ref, err := m.l1.L1BlockRefByHash(ctx, m.cfg.Genesis.L1.Hash)
 	if err != nil {
 		return supervisortypes.DerivedBlockRefPair{}, fmt.Errorf("failed to fetch L1 block ref: %w", err)
@@ -276,6 +285,11 @@ const (
 )
 
 // TODO: add ResetPreInterop, called by supervisor if bisection went pre-Interop. Emit ResetEngineRequestEvent.
+func (m *ManagedMode) ResetPreInterop(ctx context.Context) error {
+	m.log.Info("Received pre-interop reset request")
+	m.emitter.Emit(engine.ResetEngineRequestEvent{})
+	return nil
+}
 
 func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error {
 	logger := m.log.New(

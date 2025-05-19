@@ -149,6 +149,11 @@ func (m *ManagedNode) OnEvent(ev event.Event) bool {
 			return false
 		}
 		m.onQueryAnchorpoint()
+	case superevents.ResetPreInteropRequestEvent:
+		if x.ChainID != m.chainID {
+			return false
+		}
+		m.onResetPreInteropRequest()
 	default:
 		return false
 	}
@@ -371,6 +376,16 @@ func (m *ManagedNode) onQueryAnchorpoint() {
 		ChainID: m.chainID,
 		Anchor:  anchor,
 	})
+}
+
+func (m *ManagedNode) onResetPreInteropRequest() {
+	m.log.Info("Requesting node to reset pre-Interop")
+	ctx, cancel := context.WithTimeout(m.ctx, nodeTimeout)
+	defer cancel()
+	if err := m.Node.ResetPreInterop(ctx); err != nil {
+		m.log.Error("Node failed to send pre-Interop request", "err", err)
+		return
+	}
 }
 
 func (m *ManagedNode) onUnsafeBlock(unsafeRef eth.BlockRef) {
