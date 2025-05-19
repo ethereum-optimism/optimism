@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
@@ -103,6 +104,21 @@ func WithDeployer() stack.Option[*Orchestrator] {
 			}
 		},
 	}
+}
+
+type L2Deployment struct {
+	systemConfigProxyAddr   common.Address
+	disputeGameFactoryProxy common.Address
+}
+
+var _ stack.L2Deployment = &L2Deployment{}
+
+func (d *L2Deployment) SystemConfigProxyAddr() common.Address {
+	return d.systemConfigProxyAddr
+}
+
+func (d *L2Deployment) DisputeGameFactoryProxyAddr() common.Address {
+	return d.disputeGameFactoryProxy
 }
 
 type worldBuilder struct {

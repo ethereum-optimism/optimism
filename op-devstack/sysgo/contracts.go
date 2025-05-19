@@ -6,6 +6,12 @@ import (
 	"os"
 )
 
+type ContractPaths struct {
+	// must be absolute paths, without file:// prefix
+	FoundryArtifacts string
+	SourceMap        string
+}
+
 func contractPaths() (ContractPaths, error) {
 	contractsBedrockPath := "packages/contracts-bedrock"
 	root, err := findMonorepoRoot(contractsBedrockPath)

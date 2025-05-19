@@ -143,9 +143,6 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 		),
 	)
 
-	//opt.Add(WithInteropGen(ids.L1, ids.Superchain, ids.Cluster,
-	//	[]stack.L2NetworkID{ids.L2A, ids.L2B}, contractPaths))
-
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
 	opt.Add(WithSupervisor(ids.Supervisor, ids.Cluster, ids.L1EL))
