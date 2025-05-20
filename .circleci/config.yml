@@ -272,10 +272,8 @@ jobs:
             export SKIP_SLOW_TESTS="<<parameters.skip_slow_tests>>"
             TIMEOUT="10m"
             if [ "$SKIP_SLOW_TESTS" = "false" ]; then
-              echo "Extend timeout for slow tests to 30m"
               TIMEOUT="30m"
             fi
-            echo "Running test with SKIP_SLOW_TESTS = '$SKIP_SLOW_TESTS', timeout = '$TIMEOUT'"
             gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
             -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
           working_directory: cannon
