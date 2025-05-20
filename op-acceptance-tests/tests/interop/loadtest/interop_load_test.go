@@ -35,10 +35,10 @@ func TestExecFromSameAddressInALoop(gt *testing.T) {
 	l2ELA := sys.L2ELA
 	l2ELB := sys.L2ELB
 	if proxydsA := match.Proxyd.Match(sys.L2ChainA.Escape().L2ELNodes()); len(proxydsA) > 0 {
-		l2ELA = dsl.NewL2ELNode(proxydsA[0], sys.L2ChainA.ChainID())
+		l2ELA = dsl.NewL2ELNode(proxydsA[0])
 	}
 	if proxydsB := match.Proxyd.Match(sys.L2ChainB.Escape().L2ELNodes()); len(proxydsB) > 0 {
-		l2ELB = dsl.NewL2ELNode(proxydsB[0], sys.L2ChainB.ChainID())
+		l2ELB = dsl.NewL2ELNode(proxydsB[0])
 	}
 
 	// Setup EOAs. We are careful to use the specific ELs configured above to ensure we

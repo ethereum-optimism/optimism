@@ -14,16 +14,14 @@ import (
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {
 	*elNode
-	inner   stack.L2ELNode
-	chainID eth.ChainID
+	inner stack.L2ELNode
 }
 
 // NewL2ELNode creates a new L2ELNode DSL wrapper
-func NewL2ELNode(inner stack.L2ELNode, chainID eth.ChainID) *L2ELNode {
+func NewL2ELNode(inner stack.L2ELNode) *L2ELNode {
 	return &L2ELNode{
-		elNode:  newELNode(commonFromT(inner.T()), inner),
-		inner:   inner,
-		chainID: chainID,
+		elNode: newELNode(commonFromT(inner.T()), inner),
+		inner:  inner,
 	}
 }
 
@@ -93,7 +91,7 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
 // Composable with other lambdas to wait in parallel
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFunc {
 	return func() error {
-		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.chainID, "target", target)
+		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ID().ChainID, "target", target)
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
