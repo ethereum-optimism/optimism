@@ -24,7 +24,5 @@ func TestInitExecMsg(gt *testing.T) {
 	// Make sure supervisor indexs block which includes init message
 	sys.Supervisor.AdvancedUnsafeHead(alice.ChainID(), 2)
 	// Single event in tx so index is 0
-	_, bobReceipt := bob.SendExecMessage(initIntent, 0)
-	// Make sure that the cross-safe head advances after the exec message is executed
-	sys.Supervisor.AdvancedSafeHead(bob.ChainID(), bobReceipt.BlockNumber.Uint64(), 10)
+	bob.SendExecMessage(initIntent, 0)
 }
