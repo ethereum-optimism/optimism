@@ -215,5 +215,5 @@ func findMonorepoRoot() (string, error) {
 		}
 		return path, nil
 	}
-	return "", fmt.Errorf("could not find monorepo root, tryping up to %v", path)
+	return "", fmt.Errorf("could not find monorepo root, trying up to %v", path)
 }
