@@ -134,7 +134,8 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	t.Logger().Info("Re-enabling batch-submitter")
 	// re-enable the batcher now that we are done with the test.
 	t.Require().NoError(sys.L2BatcherA.ActivityAPI().StartBatcher(t.Ctx()))
-	// TODO: batcher submits future span batch, misses a L2 block
+	// TODO(#16036): batcher submits future span batch, misses a L2 block.
+	// For now it uses singular batches to work-around.
 
 	// Build the missing blocks, catch up on local-safe chain
 	t.Require().Eventually(func() bool {

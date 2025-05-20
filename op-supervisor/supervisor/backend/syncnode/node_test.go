@@ -139,7 +139,7 @@ func TestPrepareReset(t *testing.T) {
 		pivot = i
 		node.resetTracker.bisectToTarget()
 		require.Equal(t, i, unsafe.Number)
-		require.Equal(t, uint64(0), safe.Number)
+		require.Equal(t, i, safe.Number)
 		require.Equal(t, uint64(0), finalized.Number)
 	}
 
