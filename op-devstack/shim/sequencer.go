@@ -8,52 +8,52 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
-type SequencerConfig struct {
+type TestSequencerConfig struct {
 	CommonConfig
-	ID                 stack.SequencerID
+	ID                 stack.TestSequencerID
 	Client             client.RPC
 	L2SequencerClients map[eth.ChainID]client.RPC
 }
 
-type rpcSequencer struct {
+type rpcTestSequencer struct {
 	commonImpl
-	id stack.SequencerID
+	id stack.TestSequencerID
 
 	client       client.RPC
-	api          apis.SequencerAPI
-	l2sequencers map[eth.ChainID]apis.SequencerIndividualAPI
+	api          apis.TestSequencerAPI
+	l2sequencers map[eth.ChainID]apis.TestSequencerIndividualAPI
 }
 
-var _ stack.Sequencer = (*rpcSequencer)(nil)
+var _ stack.TestSequencer = (*rpcTestSequencer)(nil)
 
-func NewSequencer(cfg SequencerConfig) stack.Sequencer {
+func NewTestSequencer(cfg TestSequencerConfig) stack.TestSequencer {
 	cfg.Log = cfg.Log.New("id", cfg.ID)
-	s := &rpcSequencer{
+	s := &rpcTestSequencer{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
 		client:     cfg.Client,
 		api:        sources.NewBuilderClient(cfg.Client),
 	}
 
-	s.l2sequencers = make(map[eth.ChainID]apis.SequencerIndividualAPI)
+	s.l2sequencers = make(map[eth.ChainID]apis.TestSequencerIndividualAPI)
 	for k, v := range cfg.L2SequencerClients {
 		s.l2sequencers[k] = sources.NewIndividualClient(v)
 	}
 	return s
 }
 
-func (r *rpcSequencer) ID() stack.SequencerID {
+func (r *rpcTestSequencer) ID() stack.TestSequencerID {
 	return r.id
 }
 
-func (r *rpcSequencer) AdminAPI() apis.SequencerAdminAPI {
+func (r *rpcTestSequencer) AdminAPI() apis.TestSequencerAdminAPI {
 	return r.api
 }
 
-func (r *rpcSequencer) BuildAPI() apis.SequencerBuildAPI {
+func (r *rpcTestSequencer) BuildAPI() apis.TestSequencerBuildAPI {
 	return r.api
 }
 
-func (r *rpcSequencer) IndividualAPI(chainID eth.ChainID) apis.SequencerIndividualAPI {
+func (r *rpcTestSequencer) IndividualAPI(chainID eth.ChainID) apis.TestSequencerIndividualAPI {
 	return r.l2sequencers[chainID]
 }

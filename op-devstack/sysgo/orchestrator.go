@@ -29,19 +29,19 @@ type Orchestrator struct {
 	// options
 	batcherOptions []BatcherOption
 
-	superchains locks.RWMap[stack.SuperchainID, *Superchain]
-	clusters    locks.RWMap[stack.ClusterID, *Cluster]
-	l1Nets      locks.RWMap[eth.ChainID, *L1Network]
-	l2Nets      locks.RWMap[eth.ChainID, *L2Network]
-	l1ELs       locks.RWMap[stack.L1ELNodeID, *L1ELNode]
-	l1CLs       locks.RWMap[stack.L1CLNodeID, *L1CLNode]
-	l2ELs       locks.RWMap[stack.L2ELNodeID, *L2ELNode]
-	l2CLs       locks.RWMap[stack.L2CLNodeID, *L2CLNode]
-	supervisors locks.RWMap[stack.SupervisorID, *Supervisor]
-	sequencers  locks.RWMap[stack.SequencerID, *Sequencer]
-	batchers    locks.RWMap[stack.L2BatcherID, *L2Batcher]
-	challengers locks.RWMap[stack.L2ChallengerID, *L2Challenger]
-	proposers   locks.RWMap[stack.L2ProposerID, *L2Proposer]
+	superchains    locks.RWMap[stack.SuperchainID, *Superchain]
+	clusters       locks.RWMap[stack.ClusterID, *Cluster]
+	l1Nets         locks.RWMap[eth.ChainID, *L1Network]
+	l2Nets         locks.RWMap[eth.ChainID, *L2Network]
+	l1ELs          locks.RWMap[stack.L1ELNodeID, *L1ELNode]
+	l1CLs          locks.RWMap[stack.L1CLNodeID, *L1CLNode]
+	l2ELs          locks.RWMap[stack.L2ELNodeID, *L2ELNode]
+	l2CLs          locks.RWMap[stack.L2CLNodeID, *L2CLNode]
+	supervisors    locks.RWMap[stack.SupervisorID, *Supervisor]
+	testSequencers locks.RWMap[stack.TestSequencerID, *TestSequencer]
+	batchers       locks.RWMap[stack.L2BatcherID, *L2Batcher]
+	challengers    locks.RWMap[stack.L2ChallengerID, *L2Challenger]
+	proposers      locks.RWMap[stack.L2ProposerID, *L2Proposer]
 
 	faucet *FaucetService
 
@@ -93,7 +93,7 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.l2ELs.Range(rangeHydrateFn[stack.L2ELNodeID, *L2ELNode](sys))
 	o.l2CLs.Range(rangeHydrateFn[stack.L2CLNodeID, *L2CLNode](sys))
 	o.supervisors.Range(rangeHydrateFn[stack.SupervisorID, *Supervisor](sys))
-	o.sequencers.Range(rangeHydrateFn[stack.SequencerID, *Sequencer](sys))
+	o.testSequencers.Range(rangeHydrateFn[stack.TestSequencerID, *TestSequencer](sys))
 	o.batchers.Range(rangeHydrateFn[stack.L2BatcherID, *L2Batcher](sys))
 	o.challengers.Range(rangeHydrateFn[stack.L2ChallengerID, *L2Challenger](sys))
 	o.proposers.Range(rangeHydrateFn[stack.L2ProposerID, *L2Proposer](sys))

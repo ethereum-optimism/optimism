@@ -17,18 +17,21 @@ type DefaultMinimalSystemIDs struct {
 
 	L2Batcher  stack.L2BatcherID
 	L2Proposer stack.L2ProposerID
+
+	TestSequencer stack.TestSequencerID
 }
 
 func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs {
 	ids := DefaultMinimalSystemIDs{
-		L1:         stack.L1NetworkID(l1ID),
-		L1EL:       stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
-		L1CL:       stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
-		L2:         stack.L2NetworkID(l2ID),
-		L2CL:       stack.L2CLNodeID{Key: "sequencer", ChainID: l2ID},
-		L2EL:       stack.L2ELNodeID{Key: "sequencer", ChainID: l2ID},
-		L2Batcher:  stack.L2BatcherID{Key: "main", ChainID: l2ID},
-		L2Proposer: stack.L2ProposerID{Key: "main", ChainID: l2ID},
+		L1:            stack.L1NetworkID(l1ID),
+		L1EL:          stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
+		L1CL:          stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
+		L2:            stack.L2NetworkID(l2ID),
+		L2CL:          stack.L2CLNodeID{Key: "sequencer", ChainID: l2ID},
+		L2EL:          stack.L2ELNodeID{Key: "sequencer", ChainID: l2ID},
+		L2Batcher:     stack.L2BatcherID{Key: "main", ChainID: l2ID},
+		L2Proposer:    stack.L2ProposerID{Key: "main", ChainID: l2ID},
+		TestSequencer: "test-sequencer",
 	}
 	return ids
 }
@@ -63,6 +66,8 @@ func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestra
 
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
 
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L2CL, ids.L1EL, ids.L2EL))
+
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
 	}))
@@ -79,8 +84,8 @@ type DefaultInteropSystemIDs struct {
 	Superchain stack.SuperchainID
 	Cluster    stack.ClusterID
 
-	Supervisor stack.SupervisorID
-	Sequencer  stack.SequencerID
+	Supervisor    stack.SupervisorID
+	TestSequencer stack.TestSequencerID
 
 	L2A   stack.L2NetworkID
 	L2ACL stack.L2CLNodeID
@@ -108,7 +113,7 @@ func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSy
 		Superchain:    "main", // TODO(#15244): hardcoded to match the deployer default ID
 		Cluster:       stack.ClusterID("main"),
 		Supervisor:    "1-primary", // prefix with number for ordering of supervisors
-		Sequencer:     "dev",
+		TestSequencer: "dev",
 		L2A:           stack.L2NetworkID(l2AID),
 		L2ACL:         stack.L2CLNodeID{Key: "sequencer", ChainID: l2AID},
 		L2AEL:         stack.L2ELNodeID{Key: "sequencer", ChainID: l2AID},
@@ -158,7 +163,7 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithL2CLNode(ids.L2ACL, true, ids.L1CL, ids.L1EL, ids.L2AEL))
 	opt.Add(WithL2CLNode(ids.L2BCL, true, ids.L1CL, ids.L1EL, ids.L2BEL))
 
-	opt.Add(WithSequencer(ids.Sequencer, ids.L2ACL, ids.L1EL, ids.L2AEL))
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L2ACL, ids.L1EL, ids.L2AEL))
 
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))

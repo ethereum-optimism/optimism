@@ -16,7 +16,7 @@ type IndividualClient struct {
 	client client.RPC
 }
 
-var _ apis.SequencerIndividualAPI = (*IndividualClient)(nil)
+var _ apis.TestSequencerIndividualAPI = (*IndividualClient)(nil)
 
 func NewIndividualClient(client client.RPC) *IndividualClient {
 	return &IndividualClient{

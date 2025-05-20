@@ -32,7 +32,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	l := sys.Log
 
-	ia := sys.Sequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
 	var alice, bob, cathrine *dsl.EOA
