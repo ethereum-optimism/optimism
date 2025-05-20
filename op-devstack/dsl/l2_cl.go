@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // L2CLNode wraps a stack.L2CLNode interface for DSL operations
@@ -50,6 +52,40 @@ func (cl *L2CLNode) Start() {
 
 func (cl *L2CLNode) Stop() {
 	cl.control.L2CLNodeState(cl.inner.ID(), stack.Stop)
+}
+
+func (cl *L2CLNode) StartSequencer() {
+	unsafe := cl.HeadBlockRef(types.LocalUnsafe)
+	cl.log.Info("Continue sequencing with consensus node (op-node)", "chain", cl.chainID, "unsafe", unsafe)
+
+	err := cl.inner.RollupAPI().StartSequencer(cl.ctx, unsafe.Hash)
+	cl.require.NoError(err, fmt.Sprintf("Expected to be able to start sequencer on chain %d", cl.chainID))
+
+	// wait for the sequencer to become active
+	var active bool
+	err = wait.For(cl.ctx, 1*time.Second, func() (bool, error) {
+		active, err = cl.inner.RollupAPI().SequencerActive(cl.ctx)
+		return active, err
+	})
+	cl.require.NoError(err, fmt.Sprintf("Expected to be able to call SequencerActive API on chain %d, and wait for an active state for sequencer, but got error", cl.chainID))
+
+	cl.log.Info("Rollup node sequencer status", "chain", cl.chainID, "active", active)
+}
+
+func (cl *L2CLNode) StopSequencer() common.Hash {
+	unsafeHead, err := cl.inner.RollupAPI().StopSequencer(cl.ctx)
+	cl.require.NoError(err, "Expected to be able to call StopSequencer API, but got error")
+
+	// wait for the sequencer to become inactive
+	var active bool
+	err = wait.For(cl.ctx, 1*time.Second, func() (bool, error) {
+		active, err = cl.inner.RollupAPI().SequencerActive(cl.ctx)
+		return !active, err
+	})
+	cl.require.NoError(err, fmt.Sprintf("Expected to be able to call SequencerActive API on chain %d, and wait for inactive state for sequencer, but got error", cl.chainID))
+
+	cl.log.Info("Rollup node sequencer status", "chain", cl.chainID, "active", active, "unsafeHead", unsafeHead)
+	return unsafeHead
 }
 
 func (cl *L2CLNode) SyncStatus() *eth.SyncStatus {

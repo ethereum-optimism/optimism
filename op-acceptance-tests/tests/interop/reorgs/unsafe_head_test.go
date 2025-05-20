@@ -37,22 +37,11 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	sys.L2ChainA.WaitForBlock()
 	sys.L2ChainA.WaitForBlock()
 
-	unsafeHead, err := sys.L2CLA.Escape().RollupAPI().StopSequencer(ctx)
-	require.NoError(t, err, "Expected to be able to call StopSequencer API, but got error")
-
-	// wait for the sequencer to become inactive
-	var active bool
-	err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-		active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
-		return !active, err
-	})
-	require.NoError(t, err, "Expected to be able to call SequencerActive API, and wait for inactive state for sequencer, but got error")
-
-	l.Info("Rollup node sequencer status", "active", active, "unsafeHead", unsafeHead)
+	unsafeHead := sys.L2CLA.StopSequencer()
 
 	var divergenceBlockNumber_A uint64
 	var originalRef_A eth.L2BlockRef
-	// prepare and sequencer a conflicting block for the L2A chain
+	// prepare and sequence a conflicting block for the L2A chain
 	{
 		unsafeHeadRef, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByHash(ctx, unsafeHead)
 		require.NoError(t, err, "Expected to be able to call L2BlockRefByHash API, but got error")
@@ -102,7 +91,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	// sequence a second block with op-test-sequencer (no L1 origin override)
 	{
 		l.Info("Sequencing with op-test-sequencer (no L1 origin override)")
-		err = ia.New(ctx, seqtypes.BuildOpts{
+		err := ia.New(ctx, seqtypes.BuildOpts{
 			Parent:   sys.L2ChainA.UnsafeHeadRef().Hash,
 			L1Origin: nil,
 		})
@@ -114,20 +103,8 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		time.Sleep(2 * time.Second)
 	}
 
-	newUnsafeHeadRef := sys.L2ChainA.UnsafeHeadRef()
-	l.Info("Continue sequencing with consensus node (op-node)", "unsafeHead", newUnsafeHeadRef)
-
-	err = sys.L2CLA.Escape().RollupAPI().StartSequencer(ctx, newUnsafeHeadRef.Hash)
-	require.NoError(t, err, "Expected to be able to start sequencer on rollup node")
-
-	// wait for the sequencer to become active
-	err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-		active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
-		return active, err
-	})
-	require.NoError(t, err, "Expected to be able to call SequencerActive API, and wait for an active state for sequencer, but got error")
-
-	l.Info("Rollup node sequencer", "active", active)
+	// continue sequencing with consensus node (op-node)
+	sys.L2CLA.StartSequencer()
 
 	sys.L2ChainA.WaitForBlock()
 

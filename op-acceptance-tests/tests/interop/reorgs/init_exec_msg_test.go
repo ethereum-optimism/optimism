@@ -111,20 +111,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	}
 
 	// stop sequencer on chain A so that we later force a reorg/removal of the init msg
-	{
-		unsafeHead, err := sys.L2CLA.Escape().RollupAPI().StopSequencer(ctx)
-		require.NoError(t, err, "expected to be able to call StopSequencer API, but got error")
-
-		// wait for the sequencer to become inactive
-		var active bool
-		err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-			active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
-			return !active, err
-		})
-		require.NoError(t, err, "expected to be able to call SequencerActive API, and wait for inactive state for sequencer, but got error")
-
-		l.Info("rollup node sequencer status", "chain", sys.L2ChainA.ChainID(), "active", active, "unsafeHead", unsafeHead)
-	}
+	sys.L2CLA.StopSequencer()
 
 	// at least one block between the init tx on chain A and the exec tx on chain B
 	sys.L2ChainB.WaitForBlock()
@@ -215,23 +202,7 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	}
 
 	// continue sequencing with op-node
-	{
-		newUnsafeHeadRef := sys.L2ChainA.UnsafeHeadRef()
-		l.Info("Continue sequencing with consensus node (op-node)", "unsafeHead", newUnsafeHeadRef)
-
-		err := sys.L2CLA.Escape().RollupAPI().StartSequencer(ctx, newUnsafeHeadRef.Hash)
-		require.NoError(t, err, "Expected to be able to start sequencer on rollup node")
-
-		// wait for the sequencer to become active
-		var active bool
-		err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-			active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
-			return active, err
-		})
-		require.NoError(t, err, "Expected to be able to call SequencerActive API, and wait for an active state for sequencer, but got error")
-
-		l.Info("Rollup node sequencer", "active", active)
-	}
+	sys.L2CLA.StartSequencer()
 
 	// start batchers on chain A and on chain B
 	sys.L2BatcherA.Start()
