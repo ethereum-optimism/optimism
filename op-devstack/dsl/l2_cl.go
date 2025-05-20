@@ -167,6 +167,37 @@ func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) 
 	}
 }
 
+// ReachedRef is same as Reached, but has an additional check to ensure that the block referenced is not reorged
+// Composable with other lambdas to wait in parallel
+func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attempts int) CheckFunc {
+	return func() error {
+		cl.log.Info("expecting chain to reach block ref", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target)
+		err := retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				head := cl.HeadBlockRef(lvl)
+				if head.Number >= target.Number {
+					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target)
+					return nil
+				}
+				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.chainID, "label", lvl, "target", target, "current", head.Number)
+				return fmt.Errorf("expected head to advance: %s", lvl)
+			})
+		if err != nil {
+			return err
+		}
+
+		ethclient := cl.inner.ELs()[0].EthClient()
+		result, err := ethclient.BlockRefByNumber(cl.ctx, target.Number)
+		if err != nil {
+			return err
+		}
+		if result.Hash != target.Hash {
+			return fmt.Errorf("expected block ref to be the same as target %s, got but %s", target.Hash, result.Hash)
+		}
+		return nil
+	}
+}
+
 // Rewinded returns a lambda that checks the L2CL chain head with given safety level rewinded more than the delta block number
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
