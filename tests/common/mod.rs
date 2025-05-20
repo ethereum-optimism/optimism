@@ -28,7 +28,7 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, LazyLock};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use std::{fs::File, io::BufReader, time::UNIX_EPOCH};
 use testcontainers::core::ContainerPort;
 use testcontainers::core::client::docker_client_instance;
@@ -385,6 +385,7 @@ pub struct SimpleBlockGenerator {
     timestamp: u64,
     genesis: Genesis,
     current_block_number: u64,
+    block_time: Duration,
 }
 
 impl SimpleBlockGenerator {
@@ -400,7 +401,12 @@ impl SimpleBlockGenerator {
             timestamp: genesis.timestamp,
             genesis,
             current_block_number: 0,
+            block_time: Duration::from_secs(1),
         }
+    }
+
+    pub fn set_block_time(&mut self, block_time: Duration) {
+        self.block_time = block_time;
     }
 
     /// Initialize the block generator by fetching the latest block
