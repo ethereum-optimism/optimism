@@ -1705,20 +1705,6 @@ jobs:
             gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics
             gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics-$CIRCLE_SHA1
 
-  # Helper job to check if we're running on a PR
-  run-on-pr-only:
-    docker:
-      - image: cimg/base:current
-    steps:
-      - run:
-          name: Check if running on a PR
-          command: |
-            if [ -z "$CIRCLE_PULL_REQUEST" ]; then
-              echo "This is not a pull request. Exiting with error."
-              exit 1
-            else
-              echo "Running on pull request: $CIRCLE_PULL_REQUEST"
-            fi
 
 workflows:
   main:
@@ -2321,10 +2307,6 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
-      - run-on-pr-only:
-          name: check-for-pr
-          context:
-            - circleci-repo-readonly-authenticated-github-token
       - op-acceptance-tests:
           # Acceptance Testing params
           name: kurtosis-interop
@@ -2332,8 +2314,6 @@ workflows:
           gate: interop
           # CircleCI params
           no_output_timeout: 10m
-          requires:
-            - check-for-pr
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
