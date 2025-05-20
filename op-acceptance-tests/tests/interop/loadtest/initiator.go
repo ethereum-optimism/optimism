@@ -24,7 +24,7 @@ type ManyMsgsInitiator struct {
 	el          *dsl.L2ELNode
 	eoa         *dsl.EOA
 	eventLogger common.Address
-	counter     *counter
+	counter     *nonceCounter
 }
 
 func NewManyMsgsInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger common.Address) *ManyMsgsInitiator {
@@ -32,7 +32,7 @@ func NewManyMsgsInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger comm
 		eoa:         funder.NewFundedEOA(eth.MillionEther),
 		el:          el,
 		eventLogger: eventLogger,
-		counter:     new(counter),
+		counter:     new(nonceCounter),
 	}
 }
 
@@ -52,7 +52,7 @@ type LargeMsgInitiator struct {
 	eoa         *dsl.EOA
 	el          *dsl.L2ELNode
 	eventLogger common.Address
-	counter     *counter
+	counter     *nonceCounter
 }
 
 func NewLargeMsgInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger common.Address) *LargeMsgInitiator {
@@ -60,12 +60,12 @@ func NewLargeMsgInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger comm
 		eoa:         funder.NewFundedEOA(eth.MillionEther),
 		el:          el,
 		eventLogger: eventLogger,
-		counter:     new(counter),
+		counter:     new(nonceCounter),
 	}
 }
 
 func (lin *LargeMsgInitiator) Initiate(t devtest.T) []types.Message {
-	// TODO: can we create an even larger event without the event logger?
+	// TODO(#16039): can we create an even larger event without the event logger?
 	return buildAndSendInitTx(t, lin.eoa, lin.el, interop.RandomInitTrigger(rng, lin.eventLogger, 4, 75_000), txplan.WithStaticNonce(lin.counter.Next()))
 }
 

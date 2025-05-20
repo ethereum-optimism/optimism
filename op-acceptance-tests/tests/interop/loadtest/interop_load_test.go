@@ -33,13 +33,12 @@ func TestLoad(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 
-	var numInitTxs uint64
+	numInitTxs := uint64(1)
 	if numInitTxsStr, ok := os.LookupEnv(numInitTxsEnvVar); ok {
 		var err error
 		numInitTxs, err = strconv.ParseUint(numInitTxsStr, 10, 64)
 		t.Require().NoError(err)
 	}
-	t.Gate().NotZero(numInitTxs, "load test only makes sense when "+numInitTxsEnvVar+" is nonzero")
 
 	l2ELA := sys.L2ChainA.PublicRPC()
 	L2A := &L2{
@@ -59,16 +58,18 @@ func TestLoad(gt *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		SpamInteropTxs(t, &wg, numInitTxs, L2A, L2B, sys.Supervisor)
+		SpamInteropTxs(t, numInitTxs, L2A, L2B, sys.Supervisor)
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		SpamInteropTxs(t, &wg, numInitTxs, L2B, L2A, sys.Supervisor)
+		SpamInteropTxs(t, numInitTxs, L2B, L2A, sys.Supervisor)
 	}()
 }
 
-func SpamInteropTxs(t devtest.T, wg *sync.WaitGroup, numInitTxs uint64, source *L2, dest *L2, supervisor *dsl.Supervisor) {
+func SpamInteropTxs(t devtest.T, numInitTxs uint64, source *L2, dest *L2, supervisor *dsl.Supervisor) {
+	var wg sync.WaitGroup
+	defer wg.Wait()
 	msgsCh := make(chan []types.Message, 100)
 	defer close(msgsCh)
 
@@ -76,23 +77,24 @@ func SpamInteropTxs(t devtest.T, wg *sync.WaitGroup, numInitTxs uint64, source *
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		executors := []Executor{
-			NewValidExecutor(dest.Funder, dest.EL, supervisor),
-			NewDelayedExecutor(NewValidExecutor(dest.Funder, dest.EL, supervisor), wg, time.Minute),
-			NewInvalidExecutor(dest.Funder, dest.EL, makeInvalidChainID),
-			NewInvalidExecutor(dest.Funder, dest.EL, makeInvalidBlockNumber),
-			NewInvalidExecutor(dest.Funder, dest.EL, makeInvalidLogIndex),
-			NewInvalidExecutor(dest.Funder, dest.EL, makeInvalidOrigin),
-			NewInvalidExecutor(dest.Funder, dest.EL, makeInvalidPayloadHash),
-			NewInvalidExecutor(dest.Funder, dest.EL, makeInvalidTimestamp),
+		dest.Funder.NewFundedEOA(eth.MillionEther.Mul(100))
+		relayers := []Relayer{
+			NewValidRelayer(dest.Funder, dest.EL, supervisor),
+			NewDelayedRelayer(NewValidRelayer(dest.Funder, dest.EL, supervisor), &wg, time.Minute),
+			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidChainID),
+			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidBlockNumber),
+			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidLogIndex),
+			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidOrigin),
+			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidPayloadHash),
+			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidTimestamp),
 		}
 		for msgs := range msgsCh {
-			for _, executor := range executors {
+			for _, relayer := range relayers {
 				wg.Add(1)
-				go func(executor Executor, msgs []types.Message) {
+				go func() {
 					defer wg.Done()
-					executor.Execute(t, msgs)
-				}(executor, msgs)
+					relayer.Relay(t, msgs)
+				}()
 			}
 		}
 	}()

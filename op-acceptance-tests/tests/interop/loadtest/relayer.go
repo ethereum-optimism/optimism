@@ -17,30 +17,30 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 )
 
-type Executor interface {
-	Execute(t devtest.T, msgs []types.Message)
+type Relayer interface {
+	Relay(t devtest.T, msgs []types.Message)
 }
 
-type ValidExecutor struct {
+type ValidRelayer struct {
 	el  *dsl.L2ELNode
 	eoa *dsl.EOA
 	// supervisor is used to check if executing messages are cross-safe.
 	supervisor *dsl.Supervisor
 
-	counter *counter
+	counter *nonceCounter
 }
 
-func NewValidExecutor(funder *dsl.Funder, el *dsl.L2ELNode, supervisor *dsl.Supervisor) *ValidExecutor {
-	return &ValidExecutor{
+func NewValidRelayer(funder *dsl.Funder, el *dsl.L2ELNode, supervisor *dsl.Supervisor) *ValidRelayer {
+	return &ValidRelayer{
 		el:         el,
 		eoa:        funder.NewFundedEOA(eth.MillionEther),
 		supervisor: supervisor,
-		counter:    new(counter),
+		counter:    new(nonceCounter),
 	}
 }
 
-func (e *ValidExecutor) Execute(t devtest.T, msgs []types.Message) {
-	tx := buildExecTx(e.eoa, e.el, msgs, retryForever(e.el.Escape().EthClient()), txplan.WithStaticNonce(e.counter.Next()))
+func (e *ValidRelayer) Relay(t devtest.T, msgs []types.Message) {
+	tx := buildRelayTx(e.eoa, e.el, msgs, retryForever(e.el.Escape().EthClient()), txplan.WithStaticNonce(e.counter.Next()))
 	receipt, err := tx.Included.Eval(t.Ctx())
 	t.Require().NoError(err)
 	_, err = tx.Success.Eval(t.Ctx())
@@ -64,56 +64,56 @@ func (e *ValidExecutor) Execute(t devtest.T, msgs []types.Message) {
 	t.Require().NoError(err)
 }
 
-// DelayedExecutor executes messages after waiting for a specified period.
-type DelayedExecutor struct {
-	e     *ValidExecutor
+// DelayedRelayer executes messages after waiting for a specified period.
+type DelayedRelayer struct {
+	e     *ValidRelayer
 	delay time.Duration
 	wg    *sync.WaitGroup
 }
 
-func NewDelayedExecutor(e *ValidExecutor, wg *sync.WaitGroup, delay time.Duration) *DelayedExecutor {
-	return &DelayedExecutor{
+func NewDelayedRelayer(e *ValidRelayer, wg *sync.WaitGroup, delay time.Duration) *DelayedRelayer {
+	return &DelayedRelayer{
 		e:     e,
 		wg:    wg,
 		delay: delay,
 	}
 }
 
-func (de *DelayedExecutor) Execute(t devtest.T, msgs []types.Message) {
+func (de *DelayedRelayer) Relay(t devtest.T, msgs []types.Message) {
 	de.wg.Add(1)
 	go func() {
 		defer de.wg.Done()
 		select {
 		case <-t.Ctx().Done():
 		case <-time.After(de.delay):
-			de.e.Execute(t, msgs)
+			de.e.Relay(t, msgs)
 		}
 	}()
 }
 
 type ToInvalidMsgFn func(types.Message) types.Message
 
-type InvalidExecutor struct {
+type InvalidRelayer struct {
 	eoa         *dsl.EOA
 	el          *dsl.L2ELNode
 	makeInvalid ToInvalidMsgFn
 }
 
-func NewInvalidExecutor(funder *dsl.Funder, el *dsl.L2ELNode, makeInvalid ToInvalidMsgFn) *InvalidExecutor {
-	return &InvalidExecutor{
+func NewInvalidRelayer(funder *dsl.Funder, el *dsl.L2ELNode, makeInvalid ToInvalidMsgFn) *InvalidRelayer {
+	return &InvalidRelayer{
 		el:          el,
 		eoa:         funder.NewFundedEOA(eth.MillionEther),
 		makeInvalid: makeInvalid,
 	}
 }
 
-func (ie *InvalidExecutor) Execute(t devtest.T, validMsgs []types.Message) {
+func (ie *InvalidRelayer) Relay(t devtest.T, validMsgs []types.Message) {
 	msgs := make([]types.Message, len(validMsgs))
 	copy(msgs, validMsgs)
 	// Replace the last message with the invalid message.
 	// Merely appending can cause us to hit tx size limits if the original slice has a lot of messages.
 	msgs = append(msgs[:len(msgs)-1], ie.makeInvalid(msgs[len(msgs)-1]))
-	tx := buildExecTx(ie.eoa, ie.el, msgs)
+	tx := buildRelayTx(ie.eoa, ie.el, msgs)
 	_, err := tx.Submitted.Eval(t.Ctx())
 	t.Require().ErrorContains(err, core.ErrTxFilteredOut.Error())
 }
@@ -154,7 +154,7 @@ func makeInvalidPayloadHash(msg types.Message) types.Message {
 	return msg
 }
 
-func buildExecTx(eoa *dsl.EOA, el *dsl.L2ELNode, msgs []types.Message, opts ...txplan.Option) *txplan.PlannedTx {
+func buildRelayTx(eoa *dsl.EOA, el *dsl.L2ELNode, msgs []types.Message, opts ...txplan.Option) *txplan.PlannedTx {
 	execCalls := make([]txintent.Call, 0, len(msgs))
 	for _, msg := range msgs {
 		execCalls = append(execCalls, &txintent.ExecTrigger{
@@ -176,7 +176,7 @@ func buildExecTx(eoa *dsl.EOA, el *dsl.L2ELNode, msgs []types.Message, opts ...t
 		}
 		return 0
 	}).Identifier.Timestamp
-	// The exec tx is invalid until we know it will be included at a higher timestamp than any of the initiating messages, modulo reorgs.
+	// The relay tx is invalid until we know it will be included at a higher timestamp than any of the initiating messages, modulo reorgs.
 	// NOTE: this should be `<`, but the mempool filtering in op-geth currently uses the unsafe head's timestamp instead of
 	// the pending timestamp. See https://github.com/ethereum-optimism/op-geth/issues/603.
 	for el.BlockRefByLabel(eth.Unsafe).Time <= maxTimestamp {

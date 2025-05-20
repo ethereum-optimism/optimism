@@ -8,12 +8,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-type counter struct {
+type nonceCounter struct {
 	count   uint64
 	countMu sync.Mutex
 }
 
-func (n *counter) Next() uint64 {
+func (n *nonceCounter) Next() uint64 {
 	n.countMu.Lock()
 	defer n.countMu.Unlock()
 	nonce := n.count
