@@ -67,7 +67,7 @@ func (n *L2Network) CatchUpTo(o *L2Network) {
 }
 
 func (n *L2Network) WaitForBlock() eth.BlockRef {
-	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL)).WaitForBlock()
+	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL), n.ChainID()).WaitForBlock()
 }
 
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
@@ -194,7 +193,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	// record divergence block numbers and original refs for future validation checks
 	var divergenceBlockNumber_A uint64
 	var originalHash_A common.Hash
-
+	var originalParentHash_A common.Hash
 	// sequence a second block with op-test-sequencer
 	{
 		currentUnsafeRef := sys.L2ChainA.UnsafeHeadRef()
@@ -203,7 +202,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 
 		divergenceBlockNumber_A = currentUnsafeRef.Number
 		originalHash_A = currentUnsafeRef.Hash
-
+		originalParentHash_A = currentUnsafeRef.ParentHash
 		l.Info("Continue building chain A with another block with op-test-sequencer", "chain", sys.L2ChainA.ChainID(), "unsafeHead", currentUnsafeRef, "parent", currentUnsafeRef.ParentID())
 		err := ia.New(ctx, seqtypes.BuildOpts{
 			Parent:   currentUnsafeRef.Hash,
@@ -238,25 +237,13 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	sys.L2BatcherA.Start()
 
 	// wait for reorg on chain A
-	require.Eventually(t, func() bool {
-		reorgedRef_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_A)
-		if err != nil {
-			if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
-				l.Info("Supervisor still hasn't reorged chain A", "error", err)
-				return false
-			}
-			require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
-		}
-
-		if originalHash_A.Cmp(reorgedRef_A.Hash) == 0 { // want not equal
-			l.Info("Supervisor still hasn't reorged chain A", "ref", reorgedRef_A)
-			return false
-		}
-
-		l.Info("Reorged chain A on divergence block number (prior the reorg)", "number", divergenceBlockNumber_A, "head", originalHash_A)
-		l.Info("Reorged chain A on divergence block number (after the reorg)", "number", divergenceBlockNumber_A, "head", reorgedRef_A.Hash, "parent", reorgedRef_A.ParentID().Hash)
-		return true
-	}, 180*time.Second, 10*time.Second, "No reorg happened on chain A. Should have been triggered by the supervisor.")
+	dsl.CheckAll(t,
+		sys.L2ELA.ReorgTriggered(eth.L2BlockRef{
+			Number:     divergenceBlockNumber_A,
+			Hash:       originalHash_A,
+			ParentHash: originalParentHash_A,
+		}, 30),
+	)
 
 	err := wait.For(ctx, 5*time.Second, func() (bool, error) {
 		safeL2Head_supervisor_A := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash

@@ -3,6 +3,7 @@ package dsl
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -13,14 +14,16 @@ import (
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {
 	*elNode
-	inner stack.L2ELNode
+	inner   stack.L2ELNode
+	chainID eth.ChainID
 }
 
 // NewL2ELNode creates a new L2ELNode DSL wrapper
-func NewL2ELNode(inner stack.L2ELNode) *L2ELNode {
+func NewL2ELNode(inner stack.L2ELNode, chainID eth.ChainID) *L2ELNode {
 	return &L2ELNode{
-		elNode: newELNode(commonFromT(inner.T()), inner),
-		inner:  inner,
+		elNode:  newELNode(commonFromT(inner.T()), inner),
+		inner:   inner,
+		chainID: chainID,
 	}
 }
 
@@ -84,4 +87,37 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
 	block, err := el.inner.EthClient().BlockRefByNumber(ctx, num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
+}
+
+// ReorgTriggered returns a lambda that checks that a L2 reorg occurred on the expected block
+// Composable with other lambdas to wait in parallel
+func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFunc {
+	return func() error {
+		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.chainID, "target", target)
+		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
+				if err != nil {
+					if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
+						el.log.Info("Supervisor still hasn't reorged chain A", "error", err)
+						return err
+					}
+					return err
+				}
+
+				if target.Hash == reorged.Hash { // want not equal
+					el.log.Info("Supervisor still hasn't reorged chain", "ref", reorged)
+					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
+				}
+
+				if target.ParentHash != reorged.ParentHash {
+					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
+				}
+
+				el.log.Info("Reorged chain A on divergence block number (prior the reorg)", "blockref", target)
+				el.log.Info("Reorged chain A on divergence block number (after the reorg)", "blockref", reorged)
+
+				return nil
+			})
+	}
 }

@@ -40,7 +40,7 @@ func TestRPCConnectivity(gt *testing.T) {
 			// Get the expected chain ID from the L2Chain
 			expectedChainID := l2Chain.ChainID().ToBig()
 			for _, node := range l2Chain.Escape().L2ELNodes() {
-				testL2ELNode(tt, ctx, logger, networkName, expectedChainID, dsl.NewL2ELNode(node))
+				testL2ELNode(tt, ctx, logger, networkName, expectedChainID, dsl.NewL2ELNode(node, l2Chain.ChainID()))
 			}
 		})
 	}

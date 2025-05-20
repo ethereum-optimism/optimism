@@ -84,8 +84,8 @@ func NewSimpleInterop(t devtest.T) *SimpleInterop {
 		L1EL:         dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
 		L2ChainA:     dsl.NewL2Network(l2A),
 		L2ChainB:     dsl.NewL2Network(l2B),
-		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
-		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), l2A.ChainID()),
+		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL)), l2B.ChainID()),
 		L2CLA:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane(), l2A.ChainID()),
 		L2CLB:        dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane(), l2B.ChainID()),
 		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
@@ -160,7 +160,7 @@ func NewRedundantInterop(t devtest.T) *RedundantInterop {
 	l2A := simpleInterop.system.L2Network(match.Assume(t, match.L2ChainA))
 	out := &RedundantInterop{
 		SimpleInterop: *simpleInterop,
-		L2ELA2:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL))),
+		L2ELA2:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL)), l2A.ChainID()),
 		L2CLA2:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane(), l2A.ChainID()),
 	}
 	return out
@@ -187,7 +187,7 @@ func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 	out := &MultiSupervisorInterop{
 		RedundantInterop:    *redundancyInterop,
 		SupervisorSecondary: dsl.NewSupervisor(redundancyInterop.system.Supervisor(match.Assume(t, match.SecondSupervisor)), orch.ControlPlane()),
-		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL))),
+		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL)), l2B.ChainID()),
 		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane(), l2B.ChainID()),
 	}
 	return out
