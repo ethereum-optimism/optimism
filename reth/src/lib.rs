@@ -96,6 +96,8 @@ pub mod storage {
 pub mod node {
     #[doc(inline)]
     pub use reth_node_api as api;
+    #[cfg(feature = "node")]
+    pub use reth_node_builder as builder;
     #[doc(inline)]
     pub use reth_node_core as core;
     #[cfg(feature = "node")]
