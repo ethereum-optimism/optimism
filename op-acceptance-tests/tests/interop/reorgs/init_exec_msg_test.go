@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
@@ -65,25 +64,8 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	sys.L2ChainA.WaitForBlock()
 
 	// stop batchers on chain A and on chain B
-	{
-		err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			err := sys.L2BatcherA.Escape().ActivityAPI().StopBatcher(ctx)
-			if err != nil && strings.Contains(err.Error(), "batcher is not running") {
-				return nil
-			}
-			return err
-		})
-		require.NoError(t, err, "Expected to be able to call StopBatcher API on chain A, but got error")
-
-		err = retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			err := sys.L2BatcherB.Escape().ActivityAPI().StopBatcher(ctx)
-			if err != nil && strings.Contains(err.Error(), "batcher is not running") {
-				return nil
-			}
-			return err
-		})
-		require.NoError(t, err, "Expected to be able to call StopBatcher API on chain B, but got error")
-	}
+	sys.L2BatcherA.Stop()
+	sys.L2BatcherB.Stop()
 
 	// deploy event logger on chain A
 	var eventLoggerAddress common.Address
@@ -252,17 +234,8 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	}
 
 	// start batchers on chain A and on chain B
-	{
-		err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			return sys.L2BatcherA.Escape().ActivityAPI().StartBatcher(ctx)
-		})
-		require.NoError(t, err, "Expected to be able to call StartBatcher API on chain A, but got error")
-
-		err = retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			return sys.L2BatcherB.Escape().ActivityAPI().StartBatcher(ctx)
-		})
-		require.NoError(t, err, "Expected to be able to call StartBatcher API on chain B, but got error")
-	}
+	sys.L2BatcherA.Start()
+	sys.L2BatcherB.Start()
 
 	// confirm reorg on chain A
 	{

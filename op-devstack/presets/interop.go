@@ -91,8 +91,8 @@ func NewSimpleInterop(t devtest.T) *SimpleInterop {
 		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
 		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
 		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
-		L2BatcherA:   dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
-		L2BatcherB:   dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2BatcherA:   dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher)), l2A.ChainID()),
+		L2BatcherB:   dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher)), l2B.ChainID()),
 	}
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)

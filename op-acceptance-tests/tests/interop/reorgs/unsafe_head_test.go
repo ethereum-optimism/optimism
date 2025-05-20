@@ -1,7 +1,6 @@
 package reorgs
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/stretchr/testify/require"
@@ -25,17 +23,8 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 	ia := sys.Sequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
 
-	// stop batcher
-	{
-		err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			err := sys.L2BatcherA.Escape().ActivityAPI().StopBatcher(ctx)
-			if err != nil && strings.Contains(err.Error(), "batcher is not running") {
-				return nil
-			}
-			return err
-		})
-		require.NoError(t, err, "Expected to be able to call StopBatcher API, but got error")
-	}
+	// stop batcher on chain A
+	sys.L2BatcherA.Stop()
 
 	// two EOAs for a sample transfer tx used later in a conflicting block
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
@@ -107,13 +96,8 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		}
 	}
 
-	// start batcher
-	{
-		err = retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			return sys.L2BatcherA.Escape().ActivityAPI().StartBatcher(ctx)
-		})
-		require.NoError(t, err, "Expected to be able to call StartBatcher API, but got error")
-	}
+	// start batcher on chain A
+	sys.L2BatcherA.Start()
 
 	// sequence a second block with op-test-sequencer (no L1 origin override)
 	{
