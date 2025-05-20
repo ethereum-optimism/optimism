@@ -8,14 +8,18 @@ import (
 
 type Cluster struct {
 	id     stack.ClusterID
-	depset *depset.StaticConfigDependencySet
+	cfgset depset.FullConfigSetMerged
 }
 
 func (c *Cluster) hydrate(system stack.ExtensibleSystem) {
 	sysCluster := shim.NewCluster(shim.ClusterConfig{
 		CommonConfig:  shim.NewCommonConfig(system.T()),
 		ID:            c.id,
-		DependencySet: c.depset,
+		DependencySet: c.cfgset.DependencySet,
 	})
 	system.AddCluster(sysCluster)
+}
+
+func (c *Cluster) DepSet() *depset.StaticConfigDependencySet {
+	return c.cfgset.DependencySet.(*depset.StaticConfigDependencySet)
 }

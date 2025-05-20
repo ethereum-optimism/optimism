@@ -58,6 +58,20 @@ var (
 		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
 		TakesFile: true,
 	}
+	RollupConfigPathsFlag = &cli.StringFlag{
+		Name: "rollup-config-paths",
+		Usage: "Path pattern to op-node rollup.json configs to load as a rollup config set. " +
+			"The pattern should use the Go filepath glob sytax, e.g. '/configs/rollup-*.json' " +
+			"When using this flag, the L1 timestamps are loaded from the provided L1 RPC",
+		EnvVars: prefixEnvVars("ROLLUP_CONFIG_PATHS"),
+	}
+	RollupConfigSetFlag = &cli.PathFlag{
+		Name: "rollup-config-set",
+		Usage: "Rollup config set configuration, point at JSON file. " +
+			"This is an alternative to rollup-config-paths to provide the supervisor rollup config set directly.",
+		EnvVars:   prefixEnvVars("ROLLUP_CONFIG_SET"),
+		TakesFile: true,
+	}
 	MockRunFlag = &cli.BoolFlag{
 		Name:    "mock-run",
 		Usage:   "Mock run, no actual backend used, just presenting the service",
@@ -80,6 +94,13 @@ var requiredFlags = []cli.Flag{
 	DependencySetFlag,
 }
 
+var requiredFlagGroups = [][]cli.Flag{
+	{
+		RollupConfigPathsFlag,
+		RollupConfigSetFlag,
+	},
+}
+
 var optionalFlags = []cli.Flag{
 	MockRunFlag,
 	DataDirSyncEndpointFlag,
@@ -93,6 +114,9 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(Flags, requiredFlags...)
+	for _, group := range requiredFlagGroups {
+		Flags = append(Flags, group...)
+	}
 	Flags = append(Flags, optionalFlags...)
 }
 
@@ -105,17 +129,39 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("%w: %s", ErrRequiredFlagMissing, f.Names()[0])
 		}
 	}
+
+	for _, group := range requiredFlagGroups {
+		var set int
+		for _, f := range group {
+			if ctx.IsSet(f.Names()[0]) {
+				set++
+			}
+		}
+		if set == 0 {
+			return fmt.Errorf("%w: one of %s must be set", ErrRequiredFlagMissing, flagNames(group))
+		} else if set > 1 {
+			return fmt.Errorf("%w: only one of %s can be set", ErrRequiredFlagMissing, flagNames(group))
+		}
+	}
+
 	return nil
 }
 
+func flagNames(flags []cli.Flag) []string {
+	names := make([]string, 0, len(flags))
+	for _, f := range flags {
+		names = append(names, f.Names()[0])
+	}
+	return names
+}
+
 func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
-	return &config.Config{
+	c := &config.Config{
 		Version:                 version,
 		LogConfig:               oplog.ReadCLIConfig(ctx),
 		MetricsConfig:           opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:             oppprof.ReadCLIConfig(ctx),
 		RPC:                     oprpc.ReadCLIConfig(ctx),
-		DependencySetSource:     &depset.JsonDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
 		MockRun:                 ctx.Bool(MockRunFlag.Name),
 		RPCVerificationWarnings: ctx.Bool(RPCVerificationWarningsFlag.Name),
 		L1RPC:                   ctx.String(L1RPCFlag.Name),
@@ -123,6 +169,21 @@ func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
 		Datadir:                 ctx.Path(DataDirFlag.Name),
 		DatadirSyncEndpoint:     ctx.Path(DataDirSyncEndpointFlag.Name),
 	}
+	if ctx.IsSet(RollupConfigSetFlag.Name) {
+		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
+			RollupConfigSetSource: &depset.JSONRollupConfigSetLoader{Path: ctx.Path(RollupConfigSetFlag.Name)},
+			DependencySetSource:   &depset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+		}
+	} else if ctx.IsSet(RollupConfigPathsFlag.Name) {
+		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
+			RollupConfigSetSource: &depset.JSONRollupConfigsLoader{
+				PathPattern: ctx.String(RollupConfigPathsFlag.Name),
+				L1RPCURL:    ctx.String(L1RPCFlag.Name),
+			},
+			DependencySetSource: &depset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+		}
+	}
+	return c
 }
 
 // syncSourceSetups creates a sync source collection, from CLI arguments.

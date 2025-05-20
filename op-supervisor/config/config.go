@@ -13,7 +13,7 @@ import (
 
 var (
 	ErrMissingSyncSources   = errors.New("must specify sync source collection")
-	ErrMissingDependencySet = errors.New("must specify a dependency set source")
+	ErrMissingFullConfigSet = errors.New("must specify a full config set source")
 	ErrMissingDatadir       = errors.New("must specify datadir")
 )
 
@@ -25,7 +25,7 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
 
-	DependencySetSource depset.DependencySetSource
+	FullConfigSetSource depset.FullConfigSetSource
 
 	// MockRun runs the service with a mock backend
 	MockRun bool
@@ -51,8 +51,8 @@ func (c *Config) Check() error {
 	result = errors.Join(result, c.MetricsConfig.Check())
 	result = errors.Join(result, c.PprofConfig.Check())
 	result = errors.Join(result, c.RPC.Check())
-	if c.DependencySetSource == nil {
-		result = errors.Join(result, ErrMissingDependencySet)
+	if c.FullConfigSetSource == nil {
+		result = errors.Join(result, ErrMissingFullConfigSet)
 	}
 	if c.Datadir == "" {
 		result = errors.Join(result, ErrMissingDatadir)
@@ -67,13 +67,13 @@ func (c *Config) Check() error {
 
 // NewConfig creates a new config using default values whenever possible.
 // Required options with no suitable default are passed as parameters.
-func NewConfig(l1RPC string, syncSrcs syncnode.SyncNodeCollection, depSet depset.DependencySetSource, datadir string) *Config {
+func NewConfig(l1RPC string, syncSrcs syncnode.SyncNodeCollection, fullCfgSet depset.FullConfigSetSource, datadir string) *Config {
 	return &Config{
 		LogConfig:           oplog.DefaultCLIConfig(),
 		MetricsConfig:       opmetrics.DefaultCLIConfig(),
 		PprofConfig:         oppprof.DefaultCLIConfig(),
 		RPC:                 oprpc.DefaultCLIConfig(),
-		DependencySetSource: depSet,
+		FullConfigSetSource: fullCfgSet,
 		MockRun:             false,
 		L1RPC:               l1RPC,
 		SyncSources:         syncSrcs,

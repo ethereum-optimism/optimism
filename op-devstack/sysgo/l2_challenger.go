@@ -36,7 +36,8 @@ func (p *L2Challenger) hydrate(system stack.ExtensibleSystem) {
 }
 
 func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID,
-	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
+) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
 		require.False(orch.challengers.Has(challengerID), "challenger must not already exist")
@@ -98,7 +99,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 			cfg, err = shared.NewInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, supervisorNode.userRPC, l2ELRPCs,
 				shared.WithFactoryAddress(disputeGameFactoryAddr),
 				shared.WithPrivKey(challengerSecret),
-				shared.WithDepset(cluster.depset),
+				shared.WithDepset(cluster.DepSet()),
 				shared.WithSuperCannon(rollupCfgs, l2Geneses, prestateVariant),
 				shared.WithSuperPermissioned(rollupCfgs, l2Geneses, prestateVariant),
 			)

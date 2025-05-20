@@ -56,7 +56,7 @@ type InteropSetup struct {
 	Log        log.Logger
 	Deployment *interopgen.WorldDeployment
 	Out        *interopgen.WorldOutput
-	DepSet     *depset.StaticConfigDependencySet
+	CfgSet     depset.FullConfigSetMerged
 	Keys       devkeys.Keys
 	T          helpers.Testing
 }
@@ -181,12 +181,16 @@ func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
 	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
 	require.NoError(t, err)
+	depSet := RecipeToDepSet(t, &recipe)
+	rollupConfigSet := worldOutput.RollupConfigSet()
+	cfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, depSet)
+	require.NoError(t, err)
 
 	return &InteropSetup{
 		Log:        logger,
 		Deployment: worldDeployment,
 		Out:        worldOutput,
-		DepSet:     RecipeToDepSet(t, &recipe),
+		CfgSet:     cfgSet,
 		Keys:       hdWallet,
 		T:          t,
 	}
@@ -194,7 +198,7 @@ func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 
 func (is *InteropSetup) CreateActors() *InteropActors {
 	l1Miner := helpers.NewL1Miner(is.T, is.Log.New("role", "l1Miner"), is.Out.L1.Genesis)
-	supervisorAPI := NewSupervisor(is.T, is.Log, is.DepSet)
+	supervisorAPI := NewSupervisor(is.T, is.Log, is.CfgSet)
 	supervisorAPI.backend.AttachL1Source(l1Miner.L1ClientSimple(is.T))
 	require.NoError(is.T, supervisorAPI.backend.Start(is.T.Ctx()))
 	is.T.Cleanup(func() {
@@ -258,12 +262,12 @@ func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *dep
 }
 
 // NewSupervisor creates a new SupervisorActor, to action-test the supervisor with.
-func NewSupervisor(t helpers.Testing, logger log.Logger, depSet depset.DependencySetSource) *SupervisorActor {
+func NewSupervisor(t helpers.Testing, logger log.Logger, fullCfgSet depset.FullConfigSetSource) *SupervisorActor {
 	logger = logger.New("role", "supervisor")
 	supervisorDataDir := t.TempDir()
 	logger.Info("supervisor data dir", "dir", supervisorDataDir)
 	svCfg := &config.Config{
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		Datadir:               supervisorDataDir,
 		SyncSources:           &syncnode.CLISyncNodes{}, // sources are added dynamically afterwards

@@ -44,8 +44,8 @@ type SupervisorBackend struct {
 	sysContext context.Context
 	sysCancel  context.CancelFunc
 
-	// depSet is the dependency set that the backend uses to know about the chains it is indexing
-	depSet depset.DependencySet
+	// cfgSet is the full config set that the backend uses to know about the chains it is indexing
+	cfgSet depset.FullConfigSet
 
 	// chainDBs is the primary interface to the databases, including logs, derived-from information and L1 finalization
 	chainDBs *db.ChainsDB
@@ -103,8 +103,8 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		return nil, err
 	}
 
-	// Load the dependency set
-	depSet, err := cfg.DependencySetSource.LoadDependencySet(ctx)
+	// Load the full config set
+	cfgSet, err := cfg.FullConfigSetSource.LoadFullConfigSet(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load dependency set: %w", err)
 	}
@@ -117,7 +117,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		if err != nil {
 			return nil, fmt.Errorf("failed to create db sync client: %w", err)
 		}
-		if err := syncClient.SyncAll(ctx, depSet.Chains(), false); err != nil {
+		if err := syncClient.SyncAll(ctx, cfgSet.Chains(), false); err != nil {
 			return nil, fmt.Errorf("failed to sync databases: %w", err)
 		}
 	}
@@ -128,7 +128,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 	sysCtx, sysCancel := context.WithCancel(ctx)
 
 	// create initial per-chain resources
-	chainsDBs := db.NewChainsDB(logger, depSet, m)
+	chainsDBs := db.NewChainsDB(logger, cfgSet, m)
 	eventSys.Register("chainsDBs", chainsDBs)
 
 	l1Accessor := l1access.NewL1Accessor(sysCtx, logger, nil)
@@ -139,7 +139,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		logger:     logger,
 		m:          m,
 		dataDir:    cfg.Datadir,
-		depSet:     depSet,
+		cfgSet:     cfgSet,
 		chainDBs:   chainsDBs,
 		l1Accessor: l1Accessor,
 		// For testing we can avoid running the processors.
@@ -156,11 +156,11 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 	eventSys.Register("rewinder", super.rewinder)
 
 	// create node controller
-	super.syncNodesController = syncnode.NewSyncNodesController(logger, depSet, eventSys, super)
+	super.syncNodesController = syncnode.NewSyncNodesController(logger, cfgSet, eventSys, super)
 	eventSys.Register("sync-controller", super.syncNodesController)
 
 	// create status tracker
-	super.statusTracker = status.NewStatusTracker(depSet.Chains())
+	super.statusTracker = status.NewStatusTracker(cfgSet.Chains())
 	eventSys.Register("status", super.statusTracker)
 
 	// Initialize the resources of the supervisor backend.
@@ -214,7 +214,7 @@ func (su *SupervisorBackend) AttachEmitter(em event.Emitter) {
 // An error may returned, without closing the thus-far initialized resources.
 // Upon error the caller should call Stop() on the supervisor backend to clean up and release resources.
 func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Config) error {
-	chains := su.depSet.Chains()
+	chains := su.cfgSet.Chains()
 
 	// for each chain known to the dependency set, create the necessary DB resources
 	for _, chainID := range chains {
@@ -236,7 +236,7 @@ func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Conf
 	// For each chain initialize a chain processor service,
 	// after cross-unsafe workers are ready to receive updates
 	for _, chainID := range chains {
-		logProcessor := processors.NewLogProcessor(chainID, su.chainDBs, su.depSet)
+		logProcessor := processors.NewLogProcessor(chainID, su.chainDBs, su.cfgSet)
 		chainProcessor := processors.NewChainProcessor(su.sysContext, su.logger, chainID, logProcessor, su.chainDBs)
 		su.eventSys.Register(fmt.Sprintf("events-%s", chainID), chainProcessor)
 		su.chainProcessors.Set(chainID, chainProcessor)
@@ -310,7 +310,7 @@ func (su *SupervisorBackend) AttachSyncNode(ctx context.Context, src syncnode.Sy
 	if err != nil {
 		return nil, fmt.Errorf("failed to identify chain ID of sync source: %w", err)
 	}
-	if !su.depSet.HasChain(chainID) {
+	if !su.cfgSet.HasChain(chainID) {
 		return nil, fmt.Errorf("chain %s is not part of the interop dependency set: %w", chainID, types.ErrUnknownChain)
 	}
 	// before attaching the sync source to the backend at all,
@@ -440,7 +440,7 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string, jwtSecret
 // ----------------------------
 
 func (su *SupervisorBackend) DependencySet() depset.DependencySet {
-	return su.depSet
+	return su.cfgSet
 }
 
 // Query methods
@@ -547,7 +547,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		entries = remaining
 
 		// Check if message passes time checks
-		if err := executingDescriptor.AccessCheck(su.depSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
+		if err := executingDescriptor.AccessCheck(su.cfgSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
 			su.logger.Warn("Access-list time check failed", "err", err)
 			return types.ErrConflict // TODO: Do we want to do this?
 		}
@@ -629,7 +629,7 @@ func (su *SupervisorBackend) FindSealedBlock(ctx context.Context, chainID eth.Ch
 
 // AllSafeDerivedAt returns the last derived block for each chain, from the given L1 block
 func (su *SupervisorBackend) AllSafeDerivedAt(ctx context.Context, source eth.BlockID) (map[eth.ChainID]eth.BlockID, error) {
-	chains := su.depSet.Chains()
+	chains := su.cfgSet.Chains()
 	ret := map[eth.ChainID]eth.BlockID{}
 	for _, chainID := range chains {
 		derived, err := su.LocalSafeDerivedAt(ctx, chainID, source)
@@ -686,7 +686,7 @@ func (su *SupervisorBackend) L1BlockRefByNumber(ctx context.Context, number uint
 }
 
 func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error) {
-	chains := su.depSet.Chains()
+	chains := su.cfgSet.Chains()
 	slices.SortFunc(chains, func(a, b eth.ChainID) int {
 		return a.Cmp(b)
 	})

@@ -80,7 +80,7 @@ func WithDeployer() stack.Option[*Orchestrator] {
 			})
 			o.clusters.Set(clusterID, &Cluster{
 				id:     clusterID,
-				depset: wb.outDepset,
+				cfgset: wb.outFullCfgSet,
 			})
 
 			for _, chainID := range wb.l2Chains {
@@ -139,6 +139,8 @@ type worldBuilder struct {
 
 	// outDepset is nil if none of the chains has a scheduled interop activation time
 	outDepset *depset.StaticConfigDependencySet
+
+	outFullCfgSet depset.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
 }
@@ -292,6 +294,20 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	}
 }
 
+func (wb *worldBuilder) buildFullConfigSet() {
+	// If no chain has interop active, the dep set will be nil here,
+	// so we should skip building the full config set.
+	if wb.outDepset == nil {
+		return
+	}
+
+	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
+		depset.StaticTimestamp(wb.outL1Genesis.Timestamp))
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.outDepset)
+	wb.require.NoError(err)
+	wb.outFullCfgSet = fullCfgSet
+}
+
 func (wb *worldBuilder) Build() {
 	st := &state.State{
 		Version: 1,
@@ -344,6 +360,7 @@ func (wb *worldBuilder) Build() {
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
 	wb.buildDepSet()
+	wb.buildFullConfigSet()
 }
 
 // WriteState is a callback used by deployer.ApplyPipeline to write the output

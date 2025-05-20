@@ -92,7 +92,7 @@ func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
 }
 
 func (d *InteropDSL) DepSet() *depset.StaticConfigDependencySet {
-	return d.setup.DepSet
+	return d.setup.CfgSet.DependencySet.(*depset.StaticConfigDependencySet)
 }
 
 func (d *InteropDSL) defaultChainOpts() ChainOpts {

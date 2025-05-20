@@ -31,33 +31,45 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+const testChainIDOffset = 900
+
+func fullConfigSet(t *testing.T, size int) depset.FullConfigSetMerged {
+	staticDepSet := make(map[eth.ChainID]*depset.StaticConfigDependency, size)
+	staticRollupCfgSet := make(map[eth.ChainID]*depset.StaticRollupConfig, size)
+	zero := uint64(0)
+	for i := 0; i < size; i++ {
+		chainID := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
+		staticDepSet[chainID] = &depset.StaticConfigDependency{
+			ChainIndex:     testChainIDOffset + types.ChainIndex(i),
+			ActivationTime: 42,
+			HistoryMinTime: 100,
+		}
+		staticRollupCfgSet[chainID] = &depset.StaticRollupConfig{
+			InteropTime: &zero,
+			BlockTime:   2,
+		}
+	}
+	depSet, err := depset.NewStaticConfigDependencySet(staticDepSet)
+	require.NoError(t, err)
+	rollupCfgSet := depset.NewStaticRollupConfigSet(staticRollupCfgSet)
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupCfgSet, depSet)
+	require.NoError(t, err)
+	return fullCfgSet
+}
+
 func TestBackendLifetime(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	m := metrics.NoopMetrics
 	dataDir := t.TempDir()
-	chainA := eth.ChainIDFromUInt64(900)
-	chainB := eth.ChainIDFromUInt64(901)
-	depSet, err := depset.NewStaticConfigDependencySet(
-		map[eth.ChainID]*depset.StaticConfigDependency{
-			chainA: {
-				ChainIndex:     900,
-				ActivationTime: 42,
-				HistoryMinTime: 100,
-			},
-			chainB: {
-				ChainIndex:     901,
-				ActivationTime: 30,
-				HistoryMinTime: 20,
-			},
-		})
-	require.NoError(t, err)
+	chainA := eth.ChainIDFromUInt64(testChainIDOffset)
+	fullCfgSet := fullConfigSet(t, 2)
 	cfg := &config.Config{
 		Version:               "test",
 		LogConfig:             oplog.CLIConfig{},
 		MetricsConfig:         opmetrics.CLIConfig{},
 		PprofConfig:           oppprof.CLIConfig{},
 		RPC:                   oprpc.CLIConfig{},
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		SyncSources:           &syncnode.CLISyncNodes{},
@@ -173,30 +185,21 @@ func TestBackendCallsMetrics(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	mockMetrics := &MockMetrics{}
 	dataDir := t.TempDir()
-	chainA := eth.ChainIDFromUInt64(900)
+	chainA := eth.ChainIDFromUInt64(testChainIDOffset)
 
 	// Set up mock metrics
 	mockMetrics.Mock.On("RecordDBEntryCount", chainA, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return()
 	mockMetrics.Mock.On("RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(_ eth.BlockRef) bool { return true })).Return()
 	mockMetrics.Mock.On("RecordCrossSafeRef", chainA, mock.MatchedBy(func(_ eth.BlockRef) bool { return true })).Return()
 
-	depSet, err := depset.NewStaticConfigDependencySet(
-		map[eth.ChainID]*depset.StaticConfigDependency{
-			chainA: {
-				ChainIndex:     900,
-				ActivationTime: 42,
-				HistoryMinTime: 100,
-			},
-		})
-	require.NoError(t, err)
-
+	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
 		Version:               "test",
 		LogConfig:             oplog.CLIConfig{},
 		MetricsConfig:         opmetrics.CLIConfig{},
 		PprofConfig:           oppprof.CLIConfig{},
 		RPC:                   oprpc.CLIConfig{},
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		SyncSources:           &syncnode.CLISyncNodes{},
@@ -359,11 +362,8 @@ func (f *fakeSyncSource) String() string {
 func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	// Setup a single-chain dependency set
-	chainID := eth.ChainIDFromUInt64(1)
-	depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		chainID: {ChainIndex: 1, ActivationTime: 0, HistoryMinTime: 0},
-	})
-	require.NoError(t, err)
+	chainID := eth.ChainIDFromUInt64(testChainIDOffset)
+	fullCfgSet := fullConfigSet(t, 1)
 
 	// Create and set up mock metrics
 	mockMetrics := &MockMetrics{}
@@ -379,7 +379,7 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 		MetricsConfig:         opmetrics.CLIConfig{},
 		PprofConfig:           oppprof.CLIConfig{},
 		RPC:                   oprpc.CLIConfig{},
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		SyncSources:           &syncnode.CLISyncNodes{},
