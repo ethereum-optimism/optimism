@@ -15,8 +15,8 @@ func TestInitExecMsg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.ThousandEther)
-	bob := sys.FunderB.NewFundedEOA(eth.ThousandEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A
@@ -24,5 +24,7 @@ func TestInitExecMsg(gt *testing.T) {
 	// Make sure supervisor indexs block which includes init message
 	sys.Supervisor.AdvancedUnsafeHead(alice.ChainID(), 2)
 	// Single event in tx so index is 0
-	bob.SendExecMessage(initIntent, 0)
+	_, bobReceipt := bob.SendExecMessage(initIntent, 0)
+	// Make sure that the cross-safe head advances after the exec message is executed
+	sys.Supervisor.AdvancedSafeHead(bob.ChainID(), bobReceipt.BlockNumber.Uint64(), 10)
 }
