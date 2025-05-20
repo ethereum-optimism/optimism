@@ -144,13 +144,13 @@ func (s *Supervisor) AdvancedL2Head(chainID eth.ChainID, delta uint64, lvl types
 	s.require.NoError(err)
 }
 
-func (s *Supervisor) AdvancedUnsafeHead(chainID eth.ChainID, block uint64) {
-	attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
-	s.AdvancedL2Head(chainID, block, types.LocalUnsafe, attempts)
+func (s *Supervisor) AdvancedUnsafeHead(chainID eth.ChainID, delta uint64) {
+	attempts := int(delta + 3) // intentionally allow few more attempts for avoid flaking
+	s.AdvancedL2Head(chainID, delta, types.LocalUnsafe, attempts)
 }
 
-func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, block uint64, attempts int) {
-	s.AdvancedL2Head(chainID, block, types.CrossSafe, attempts)
+func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, delta uint64, attempts int) {
+	s.AdvancedL2Head(chainID, delta, types.CrossSafe, attempts)
 }
 
 func (s *Supervisor) Start() {
