@@ -2,12 +2,11 @@ use crate::{
     conditional::MaybeConditionalTransaction, estimated_da_size::DataAvailabilitySized,
     interop::MaybeInteropTransaction,
 };
-use alloy_consensus::{
-    transaction::Recovered, BlobTransactionSidecar, BlobTransactionValidationError, Typed2718,
-};
+use alloy_consensus::{transaction::Recovered, BlobTransactionValidationError, Typed2718};
 use alloy_eips::{
     eip2718::{Encodable2718, WithEncoded},
     eip2930::AccessList,
+    eip7594::BlobTransactionSidecarVariant,
     eip7702::SignedAuthorization,
 };
 use alloy_primitives::{Address, Bytes, TxHash, TxKind, B256, U256};
@@ -268,21 +267,21 @@ where
 
     fn try_into_pooled_eip4844(
         self,
-        _sidecar: Arc<BlobTransactionSidecar>,
+        _sidecar: Arc<BlobTransactionSidecarVariant>,
     ) -> Option<Recovered<Self::Pooled>> {
         None
     }
 
     fn try_from_eip4844(
         _tx: Recovered<Self::Consensus>,
-        _sidecar: BlobTransactionSidecar,
+        _sidecar: BlobTransactionSidecarVariant,
     ) -> Option<Self> {
         None
     }
 
     fn validate_blob(
         &self,
-        _sidecar: &BlobTransactionSidecar,
+        _sidecar: &BlobTransactionSidecarVariant,
         _settings: &KzgSettings,
     ) -> Result<(), BlobTransactionValidationError> {
         Err(BlobTransactionValidationError::NotBlobTransaction(self.ty()))
