@@ -24,7 +24,7 @@ cannon64-impl:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon64-impl .
 
 # Note: This target is used by ./scripts/build-legacy-cannons.sh
-# It should build the individual versions of cannons and copy them into place in hte multicannon/embeds directory
+# It should build the individual versions of cannons and copy them into place in the multicannon/embeds directory
 # Ideally, preserve backwards compatibility with this behaviour but if it needs to change, build-legacy-cannons.sh will
 # need to be updated to account for different behaviours in different versions.
 # Each embed is suffixed with the latest `StateVersion` number corresponding to the target VM and architecture.

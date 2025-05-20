@@ -61,10 +61,10 @@ func init() {
 }
 
 func TestInteropReadiness(t *testing.T) {
-	systest.SystemTest(t, interopReadinessTestSenario())
+	systest.SystemTest(t, interopReadinessTestScenario())
 }
 
-func interopReadinessTestSenario() systest.SystemTestFunc {
+func interopReadinessTestScenario() systest.SystemTestFunc {
 	return func(t systest.T, sys system.System) {
 		logger := testlog.Logger(t, log.LevelInfo)
 		logger.Info("Started test")

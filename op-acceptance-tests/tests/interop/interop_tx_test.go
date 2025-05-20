@@ -91,7 +91,7 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGet
 			ChainId:     chainA.ID(),
 		}
 
-		SatisfyExecMsgContraint(t, logger, sys, identifier.BlockNumber.Uint64(), identifier.Timestamp.Uint64())
+		SatisfyExecMsgConstraint(t, logger, sys, identifier.BlockNumber.Uint64(), identifier.Timestamp.Uint64())
 
 		// Execute message
 		logger.Info("Execute message", "address", sha256PrecompileAddr, "message", dummyMessage)
@@ -138,11 +138,11 @@ func TestMessagePassing(t *testing.T) {
 	sourceChainIdx := uint64(0)
 	destChainIdx := uint64(1)
 	sourceWalletGetter, sourcefundsValidator := validators.AcquireL2WalletWithFunds(sourceChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
-	destWalletGetter, destfundsValiator := validators.AcquireL2WalletWithFunds(destChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
+	destWalletGetter, destfundsValidator := validators.AcquireL2WalletWithFunds(destChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
 
 	systest.InteropSystemTest(t,
 		messagePassingScenario(sourceChainIdx, destChainIdx, sourceWalletGetter, destWalletGetter),
 		sourcefundsValidator,
-		destfundsValiator,
+		destfundsValidator,
 	)
 }

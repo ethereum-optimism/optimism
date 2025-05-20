@@ -128,6 +128,6 @@ func (cl *SupervisorClient) Close() {
 }
 
 func isNotFound(err error) bool {
-	// The RPC server wil convert the returned error to a string so we can't match on an error type here
+	// The RPC server will convert the returned error to a string so we can't match on an error type here
 	return err != nil && strings.Contains(err.Error(), ethereum.NotFound.Error())
 }

@@ -135,7 +135,7 @@ func TestInteropBootstrap_DependencySetCustom(t *testing.T) {
 
 func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool) *mockInteropBootstrapOracle {
 	return &mockInteropBootstrapOracle{
-		mockBoostrapOracle: mockBoostrapOracle{
+		mockBootstrapOracle: mockBootstrapOracle{
 			l1Head:             b.L1Head,
 			l2OutputRoot:       b.AgreedPrestate,
 			l2Claim:            b.Claim,
@@ -146,7 +146,7 @@ func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool) *mockInterop
 }
 
 type mockInteropBootstrapOracle struct {
-	mockBoostrapOracle
+	mockBootstrapOracle
 	rollupCfgs []*rollup.Config
 	chainCfgs  []*params.ChainConfig
 	depset     *depset.StaticConfigDependencySet
@@ -176,6 +176,6 @@ func (o *mockInteropBootstrapOracle) Get(key preimage.Key) []byte {
 		b, _ := json.Marshal(o.depset)
 		return b
 	default:
-		return o.mockBoostrapOracle.Get(key)
+		return o.mockBootstrapOracle.Get(key)
 	}
 }

@@ -255,7 +255,7 @@ func (l *logContext) appendEntry(obj EntryObj) {
 }
 
 // infer advances the logContext in cases where complex entries contain multiple implied entries
-// eg. a SearchCheckpoint implies a CannonicalHash will follow
+// eg. a SearchCheckpoint implies a CanonicalHash will follow
 // this also handles inserting the searchCheckpoint at the set frequency, and padding entries
 func (l *logContext) infer() error {
 	// We force-insert a checkpoint whenever we hit the known fixed interval.

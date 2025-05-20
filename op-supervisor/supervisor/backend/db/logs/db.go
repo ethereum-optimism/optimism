@@ -440,7 +440,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 	}
 	// Now walk up to the number of seen logs that we want to have processed.
 	// E.g. logIndex == 2, need to have processed index 0 and 1,
-	// so two logs before quiting (and not 3 to then quit after).
+	// so two logs before quitting (and not 3 to then quit after).
 	for iter.current.logsSince < logIndex {
 		if err := iter.NextInitMsg(); err == io.EOF {
 			return nil, types.ErrFuture

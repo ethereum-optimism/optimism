@@ -24,9 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SatisfyExecMsgContraint waits supervisor to index initiating message,
+// SatisfyExecMsgConstraint waits supervisor to index initiating message,
 // and destination chain has advanced enough to satisfy messaging time invariant.
-func SatisfyExecMsgContraint(t systest.T, logger log.Logger, sys system.InteropSystem, initBlockNum uint64, initTimestamp uint64) {
+func SatisfyExecMsgConstraint(t systest.T, logger log.Logger, sys system.InteropSystem, initBlockNum uint64, initTimestamp uint64) {
 	ctx := t.Context()
 
 	supervisor, err := sys.Supervisor(ctx)
@@ -78,7 +78,7 @@ func initAndExecMsg(
 		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
 		require.NoError(t, err)
 		// wait for supervisor and destination chain be in sync
-		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+		SatisfyExecMsgConstraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate message on chain B
 		txB := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](opts[1])
@@ -125,7 +125,7 @@ func initAndExecMultipleMsg(
 		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
 		require.NoError(t, err)
 		// wait for supervisor and destination chain be in sync
-		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+		SatisfyExecMsgConstraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate messages on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
@@ -169,7 +169,7 @@ func execSameMsgTwice(
 		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
 		require.NoError(t, err)
 		// wait for supervisor and destination chain be in sync
-		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+		SatisfyExecMsgConstraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate same message two times on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
@@ -200,7 +200,7 @@ func execMsgDifferentTopicCount(
 		eventLoggerAddress, err := DeployEventLogger(ctx, wallets[0], logger)
 		require.NoError(t, err)
 
-		// Intent to initiate message with differet topic counts on chain A
+		// Intent to initiate message with different topic counts on chain A
 		initCalls := make([]txintent.Call, 5)
 		for topicCnt := range 5 {
 			index := topicCnt
@@ -223,7 +223,7 @@ func execMsgDifferentTopicCount(
 		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
 		require.NoError(t, err)
 		// wait for supervisor and destination chain be in sync
-		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+		SatisfyExecMsgConstraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate message on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
@@ -242,9 +242,9 @@ func execMsgDifferentTopicCount(
 	}
 }
 
-// execMsgOpagueData tests below scenario:
+// execMsgOpaqueData tests below scenario:
 // Execute message that links with initiating message with: 0, 10KB of opaque event data in it
-func execMsgOpagueData(
+func execMsgOpaqueData(
 	l2ChainNums int,
 	walletGetters []validators.WalletGetter,
 ) systest.InteropSystemTestFunc {
@@ -275,7 +275,7 @@ func execMsgOpagueData(
 		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
 		require.NoError(t, err)
 		// wait for supervisor and destination chain be in sync
-		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+		SatisfyExecMsgConstraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate messages on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
@@ -325,7 +325,7 @@ func execMsgDifferEventIndexInSingleTx(
 		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
 		require.NoError(t, err)
 		// wait for supervisor and destination chain be in sync
-		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+		SatisfyExecMsgConstraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// Intent to validate messages on chain B
 		txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opts[1])
@@ -445,7 +445,7 @@ func executeMessageInvalidAttributes(
 		blockA, err := txA.PlannedTx.IncludedBlock.Eval(ctx)
 		require.NoError(t, err)
 		// wait for supervisor and destination chain be in sync
-		SatisfyExecMsgContraint(t, logger, sys, blockA.Number, blockA.Time)
+		SatisfyExecMsgConstraint(t, logger, sys, blockA.Number, blockA.Time)
 
 		// construct txplan opts for testing failed validating messages
 		optsForFail := txplan.Combine(
@@ -497,7 +497,7 @@ func randomDirectedGraph(
 
 		// pubSubPairCnt is the count of (publisher, subscriber) pairs which
 		// - publisher initiates messages
-		// - subsciber validates messages
+		// - subscriber validates messages
 		pubSubPairCnt := 10
 		// txCnt is the count of transactions that each publisher emits
 		txCnt := 3
@@ -649,11 +649,11 @@ func TestInteropExecMsgDifferentTopicCount(t *testing.T) {
 	)
 }
 
-func TestInteropExecMsgOpagueData(t *testing.T) {
+func TestInteropExecMsgOpaqueData(t *testing.T) {
 	l2ChainNums := 2
 	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
 	systest.InteropSystemTest(t,
-		execMsgOpagueData(l2ChainNums, walletGetters),
+		execMsgOpaqueData(l2ChainNums, walletGetters),
 		totalValidators...,
 	)
 }

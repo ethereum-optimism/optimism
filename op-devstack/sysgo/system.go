@@ -256,7 +256,7 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 	opt.Add(WithL2CLNode(ids.L2B2CL, false, ids.L1CL, ids.L1EL, ids.L2B2EL))
 
 	// verifier must be also managed or it cannot advance
-	// we attach verifer L2CL with backup supervisor
+	// we attach verifier L2CL with backup supervisor
 	opt.Add(WithManagedBySupervisor(ids.L2A2CL, ids.SupervisorSecondary))
 	opt.Add(WithManagedBySupervisor(ids.L2B2CL, ids.SupervisorSecondary))
 

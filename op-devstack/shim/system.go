@@ -8,7 +8,7 @@ import (
 )
 
 // SystemConfig sets up a System.
-// It is intentially very minimal, the system is expected to be extended after creation, using Option functions
+// It is intentionally very minimal, the system is expected to be extended after creation, using Option functions
 type SystemConfig struct {
 	CommonConfig
 }

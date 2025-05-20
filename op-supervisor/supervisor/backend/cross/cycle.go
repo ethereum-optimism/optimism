@@ -193,7 +193,7 @@ func buildGraph(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 			// Disallow self-referencing messages
 			// This should not be possible since the executing message contains the hash of the initiating message.
 			if initKey == execKey {
-				return nil, fmt.Errorf("%w: self referencial message", types.ErrConflict)
+				return nil, fmt.Errorf("%w: self referential message", types.ErrConflict)
 			}
 
 			// Add the edge

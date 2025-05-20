@@ -70,7 +70,7 @@ func (v *SendTrigger) AccessList() (types.AccessList, error) {
 	return nil, nil
 }
 
-// Trigger for using the CrossL2Inbox to trigger validateMesssage
+// Trigger for using the CrossL2Inbox to trigger validateMessage
 // This Trigger may be embedded to other triggers for preparing access lists
 type ExecTrigger struct {
 	Executor common.Address // address of the EventLogger or CrossL2Inbox

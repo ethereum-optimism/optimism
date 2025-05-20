@@ -90,7 +90,7 @@ type SuperSystem interface {
 	ChainID(network string) *big.Int
 	RollupConfig(network string) *rollup.Config
 	L2Genesis(network string) *core.Genesis
-	UserKey(nework, username string) ecdsa.PrivateKey
+	UserKey(network, username string) ecdsa.PrivateKey
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
 	Contract(network string, contractName string) interface{}

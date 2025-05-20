@@ -251,7 +251,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			// Start throttling loop in a goroutine
 			go bs.throttlingLoop(&wg1, pendingBytesUpdated)
 
-			// Simulate block loading by sending perodically on pendingBytesUpdated
+			// Simulate block loading by sending periodically on pendingBytesUpdated
 			wg2 := sync.WaitGroup{}
 			blockLoadingCtx, cancelBlockLoading := context.WithCancel(context.Background())
 			defer cancelBlockLoading()

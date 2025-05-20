@@ -56,7 +56,7 @@ func TestTxIntent(t *testing.T) {
 	_, err := tx.Content.Eval(ctx)
 	require.NoError(t, err)
 
-	// Evaulate to check that the Content info propagated to PlannedTx
+	// Evaluate to check that the Content info propagated to PlannedTx
 	to, err := tx.PlannedTx.To.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, randomCall.to, to)
@@ -113,7 +113,7 @@ func TestTxIntentMultiCall(t *testing.T) {
 	_, err := tx.Content.Eval(ctx)
 	require.NoError(t, err)
 
-	// Evaulate to check that the Content info propagated to PlannedTx
+	// Evaluate to check that the Content info propagated to PlannedTx
 	to, err := tx.PlannedTx.To.Eval(ctx)
 	require.NoError(t, err)
 	require.Equal(t, multiTrigger.Emitter, *to)

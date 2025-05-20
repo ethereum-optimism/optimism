@@ -28,7 +28,7 @@ var (
 	uint64Ptr              = func(num uint64) *uint64 { return &num }
 	enableTxCondGethOption = func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 		ethCfg.RollupSequencerTxConditionalEnabled = true
-		ethCfg.RollupSequencerTxConditionalCostRateLimit = 1000 // not parsed from default CLI values so explicily set
+		ethCfg.RollupSequencerTxConditionalCostRateLimit = 1000 // not parsed from default CLI values so explicitly set
 		return nil
 	}
 )

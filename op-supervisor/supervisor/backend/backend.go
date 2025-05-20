@@ -538,7 +538,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 	entries := inboxEntries
 	for len(entries) > 0 {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("stopped acces-list check early: %w", err)
+			return fmt.Errorf("stopped access-list check early: %w", err)
 		}
 		remaining, acc, err := types.ParseAccess(entries)
 		if err != nil {

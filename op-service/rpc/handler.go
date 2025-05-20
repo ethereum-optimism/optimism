@@ -163,7 +163,7 @@ func (b *Handler) AddRPCWithAuthentication(route string, isAuthenticated *bool) 
 		http.NotFound(writer, request)
 	})
 
-	// conditionaly set the jwt secret from global jwt secret, based on the authentication setting
+	// conditionally set the jwt secret from global jwt secret, based on the authentication setting
 	var jwtSecret []byte
 	if isAuthenticated == nil {
 		jwtSecret = b.jwtSecret
