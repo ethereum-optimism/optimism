@@ -282,7 +282,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right overrides error when the
-    ///         ProxyAdmin owner is overriden but is correct.
+    ///         ProxyAdmin owner is overridden but is correct.
     function test_validate_overridenProxyAdminOwner_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
@@ -295,8 +295,8 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("OVERRIDES-L1PAOMULTISIG", _validate(true, overrides));
     }
 
-    /// @notice Tests that the validate function (with an overriden ProxyAdmin owner) successfully returns the right
-    ///         error when the ProxyAdmin owner is not correct.
+    /// @notice Tests that the validate function (with an overridden ProxyAdmin owner) successfully
+    ///         returns the right error when the ProxyAdmin owner is not correct.
     function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
@@ -841,7 +841,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right overrides error when the
-    ///         PermissionedDisputeGame challenger is overriden but is correct.
+    ///         PermissionedDisputeGame challenger is overridden but is correct.
     function test_validate_overridenPermissionedDisputeGameChallenger_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.challenger = address(0xbad);
@@ -849,7 +849,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("OVERRIDES-CHALLENGER", _validate(true, overrides));
     }
 
-    /// @notice Tests that the validate function (with an overriden PermissionedDisputeGame challenger) successfully
+    /// @notice Tests that the validate function (with an overridden PermissionedDisputeGame challenger) successfully
     ///         returns the right error when the PermissionedDisputeGame challenger is invalid.
     function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
@@ -1170,7 +1170,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("L1SB-80", _validate(true));
     }
 
-    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overriden)
+    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overridden)
     ///         successfully returns the right error when both are invalid.
     function test_validateL1PAOMultisigAndChallengerOverrides_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
@@ -1182,9 +1182,9 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         );
     }
 
-    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overriden)
+    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overridden)
     ///         successfully returns no error when there is none. That is, it never returns the
-    ///         overriden strings alone.
+    ///         overridden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides =
             IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });

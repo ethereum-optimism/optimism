@@ -33,7 +33,7 @@ contract SuperchainConfig_Initialize_Test is SuperchainConfig_TestInit {
         assertEq(superchainConfig.guardian(), deploy.cfg().superchainConfigGuardian());
     }
 
-    /// @notice Tests that it can be intialized as paused.
+    /// @notice Tests that it can be initialized as paused.
     function test_initialize_paused_succeeds() external {
         IProxy newProxy = IProxy(
             DeployUtils.create1({

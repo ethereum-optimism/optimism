@@ -43,7 +43,7 @@ func (c *ChainOpts) AddChain(chain *Chain) {
 // Required inputs to methods are specified as normal parameters, so type checking enforces their presence.
 // Optional inputs to methods are specified by a config struct and accept a vararg of functions that can update that struct.
 // This is roughly inline with the typical opts pattern in Golang but with significantly reduced boilerplate code since
-// so many methods wil define their own config. With* methods are only provided for the most common optional args and
+// so many methods will define their own config. With* methods are only provided for the most common optional args and
 // tests will normally supply a custom function that sets all the optional values they need at once.
 // Common options can be extracted to a reusable struct (e.g. ChainOpts above) which may expose helper methods to aid
 // test readability and reduce boilerplate.

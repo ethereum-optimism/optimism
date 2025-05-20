@@ -81,6 +81,6 @@ INFO [03-05|15:57:07.971] final results                            numVerified=4
 
 ## Known Limitations
 
-- Does not currently work for contracts in the `opchain` bundle (deployed via `op-deployer apply`) that have constructor args. Those constructors args cannot be extracted from the deployment `tx.Data()` since `OPContractsManager.deploy()` uses factory pattern with CREATE2 to deploy those contracts.
+- Does not currently work for contracts in the `opchain` bundle (deployed via `op-deployer apply`) that have constructor args. Those constructor args cannot be extracted from the deployment `tx.Data()` since `OPContractsManager.deploy()` uses factory pattern with CREATE2 to deploy those contracts.
 
 - Currently only supports etherscan block explorers. Blockscout support is planned but not yet implemented.

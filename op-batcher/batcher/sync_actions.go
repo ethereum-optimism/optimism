@@ -66,7 +66,7 @@ func computeSyncActions[T channelStatuser](
 
 	safeL2 := newSyncStatus.SafeL2
 	if preferLocalSafeL2 {
-		// This is preffered when running interop, but not yet enabled by default.
+		// This is preferred when running interop, but not yet enabled by default.
 		safeL2 = newSyncStatus.LocalSafeL2
 	}
 

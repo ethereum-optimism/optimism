@@ -23,7 +23,7 @@ import { IOptimismMintableERC20Full } from "interfaces/universal/IOptimismMintab
 import { ILegacyMintableERC20Full } from "interfaces/legacy/ILegacyMintableERC20Full.sol";
 
 /// @title CommonTest
-/// @dev An extenstion to `Test` that sets up the optimism smart contracts.
+/// @dev An extension to `Test` that sets up the optimism smart contracts.
 contract CommonTest is Test, Setup, Events {
     address alice;
     address bob;

@@ -1,4 +1,4 @@
-# Compatiblity Test Baseline
+# Compatibility Test Baseline
 
 These baselines are used as part of the `analyze-op-program-client` task to check op-program for any unsupported
 opcodes or syscalls.

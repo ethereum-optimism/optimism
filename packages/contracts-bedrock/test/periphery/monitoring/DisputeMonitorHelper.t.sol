@@ -89,7 +89,7 @@ contract DisputeMonitorHelper_search_Test is DisputeMonitorHelper_TestInit {
     /// @param _numGames Number of games to generate for the test.
     /// @param _searchOlderThan Search direction.
     function testFuzz_search_succeeds(uint8 _numGames, bool _searchOlderThan) external {
-        // Convert into search directon.
+        // Convert into search direction.
         DisputeMonitorHelper.SearchDirection direction = _searchOlderThan
             ? DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
             : DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ;
@@ -178,7 +178,7 @@ contract DisputeMonitorHelper_search_Test is DisputeMonitorHelper_TestInit {
     /// @param _timestamp The timestamp to search for.
     /// @param _searchOlderThan Whether to search for an older or newer game.
     function testFuzz_search_noGames_succeeds(uint256 _timestamp, bool _searchOlderThan) external view {
-        // Convert into search directon.
+        // Convert into search direction.
         DisputeMonitorHelper.SearchDirection direction = _searchOlderThan
             ? DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
             : DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ;
