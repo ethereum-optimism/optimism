@@ -26,6 +26,9 @@ type Orchestrator struct {
 	// nil if no time travel is supported
 	timeTravelClock *clock.AdvancingClock
 
+	// options
+	batcherOptions []BatcherOption
+
 	superchains locks.RWMap[stack.SuperchainID, *Superchain]
 	clusters    locks.RWMap[stack.ClusterID, *Cluster]
 	l1Nets      locks.RWMap[eth.ChainID, *L1Network]

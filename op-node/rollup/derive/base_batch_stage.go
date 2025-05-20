@@ -188,7 +188,7 @@ func (bs *baseBatchStage) deriveNextEmptyBatch(ctx context.Context, outOfData bo
 	// to preserve that L2 time >= L1 time. If this is the first block of the epoch, always generate a
 	// batch to ensure that we at least have one batch per epoch.
 	if nextTimestamp < nextEpoch.Time || firstOfEpoch {
-		bs.log.Info("Generating next batch", "epoch", epoch, "timestamp", nextTimestamp)
+		bs.log.Info("Generating next batch", "epoch", epoch, "timestamp", nextTimestamp, "parent", parent)
 		return &SingularBatch{
 			ParentHash:   parent.Hash,
 			EpochNum:     rollup.Epoch(epoch.Number),

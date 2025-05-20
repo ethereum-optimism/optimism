@@ -214,28 +214,11 @@ func (t *resetTracker) resetHeadsFromTarget(target eth.BlockID) {
 	t.managed.log.Info("reset target identified", "target", target)
 	var lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID
 
-	// Check if target is seen in unsafe DB.
-	// If it is, the tip of the unsafe DB is good to use as unsafe-reset-target.
-	// If it is not, then the unsafe logs DB is inconsistent with our local-safe DB.
-	// So we need to stick to the target block.
-	if err := t.managed.backend.IsLocalUnsafe(internalCtx, t.managed.chainID, target); err != nil {
-		if errors.Is(err, types.ErrConflict) {
-			lUnsafe = target
-		} else {
-			t.managed.log.Error("Failed to check local-unsafe", "target", target, "err", err)
-			t.endReset()
-			return
-		}
-	} else {
-		// TODO(#16026): cleanup how we fall back to the tip of unsafe chain
-		tip, err := t.managed.backend.LocalUnsafe(internalCtx, t.managed.chainID)
-		if err != nil {
-			t.managed.log.Error("Failed to get latest local-unsafe", "err", err)
-			t.endReset()
-			return
-		}
-		lUnsafe = tip
-	}
+	// We set the local unsafe block to our target (the local-safe block we determined to reset to).
+	// The node checks it for consistency, but if it builds on this target,
+	// it does not revert back the existing unsafe chain.
+	// We do not have to pick the latest possible unsafe target here.
+	lUnsafe = target
 
 	// all other blocks are either the last consistent block, or the last block in the db, whichever is earlier
 	// cross unsafe
