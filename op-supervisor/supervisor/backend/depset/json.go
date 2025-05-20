@@ -27,3 +27,23 @@ func (j *JsonDependencySetLoader) LoadDependencySet(ctx context.Context) (Depend
 }
 
 var _ DependencySetSource = (*JsonDependencySetLoader)(nil)
+
+type JsonRollupConfigSetLoader struct {
+	Path string
+}
+
+func (j *JsonRollupConfigSetLoader) LoadRollupConfigSet(ctx context.Context) (RollupConfigSet, error) {
+	f, err := os.Open(j.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open rollup config set: %w", err)
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	var out StaticRollupConfigSet
+	if err := dec.Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to decode rollup config set: %w", err)
+	}
+	return &out, nil
+}
+
+var _ RollupConfigSetSource = (*JsonRollupConfigSetLoader)(nil)
