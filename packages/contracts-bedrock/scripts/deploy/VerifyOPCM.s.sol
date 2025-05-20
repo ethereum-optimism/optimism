@@ -315,7 +315,7 @@ contract VerifyOPCM is Script {
                 );
 
                 // Make sure the constructor args are valid.
-                if (_isValidConstructoArgs(_target.name, constructorArgs)) {
+                if (_isValidConstructorArgs(_target.name, constructorArgs)) {
                     console.log(string.concat("[OK] Constructor arguments are valid"));
                 } else {
                     console.log(string.concat("[FAIL] ERROR: Constructor arguments are invalid"));
@@ -607,7 +607,7 @@ contract VerifyOPCM is Script {
     /// @param _contractName The name of the contract.
     /// @param _constructorArgs The constructor arguments to check.
     /// @return True if the constructor arguments are valid, false otherwise.
-    function _isValidConstructoArgs(
+    function _isValidConstructorArgs(
         string memory _contractName,
         bytes memory _constructorArgs
     )
