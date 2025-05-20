@@ -28,12 +28,10 @@ func TestPreNoInbox(gt *testing.T) {
 		codeAddr := common.HexToAddress("0xC0D3C0d3C0D3C0d3c0d3c0D3c0D3C0d3C0D30022")
 		implCode, err := el.EthClient().CodeAtHash(t.Ctx(), codeAddr, pre.Hash)
 		require.NoError(err)
-		// TODO this is not empty yet
 		require.Len(implCode, 0, "needs to be empty")
 		implAddrBytes, err := el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
 			genesis.ImplementationSlot, pre.Hash.String())
 		require.NoError(err)
-		// TODO: this still points to 0xC0D3C0d3C0D3C0d3c0d3c0D3c0D3C0d3C0D30022
 		require.Equal(common.Address{}, common.BytesToAddress(implAddrBytes[:]))
 	})
 	t.Logger().Info("Done")
