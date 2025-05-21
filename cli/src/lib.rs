@@ -8,6 +8,8 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+/// A configurable App on top of the cli parser.
+pub mod app;
 /// Optimism chain specification parser.
 pub mod chainspec;
 /// Optimism CLI commands.
@@ -30,6 +32,7 @@ pub mod receipt_file_codec;
 /// Enables decoding and encoding `Block` types within file contexts.
 pub mod ovm_file_codec;
 
+pub use app::CliApp;
 pub use commands::{import::ImportOpCommand, import_receipts::ImportReceiptsOpCommand};
 use reth_optimism_chainspec::OpChainSpec;
 
@@ -40,6 +43,7 @@ use clap::{command, Parser};
 use commands::Commands;
 use futures_util::Future;
 use reth_cli::chainspec::ChainSpecParser;
+use reth_cli_commands::launcher::FnLauncher;
 use reth_cli_runner::CliRunner;
 use reth_db::DatabaseEnv;
 use reth_node_builder::{NodeBuilder, WithLaunchContext};
@@ -47,16 +51,11 @@ use reth_node_core::{
     args::LogArgs,
     version::{LONG_VERSION, SHORT_VERSION},
 };
-use reth_optimism_consensus::OpBeaconConsensus;
-use reth_optimism_evm::OpExecutorProvider;
-use reth_optimism_node::{args::RollupArgs, OpNetworkPrimitives, OpNode};
-use reth_tracing::FileWorkerGuard;
-use tracing::info;
+use reth_optimism_node::args::RollupArgs;
 
 // This allows us to manually enable node metrics features, required for proper jemalloc metric
 // reporting
 use reth_node_metrics as _;
-use reth_node_metrics::recorder::install_prometheus_recorder;
 
 /// The main op-reth cli interface.
 ///
@@ -95,6 +94,14 @@ where
     C: ChainSpecParser<ChainSpec = OpChainSpec>,
     Ext: clap::Args + fmt::Debug,
 {
+    /// Configures the CLI and returns a [`CliApp`] instance.
+    ///
+    /// This method is used to prepare the CLI for execution by wrapping it in a
+    /// [`CliApp`] that can be further configured before running.
+    pub fn configure(self) -> CliApp<C, Ext> {
+        CliApp::new(self)
+    }
+
     /// Execute the configured cli command.
     ///
     /// This accepts a closure that is used to launch the node via the
@@ -108,66 +115,14 @@ where
     }
 
     /// Execute the configured cli command with the provided [`CliRunner`].
-    pub fn with_runner<L, Fut>(mut self, runner: CliRunner, launcher: L) -> eyre::Result<()>
+    pub fn with_runner<L, Fut>(self, runner: CliRunner, launcher: L) -> eyre::Result<()>
     where
         L: FnOnce(WithLaunchContext<NodeBuilder<Arc<DatabaseEnv>, C::ChainSpec>>, Ext) -> Fut,
         Fut: Future<Output = eyre::Result<()>>,
     {
-        // add network name to logs dir
-        // Add network name if available to the logs dir
-        if let Some(chain_spec) = self.command.chain_spec() {
-            self.logs.log_file_directory =
-                self.logs.log_file_directory.join(chain_spec.chain.to_string());
-        }
-        let _guard = self.init_tracing()?;
-        info!(target: "reth::cli", "Initialized tracing, debug log directory: {}", self.logs.log_file_directory);
-
-        // Install the prometheus recorder to be sure to record all metrics
-        let _ = install_prometheus_recorder();
-
-        match self.command {
-            Commands::Node(command) => {
-                runner.run_command_until_exit(|ctx| command.execute(ctx, launcher))
-            }
-            Commands::Init(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
-            }
-            Commands::InitState(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
-            }
-            Commands::ImportOp(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
-            }
-            Commands::ImportReceiptsOp(command) => {
-                runner.run_blocking_until_ctrl_c(command.execute::<OpNode>())
-            }
-            Commands::DumpGenesis(command) => runner.run_blocking_until_ctrl_c(command.execute()),
-            Commands::Db(command) => runner.run_blocking_until_ctrl_c(command.execute::<OpNode>()),
-            Commands::Stage(command) => runner.run_command_until_exit(|ctx| {
-                command.execute::<OpNode, _, _, OpNetworkPrimitives>(ctx, |spec| {
-                    (OpExecutorProvider::optimism(spec.clone()), OpBeaconConsensus::new(spec))
-                })
-            }),
-            Commands::P2P(command) => {
-                runner.run_until_ctrl_c(command.execute::<OpNetworkPrimitives>())
-            }
-            Commands::Config(command) => runner.run_until_ctrl_c(command.execute()),
-            Commands::Recover(command) => {
-                runner.run_command_until_exit(|ctx| command.execute::<OpNode>(ctx))
-            }
-            Commands::Prune(command) => runner.run_until_ctrl_c(command.execute::<OpNode>()),
-            #[cfg(feature = "dev")]
-            Commands::TestVectors(command) => runner.run_until_ctrl_c(command.execute()),
-        }
-    }
-
-    /// Initializes tracing with the configured options.
-    ///
-    /// If file logging is enabled, this function returns a guard that must be kept alive to ensure
-    /// that all logs are flushed to disk.
-    pub fn init_tracing(&self) -> eyre::Result<Option<FileWorkerGuard>> {
-        let guard = self.logs.init_tracing()?;
-        Ok(guard)
+        let mut this = self.configure();
+        this.set_runner(runner);
+        this.run(FnLauncher::new::<C, Ext>(launcher))
     }
 }
 
