@@ -243,7 +243,7 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 	if err != nil {
 		// If err contains information about matching state roots, format and return it
 		if strings.Contains(err.Error(), "block hash divergence with matching state roots") {
-			return nil, fmt.Errorf("at block #%s: %s", blockNum, err.Error())
+			return nil, fmt.Errorf("at block #%s: %w", blockNum, err)
 		}
 
 		// If err is a chain split error, pass it through
