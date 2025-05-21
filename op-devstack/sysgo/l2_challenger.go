@@ -80,7 +80,8 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 
 		dir := p.TempDir()
 		var cfg *config.Config
-		if interopScheduled {
+		// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
+		if interopScheduled || l2CLID == nil {
 			require.NotNil(supervisorID, "need supervisor to connect to in interop")
 			require.NotNil(clusterID, "need cluster in interop")
 			supervisorNode, ok := orch.supervisors.Get(*supervisorID)
@@ -104,10 +105,18 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 			require.NoError(err, "Failed to create interop challenger config")
 		} else {
 			require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
-			require.Len(l2ELIDs, 1, "need single L2 EL to connect to pre-interop")
+			// In a post-interop infra setup, with unscheduled interop, we may see multiple EL nodes.
+			var l2ELID stack.L2ELNodeID
+			for _, id := range l2ELIDs {
+				if id.ChainID() == l2CLID.ChainID() {
+					l2ELID = id
+					break
+				}
+			}
+			require.NotZero(l2ELID, "need single L2 EL to connect to pre-interop")
 			l2CL, ok := orch.l2CLs.Get(*l2CLID)
 			require.True(ok)
-			l2EL, ok := orch.l2ELs.Get(l2ELIDs[0])
+			l2EL, ok := orch.l2ELs.Get(l2ELID)
 			require.True(ok)
 			prestateVariant := shared.MTCannonVariant
 			cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, l2CL.userRPC, l2EL.userRPC,

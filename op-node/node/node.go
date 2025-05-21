@@ -411,14 +411,11 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	}
 
 	managedMode := false
-	if cfg.Rollup.InteropTime != nil {
-		sys, err := cfg.InteropConfig.Setup(ctx, n.log, &n.cfg.Rollup, n.l1Source, n.l2Source, n.metrics)
-		if err != nil {
-			return fmt.Errorf("failed to setup interop: %w", err)
-		}
-		if _, ok := sys.(*managed.ManagedMode); ok {
-			managedMode = ok
-		}
+	sys, err := cfg.InteropConfig.Setup(ctx, n.log, &n.cfg.Rollup, n.l1Source, n.l2Source, n.metrics)
+	if err != nil {
+		return fmt.Errorf("failed to setup interop: %w", err)
+	} else if sys != nil { // we continue with legacy mode if no interop sub-system is set up.
+		_, managedMode = sys.(*managed.ManagedMode)
 		n.interopSys = sys
 		n.eventSys.Register("interop", n.interopSys)
 	}

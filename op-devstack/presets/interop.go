@@ -60,6 +60,24 @@ func WithSimpleInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultInteropSystem(&sysgo.DefaultInteropSystemIDs{}))
 }
 
+// WithUnscheduledInterop adds a test-gate to not run the test if the interop upgrade is scheduled.
+// If the backend is sysgo, it will disable the interop configuration
+func WithUnscheduledInterop() stack.CommonOption {
+	return stack.Combine(
+		stack.MakeCommon(sysgo.WithDeployerOptions(func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+			for _, l2 := range builder.L2s() {
+				l2.WithForkAtOffset(rollup.Interop, nil)
+			}
+		})),
+		stack.PostHydrate[stack.Orchestrator](func(sys stack.System) {
+			for _, l2Net := range sys.L2Networks() {
+				sys.T().Gate().Nil(l2Net.ChainConfig().InteropTime, "L2 (%s) must not have scheduled interop in chain config", l2Net.ID())
+				sys.T().Gate().Nil(l2Net.RollupConfig().InteropTime, "L2 (%s) must not have scheduled interop in rollup config", l2Net.ID())
+			}
+		}),
+	)
+}
+
 func NewSimpleInterop(t devtest.T) *SimpleInterop {
 	system := shim.NewSystem(t)
 	orch := Orchestrator()

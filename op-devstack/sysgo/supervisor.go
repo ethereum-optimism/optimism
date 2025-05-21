@@ -104,6 +104,7 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 		require.True(ok, "need cluster to determine dependency set")
 
 		require.NotNil(cluster.cfgset, "need a full config set")
+		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
 		cfg := &supervisorConfig.Config{
 			MetricsConfig: metrics.CLIConfig{
 				Enabled: false,

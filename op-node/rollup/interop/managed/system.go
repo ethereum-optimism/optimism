@@ -85,6 +85,7 @@ func (m *ManagedMode) Start(ctx context.Context) error {
 	if err := m.srv.Start(); err != nil {
 		return fmt.Errorf("failed to start interop RPC server: %w", err)
 	}
+	m.log.Info("Started interop RPC", "endpoint", m.WSEndpoint())
 	return nil
 }
 

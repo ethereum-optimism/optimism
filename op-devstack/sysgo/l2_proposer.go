@@ -82,13 +82,14 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 			WaitNodeSync:                 false,
 		}
 
-		if l2Net.genesis.Config.InteropTime != nil {
+		// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
+		if l2Net.genesis.Config.InteropTime != nil || l2CLID == nil {
 			require.NotNil(supervisorID, "need supervisor to connect to in interop")
 			supervisorNode, ok := orch.supervisors.Get(*supervisorID)
 			require.True(ok)
 			proposerCLIConfig.SupervisorRpcs = []string{supervisorNode.userRPC}
 		} else {
-			require.NotNil(*l2CLID, "need L2 CL to connect to pre-interop")
+			require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
 			l2CL, ok := orch.l2CLs.Get(*l2CLID)
 			require.True(ok)
 			proposerCLIConfig.RollupRpc = l2CL.userRPC

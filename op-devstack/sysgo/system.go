@@ -171,15 +171,17 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithManagedBySupervisor(ids.L2ACL, ids.Supervisor))
 	opt.Add(WithManagedBySupervisor(ids.L2BCL, ids.Supervisor))
 
-	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, nil, &ids.Supervisor))
-	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, nil, &ids.Supervisor))
+	// Note: we provide L2 CL nodes still, even though they are not used post-interop.
+	// Since we may create an interop infra-setup, before interop is even scheduled to run.
+	opt.Add(WithProposer(ids.L2AProposer, ids.L1EL, &ids.L2ACL, &ids.Supervisor))
+	opt.Add(WithProposer(ids.L2BProposer, ids.L1EL, &ids.L2BCL, &ids.Supervisor))
 
 	// Deploy separate challengers for each chain.  Can be reduced to a single challenger when the DisputeGameFactory
 	// is actually shared.
-	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, nil, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
 		ids.L2AEL, ids.L2BEL,
 	}))
-	opt.Add(WithL2Challenger(ids.L2ChallengerB, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, nil, []stack.L2ELNodeID{
+	opt.Add(WithL2Challenger(ids.L2ChallengerB, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2BCL, []stack.L2ELNodeID{
 		ids.L2BEL, ids.L2AEL,
 	}))
 
