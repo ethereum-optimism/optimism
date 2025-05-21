@@ -477,7 +477,7 @@ where
 ///
 /// This contains various settings that can be configured and take precedence over the node's
 /// config.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct OpPoolBuilder<T = crate::txpool::OpPooledTransaction> {
     /// Enforced overrides that are applied to the pool config.
     pub pool_config_overrides: PoolBuilderConfigOverrides,
@@ -499,6 +499,18 @@ impl<T> Default for OpPoolBuilder<T> {
             supervisor_http: DEFAULT_SUPERVISOR_URL.to_string(),
             supervisor_safety_level: SafetyLevel::CrossUnsafe,
             _pd: Default::default(),
+        }
+    }
+}
+
+impl<T> Clone for OpPoolBuilder<T> {
+    fn clone(&self) -> Self {
+        Self {
+            pool_config_overrides: self.pool_config_overrides.clone(),
+            enable_tx_conditional: self.enable_tx_conditional,
+            supervisor_http: self.supervisor_http.clone(),
+            supervisor_safety_level: self.supervisor_safety_level,
+            _pd: core::marker::PhantomData,
         }
     }
 }
