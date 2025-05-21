@@ -149,7 +149,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 						Committer: committerID,
 						Publisher: publisherID,
 
-						SequencerConfDepth:  3,
+						SequencerConfDepth:  2,
 						SequencerEnabled:    true,
 						SequencerStopped:    false,
 						SequencerMaxSafeLag: 0,

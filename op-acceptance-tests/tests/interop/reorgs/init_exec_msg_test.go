@@ -2,7 +2,6 @@ package reorgs
 
 import (
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -171,11 +171,9 @@ func TestReorgInitExecMsg(gt *testing.T) {
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")
-		time.Sleep(2 * time.Second)
 
 		err = ia.Next(ctx)
 		require.NoError(t, err, "Expected to be able to call Next() after New() on op-test-sequencer, but got error")
-		time.Sleep(2 * time.Second)
 	}
 
 	// continue sequencing with op-node
@@ -185,37 +183,19 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	sys.L2BatcherA.Start()
 	sys.L2BatcherB.Start()
 
-	// confirm reorg on chain A
-	{
-		reorgedRef_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_A)
-		require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
-
-		l.Info("Reorged chain A on divergence block number (prior the reorg)", "chain", sys.L2ChainA.ChainID(), "number", divergenceBlockNumber_A, "head", originalRef_A.Hash, "parent", originalRef_A.ParentID().Hash)
-		l.Info("Reorged chain A on divergence block number (after the reorg)", "chain", sys.L2ChainA.ChainID(), "number", divergenceBlockNumber_A, "head", reorgedRef_A.Hash, "parent", reorgedRef_A.ParentID().Hash)
-		require.NotEqual(t, originalRef_A.Hash, reorgedRef_A.Hash, "Expected to get different heads on divergence block A number, but got the same hash, so no reorg happened")
-		require.Equal(t, originalRef_A.ParentID().Hash, reorgedRef_A.ParentHash, "Expected to get same parent hashes on divergence block A number, but got different hashes")
-	}
-
-	// wait for reorg on chain B
-	require.Eventually(t, func() bool {
-		reorgedRef_B, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_B)
-		if err != nil {
-			if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
-				l.Info("Supervisor still hasn't reorged chain B", "error", err)
-				return false
-			}
-			require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
-		}
-
-		if originalRef_B.Hash.Cmp(reorgedRef_B.Hash) == 0 { // want not equal
-			l.Info("Supervisor still hasn't reorged chain B", "ref", originalRef_B)
-			return false
-		}
-
-		l.Info("Reorged chain B on divergence block number (prior the reorg)", "chain", sys.L2ChainB.ChainID(), "number", divergenceBlockNumber_B, "head", originalRef_B.Hash, "parent", originalRef_B.ParentID().Hash)
-		l.Info("Reorged chain B on divergence block number (after the reorg)", "chain", sys.L2ChainB.ChainID(), "number", divergenceBlockNumber_B, "head", reorgedRef_B.Hash, "parent", reorgedRef_B.ParentID().Hash)
-		return true
-	}, 180*time.Second, 10*time.Second, "No reorg happened on chain B. Should have been triggered by the supervisor.")
+	// wait and confirm reorgs on chain A and B
+	dsl.CheckAll(t,
+		sys.L2ELA.ReorgTriggeredFn(eth.L2BlockRef{
+			Number:     divergenceBlockNumber_A,
+			Hash:       originalRef_A.Hash,
+			ParentHash: originalRef_A.ParentID().Hash,
+		}, 30),
+		sys.L2ELB.ReorgTriggeredFn(eth.L2BlockRef{
+			Number:     divergenceBlockNumber_B,
+			Hash:       originalRef_B.Hash,
+			ParentHash: originalRef_B.ParentID().Hash,
+		}, 30),
+	)
 
 	// executing tx should eventually be no longer confirmed on chain B
 	require.Eventually(t, func() bool {

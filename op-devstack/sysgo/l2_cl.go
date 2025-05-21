@@ -224,7 +224,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l
 				BeaconAddr: l1CL.beacon.BeaconAddr(),
 			},
 			Driver: driver.Config{
-				SequencerEnabled: isSequencer,
+				SequencerEnabled:   isSequencer,
+				SequencerConfDepth: 2,
 			},
 			Rollup:        *l2Net.rollupCfg,
 			DependencySet: depSet,

@@ -100,8 +100,8 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 	rewind := uint64(3)
 	logger.Info("Check verifier CLs safe head rewinded", "rewind", rewind)
 	dsl.CheckAll(t,
-		sys.L2CLA2.RewindedFn(types.CrossSafe, rewind, 60),
-		sys.L2CLB2.RewindedFn(types.CrossSafe, rewind, 60),
+		sys.L2CLA2.RewindedFn(types.CrossSafe, rewind, 90),
+		sys.L2CLB2.RewindedFn(types.CrossSafe, rewind, 90),
 	)
 
 	// After rewinding(reset), verifier will advance safe heads again because Secondary supervisor gives L1 data to the verifiers.
