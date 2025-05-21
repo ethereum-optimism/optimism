@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestChainFork checks that the chain does not fork and that all nodes maintain consensus on the state root.
+// TestChainFork checks that the chain does not fork (all nodes have the same block hash for a fixed block number).
 func TestChainFork(t *testing.T) {
 	systest.SystemTest(t,
 		chainForkTestScenario(),

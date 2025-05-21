@@ -224,7 +224,7 @@ func (m mismatches) Len() int {
 	return len(m.clientIndices)
 }
 
-// verifyFollowersWithRetry checks the hash and state root consistency with retries in case of temporary sync issues
+// verifyFollowersWithRetry checks hash consistency with retries in case of temporary sync issues
 func (mc *MultiClient) verifyFollowersWithRetry(
 	ctx context.Context,
 	blockNum *big.Int,
