@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
@@ -240,7 +239,15 @@ func SerialT(t *testing.T) T {
 	t.Cleanup(func() {
 		span.End()
 	})
-	logger := NewLogger(ctx, t, log.LevelInfo).WithContext(ctx)
+	logLevel := os.Getenv("TEST_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info" // default to info if not set
+	}
+	level, err := log.LevelFromString(logLevel)
+	if err != nil {
+		panic(err)
+	}
+	logger := NewLogger(ctx, t, level).WithContext(ctx)
 
 	out := &testingT{
 		t:      t,
