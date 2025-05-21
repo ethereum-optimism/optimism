@@ -186,8 +186,7 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 		return nil, err
 	}
 
-	// Create a hash-only getter for followers
-	getFollowerHash := func(client HeaderProvider, num *big.Int) (common.Hash, error) {
+	getFollowerHeaderWithConsistencyCheck := func(client HeaderProvider, num *big.Int) (common.Hash, error) {
 		followerHeader, _, followerHash, err := queryFn(client, num)
 		if err != nil {
 			return common.Hash{}, err
@@ -200,17 +199,8 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 	}
 
 	// Verify consistency with retry for followers
-	mismatches, err := mc.verifyFollowersWithRetry(ctx, blockNum, leaderHash, getFollowerHash)
+	mismatches, err := mc.verifyFollowersWithRetry(ctx, blockNum, leaderHash, getFollowerHeaderWithConsistencyCheck)
 	if err != nil {
-		// If err contains information about matching state roots, format and return it
-		if strings.Contains(err.Error(), "block hash divergence with matching state roots") {
-			return nil, fmt.Errorf("at block #%s: %w", blockNum, err)
-		}
-
-		// If err is a chain split error, pass it through
-		if strings.Contains(err.Error(), "chain split detected") {
-			return nil, err
-		}
 		return nil, err
 	}
 
