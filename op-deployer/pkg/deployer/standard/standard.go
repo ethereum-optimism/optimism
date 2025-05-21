@@ -40,8 +40,8 @@ const (
 	ContractsV160Tag        = "op-contracts/v1.6.0"
 	ContractsV180Tag        = "op-contracts/v1.8.0-rc.4"
 	ContractsV170Beta1L2Tag = "op-contracts/v1.7.0-beta.1+l2-contracts"
-	ContractsV200Tag        = "op-contracts/v2.0.0-rc.1"
-	ContractsV300Tag        = "op-contracts/v3.0.0-rc.2"
+	ContractsV200Tag        = "op-contracts/v2.0.0"
+	ContractsV300Tag        = "op-contracts/v3.0.0"
 )
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
