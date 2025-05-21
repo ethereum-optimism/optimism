@@ -186,7 +186,7 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 		return nil, err
 	}
 
-	// Get the state root for the primary
+	// Get the block hash for the primary
 	primaryHeader, ok := primaryItem.(*types.Header)
 	if !ok {
 		// If we're fetching a block instead of a header
