@@ -37,7 +37,7 @@ use reth_tasks::{
     TaskSpawner,
 };
 use reth_transaction_pool::TransactionPool;
-use std::{fmt, sync::Arc};
+use std::{fmt, marker::PhantomData, sync::Arc};
 
 use crate::{OpEthApiError, SequencerClient};
 
@@ -64,12 +64,21 @@ impl<T> OpNodeCore for T where T: RpcNodeCore<Provider: BlockReader> {}
 /// This type implements the [`FullEthApi`](reth_rpc_eth_api::helpers::FullEthApi) by implemented
 /// all the `Eth` helper traits and prerequisite traits.
 #[derive(Clone)]
-pub struct OpEthApi<N: OpNodeCore> {
+pub struct OpEthApi<N: OpNodeCore, NetworkT = Optimism> {
     /// Gateway to node's core components.
     inner: Arc<OpEthApiInner<N>>,
+    /// Marker for the network types.
+    _nt: PhantomData<NetworkT>,
 }
 
-impl<N> OpEthApi<N>
+impl<N: OpNodeCore, NetworkT> OpEthApi<N, NetworkT> {
+    /// Creates a new `OpEthApi`.
+    pub fn new(eth_api: EthApiNodeBackend<N>, sequencer_client: Option<SequencerClient>) -> Self {
+        Self { inner: Arc::new(OpEthApiInner { eth_api, sequencer_client }), _nt: PhantomData }
+    }
+}
+
+impl<N, NetworkT> OpEthApi<N, NetworkT>
 where
     N: OpNodeCore<
         Provider: BlockReaderIdExt
@@ -95,13 +104,14 @@ where
     }
 }
 
-impl<N> EthApiTypes for OpEthApi<N>
+impl<N, NetworkT> EthApiTypes for OpEthApi<N, NetworkT>
 where
-    Self: Send + Sync,
+    Self: Send + Sync + std::fmt::Debug,
     N: OpNodeCore,
+    NetworkT: op_alloy_network::Network + Clone + std::fmt::Debug,
 {
     type Error = OpEthApiError;
-    type NetworkTypes = Optimism;
+    type NetworkTypes = NetworkT;
     type TransactionCompat = Self;
 
     fn tx_resp_builder(&self) -> &Self::TransactionCompat {
@@ -113,7 +123,7 @@ impl<N> RpcNodeCore for OpEthApi<N>
 where
     N: OpNodeCore,
 {
-    type Primitives = OpPrimitives;
+    type Primitives = N::Primitives;
     type Provider = N::Provider;
     type Pool = N::Pool;
     type Evm = <N as RpcNodeCore>::Evm;
@@ -353,6 +363,6 @@ where
             None
         };
 
-        Ok(OpEthApi { inner: Arc::new(OpEthApiInner { eth_api, sequencer_client }) })
+        Ok(OpEthApi::new(eth_api, sequencer_client))
     }
 }
