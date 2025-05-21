@@ -1281,7 +1281,7 @@ contract StandardValidator_L1StandardBridge_Test is StandardValidator_TestInit {
 }
 
 /// @title StandardValidator_Versions_Test
-/// @notice Tests that the `version` functions on `StandardValidator`.
+/// @notice Tests the `version` functions on `StandardValidator`.
 contract StandardValidator_Versions_Test is StandardValidator_TestInit {
     /// @notice Tests that the version getter functions on `StandardValidator` return non-empty
     ///         strings.
