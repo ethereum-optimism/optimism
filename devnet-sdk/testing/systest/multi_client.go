@@ -180,66 +180,27 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 	number *big.Int,
 	queryFn func(HeaderProvider, *big.Int) (interface{}, *big.Int, common.Hash, error),
 ) (interface{}, error) {
-	// Get from primary client
-	primaryItem, blockNum, primaryHash, err := queryFn(mc.clients[0], number)
+
+	leaderHeader, blockNum, leaderHash, err := queryFn(mc.clients[0], number)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the block hash for the primary
-	primaryHeader, ok := primaryItem.(*types.Header)
-	if !ok {
-		// If we're fetching a block instead of a header
-		if block, ok := primaryItem.(*types.Block); ok {
-			primaryHeader = block.Header()
-		} else {
-			return nil, fmt.Errorf("expected header or block, got %T", primaryItem)
-		}
-	}
-
 	// Create a hash-only getter for followers
 	getFollowerHash := func(client HeaderProvider, num *big.Int) (common.Hash, error) {
-		item, _, hash, err := queryFn(client, num)
+		followerHeader, _, followerHash, err := queryFn(client, num)
 		if err != nil {
 			return common.Hash{}, err
 		}
-
-		// If hashes don't match, also check state roots
-		// no (hash)divergence situation
-		if hash == primaryHash {
-			return hash, nil
+		if followerHash == leaderHash {
+			return followerHash, nil
+		} else {
+			return followerHash, fmt.Errorf("block hash divergence. PrimaryHeader = %+v, FollowerHeader = %+v", leaderHeader, followerHeader)
 		}
-
-		// from this point, we have divergence, so no matter what, we would return a non-nil error.
-
-		// hash-divergence found but with no primary header to provide more details
-		if primaryHeader == nil {
-			return hash, fmt.Errorf("block hash divergence found at block %s. Unfortunately, couldn't parse more details due to the nil primaryHeader.", num.String())
-		}
-
-		var followerHeader *types.Header
-		if header, ok := item.(*types.Header); ok {
-			followerHeader = header
-		} else if block, ok := item.(*types.Block); ok {
-			followerHeader = block.Header()
-		}
-
-		// hash-divergence found with follower header details but no primary header details
-		if followerHeader == nil {
-			return hash, fmt.Errorf("block hash divergence found at block %s. Unfortunately, couldn't parse the nil followerHeader but the primary Header is: %+v", num.String(), primaryHeader)
-		}
-
-		// hash-divergence found with matching state roots
-		if followerHeader.Root == primaryHeader.Root {
-			return hash, fmt.Errorf("block hash divergence with matching state roots: primary_hash=%s, follower_hash=%s, state_root=%s",
-				primaryHash.Hex(), hash.Hex(), primaryHeader.Root.Hex())
-		}
-		// hash-divergence found with diverging state roots
-		return hash, fmt.Errorf("block hash divergence. PrimaryHeader = %+v, FollowerHeader = %+v", primaryHeader, followerHeader)
 	}
 
 	// Verify consistency with retry for followers
-	mismatches, err := mc.verifyFollowersWithRetry(ctx, blockNum, primaryHash, getFollowerHash)
+	mismatches, err := mc.verifyFollowersWithRetry(ctx, blockNum, leaderHash, getFollowerHash)
 	if err != nil {
 		// If err contains information about matching state roots, format and return it
 		if strings.Contains(err.Error(), "block hash divergence with matching state roots") {
@@ -256,10 +217,10 @@ func (mc *MultiClient) fetchWithConsistencyCheck(
 	// This should no longer occur with the updated verifyFollowersWithRetry implementation
 	// that returns immediately when chain splits are detected
 	if mismatches.Len() > 0 {
-		return nil, formatHashMismatchError(blockNum, primaryHash, mismatches.clientIndices, mismatches.hashes)
+		return nil, formatHashMismatchError(blockNum, leaderHash, mismatches.clientIndices, mismatches.hashes)
 	}
 
-	return primaryItem, nil
+	return leaderHeader, nil
 }
 
 // mismatches holds information about hash mismatches
