@@ -7,7 +7,8 @@ Generating the first SuperRoot used for an Interop migration
 1. git clone or pull the latest develop branch of the optimism repo
 2. Go Installed
     - You can follow the instructions in the [CONTRIBUTING.md](http://CONTRIBUTING.md) to install all software dependencies of the repo
-3. RPC URLs for the **L2** chains you want to generate a super root for
+3. RPC URLs for the **L2** chains you want to generate a super root for.
+   - **Important**: These RPC endpoints must be trusted endpoints as they provide the chain state used to compute the SuperRoot.
 
 ## Generation:
 
