@@ -6,10 +6,7 @@ FROM golang:${GO_VERSION} AS builder
 ARG VM_TARGET
 
 # Install dependencies
-RUN apk add --no-cache \
-    make gcc g++ musl-dev linux-headers git jq bash \
-    cmake ninja-build python3 curl clang lld \
-    llvm
+RUN apk add --no-cache make git bash jq llvm
 
 # Build vm-compat binary
 RUN mkdir -p /tmp/vm-compat && \
