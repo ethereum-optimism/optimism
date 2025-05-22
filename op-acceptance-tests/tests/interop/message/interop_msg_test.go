@@ -15,8 +15,8 @@ func TestInitExecMsg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.ThousandEther)
-	bob := sys.FunderB.NewFundedEOA(eth.ThousandEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A

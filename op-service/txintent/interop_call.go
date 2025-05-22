@@ -30,7 +30,7 @@ func (v *InitTrigger) To() (*common.Address, error) {
 	return &v.Emitter, nil
 }
 
-func (v *InitTrigger) Data() ([]byte, error) {
+func (v *InitTrigger) EncodeInput() ([]byte, error) {
 	// TODO(15005): Need to do better construct call input than this
 	emitLog := w3.MustNewFunc("emitLog(bytes32[] topics, bytes data)", "")
 	calldata, err := emitLog.EncodeArgs(v.Topics, v.OpaqueData)
@@ -56,7 +56,7 @@ func (v *SendTrigger) To() (*common.Address, error) {
 	return &v.Emitter, nil
 }
 
-func (v *SendTrigger) Data() ([]byte, error) {
+func (v *SendTrigger) EncodeInput() ([]byte, error) {
 	// TODO(15005): Need to do better construct call input than this
 	sendMessage := w3.MustNewFunc("sendMessage(uint256, address, bytes calldata)", "bytes32")
 	calldata, err := sendMessage.EncodeArgs(v.DestChainID.ToBig(), v.Target, v.RelayedCalldata)
@@ -81,7 +81,7 @@ func (v *ExecTrigger) To() (*common.Address, error) {
 	return &v.Executor, nil
 }
 
-func (v *ExecTrigger) Data() ([]byte, error) {
+func (v *ExecTrigger) EncodeInput() ([]byte, error) {
 	// TODO(15005): Need to do better construct call input than this
 	validateMessage := w3.MustNewFunc("validateMessage((address Origin, uint256 BlockNumber, uint256 LogIndex, uint256 Timestamp, uint256 ChainId), bytes32)", "")
 	type Identifier struct {
@@ -120,7 +120,7 @@ type RelayTrigger struct {
 	Payload []byte
 }
 
-func (v *RelayTrigger) Data() ([]byte, error) {
+func (v *RelayTrigger) EncodeInput() ([]byte, error) {
 	// TODO(15005): Need to do better construct call input than this
 	relayMessage := w3.MustNewFunc("relayMessage((address Origin, uint256 BlockNumber, uint256 LogIndex, uint256 Timestamp, uint256 ChainId), bytes sentMessage)", "bytes returnData")
 	type Identifier struct {

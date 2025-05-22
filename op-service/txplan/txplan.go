@@ -22,6 +22,9 @@ import (
 )
 
 type PlannedTx struct {
+	// Read is the result of reading the blockchain
+	Read plan.Lazy[[]byte]
+
 	// Block that we schedule against
 	AgainstBlock  plan.Lazy[eth.BlockInfo]
 	Unsigned      plan.Lazy[types.TxData]
@@ -95,6 +98,12 @@ func WithData(data []byte) Option {
 func WithNonce(nonce uint64) Option {
 	return func(tx *PlannedTx) {
 		tx.Nonce.Set(nonce)
+	}
+}
+
+func WithSender(sender common.Address) Option {
+	return func(tx *PlannedTx) {
+		tx.Sender.Set(sender)
 	}
 }
 
@@ -281,6 +290,40 @@ func WithAgainstLatestBlock(cl AgainstLatestBlock) Option {
 	return func(tx *PlannedTx) {
 		tx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
 			return cl.InfoByLabel(ctx, eth.Unsafe)
+		})
+	}
+}
+
+// Reader uses eth_call to view(read) the blockchain, and does not write persistent changes to the chain.
+// A call will return a byte string (that may be ABI-decoded), and does not have a receipt, as it was only simulated and not a persistent transaction.
+type Reader interface {
+	Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error)
+}
+
+func WithReader(cl Reader) Option {
+	return func(tx *PlannedTx) {
+		tx.Read.DependOn(
+			&tx.Sender,
+			&tx.To,
+			&tx.GasFeeCap,
+			&tx.GasTipCap,
+			&tx.Value,
+			&tx.Data,
+			&tx.AccessList,
+		)
+		tx.Read.Fn(func(ctx context.Context) ([]byte, error) {
+			msg := ethereum.CallMsg{
+				From:       tx.Sender.Value(),
+				To:         tx.To.Value(),
+				Gas:        0, // auto estimated by the node
+				GasPrice:   nil,
+				GasFeeCap:  tx.GasFeeCap.Value(),
+				GasTipCap:  tx.GasTipCap.Value(),
+				Value:      tx.Value.Value(),
+				Data:       tx.Data.Value(),
+				AccessList: tx.AccessList.Value(),
+			}
+			return cl.Call(ctx, msg)
 		})
 	}
 }

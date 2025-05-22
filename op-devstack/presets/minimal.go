@@ -24,6 +24,8 @@ type Minimal struct {
 	L2EL      *dsl.L2ELNode
 	L2CL      *dsl.L2CLNode
 
+	TestSequencer *dsl.TestSequencer
+
 	Wallet *dsl.HDWallet
 
 	Faucet *dsl.Faucet
@@ -45,18 +47,21 @@ func NewMinimal(t devtest.T) *Minimal {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 
+	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
+
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
 	out := &Minimal{
-		Log:          t.Logger(),
-		T:            t,
-		ControlPlane: orch.ControlPlane(),
-		L1Network:    dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
-		L2Chain:      dsl.NewL2Network(l2),
-		L2Batcher:    dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
-		L2EL:         dsl.NewL2ELNode(l2.L2ELNode(match.Assume(t, match.FirstL2EL))),
-		L2CL:         dsl.NewL2CLNode(l2.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane(), l2.ChainID()),
-		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
-		Faucet:       dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
+		Log:           t.Logger(),
+		T:             t,
+		ControlPlane:  orch.ControlPlane(),
+		L1Network:     dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
+		L2Chain:       dsl.NewL2Network(l2),
+		L2Batcher:     dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2EL:          dsl.NewL2ELNode(l2.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2CL:          dsl.NewL2CLNode(l2.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
+		Wallet:        dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
+		Faucet:        dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
 	}
 	out.Funder = dsl.NewFunder(out.Wallet, out.Faucet, out.L2EL)
 	return out

@@ -3,6 +3,7 @@ package dsl
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -54,7 +55,7 @@ func (el *L2ELNode) Advance(label eth.BlockLabel, block uint64) CheckFunc {
 					el.log.Info("chain advanced", "chain", el.inner.ChainID(), "target", target)
 					return nil
 				}
-				el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
+				el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
 				return fmt.Errorf("expected head to advance: %s", label)
 			})
 	}
@@ -68,7 +69,7 @@ func (el *L2ELNode) DoesNotAdvance(label eth.BlockLabel) CheckFunc {
 		for range attempts {
 			time.Sleep(2 * time.Second)
 			head := el.BlockRefByLabel(label)
-			el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", initial.Number)
+			el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", initial.Number)
 			if head.Hash == initial.Hash {
 				continue
 			}
@@ -84,4 +85,37 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
 	block, err := el.inner.EthClient().BlockRefByNumber(ctx, num)
 	el.require.NoError(err, "block not found using block number %d", num)
 	return block
+}
+
+// ReorgTriggered returns a lambda that checks that a L2 reorg occurred on the expected block
+// Composable with other lambdas to wait in parallel
+func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFunc {
+	return func() error {
+		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ID().ChainID, "target", target)
+		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
+				if err != nil {
+					if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
+						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID, "error", err)
+						return err
+					}
+					return err
+				}
+
+				if target.Hash == reorged.Hash { // want not equal
+					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID, "ref", reorged)
+					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
+				}
+
+				if target.ParentHash != reorged.ParentHash {
+					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
+				}
+
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID, "pre_blockref", target)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID, "post_blockref", reorged)
+
+				return nil
+			})
+	}
 }

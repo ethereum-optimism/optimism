@@ -66,8 +66,8 @@ func (n *L2Network) CatchUpTo(o *L2Network) {
 	n.require.NoError(err, "Expected to get latest block from L2 execution clients")
 }
 
-func (n *L2Network) WaitForBlock() {
-	NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL)).WaitForBlock()
+func (n *L2Network) WaitForBlock() eth.BlockRef {
+	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL)).WaitForBlock()
 }
 
 func (n *L2Network) PublicRPC() *L2ELNode {
@@ -99,7 +99,16 @@ func (n *L2Network) PrintChain() {
 	syncStatus, err := l2_cl.RollupAPI().SyncStatus(n.ctx)
 	n.require.NoError(err, "Expected to get sync status")
 
-	entries = append(entries, spew.Sdump(syncStatus))
+	entries = append(entries, "")
+	entries = append(entries, "Supervisor Sync view")
+	entries = append(entries, "")
+	entries = append(entries, fmt.Sprintf("Current L1:      %s", syncStatus.CurrentL1))
+	entries = append(entries, fmt.Sprintf("Head L1:         %s", syncStatus.HeadL1))
+	entries = append(entries, fmt.Sprintf("Safe L1:         %s", syncStatus.SafeL1))
+	entries = append(entries, fmt.Sprintf("Unsafe L2:       %s", syncStatus.UnsafeL2))
+	entries = append(entries, fmt.Sprintf("Local-Safe L2:   %s", syncStatus.LocalSafeL2))
+	entries = append(entries, fmt.Sprintf("Cross-Unsafe L2: %s", syncStatus.CrossUnsafeL2))
+	entries = append(entries, fmt.Sprintf("Cross-Safe L2:   %s", syncStatus.SafeL2))
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
 	spew.Dump(entries)

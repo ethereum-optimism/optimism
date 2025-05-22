@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -57,7 +55,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	sys := presets.NewSimpleInterop(t)
 	l := sys.Log
 
-	ia := sys.Sequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
 	var alice, bob, cathrine *dsl.EOA
@@ -89,16 +87,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	sys.L2ChainA.WaitForBlock()
 
 	// stop batcher on chain A
-	{
-		err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			err := sys.L2BatcherA.Escape().ActivityAPI().StopBatcher(ctx)
-			if err != nil && strings.Contains(err.Error(), "batcher is not running") {
-				return nil
-			}
-			return err
-		})
-		require.NoError(t, err, "Expected to be able to call StopBatcher API on chain A, but got error")
-	}
+	sys.L2BatcherA.Stop()
 
 	// deploy event logger on chain B
 	var eventLoggerAddress common.Address
@@ -146,22 +135,8 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	// at least one block between the init tx on chain B and the exec tx on chain A
 	sys.L2ChainA.WaitForBlock()
 
-	var latestUnsafe_A common.Hash
 	// stop sequencer on chain A so that we later force include an invalid exec msg
-	{
-		var err error
-		latestUnsafe_A, err = sys.L2CLA.Escape().RollupAPI().StopSequencer(ctx)
-		require.NoError(t, err, "expected to be able to call StopSequencer API, but got error")
-		// wait for the sequencer to become inactive
-		var active bool
-		err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-			active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
-			return !active, err
-		})
-		require.NoError(t, err, "expected to be able to call SequencerActive API, and wait for inactive state for sequencer, but got error")
-
-		l.Info("rollup node sequencer status", "active", active, "unsafeHead", latestUnsafe_A)
-	}
+	latestUnsafe_A := sys.L2CLA.StopSequencer()
 
 	var execTx *txintent.IntentTx[*txintent.ExecTrigger, *txintent.InteropOutput]
 	var execSignedTx *types.Transaction
@@ -218,7 +193,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	// record divergence block numbers and original refs for future validation checks
 	var divergenceBlockNumber_A uint64
 	var originalHash_A common.Hash
-
+	var originalParentHash_A common.Hash
 	// sequence a second block with op-test-sequencer
 	{
 		currentUnsafeRef := sys.L2ChainA.UnsafeHeadRef()
@@ -227,7 +202,7 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 
 		divergenceBlockNumber_A = currentUnsafeRef.Number
 		originalHash_A = currentUnsafeRef.Hash
-
+		originalParentHash_A = currentUnsafeRef.ParentHash
 		l.Info("Continue building chain A with another block with op-test-sequencer", "chain", sys.L2ChainA.ChainID(), "unsafeHead", currentUnsafeRef, "parent", currentUnsafeRef.ParentID())
 		err := ia.New(ctx, seqtypes.BuildOpts{
 			Parent:   currentUnsafeRef.Hash,
@@ -256,52 +231,19 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	}
 
 	// continue sequencing with op-node
-	{
-		newUnsafeHeadRef := sys.L2ChainA.UnsafeHeadRef()
-		l.Info("Continue sequencing with consensus node (op-node)", "unsafeHead", newUnsafeHeadRef)
+	sys.L2CLA.StartSequencer()
 
-		err := sys.L2CLA.Escape().RollupAPI().StartSequencer(ctx, newUnsafeHeadRef.Hash)
-		require.NoError(t, err, "Expected to be able to start sequencer on rollup node")
-
-		// wait for the sequencer to become active
-		var active bool
-		err = wait.For(ctx, 1*time.Second, func() (bool, error) {
-			active, err = sys.L2CLA.Escape().RollupAPI().SequencerActive(ctx)
-			return active, err
-		})
-		require.NoError(t, err, "Expected to be able to call SequencerActive API, and wait for an active state for sequencer, but got error")
-
-		l.Info("Rollup node sequencer", "active", active)
-	}
-
-	// start batchers on chain A
-	{
-		err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
-			return sys.L2BatcherA.Escape().ActivityAPI().StartBatcher(ctx)
-		})
-		require.NoError(t, err, "Expected to be able to call StartBatcher API on chain A, but got error")
-	}
+	// start batcher on chain A
+	sys.L2BatcherA.Start()
 
 	// wait for reorg on chain A
-	require.Eventually(t, func() bool {
-		reorgedRef_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_A)
-		if err != nil {
-			if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
-				l.Info("Supervisor still hasn't reorged chain A", "error", err)
-				return false
-			}
-			require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
-		}
-
-		if originalHash_A.Cmp(reorgedRef_A.Hash) == 0 { // want not equal
-			l.Info("Supervisor still hasn't reorged chain A", "ref", reorgedRef_A)
-			return false
-		}
-
-		l.Info("Reorged chain A on divergence block number (prior the reorg)", "number", divergenceBlockNumber_A, "head", originalHash_A)
-		l.Info("Reorged chain A on divergence block number (after the reorg)", "number", divergenceBlockNumber_A, "head", reorgedRef_A.Hash, "parent", reorgedRef_A.ParentID().Hash)
-		return true
-	}, 180*time.Second, 10*time.Second, "No reorg happened on chain A. Should have been triggered by the supervisor.")
+	dsl.CheckAll(t,
+		sys.L2ELA.ReorgTriggered(eth.L2BlockRef{
+			Number:     divergenceBlockNumber_A,
+			Hash:       originalHash_A,
+			ParentHash: originalParentHash_A,
+		}, 30),
+	)
 
 	err := wait.For(ctx, 5*time.Second, func() (bool, error) {
 		safeL2Head_supervisor_A := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash

@@ -123,6 +123,11 @@ var (
 		Usage:   "Upgrade controller.",
 		EnvVars: deployer.PrefixEnvVar("UPGRADE_CONTROLLER"),
 	}
+	SuperchainProxyAdminFlag = &cli.StringFlag{
+		Name:    "superchain-proxy-admin",
+		Usage:   "Superchain proxy admin.",
+		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN"),
+	}
 	ConfigFileFlag = &cli.StringFlag{
 		Name:    "config",
 		Usage:   "Path to a JSON file",
@@ -144,6 +149,7 @@ var ImplementationsFlags = []cli.Flag{
 	SuperchainConfigProxyFlag,
 	ProtocolVersionsProxyFlag,
 	UpgradeControllerFlag,
+	SuperchainProxyAdminFlag,
 }
 
 var ProxyFlags = []cli.Flag{

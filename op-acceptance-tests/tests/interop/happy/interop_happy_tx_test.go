@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -20,6 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
+
+	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestMain creates the test-setups against the shared backend
@@ -122,44 +123,17 @@ func TestInteropHappyTx(gt *testing.T) {
 		l.Info("executing message included", "chain", sys.L2ChainB.ChainID(), "block_number", execReceipt.BlockNumber, "block_hash", execReceipt.BlockHash, "now", time.Now().Unix())
 	}
 
-	crossSafeMinimumBlock_A := initReceipt.BlockNumber.Uint64() + 1
-	crossSafeMinimumBlock_B := execReceipt.BlockNumber.Uint64() + 1
-
 	// confirm that the cross-safe minimum block has been reached
-	err := wait.For(ctx, 5*time.Second, func() (bool, error) {
-		safeL2Head_supervisor_A := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
-		safeL2Head_supervisor_B := sys.Supervisor.SafeBlockID(sys.L2ChainB.ChainID()).Hash
-		safeL2Head_sequencer_A := sys.L2CLA.SafeL2BlockRef()
-		safeL2Head_sequencer_B := sys.L2CLB.SafeL2BlockRef()
-
-		if safeL2Head_sequencer_A.Number < crossSafeMinimumBlock_A {
-			l.Info("Safe ref number is still behind", "block_a", crossSafeMinimumBlock_A, "safe", safeL2Head_sequencer_A.Number)
-			return false, nil
-		}
-
-		if safeL2Head_sequencer_B.Number < crossSafeMinimumBlock_B {
-			l.Info("Safe ref number is still behind", "block_b", crossSafeMinimumBlock_B, "safe", safeL2Head_sequencer_B.Number)
-			return false, nil
-		}
-
-		l.Info("Safe ref the same across supervisor and sequencers",
-			"supervisor_A", safeL2Head_supervisor_A,
-			"supervisor_B", safeL2Head_supervisor_B)
-
-		return true, nil
-	})
-	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
-
-	// confirm that the init msg block and exec msg block are not reorged
-	{
-		latestBlock_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, initReceipt.BlockNumber.Uint64())
-		require.NoError(t, err)
-		require.Equal(t, latestBlock_A.Hash, initReceipt.BlockHash)
-
-		latestBlock_B, err := sys.L2ELB.Escape().EthClient().BlockRefByNumber(ctx, execReceipt.BlockNumber.Uint64())
-		require.NoError(t, err)
-		require.Equal(t, latestBlock_B.Hash, execReceipt.BlockHash)
-	}
+	dsl.CheckAll(t,
+		sys.L2CLA.ReachedRef(stypes.CrossSafe, eth.BlockID{
+			Number: initReceipt.BlockNumber.Uint64(),
+			Hash:   initReceipt.BlockHash,
+		}, 30),
+		sys.L2CLB.ReachedRef(stypes.CrossSafe, eth.BlockID{
+			Number: execReceipt.BlockNumber.Uint64(),
+			Hash:   execReceipt.BlockHash,
+		}, 30),
+	)
 
 	sys.L2ChainA.PrintChain()
 	sys.L2ChainB.PrintChain()

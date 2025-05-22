@@ -20,7 +20,7 @@ type call struct {
 }
 
 func (c *call) To() (*common.Address, error)          { return c.to, nil }
-func (c *call) Data() ([]byte, error)                 { return c.data, nil }
+func (c *call) EncodeInput() ([]byte, error)          { return c.data, nil }
 func (c *call) AccessList() (types.AccessList, error) { return c.accessList, nil }
 
 type result struct {
@@ -125,7 +125,7 @@ func TestTxIntentMultiCall(t *testing.T) {
 	var stackedAccessList types.AccessList
 	for _, call := range multiTrigger.Calls {
 		// Check batched tx contains each calldata
-		subData, err := call.Data()
+		subData, err := call.EncodeInput()
 		require.NoError(t, err)
 		require.True(t, bytes.Contains(data, subData))
 		// Check batched tx contains each accesslist
