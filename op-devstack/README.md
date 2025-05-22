@@ -143,3 +143,11 @@ and returns a typed output that the test then may use.
 - Orchestrators are configured in the `TestMain`, with generic presets, such that the different backends can support the preset or not.
 - There are no "chains": the word "chain" is reserved for the protocol typing of the onchain / state-transition related logic. Instead, there are "networks", which include the offchain resources and attached services of a chain.
 - Do not abbreviate "client" to "cl", to avoid confusion with "consensus-layer".
+
+## Environment Variables
+
+The following environment variables can be used to configure devstack:
+
+- `TEST_LOG_LEVEL`: Controls the logging level for tests. Defaults to "info" if not set. Valid values are standard log levels (e.g. "debug", "info", "warn", "error").
+- `DEVSTACK_ORCHESTRATOR`: Configures the preferred orchestrator kind (see Orchestrator interface section above).
+- `DEVNET_ENV_URL`: Used when `DEVSTACK_ORCHESTRATOR=sysext` to specify the network descriptor URL.
