@@ -68,16 +68,28 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
+├── <a href="./op-conductor">op-conductor</a>: Sequencer high-availability service
+├── <a href="./op-deployer">op-deployer</a>: Contract deployment automation tool
+├── <a href="./op-devstack">op-devstack</a>: Flexible test-frontend for integration testing
+├── <a href="./op-dispute-mon">op-dispute-mon</a>: Dispute game monitoring service
+├── <a href="./op-dripper">op-dripper</a>: Token distribution utility
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-node">op-node</a>: rollup consensus-layer client
+├── <a href="./op-faucet">op-faucet</a>: Testnet faucet service
+├── <a href="./op-fetcher">op-fetcher</a>: P2P data fetching service
+├── <a href="./op-node">op-node</a>: Optimism consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
 ├── <a href="./op-program">op-program</a>: Fault proof program
 ├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
 ├── <a href="./op-service">op-service</a>: Common codebase utilities
+├── <a href="./op-supervisor">op-supervisor</a>: Cross-chain security monitoring service
+├── <a href="./op-test-sequencer">op-test-sequencer</a>: Testing utilities for sequencers
+├── <a href="./op-validator">op-validator</a>: Utility for validating L2 transactions
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
+├── <a href="./cannon">cannon</a>: MIPS virtual machine for fault proofs
+├── <a href="./devnet-sdk">devnet-sdk</a>: Toolkit for standardizing devnet interactions
 ├── <a href="./.semgrep">semgrep</a>: Semgrep rules and tests
 </pre>
 
