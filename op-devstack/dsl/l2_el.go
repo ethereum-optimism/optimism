@@ -55,7 +55,7 @@ func (el *L2ELNode) Advance(label eth.BlockLabel, block uint64) CheckFunc {
 					el.log.Info("chain advanced", "chain", el.inner.ChainID(), "target", target)
 					return nil
 				}
-				el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
+				el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", target)
 				return fmt.Errorf("expected head to advance: %s", label)
 			})
 	}
@@ -69,7 +69,7 @@ func (el *L2ELNode) DoesNotAdvance(label eth.BlockLabel) CheckFunc {
 		for range attempts {
 			time.Sleep(2 * time.Second)
 			head := el.BlockRefByLabel(label)
-			el.log.Info("Chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", initial.Number)
+			el.log.Info("chain sync status", "chain", el.inner.ChainID(), "initial", initial.Number, "current", head.Number, "target", initial.Number)
 			if head.Hash == initial.Hash {
 				continue
 			}
@@ -97,14 +97,14 @@ func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFun
 				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
 				if err != nil {
 					if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
-						el.log.Info("Supervisor still hasn't reorged chain A", "error", err)
+						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID, "error", err)
 						return err
 					}
 					return err
 				}
 
 				if target.Hash == reorged.Hash { // want not equal
-					el.log.Info("Supervisor still hasn't reorged chain", "ref", reorged)
+					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID, "ref", reorged)
 					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
 				}
 
@@ -112,8 +112,8 @@ func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFun
 					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
 				}
 
-				el.log.Info("Reorged chain A on divergence block number (prior the reorg)", "blockref", target)
-				el.log.Info("Reorged chain A on divergence block number (after the reorg)", "blockref", reorged)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID, "pre_blockref", target)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID, "post_blockref", reorged)
 
 				return nil
 			})
