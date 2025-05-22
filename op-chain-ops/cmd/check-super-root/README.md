@@ -11,7 +11,7 @@ Generating the first SuperRoot used for an Interop migration
 
 ## Generation:
 
-A SuperRoot with this script can be generated nearest to a provided timestamp or if none is provided then the SuperRoot nearest to the current timestamp will be found.
+A SuperRoot with this script can be generated at a provided timestamp or if none is provided then the SuperRoot nearest to the current finalized timestamp will be found.
 
 ```bash
 go run op-chain-ops/cmd/check-super-root/main.go --rpc-endpoints $RPC_URL_1,$RPC_URL_2
