@@ -40,11 +40,13 @@ type SimpleInterop struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetA *dsl.Faucet
-	FaucetB *dsl.Faucet
+	FaucetA  *dsl.Faucet
+	FaucetB  *dsl.Faucet
+	FaucetL1 *dsl.Faucet
 
-	FunderA *dsl.Funder
-	FunderB *dsl.Funder
+	FunderL1 *dsl.Funder
+	FunderA  *dsl.Funder
+	FunderB  *dsl.Funder
 }
 
 func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
@@ -94,6 +96,8 @@ func NewSimpleInterop(t devtest.T) *SimpleInterop {
 		L2BatcherA:    dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
 		L2BatcherB:    dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
 	}
+	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
+	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
 	return out
