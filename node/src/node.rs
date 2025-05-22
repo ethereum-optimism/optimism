@@ -49,7 +49,7 @@ use reth_optimism_txpool::{
 };
 use reth_provider::{providers::ProviderFactoryBuilder, CanonStateSubscriptions, EthStorage};
 use reth_rpc_api::DebugApiServer;
-use reth_rpc_eth_api::ext::L2EthApiExtServer;
+use reth_rpc_eth_api::{ext::L2EthApiExtServer, FullEthApiServer};
 use reth_rpc_eth_types::error::FromEvmError;
 use reth_rpc_server_types::RethRpcModule;
 use reth_tracing::tracing::{debug, info};
@@ -254,28 +254,28 @@ pub struct OpAddOns<
     enable_tx_conditional: bool,
 }
 
-impl<N> Default for OpAddOns<N, OpEthApiBuilder>
+impl<N, NetworkT> Default for OpAddOns<N, OpEthApiBuilder<NetworkT>>
 where
-    N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>,
-    OpEthApiBuilder: EthApiBuilder<N>,
+    N: FullNodeComponents<Types: NodeTypes>,
+    OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
 {
     fn default() -> Self {
         Self::builder().build()
     }
 }
 
-impl<N> OpAddOns<N, OpEthApiBuilder>
+impl<N, NetworkT> OpAddOns<N, OpEthApiBuilder<NetworkT>>
 where
-    N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>,
-    OpEthApiBuilder: EthApiBuilder<N>,
+    N: FullNodeComponents<Types: NodeTypes>,
+    OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
 {
     /// Build a [`OpAddOns`] using [`OpAddOnsBuilder`].
-    pub fn builder() -> OpAddOnsBuilder {
+    pub fn builder() -> OpAddOnsBuilder<NetworkT> {
         OpAddOnsBuilder::default()
     }
 }
 
-impl<N> NodeAddOns<N> for OpAddOns<N, OpEthApiBuilder>
+impl<N, NetworkT> NodeAddOns<N> for OpAddOns<N, OpEthApiBuilder<NetworkT>>
 where
     N: FullNodeComponents<
         Types: NodeTypes<
@@ -289,8 +289,10 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     <N::Pool as TransactionPool>::Transaction: OpPooledTx,
     EvmFactoryFor<N::Evm>: EvmFactory<Tx = op_revm::OpTransaction<TxEnv>>,
+    OpEthApi<N, NetworkT>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
+    NetworkT: op_alloy_network::Network + Unpin,
 {
-    type Handle = RpcHandle<N, OpEthApi<N>>;
+    type Handle = RpcHandle<N, OpEthApi<N, NetworkT>>;
 
     async fn launch_add_ons(
         self,
@@ -360,7 +362,7 @@ where
     }
 }
 
-impl<N> RethRpcAddOns<N> for OpAddOns<N, OpEthApiBuilder>
+impl<N, NetworkT> RethRpcAddOns<N> for OpAddOns<N, OpEthApiBuilder<NetworkT>>
 where
     N: FullNodeComponents<
         Types: NodeTypes<
@@ -374,15 +376,17 @@ where
     OpEthApiError: FromEvmError<N::Evm>,
     <<N as FullNodeComponents>::Pool as TransactionPool>::Transaction: OpPooledTx,
     EvmFactoryFor<N::Evm>: EvmFactory<Tx = op_revm::OpTransaction<TxEnv>>,
+    OpEthApi<N, NetworkT>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
+    NetworkT: op_alloy_network::Network + Unpin,
 {
-    type EthApi = OpEthApi<N>;
+    type EthApi = OpEthApi<N, NetworkT>;
 
     fn hooks_mut(&mut self) -> &mut reth_node_builder::rpc::RpcHooks<N, Self::EthApi> {
         self.rpc_add_ons.hooks_mut()
     }
 }
 
-impl<N> EngineValidatorAddOn<N> for OpAddOns<N, OpEthApiBuilder>
+impl<N, NetworkT> EngineValidatorAddOn<N> for OpAddOns<N, OpEthApiBuilder<NetworkT>>
 where
     N: FullNodeComponents<
         Types: NodeTypes<
@@ -391,7 +395,7 @@ where
             Payload = OpEngineTypes,
         >,
     >,
-    OpEthApiBuilder: EthApiBuilder<N>,
+    OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
 {
     type Validator = OpEngineValidator<N::Provider>;
 
@@ -401,9 +405,9 @@ where
 }
 
 /// A regular optimism evm and executor builder.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct OpAddOnsBuilder {
+pub struct OpAddOnsBuilder<NetworkT> {
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
     /// network.
     sequencer_url: Option<String>,
@@ -411,9 +415,22 @@ pub struct OpAddOnsBuilder {
     da_config: Option<OpDAConfig>,
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
+    /// Marker for network types.
+    _nt: PhantomData<NetworkT>,
 }
 
-impl OpAddOnsBuilder {
+impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
+    fn default() -> Self {
+        Self {
+            sequencer_url: None,
+            da_config: None,
+            enable_tx_conditional: false,
+            _nt: PhantomData,
+        }
+    }
+}
+
+impl<NetworkT> OpAddOnsBuilder<NetworkT> {
     /// With a [`SequencerClient`].
     pub fn with_sequencer(mut self, sequencer_client: Option<String>) -> Self {
         self.sequencer_url = sequencer_client;
@@ -433,14 +450,14 @@ impl OpAddOnsBuilder {
     }
 }
 
-impl OpAddOnsBuilder {
+impl<NetworkT> OpAddOnsBuilder<NetworkT> {
     /// Builds an instance of [`OpAddOns`].
-    pub fn build<N>(self) -> OpAddOns<N, OpEthApiBuilder>
+    pub fn build<N>(self) -> OpAddOns<N, OpEthApiBuilder<NetworkT>>
     where
-        N: FullNodeComponents<Types: NodeTypes<Primitives = OpPrimitives>>,
-        OpEthApiBuilder: EthApiBuilder<N>,
+        N: FullNodeComponents<Types: NodeTypes>,
+        OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
     {
-        let Self { sequencer_url, da_config, enable_tx_conditional } = self;
+        let Self { sequencer_url, da_config, enable_tx_conditional, .. } = self;
 
         OpAddOns {
             rpc_add_ons: RpcAddOns::new(
