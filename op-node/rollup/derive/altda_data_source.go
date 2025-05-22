@@ -75,6 +75,7 @@ func (s *AltDADataSource) Next(ctx context.Context) (eth.Data, error) {
 	}
 	// use the commitment to fetch the input from the AltDA provider.
 	data, err := s.fetcher.GetInput(ctx, s.l1, s.comm, s.id)
+	var invalidCommitmentError altda.InvalidCommitmentError
 	// GetInput may call for a reorg if the pipeline is stalled and the AltDA manager
 	// continued syncing origins detached from the pipeline origin.
 	if errors.Is(err, altda.ErrReorgRequired) {
@@ -91,6 +92,10 @@ func (s *AltDADataSource) Next(ctx context.Context) (eth.Data, error) {
 	} else if errors.Is(err, altda.ErrPendingChallenge) {
 		// continue stepping without slowing down.
 		return nil, NotEnoughData
+	} else if errors.As(err, &invalidCommitmentError) {
+		s.log.Warn("skipping invalid commitment", "comm", s.comm, "err", err)
+		s.comm = nil
+		return s.Next(ctx) // skip the input
 	} else if err != nil {
 		// return temporary error so we can keep retrying.
 		return nil, NewTemporaryError(fmt.Errorf("failed to fetch input data with comm %s from da service: %w", s.comm, err))

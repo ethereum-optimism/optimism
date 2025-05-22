@@ -30,6 +30,8 @@ type MockDAClient struct {
 	setInputRequestCount   uint // number of put requests received, irrespective of whether they were successful
 }
 
+var _ DAStorage = (*MockDAClient)(nil)
+
 func NewMockDAClient(log log.Logger) *MockDAClient {
 	return &MockDAClient{
 		CommitmentType: Keccak256CommitmentType,
@@ -58,7 +60,7 @@ func (c *MockDAClient) DropEveryNthPut(n uint) {
 	c.dropEveryNthPut = n
 }
 
-func (c *MockDAClient) GetInput(ctx context.Context, key CommitmentData) ([]byte, error) {
+func (c *MockDAClient) GetInput(ctx context.Context, key CommitmentData, _ uint64) ([]byte, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.log.Debug("Getting input", "key", key)
@@ -121,12 +123,14 @@ type DAErrFaker struct {
 	setInputErr error
 }
 
-func (f *DAErrFaker) GetInput(ctx context.Context, key CommitmentData) ([]byte, error) {
+var _ DAStorage = (*DAErrFaker)(nil)
+
+func (f *DAErrFaker) GetInput(ctx context.Context, key CommitmentData, l1InclusionBlockNumber uint64) ([]byte, error) {
 	if err := f.getInputErr; err != nil {
 		f.getInputErr = nil
 		return nil, err
 	}
-	return f.Client.GetInput(ctx, key)
+	return f.Client.GetInput(ctx, key, l1InclusionBlockNumber)
 }
 
 func (f *DAErrFaker) SetInput(ctx context.Context, data []byte) (CommitmentData, error) {

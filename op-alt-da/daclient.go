@@ -21,6 +21,18 @@ var ErrInvalidInput = errors.New("invalid input")
 // See https://github.com/ethereum-optimism/specs/issues/434
 var ErrAltDADown = errors.New("alt DA is down: failover to eth DA")
 
+// InvalidCommitmentError is returned when the altda commitment is invalid
+// and should be dropped from the derivation pipeline.
+// Validity conditions for altda commitments are altda-layer-specific, so are done in da-servers.
+// They should be returned as 418 (I'M A TEAPOT) errors, with a body containing the reason.
+type InvalidCommitmentError struct {
+	Reason string
+}
+
+func (e InvalidCommitmentError) Error() string {
+	return fmt.Sprintf("Invalid AltDA Commitment: %v", e.Reason)
+}
+
 // DAClient is an HTTP client to communicate with a DA storage service.
 // It creates commitments and retrieves input data + verifies if needed.
 type DAClient struct {
@@ -33,6 +45,8 @@ type DAClient struct {
 	putTimeout time.Duration
 }
 
+var _ DAStorage = (*DAClient)(nil)
+
 func NewDAClient(url string, verify bool, pc bool) *DAClient {
 	return &DAClient{
 		url:        url,
@@ -42,8 +56,12 @@ func NewDAClient(url string, verify bool, pc bool) *DAClient {
 }
 
 // GetInput returns the input data for the given encoded commitment bytes.
-func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x", c.url, comm.Encode()), nil)
+// The l1InclusionBlock at which the commitment was included in the batcher-inbox is submitted
+// to the DA server as a query parameter.
+// It is used to discard old commitments whose blobs have a risk of not being available anymore.
+// It is optional, and passing a 0 value will tell the DA server to skip the check.
+func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData, l1InclusionBlockNumber uint64) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/get/0x%x?l1_inclusion_block_number=%d", c.url, comm.Encode(), l1InclusionBlockNumber), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
@@ -54,6 +72,15 @@ func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData) ([]byte, e
 	}
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrNotFound
+	}
+	if resp.StatusCode == http.StatusTeapot {
+		defer resp.Body.Close()
+		// Limit the body to 1000 bytes to prevent being DDoSed with a large error message.
+		bytesLimitedBody := http.MaxBytesReader(nil, resp.Body, 1000)
+		// We discard the error as it only contains the reason for invalidity.
+		// We might read a partial or missing reason, but the commitment should still be skipped.
+		invalidCommitmentReason, _ := io.ReadAll(bytesLimitedBody)
+		return nil, InvalidCommitmentError{Reason: string(invalidCommitmentReason)}
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get preimage: %v", resp.StatusCode)
