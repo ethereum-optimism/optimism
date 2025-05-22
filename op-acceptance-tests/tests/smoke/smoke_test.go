@@ -64,7 +64,7 @@ func TestWrapETH(gt *testing.T) {
 	// Read not using the DSL. Therefore you need to manually error handle and also set context
 	_, err := contractio.Read(weth.Transfer(bob.Address(), eth.OneEther), t.Ctx())
 	// Will revert because tx.sender is not set
-	t.Require().Error(err)
+	require.Error(err)
 	// Provide tx.sender using txplan
 	// Success because tx.sender(Alice) has enough WETH
 	require.True(contract.Read(weth.Transfer(bob.Address(), eth.OneEther), txplan.WithSender(alice.Address())))
