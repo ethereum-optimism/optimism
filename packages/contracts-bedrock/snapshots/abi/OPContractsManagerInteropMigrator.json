@@ -359,6 +359,21 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerInteropMigrator_DisputeGameFactoryMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerInteropMigrator_ETHLockboxMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch",
     "type": "error"
   },

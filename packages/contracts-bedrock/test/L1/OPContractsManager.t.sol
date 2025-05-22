@@ -1814,6 +1814,64 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superPdg.absolutePrestate().raw(), absolutePrestate1.raw());
     }
 
+    /// @notice Tests that the migration function reverts when the ETHLockbox is mismatched.
+    function test_migrate_mismatchedETHLockboxAtEnd_reverts() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+
+        // Mock out the ETHLockbox for the first chain to always return the original address. This
+        // will allow the test to pass through the migration function but fail at the final sanity
+        // checks.
+        IOptimismPortal2 portal = IOptimismPortal2(payable(input.opChainConfigs[0].systemConfigProxy.optimismPortal()));
+        vm.mockCall(address(portal), abi.encodeCall(IOptimismPortal2.ethLockbox, ()), abi.encode(portal.ethLockbox()));
+
+        // Execute the migration.
+        _doMigration(
+            input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_ETHLockboxMismatch.selector
+        );
+    }
+
+    /// @notice Tests that the migration function reverts when the DisputeGameFactory is mismatched.
+    function test_migrate_mismatchedDisputeGameFactoryAtEnd_reverts() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+
+        // Mock out the DisputeGameFactory for the first chain to always return the original
+        // address. This will allow the test to pass through the migration function but fail at
+        // the final sanity checks.
+        IOptimismPortal2 portal = IOptimismPortal2(payable(input.opChainConfigs[0].systemConfigProxy.optimismPortal()));
+        vm.mockCall(
+            address(portal),
+            abi.encodeCall(IOptimismPortal2.disputeGameFactory, ()),
+            abi.encode(portal.disputeGameFactory())
+        );
+
+        // Execute the migration.
+        _doMigration(
+            input,
+            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_DisputeGameFactoryMismatch.selector
+        );
+    }
+
+    /// @notice Tests that the migration function reverts when the AnchorStateRegistry is mismatched.
+    function test_migrate_mismatchedAnchorStateRegistryAtEnd_reverts() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+
+        // Mock out the AnchorStateRegistry for the first chain to always return the original
+        // address. This will allow the test to pass through the migration function but fail at
+        // the final sanity checks.
+        IOptimismPortal2 portal = IOptimismPortal2(payable(input.opChainConfigs[0].systemConfigProxy.optimismPortal()));
+        vm.mockCall(
+            address(portal),
+            abi.encodeCall(IOptimismPortal2.anchorStateRegistry, ()),
+            abi.encode(portal.anchorStateRegistry())
+        );
+
+        // Execute the migration.
+        _doMigration(
+            input,
+            OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch.selector
+        );
+    }
+
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are
     ///         mismatched.
     function test_migrate_mismatchedProxyAdminOwners_reverts() public {

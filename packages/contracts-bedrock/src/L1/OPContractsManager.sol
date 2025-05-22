@@ -1366,6 +1366,18 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
     ///         being migrated does not match the absolute prestate of the first provided chain.
     error OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
 
+    /// @notice Thrown when the ETHLockbox of one or more of the provided OP Stack chains
+    ///         being migrated does not match the ETHLockbox of the first provided chain.
+    error OPContractsManagerInteropMigrator_ETHLockboxMismatch();
+
+    /// @notice Thrown when the DisputeGameFactory of one or more of the provided OP Stack chains
+    ///         being migrated does not match the DisputeGameFactory of the first provided chain.
+    error OPContractsManagerInteropMigrator_DisputeGameFactoryMismatch();
+
+    /// @notice Thrown when the AnchorStateRegistry of one or more of the provided OP Stack chains
+    ///         being migrated does not match the AnchorStateRegistry of the first provided chain.
+    error OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch();
+
     /// @notice Parameters for creating the new Super Root dispute games that must be provided by
     ///         the caller. Other parameters are selected automatically.
     struct GameParameters {
@@ -1630,6 +1642,24 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
         }
+
+        // Safety assertions, check that all systems use the same contracts.
+        for (uint256 i = 0; i < portals.length; i++) {
+            // Check that the ETHLockbox is the same.
+            if (portals[i].ethLockbox() != newEthLockbox) {
+                revert OPContractsManagerInteropMigrator_ETHLockboxMismatch();
+            }
+
+            // Check that the DisputeGameFactory is the same.
+            if (portals[i].disputeGameFactory() != newDisputeGameFactory) {
+                revert OPContractsManagerInteropMigrator_DisputeGameFactoryMismatch();
+            }
+
+            // Check that the AnchorStateRegistry is the same.
+            if (portals[i].anchorStateRegistry() != newAnchorStateRegistry) {
+                revert OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch();
+            }
+        }
     }
 }
 
@@ -1754,9 +1784,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.4.0
+    /// @custom:semver 2.5.0
     function version() public pure virtual returns (string memory) {
-        return "2.4.0";
+        return "2.5.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

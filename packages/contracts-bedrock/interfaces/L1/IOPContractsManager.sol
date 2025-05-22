@@ -91,6 +91,9 @@ interface IOPContractsManagerInteropMigrator {
     error OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
     error OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
     error OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
+    error OPContractsManagerInteropMigrator_ETHLockboxMismatch();
+    error OPContractsManagerInteropMigrator_DisputeGameFactoryMismatch();
+    error OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch();
 
     struct GameParameters {
         address proposer;
