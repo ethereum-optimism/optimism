@@ -389,7 +389,7 @@ func ApplyPipeline(
 		})
 	}
 
-	// Generate the interop dependency set if interop is enabled
+	// Generate the interop dependency set
 	pline = append(pline, pipelineStage{
 		"generate-interop-depset",
 		func() error {
