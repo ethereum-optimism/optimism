@@ -79,6 +79,7 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			MIPSVersion:                     1,
 			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+			SuperchainProxyAdmin:            proxyAdminOwner,
 			UpgradeController:               proxyAdminOwner,
 			UseInterop:                      false,
 			CacheDir:                        cacheDir,
