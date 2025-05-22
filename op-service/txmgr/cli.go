@@ -196,7 +196,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 		},
 		&cli.DurationFlag{
 			Name:    RetryIntervalFlagName,
-			Usage:   "Duration we will wait before resubmitting a transaction to L1 on a transient error. Values <= 0 will result in retrying immediately.",
+			Usage:   "Duration we will wait before resubmitting a transaction to L1 on a transient error. Values <= 0 will result in retrying immediately. Should be less than ResubmissionTimeout to have an effect.",
 			Value:   defaults.RetryInterval,
 			EnvVars: prefixEnvVars("TXMGR_RETRY_INTERVAL"),
 		},
