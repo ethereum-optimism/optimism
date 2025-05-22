@@ -1680,7 +1680,7 @@ func TestTxMgrRetryOnError(t *testing.T) {
 		receipt, err := send(ctx, h, h.createTxCandidate())
 		require.ErrorIs(t, sendErr, err)
 		require.Nil(t, receipt)
-		require.Equal(t, cfg.MaxRetries, sendAttempts-1)
+		require.Equal(t, cfg.MaxRetries+1, sendAttempts)
 	})
 }
 
