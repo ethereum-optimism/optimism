@@ -1488,6 +1488,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+      - setup_remote_docker
       - run:
           name: Run Analyzer
           command: |
