@@ -1,5 +1,6 @@
-GITCOMMIT ?= $(shell git rev-parse HEAD)
-GITDATE ?= $(shell git show -s --format='%ct')
+GITCOMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+GITDATE ?= $(shell git show -s --format='%ct' 2>/dev/null || echo "0")
+
 VERSION ?= v0.0.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
@@ -133,10 +134,16 @@ verify-sepolia-isthmus: op-program-host op-program-client
 
 verify-compat: verify-mainnet-genesis verify-sepolia-delta verify-sepolia-ecotone verify-sepolia-fjord verify-sepolia-granite verify-sepolia-holocene verify-sepolia-isthmus
 
-analyze-op-program-client: analyze-op-program-client-cannon-multithreaded-64
-
-analyze-op-program-client-cannon-multithreaded-64:
+analyze-op-program-client-current:
 	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64.yaml ./compatibility-test/baseline-cannon-multithreaded-64.json
+
+# TODO - update baseline
+analyze-op-program-client-next:
+	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64.json
+
+run-vm-compat:
+	@docker build --build-arg GO_VERSION=1.23.8-alpine3.21 --build-arg VM_TARGET=current --progress plain -f Dockerfile.vmcompat ../
+	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg VM_TARGET=next --progress plain -f Dockerfile.vmcompat ../
 
 .PHONY: \
 	op-program \
