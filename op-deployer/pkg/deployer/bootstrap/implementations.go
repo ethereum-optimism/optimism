@@ -43,7 +43,6 @@ type ImplementationsConfig struct {
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
-	UseInterop                      bool               `cli:"use-interop"`
 	CacheDir                        string             `cli:"cache-dir"`
 
 	Logger log.Logger
