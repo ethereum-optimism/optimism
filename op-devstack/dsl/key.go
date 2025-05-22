@@ -47,8 +47,3 @@ func (a *Key) Plan() txplan.Option {
 func (a *Key) User(el ELNode) *EOA {
 	return NewEOA(a, el)
 }
-
-// PrivateKey returns the private key for this key.
-func (a *Key) PrivateKey() *ecdsa.PrivateKey {
-	return a.priv
-}

@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -33,7 +32,7 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	alice := sys.FunderL1.NewFundedEOA(fundingAmount)
 	alice.VerifyBalanceExact(fundingAmount)
 
-	alicel2 := dsl.NewEOA(alice.Key(), sys.L2EL)
+	alicel2 := alice.AsEL(sys.L2EL)
 
 	// Get the optimism portal address
 	rollupConfig := sys.L2Chain.Escape().RollupConfig()
