@@ -16,7 +16,7 @@ RUN mkdir -p /tmp/vm-compat && \
     cd /tmp/vm-compat && \
     git clone https://github.com/ethereum-optimism/vm-compat.git . && \
     git fetch --tags && \
-    git checkout v1.1.0 && \
+    git checkout -q v1.1.0 && \
     make && \
     cp bin/analyzer /usr/local/bin/vm-compat && \
     cd / && \
