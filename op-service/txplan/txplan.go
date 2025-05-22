@@ -294,8 +294,8 @@ func WithAgainstLatestBlock(cl AgainstLatestBlock) Option {
 	}
 }
 
-// Reader uses eth_call to view(read) the blockchain, and does not write in perspective of chain.
-// The chain will return byte strings when viewing, and does not return receipt.
+// Reader uses eth_call to view(read) the blockchain, and does not write persistent changes to the chain.
+// A call will return a byte string (that may be ABI-decoded), and does not have a receipt, as it was only simulated and not a persistent transaction.
 type Reader interface {
 	Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error)
 }
@@ -309,6 +309,7 @@ func WithReader(cl Reader) Option {
 			&tx.GasTipCap,
 			&tx.Value,
 			&tx.Data,
+			&tx.AccessList,
 		)
 		tx.Read.Fn(func(ctx context.Context) ([]byte, error) {
 			msg := ethereum.CallMsg{
