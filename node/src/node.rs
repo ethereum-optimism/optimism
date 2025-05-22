@@ -30,7 +30,7 @@ use reth_node_builder::{
 };
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::OpBeaconConsensus;
-use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes};
+use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder};
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{
     builder::OpPayloadTransactions,
@@ -473,18 +473,32 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
 }
 
 /// A regular optimism evm and executor builder.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub struct OpExecutorBuilder;
+pub struct OpExecutorBuilder<ChainSpec = OpChainSpec, Primitives = OpPrimitives> {
+    /// Marker for chain spec type.
+    _cs: PhantomData<ChainSpec>,
+    /// Marker for primitives type.
+    _p: PhantomData<Primitives>,
+}
 
-impl<Node> ExecutorBuilder<Node> for OpExecutorBuilder
+impl<ChainSpec, Primitives> Default for OpExecutorBuilder<ChainSpec, Primitives> {
+    fn default() -> Self {
+        Self { _cs: PhantomData, _p: PhantomData }
+    }
+}
+
+impl<Node, ChainSpec, Primitives> ExecutorBuilder<Node> for OpExecutorBuilder<ChainSpec, Primitives>
 where
-    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = OpChainSpec, Primitives = OpPrimitives>>,
+    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = ChainSpec, Primitives = Primitives>>,
+    ChainSpec: EthChainSpec + OpHardforks,
+    Primitives: NodePrimitives,
+    OpEvmConfig<ChainSpec, Primitives>: ConfigureEvm<Primitives = Primitives> + 'static,
 {
-    type EVM = OpEvmConfig;
+    type EVM = OpEvmConfig<ChainSpec, Primitives>;
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
-        let evm_config = OpEvmConfig::optimism(ctx.chain_spec());
+        let evm_config = OpEvmConfig::new(ctx.chain_spec(), OpRethReceiptBuilder::default());
 
         Ok(evm_config)
     }
