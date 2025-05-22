@@ -238,7 +238,7 @@ where
     pub async fn validate_all_with_origin(
         &self,
         origin: TransactionOrigin,
-        transactions: Vec<Tx>,
+        transactions: impl IntoIterator<Item = Tx> + Send,
     ) -> Vec<TransactionValidationOutcome<Tx>> {
         futures_util::future::join_all(
             transactions.into_iter().map(|tx| self.validate_one(origin, tx)),
@@ -347,7 +347,7 @@ where
     async fn validate_transactions_with_origin(
         &self,
         origin: TransactionOrigin,
-        transactions: Vec<Self::Transaction>,
+        transactions: impl IntoIterator<Item = Self::Transaction> + Send,
     ) -> Vec<TransactionValidationOutcome<Self::Transaction>> {
         self.validate_all_with_origin(origin, transactions).await
     }
