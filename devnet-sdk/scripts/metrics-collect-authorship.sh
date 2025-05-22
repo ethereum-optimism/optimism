@@ -8,13 +8,9 @@ if [ -z "$DIRECTORY" ]; then
   exit 1
 fi
 
-# - We list all the tracked files in the specified directory
-# - We blame the files (using porcelain for easy consumption)
-# - We take the author emails out of the blame output
-# - We replace the <brackets around the emails>
-# - We sort the emails and remove duplicates
-git ls-files -z "$DIRECTORY" \
-    | xargs -0n1 git --no-pager blame --porcelain \
-    | sed -n -e '/^author-mail /s/^author-mail //p' \
-    | sed -e 's/[<>]//g' \
-    | sort | uniq
+# Extract authorship data of target directory from git history
+echo -n "dt,author,commit"
+cd "$DIRECTORY"
+git ls-files | while read -r file; do
+  git --no-pager log --pretty=format:"%ad,%ae,%H%n" --date=format:"%Y-%m-%d %H:%M:%S" -- "$file" 2>/dev/null
+done | sort | uniq
