@@ -137,9 +137,8 @@ verify-compat: verify-mainnet-genesis verify-sepolia-delta verify-sepolia-ecoton
 analyze-op-program-client-current:
 	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64.yaml ./compatibility-test/baseline-cannon-multithreaded-64.json
 
-# TODO - update baseline
 analyze-op-program-client-next:
-	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64.json
+	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64-next.json
 
 run-vm-compat:
 	@docker build --build-arg GO_VERSION=1.23.8-alpine3.21 --build-arg VM_TARGET=current --progress plain -f Dockerfile.vmcompat ../
