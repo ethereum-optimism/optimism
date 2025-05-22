@@ -123,6 +123,11 @@ var (
 		Usage:   "Upgrade controller.",
 		EnvVars: deployer.PrefixEnvVar("UPGRADE_CONTROLLER"),
 	}
+	SuperchainProxyAdminFlag = &cli.StringFlag{
+		Name:    "superchain-proxy-admin",
+		Usage:   "Superchain proxy admin.",
+		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN"),
+	}
 	UseInteropFlag = &cli.BoolFlag{
 		Name:    "use-interop",
 		Usage:   "If true, deploy Interop implementations.",
@@ -149,6 +154,7 @@ var ImplementationsFlags = []cli.Flag{
 	SuperchainConfigProxyFlag,
 	ProtocolVersionsProxyFlag,
 	UpgradeControllerFlag,
+	SuperchainProxyAdminFlag,
 	UseInteropFlag,
 }
 
