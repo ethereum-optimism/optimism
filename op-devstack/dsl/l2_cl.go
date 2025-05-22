@@ -169,17 +169,7 @@ func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) 
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attempts int) CheckFunc {
 	return func() error {
-		cl.log.Info("expecting chain to reach block ref", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
-		err := retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
-			func() error {
-				head := cl.HeadBlockRef(lvl)
-				if head.Number >= target.Number {
-					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
-					return nil
-				}
-				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target, "current", head.Number)
-				return fmt.Errorf("expected head to advance: %s", lvl)
-			})
+		err := cl.Reached(lvl, target.Number, attempts)()
 		if err != nil {
 			return err
 		}
