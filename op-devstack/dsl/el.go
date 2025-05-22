@@ -36,27 +36,6 @@ func (el *elNode) WaitForBlock() eth.BlockRef {
 	return el.waitForNextBlock(1)
 }
 
-func (el *elNode) WaitForFinalization() eth.BlockRef {
-	// Get current block and wait for it to be finalized
-	currentBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Finalized)
-	el.require.NoError(err, "Expected to get current block from execution client")
-
-	var finalizedBlock eth.BlockRef
-	el.require.Eventually(func() bool {
-		el.log.Info("Waiting for finalization")
-		block, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Finalized)
-		if err != nil {
-			return false
-		}
-		if block.NumberU64() > currentBlock.NumberU64() {
-			finalizedBlock = eth.InfoToL1BlockRef(block)
-			return true
-		}
-		return false
-	}, 30*time.Second, 500*time.Millisecond, "Expected to be online")
-	return finalizedBlock
-}
-
 func (el *elNode) WaitForOnline() {
 	el.require.Eventually(func() bool {
 		el.log.Info("Waiting for online")
