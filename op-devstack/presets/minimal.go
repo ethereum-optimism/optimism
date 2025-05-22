@@ -47,6 +47,8 @@ func NewMinimal(t devtest.T) *Minimal {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 
+	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
+
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
 	out := &Minimal{
 		Log:           t.Logger(),
