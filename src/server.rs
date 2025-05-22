@@ -179,14 +179,19 @@ impl RollupBoostServer {
             self.probes.set_health(Health::Healthy);
 
             if let Ok(Some(payload)) = builder_payload {
+                // If execution mode is set to DryRun, fallback to the l2_payload,
+                // otherwise prefer the builder payload
                 if self.execution_mode().is_dry_run() {
                     (l2_payload, PayloadSource::L2)
                 } else {
-                    // NOTE: block selection policy
                     (payload, PayloadSource::Builder)
                 }
             } else {
-                self.probes.set_health(Health::PartialContent);
+                // Only update the health status if the builder payload fails
+                // and execution mode is not set to DryRun
+                if !self.execution_mode().is_dry_run() {
+                    self.probes.set_health(Health::PartialContent);
+                }
                 (l2_payload, PayloadSource::L2)
             }
         };
