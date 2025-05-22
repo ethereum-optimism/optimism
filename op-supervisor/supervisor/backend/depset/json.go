@@ -9,6 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -72,7 +74,15 @@ func (j *JSONRollupConfigsLoader) LoadRollupConfigSet(ctx context.Context) (Roll
 		return nil, fmt.Errorf("failed to connect to L1 RPC: %w", err)
 	}
 	defer client.Close()
+	return j.loadRollupConfigSet(ctx, client)
+}
 
+type headerByHashClient interface {
+	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
+}
+
+// loadRollupConfigSet splits out the core logic for better testing.
+func (j *JSONRollupConfigsLoader) loadRollupConfigSet(ctx context.Context, client headerByHashClient) (RollupConfigSet, error) {
 	matches, err := filepath.Glob(j.PathPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to glob files: %w", err)
@@ -93,12 +103,12 @@ func (j *JSONRollupConfigsLoader) LoadRollupConfigSet(ctx context.Context) (Roll
 		}
 		chainID := eth.ChainIDFromBig(cfg.L2ChainID)
 
-		l1Genesis, err := client.BlockByHash(ctx, cfg.Genesis.L1.Hash)
+		l1Genesis, err := client.HeaderByHash(ctx, cfg.Genesis.L1.Hash)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get L1 genesis header for hash %s (chainID: %s): %w", cfg.Genesis.L1.Hash, chainID, err)
 		}
 
-		configs[chainID] = StaticRollupConfigFromRollupConfig(&cfg, l1Genesis.Time())
+		configs[chainID] = StaticRollupConfigFromRollupConfig(&cfg, l1Genesis.Time)
 	}
 
 	return StaticRollupConfigSet(configs), nil
