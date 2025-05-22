@@ -1,5 +1,5 @@
 use crate::client::http::HttpClient;
-use crate::server::PayloadSource;
+use crate::payload::PayloadSource;
 use alloy_rpc_types_engine::JwtSecret;
 use http::Uri;
 use jsonrpsee::core::{BoxError, http_helpers};

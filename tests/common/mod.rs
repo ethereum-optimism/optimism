@@ -18,9 +18,9 @@ use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use parking_lot::Mutex;
 use proxy::{ProxyHandler, start_proxy_server};
 use rollup_boost::DebugClient;
+use rollup_boost::EngineApiClient;
 use rollup_boost::{AuthLayer, AuthService};
-use rollup_boost::{EngineApiClient, OpExecutionPayloadEnvelope, Version};
-use rollup_boost::{NewPayload, PayloadSource};
+use rollup_boost::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
 use serde_json::Value;
 use services::op_reth::{AUTH_RPC_PORT, OpRethConfig, OpRethImage, OpRethMehods, P2P_PORT};
 use services::rollup_boost::{RollupBoost, RollupBoostConfig};
@@ -92,14 +92,14 @@ impl EngineApi {
 
     pub async fn get_payload(
         &self,
-        version: Version,
+        version: PayloadVersion,
         payload_id: PayloadId,
     ) -> eyre::Result<OpExecutionPayloadEnvelope> {
         match version {
-            Version::V3 => Ok(OpExecutionPayloadEnvelope::V3(
+            PayloadVersion::V3 => Ok(OpExecutionPayloadEnvelope::V3(
                 EngineApiClient::get_payload_v3(&self.engine_api_client, payload_id).await?,
             )),
-            Version::V4 => Ok(OpExecutionPayloadEnvelope::V4(
+            PayloadVersion::V4 => Ok(OpExecutionPayloadEnvelope::V4(
                 EngineApiClient::get_payload_v4(&self.engine_api_client, payload_id).await?,
             )),
         }
@@ -429,16 +429,16 @@ impl SimpleBlockGenerator {
         let version = match self.genesis.isthmus_block {
             Some(num) => {
                 if self.current_block_number < num {
-                    Version::V3
+                    PayloadVersion::V3
                 } else {
-                    Version::V4
+                    PayloadVersion::V4
                 }
             }
-            None => Version::V3,
+            None => PayloadVersion::V3,
         };
 
         let txns = match version {
-            Version::V4 => {
+            PayloadVersion::V4 => {
                 // Starting on the Ishtmus hardfork, the payload attributes must include a "BlockInfo"
                 // transaction which is a deposit transaction with info about the gas fees on L1.
                 // Op-Reth will fail to process the block if the state resulting from executing this transaction

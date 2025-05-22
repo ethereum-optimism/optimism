@@ -1,8 +1,6 @@
 use crate::client::auth::AuthLayer;
-use crate::server::{
-    EngineApiClient, NewPayload, OpExecutionPayloadEnvelope, PayloadSource, Version,
-};
-
+use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
+use crate::server::EngineApiClient;
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret,
@@ -249,13 +247,13 @@ impl RpcClient {
     pub async fn get_payload(
         &self,
         payload_id: PayloadId,
-        version: Version,
+        version: PayloadVersion,
     ) -> ClientResult<OpExecutionPayloadEnvelope> {
         match version {
-            Version::V3 => Ok(OpExecutionPayloadEnvelope::V3(
+            PayloadVersion::V3 => Ok(OpExecutionPayloadEnvelope::V3(
                 self.get_payload_v3(payload_id).await.set_code()?,
             )),
-            Version::V4 => Ok(OpExecutionPayloadEnvelope::V4(
+            PayloadVersion::V4 => Ok(OpExecutionPayloadEnvelope::V4(
                 self.get_payload_v4(payload_id).await.set_code()?,
             )),
         }
@@ -374,7 +372,7 @@ pub mod tests {
     use jsonrpsee::core::client::ClientT;
     use parking_lot::Mutex;
 
-    use crate::server::PayloadSource;
+    use crate::payload::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::RpcModule;
     use jsonrpsee::http_client::transport::Error as TransportError;

@@ -1,5 +1,5 @@
 use crate::client::auth::AuthLayer;
-use crate::server::PayloadSource;
+use crate::payload::PayloadSource;
 use alloy_rpc_types_engine::JwtSecret;
 use http::Uri;
 use http_body_util::BodyExt;

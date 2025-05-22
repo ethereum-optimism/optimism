@@ -76,7 +76,7 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::*;
-    use crate::{PayloadSource, Probes};
+    use crate::{Probes, payload::PayloadSource};
 
     pub struct MockHttpServer {
         addr: SocketAddr,
