@@ -219,6 +219,7 @@ contract Deploy is Deployer {
                 // Safe
                 protocolVersionsOwner: cfg.finalSystemOwner(),
                 superchainProxyAdminOwner: cfg.finalSystemOwner(),
+                paused: false,
                 recommendedProtocolVersion: bytes32(cfg.recommendedProtocolVersion()),
                 requiredProtocolVersion: bytes32(cfg.requiredProtocolVersion())
             })
