@@ -8,6 +8,7 @@ use alloy_rpc_types_engine::{
 };
 use alloy_rpc_types_eth::BlockNumberOrTag;
 use bytes::BytesMut;
+use eyre::{Context, ContextCompat};
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use jsonrpsee::http_client::{HttpClient, transport::HttpBackend};
@@ -82,7 +83,7 @@ impl EngineApi {
         let client = jsonrpsee::http_client::HttpClientBuilder::default()
             .set_http_middleware(middleware)
             .build(url)
-            .expect("Failed to create http client");
+            .context("Failed to create http client")?;
 
         Ok(Self {
             engine_api_client: client,
@@ -411,7 +412,7 @@ impl SimpleBlockGenerator {
 
     /// Initialize the block generator by fetching the latest block
     pub async fn init(&mut self) -> eyre::Result<()> {
-        let latest_block = self.engine_api.latest().await?.expect("block not found");
+        let latest_block = self.engine_api.latest().await?.context("block not found")?;
         self.latest_hash = latest_block.header.hash;
         self.timestamp = latest_block.header.timestamp;
         Ok(())
@@ -470,7 +471,7 @@ impl SimpleBlockGenerator {
             )
             .await?;
 
-        let payload_id = result.payload_id.expect("missing payload id");
+        let payload_id = result.payload_id.context("missing payload id")?;
 
         if !empty_blocks {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -505,7 +506,7 @@ impl SimpleBlockGenerator {
             .validator
             .get_block_creator(new_block_hash)
             .await?
-            .expect("block creator not found");
+            .context("block creator not found")?;
 
         Ok((new_block_hash, block_creator))
     }

@@ -77,12 +77,12 @@ pub fn secret_to_bearer_header(secret: &JwtSecret) -> HeaderValue {
             .encode(&Claims {
                 iat: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
-                    .unwrap()
+                    .expect("Failed to get epoch time")
                     .as_secs(),
                 exp: None,
             })
-            .unwrap()
+            .expect("Failed to encode JWT claims")
     )
     .parse()
-    .unwrap()
+    .expect("Failed to parse JWT Header")
 }

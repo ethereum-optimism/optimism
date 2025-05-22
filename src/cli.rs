@@ -90,9 +90,7 @@ pub struct Args {
 
 impl Args {
     pub async fn run(self) -> eyre::Result<()> {
-        rustls::crypto::ring::default_provider()
-            .install_default()
-            .expect("Failed to install TLS ring CryptoProvider");
+        let _ = rustls::crypto::ring::default_provider().install_default();
 
         let debug_addr = format!("{}:{}", self.debug_host, self.debug_server_port);
 
@@ -103,7 +101,7 @@ impl Args {
                 Commands::Debug { command } => match command {
                     DebugCommands::SetExecutionMode { execution_mode } => {
                         let client = DebugClient::new(debug_addr.as_str())?;
-                        let result = client.set_execution_mode(execution_mode).await.unwrap();
+                        let result = client.set_execution_mode(execution_mode).await?;
                         println!("Response: {:?}", result.execution_mode);
 
                         Ok(())

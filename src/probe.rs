@@ -127,19 +127,19 @@ fn ok() -> HttpResponse<HttpBody> {
     HttpResponse::builder()
         .status(200)
         .body(HttpBody::from("OK"))
-        .unwrap()
+        .expect("Failed to create OK reponse")
 }
 
 fn partial_content() -> HttpResponse<HttpBody> {
     HttpResponse::builder()
         .status(206)
         .body(HttpBody::from("Partial Content"))
-        .unwrap()
+        .expect("Failed to create partial content response")
 }
 
 fn service_unavailable() -> HttpResponse<HttpBody> {
     HttpResponse::builder()
         .status(503)
         .body(HttpBody::from("Service Unavailable"))
-        .unwrap()
+        .expect("Failed to create service unavailable response")
 }

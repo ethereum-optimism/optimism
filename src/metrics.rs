@@ -46,12 +46,13 @@ async fn init_metrics_server(addr: SocketAddr, handle: PrometheusHandle) -> eyre
                             "/metrics" => Response::builder()
                                 .header("content-type", "text/plain")
                                 .body(HttpBody::from(handle.render()))
-                                .unwrap(),
+                                .expect("Failed to create metrics response"),
                             _ => Response::builder()
                                 .status(StatusCode::NOT_FOUND)
                                 .body(HttpBody::empty())
-                                .unwrap(),
+                                .expect("Failed to create not found response"),
                         };
+
                         async { Ok::<_, hyper::Error>(response) }
                     });
 
