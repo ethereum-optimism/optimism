@@ -271,7 +271,7 @@ library MIPS64Syscalls {
             else if (_args.a0 == FD_PREIMAGE_READ) {
                 uint64 effAddr = _args.a1 & arch.ADDRESS_MASK;
                 // verify proof is correct, and get the existing memory.
-                // mask the addr to align it to 4 bytes
+                // mask the addr to align it to word size
                 uint64 mem = MIPS64Memory.readMem(_args.memRoot, effAddr, _args.proofOffset);
                 // If the preimage key is a local key, localize it in the context of the caller.
                 if (uint8(_args.preimageKey[0]) == 1) {
@@ -344,7 +344,7 @@ library MIPS64Syscalls {
             }
             // pre-image oracle
             else if (_args._a0 == FD_PREIMAGE_WRITE) {
-                // mask the addr to align it to 4 bytes
+                // mask the addr to align it to word size
                 uint64 mem = MIPS64Memory.readMem(_args._memRoot, _args._a1 & arch.ADDRESS_MASK, _args._proofOffset);
                 bytes32 key = _args._preimageKey;
 
