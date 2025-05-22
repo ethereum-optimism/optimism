@@ -392,7 +392,7 @@ pub mod tests {
 
     use super::*;
 
-    const AUTH_ADDR: &str = "0.0.0.0";
+    const AUTH_ADDR: &str = "127.0.0.1";
     const SECRET: &str = "f79ae8046bc11c9927afe911db7143c51a806c4a537cc08e0d37140b0192f430";
 
     pub fn get_available_port() -> u16 {

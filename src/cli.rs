@@ -37,7 +37,7 @@ pub struct Args {
     pub max_unsafe_interval: u64,
 
     /// Host to run the server on
-    #[arg(long, env, default_value = "0.0.0.0")]
+    #[arg(long, env, default_value = "127.0.0.1")]
     pub rpc_host: String,
 
     /// Port to run the server on
@@ -53,7 +53,7 @@ pub struct Args {
     pub metrics: bool,
 
     /// Host to run the metrics server on
-    #[arg(long, env, default_value = "0.0.0.0")]
+    #[arg(long, env, default_value = "127.0.0.1")]
     pub metrics_host: String,
 
     /// Port to run the metrics server on

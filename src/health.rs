@@ -101,7 +101,7 @@ mod tests {
                 + 'static,
         {
             {
-                let listener = TcpListener::bind("0.0.0.0:0").await?;
+                let listener = TcpListener::bind("127.0.0.1:0").await?;
                 let addr = listener.local_addr()?;
 
                 let handle = tokio::spawn(async move {
