@@ -11,11 +11,9 @@ import (
 
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	cl "github.com/ethereum-optimism/optimism/op-program/client"
-	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -25,10 +23,7 @@ type Prefetcher interface {
 }
 type PrefetcherCreator func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (Prefetcher, error)
 type programCfg struct {
-	prefetcher       PrefetcherCreator
-	db               l2.KeyValueStore
-	storeBlockData   bool
-	forceHintChainID bool
+	prefetcher PrefetcherCreator
 }
 
 type ProgramOpt func(c *programCfg)
@@ -40,34 +35,9 @@ func WithPrefetcher(creator PrefetcherCreator) ProgramOpt {
 	}
 }
 
-// WithDB sets the backing state database used by the program.
-// If not set, the program will use an in-memory database.
-func WithDB(db l2.KeyValueStore) ProgramOpt {
-	return func(c *programCfg) {
-		c.db = db
-	}
-}
-
-// WithStoreBlockData controls whether block data, including intermediate trie nodes from transactions and receipts
-// of the derived block should be stored in the database.
-func WithStoreBlockData(store bool) ProgramOpt {
-	return func(c *programCfg) {
-		c.storeBlockData = store
-	}
-}
-
-// WithForceHintChainID controls whether hints are forced to include the chain ID even if interop is disabled.
-func WithForceHintChainID(force bool) ProgramOpt {
-	return func(c *programCfg) {
-		c.forceHintChainID = force
-	}
-}
-
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config, opts ...ProgramOpt) error {
-	programConfig := &programCfg{
-		db: memorydb.New(),
-	}
+	programConfig := &programCfg{}
 	for _, opt := range opts {
 		opt(programConfig)
 	}
@@ -104,11 +74,9 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 		logger.Debug("Client program completed successfully")
 		return nil
 	} else {
-		var clientCfg cl.Config
-		clientCfg.InteropEnabled = cfg.InteropEnabled
-		clientCfg.DB = programConfig.db
-		clientCfg.StoreBlockData = programConfig.storeBlockData
-		clientCfg.ForceHintChainID = programConfig.forceHintChainID
+		clientCfg := cl.Config{
+			InteropEnabled: cfg.InteropEnabled,
+		}
 		return cl.RunProgram(logger, pClientRW, hClientRW, clientCfg)
 	}
 }
