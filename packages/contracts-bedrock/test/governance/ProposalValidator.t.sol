@@ -6,9 +6,11 @@ import { IProposalValidator } from "interfaces/governance/IProposalValidator.sol
 import { IOptimismGovernor } from "interfaces/governance/IOptimismGovernor.sol";
 import { IEAS, AttestationRequest, AttestationRequestData } from "src/vendor/eas/IEAS.sol";
 import { ISchemaRegistry, ISchemaResolver } from "src/vendor/eas/ISchemaRegistry.sol";
+import { IProxy } from "interfaces/universal/IProxy.sol";
 
 // Contracts
 import { ProposalValidator } from "src/governance/ProposalValidator.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -33,6 +35,7 @@ contract ProposalValidator_Init is CommonTest {
     address topDelegate_D;
 
     ProposalValidator public validator;
+    ProposalValidator public impl;
     IOptimismGovernor public governor;
     bytes32 public ATTESTATION_SCHEMA_UID;
     bytes32 public proposalHash;
@@ -110,17 +113,25 @@ contract ProposalValidator_Init is CommonTest {
             ProposalValidator.ImmutableProposalTypeData[] memory immutableProposalTypeData
         ) = _getProposalTypesRequiredApprovalsAndImmutableData();
 
-        validator = new ProposalValidator(
-            owner,
-            governor,
-            governanceToken,
-            ATTESTATION_SCHEMA_UID,
-            MINIMUM_VOTING_POWER,
-            VOTING_CYCLE_BLOCK,
-            DISTRIBUTION_THRESHOLD,
-            proposalTypes,
-            requiredApprovals,
-            immutableProposalTypeData
+        impl = new ProposalValidator(ATTESTATION_SCHEMA_UID, governor, governanceToken);
+
+        validator = ProposalValidator(address(new Proxy(owner)));
+
+        vm.prank(owner);
+        IProxy(payable(address(validator))).upgradeToAndCall(
+            address(impl),
+            abi.encodeCall(
+                impl.initialize,
+                (
+                    owner,
+                    MINIMUM_VOTING_POWER,
+                    VOTING_CYCLE_BLOCK,
+                    DISTRIBUTION_THRESHOLD,
+                    proposalTypes,
+                    requiredApprovals,
+                    immutableProposalTypeData
+                )
+            )
         );
 
         topDelegate_A = _makeTopDelegate("topDelegate_A");

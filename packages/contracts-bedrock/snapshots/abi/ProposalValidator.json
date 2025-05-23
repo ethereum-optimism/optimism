@@ -2,9 +2,9 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
+        "internalType": "bytes32",
+        "name": "_attestationSchemaUid",
+        "type": "bytes32"
       },
       {
         "internalType": "contract IOptimismGovernor",
@@ -15,58 +15,6 @@
         "internalType": "contract IGovernanceToken",
         "name": "_votingToken",
         "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_attestationSchemaUid",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_minimumVotingPower",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_votingCycleBlock",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_distributionThreshold",
-        "type": "uint256"
-      },
-      {
-        "internalType": "enum ProposalValidator.ProposalType[]",
-        "name": "_proposalTypes",
-        "type": "uint8[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "_requiredApprovals",
-        "type": "uint256[]"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address[]",
-            "name": "targets",
-            "type": "address[]"
-          },
-          {
-            "internalType": "uint256[]",
-            "name": "values",
-            "type": "uint256[]"
-          },
-          {
-            "internalType": "string[]",
-            "name": "signatures",
-            "type": "string[]"
-          }
-        ],
-        "internalType": "struct ProposalValidator.ImmutableProposalTypeData[]",
-        "name": "_immutableProposalTypeDatas",
-        "type": "tuple[]"
       }
     ],
     "stateMutability": "nonpayable",
@@ -154,6 +102,79 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "initVersion",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minimumVotingPower",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_votingCycleBlock",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_distributionThreshold",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum ProposalValidator.ProposalType[]",
+        "name": "_proposalTypes",
+        "type": "uint8[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_requiredApprovals",
+        "type": "uint256[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address[]",
+            "name": "targets",
+            "type": "address[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "values",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "string[]",
+            "name": "signatures",
+            "type": "string[]"
+          }
+        ],
+        "internalType": "struct ProposalValidator.ImmutableProposalTypeData[]",
+        "name": "_immutableProposalTypeDatas",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -344,6 +365,19 @@
   },
   {
     "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "votingCycleBlock",
     "outputs": [
       {
@@ -366,6 +400,19 @@
       }
     ],
     "name": "DistributionThresholdSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
     "type": "event"
   },
   {
@@ -553,6 +600,11 @@
   {
     "inputs": [],
     "name": "ProposalValidator_ProposalDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReinitializableBase_ZeroInitVersion",
     "type": "error"
   }
 ]
