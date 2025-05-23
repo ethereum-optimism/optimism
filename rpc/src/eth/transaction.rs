@@ -113,11 +113,7 @@ where
                     }
                 });
 
-            // For consistency with op-geth, we always return `0x0` for mint if it is
-            // missing This is because op-geth does not distinguish
-            // between null and 0, because this value is decoded from RLP where null is
-            // represented as 0
-            tx.inner_mut().mint = Some(tx.mint.unwrap_or_default());
+            tx.inner_mut().mint = tx.mint;
         }
 
         let TransactionInfo {

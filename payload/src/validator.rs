@@ -70,7 +70,7 @@ where
 
         cancun::ensure_well_formed_header_and_sidecar_fields(
             &sealed_block,
-            sidecar.canyon(),
+            sidecar.ecotone(),
             self.is_cancun_active_at_timestamp(sealed_block.timestamp),
         )?;
 
