@@ -46,7 +46,7 @@ contract L2GenesisTest is Test {
             l1FeeVaultWithdrawalNetwork: 1,
             governanceTokenOwner: address(0x0000000000000000000000000000000000000008),
             fork: 7, // Jovian
-            useInterop: true,
+            deployCrossL2Inbox: true,
             enableGovernance: true,
             fundDevAccounts: true
         });
@@ -80,7 +80,7 @@ contract L2GenesisTest is Test {
             assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
 
             // If it's not a supported predeploy, skip next checks.
-            if (!Predeploys.isSupportedPredeploy(addr, uint256(Fork.INTEROP))) {
+            if (!Predeploys.isSupportedPredeploy(addr, uint256(Fork.INTEROP), true)) {
                 continue;
             }
 

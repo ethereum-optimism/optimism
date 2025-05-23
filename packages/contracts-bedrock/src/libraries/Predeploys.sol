@@ -154,14 +154,23 @@ library Predeploys {
     }
 
     /// @notice Returns true if the address is a defined predeploy that is embedded into new OP-Stack chains.
-    function isSupportedPredeploy(address _addr, uint256 _fork) internal pure returns (bool) {
+    function isSupportedPredeploy(
+        address _addr,
+        uint256 _fork,
+        bool _enableCrossL2Inbox
+    )
+        internal
+        pure
+        returns (bool)
+    {
         return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH
             || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
             || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
-            || _addr == GOVERNANCE_TOKEN || (_fork >= uint256(Fork.INTEROP) && _addr == CROSS_L2_INBOX)
+            || _addr == GOVERNANCE_TOKEN
+            || (_fork >= uint256(Fork.INTEROP) && _enableCrossL2Inbox && _addr == CROSS_L2_INBOX)
             || (_fork >= uint256(Fork.INTEROP) && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 

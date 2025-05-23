@@ -54,7 +54,7 @@ contract PredeploysBaseTest is CommonTest {
         );
     }
 
-    function _test_predeploys(Fork _fork) internal {
+    function _test_predeploys(Fork _fork, bool _enableCrossL2Inbox) internal {
         uint256 count = 2048;
         uint160 prefix = uint160(0x420) << 148;
 
@@ -69,7 +69,7 @@ contract PredeploysBaseTest is CommonTest {
                 continue;
             }
 
-            bool isPredeploy = Predeploys.isSupportedPredeploy(addr, uint256(_fork));
+            bool isPredeploy = Predeploys.isSupportedPredeploy(addr, uint256(_fork), _enableCrossL2Inbox);
 
             bytes memory code = addr.code;
             if (isPredeploy) assertTrue(code.length > 0);
@@ -122,7 +122,7 @@ contract PredeploysTest is PredeploysBaseTest {
     /// @dev Tests that the predeploy addresses are set correctly. They have code
     ///      and the proxied accounts have the correct admin.
     function test_predeploys_succeeds() external {
-        _test_predeploys(Fork.ISTHMUS);
+        _test_predeploys(Fork.ISTHMUS, false);
     }
 }
 
@@ -135,13 +135,13 @@ contract PredeploysInteropTest is PredeploysBaseTest {
 
     /// @dev Tests that the predeploy addresses are set correctly. They have code
     ///      and the proxied accounts have the correct admin. Using interop.
-    function test_predeploys_succeeds() external {
-        _test_predeploys(Fork.INTEROP);
+    function test_predeploysWithInbox_succeeds() external {
+        _test_predeploys(Fork.INTEROP, true);
     }
 
     /// @dev Tests that the predeploy addresses are set correctly. They have code
     ///      and the proxied accounts have the correct admin. Using interop.
-    function test_predeploys_post_interop_succeeds() external {
-        _test_predeploys(Fork.JOVIAN);
+    function test_predeploysWithoutInbox_succeeds() external {
+        _test_predeploys(Fork.INTEROP, false);
     }
 }

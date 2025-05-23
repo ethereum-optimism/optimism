@@ -57,7 +57,7 @@ contract L2Genesis is Script {
         uint256 l1FeeVaultWithdrawalNetwork;
         address governanceTokenOwner;
         uint256 fork;
-        bool useInterop;
+        bool deployCrossL2Inbox;
         bool enableGovernance;
         bool fundDevAccounts;
     }
@@ -195,7 +195,7 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (Predeploys.isSupportedPredeploy(addr, _input.fork)) {
+            if (Predeploys.isSupportedPredeploy(addr, _input.fork, _input.deployCrossL2Inbox)) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -231,7 +231,9 @@ contract L2Genesis is Script {
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
         if (_input.fork >= uint256(Fork.INTEROP)) {
-            setCrossL2Inbox(); // 22
+            if (_input.deployCrossL2Inbox) {
+                setCrossL2Inbox(); // 22
+            }
             setL2ToL2CrossDomainMessenger(); // 23
         }
     }
