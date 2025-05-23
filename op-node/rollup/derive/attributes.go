@@ -13,6 +13,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
+type DependencySet interface {
+	// Chains returns the number of chains in the dependency set
+	Chains() []eth.ChainID
+}
+
 // L1ReceiptsFetcher fetches L1 header info and receipts for the payload attributes derivation (the info tx and deposits)
 type L1ReceiptsFetcher interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
