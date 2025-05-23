@@ -8,7 +8,7 @@
 </div>
 
 **Table of Contents**
-Random changes more
+Random changes more..
 <!--TOC-->
 
 - [What is Optimism?](#what-is-optimism)
