@@ -75,12 +75,6 @@ var (
 		Category: RollupCategory,
 	}
 	/* Optional Flags */
-	DependencySet = &cli.PathFlag{
-		Name:      "dependency-set",
-		Usage:     "Dependency-set configuration, point at JSON file.",
-		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
-		TakesFile: true,
-	}
 	BeaconHeader = &cli.StringFlag{
 		Name:     "l1.beacon-header",
 		Usage:    "Optional HTTP header to add to all requests to the L1 Beacon endpoint. Format: 'X-Key: Value'",
@@ -432,6 +426,13 @@ var (
 		Destination: new(string),
 		Category:    InteropCategory,
 	}
+	InteropDependencySet = &cli.PathFlag{
+		Name:      "interop.dependency-set",
+		Usage:     "Dependency-set configuration, point at JSON file.",
+		EnvVars:   prefixEnvVars("INTEROP_DEPENDENCY_SET"),
+		TakesFile: true,
+		Category:  InteropCategory,
+	}
 
 	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
 		Name: "ignore-missing-pectra-blob-schedule",
@@ -464,7 +465,6 @@ var optionalFlags = []cli.Flag{
 	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
-	DependencySet,
 	SyncModeFlag,
 	FetchWithdrawalRootFromState,
 	RPCListenAddr,
@@ -504,6 +504,7 @@ var optionalFlags = []cli.Flag{
 	InteropRPCAddr,
 	InteropRPCPort,
 	InteropJWTSecret,
+	InteropDependencySet,
 	IgnoreMissingPectraBlobSchedule,
 	ExperimentalOPStackAPI,
 }

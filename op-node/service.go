@@ -293,10 +293,10 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 }
 
 func NewDependencySetFromCLI(ctx *cli.Context) (depset.DependencySet, error) {
-	if !ctx.IsSet(flags.DependencySet.Name) {
+	if !ctx.IsSet(flags.InteropDependencySet.Name) {
 		return nil, nil
 	}
-	loader := &depset.JSONDependencySetLoader{Path: ctx.Path(flags.DependencySet.Name)}
+	loader := &depset.JSONDependencySetLoader{Path: ctx.Path(flags.InteropDependencySet.Name)}
 	return loader.LoadDependencySet(ctx.Context)
 }
 
