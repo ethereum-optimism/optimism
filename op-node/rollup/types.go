@@ -612,9 +612,7 @@ func (c *Config) ForkchoiceUpdatedVersion(attr *eth.PayloadAttributes) eth.Engin
 		// Shanghai
 		return eth.FCUV2
 	} else {
-		// According to Ethereum engine API spec, we can use fcuV2 here,
-		// but upstream Geth v1.13.11 does not accept V2 before Shanghai.
-		return eth.FCUV1
+		return eth.FCUV2
 	}
 }
 
