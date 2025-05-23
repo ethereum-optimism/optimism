@@ -40,7 +40,14 @@ func NewValidRelayer(funder *dsl.Funder, el *dsl.L2ELNode, supervisor *dsl.Super
 }
 
 func (e *ValidRelayer) Relay(t devtest.T, msgs []types.Message) {
-	tx := buildRelayTx(e.eoa, e.el, msgs, retryForever(e.el.Escape().EthClient()), txplan.WithStaticNonce(e.counter.Next()))
+	tx := buildRelayTx(
+		e.eoa,
+		e.el,
+		msgs,
+		retrySubmissionForever(e.el.Escape().EthClient()),
+		retryInclusionForever(e.el.Escape().EthClient()),
+		txplan.WithStaticNonce(e.counter.Next()),
+	)
 	receipt, err := tx.Included.Eval(t.Ctx())
 	t.Require().NoError(err)
 	_, err = tx.Success.Eval(t.Ctx())

@@ -87,7 +87,12 @@ func (lin *LargeMsgInitiator) Initiate(t devtest.T) []types.Message {
 }
 
 func buildAndSendInitTx(t devtest.T, eoa *dsl.EOA, el *dsl.L2ELNode, initCall txintent.Call, opts ...txplan.Option) []types.Message {
-	initMsgsTx := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](eoa.Plan(), retryForever(el.Escape().EthClient()), txplan.Combine(opts...))
+	initMsgsTx := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](
+		eoa.Plan(),
+		retrySubmissionForever(el.Escape().EthClient()),
+		retryInclusionForever(el.Escape().EthClient()),
+		txplan.Combine(opts...),
+	)
 	initMsgsTx.Content.Set(initCall)
 	_, err := initMsgsTx.PlannedTx.Success.Eval(t.Ctx())
 	t.Require().NoError(err)
