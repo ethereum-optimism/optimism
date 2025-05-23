@@ -1,31 +1,35 @@
 name: Linting
 
 on:
-    push:
-      branches:
-        - main
-    pull_request:
+  push:
+    branches:
+      - main
+  pull_request:
 
 jobs:
-    build:
-      runs-on: ubuntu-latest
-  
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v2
-  
-        - name: Set up Rust
-          uses: dtolnay/rust-toolchain@stable
-          with:
-            toolchain: stable
-            override: true
-            components: rustfmt
-  
-        - name: Build
-          run: cargo build --verbose
-  
-        - name: Lint
-          run: cargo clippy -- -D warnings
-  
-        - name: Format code
-          run: cargo fmt -- --check
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: Build
+        run: cargo build --workspace --verbose
+
+      - name: Lint
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Format code
+        run: cargo fmt --all -- --check
+
+      - name: Deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+

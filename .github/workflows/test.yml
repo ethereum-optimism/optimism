@@ -20,4 +20,4 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Run nextest
-        run: cargo nextest run
+        run: cargo nextest run --workspace

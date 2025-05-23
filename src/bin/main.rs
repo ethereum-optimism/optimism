@@ -1,7 +1,7 @@
 use clap::Parser;
 use rollup_boost::Args;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {

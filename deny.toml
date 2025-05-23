@@ -1,0 +1,34 @@
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "Unicode-3.0",
+  "MPL-2.0",
+  "ISC",
+  "CC0-1.0",
+  "BSD-3-Clause",
+  "Zlib",
+  "OpenSSL",
+]
+confidence-threshold = 0.8
+
+[advisories]
+ignore = [
+  # paste crate is unmaintained
+  "RUSTSEC-2024-0436",
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "warn"
+highlight = "all"
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = ["paradigmxyz"]
