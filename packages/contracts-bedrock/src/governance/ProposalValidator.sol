@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -11,11 +12,13 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IOptimismGovernor } from "interfaces/governance/IOptimismGovernor.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IEAS, Attestation } from "src/vendor/eas/IEAS.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
+/// @custom:proxied true
 /// @title ProposalValidator
 /// @notice The ProposalValidator contract is responsible for validating proposals and moving
 ///         them to the vote phase on the Optimism Governor.
-contract ProposalValidator is Ownable {
+contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -165,34 +168,49 @@ contract ProposalValidator is Ownable {
     /// @notice Mapping of proposal hash to their corresponding proposal data.
     mapping(bytes32 => ProposalData) private _proposals;
 
-    /// @notice Initializes the ProposalValidator contract.
-    /// @param _owner The address that will own the contract.
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0-beta.1
+    function version() public pure virtual returns (string memory) {
+        return "1.0.0-beta.1";
+    }
+
+    /// @notice Constructs the ProposalValidator contract.
+    /// @param _attestationSchemaUid The schema UID for attestations in EAS.
     /// @param _governor The Optimism Governor contract address.
     /// @param _votingToken The token used to determine voting power.
-    /// @param _attestationSchemaUid The schema UID for attestations in EAS.
+    constructor(
+        bytes32 _attestationSchemaUid,
+        IOptimismGovernor _governor,
+        IGovernanceToken _votingToken
+    )
+        ReinitializableBase(1)
+    {
+        ATTESTATION_SCHEMA_UID = _attestationSchemaUid;
+        GOVERNOR = _governor;
+        VOTING_TOKEN = _votingToken;
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the ProposalValidator contract.
+    /// @param _owner The address that will own the contract.
     /// @param _minimumVotingPower The minimum voting power required for a delegate to approve proposals.
     /// @param _votingCycleBlock The block number of the current voting cycle.
     /// @param _distributionThreshold The max amount of tokens that can be distributed in a proposal.
     /// @param _proposalTypes Array of proposal types to set approval thresholds for.
     /// @param _requiredApprovals Array of approval thresholds corresponding to the proposal types.
     /// @param _immutableProposalTypeDatas Array of immutable proposal type data corresponding to the proposal types.
-    constructor(
+    function initialize(
         address _owner,
-        IOptimismGovernor _governor,
-        IGovernanceToken _votingToken,
-        bytes32 _attestationSchemaUid,
         uint256 _minimumVotingPower,
         uint256 _votingCycleBlock,
         uint256 _distributionThreshold,
         ProposalType[] memory _proposalTypes,
         uint256[] memory _requiredApprovals,
         ImmutableProposalTypeData[] memory _immutableProposalTypeDatas
-    ) {
-        transferOwnership(_owner);
-        GOVERNOR = _governor;
-        VOTING_TOKEN = _votingToken;
-        ATTESTATION_SCHEMA_UID = _attestationSchemaUid;
-
+    )
+        external
+        reinitializer(initVersion())
+    {
         _setMinimumVotingPower(_minimumVotingPower);
         _setVotingCycleBlock(_votingCycleBlock);
         _setDistributionThreshold(_distributionThreshold);
@@ -201,6 +219,9 @@ contract ProposalValidator is Ownable {
             _setProposalRequiredApprovals(_proposalTypes[i], _requiredApprovals[i]);
             _proposalTypeData[_proposalTypes[i]] = _immutableProposalTypeDatas[i];
         }
+
+        __Ownable_init();
+        transferOwnership(_owner);
     }
 
     /// @notice Submit a proposal for delegate approval

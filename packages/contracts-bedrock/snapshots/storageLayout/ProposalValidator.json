@@ -1,51 +1,79 @@
 [
   {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256[50]"
+  },
+  {
     "bytes": "20",
     "label": "_owner",
     "offset": 0,
-    "slot": "0",
+    "slot": "51",
     "type": "address"
+  },
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "52",
+    "type": "uint256[49]"
   },
   {
     "bytes": "32",
     "label": "minimumVotingPower",
     "offset": 0,
-    "slot": "1",
+    "slot": "101",
     "type": "uint256"
   },
   {
     "bytes": "32",
     "label": "votingCycleBlock",
     "offset": 0,
-    "slot": "2",
+    "slot": "102",
     "type": "uint256"
   },
   {
     "bytes": "32",
     "label": "distributionThreshold",
     "offset": 0,
-    "slot": "3",
+    "slot": "103",
     "type": "uint256"
   },
   {
     "bytes": "32",
     "label": "_proposalRequiredApprovals",
     "offset": 0,
-    "slot": "4",
+    "slot": "104",
     "type": "mapping(enum ProposalValidator.ProposalType => uint256)"
   },
   {
     "bytes": "32",
     "label": "_proposalTypeData",
     "offset": 0,
-    "slot": "5",
+    "slot": "105",
     "type": "mapping(enum ProposalValidator.ProposalType => struct ProposalValidator.ImmutableProposalTypeData)"
   },
   {
     "bytes": "32",
     "label": "_proposals",
     "offset": 0,
-    "slot": "6",
+    "slot": "106",
     "type": "mapping(bytes32 => struct ProposalValidator.ProposalData)"
   }
 ]
