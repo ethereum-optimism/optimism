@@ -58,19 +58,16 @@ type taskExecutor interface {
 	) (blockHash common.Hash, outputRoot eth.Bytes32, err error)
 }
 
-func RunInteropProgram(logger log.Logger, bootInfo *boot.BootInfoInterop, l1PreimageOracle l1.Oracle, l2PreimageOracle l2.Oracle, validateClaim bool) error {
-	return runInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, validateClaim, &interopTaskExecutor{})
+func RunInteropProgram(logger log.Logger, bootInfo *boot.BootInfoInterop, l1PreimageOracle l1.Oracle, l2PreimageOracle l2.Oracle) error {
+	return runInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, &interopTaskExecutor{})
 }
 
-func runInteropProgram(logger log.Logger, bootInfo *boot.BootInfoInterop, l1PreimageOracle l1.Oracle, l2PreimageOracle l2.Oracle, validateClaim bool, tasks taskExecutor) error {
+func runInteropProgram(logger log.Logger, bootInfo *boot.BootInfoInterop, l1PreimageOracle l1.Oracle, l2PreimageOracle l2.Oracle, tasks taskExecutor) error {
 	logger.Info("Interop Program Bootstrapped", "bootInfo", bootInfo)
 
 	expected, err := stateTransition(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, tasks)
 	if err != nil {
 		return err
-	}
-	if !validateClaim {
-		return nil
 	}
 	return claim.ValidateClaim(logger, eth.Bytes32(bootInfo.Claim), eth.Bytes32(expected))
 }

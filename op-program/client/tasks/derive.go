@@ -34,9 +34,6 @@ type DerivationOptions struct {
 	// StoreBlockData controls whether block data, including intermediate trie nodes from transactions and receipts
 	// of the derived block should be stored in the l2.KeyValueStore.
 	StoreBlockData bool
-
-	// SkipValidation controls whether the claim is validated after the block is derived.
-	SkipValidation bool
 }
 
 // RunDerivation executes the L2 state transition, given a minimal interface to retrieve data.

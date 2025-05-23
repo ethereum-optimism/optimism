@@ -26,7 +26,6 @@ type Prefetcher interface {
 type PrefetcherCreator func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (Prefetcher, error)
 type programCfg struct {
 	prefetcher       PrefetcherCreator
-	skipValidation   bool
 	db               l2.KeyValueStore
 	storeBlockData   bool
 	forceHintChainID bool
@@ -38,13 +37,6 @@ type ProgramOpt func(c *programCfg)
 func WithPrefetcher(creator PrefetcherCreator) ProgramOpt {
 	return func(c *programCfg) {
 		c.prefetcher = creator
-	}
-}
-
-// WithSkipValidation controls whether the program will skip validation of the derived block.
-func WithSkipValidation(skip bool) ProgramOpt {
-	return func(c *programCfg) {
-		c.skipValidation = skip
 	}
 }
 
@@ -113,9 +105,6 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 		return nil
 	} else {
 		var clientCfg cl.Config
-		if programConfig.skipValidation {
-			clientCfg.SkipValidation = true
-		}
 		clientCfg.InteropEnabled = cfg.InteropEnabled
 		clientCfg.DB = programConfig.db
 		clientCfg.StoreBlockData = programConfig.storeBlockData

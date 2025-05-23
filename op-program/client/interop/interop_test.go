@@ -757,7 +757,7 @@ func verifyResult(t *testing.T, logger log.Logger, tasks *stubTasks, configSourc
 			InfoTime: rollupCfg.Genesis.L2Time,
 		}
 	}
-	err := runInteropProgram(logger, bootInfo, l1Oracle, l2PreimageOracle, true, tasks)
+	err := runInteropProgram(logger, bootInfo, l1Oracle, l2PreimageOracle, tasks)
 	require.NoError(t, err)
 }
 
