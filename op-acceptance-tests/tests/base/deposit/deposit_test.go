@@ -1,4 +1,4 @@
-package base
+package deposit
 
 import (
 	"math/big"
@@ -14,6 +14,10 @@ import (
 	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/lmittmann/w3"
 )
+
+func TestMain(m *testing.M) {
+	presets.DoMain(m, presets.WithMinimal())
+}
 
 func TestL1ToL2Deposit(gt *testing.T) {
 	// Create a test environment using op-devstack
