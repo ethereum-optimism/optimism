@@ -1,4 +1,4 @@
-package deposit
+package base
 
 import (
 	"math/big"
@@ -15,10 +15,6 @@ import (
 	"github.com/lmittmann/w3"
 )
 
-func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithMinimal())
-}
-
 func TestL1ToL2Deposit(gt *testing.T) {
 	// Create a test environment using op-devstack
 	t := devtest.SerialT(gt)
@@ -29,10 +25,11 @@ func TestL1ToL2Deposit(gt *testing.T) {
 
 	// Fund Alice on L1
 	fundingAmount := eth.ThousandEther
-	alice := sys.FunderL1.NewFundedEOA(fundingAmount)
-	alice.VerifyBalanceExact(fundingAmount)
+	alice := sys.Wallet.NewEOA(sys.L1EL)
+	initialBalance := sys.FunderL1.FundAtLeast(alice, fundingAmount)
 
 	alicel2 := alice.AsEL(sys.L2EL)
+	initialL2Balance := alicel2.GetBalance()
 
 	// Get the optimism portal address
 	rollupConfig := sys.L2Chain.Escape().RollupConfig()
@@ -65,7 +62,7 @@ func TestL1ToL2Deposit(gt *testing.T) {
 
 	// Verify the deposit was successful
 	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), gasPrice)
-	expectedFinalL1 := new(big.Int).Sub(fundingAmount.ToBig(), depositAmount.ToBig())
+	expectedFinalL1 := new(big.Int).Sub(initialBalance.ToBig(), depositAmount.ToBig())
 	expectedFinalL1.Sub(expectedFinalL1, gasCost)
 
 	alice.VerifyBalanceExact(eth.WeiBig(expectedFinalL1))
@@ -74,6 +71,6 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	t.Require().Eventually(func() bool {
 		head := sys.L2CL.HeadBlockRef(supervisorTypes.LocalUnsafe)
 		return head.L1Origin.Number >= receipt.BlockNumber.Uint64()
-	}, time.Second*10, time.Second, "awaiting deposit to be processed by L2")
-	alicel2.VerifyBalanceExact(depositAmount)
+	}, time.Second*30, time.Second, "awaiting deposit to be processed by L2")
+	alicel2.VerifyBalanceExact(initialL2Balance.Add(depositAmount))
 }

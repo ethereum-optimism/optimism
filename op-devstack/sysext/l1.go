@@ -26,6 +26,12 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 
 	for idx, node := range env.Env.L1.Nodes {
 		elService, ok := node.Services[ELServiceName]
+
+		// TODO: This is a hack to force direct connection to the L1 node.
+		// We should remove this once we have a proper reverse proxy.
+		elService.Endpoints[RPCProtocol].ReverseProxyHeader = map[string][]string{}
+		// TODO: Remove this once we have a proper reverse proxy.
+
 		require.True(ok, "need L1 EL service %d", idx)
 
 		l1.AddL1ELNode(shim.NewL1ELNode(shim.L1ELNodeConfig{
