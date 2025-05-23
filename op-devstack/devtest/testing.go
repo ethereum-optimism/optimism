@@ -8,10 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
@@ -243,7 +246,7 @@ func SerialT(t *testing.T) T {
 	if logLevel == "" {
 		logLevel = "info" // default to info if not set
 	}
-	level, err := log.LevelFromString(logLevel)
+	level, err := oplog.LevelFromString(logLevel)
 	if err != nil {
 		t.Errorf("Invalid log level %q: %v, defaulting to info", logLevel, err)
 		level = log.LevelInfo
