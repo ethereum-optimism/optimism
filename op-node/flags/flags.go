@@ -75,6 +75,12 @@ var (
 		Category: RollupCategory,
 	}
 	/* Optional Flags */
+	DependencySet = &cli.PathFlag{
+		Name:      "dependency-set",
+		Usage:     "Dependency-set configuration, point at JSON file.",
+		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		TakesFile: true,
+	}
 	BeaconHeader = &cli.StringFlag{
 		Name:     "l1.beacon-header",
 		Usage:    "Optional HTTP header to add to all requests to the L1 Beacon endpoint. Format: 'X-Key: Value'",
@@ -458,6 +464,7 @@ var optionalFlags = []cli.Flag{
 	BeaconFallbackAddrs,
 	BeaconCheckIgnore,
 	BeaconFetchAllSidecars,
+	DependencySet,
 	SyncModeFlag,
 	FetchWithdrawalRootFromState,
 	RPCListenAddr,
