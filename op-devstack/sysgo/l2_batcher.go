@@ -57,7 +57,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithChainID(ctx, batcherID.ChainID)
 		ctx = stack.ContextWithKind(ctx, stack.L2BatcherKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "service", "op-batcher", "id", batcherID)
 
 		require := p.Require()
 		require.False(orch.batchers.Has(batcherID), "batcher must not already exist")
@@ -84,7 +84,7 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 		batcherSecret, err := orch.keys.Secret(devkeys.BatcherRole.Key(l2ELID.ChainID.ToBig()))
 		require.NoError(err)
 
-		logger := p.Logger().New("service", "op-batcher", "id", batcherID)
+		logger := p.Logger()
 		logger.SetContext(ctx)
 		logger.Info("Batcher key acquired", "addr", crypto.PubkeyToAddress(batcherSecret.PublicKey))
 

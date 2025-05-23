@@ -59,7 +59,7 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithKind(ctx, stack.FaucetKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "id", "dev-faucet")
 
 		require := p.Require()
 
@@ -106,7 +106,7 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 				Faucets: faucets,
 			},
 		}
-		logger := p.Logger().New("id", "dev-faucet")
+		logger := p.Logger()
 		srv, err := faucet.FromConfig(ctx, cfg, logger)
 		require.NoError(err, "must setup faucet service")
 		require.NoError(srv.Start(ctx))

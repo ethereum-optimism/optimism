@@ -42,7 +42,7 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithChainID(ctx, id.ChainID)
 		ctx = stack.ContextWithKind(ctx, stack.L2ELNodeKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "id", id)
 
 		require := p.Require()
 
@@ -61,7 +61,7 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 			supervisorRPC = sup.userRPC
 		}
 
-		logger := p.Logger().New("id", id)
+		logger := p.Logger()
 
 		l2Geth, err := geth.InitL2(id.String(), l2Net.genesis, jwtPath,
 			func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {

@@ -58,8 +58,8 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithChainID(ctx, l1ELID.ChainID)
-		clP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1CLNodeKind))
-		elP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1ELNodeKind))
+		clP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1CLNodeKind), "id", l1CLID)
+		elP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1ELNodeKind), "id", l1ELID)
 		require := orch.P().Require()
 
 		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID)
@@ -74,7 +74,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 
 		blobPath := clP.TempDir()
 
-		clLogger := clP.Logger().New("id", l1CLID)
+		clLogger := clP.Logger()
 		bcn := fakebeacon.NewBeacon(clLogger, e2eutils.NewBlobStore(), l1Net.genesis.Timestamp, blockTimeL1)
 		clP.Cleanup(func() {
 			_ = bcn.Close()
@@ -83,7 +83,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 		beaconApiAddr := bcn.BeaconAddr()
 		require.NotEmpty(beaconApiAddr, "beacon API listener must be up")
 
-		elLogger := elP.Logger().New("id", l1ELID)
+		elLogger := elP.Logger()
 		l1Geth, fp, err := geth.InitL1(
 			blockTimeL1,
 			l1FinalizedDistance,

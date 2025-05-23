@@ -96,7 +96,7 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithKind(ctx, stack.TestSequencerKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "service", "op-supervisor", "id", supervisorID)
 		require := p.Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
@@ -136,7 +136,7 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 			DatadirSyncEndpoint:   "",
 		}
 
-		plog := p.Logger().New("service", "op-supervisor", "id", supervisorID)
+		plog := p.Logger()
 		supervisorNode := &Supervisor{
 			id:      supervisorID,
 			userRPC: "", // set on start

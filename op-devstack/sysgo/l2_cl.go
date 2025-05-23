@@ -128,7 +128,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithChainID(ctx, l2CLID.ChainID)
 		ctx = stack.ContextWithKind(ctx, stack.L2CLNodeKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "service", "op-node", "id", l2CLID)
 
 		require := p.Require()
 
@@ -146,7 +146,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
-		logger := p.Logger().New("service", "op-node", "id", l2CLID)
+		logger := p.Logger()
 
 		var p2pSignerSetup p2p.SignerSetup
 		var p2pConfig *p2p.Config

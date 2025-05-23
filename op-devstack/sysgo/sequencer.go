@@ -73,10 +73,10 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithKind(ctx, stack.TestSequencerKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "service", "op-test-sequencer", "id", testSequencerID)
 		require := p.Require()
 
-		logger := p.Logger().New("service", "op-test-sequencer", "id", testSequencerID)
+		logger := p.Logger()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")

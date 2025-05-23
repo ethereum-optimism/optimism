@@ -41,7 +41,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithKind(ctx, stack.L2ChallengerKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "service", "op-challenger", "id", challengerID)
 
 		require := p.Require()
 		require.False(orch.challengers.Has(challengerID), "challenger must not already exist")
@@ -49,7 +49,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 		challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(l1ELID.ChainID.ToBig()))
 		require.NoError(err)
 
-		logger := p.Logger().New("service", "op-challenger", "id", challengerID)
+		logger := p.Logger()
 		logger.Info("Challenger key acquired", "addr", crypto.PubkeyToAddress(challengerSecret.PublicKey))
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)

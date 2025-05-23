@@ -47,7 +47,7 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 		ctx := orch.P().Ctx()
 		ctx = stack.ContextWithChainID(ctx, proposerID.ChainID)
 		ctx = stack.ContextWithKind(ctx, stack.L2ProposerKind)
-		p := orch.P().WithCtx(ctx)
+		p := orch.P().WithCtx(ctx, "service", "op-proposer", "id", proposerID)
 
 		require := p.Require()
 		require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
@@ -55,7 +55,7 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 		proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID.ToBig()))
 		require.NoError(err)
 
-		logger := p.Logger().New("service", "op-proposer", "id", proposerID)
+		logger := p.Logger()
 		logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
