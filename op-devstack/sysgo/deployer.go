@@ -10,7 +10,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -320,22 +319,6 @@ func (wb *worldBuilder) Build() {
 
 	intent, err := wb.builder.Build()
 	wb.require.NoError(err)
-
-	var minInteropTimeOffset *hexutil.Uint64
-	for _, ch := range intent.Chains {
-		v, ok := ch.DeployOverrides["l2GenesisInteropTimeOffset"]
-		if !ok {
-			continue
-		}
-		offset, ok := v.(*hexutil.Uint64)
-		if !ok {
-			continue
-		}
-		if minInteropTimeOffset == nil || *offset < *minInteropTimeOffset {
-			minInteropTimeOffset = offset
-		}
-	}
-	wb.logger.Info("Dependency set setting", "interopTime", minInteropTimeOffset)
 
 	pipelineOpts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:   deployer.DeploymentTargetGenesis,
