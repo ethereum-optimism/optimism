@@ -246,7 +246,7 @@ func SerialT(t *testing.T) T {
 	level, err := log.LevelFromString(logLevel)
 	if err != nil {
 		t.Errorf("Invalid log level %q: %v, defaulting to info", logLevel, err)
-		level, _ = log.LevelFromString("info")
+		level = log.LevelInfo
 	}
 	logger := NewLogger(ctx, t, level).WithContext(ctx)
 
