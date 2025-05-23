@@ -95,11 +95,11 @@ where
         tx: Recovered<OpTransactionSigned>,
         tx_info: TransactionInfo,
     ) -> Result<Self::Transaction, Self::Error> {
-        let mut tx = tx.convert::<OpTxEnvelope>();
+        let tx = tx.convert::<OpTxEnvelope>();
         let mut deposit_receipt_version = None;
         let mut deposit_nonce = None;
 
-        if let OpTxEnvelope::Deposit(tx) = tx.inner_mut() {
+        if tx.is_deposit() {
             // for depost tx we need to fetch the receipt
             self.inner
                 .eth_api
@@ -112,8 +112,6 @@ where
                         deposit_nonce = receipt.deposit_nonce;
                     }
                 });
-
-            tx.inner_mut().mint = tx.mint;
         }
 
         let TransactionInfo {
