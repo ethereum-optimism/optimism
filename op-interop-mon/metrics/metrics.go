@@ -17,6 +17,7 @@ type Metricer interface {
 	RecordUp()
 	RecordInitiatingMessageStats(chainID string, blockHeight uint64, status string, value float64)
 	RecordExecutingMessageStats(chainID string, blockHeight uint64, blockHash string, status string, value float64)
+	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -89,6 +90,14 @@ func NewMetrics(procName string) *Metrics {
 			"block_height",
 			"status",
 		}),
+		terminalStatusChanges: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "terminal_status_changes",
+			Help:      "Number of terminal status changes",
+		}, []string{
+			"executing_chain_id",
+			"initiating_chain_id",
+		}),
 	}
 }
 
@@ -138,31 +147,14 @@ func (m *Metrics) RecordInitiatingMessageStats(
 	).Set(value)
 }
 
-//// RecordTerminalStatusChange records a terminal status change with detailed logging
-//func (m *Metrics) RecordTerminalStatusChange(
-//executingChainID string,
-//initiatingChainID string,
-//executingBlockHeight uint64,
-//initiatingBlockHeight uint64,
-//executingBlockHash string,
-//initiatingBlockHash string,
-//oldStatus string,
-//newStatus string,
-//logger log.Logger,
-//) {
-//m.terminalStatusChanges.WithLabelValues(
-//executingChainID,
-//initiatingChainID,
-//).Inc()
-
-//logger.Warn("Terminal status change detected",
-//"executing_chain_id", executingChainID,
-//"initiating_chain_id", initiatingChainID,
-//"executing_block_height", executingBlockHeight,
-//"initiating_block_height", initiatingBlockHeight,
-//"executing_block_hash", executingBlockHash,
-//"initiating_block_hash", initiatingBlockHash,
-//"old_status", oldStatus,
-//"new_status", newStatus,
-//)
-//}
+// RecordTerminalStatusChange records a terminal status change with detailed logging
+func (m *Metrics) RecordTerminalStatusChange(
+	executingChainID string,
+	initiatingChainID string,
+	value float64,
+) {
+	m.terminalStatusChanges.WithLabelValues(
+		executingChainID,
+		initiatingChainID,
+	).Set(value)
+}

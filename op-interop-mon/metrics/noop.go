@@ -17,3 +17,5 @@ func (*noopMetrics) RecordInitiatingMessageStats(chainID string, blockHeight uin
 }
 func (*noopMetrics) RecordExecutingMessageStats(chainID string, blockHeight uint64, blockHash string, status string, value float64) {
 }
+func (*noopMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64) {
+}

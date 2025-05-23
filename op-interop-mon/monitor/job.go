@@ -27,6 +27,17 @@ const (
 	jobStatusMissing
 )
 
+func (j jobStatus) isTerminal() bool {
+	switch j {
+	case jobStatusValid:
+		return true
+	case jobStatusInvalid:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s jobStatus) String() string {
 	switch s {
 	case jobStatusUnknown:
@@ -54,6 +65,7 @@ type Job struct {
 
 	firstSeen     time.Time
 	lastEvaluated time.Time
+	terminalAt    time.Time
 
 	executingTx      common.Hash
 	executingAddress common.Address
@@ -125,6 +137,13 @@ func (j *Job) ID() JobID {
 	return j.id
 }
 
+// States returns the states of the job
+func (j *Job) States() []jobStatus {
+	j.rwLock.RLock()
+	defer j.rwLock.RUnlock()
+	return j.status
+}
+
 // LatestStatus returns the latest status of the job
 func (j *Job) LatestStatus() jobStatus {
 	j.rwLock.RLock()
@@ -135,16 +154,31 @@ func (j *Job) LatestStatus() jobStatus {
 	return j.status[len(j.status)-1]
 }
 
+// TerminalAt returns the time the job last transitioned to a terminal state
+func (j *Job) TerminalAt() time.Time {
+	j.rwLock.RLock()
+	defer j.rwLock.RUnlock()
+	return j.terminalAt
+}
+
 // UpdateStatus updates the status of the job
 func (j *Job) UpdateStatus(status jobStatus) {
 	j.rwLock.Lock()
 	defer j.rwLock.Unlock()
+	// if the job has no status, add the status
 	if len(j.status) == 0 {
 		j.status = append(j.status, status)
+		if status.isTerminal() {
+			j.terminalAt = time.Now()
+		}
 		return
 	}
+	// if the job status has changed, add the new status
 	if j.status[len(j.status)-1] != status {
 		j.status = append(j.status, status)
+		if status.isTerminal() {
+			j.terminalAt = time.Now()
+		}
 		return
 	}
 }

@@ -37,21 +37,27 @@ type RPCUpdater struct {
 	client  UpdaterClient
 	chainID eth.ChainID
 
-	inbox    chan *Job
-	callback func(*Job)
-	closed   chan struct{}
+	// the duration after the terminal state is set that the job is considered expired
+	expireTime time.Duration
+
+	inbox           chan *Job
+	enqueueCallback func(*Job)
+	expireCallback  func(*Job)
+	closed          chan struct{}
 
 	log log.Logger
 }
 
-func NewUpdater(chainID eth.ChainID, client UpdaterClient, callback func(*Job), log log.Logger) *RPCUpdater {
+func NewUpdater(chainID eth.ChainID, client UpdaterClient, enqueueCallback func(*Job), expireCallback func(*Job), log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
-		chainID:  chainID,
-		client:   client,
-		log:      log.New("component", "rpc_updater", "chain_id", chainID),
-		inbox:    make(chan *Job, 1000),
-		callback: callback,
-		closed:   make(chan struct{}),
+		chainID:         chainID,
+		client:          client,
+		log:             log.New("component", "rpc_updater", "chain_id", chainID),
+		inbox:           make(chan *Job, 10_000),
+		enqueueCallback: enqueueCallback,
+		expireCallback:  expireCallback,
+		closed:          make(chan struct{}),
+		expireTime:      1 * time.Minute,
 	}
 }
 
@@ -75,9 +81,21 @@ func (t *RPCUpdater) Run(ctx context.Context) {
 				t.log.Error("error updating job", "error", err)
 				continue
 			}
-			t.callback(job)
+			if t.ShouldExpire(job) {
+				t.log.Info("job expired", "job", job.String())
+				t.expireCallback(job)
+				continue
+			}
+			t.enqueueCallback(job)
 		}
 	}
+}
+
+func (t *RPCUpdater) ShouldExpire(job *Job) bool {
+	if terminal := job.TerminalAt(); terminal != (time.Time{}) {
+		return time.Since(terminal) > t.expireTime
+	}
+	return time.Since(job.lastEvaluated) > t.expireTime
 }
 
 func (t *RPCUpdater) UpdateJob(job *Job) error {
@@ -99,7 +117,7 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 		job.UpdateStatus(jobStatusUnknown)
 		return
 	}
-	log, err := t.findLogEvent(receipts, *job)
+	log, err := t.findLogEvent(receipts, job)
 	if err == ErrLogNotFound {
 		t.log.Error("log not found", "error", err)
 		job.UpdateStatus(jobStatusInvalid)
@@ -119,7 +137,7 @@ func (t *RPCUpdater) UpdateJobStatus(job *Job) {
 	job.UpdateStatus(jobStatusValid)
 }
 
-func (t *RPCUpdater) findLogEvent(receipts []*types.Receipt, job Job) (*types.Log, error) {
+func (t *RPCUpdater) findLogEvent(receipts []*types.Receipt, job *Job) (*types.Log, error) {
 	for _, receipt := range receipts {
 		for _, log := range receipt.Logs {
 			if log.Index == uint(job.initiating.LogIndex) {

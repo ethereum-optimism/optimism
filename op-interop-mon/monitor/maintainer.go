@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -40,7 +39,12 @@ type Maintainer struct {
 
 func NewMaintainer(log log.Logger, m metrics.Metricer) *Maintainer {
 	return &Maintainer{
-		newInbox:    make(chan *Job, 10_000),
+		// For ample buffer, we estimate 100k new jobs per second
+		// 10k maximum Executing Messages per Block
+		// 1 Block per second
+		// 10 Chains
+		newInbox: make(chan *Job, 100_000),
+		// The update inbox has a lower limit so that updaters experience backpressure
 		updateInbox: make(chan *Job, 10_000),
 		jobMap:      make(map[JobID]*Job),
 		jobMapMu:    sync.RWMutex{},
@@ -93,6 +97,15 @@ func (m *Maintainer) EnqueueUpdate(c *Job) {
 	m.updateInbox <- c
 }
 
+func (m *Maintainer) ExpireJob(c *Job) {
+	if m.Stopped() {
+		return
+	}
+	m.jobMapMu.Lock()
+	defer m.jobMapMu.Unlock()
+	delete(m.jobMap, c.ID())
+}
+
 func (m *Maintainer) Stopped() bool {
 	select {
 	case <-m.closed:
@@ -111,7 +124,6 @@ func (m *Maintainer) Run() {
 		select {
 		case <-m.closed:
 			return
-
 		case c := <-m.newInbox:
 			m.log.Trace("received new job", "job", c)
 			m.ProcessJob(c)
@@ -135,70 +147,10 @@ func (m *Maintainer) ProcessJob(c *Job) {
 		m.log.Error("updater not found", "chainID", refChainID)
 		return
 	}
+	// TODO: these channel waits can cause a deadlock if the updateInbox is full and we
+	// are adding new jobs to the updaters. Need a way to offload excess jobs to a buffer,
+	// BUT it's not clear how much work this service is likely to be doing in reality.
 	updater.Enqueue(c)
-}
-
-// ConsolidateMetrics scans the jobMap and updates the metrics
-func (m *Maintainer) ConsolidateMetrics() {
-	m.jobMapMu.RLock()
-	defer m.jobMapMu.RUnlock()
-	// message metrics are dimensioned by:
-	// - initiating chain id
-	// - block number
-	// - block hash (only for executing messages)
-	// - status
-	executingMessages := map[eth.ChainID]map[uint64]map[common.Hash]map[string]int{}
-	initiatingMessages := map[eth.ChainID]map[uint64]map[string]int{}
-	for _, job := range m.jobMap {
-		status := job.LatestStatus().String()
-		// Lazy increment the executing message metrics
-		if executingMessages[job.executingChain] == nil {
-			executingMessages[job.executingChain] = make(map[uint64]map[common.Hash]map[string]int)
-		}
-		if executingMessages[job.executingChain][job.executingBlock.Number] == nil {
-			executingMessages[job.executingChain][job.executingBlock.Number] = make(map[common.Hash]map[string]int)
-		}
-		if executingMessages[job.executingChain][job.executingBlock.Number][job.executingBlock.Hash] == nil {
-			executingMessages[job.executingChain][job.executingBlock.Number][job.executingBlock.Hash] = make(map[string]int)
-		}
-		if _, ok := executingMessages[job.executingChain][job.executingBlock.Number][job.executingBlock.Hash][status]; !ok {
-			executingMessages[job.executingChain][job.executingBlock.Number][job.executingBlock.Hash][status] = 0
-		}
-		executingMessages[job.executingChain][job.executingBlock.Number][job.executingBlock.Hash][status]++
-
-		// Lazy increment the initiating message metrics
-		if initiatingMessages[job.initiating.ChainID] == nil {
-			initiatingMessages[job.initiating.ChainID] = make(map[uint64]map[string]int)
-		}
-		if initiatingMessages[job.initiating.ChainID][job.initiating.BlockNumber] == nil {
-			initiatingMessages[job.initiating.ChainID][job.initiating.BlockNumber] = make(map[string]int)
-		}
-		if _, ok := initiatingMessages[job.initiating.ChainID][job.initiating.BlockNumber][status]; !ok {
-			initiatingMessages[job.initiating.ChainID][job.initiating.BlockNumber][status] = 0
-		}
-		initiatingMessages[job.initiating.ChainID][job.initiating.BlockNumber][status]++
-	}
-	// now we have the metrics consolidated, we can update the metrics
-	// executing messages
-	for chainID, blockNumberMap := range executingMessages {
-		for blockNumber, blockHashMap := range blockNumberMap {
-			for blockHash, statusMap := range blockHashMap {
-				for status, count := range statusMap {
-					m.log.Info("updating executing message stats", "chainID", chainID, "blockNumber", blockNumber, "blockHash", blockHash, "status", status, "count", count)
-					m.m.RecordExecutingMessageStats(chainID.String(), blockNumber, blockHash.String(), status, float64(count))
-				}
-			}
-		}
-	}
-	// initiating messages
-	for chainID, blockNumberMap := range initiatingMessages {
-		for blockNumber, statusMap := range blockNumberMap {
-			for status, count := range statusMap {
-				m.log.Info("updating initiating message stats", "chainID", chainID, "blockNumber", blockNumber, "status", status, "count", count)
-				m.m.RecordInitiatingMessageStats(chainID.String(), blockNumber, status, float64(count))
-			}
-		}
-	}
 }
 
 // TODO: add mait group to make Stop return sync

@@ -36,13 +36,14 @@ type RPCFinder struct {
 	client  FinderClient
 	chainID eth.ChainID
 
-	sub      ethereum.Subscription
-	subErr   <-chan error
-	inbox    chan *types.Header
-	toJobs   JobFilter
-	callback func(*Job)
-	closed   chan struct{}
-	log      log.Logger
+	sub         ethereum.Subscription
+	subErr      <-chan error
+	inbox       chan *types.Header
+	lastHandled eth.BlockID
+	toJobs      JobFilter
+	callback    func(*Job)
+	closed      chan struct{}
+	log         log.Logger
 }
 
 func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
@@ -126,11 +127,27 @@ func (t *RPCFinder) Run(ctx context.Context) {
 
 // ProcessBlock retrieves a block of receipts, converts them to jobs, and returns the jobs to be tracked
 func (t *RPCFinder) ProcessBlock(ctx context.Context, header *types.Header) (cases []*Job, err error) {
+	// check and warn if the parent hash is not the last seen block
+	// TODO: initiate a backfilling routine if there is a gap
+	if t.lastHandled != (eth.BlockID{}) {
+		if header.Hash().Cmp(t.lastHandled.Hash) == 0 {
+			t.log.Trace("already processed block", "hash", header.Hash())
+			return nil, nil
+		}
+		if t.lastHandled.Number+1 != header.Number.Uint64() {
+			t.log.Info("job finder experience block discontinuity", "expectedHeight", t.lastHandled.Number+1, "actualHeight", header.Number)
+		} else if header.ParentHash.Cmp(t.lastHandled.Hash) != 0 {
+			t.log.Info("job finder experience parent hash discontinuity", "expectedHash", t.lastHandled.Hash, "actualHash", header.ParentHash)
+			return nil, nil
+		}
+	}
 	receipts, err := t.GetBlockReceipts(ctx, header.Number)
 	if err != nil {
 		return nil, err
 	}
 	ret := t.toJobs(receipts)
+	t.lastHandled = eth.BlockID{Number: header.Number.Uint64(), Hash: header.Hash()}
+	t.log.Trace("last handled block", "number", t.lastHandled.Number, "hash", t.lastHandled.Hash)
 	return ret, nil
 }
 
