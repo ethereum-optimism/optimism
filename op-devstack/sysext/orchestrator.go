@@ -59,6 +59,7 @@ func (o *Orchestrator) P() devtest.P {
 }
 
 func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
+	o.sysHook.PreHydrate(sys)
 	o.hydrateL1(sys)
 	o.hydrateSuperchain(sys)
 	o.hydrateClustersMaybe(sys)

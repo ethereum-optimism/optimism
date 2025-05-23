@@ -52,7 +52,7 @@ func TestExampleTxsTracing(gt *testing.T) {
 	ctx, transfer := tracer.Start(ctx, "transferring")
 	transferred := eth.GWei(42)
 	tx := alice.Transfer(bob.Address(), transferred)
-	logger.WithContext(ctx).Info("transferred", "amount", transferred, "gas", tx.Included.Value().GasUsed)
+	logger.InfoContext(ctx, "transferred", "amount", transferred, "gas", tx.Included.Value().GasUsed)
 	require.Equal(params.TxGas, tx.Included.Value().GasUsed, "transfers cost 21k gas")
 	transfer.End()
 

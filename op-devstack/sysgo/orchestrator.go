@@ -84,6 +84,7 @@ func (o *Orchestrator) writeDefaultJWT() (jwtPath string, secret [32]byte) {
 }
 
 func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
+	o.sysHook.PreHydrate(sys)
 	o.superchains.Range(rangeHydrateFn[stack.SuperchainID, *Superchain](sys))
 	o.clusters.Range(rangeHydrateFn[stack.ClusterID, *Cluster](sys))
 	o.l1Nets.Range(rangeHydrateFn[eth.ChainID, *L1Network](sys))

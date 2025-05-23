@@ -15,7 +15,7 @@ type rpcL2Challenger struct {
 var _ stack.L2Challenger = (*rpcL2Challenger)(nil)
 
 func NewL2Challenger(cfg L2ChallengerConfig) stack.L2Challenger {
-	cfg.Log = cfg.Log.New("id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithKind(cfg.T.Ctx(), stack.L2ChallengerKind), "id", cfg.ID)
 	return &rpcL2Challenger{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,

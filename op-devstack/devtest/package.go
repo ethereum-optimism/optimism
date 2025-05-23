@@ -17,6 +17,12 @@ import (
 type P interface {
 	CommonT
 
+	// WithCtx makes a copy of P with a specific context.
+	// The ctx must match the test-scope of the existing context.
+	// This function is used to create a P with annotated context, e.g. a specific resource.
+	// The logger may be annotated with additional arguments.
+	WithCtx(ctx context.Context, args ...any) P
+
 	// TempDir creates a temporary directory, and returns the file-path.
 	// This directory is cleaned up at the end of the package,
 	// and can be shared safely between tests that run in that package scope.
@@ -42,7 +48,7 @@ type implP struct {
 	scopeName string
 
 	// logger is used for logging. Regular test errors will also be redirected to get logged here.
-	logger Logger
+	logger log.Logger
 
 	// fail will be called to register a critical failure.
 	// The implementer can choose to panic, crit-log, exit, etc. as preferred.
@@ -103,7 +109,7 @@ func (t *implP) Name() string {
 	return t.scopeName
 }
 
-func (t *implP) Logger() Logger {
+func (t *implP) Logger() log.Logger {
 	return t.logger
 }
 
@@ -113,6 +119,34 @@ func (t *implP) Tracer() trace.Tracer {
 
 func (t *implP) Ctx() context.Context {
 	return t.ctx
+}
+
+type wrapP struct {
+	ctx    context.Context
+	logger log.Logger
+	req    *require.Assertions
+	P
+}
+
+var _ P = (*wrapP)(nil)
+
+func (p *wrapP) Ctx() context.Context {
+	return p.ctx
+}
+
+func (p *wrapP) Logger() log.Logger {
+	return p.logger
+}
+
+func (t *implP) WithCtx(ctx context.Context, args ...any) P {
+	expected := TestScope(t.ctx)
+	got := TestScope(ctx)
+	t.req.Equal(expected, got, "cannot replace context with different test-scope")
+	logger := t.logger.New(args...)
+	logger.SetContext(ctx)
+	out := &wrapP{ctx: ctx, logger: logger, P: t}
+	out.req = require.New(out)
+	return out
 }
 
 func (t *implP) Require() *require.Assertions {
@@ -166,9 +200,9 @@ func NewP(ctx context.Context, logger log.Logger, onFail func()) P {
 	ctx, cancel := context.WithCancel(ctx)
 	out := &implP{
 		scopeName: "pkg",
-		logger:    &pkgLogger{logger},
+		logger:    logger,
 		fail:      onFail,
-		ctx:       ctx,
+		ctx:       AddTestScope(ctx, "pkg"),
 		cancel:    cancel,
 	}
 	out.req = require.New(out)

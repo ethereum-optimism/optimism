@@ -12,19 +12,16 @@ import (
 
 // CommonConfig provides common inputs for creating a new component
 type CommonConfig struct {
-	// Log is the logger to use, annotated with metadata.
-	// Shim constructors generally add default annotations like the component "id" and "chain"
-	Log log.Logger
-	T   devtest.T
+	// T may be annotated using the T.WithCtx function
+	T devtest.T
 }
 
 // NewCommonConfig is a convenience method to build the config common between all components.
-// Note that component constructors will decorate the logger with metadata for internal use,
-// the caller of the component constructor can generally leave the logger as-is.
+// Note that component constructors will decorate the test-scope with contextual metadata,
+// the caller of the component constructor can generally leave the test-context as-is.
 func NewCommonConfig(t devtest.T) CommonConfig {
 	return CommonConfig{
-		Log: t.Logger(),
-		T:   t,
+		T: t,
 	}
 }
 

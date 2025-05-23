@@ -3,6 +3,7 @@ package devtest
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"testing"
@@ -14,7 +15,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/logfilter"
+	"github.com/ethereum-optimism/optimism/op-service/logmods"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
@@ -44,6 +49,12 @@ type T interface {
 	// Ctx returns a context that will be canceled at the end of this (sub) test-scope,
 	// and inherits the context of the parent-test-scope.
 	Ctx() context.Context
+
+	// WithCtx makes a copy of T with a specific context.
+	// The ctx must match the test-scope of the existing context.
+	// This function is used to create a T with annotated context, e.g. a specific resource, rather than a sub-scope.
+	// The logger may be annotated with additional arguments.
+	WithCtx(ctx context.Context, args ...any) T
 
 	// Parallel signals that this test is to be run in parallel with (and only with) other parallel tests.
 	Parallel()
@@ -78,7 +89,7 @@ var _ require.TestingT = T(nil)
 // testingT implements the T interface by wrapping around a regular golang testing.T
 type testingT struct {
 	t      *testing.T
-	logger Logger
+	logger log.Logger
 	tracer trace.Tracer
 	ctx    context.Context
 	req    *require.Assertions
@@ -123,7 +134,7 @@ func (t *testingT) Name() string {
 	return t.t.Name()
 }
 
-func (t *testingT) Logger() Logger {
+func (t *testingT) Logger() log.Logger {
 	return t.logger
 }
 
@@ -135,6 +146,23 @@ func (t *testingT) Ctx() context.Context {
 	return t.ctx
 }
 
+func (t *testingT) WithCtx(ctx context.Context, args ...any) T {
+	expected := TestScope(t.ctx)
+	got := TestScope(ctx)
+	t.req.Equal(expected, got, "cannot replace context with different test-scope")
+	logger := t.logger.New(args...)
+	logger.SetContext(ctx)
+	out := &testingT{
+		t:      t.t,
+		logger: logger,
+		tracer: t.tracer,
+		ctx:    ctx,
+	}
+	out.req = require.New(out)
+	out.gate = require.New(&gateAdapter{out})
+	return out
+}
+
 func (t *testingT) Require() *require.Assertions {
 	return t.req
 }
@@ -142,7 +170,9 @@ func (t *testingT) Require() *require.Assertions {
 func (t *testingT) Run(name string, fn func(T)) {
 	baseName := t.Name()
 	t.t.Run(name, func(subGoT *testing.T) {
-		ctx, cancel := context.WithCancel(t.ctx)
+		ctx := AddTestScope(t.ctx, name)
+
+		ctx, cancel := context.WithCancel(ctx)
 		subGoT.Cleanup(cancel)
 
 		tracer := otel.Tracer(baseName + "::" + name)
@@ -150,14 +180,8 @@ func (t *testingT) Run(name string, fn func(T)) {
 		subGoT.Cleanup(func() {
 			span.End()
 		})
-		// we know the underlying implementation, but it's pretty ugly.
-		level := t.logger.(*logger).level
-		logger := &logger{
-			Logger: t.logger.New("subtest", name),
-			level:  level,
-			t:      t,
-			ctx:    ctx,
-		}
+		logger := t.logger.New("subtest", name)
+		logger.SetContext(ctx) // attach the sub-test context as default log-context
 
 		subT := &testingT{
 			t:      subGoT,
@@ -226,14 +250,30 @@ func (t *testingT) _TestOnly() {
 
 var _ T = (*testingT)(nil)
 
+// DefaultTestLogLevel is set to the TEST_LOG_LEVEL env var value, and defaults to info-level if not set.
+var DefaultTestLogLevel = func() slog.Level {
+	logLevel := os.Getenv("TEST_LOG_LEVEL")
+	if logLevel == "" {
+		return log.LevelInfo
+	}
+	level, err := oplog.LevelFromString(logLevel)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "invalid TEST_LOG_LEVEL env var: %v\n", err)
+		return log.LevelInfo
+	}
+	return level
+}()
+
 // SerialT wraps around a test-logger and turns it into a T for devstack testing.
 func SerialT(t *testing.T) T {
-	var ctx context.Context
+	ctx := RootContext
+	ctx = AddTestScope(ctx, t.Name())
+
 	var cancel context.CancelFunc
 	if deadline, hasDeadline := t.Deadline(); hasDeadline {
-		ctx, cancel = context.WithDeadline(RootContext, deadline.Add(-3*time.Second))
+		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
 	} else {
-		ctx, cancel = context.WithCancel(RootContext)
+		ctx, cancel = context.WithCancel(ctx)
 	}
 	t.Cleanup(cancel)
 
@@ -242,16 +282,16 @@ func SerialT(t *testing.T) T {
 	t.Cleanup(func() {
 		span.End()
 	})
-	logLevel := os.Getenv("TEST_LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "info" // default to info if not set
+
+	// Set the lowest default log-level, so the log-filters on top can apply correctly
+	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
+		telemetry.WrapHandler, logfilter.WrapFilterHandler)
+	h, ok := logmods.FindHandler[logfilter.Handler](logger.Handler())
+	if ok {
+		// Apply default log level. This may be overridden later.
+		h.Set(logfilter.Minimum(DefaultTestLogLevel))
 	}
-	level, err := oplog.LevelFromString(logLevel)
-	if err != nil {
-		t.Errorf("Invalid log level %q: %v, defaulting to info", logLevel, err)
-		level = log.LevelInfo
-	}
-	logger := NewLogger(ctx, t, level).WithContext(ctx)
+	logger.SetContext(ctx) // Set the default context; any log call without context will use this
 
 	out := &testingT{
 		t:      t,

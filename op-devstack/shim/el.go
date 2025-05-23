@@ -28,7 +28,7 @@ var _ stack.ELNode = (*rpcELNode)(nil)
 
 // newRpcELNode creates a generic ELNode, safe to embed in other structs
 func newRpcELNode(cfg ELNodeConfig) rpcELNode {
-	ethCl, err := sources.NewEthClient(cfg.Client, cfg.Log, nil, sources.DefaultEthClientConfig(10))
+	ethCl, err := sources.NewEthClient(cfg.Client, cfg.T.Logger(), nil, sources.DefaultEthClientConfig(10))
 	require.NoError(cfg.T, err)
 
 	return rpcELNode{
