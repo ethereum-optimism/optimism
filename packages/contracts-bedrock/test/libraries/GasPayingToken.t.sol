@@ -13,16 +13,57 @@ contract GasPayingToken_Harness {
     }
 }
 
-/// @title GasPayingToken_Roundtrip_Test
-/// @notice Tests the roundtrip of setting and getting the gas paying token.
-contract GasPayingToken_Roundtrip_Test is Test {
+/// @title GasPayingToken_TestInit
+/// @notice Reusable test initialization for `GasPayingToken` tests.
+contract GasPayingToken_TestInit is Test {
     GasPayingToken_Harness harness;
 
     function setUp() public {
         harness = new GasPayingToken_Harness();
     }
+}
 
-    /// @dev Test that the gas paying token correctly sets values in storage.
+/// @title GasPayingToken_GetToken_Test
+/// @notice Tests the `getToken` function of the `GasPayingToken` library.
+contract GasPayingToken_GetToken_Test is GasPayingToken_TestInit {
+    /// @notice Test that the gas paying token returns values associated with Ether when unset.
+    function test_getToken_empty_succeeds() external view {
+        (address token, uint8 decimals) = GasPayingToken.getToken();
+        assertEq(Constants.ETHER, token);
+        assertEq(18, decimals);
+
+        assertEq("Ether", GasPayingToken.getName());
+
+        assertEq("ETH", GasPayingToken.getSymbol());
+    }
+
+    /// @notice Test that the gas paying token correctly gets values from storage when set.
+    function testFuzz_getToken_nonEmpty_succeeds(
+        address _token,
+        uint8 _decimals,
+        bytes32 _name,
+        bytes32 _symbol
+    )
+        external
+    {
+        vm.assume(_token != address(0));
+        vm.assume(_token != Constants.ETHER);
+
+        GasPayingToken.set(_token, _decimals, _name, _symbol);
+
+        (address token, uint8 decimals) = GasPayingToken.getToken();
+        assertEq(_token, token);
+        assertEq(_decimals, decimals);
+
+        assertEq(LibString.fromSmallString(_name), GasPayingToken.getName());
+        assertEq(LibString.fromSmallString(_symbol), GasPayingToken.getSymbol());
+    }
+}
+
+/// @title GasPayingToken_Set_Test
+/// @notice Tests the `set` function of the `GasPayingToken` library.
+contract GasPayingToken_Set_Test is GasPayingToken_TestInit {
+    /// @notice Test that the gas paying token correctly sets values in storage.
     function testFuzz_set_succeeds(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         GasPayingToken.set(_token, _decimals, _name, _symbol);
 
@@ -38,34 +79,49 @@ contract GasPayingToken_Roundtrip_Test is Test {
         // Check the token symbol
         assertEq(_symbol, vm.load(address(this), GasPayingToken.GAS_PAYING_TOKEN_SYMBOL_SLOT));
     }
+}
 
-    /// @dev Test that the gas paying token returns values associated with Ether when unset.
-    function test_get_empty_succeeds() external view {
-        (address token, uint8 decimals) = GasPayingToken.getToken();
-        assertEq(Constants.ETHER, token);
-        assertEq(18, decimals);
+/// @title GasPayingToken_Sanitize_Test
+/// @notice Tests the `sanitize` function of the `GasPayingToken` library.
+contract GasPayingToken_Sanitize_Test is GasPayingToken_TestInit {
+    /// @notice Differentially test `sanitize`.
+    function testDiff_sanitize_succeeds(string memory _str) external pure {
+        vm.assume(bytes(_str).length <= 32);
+        vm.assume(bytes(_str).length > 0);
 
-        assertEq("Ether", GasPayingToken.getName());
+        bytes32 output;
+        uint256 len = bytes(_str).length;
 
-        assertEq("ETH", GasPayingToken.getSymbol());
+        assembly {
+            output := mload(add(_str, 0x20))
+        }
+
+        output = (output >> 32 - len) << 32 - len;
+
+        assertEq(output, GasPayingToken.sanitize(_str));
     }
 
-    /// @dev Test that the gas paying token correctly gets values from storage when set.
-    function testFuzz_get_nonEmpty_succeeds(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
-        vm.assume(_token != address(0));
-        vm.assume(_token != Constants.ETHER);
+    /// @notice Test that `sanitize` fails when the input string is too long.
+    function test_sanitize_stringTooLong_fails(string memory _str) external {
+        vm.assume(bytes(_str).length > 32);
 
-        GasPayingToken.set(_token, _decimals, _name, _symbol);
+        vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
 
-        (address token, uint8 decimals) = GasPayingToken.getToken();
-        assertEq(_token, token);
-        assertEq(_decimals, decimals);
-
-        assertEq(LibString.fromSmallString(_name), GasPayingToken.getName());
-        assertEq(LibString.fromSmallString(_symbol), GasPayingToken.getSymbol());
+        harness.exposed_sanitize(_str);
     }
 
-    /// @dev Test that the gas paying token correctly sets values in storage when input name and symbol are strings.
+    /// @notice Test that `sanitize` works as expected when the input string is empty.
+    function test_sanitize_empty_succeeds() external pure {
+        assertEq(GasPayingToken.sanitize(""), "");
+    }
+}
+
+/// @title GasPayingToken_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `GasPayingToken`
+///         library or are testing multiple functions at once.
+contract GasPayingToken_Unclassified_Test is GasPayingToken_TestInit {
+    /// @notice Test that the gas paying token correctly sets values in storage when input name
+    ///         and symbol are strings.
     function testFuzz_setGetWithSanitize_succeeds(
         address _token,
         uint8 _decimals,
@@ -91,36 +147,5 @@ contract GasPayingToken_Roundtrip_Test is Test {
 
         assertEq(_name, GasPayingToken.getName());
         assertEq(_symbol, GasPayingToken.getSymbol());
-    }
-
-    /// @dev Differentially test `sanitize`.
-    function testDiff_sanitize_succeeds(string memory _str) external pure {
-        vm.assume(bytes(_str).length <= 32);
-        vm.assume(bytes(_str).length > 0);
-
-        bytes32 output;
-        uint256 len = bytes(_str).length;
-
-        assembly {
-            output := mload(add(_str, 0x20))
-        }
-
-        output = (output >> 32 - len) << 32 - len;
-
-        assertEq(output, GasPayingToken.sanitize(_str));
-    }
-
-    /// @dev Test that `sanitize` fails when the input string is too long.
-    function test_sanitize_stringTooLong_fails(string memory _str) external {
-        vm.assume(bytes(_str).length > 32);
-
-        vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
-
-        harness.exposed_sanitize(_str);
-    }
-
-    /// @dev Test that `sanitize` works as expected when the input string is empty.
-    function test_sanitize_empty_succeeds() external pure {
-        assertEq(GasPayingToken.sanitize(""), "");
     }
 }
