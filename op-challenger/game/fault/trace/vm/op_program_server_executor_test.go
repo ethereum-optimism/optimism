@@ -182,7 +182,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		require.Equal(t, common.Bytes2Hex(val), pairs["--l2.agreed-prestate"])
 	})
 
-	t.Run("WithouDepsetConfig", func(t *testing.T) {
+	t.Run("WithoutDepsetConfig", func(t *testing.T) {
 		pairs := oracleCommand(t, log.LvlInfo, func(c *Config, _ *utils.LocalGameInputs) {
 			c.DepsetConfigPath = ""
 		})

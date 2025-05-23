@@ -90,7 +90,7 @@ type SuperSystem interface {
 	ChainID(network string) *big.Int
 	RollupConfig(network string) *rollup.Config
 	L2Genesis(network string) *core.Genesis
-	UserKey(nework, username string) ecdsa.PrivateKey
+	UserKey(network, username string) ecdsa.PrivateKey
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
 	Contract(network string, contractName string) interface{}
@@ -215,7 +215,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 		l1Clock = s.timeTravelClock
 	}
 	// Start the L1 chain
-	l1Geth, err := geth.InitL1(
+	l1Geth, _, err := geth.InitL1(
 		blockTimeL1,
 		l1FinalizedDistance,
 		s.worldOutput.L1.Genesis,
@@ -300,9 +300,9 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		RPCVerificationWarnings: true,
 	}
 
-	stDepSet, err := worldToDepset(s.worldOutput)
+	fullCfgSet, err := worldToFullCfgSet(s.worldOutput)
 	require.NoError(s.t, err)
-	cfg.DependencySetSource = stDepSet
+	cfg.FullConfigSetSource = fullCfgSet
 
 	// Create the supervisor with the configuration
 	super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, logger)
@@ -582,7 +582,7 @@ func (s *interopE2ESystem) Contract(id string, name string) interface{} {
 }
 
 func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
-	stDepSet, err := worldToDepset(s.worldOutput)
+	stDepSet, err := worldToDepSet(s.worldOutput)
 	require.NoError(s.t, err)
 	return stDepSet
 }
@@ -606,7 +606,7 @@ func writeDefaultJWT(t testing.TB) string {
 	return jwtPath
 }
 
-func worldToDepset(world *interopgen.WorldOutput) (*depset.StaticConfigDependencySet, error) {
+func worldToDepSet(world *interopgen.WorldOutput) (*depset.StaticConfigDependencySet, error) {
 	var ids []eth.ChainID
 	for _, l2Out := range world.L2s {
 		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
@@ -626,4 +626,12 @@ func worldToDepset(world *interopgen.WorldOutput) (*depset.StaticConfigDependenc
 		}
 	}
 	return depset.NewStaticConfigDependencySet(depSet)
+}
+
+func worldToFullCfgSet(world *interopgen.WorldOutput) (depset.FullConfigSetMerged, error) {
+	depSet, err := worldToDepSet(world)
+	if err != nil {
+		return depset.FullConfigSetMerged{}, err
+	}
+	return depset.NewFullConfigSetMerged(world.RollupConfigSet(), depSet)
 }

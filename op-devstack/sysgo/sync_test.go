@@ -234,7 +234,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 		logger.Info("explicit reconnection of L2CL P2P between sequencer and verifier")
 		WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL).AfterDeploy(orch)
 
-		logger.Info("verifier catchs up sequencer unsafe chain with was unknown for verifier")
+		logger.Info("verifier catches up sequencer unsafe chain with was unknown for verifier")
 		require.Eventually(t, func() bool {
 			blockA, blockA2 := queryEL(eth.Unsafe)
 			return blockA.Number == blockA2.Number && blockA.Hash == blockA2.Hash

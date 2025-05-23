@@ -201,7 +201,7 @@ func singleRoundConsolidation(
 			superRoot.Chains[i].Output = outputRoot
 			consolidateState.setReplaced(i, chain.ChainID, outputRoot, replacementBlockHash)
 			// Indicate that there was an invalid block so we have to re-check all chains.
-			// The re-check wil pick up invalid messages in any chains we haven't gotten to yet so don't waste time now.
+			// The re-check will pick up invalid messages in any chains we haven't gotten to yet so don't waste time now.
 			return ErrInvalidBlockReplacement
 		}
 	}

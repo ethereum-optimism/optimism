@@ -400,7 +400,7 @@ func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
 	}
 }
 
-// trySignal trys to send an emptry struct  on the provided channel.
+// trySignal tries to send an empty struct on the provided channel.
 // It is not blocking, no signal will be sent if the channel is full.
 func trySignal(c chan struct{}) {
 	select {
@@ -715,7 +715,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 }
 
 // publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is no more data to
-// queue for publishing or if there was an error queing the data.
+// queue for publishing or if there was an error queuing the data.
 func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
 	for {
 		select {

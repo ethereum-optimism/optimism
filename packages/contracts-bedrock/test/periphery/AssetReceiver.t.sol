@@ -48,7 +48,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         assertEq(address(alice), assetReceiver.owner());
     }
 
-    /// @notice Tests that receive works as inteded.
+    /// @notice Tests that receive works as intended.
     function test_receive_succeeds() external {
         // Check that contract balance is 0 initially
         assertEq(address(assetReceiver).balance, 0);

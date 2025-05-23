@@ -16,7 +16,8 @@ func (db *ChainsDB) AddLog(
 	logHash common.Hash,
 	parentBlock eth.BlockID,
 	logIdx uint32,
-	execMsg *types.ExecutingMessage) error {
+	execMsg *types.ExecutingMessage,
+) error {
 	logDB, ok := db.logDBs.Get(chain)
 	if !ok {
 		return fmt.Errorf("cannot AddLog: %w: %v", types.ErrUnknownChain, chain)
@@ -203,11 +204,7 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 	// if cross-unsafe block number is same or smaller than new cross-safe, make sure to update cross-unsafe to new cross-safe
 	if crossUnsafe.Hash.Cmp(lastCrossDerived.Hash) != 0 {
 		db.logger.Warn("Updated cross-unsafe due to cross-safe update", "chain", chain, "new cross-safe", lastCrossDerived, "current cross-unsafe", crossUnsafe)
-		err := db.UpdateCrossUnsafe(chain, types.BlockSeal{
-			Hash:      lastCrossDerived.Hash,
-			Number:    lastCrossDerived.Number,
-			Timestamp: lastCrossDerived.Time,
-		})
+		err := db.UpdateCrossUnsafe(chain, types.BlockSealFromRef(lastCrossDerived))
 		if err != nil {
 			return fmt.Errorf("failed to update cross-unsafe after processing a new cross-safe block: %w", err)
 		}

@@ -21,6 +21,7 @@ const (
 type ControlPlane interface {
 	SupervisorState(id SupervisorID, action ControlAction)
 	L2CLNodeState(id L2CLNodeID, action ControlAction)
+	FakePoSState(id L1CLNodeID, action ControlAction)
 }
 
 // Orchestrator is the base interface for all system orchestrators.

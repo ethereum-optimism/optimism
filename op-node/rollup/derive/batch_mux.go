@@ -68,7 +68,7 @@ func (b *BatchMux) TransformHolocene() {
 		b.SingularBatchProvider = bs
 	case *BatchStage:
 		// Even if the pipeline is Reset to the activation block, the previous origin will be the
-		// same, so transfromStages isn't called.
+		// same, so transformStages isn't called.
 		panic(fmt.Sprintf("Holocene BatchStage already active, old origin: %v", bp.Origin()))
 	default:
 		panic(fmt.Sprintf("unknown batch stage type: %T", bp))

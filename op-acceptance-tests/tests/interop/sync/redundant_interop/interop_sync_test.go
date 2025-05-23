@@ -38,7 +38,7 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	sys.L2CLA.DisconnectPeer(sys.L2CLA2)
 	sys.L2CLA2.DisconnectPeer(sys.L2CLA)
 
-	// For making verifer not sync at all, both unsafe haead and safe head
+	// For making verifier not sync at all, both unsafe head and safe head
 	// The sequencer will advance unsafe head and safe head, as well as synced with supervisor.
 	logger.Info("stop verifier")
 	sys.L2CLA2.Stop()

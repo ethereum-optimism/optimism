@@ -127,7 +127,7 @@ func (p *presetL2Network) L2Challenger(m stack.L2ChallengerMatcher) stack.L2Chal
 
 func (p *presetL2Network) AddL2Challenger(v stack.L2Challenger) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 challenger %s must be on chain %s", id, p.chainID)
+
 	p.require().True(p.challengers.SetIfMissing(id, v), "l2 challenger %s must not already exist", id)
 }
 

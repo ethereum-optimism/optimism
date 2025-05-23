@@ -14,7 +14,7 @@ type BuilderClient struct {
 	client client.RPC
 }
 
-var _ apis.SequencerAPI = (*BuilderClient)(nil)
+var _ apis.TestSequencerAPI = (*BuilderClient)(nil)
 
 func NewBuilderClient(client client.RPC) *BuilderClient {
 	return &BuilderClient{

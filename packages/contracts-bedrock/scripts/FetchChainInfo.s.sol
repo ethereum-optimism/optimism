@@ -12,6 +12,7 @@ interface IFetcher {
     function systemConfig() external view returns (address);
     function SYSTEM_CONFIG() external view returns (address);
     function disputeGameFactory() external view returns (address);
+    function ethLockbox() external view returns (address);
     function superchainConfig() external view returns (address);
     function messenger() external view returns (address);
     function addressManager() external view returns (address);
@@ -67,6 +68,7 @@ contract FetchChainInfoOutput {
     address internal _preimageOracleImpl;
     //  - OpChainContracts
     address internal _addressManagerImpl;
+    address internal _ethLockboxProxy;
     address internal _l1CrossDomainMessengerProxy;
     address internal _l1Erc721BridgeProxy;
     address internal _l1StandardBridgeProxy;
@@ -104,6 +106,7 @@ contract FetchChainInfoOutput {
         else if (_sel == this.preimageOracleImpl.selector) _preimageOracleImpl = _addr;
         //  - OpChainContracts
         else if (_sel == this.addressManagerImpl.selector) _addressManagerImpl = _addr;
+        else if (_sel == this.ethLockboxProxy.selector) _ethLockboxProxy = _addr;
         else if (_sel == this.l1CrossDomainMessengerProxy.selector) _l1CrossDomainMessengerProxy = _addr;
         else if (_sel == this.l1Erc721BridgeProxy.selector) _l1Erc721BridgeProxy = _addr;
         else if (_sel == this.l1StandardBridgeProxy.selector) _l1StandardBridgeProxy = _addr;
@@ -143,6 +146,10 @@ contract FetchChainInfoOutput {
     function addressManagerImpl() public view returns (address) {
         require(_addressManagerImpl != address(0), "FetchChainInfoOutput: addressManagerImpl not set");
         return _addressManagerImpl;
+    }
+
+    function ethLockboxProxy() public view returns (address) {
+        return _ethLockboxProxy;
     }
 
     function l1CrossDomainMessengerProxy() public view returns (address) {
@@ -327,6 +334,9 @@ contract FetchChainInfo is Script {
         address opChainGuardian = _getGuardian(optimismPortalProxy);
         _fo.set(_fo.opChainGuardian.selector, opChainGuardian);
 
+        address ethLockboxProxy = _getEthLockboxProxy(optimismPortalProxy);
+        _fo.set(_fo.ethLockboxProxy.selector, ethLockboxProxy);
+
         address superchainConfigProxy = _getSuperchainConfigProxy(optimismPortalProxy);
         _fo.set(_fo.superchainConfigProxy.selector, superchainConfigProxy);
     }
@@ -480,6 +490,14 @@ contract FetchChainInfo is Script {
             address permissionedDisputeGame_
         ) {
             return permissionedDisputeGame_;
+        } catch {
+            return address(0);
+        }
+    }
+
+    function _getEthLockboxProxy(address _optimismPortalProxy) internal view returns (address) {
+        try IFetcher(_optimismPortalProxy).ethLockbox() returns (address ethLockbox_) {
+            return ethLockbox_;
         } catch {
             return address(0);
         }

@@ -15,13 +15,13 @@ func TestInitExecMsg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.ThousandEther)
-	bob := sys.FunderB.NewFundedEOA(eth.ThousandEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A
 	initIntent, _ := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
-	// Make sure supervisor indexs block which includes init message
+	// Make sure supervisor indexes block which includes init message
 	sys.Supervisor.AdvancedUnsafeHead(alice.ChainID(), 2)
 	// Single event in tx so index is 0
 	bob.SendExecMessage(initIntent, 0)

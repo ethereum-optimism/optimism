@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
+	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
@@ -89,7 +90,7 @@ type DisputeSystem interface {
 	RollupCfgs() []*rollup.Config
 	DependencySet() *depset.StaticConfigDependencySet
 	L2Geneses() []*core.Genesis
-	PrestateVariant() challenger.PrestateVariant
+	PrestateVariant() shared.PrestateVariant
 
 	AdvanceTime(time.Duration)
 }

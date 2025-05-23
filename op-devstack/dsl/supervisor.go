@@ -71,6 +71,15 @@ func (s *Supervisor) VerifySyncStatus(opts ...func(config *VerifySyncStatusConfi
 	s.require.NoError(err, "Expected sync status not found")
 }
 
+func (s *Supervisor) AwaitMinL1(minL1 uint64) {
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		return s.FetchSyncStatus().MinSyncedL1.Number >= minL1, nil
+	})
+	s.require.NoError(err, "Expected sync status not found")
+}
+
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
@@ -135,13 +144,13 @@ func (s *Supervisor) AdvancedL2Head(chainID eth.ChainID, delta uint64, lvl types
 	s.require.NoError(err)
 }
 
-func (s *Supervisor) AdvancedUnsafeHead(chainID eth.ChainID, block uint64) {
-	attempts := int(block + 3) // intentionally allow few more attempts for avoid flaking
-	s.AdvancedL2Head(chainID, block, types.LocalUnsafe, attempts)
+func (s *Supervisor) AdvancedUnsafeHead(chainID eth.ChainID, delta uint64) {
+	attempts := int(delta + 3) // intentionally allow few more attempts for avoid flaking
+	s.AdvancedL2Head(chainID, delta, types.LocalUnsafe, attempts)
 }
 
-func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, block uint64, attempts int) {
-	s.AdvancedL2Head(chainID, block, types.CrossSafe, attempts)
+func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, delta uint64, attempts int) {
+	s.AdvancedL2Head(chainID, delta, types.CrossSafe, attempts)
 }
 
 func (s *Supervisor) Start() {

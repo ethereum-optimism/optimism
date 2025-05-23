@@ -40,6 +40,7 @@ type L1CLNode struct {
 	id             stack.L1CLNodeID
 	beaconHTTPAddr string
 	beacon         *fakebeacon.FakeBeacon
+	fakepos        *FakePoS
 }
 
 func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
@@ -78,7 +79,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 		beaconApiAddr := bcn.BeaconAddr()
 		require.NotEmpty(beaconApiAddr, "beacon API listener must be up")
 
-		l1Geth, err := geth.InitL1(
+		l1Geth, fp, err := geth.InitL1(
 			blockTimeL1,
 			l1FinalizedDistance,
 			l1Net.genesis,
@@ -104,6 +105,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			id:             l1CLID,
 			beaconHTTPAddr: beaconApiAddr,
 			beacon:         bcn,
+			fakepos:        &FakePoS{fakepos: fp, p: orch.p},
 		}
 		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
 	})

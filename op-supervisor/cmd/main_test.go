@@ -42,8 +42,10 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	depSet := &depset.JsonDependencySetLoader{Path: "test"}
-	defaultCfgTempl := config.NewConfig(ValidL1RPC, ValidL2RPCs, depSet, ValidDatadir)
+	depSet := &depset.JSONDependencySetLoader{Path: "test-dep-set"}
+	rollupCfgSet := &depset.JSONRollupConfigSetLoader{Path: "test-rollup-set"}
+	fullCfgSet := &depset.FullConfigSetSourceMerged{RollupConfigSetSource: rollupCfgSet, DependencySetSource: depSet}
+	defaultCfgTempl := config.NewConfig(ValidL1RPC, ValidL2RPCs, fullCfgSet, ValidDatadir)
 	defaultCfg := *defaultCfgTempl
 	defaultCfg.Version = Version
 	// Sync sources may be attached later via RPC. These are thus not strictly required.
@@ -133,7 +135,8 @@ func requiredArgs() map[string]string {
 		"--l1-rpc":                  ValidL1RPC,
 		"--l2-consensus.nodes":      strings.Join(ValidL2RPCs.Endpoints, ","),
 		"--l2-consensus.jwt-secret": strings.Join(ValidL2RPCs.JWTSecretPaths, ","),
-		"--dependency-set":          "test",
+		"--dependency-set":          "test-dep-set",
+		"--rollup-config-set":       "test-rollup-set",
 		"--datadir":                 ValidDatadir,
 	}
 	return args

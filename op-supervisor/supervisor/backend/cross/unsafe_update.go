@@ -92,7 +92,7 @@ func (c *CrossUnsafeWorker) OnEvent(ev event.Event) bool {
 var _ event.Deriver = (*CrossUnsafeWorker)(nil)
 
 func NewCrossUnsafeWorker(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps) *CrossUnsafeWorker {
-	logger = logger.New("chain", chainID)
+	logger = logger.New("chain", chainID, "worker", "cross-unsafe")
 	return &CrossUnsafeWorker{
 		logger:  logger,
 		chainID: chainID,

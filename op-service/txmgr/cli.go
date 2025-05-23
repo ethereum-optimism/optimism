@@ -37,6 +37,8 @@ const (
 	MaxTipCapFlagName                  = "txmgr.max-tip-cap"
 	ResubmissionTimeoutFlagName        = "resubmission-timeout"
 	NetworkTimeoutFlagName             = "network-timeout"
+	RetryIntervalFlagName              = "txmgr.retry-interval"
+	MaxRetriesFlagName                 = "txmgr.max-retries"
 	TxSendTimeoutFlagName              = "txmgr.send-timeout"
 	TxNotInMempoolTimeoutFlagName      = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName       = "txmgr.receipt-query-interval"
@@ -67,6 +69,8 @@ type DefaultFlagValues struct {
 	MinBaseFeeGwei            float64
 	ResubmissionTimeout       time.Duration
 	NetworkTimeout            time.Duration
+	RetryInterval             time.Duration
+	MaxRetries                uint64
 	TxSendTimeout             time.Duration
 	TxNotInMempoolTimeout     time.Duration
 	ReceiptQueryInterval      time.Duration
@@ -82,6 +86,8 @@ var (
 		MinBaseFeeGwei:            1.0,
 		ResubmissionTimeout:       48 * time.Second,
 		NetworkTimeout:            10 * time.Second,
+		RetryInterval:             1 * time.Second,
+		MaxRetries:                uint64(10),
 		TxSendTimeout:             0, // Try sending txs indefinitely, to preserve tx ordering for Holocene
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
@@ -95,6 +101,8 @@ var (
 		MinBaseFeeGwei:            1.0,
 		ResubmissionTimeout:       24 * time.Second,
 		NetworkTimeout:            10 * time.Second,
+		RetryInterval:             1 * time.Second,
+		MaxRetries:                uint64(10),
 		TxSendTimeout:             2 * time.Minute,
 		TxNotInMempoolTimeout:     1 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
@@ -187,6 +195,18 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			EnvVars: prefixEnvVars("NETWORK_TIMEOUT"),
 		},
 		&cli.DurationFlag{
+			Name:    RetryIntervalFlagName,
+			Usage:   "Duration we will wait before resubmitting a transaction to L1 on a transient error. Values <= 0 will result in retrying immediately. Should be less than ResubmissionTimeout to have an effect.",
+			Value:   defaults.RetryInterval,
+			EnvVars: prefixEnvVars("TXMGR_RETRY_INTERVAL"),
+		},
+		&cli.Uint64Flag{
+			Name:    MaxRetriesFlagName,
+			Usage:   "Maximum number of times to resubmit a transaction to L1 on a transient error. Set to 0 to disable retries.",
+			Value:   defaults.MaxRetries,
+			EnvVars: prefixEnvVars("TXMGR_MAX_RETRIES"),
+		},
+		&cli.DurationFlag{
 			Name:    TxSendTimeoutFlagName,
 			Usage:   "Timeout for sending transactions. If 0 it is disabled.",
 			Value:   defaults.TxSendTimeout,
@@ -231,6 +251,8 @@ type CLIConfig struct {
 	ResubmissionTimeout        time.Duration
 	ReceiptQueryInterval       time.Duration
 	NetworkTimeout             time.Duration
+	RetryInterval              time.Duration
+	MaxRetries                 uint64
 	TxSendTimeout              time.Duration
 	TxNotInMempoolTimeout      time.Duration
 	AlreadyPublishedCustomErrs []string
@@ -247,6 +269,8 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		MinBaseFeeGwei:            defaults.MinBaseFeeGwei,
 		ResubmissionTimeout:       defaults.ResubmissionTimeout,
 		NetworkTimeout:            defaults.NetworkTimeout,
+		RetryInterval:             defaults.RetryInterval,
+		MaxRetries:                defaults.MaxRetries,
 		TxSendTimeout:             defaults.TxSendTimeout,
 		TxNotInMempoolTimeout:     defaults.TxNotInMempoolTimeout,
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
@@ -309,6 +333,8 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		ResubmissionTimeout:        ctx.Duration(ResubmissionTimeoutFlagName),
 		ReceiptQueryInterval:       ctx.Duration(ReceiptQueryIntervalFlagName),
 		NetworkTimeout:             ctx.Duration(NetworkTimeoutFlagName),
+		RetryInterval:              ctx.Duration(RetryIntervalFlagName),
+		MaxRetries:                 ctx.Uint64(MaxRetriesFlagName),
 		TxSendTimeout:              ctx.Duration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:      ctx.Duration(TxNotInMempoolTimeoutFlagName),
 		AlreadyPublishedCustomErrs: ctx.StringSlice(AlreadyPublishedCustomErrsFlagName),
@@ -388,6 +414,8 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		TxSendTimeout:              cfg.TxSendTimeout,
 		TxNotInMempoolTimeout:      cfg.TxNotInMempoolTimeout,
 		NetworkTimeout:             cfg.NetworkTimeout,
+		RetryInterval:              cfg.RetryInterval,
+		MaxRetries:                 cfg.MaxRetries,
 		ReceiptQueryInterval:       cfg.ReceiptQueryInterval,
 		NumConfirmations:           cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount:  cfg.SafeAbortNonceTooLowCount,
@@ -449,6 +477,17 @@ type Config struct {
 	// NetworkTimeout is the allowed duration for a single network request.
 	// This is intended to be used for network requests that can be replayed.
 	NetworkTimeout time.Duration
+
+	// RetryInterval is the interval at which the tx manager will retry
+	// sending a transaction if it fails with a non-fatal error (e.g. the
+	// gapped nonce error in the blob pool).
+	RetryInterval time.Duration
+
+	// MaxRetries is the maximum number of times to retry sending a
+	// transaction. This is used to limit the number of times we retry
+	// sending a transaction if it fails with a non-fatal error (e.g. the
+	// gapped nonce error in the blob pool).
+	MaxRetries uint64
 
 	// ReceiptQueryInterval is the interval at which the tx manager will
 	// query the backend to check for confirmations after a tx at a

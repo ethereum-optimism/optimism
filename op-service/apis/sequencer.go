@@ -10,12 +10,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-type SequencerAPI interface {
-	SequencerAdminAPI
-	SequencerBuildAPI
+type TestSequencerAPI interface {
+	TestSequencerAdminAPI
+	TestSequencerBuildAPI
 }
 
-type SequencerBuildAPI interface {
+type TestSequencerBuildAPI interface {
 	Close()
 	New(context.Context, seqtypes.BuilderID, *seqtypes.BuildOpts) (seqtypes.BuildJobID, error)
 	Open(context.Context, seqtypes.BuildJobID) error
@@ -24,12 +24,12 @@ type SequencerBuildAPI interface {
 	CloseJob(seqtypes.BuildJobID) error
 }
 
-type SequencerAdminAPI interface {
+type TestSequencerAdminAPI interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 }
 
-type SequencerIndividualAPI interface {
+type TestSequencerIndividualAPI interface {
 	BuildJob() (seqtypes.BuildJobID, error)
 	Commit(ctx context.Context) error
 	IncludeTx(ctx context.Context, tx hexutil.Bytes) error

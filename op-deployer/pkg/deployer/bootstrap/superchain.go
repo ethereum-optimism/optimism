@@ -197,8 +197,12 @@ func Superchain(ctx context.Context, cfg SuperchainConfig) (opcm.DeploySuperchai
 		return dso, fmt.Errorf("failed to create script host: %w", err)
 	}
 
-	dso, err = opcm.DeploySuperchain(
-		l1Host,
+	opcmScripts, err := opcm.NewScripts(l1Host)
+	if err != nil {
+		return dso, fmt.Errorf("failed to load OPCM scripts: %w", err)
+	}
+
+	dso, err = opcmScripts.DeploySuperchain.Run(
 		opcm.DeploySuperchainInput{
 			SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
 			ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,

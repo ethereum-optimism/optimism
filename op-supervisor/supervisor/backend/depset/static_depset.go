@@ -16,6 +16,13 @@ import (
 )
 
 var errDuplicateChainIndex = errors.New("duplicate chain index")
+var errUsingReservedChainIndex = errors.New("using reserved chain index")
+
+// NotFoundChainIndex is a reserved chain index signifying that a network is not in the dependency set.
+// We are persisting these invalid, but not malformed, executing messages in our internal database, and
+// we need a mapping between all ChainIDs <> ChainIndexs. However ChainID is 32 bytes, and ChainIndex
+// is 4 bytes, so we need a reserved chain index for unknown chains.
+const NotFoundChainIndex = types.ChainIndex(0xFFFF_FFFF)
 
 type StaticConfigDependency struct {
 	// ChainIndex is the unique short identifier of this chain.
@@ -154,6 +161,9 @@ func (ds *StaticConfigDependencySet) hydrate() error {
 	ds.indexToID = make(map[types.ChainIndex]eth.ChainID)
 	ds.chainIDs = make([]eth.ChainID, 0, len(ds.dependencies))
 	for id, dep := range ds.dependencies {
+		if dep.ChainIndex.IsTopBitSet() {
+			return fmt.Errorf("%w: chain %s cannot have the top bit set, and this subset is reserved for internal use: %d", errUsingReservedChainIndex, id, dep.ChainIndex)
+		}
 		if existing, ok := ds.indexToID[dep.ChainIndex]; ok {
 			return fmt.Errorf("%w: chain %s cannot have the same index (%d) as chain %s", errDuplicateChainIndex, id, dep.ChainIndex, existing)
 		}
@@ -210,6 +220,9 @@ func (ds *StaticConfigDependencySet) ChainIndexFromID(id eth.ChainID) (types.Cha
 func (ds *StaticConfigDependencySet) ChainIDFromIndex(index types.ChainIndex) (eth.ChainID, error) {
 	id, ok := ds.indexToID[index]
 	if !ok {
+		if index.IsTopBitSet() {
+			return eth.ChainID{}, fmt.Errorf("provided index has its top bit set, and this subset is reserved for internal use: %w", types.ErrUnknownChain)
+		}
 		return eth.ChainID{}, fmt.Errorf("failed to translate chain index %s to chain ID: %w", index, types.ErrUnknownChain)
 	}
 	return id, nil

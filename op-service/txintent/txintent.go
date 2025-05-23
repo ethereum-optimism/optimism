@@ -11,12 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type Call interface {
-	To() (*common.Address, error)
-	Data() ([]byte, error)
-	AccessList() (types.AccessList, error)
-}
-
 type Result interface {
 	FromReceipt(ctx context.Context, rec *types.Receipt, includedIn eth.BlockRef, chainID eth.ChainID) error
 	Init() Result
@@ -38,7 +32,7 @@ func NewIntent[V Call, R Result](opts ...txplan.Option) *IntentTx[V, R] {
 	})
 	v.PlannedTx.Data.DependOn(&v.Content)
 	v.PlannedTx.Data.Fn(func(ctx context.Context) (hexutil.Bytes, error) {
-		return v.Content.Value().Data()
+		return v.Content.Value().EncodeInput()
 	})
 	v.PlannedTx.AccessList.DependOn(&v.Content)
 	v.PlannedTx.AccessList.Fn(func(ctx context.Context) (types.AccessList, error) {

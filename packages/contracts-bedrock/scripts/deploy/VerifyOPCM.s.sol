@@ -306,33 +306,23 @@ contract VerifyOPCM is Script {
                 )
             );
 
-            // If we got a creation code, try to grab the constructor arguments from etherscan too.
-            if (actualCreationCode.length > 0) {
-                // Now try to grab the constructor arguments from etherscan too.
-                bytes memory constructorArgs = bytes(
-                    Process.bash(
-                        string.concat(
-                            "curl -s 'https://api.etherscan.io/v2/api?chainid=",
-                            vm.toString(block.chainid),
-                            "&module=contract&action=getsourcecode&address=",
-                            vm.toString(_target.addr),
-                            "&apikey=",
-                            Config.etherscanApiKey(),
-                            "' | jq -r '.result[0].ConstructorArguments'"
-                        )
-                    )
+            // Verify that the artifact bytecode is a prefix of the actual creation code and
+            // extract any remaining bytes so we can verify the constructor arguments.
+            if (Bytes.equal(Bytes.slice(actualCreationCode, 0, artifact.bytecode.length), artifact.bytecode)) {
+                // Extract the constructor arguments.
+                bytes memory constructorArgs = Bytes.slice(
+                    actualCreationCode, artifact.bytecode.length, actualCreationCode.length - artifact.bytecode.length
                 );
 
-                // Constructor args might be empty, so we check regardless of the result.
-                success = _compareBytecode(
-                    actualCreationCode,
-                    bytes.concat(artifact.bytecode, constructorArgs),
-                    _target.name,
-                    artifact,
-                    !_target.blueprint
-                );
+                // Make sure the constructor args are valid.
+                if (_isValidConstructorArgs(_target.name, constructorArgs)) {
+                    console.log(string.concat("[OK] Constructor arguments are valid"));
+                } else {
+                    console.log(string.concat("[FAIL] ERROR: Constructor arguments are invalid"));
+                    success = false;
+                }
             } else {
-                console.log(string.concat("[FAIL] ERROR: Failed to retrieve creation code for ", _target.name));
+                console.log(string.concat("[FAIL] ERROR: Creation code mismatch for ", _target.name));
                 success = false;
             }
         }
@@ -609,6 +599,48 @@ contract VerifyOPCM is Script {
             }
         }
         return false;
+    }
+
+    /// @notice Checks if the constructor args that came back from Etherscan are valid for this
+    ///         contract. Essentially decodes and then re-encodes the same arguments to make sure
+    ///         they parse correctly for the provided constructor ABI and there's no extra data.
+    /// @param _contractName The name of the contract.
+    /// @param _constructorArgs The constructor arguments to check.
+    /// @return True if the constructor arguments are valid, false otherwise.
+    function _isValidConstructorArgs(
+        string memory _contractName,
+        bytes memory _constructorArgs
+    )
+        internal
+        returns (bool)
+    {
+        // Grab the constructor ABI types.
+        string memory types = Process.bash(
+            string.concat(
+                "forge inspect ",
+                _contractName,
+                " abi --json | jq -r '.[] | select(.type == \"constructor\") | .inputs | map(.type) | join(\",\")'"
+            )
+        );
+
+        // Decode, then re-encode the same args and make sure they match the original input.
+        bytes memory encodedArgs = bytes(
+            Process.bash(
+                string.concat(
+                    "cast abi-encode \"constructor(",
+                    types,
+                    ")\" ",
+                    "$(cast decode-abi --input \"constructor(",
+                    types,
+                    ")\" ",
+                    vm.toString(_constructorArgs),
+                    " --json | jq -r 'map(.) | join(\" \")')"
+                )
+            )
+        );
+
+        // Compare with original input.
+        return Bytes.equal(_constructorArgs, encodedArgs);
     }
 
     /// @notice Constructs the expected path to Foundry artifact JSON file based on contract name.

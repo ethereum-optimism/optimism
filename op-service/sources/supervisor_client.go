@@ -71,6 +71,11 @@ func (cl *SupervisorClient) LocalUnsafe(ctx context.Context, chainID eth.ChainID
 	return result, err
 }
 
+func (cl *SupervisorClient) LocalSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error) {
+	err = cl.client.CallContext(ctx, &result, "supervisor_localSafe", chainID)
+	return result, err
+}
+
 func (cl *SupervisorClient) CrossSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error) {
 	err = cl.client.CallContext(ctx, &result, "supervisor_crossSafe", chainID)
 	return result, err
@@ -123,6 +128,6 @@ func (cl *SupervisorClient) Close() {
 }
 
 func isNotFound(err error) bool {
-	// The RPC server wil convert the returned error to a string so we can't match on an error type here
+	// The RPC server will convert the returned error to a string so we can't match on an error type here
 	return err != nil && strings.Contains(err.Error(), ethereum.NotFound.Error())
 }

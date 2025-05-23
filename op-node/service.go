@@ -139,7 +139,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 func NewSupervisorEndpointConfig(ctx *cli.Context) *interop.Config {
 	return &interop.Config{
-		SupervisorAddr:   ctx.String(flags.InteropSupervisor.Name),
 		RPCAddr:          ctx.String(flags.InteropRPCAddr.Name),
 		RPCPort:          ctx.Int(flags.InteropRPCPort.Name),
 		RPCJwtSecretPath: ctx.String(flags.InteropJWTSecret.Name),

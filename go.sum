@@ -210,6 +210,8 @@ github.com/ethereum-optimism/op-geth v1.101511.0-rc.1 h1:DTQwpncGhqrxUO4YqmY740m
 github.com/ethereum-optimism/op-geth v1.101511.0-rc.1/go.mod h1:SkytozVEPtnUeBlquwl0Qv5JKvrN/Y5aqh+VkQo/EOI=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250314162817-2c60e5723c64 h1:teDhU4h4ryaE8rSBl+vJJiwKHjxdnnHPkKZ9iNr2R8k=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250314162817-2c60e5723c64/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
+github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250521132634-76f6d741b33f h1:L4Q9iIthJHsrIS1rwEYcZDlMtIeKzwRRByQALNvJ3cQ=
+github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250521132634-76f6d741b33f/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
 github.com/ethereum/c-kzg-4844/v2 v2.1.0 h1:gQropX9YFBhl3g4HYhwE70zq3IHFRgbbNPw0Shwzf5w=
 github.com/ethereum/c-kzg-4844/v2 v2.1.0/go.mod h1:TC48kOKjJKPbN7C++qIgt0TJzZ70QznYR7Ob+WXl57E=
 github.com/ethereum/go-verkle v0.2.2 h1:I2W0WjnrFUIzzVPwm8ykY+7pL2d4VhlsePn4j7cnFk8=
@@ -523,8 +525,8 @@ github.com/libp2p/go-reuseport v0.4.0 h1:nR5KU7hD0WxXCJbmw7r2rhRYruNRl2koHw8fQsc
 github.com/libp2p/go-reuseport v0.4.0/go.mod h1:ZtI03j/wO5hZVDFo2jKywN6bYKWLOy8Se6DrI2E1cLU=
 github.com/libp2p/go-yamux/v4 v4.0.1 h1:FfDR4S1wj6Bw2Pqbc8Uz7pCxeRBPbwsBbEdfwiCypkQ=
 github.com/libp2p/go-yamux/v4 v4.0.1/go.mod h1:NWjl8ZTLOGlozrXSOZ/HlfG++39iKNnM5wwmtQP1YB4=
-github.com/lmittmann/w3 v0.17.8 h1:Rv0xCIvmxyNOZrr24pTphhgE9WUrgVOMUkRBwATq42s=
-github.com/lmittmann/w3 v0.17.8/go.mod h1:FAT1oPIK/NTHE2g8k9z0zOoAQ+Fl0pB2fsMQLYurzaE=
+github.com/lmittmann/w3 v0.19.5 h1:WwVRyIwhRLfIahmpB1EglsB3o1XWsgydgrxIUp5upFQ=
+github.com/lmittmann/w3 v0.19.5/go.mod h1:pN97sGGYGvsbqOYj/ms3Pd+7k/aiK/9OpNcxMmmzSOI=
 github.com/lufia/plan9stats v0.0.0-20240513124658-fba389f38bae h1:dIZY4ULFcto4tAFlj1FYZl8ztUZ13bdq+PLY+NOfbyI=
 github.com/lufia/plan9stats v0.0.0-20240513124658-fba389f38bae/go.mod h1:ilwx/Dta8jXAgpFYFvSWEMwxmbWXyiUHkd5FwyKhb5k=
 github.com/lunixbochs/vtclean v1.0.0/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
@@ -1138,8 +1140,8 @@ golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxb
 golang.org/x/time v0.0.0-20181108054448-85acf8d2951c/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
 golang.org/x/time v0.0.0-20201208040808-7e3f01d25324/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
 golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
-golang.org/x/time v0.10.0 h1:3usCWA8tQn0L8+hFJQNgzpWbd89begxN66o1Ojdn5L4=
-golang.org/x/time v0.10.0/go.mod h1:3BpzKBy/shNhVucY/MWOyx10tF3SFh9QdLuxbVysPQM=
+golang.org/x/time v0.11.0 h1:/bpjEDfN9tkoN/ryeYHnv5hcMlc8ncjMcM4XBk5NWV0=
+golang.org/x/time v0.11.0/go.mod h1:CDIdPxbZBQxdj6cxyCIdrNogrJKMJ7pr37NYpMcMDSg=
 golang.org/x/tools v0.0.0-20180828015842-6cd1fcedba52/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.org/x/tools v0.0.0-20181030000716-a0a13e073c7b/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=

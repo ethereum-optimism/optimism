@@ -275,7 +275,7 @@ func ReorgFlipFlop(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
 
-	// sync verifier to what ths sequencer submitted
+	// sync verifier to what the sequencer submitted
 	verifier.ActL1HeadSignal(t)
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Unsafe(), "verifier syncs from sequencer")

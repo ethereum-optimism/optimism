@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -79,7 +79,7 @@ func WithDeployer() stack.Option[*Orchestrator] {
 			})
 			o.clusters.Set(clusterID, &Cluster{
 				id:     clusterID,
-				depset: wb.outDepset,
+				cfgset: wb.outFullCfgSet,
 			})
 
 			for _, chainID := range wb.l2Chains {
@@ -105,6 +105,21 @@ func WithDeployer() stack.Option[*Orchestrator] {
 	}
 }
 
+type L2Deployment struct {
+	systemConfigProxyAddr   common.Address
+	disputeGameFactoryProxy common.Address
+}
+
+var _ stack.L2Deployment = &L2Deployment{}
+
+func (d *L2Deployment) SystemConfigProxyAddr() common.Address {
+	return d.systemConfigProxyAddr
+}
+
+func (d *L2Deployment) DisputeGameFactoryProxyAddr() common.Address {
+	return d.disputeGameFactoryProxy
+}
+
 type worldBuilder struct {
 	p devtest.P
 
@@ -123,6 +138,8 @@ type worldBuilder struct {
 
 	// outDepset is nil if none of the chains has a scheduled interop activation time
 	outDepset *depset.StaticConfigDependencySet
+
+	outFullCfgSet depset.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
 }
@@ -198,8 +215,15 @@ func WithPrefundedL2(chainID eth.ChainID) DeployerOption {
 func WithInteropAtGenesis() DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		for _, l2Cfg := range builder.L2s() {
-			l2Cfg.WithForkAtOffset(rollup.Interop, new(uint64))
+			l2Cfg.WithForkAtGenesis(rollup.Interop)
 		}
+	}
+}
+
+// WithSequencingWindow overrides the number of L1 blocks in a sequencing window, applied to all L2s.
+func WithSequencingWindow(n uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("sequencerWindowSize", uint64(n))
 	}
 }
 
@@ -269,6 +293,20 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	}
 }
 
+func (wb *worldBuilder) buildFullConfigSet() {
+	// If no chain has interop active, the dep set will be nil here,
+	// so we should skip building the full config set.
+	if wb.outDepset == nil {
+		return
+	}
+
+	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
+		depset.StaticTimestamp(wb.outL1Genesis.Timestamp))
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.outDepset)
+	wb.require.NoError(err)
+	wb.outFullCfgSet = fullCfgSet
+}
+
 func (wb *worldBuilder) Build() {
 	st := &state.State{
 		Version: 1,
@@ -281,25 +319,6 @@ func (wb *worldBuilder) Build() {
 
 	intent, err := wb.builder.Build()
 	wb.require.NoError(err)
-
-	inDepSetAtGenesis := false
-	for _, ch := range intent.Chains {
-		v, ok := ch.DeployOverrides["l2GenesisInteropTimeOffset"]
-		if !ok {
-			continue
-		}
-		offset, ok := v.(*hexutil.Uint64)
-		if !ok {
-			continue
-		}
-		if *offset == 0 {
-			inDepSetAtGenesis = true
-		}
-	}
-	wb.logger.Info("Dependency set setting", "atGenesis", inDepSetAtGenesis)
-
-	// If any chains are activating interop at genesis, then set useInterop to true
-	intent.UseInterop = inDepSetAtGenesis
 
 	pipelineOpts := deployer.ApplyPipelineOpts{
 		DeploymentTarget:   deployer.DeploymentTargetGenesis,
@@ -324,6 +343,7 @@ func (wb *worldBuilder) Build() {
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
 	wb.buildDepSet()
+	wb.buildFullConfigSet()
 }
 
 // WriteState is a callback used by deployer.ApplyPipeline to write the output

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -146,4 +147,76 @@ func testL2CLRestart(ids DefaultInteropSystemIDs, system stack.System, control s
 		require.NoError(t, err)
 		cancel()
 	}
+}
+
+// TestControlPlaneFakePoS tests the start/stop functionality provided by the control plane for the fakePoS module
+func TestControlPlaneFakePoS(gt *testing.T) {
+	var ids DefaultInteropSystemIDs
+	opt := DefaultInteropSystem(&ids)
+
+	logger := testlog.Logger(gt, log.LevelInfo)
+
+	p := devtest.NewP(
+		context.Background(),
+		logger,
+		func() {
+			gt.Helper()
+			gt.FailNow()
+		},
+	)
+	gt.Cleanup(p.Close)
+
+	orch := NewOrchestrator(p, stack.Combine[*Orchestrator]())
+	stack.ApplyOptionLifecycle(opt, orch)
+
+	control := orch.ControlPlane()
+
+	t := devtest.SerialT(gt)
+	system := shim.NewSystem(t)
+	orch.Hydrate(system)
+
+	ctx := t.Ctx()
+
+	el := system.L1Network(ids.L1).L1ELNode(match.FirstL1EL)
+
+	// progress chain
+	blockTime := time.Second * 6
+	for range 2 {
+		time.Sleep(blockTime)
+
+		head, err := el.EthClient().InfoByLabel(ctx, "latest")
+		require.NoError(t, err)
+		logger.Info("L1 chain", "number", head.NumberU64(), "hash", head.Hash())
+	}
+
+	logger.Info("Stopping fakePoS service")
+	control.FakePoSState(ids.L1CL, stack.Stop)
+
+	head, err := el.EthClient().InfoByLabel(ctx, "latest")
+	require.NoError(t, err)
+
+	// L1 chain won't progress since fakePoS is stopped
+	// Wait and check that L1 chain won't progress
+	for range 2 {
+		time.Sleep(blockTime)
+
+		other, err := el.EthClient().InfoByLabel(ctx, "latest")
+		require.NoError(t, err)
+		logger.Info("L1 chain", "number", other.NumberU64(), "hash", other.Hash(), "previous", head.Hash())
+
+		require.Equal(t, other.Hash(), head.Hash())
+	}
+
+	// Restart fakePoS
+	logger.Info("Starting fakePoS service")
+	control.FakePoSState(ids.L1CL, stack.Start)
+
+	// L1 chain should progress again eventually
+	require.Eventually(t, func() bool {
+		other, err := el.EthClient().InfoByLabel(ctx, "latest")
+		require.NoError(t, err)
+		logger.Info("L1 chain", "number", other.NumberU64(), "hash", other.Hash(), "previous", head.Hash())
+
+		return other.Hash() != head.Hash() && other.NumberU64() > head.NumberU64()
+	}, time.Second*20, time.Second*2)
 }

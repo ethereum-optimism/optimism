@@ -44,6 +44,14 @@ func (b *L2Batcher) hydrate(system stack.ExtensibleSystem) {
 	l2Net.(stack.ExtensibleL2Network).AddL2Batcher(bFrontend)
 }
 
+type BatcherOption func(id stack.L2BatcherID, cfg *bss.CLIConfig)
+
+func WithBatcherOption(opt BatcherOption) stack.Option[*Orchestrator] {
+	return stack.Deploy[*Orchestrator](func(orch *Orchestrator) {
+		orch.batcherOptions = append(orch.batcherOptions, opt)
+	})
+}
+
 func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID stack.L2CLNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		require := orch.P().Require()
@@ -94,11 +102,15 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			Stopped:               false,
 			BatchType:             derive.SpanBatchType,
 			MaxBlocksPerSpanBatch: 10,
+			PreferLocalSafeL2:     l2CL.cfg.Rollup.InteropTime != nil,
 			DataAvailabilityType:  batcherFlags.CalldataType,
 			CompressionAlgo:       derive.Brotli,
 			RPC: oprpc.CLIConfig{
 				EnableAdmin: true,
 			},
+		}
+		for _, opt := range orch.batcherOptions {
+			opt(batcherID, batcherCLIConfig)
 		}
 
 		batcher, err := bss.BatcherServiceFromCLIConfig(

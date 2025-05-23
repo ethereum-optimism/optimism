@@ -449,63 +449,30 @@ func (m *ManagedNode) Close() error {
 func (m *ManagedNode) resetIfInconsistent() {
 	ctx, cancel := context.WithTimeout(m.ctx, internalTimeout)
 	defer cancel()
-
-	// Handle the given seen block from the node if it is an inconsistency.
-	handle := func(name string, seenFromNode eth.BlockID) (inconsistent bool) {
-		if seenFromNode == (eth.BlockID{}) {
-			return false // if we haven't seen anything, then don't reset to it
-		}
-		// We know the last block from the op-node.
-		// Ae may have references that:
-		//   - local-unsafe matches, and local-safe matches -> no inconsistency caused by latest signaled local-unsafe!
-		//   - local-unsafe matches, but local-safe differs -> e.g. if local-safe is behind and does not know about this block
-		//   - local-unsafe differs, but local-safe matches  -> we should stick to the local-safe chain, not rewind further, but may need to rewind some
-		//   - local-unsafe differs, and local-safe differs -> we should use the local-safe chain as truth
-		//
-		// And never should we reset if the node is just ahead of us; resetIfAhead handles that.
-
-		m.log.Debug("Checking last seen block from node for consistency", "safety", name, "block", seenFromNode)
-		localUnsafeMatchErr := m.backend.IsLocalUnsafe(ctx, m.chainID, seenFromNode)
-		if errors.Is(localUnsafeMatchErr, types.ErrFuture) {
-			localUnsafeMatchErr = nil // do not count it when the node is ahead of us
-		}
-		if localUnsafeMatchErr != nil {
-			m.log.Warn("Last seen block from node is inconsistent with supervisor local-unsafe blocks",
-				"safety", name, "err", localUnsafeMatchErr)
-		}
-		localSafeMatchErr := m.backend.IsLocalSafe(ctx, m.chainID, seenFromNode)
-		if errors.Is(localSafeMatchErr, types.ErrFuture) {
-			localSafeMatchErr = nil // do not count it when the node is ahead of us
-		}
-		if localSafeMatchErr != nil {
-			m.log.Warn("Last seen block from node is inconsistent with supervisor local-safe blocks",
-				"safety", name, "err", localSafeMatchErr)
-		}
-		if localUnsafeMatchErr != nil || localSafeMatchErr != nil {
-			// If either mismatches, we want to reset back no further than latest local-safe
-			localSafe, err := m.backend.LocalSafe(ctx, m.chainID)
-			if err != nil {
-				m.log.Debug("Cannot determine how to handle inconsistency, no local-safe data available",
-					"localUnsafeMatchErr", localUnsafeMatchErr,
-					"localSafeMatchErr", localSafeMatchErr, "err", err)
-				return false
-			}
-			if m.lastNodeLocalUnsafe.Number > localSafe.Derived.Number {
-				m.resetTracker.beginBisectionReset(m.lastNodeLocalUnsafe)
-			} else {
-				m.resetTracker.beginBisectionReset(localSafe.Derived)
-			}
-			return true
-		}
-		return false
+	seenFromNode := m.lastNodeLocalSafe
+	name := "local-safe"
+	if seenFromNode == (eth.BlockID{}) {
+		return // if we haven't seen anything, then don't reset to it
 	}
-	if handle("local-unsafe", m.lastNodeLocalUnsafe) {
+	m.log.Debug("Checking last seen block from node for consistency", "safety", name, "block", seenFromNode)
+	localSafeMatchErr := m.backend.IsLocalSafe(ctx, m.chainID, seenFromNode)
+	if localSafeMatchErr == nil {
 		return
 	}
-	if handle("local-safe", m.lastNodeLocalSafe) {
+	if errors.Is(localSafeMatchErr, types.ErrFuture) {
+		m.log.Debug("node is ahead of op-supervisor local-safe data")
+		return // resetIfAhead will handle this
+	}
+	m.log.Warn("Last seen block from node is inconsistent with supervisor local-safe blocks",
+		"safety", name, "err", localSafeMatchErr)
+	// If there is a mismatch, we want to reset back no further than latest local-safe
+	localSafe, err := m.backend.LocalSafe(ctx, m.chainID)
+	if err != nil {
+		m.log.Debug("Cannot determine how to handle inconsistency, no local-safe data available",
+			"localSafeMatchErr", localSafeMatchErr, "err", err)
 		return
 	}
-	m.log.Debug("no inconsistency found")
+	m.resetTracker.beginBisectionReset(localSafe.Derived)
 }
 
 // resetIfAhead checks if the node is ahead of the local-safe db

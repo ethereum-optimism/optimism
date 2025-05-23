@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
-func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c clock.Clock, blobPoolDir string, beaconSrv Beacon, opts ...GethOption) (*GethInstance, error) {
+func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c clock.Clock, blobPoolDir string, beaconSrv Beacon, opts ...GethOption) (*GethInstance, *FakePoS, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: genesis.Config.ChainID.Uint64(),
 		Genesis:   genesis,
@@ -56,11 +56,10 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 
 	gethInstance, err := createGethNode(false, nodeConfig, ethConfig, opts...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Instead of running a whole beacon node, we run this fake-proof-of-stake sidecar that sequences L1 blocks using the Engine API.
-	gethInstance.Node.RegisterLifecycle(&fakePoS{
+	fakepos := &FakePoS{
 		clock:             c,
 		eth:               gethInstance.Backend,
 		log:               log.Root(), // geth logger is global anyway. Would be nice to replace with a local logger though.
@@ -69,9 +68,12 @@ func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c
 		safeDistance:      4,
 		engineAPI:         catalyst.NewConsensusAPI(gethInstance.Backend),
 		beacon:            beaconSrv,
-	})
+	}
 
-	return gethInstance, nil
+	// Instead of running a whole beacon node, we run this fake-proof-of-stake sidecar that sequences L1 blocks using the Engine API.
+	gethInstance.Node.RegisterLifecycle(fakepos)
+
+	return gethInstance, fakepos, nil
 }
 
 func defaultNodeConfig(name string, jwtPath string) *node.Config {

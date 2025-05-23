@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 
@@ -24,6 +25,9 @@ import (
 
 func TestSupervisorService(t *testing.T) {
 	depSet, err := depset.NewStaticConfigDependencySet(make(map[eth.ChainID]*depset.StaticConfigDependency))
+	require.NoError(t, err)
+	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(make(map[eth.ChainID]*rollup.Config), depset.StaticTimestamp(0))
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, depSet)
 	require.NoError(t, err)
 
 	cfg := &config.Config{
@@ -51,7 +55,7 @@ func TestSupervisorService(t *testing.T) {
 			ListenPort:  0, // pick a port automatically
 			EnableAdmin: true,
 		},
-		DependencySetSource: depSet,
+		FullConfigSetSource: fullCfgSet,
 		MockRun:             true,
 	}
 	logger := testlog.Logger(t, log.LevelError)

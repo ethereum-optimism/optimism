@@ -443,7 +443,7 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		d.emitter.Emit(TryUpdateEngineEvent{})
 
 		v := EngineResetConfirmedEvent{
-			LocalUnsafe: d.ec.LocalSafeL2Head(),
+			LocalUnsafe: d.ec.UnsafeL2Head(),
 			CrossUnsafe: d.ec.CrossUnsafeL2Head(),
 			LocalSafe:   d.ec.LocalSafeL2Head(),
 			CrossSafe:   d.ec.SafeL2Head(),

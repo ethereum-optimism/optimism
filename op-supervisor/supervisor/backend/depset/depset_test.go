@@ -53,7 +53,6 @@ func TestDependencySet(t *testing.T) {
 		})
 		require.ErrorIs(t, err, errDuplicateChainIndex)
 	})
-
 }
 
 func testDependencySetSerialization(
@@ -83,12 +82,12 @@ func testDependencySetSerialization(
 		data, err := marshal(depSet)
 		require.NoError(t, err)
 
-		require.NoError(t, os.WriteFile(d, data, 0644))
+		require.NoError(t, os.WriteFile(d, data, 0o644))
 
 		// For JSON, use the loader. For TOML, unmarshal directly
 		var result DependencySet
 		if fileExt == "json" {
-			loader := &JsonDependencySetLoader{Path: d}
+			loader := &JSONDependencySetLoader{Path: d}
 			result, err = loader.LoadDependencySet(context.Background())
 			require.NoError(t, err)
 		} else {
@@ -116,11 +115,11 @@ func testDependencySetSerialization(
 
 		data, err := marshal(depSet)
 		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(d, data, 0644))
+		require.NoError(t, os.WriteFile(d, data, 0o644))
 
 		var result DependencySet
 		if fileExt == "json" {
-			loader := &JsonDependencySetLoader{Path: d}
+			loader := &JSONDependencySetLoader{Path: d}
 			result, err = loader.LoadDependencySet(context.Background())
 			require.NoError(t, err)
 		} else {
@@ -151,7 +150,6 @@ func testDependencySetSerialization(
 		require.True(t, depSet.HasChain(eth.ChainIDFromUInt64(900)))
 		require.False(t, depSet.HasChain(eth.ChainIDFromUInt64(902)))
 	})
-
 }
 
 func testChainCapabilities(t *testing.T, result DependencySet) {

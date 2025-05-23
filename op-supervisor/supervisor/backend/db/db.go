@@ -83,6 +83,9 @@ type DerivationStorage interface {
 	SourceToRevision(source eth.BlockID) (types.Revision, error)
 
 	// writing
+
+	// AddDerived adds a derived block to the database. The first entry to be added may
+	// have zero parent hashes.
 	AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error
 	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, err error)
 

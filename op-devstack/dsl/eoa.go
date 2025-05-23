@@ -36,6 +36,10 @@ func NewEOA(key *Key, el ELNode) *EOA {
 	}
 }
 
+func (u *EOA) AsEL(el ELNode) *EOA {
+	return NewEOA(u.key, el)
+}
+
 func (u *EOA) String() string {
 	return fmt.Sprintf("EOA(%s @ %s)", u.key.Address(), u.el.ChainID())
 }

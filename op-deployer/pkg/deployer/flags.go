@@ -145,7 +145,7 @@ var (
 	}
 	ContractNameFlag = &cli.StringFlag{
 		Name:    ContractNameFlagName,
-		Usage:   "contract name (matching a field within a contract bundle struct)",
+		Usage:   "(optional) contract name matching a field within the input file",
 		EnvVars: PrefixEnvVar("CONTRACT_NAME"),
 	}
 )

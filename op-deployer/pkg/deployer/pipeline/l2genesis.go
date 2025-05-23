@@ -9,8 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
-	op_service "github.com/ethereum-optimism/optimism/op-service"
-
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
@@ -93,9 +91,10 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		SequencerFeeVaultRecipient:               thisIntent.SequencerFeeVaultRecipient,
 		GovernanceTokenOwner:                     overrides.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
-		UseInterop:                               intent.UseInterop,
-		EnableGovernance:                         overrides.EnableGovernance,
-		FundDevAccounts:                          overrides.FundDevAccounts,
+		// Only include interop predeploys if it is activating at genesis
+		UseInterop:       schedule.L2GenesisInteropTimeOffset != nil && *schedule.L2GenesisInteropTimeOffset == 0,
+		EnableGovernance: overrides.EnableGovernance,
+		FundDevAccounts:  overrides.FundDevAccounts,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -116,13 +115,6 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 
 func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {
 	schedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
-	if intent.UseInterop {
-		if schedule.L2GenesisIsthmusTimeOffset == nil {
-			return l2GenesisOverrides{}, nil, fmt.Errorf("expecting isthmus fork to be enabled for interop deployments")
-		}
-		schedule.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
-		schedule.UseInterop = true
-	}
 
 	overrides := defaultOverrides()
 	// Special case for FundDevAccounts since it's both an intent value and an override.

@@ -32,9 +32,25 @@ func (el *elNode) ChainID() eth.ChainID {
 	return el.inner.ChainID()
 }
 
-func (el *elNode) WaitForBlock() {
+func (el *elNode) WaitForBlock() eth.BlockRef {
+	return el.waitForNextBlock(1)
+}
+
+func (el *elNode) WaitForOnline() {
+	el.require.Eventually(func() bool {
+		el.log.Info("Waiting for online")
+		_, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
+		return err == nil
+	}, 10*time.Second, 500*time.Millisecond, "Expected to be online")
+}
+
+// waitForNextBlockWithTimeout waits until the specified block number is present
+func (el *elNode) waitForNextBlock(blocksFromNow uint64) eth.BlockRef {
 	initial, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 	el.require.NoError(err, "Expected to get latest block from execution client")
+	targetBlock := initial.NumberU64() + blocksFromNow
+	initialRef := eth.InfoToL1BlockRef(initial)
+	var newRef eth.BlockRef
 
 	err = wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
 		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
@@ -42,16 +58,22 @@ func (el *elNode) WaitForBlock() {
 			return false, err
 		}
 
-		if initial.Hash().Cmp(newBlock.Hash()) == 0 {
-			el.log.Info("Still same block detected as initial", "block", eth.InfoToL1BlockRef(newBlock))
-
-			return false, nil
+		newRef = eth.InfoToL1BlockRef(newBlock)
+		if newBlock.NumberU64() >= targetBlock {
+			el.log.Info("Target block reached", "block", newRef)
+			return true, nil
 		}
 
-		el.log.Info("New block detected", "new_block", eth.InfoToL1BlockRef(newBlock), "prev_block", eth.InfoToL1BlockRef(initial))
-		return true, nil
+		if initialRef == newRef {
+			el.log.Info("Still same block detected as initial", "block", initialRef)
+			return false, nil
+		} else {
+			el.log.Info("New block detected", "new_block", newRef, "prev_block", initialRef)
+		}
+		return false, nil
 	})
-	el.require.NoError(err, "Expected to get latest block from execution client for comparison")
+	el.require.NoError(err, "Expected to reach target block")
+	return newRef
 }
 
 func (el *elNode) stackEL() stack.ELNode {

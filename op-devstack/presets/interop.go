@@ -19,11 +19,12 @@ type SimpleInterop struct {
 	T      devtest.T
 	system stack.ExtensibleSystem
 
-	Supervisor   *dsl.Supervisor
-	Sequencer    *dsl.Sequencer
-	ControlPlane stack.ControlPlane
+	Supervisor    *dsl.Supervisor
+	TestSequencer *dsl.TestSequencer
+	ControlPlane  stack.ControlPlane
 
 	L1Network *dsl.L1Network
+	L1EL      *dsl.L1ELNode
 
 	L2ChainA *dsl.L2Network
 	L2ChainB *dsl.L2Network
@@ -39,11 +40,13 @@ type SimpleInterop struct {
 
 	Wallet *dsl.HDWallet
 
-	FaucetA *dsl.Faucet
-	FaucetB *dsl.Faucet
+	FaucetA  *dsl.Faucet
+	FaucetB  *dsl.Faucet
+	FaucetL1 *dsl.Faucet
 
-	FunderA *dsl.Funder
-	FunderB *dsl.Funder
+	FunderL1 *dsl.Funder
+	FunderA  *dsl.Funder
+	FunderB  *dsl.Funder
 }
 
 func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
@@ -67,30 +70,34 @@ func NewSimpleInterop(t devtest.T) *SimpleInterop {
 	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
 	// since currently there's no way to tell which nodes are using which supervisor.
 
-	t.Gate().Equal(len(system.Sequencers()), 1, "expected exactly one sequencer")
+	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
 
+	l1Net := system.L1Network(match.FirstL1Network)
 	l2A := system.L2Network(match.Assume(t, match.L2ChainA))
 	l2B := system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &SimpleInterop{
-		Log:          t.Logger(),
-		T:            t,
-		system:       system,
-		Sequencer:    dsl.NewSequencer(system.Sequencer(match.Assume(t, match.FirstSequencer))),
-		Supervisor:   dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane()),
-		ControlPlane: orch.ControlPlane(),
-		L1Network:    dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
-		L2ChainA:     dsl.NewL2Network(l2A),
-		L2ChainB:     dsl.NewL2Network(l2B),
-		L2ELA:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
-		L2ELB:        dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
-		L2CLA:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane(), l2A.ChainID()),
-		L2CLB:        dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane(), l2B.ChainID()),
-		Wallet:       dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
-		FaucetA:      dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
-		FaucetB:      dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
-		L2BatcherA:   dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
-		L2BatcherB:   dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		Log:           t.Logger(),
+		T:             t,
+		system:        system,
+		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
+		Supervisor:    dsl.NewSupervisor(system.Supervisor(match.Assume(t, match.FirstSupervisor)), orch.ControlPlane()),
+		ControlPlane:  orch.ControlPlane(),
+		L1Network:     dsl.NewL1Network(l1Net),
+		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
+		L2ChainA:      dsl.NewL2Network(l2A),
+		L2ChainB:      dsl.NewL2Network(l2B),
+		L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2ELB:         dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2CLA:         dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		L2CLB:         dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		Wallet:        dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
+		FaucetA:       dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
+		FaucetB:       dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
+		L2BatcherA:    dsl.NewL2Batcher(l2A.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
+		L2BatcherB:    dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
 	}
+	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
+	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
 	out.FunderA = dsl.NewFunder(out.Wallet, out.FaucetA, out.L2ELA)
 	out.FunderB = dsl.NewFunder(out.Wallet, out.FaucetB, out.L2ELB)
 	return out
@@ -106,6 +113,26 @@ func WithSuggestedInteropActivationOffset(offset uint64) stack.CommonOption {
 			}
 		},
 	))
+}
+
+// WithSequencingWindow suggests a sequencing window to use, and checks the maximum sequencing window.
+// The sequencing windows are expressed in number of L1 execution-layer blocks till sequencing window expiry.
+// This is applied e.g. to the chain configuration setup if running against sysgo.
+func WithSequencingWindow(suggestedSequencingWindow uint64, maxSequencingWindow uint64) stack.CommonOption {
+	return stack.Combine(
+		stack.MakeCommon(sysgo.WithDeployerOptions(
+			sysgo.WithSequencingWindow(suggestedSequencingWindow),
+		)),
+		// We can't configure sysext sequencing window, so we go with whatever is configured.
+		// The post-hydrate function will check that the sequencing window is within expected bounds.
+		stack.PostHydrate[stack.Orchestrator](func(sys stack.System) {
+			for _, l2Net := range sys.L2Networks() {
+				cfg := l2Net.RollupConfig()
+				l2Net.T().Gate().LessOrEqual(cfg.SeqWindowSize, maxSequencingWindow,
+					"sequencing window of chain %s must fit in max sequencing window size", l2Net.ChainID())
+			}
+		}),
+	)
 }
 
 // WithInteropNotAtGenesis adds a test-gate that checks
@@ -138,7 +165,7 @@ func NewRedundantInterop(t devtest.T) *RedundantInterop {
 	out := &RedundantInterop{
 		SimpleInterop: *simpleInterop,
 		L2ELA2:        dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL))),
-		L2CLA2:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane(), l2A.ChainID()),
+		L2CLA2:        dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
 	}
 	return out
 }
@@ -165,7 +192,7 @@ func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 		RedundantInterop:    *redundancyInterop,
 		SupervisorSecondary: dsl.NewSupervisor(redundancyInterop.system.Supervisor(match.Assume(t, match.SecondSupervisor)), orch.ControlPlane()),
 		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL))),
-		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane(), l2B.ChainID()),
+		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
 	}
 	return out
 }
