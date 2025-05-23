@@ -154,6 +154,10 @@ contract L2Genesis is Script {
             return;
         }
 
+        if (forkEquals(_fork, Fork.INTEROP)) {
+            return;
+        }
+
         if (forkEquals(_fork, Fork.JOVIAN)) {
             return;
         }
@@ -191,7 +195,7 @@ contract L2Genesis is Script {
             vm.etch(addr, code);
             EIP1967Helper.setAdmin(addr, Predeploys.PROXY_ADMIN);
 
-            if (Predeploys.isSupportedPredeploy(addr, _input.useInterop)) {
+            if (Predeploys.isSupportedPredeploy(addr, _input.fork)) {
                 address implementation = Predeploys.predeployToCodeNamespace(addr);
                 EIP1967Helper.setImplementation(addr, implementation);
             }
@@ -226,11 +230,13 @@ contract L2Genesis is Script {
         setSchemaRegistry(); // 20
         setEAS(); // 21
         setGovernanceToken(_input); // 42: OP (not behind a proxy)
-        if (_input.useInterop) {
+        if (_input.fork >= uint256(Fork.INTEROP)) {
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
         }
     }
+
+    function setInteropPredeployProxies() internal { }
 
     function setProxyAdmin(Input memory _input) internal {
         // Note the ProxyAdmin implementation itself is behind a proxy that owns itself.
