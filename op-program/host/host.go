@@ -7,7 +7,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
+	"github.com/ethereum-optimism/optimism/op-program/client/tasks"
 	hostcommon "github.com/ethereum-optimism/optimism/op-program/host/common"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
@@ -56,7 +58,7 @@ func Main(logger log.Logger, cfg *config.Config) error {
 	if cfg.ServerMode {
 		preimageChan := preimage.ClientPreimageChannel()
 		hinterChan := preimage.ClientHinterChannel()
-		return hostcommon.PreimageServer(ctx, logger, cfg, preimageChan, hinterChan, makeDefaultPrefetcher)
+		return hostcommon.RunPreimageServer(ctx, logger, cfg, preimageChan, hinterChan, makeDefaultPrefetcher)
 	}
 
 	if err := FaultProofProgramWithDefaultPrefecher(ctx, logger, cfg); err != nil {
@@ -118,23 +120,12 @@ func (p *programExecutor) RunProgram(
 	chainID eth.ChainID,
 	db l2.KeyValueStore,
 ) error {
-	newCfg := *p.cfg
-	newCfg.ExecCmd = "" // ensure we run the program in the same process
-	newCfg.L2ClaimBlockNumber = blockNum
-	newCfg.InteropEnabled = false
-	newCfg.L2OutputRoot = common.Hash(eth.OutputRoot(output))
-	outputV0, ok := output.(*eth.OutputV0)
-	if !ok {
-		return fmt.Errorf("unsupported output root type: %T", output)
-	}
-	newCfg.L2Head = outputV0.BlockHash
-	// Leave the newCfg.L2ChainID as is. It may be set to the customChainID for testing.
-	// newCfg.L2ChainConfigs and newCfg.Rollups will be reconfigured to the specified chainID for the program execution.
+	outputRoot := common.Hash(eth.OutputRoot(output))
 
 	// Since the ProgramExecutor can be used for interop with custom chain configs, we need to
 	// restrict the host's chain configuration to a single chain.
 	var l2ChainConfig *params.ChainConfig
-	for _, c := range newCfg.L2ChainConfigs {
+	for _, c := range p.cfg.L2ChainConfigs {
 		if eth.ChainIDFromBig(c.ChainID).Cmp(chainID) == 0 {
 			l2ChainConfig = c
 			break
@@ -144,7 +135,7 @@ func (p *programExecutor) RunProgram(
 		return fmt.Errorf("could not find L2 chain config in the host for chain ID %v", chainID)
 	}
 	var rollupConfig *rollup.Config
-	for _, c := range newCfg.Rollups {
+	for _, c := range p.cfg.Rollups {
 		if eth.ChainIDFromBig(c.L2ChainID).Cmp(chainID) == 0 {
 			rollupConfig = c
 			break
@@ -153,25 +144,41 @@ func (p *programExecutor) RunProgram(
 	if rollupConfig == nil {
 		return fmt.Errorf("could not find rollup config in the host for chain ID %v", chainID)
 	}
-	newCfg.L2ChainConfigs = []*params.ChainConfig{l2ChainConfig}
-	newCfg.Rollups = []*rollup.Config{rollupConfig}
 
-	withPrefetcher := hostcommon.WithPrefetcher(
-		func(context.Context, log.Logger, kvstore.KV, *config.Config) (hostcommon.Prefetcher, error) {
-			// TODO(#13663): prevent recursive block execution
-			return prefetcher, nil
-		})
-	return hostcommon.FaultProofProgram(
-		ctx,
+	prefetcherCreator := func(context.Context, log.Logger, kvstore.KV, *config.Config) (hostcommon.Prefetcher, error) {
+		// TODO(#13663): prevent recursive block execution
+		return prefetcher, nil
+	}
+	preimageServer, err := hostcommon.StartPreimageServer(ctx, p.logger, p.cfg, prefetcherCreator)
+	if err != nil {
+		return fmt.Errorf("failed to start preimage access: %w", err)
+	}
+	defer preimageServer.Close()
+	pClient := preimage.NewOracleClient(preimageServer.PreimageClientRW())
+	hClient := preimage.NewHintWriter(preimageServer.HintClientRW())
+	l1PreimageOracle := l1.NewCachingOracle(l1.NewPreimageOracle(pClient, hClient))
+	l2PreimageOracle := l2.NewCachingOracle(l2.NewPreimageOracle(pClient, hClient, true))
+
+	opts := tasks.DerivationOptions{
+		StoreBlockData: true,
+	}
+	result, err := tasks.RunDerivation(
 		p.logger,
-		&newCfg,
-		withPrefetcher,
-		hostcommon.WithSkipValidation(true),
-		hostcommon.WithDB(db),
-		hostcommon.WithStoreBlockData(true),
-		// Our prefetcher expects chain IDs but pre-interop does not normally include them in hint data
-		hostcommon.WithForceHintChainID(true),
+		rollupConfig,
+		l2ChainConfig,
+		p.cfg.L1Head,
+		outputRoot,
+		blockNum,
+		l1PreimageOracle,
+		l2PreimageOracle,
+		db,
+		opts,
 	)
+	if err != nil {
+		return err
+	}
+	p.logger.Info("Completed regenerating block", "blockHash", result.BlockHash, "outputRoot", result.OutputRoot)
+	return nil
 }
 
 func MakeProgramExecutor(logger log.Logger, cfg *config.Config) prefetcher.ProgramExecutor {
