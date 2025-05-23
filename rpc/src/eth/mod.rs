@@ -18,7 +18,6 @@ use reth_evm::ConfigureEvm;
 use reth_network_api::NetworkInfo;
 use reth_node_api::{FullNodeComponents, NodePrimitives};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
-use reth_optimism_primitives::OpPrimitives;
 use reth_rpc::eth::{core::EthApiInner, DevSigner};
 use reth_rpc_eth_api::{
     helpers::{
@@ -81,11 +80,7 @@ impl<N: OpNodeCore, NetworkT> OpEthApi<N, NetworkT> {
 impl<N, NetworkT> OpEthApi<N, NetworkT>
 where
     N: OpNodeCore<
-        Provider: BlockReaderIdExt
-                      + ChainSpecProvider
-                      + CanonStateSubscriptions<Primitives = OpPrimitives>
-                      + Clone
-                      + 'static,
+        Provider: BlockReaderIdExt + ChainSpecProvider + CanonStateSubscriptions + Clone + 'static,
     >,
 {
     /// Returns a reference to the [`EthApiNodeBackend`].
