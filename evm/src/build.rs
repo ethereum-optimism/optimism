@@ -28,27 +28,19 @@ impl<ChainSpec> OpBlockAssembler<ChainSpec> {
     }
 }
 
-impl<ChainSpec> Clone for OpBlockAssembler<ChainSpec> {
-    fn clone(&self) -> Self {
-        Self { chain_spec: self.chain_spec.clone() }
-    }
-}
-
-impl<F, ChainSpec> BlockAssembler<F> for OpBlockAssembler<ChainSpec>
-where
-    ChainSpec: OpHardforks,
-    F: for<'a> BlockExecutorFactory<
-        ExecutionCtx<'a> = OpBlockExecutionCtx,
-        Transaction: SignedTransaction,
-        Receipt: Receipt + DepositReceipt,
-    >,
-{
-    type Block = alloy_consensus::Block<F::Transaction>;
-
-    fn assemble_block(
+impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
+    /// Builds a block for `input` without any bounds on header `H`.
+    pub fn assemble_block<
+        F: for<'a> BlockExecutorFactory<
+            ExecutionCtx<'a> = OpBlockExecutionCtx,
+            Transaction: SignedTransaction,
+            Receipt: Receipt + DepositReceipt,
+        >,
+        H,
+    >(
         &self,
-        input: BlockAssemblerInput<'_, '_, F>,
-    ) -> Result<Self::Block, BlockExecutionError> {
+        input: BlockAssemblerInput<'_, '_, F, H>,
+    ) -> Result<Block<F::Transaction>, BlockExecutionError> {
         let BlockAssemblerInput {
             evm_env,
             execution_ctx: ctx,
@@ -127,5 +119,30 @@ where
                     .then(Default::default),
             },
         ))
+    }
+}
+
+impl<ChainSpec> Clone for OpBlockAssembler<ChainSpec> {
+    fn clone(&self) -> Self {
+        Self { chain_spec: self.chain_spec.clone() }
+    }
+}
+
+impl<F, ChainSpec> BlockAssembler<F> for OpBlockAssembler<ChainSpec>
+where
+    ChainSpec: OpHardforks,
+    F: for<'a> BlockExecutorFactory<
+        ExecutionCtx<'a> = OpBlockExecutionCtx,
+        Transaction: SignedTransaction,
+        Receipt: Receipt + DepositReceipt,
+    >,
+{
+    type Block = Block<F::Transaction>;
+
+    fn assemble_block(
+        &self,
+        input: BlockAssemblerInput<'_, '_, F>,
+    ) -> Result<Self::Block, BlockExecutionError> {
+        self.assemble_block(input)
     }
 }
