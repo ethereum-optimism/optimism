@@ -252,6 +252,16 @@ pub struct OpEngineApi<Provider, EngineT: EngineTypes, Pool, Validator, ChainSpe
     inner: EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>,
 }
 
+impl<Provider, PayloadT, Pool, Validator, ChainSpec> Clone
+    for OpEngineApi<Provider, PayloadT, Pool, Validator, ChainSpec>
+where
+    PayloadT: EngineTypes,
+{
+    fn clone(&self) -> Self {
+        Self { inner: self.inner.clone() }
+    }
+}
+
 #[async_trait::async_trait]
 impl<Provider, EngineT, Pool, Validator, ChainSpec> OpEngineApiServer<EngineT>
     for OpEngineApi<Provider, EngineT, Pool, Validator, ChainSpec>
