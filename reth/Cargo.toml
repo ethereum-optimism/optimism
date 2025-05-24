@@ -33,6 +33,7 @@ reth-rpc-builder = { workspace = true, optional = true }
 reth-transaction-pool = { workspace = true, optional = true }
 reth-trie = { workspace = true, optional = true }
 reth-node-builder = { workspace = true, optional = true }
+reth-tasks = { workspace = true, optional = true }
 
 # reth-op
 reth-optimism-primitives.workspace = true
@@ -105,15 +106,17 @@ node = [
     "trie",
 ]
 rpc = [
+    "tasks",
     "dep:reth-rpc",
     "dep:reth-rpc-builder",
     "dep:reth-rpc-api",
     "dep:reth-rpc-eth-types",
     "dep:reth-optimism-rpc",
 ]
+tasks = ["dep:reth-tasks"]
 js-tracer = ["rpc", "reth-rpc/js-tracer"]
-network = ["dep:reth-network", "dep:reth-network-api", "dep:reth-eth-wire"]
-provider = ["storage-api", "dep:reth-provider", "dep:reth-db"]
+network = ["dep:reth-network", "tasks", "dep:reth-network-api", "dep:reth-eth-wire"]
+provider = ["storage-api", "tasks", "dep:reth-provider", "dep:reth-db"]
 pool = ["dep:reth-transaction-pool"]
 storage-api = ["dep:reth-storage-api"]
 trie = ["dep:reth-trie"]
