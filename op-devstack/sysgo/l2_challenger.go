@@ -73,10 +73,6 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 				interopScheduled = l2Net.genesis.Config.InteropTime != nil
 			} else {
 				require.Equal(l2Net.genesis.Config.InteropTime != nil, interopScheduled, "Cluster not consistently using interop")
-				// TODO(#15057): Interop chains should have a shared DisputeGameFactory
-				//if interopScheduled {
-				//require.Equal(disputeGameFactoryAddr, factory, "Cluster not using a shared dispute game factory")
-				//}
 			}
 
 			l2Geneses = append(l2Geneses, l2Net.genesis)
