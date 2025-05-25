@@ -58,8 +58,8 @@ var AllForks = []ForkName{
 	Granite,
 	Holocene,
 	Isthmus,
-	Jovian,
 	Interop,
+	Jovian,
 	// ADD NEW FORKS HERE!
 }
 
