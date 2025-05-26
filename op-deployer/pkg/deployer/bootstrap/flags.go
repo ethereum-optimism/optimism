@@ -209,7 +209,7 @@ var Commands = []*cli.Command{
 	{
 		Name:   "full",
 		Usage:  "Bootstrap both the Superchain and implementations in one step",
-		Flags:  cliapp.ProtectFlags(ConsolidatedFlags),
-		Action: ConsolidatedCLI,
+		Flags:  cliapp.ProtectFlags(FullFlags),
+		Action: FullCLI,
 	},
 }
