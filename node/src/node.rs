@@ -473,13 +473,19 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
 }
 
 /// A regular optimism evm and executor builder.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy)]
 #[non_exhaustive]
 pub struct OpExecutorBuilder<ChainSpec = OpChainSpec, Primitives = OpPrimitives> {
     /// Marker for chain spec type.
     _cs: PhantomData<ChainSpec>,
     /// Marker for primitives type.
     _p: PhantomData<Primitives>,
+}
+
+impl<ChainSpec, Primitives> Clone for OpExecutorBuilder<ChainSpec, Primitives> {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
 }
 
 impl<ChainSpec, Primitives> Default for OpExecutorBuilder<ChainSpec, Primitives> {
