@@ -97,7 +97,7 @@ impl Args {
 
         // Handle commands if present
         if let Some(cmd) = self.command {
-            let debug_addr = format!("http://{}", debug_addr);
+            let debug_addr = format!("http://{debug_addr}");
             return match cmd {
                 Commands::Debug { command } => match command {
                     DebugCommands::SetExecutionMode { execution_mode } => {

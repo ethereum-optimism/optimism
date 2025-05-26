@@ -28,6 +28,7 @@ use op_alloy_rpc_types_engine::{
 use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::task::JoinHandle;
 use tracing::{info, instrument};
 
@@ -52,7 +53,7 @@ impl RollupBoostServer {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             builder_client: Arc::new(builder_client.clone()),
-            health_check_interval,
+            health_check_interval: Duration::from_secs(health_check_interval),
             max_unsafe_interval,
         }
         .spawn();

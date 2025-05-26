@@ -15,7 +15,7 @@ use crate::{Health, Probes, RpcClient};
 pub struct HealthHandle {
     pub probes: Arc<Probes>,
     pub builder_client: Arc<RpcClient>,
-    pub health_check_interval: u64,
+    pub health_check_interval: Duration,
     pub max_unsafe_interval: u64,
 }
 
@@ -24,6 +24,8 @@ impl HealthHandle {
     /// the current time minus the max_unsafe_interval.
     pub fn spawn(self) -> JoinHandle<()> {
         tokio::spawn(async move {
+            let mut timestamp = MonotonicTimestamp::new();
+
             loop {
                 let latest_unsafe = match self
                     .builder_client
@@ -34,29 +36,67 @@ impl HealthHandle {
                     Err(e) => {
                         warn!(target: "rollup_boost::health", "Failed to get unsafe block from builder client: {} - updating health status", e);
                         self.probes.set_health(Health::PartialContent);
-                        sleep_until(
-                            Instant::now() + Duration::from_secs(self.health_check_interval),
-                        )
-                        .await;
+                        sleep_until(Instant::now() + self.health_check_interval).await;
                         continue;
                     }
                 };
 
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_secs();
-
-                if now - latest_unsafe.header.timestamp > self.max_unsafe_interval {
-                    warn!(target: "rollup_boost::health", "Unsafe block timestamp is too old ({} seconds - updating health status)", now - latest_unsafe.header.timestamp);
+                let t = timestamp.tick();
+                if t.saturating_sub(latest_unsafe.header.timestamp)
+                    .gt(&self.max_unsafe_interval)
+                {
+                    warn!(target: "rollup_boost::health", curr_unix = %t, unsafe_unix = %latest_unsafe.header.timestamp, "Unsafe block timestamp is too old updating health status");
                     self.probes.set_health(Health::PartialContent);
                 } else {
                     self.probes.set_health(Health::Healthy);
                 }
 
-                sleep_until(Instant::now() + Duration::from_secs(self.health_check_interval)).await;
+                sleep_until(Instant::now() + self.health_check_interval).await;
             }
         })
+    }
+}
+
+/// A monotonic wall-clock timestamp tracker that resists system clock changes.
+///
+/// This struct provides a way to generate wall-clock-like timestamps that are
+/// guaranteed to be monotonic (i.e., never go backward), even if the system
+/// time is adjusted (e.g., via NTP, manual clock changes, or suspend/resume).
+///
+/// - It tracks elapsed time using `Instant` to ensure monotonic progression.
+/// - It produces a synthetic wall-clock timestamp that won't regress.
+pub struct MonotonicTimestamp {
+    /// The last known UNIX timestamp in seconds.
+    pub last_unix: u64,
+
+    /// The last monotonic time reference.
+    pub last_instant: Instant,
+}
+
+impl Default for MonotonicTimestamp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MonotonicTimestamp {
+    pub fn new() -> Self {
+        let last_unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+        let last_instant = Instant::now();
+        Self {
+            last_unix,
+            last_instant,
+        }
+    }
+
+    fn tick(&mut self) -> u64 {
+        let elapsed = self.last_instant.elapsed().as_secs();
+        self.last_unix += elapsed;
+        self.last_instant = Instant::now();
+        self.last_unix
     }
 }
 
@@ -214,7 +254,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             builder_client: builder_client.clone(),
-            health_check_interval: 60,
+            health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
         };
 
@@ -244,7 +284,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             builder_client: builder_client.clone(),
-            health_check_interval: 60,
+            health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
         };
 
@@ -268,7 +308,7 @@ mod tests {
         let health_handle = HealthHandle {
             probes: probes.clone(),
             builder_client: builder_client.clone(),
-            health_check_interval: 60,
+            health_check_interval: Duration::from_secs(60),
             max_unsafe_interval: 5,
         };
 
@@ -276,5 +316,35 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(2)).await;
         assert!(matches!(probes.health(), Health::PartialContent));
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn tick_advances_after_sleep() {
+        let mut ts = MonotonicTimestamp::new();
+        let t1 = ts.tick();
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let t2 = ts.tick();
+
+        assert!(t2 >= t1 + 1,);
+    }
+
+    #[tokio::test]
+    async fn tick_matches_system_clock() {
+        let mut ts = MonotonicTimestamp::new();
+        let unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+
+        assert_eq!(ts.last_unix, unix);
+
+        std::thread::sleep(Duration::from_secs(5));
+
+        let t1 = ts.tick();
+        let unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+        assert_eq!(t1, unix);
     }
 }
