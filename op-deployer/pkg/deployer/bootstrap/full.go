@@ -21,13 +21,13 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// ConsolidatedOutput combines the outputs from Superchain and Implementations bootstrap
-type ConsolidatedOutput struct {
+// FullOutput combines the outputs from Superchain and Implementations bootstrap
+type FullOutput struct {
 	Superchain      opcm.DeploySuperchainOutput      `json:"superchain"`
 	Implementations opcm.DeployImplementationsOutput `json:"implementations"`
 }
 
-type ConsolidatedConfig struct {
+type FullConfig struct {
 	L1RPCUrl                        string
 	PrivateKey                      string
 	Logger                          log.Logger
@@ -48,10 +48,12 @@ type ConsolidatedConfig struct {
 	UseInterop                      bool
 	CacheDir                        string
 
-	privateKeyECDSA *ecdsa.PrivateKey
+	privateKeyECDSA                  *ecdsa.PrivateKey
+	requiredProtocolVersionParsed    params.ProtocolVersion
+	recommendedProtocolVersionParsed params.ProtocolVersion
 }
 
-func (c *ConsolidatedConfig) Parse() error {
+func (c *FullConfig) Check() error {
 	if c.L1RPCUrl == "" {
 		return fmt.Errorf("L1RPCUrl must be specified")
 	}
@@ -86,10 +88,27 @@ func (c *ConsolidatedConfig) Parse() error {
 		return fmt.Errorf("Guardian must be specified")
 	}
 
+	// Parse protocol versions
+	if c.RequiredProtocolVersion != "" {
+		if err := c.requiredProtocolVersionParsed.UnmarshalText([]byte(c.RequiredProtocolVersion)); err != nil {
+			return fmt.Errorf("failed to parse required protocol version: %w", err)
+		}
+	} else {
+		c.requiredProtocolVersionParsed = params.OPStackSupport
+	}
+
+	if c.RecommendedProtocolVersion != "" {
+		if err := c.recommendedProtocolVersionParsed.UnmarshalText([]byte(c.RecommendedProtocolVersion)); err != nil {
+			return fmt.Errorf("failed to parse recommended protocol version: %w", err)
+		}
+	} else {
+		c.recommendedProtocolVersionParsed = params.OPStackSupport
+	}
+
 	return nil
 }
 
-var ConsolidatedFlags = []cli.Flag{
+var FullFlags = []cli.Flag{
 	deployer.L1RPCURLFlag,
 	deployer.PrivateKeyFlag,
 	OutfileFlag,
@@ -109,7 +128,7 @@ var ConsolidatedFlags = []cli.Flag{
 	UseInteropFlag,
 }
 
-func ConsolidatedCLI(ctx *cli.Context) error {
+func FullCLI(ctx *cli.Context) error {
 	ctx.Context = ctxinterrupt.WithCancelOnInterrupt(ctx.Context)
 
 	logCfg := oplog.ReadCLIConfig(ctx)
@@ -144,7 +163,7 @@ func ConsolidatedCLI(ctx *cli.Context) error {
 	protocolVersionsOwner := common.HexToAddress(ctx.String(ProtocolVersionsOwnerFlagName))
 	guardian := common.HexToAddress(ctx.String(GuardianFlagName))
 
-	cfg := ConsolidatedConfig{
+	cfg := FullConfig{
 		L1RPCUrl:                        l1RpcUrl,
 		PrivateKey:                      privateKey,
 		Logger:                          lgr,
@@ -166,13 +185,13 @@ func ConsolidatedCLI(ctx *cli.Context) error {
 		CacheDir:                        cacheDir,
 	}
 
-	if err := cfg.Parse(); err != nil {
+	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	output, err := Consolidated(ctx.Context, cfg)
+	output, err := Full(ctx.Context, cfg)
 	if err != nil {
-		return fmt.Errorf("error executing consolidated bootstrap: %w", err)
+		return fmt.Errorf("error executing full bootstrap: %w", err)
 	}
 
 	if err := jsonutil.WriteJSON(output, ioutil.ToStdOutOrFileOrNoop(outfile, 0o755)); err != nil {
@@ -182,44 +201,23 @@ func ConsolidatedCLI(ctx *cli.Context) error {
 	return nil
 }
 
-func Consolidated(ctx context.Context, cfg ConsolidatedConfig) (ConsolidatedOutput, error) {
-	var output ConsolidatedOutput
+func Full(ctx context.Context, cfg FullConfig) (FullOutput, error) {
+	var output FullOutput
 
 	// First deploy the Superchain
 	superchainCfg := SuperchainConfig{
-		L1RPCUrl:                  cfg.L1RPCUrl,
-		PrivateKey:                cfg.PrivateKey,
-		Logger:                    cfg.Logger,
-		ArtifactsLocator:          cfg.ArtifactsLocator,
-		CacheDir:                  cfg.CacheDir,
-		SuperchainProxyAdminOwner: cfg.SuperchainProxyAdminOwner,
-		ProtocolVersionsOwner:     cfg.ProtocolVersionsOwner,
-		Guardian:                  cfg.Guardian,
-		Paused:                    cfg.Paused,
-	}
-
-	// Convert string protocol versions to params.ProtocolVersion
-	if cfg.RequiredProtocolVersion != "" {
-		if err := superchainCfg.RequiredProtocolVersion.UnmarshalText([]byte(cfg.RequiredProtocolVersion)); err != nil {
-			return output, fmt.Errorf("failed to parse required protocol version: %w", err)
-		}
-	} else {
-		superchainCfg.RequiredProtocolVersion = params.OPStackSupport
-	}
-
-	if cfg.RecommendedProtocolVersion != "" {
-		if err := superchainCfg.RecommendedProtocolVersion.UnmarshalText([]byte(cfg.RecommendedProtocolVersion)); err != nil {
-			return output, fmt.Errorf("failed to parse recommended protocol version: %w", err)
-		}
-	} else {
-		superchainCfg.RecommendedProtocolVersion = params.OPStackSupport
-	}
-
-	// Parse the private key (required for both steps)
-	var err error
-	superchainCfg.privateKeyECDSA, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
-	if err != nil {
-		return output, fmt.Errorf("failed to parse private key: %w", err)
+		L1RPCUrl:                   cfg.L1RPCUrl,
+		PrivateKey:                 cfg.PrivateKey,
+		Logger:                     cfg.Logger,
+		ArtifactsLocator:           cfg.ArtifactsLocator,
+		CacheDir:                   cfg.CacheDir,
+		SuperchainProxyAdminOwner:  cfg.SuperchainProxyAdminOwner,
+		ProtocolVersionsOwner:      cfg.ProtocolVersionsOwner,
+		Guardian:                   cfg.Guardian,
+		Paused:                     cfg.Paused,
+		RequiredProtocolVersion:    cfg.requiredProtocolVersionParsed,
+		RecommendedProtocolVersion: cfg.recommendedProtocolVersionParsed,
+		privateKeyECDSA:            cfg.privateKeyECDSA,
 	}
 
 	superchainOutput, err := Superchain(ctx, superchainCfg)
@@ -245,12 +243,7 @@ func Consolidated(ctx context.Context, cfg ConsolidatedConfig) (ConsolidatedOutp
 		UpgradeController:               cfg.SuperchainProxyAdminOwner,
 		UseInterop:                      cfg.UseInterop,
 		CacheDir:                        cfg.CacheDir,
-	}
-
-	// Parse the private key
-	implsCfg.privateKeyECDSA, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
-	if err != nil {
-		return output, fmt.Errorf("failed to parse private key: %w", err)
+		privateKeyECDSA:                 cfg.privateKeyECDSA,
 	}
 
 	implsOutput, err := Implementations(ctx, implsCfg)
