@@ -1,3 +1,4 @@
+use crate::BlockSelectionPolicy;
 use crate::debug_api::ExecutionMode;
 use crate::{
     HealthHandle,
@@ -36,6 +37,7 @@ pub struct RollupBoostServer {
     pub l2_client: Arc<RpcClient>,
     pub builder_client: Arc<RpcClient>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
+    block_selection_policy: Option<BlockSelectionPolicy>,
     health_handle: JoinHandle<()>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
     probes: Arc<Probes>,
@@ -46,6 +48,7 @@ impl RollupBoostServer {
         l2_client: RpcClient,
         builder_client: RpcClient,
         initial_execution_mode: ExecutionMode,
+        block_selection_policy: Option<BlockSelectionPolicy>,
         probes: Arc<Probes>,
         health_check_interval: u64,
         max_unsafe_interval: u64,
@@ -61,6 +64,7 @@ impl RollupBoostServer {
         Self {
             l2_client: Arc::new(l2_client),
             builder_client: Arc::new(builder_client),
+            block_selection_policy,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
             execution_mode: Arc::new(Mutex::new(initial_execution_mode)),
             probes,
@@ -179,13 +183,15 @@ impl RollupBoostServer {
                 l2_payload.inspect_err(|_| self.probes.set_health(Health::ServiceUnavailable))?;
             self.probes.set_health(Health::Healthy);
 
-            if let Ok(Some(payload)) = builder_payload {
+            if let Ok(Some(builder_payload)) = builder_payload {
                 // If execution mode is set to DryRun, fallback to the l2_payload,
                 // otherwise prefer the builder payload
                 if self.execution_mode().is_dry_run() {
                     (l2_payload, PayloadSource::L2)
+                } else if let Some(selection_policy) = &self.block_selection_policy {
+                    selection_policy.select_block(builder_payload, l2_payload)
                 } else {
-                    (payload, PayloadSource::Builder)
+                    (builder_payload, PayloadSource::Builder)
                 }
             } else {
                 // Only update the health status if the builder payload fails
@@ -601,6 +607,7 @@ mod tests {
                 l2_client,
                 builder_client,
                 ExecutionMode::Enabled,
+                None,
                 probes,
                 60,
                 5,

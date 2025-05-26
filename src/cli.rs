@@ -8,7 +8,7 @@ use tokio::signal::unix::{SignalKind, signal as unix_signal};
 use tracing::{Level, info};
 
 use crate::{
-    DebugClient, ProxyLayer, RollupBoostServer, RpcClient,
+    BlockSelectionPolicy, DebugClient, ProxyLayer, RollupBoostServer, RpcClient,
     client::rpc::{BuilderArgs, L2ClientArgs},
     debug_api::ExecutionMode,
     init_metrics, init_tracing,
@@ -87,6 +87,9 @@ pub struct Args {
     /// Execution mode to start rollup boost with
     #[arg(long, env, default_value = "enabled")]
     pub execution_mode: ExecutionMode,
+
+    #[arg(long, env)]
+    pub block_selection_policy: Option<BlockSelectionPolicy>,
 }
 
 impl Args {
@@ -160,6 +163,7 @@ impl Args {
             l2_client,
             builder_client,
             self.execution_mode,
+            self.block_selection_policy,
             probes,
             self.health_check_interval,
             self.max_unsafe_interval,
