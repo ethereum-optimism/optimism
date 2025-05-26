@@ -1,6 +1,8 @@
 # Configuration file for acceptance tests (op-acceptor)
 #
 # All acceptance tests need to be registered here for op-acceptor to run them.
+# As a rule of thumb, we recommend that each fork gate inherits from the
+# base gate as well as any earlier fork gates.
 
 
 
