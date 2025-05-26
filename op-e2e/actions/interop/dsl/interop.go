@@ -203,8 +203,8 @@ func (is *InteropSetup) CreateActors() *InteropActors {
 	is.T.Cleanup(func() {
 		require.NoError(is.T, supervisorAPI.backend.Stop(context.Background()))
 	})
-	chainA := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900200"])
-	chainB := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900201"])
+	chainA := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900200"], is.CfgSet)
+	chainB := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900201"], is.CfgSet)
 	// Hook up L2 RPCs to supervisor, to fetch event data from
 	srcA := chainA.Sequencer.InteropSyncNode(is.T)
 	srcB := chainB.Sequencer.InteropSyncNode(is.T)
@@ -290,6 +290,7 @@ func createL2Services(
 	l1Miner *helpers.L1Miner,
 	keys devkeys.Keys,
 	output *interopgen.L2Output,
+	depSet depset.DependencySet,
 ) *Chain {
 	logger = logger.New("chain", output.Genesis.Config.ChainID)
 
@@ -305,7 +306,7 @@ func createL2Services(
 	require.NoError(t, err)
 
 	seq := helpers.NewL2Sequencer(t, logger.New("role", "sequencer"), l1F,
-		l1Miner.BlobStore(), altda.Disabled, seqCl, output.RollupCfg,
+		l1Miner.BlobStore(), altda.Disabled, seqCl, output.RollupCfg, depSet,
 		0)
 
 	batcherKey, err := keys.Secret(devkeys.ChainOperatorKey{
