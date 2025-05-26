@@ -30,6 +30,7 @@ reth-rpc = { workspace = true, optional = true }
 reth-rpc-api = { workspace = true, optional = true }
 reth-rpc-eth-types = { workspace = true, optional = true }
 reth-rpc-builder = { workspace = true, optional = true }
+reth-exex = { workspace = true, optional = true }
 reth-transaction-pool = { workspace = true, optional = true }
 reth-trie = { workspace = true, optional = true }
 reth-node-builder = { workspace = true, optional = true }
@@ -94,6 +95,7 @@ consensus = [
     "dep:reth-optimism-consensus",
 ]
 evm = ["dep:reth-evm", "dep:reth-optimism-evm", "dep:reth-revm"]
+exex = ["provider", "dep:reth-exex"]
 node-api = ["dep:reth-node-api", "dep:reth-node-core"]
 node = [
     "provider",
