@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/logfilter"
 )
 
@@ -25,7 +26,9 @@ func KindFromContext(ctx context.Context) Kind {
 
 // ContextWithKind annotates the context with the given kind of service
 func ContextWithKind(ctx context.Context, kind Kind) context.Context {
-	return context.WithValue(ctx, kindCtxKey, kind)
+	ctx = context.WithValue(ctx, kindCtxKey, kind)
+	ctx = log.RegisterLogAttrOnContext(ctx, "kind", kindCtxKey)
+	return ctx
 }
 
 // KindLogFilter creates a log-filter that applies the given inner log-filter only if it matches the given kind.
@@ -56,7 +59,9 @@ func ChainIDFromContext(ctx context.Context) eth.ChainID {
 
 // ContextWithChainID annotates the context with the given chainID of service
 func ContextWithChainID(ctx context.Context, chainID eth.ChainID) context.Context {
-	return context.WithValue(ctx, chainIDCtxKey, chainID)
+	ctx = context.WithValue(ctx, chainIDCtxKey, chainID)
+	ctx = log.RegisterLogAttrOnContext(ctx, "chainID", chainIDCtxKey)
+	return ctx
 }
 
 // ChainIDLogFilter creates a log-filter that applies the given inner log-filter only if it matches the given chainID.

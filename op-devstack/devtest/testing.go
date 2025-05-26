@@ -285,7 +285,7 @@ func SerialT(t *testing.T) T {
 
 	// Set the lowest default log-level, so the log-filters on top can apply correctly
 	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
-		telemetry.WrapHandler, logfilter.WrapFilterHandler)
+		oplog.WrapContextHandler, telemetry.WrapHandler, logfilter.WrapFilterHandler)
 	h, ok := logmods.FindHandler[logfilter.Handler](logger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.

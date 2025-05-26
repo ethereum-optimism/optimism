@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 
@@ -13,6 +14,12 @@ import (
 
 // Kind represents a kind of component, this is used to make each ID unique, even when encoded as text.
 type Kind string
+
+var _ slog.LogValuer = (*Kind)(nil)
+
+func (k Kind) LogValue() slog.Value {
+	return slog.StringValue(string(k))
+}
 
 func (k Kind) String() string {
 	return string(k)
