@@ -202,6 +202,7 @@ where
     fn add_ons(&self) -> Self::AddOns {
         Self::AddOns::builder()
             .with_sequencer(self.args.sequencer.clone())
+            .with_sequencer_headers(self.args.sequencer_headers.clone())
             .with_da_config(self.da_config.clone())
             .with_enable_tx_conditional(self.args.enable_tx_conditional)
             .build()
@@ -250,6 +251,8 @@ pub struct OpAddOns<
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
     /// network.
     pub sequencer_url: Option<String>,
+    /// Headers to use for the sequencer client requests.
+    pub sequencer_headers: Vec<String>,
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
 }
@@ -298,7 +301,13 @@ where
         self,
         ctx: reth_node_api::AddOnsContext<'_, N>,
     ) -> eyre::Result<Self::Handle> {
-        let Self { rpc_add_ons, da_config, sequencer_url, enable_tx_conditional } = self;
+        let Self {
+            rpc_add_ons,
+            da_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+        } = self;
 
         let builder = reth_optimism_payload_builder::OpPayloadBuilder::new(
             ctx.node.pool().clone(),
@@ -314,7 +323,7 @@ where
         let miner_ext = OpMinerExtApi::new(da_config);
 
         let sequencer_client = if let Some(url) = sequencer_url {
-            Some(SequencerClient::new(url).await?)
+            Some(SequencerClient::new_with_headers(url, sequencer_headers).await?)
         } else {
             None
         };
@@ -411,6 +420,8 @@ pub struct OpAddOnsBuilder<NetworkT> {
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
     /// network.
     sequencer_url: Option<String>,
+    /// Headers to use for the sequencer client requests.
+    sequencer_headers: Vec<String>,
     /// Data availability configuration for the OP builder.
     da_config: Option<OpDAConfig>,
     /// Enable transaction conditionals.
@@ -423,6 +434,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
     fn default() -> Self {
         Self {
             sequencer_url: None,
+            sequencer_headers: Vec::new(),
             da_config: None,
             enable_tx_conditional: false,
             _nt: PhantomData,
@@ -434,6 +446,12 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
     /// With a [`SequencerClient`].
     pub fn with_sequencer(mut self, sequencer_client: Option<String>) -> Self {
         self.sequencer_url = sequencer_client;
+        self
+    }
+
+    /// With headers to use for the sequencer client requests.
+    pub fn with_sequencer_headers(mut self, sequencer_headers: Vec<String>) -> Self {
+        self.sequencer_headers = sequencer_headers;
         self
     }
 
@@ -457,16 +475,19 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
         N: FullNodeComponents<Types: NodeTypes>,
         OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
     {
-        let Self { sequencer_url, da_config, enable_tx_conditional, .. } = self;
+        let Self { sequencer_url, sequencer_headers, da_config, enable_tx_conditional, .. } = self;
 
         OpAddOns {
             rpc_add_ons: RpcAddOns::new(
-                OpEthApiBuilder::default().with_sequencer(sequencer_url.clone()),
+                OpEthApiBuilder::default()
+                    .with_sequencer(sequencer_url.clone())
+                    .with_sequencer_headers(sequencer_headers.clone()),
                 OpEngineValidatorBuilder::default(),
                 OpEngineApiBuilder::default(),
             ),
             da_config: da_config.unwrap_or_default(),
             sequencer_url,
+            sequencer_headers,
             enable_tx_conditional,
         }
     }
