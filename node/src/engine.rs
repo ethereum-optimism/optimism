@@ -144,13 +144,20 @@ where
 
 impl<Types, P> EngineValidator<Types> for OpEngineValidator<P>
 where
-    Types: PayloadTypes<PayloadAttributes = OpPayloadAttributes, ExecutionData = OpExecutionData>,
+    Types: PayloadTypes<
+        PayloadAttributes = OpPayloadAttributes,
+        ExecutionData = <Self as PayloadValidator>::ExecutionData,
+    >,
     P: StateProviderFactory + Unpin + 'static,
 {
     fn validate_version_specific_fields(
         &self,
         version: EngineApiMessageVersion,
-        payload_or_attrs: PayloadOrAttributes<'_, Self::ExecutionData, OpPayloadAttributes>,
+        payload_or_attrs: PayloadOrAttributes<
+            '_,
+            Types::ExecutionData,
+            <Types as PayloadTypes>::PayloadAttributes,
+        >,
     ) -> Result<(), EngineObjectValidationError> {
         validate_withdrawals_presence(
             self.chain_spec(),
@@ -171,7 +178,7 @@ where
     fn ensure_well_formed_attributes(
         &self,
         version: EngineApiMessageVersion,
-        attributes: &OpPayloadAttributes,
+        attributes: &<Types as PayloadTypes>::PayloadAttributes,
     ) -> Result<(), EngineObjectValidationError> {
         validate_version_specific_fields(
             self.chain_spec(),
