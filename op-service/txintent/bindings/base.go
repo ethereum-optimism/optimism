@@ -134,59 +134,50 @@ func InitImpl[T any](impl *T, factory *BaseCallFactory) {
 		fieldType := field.Type
 		if fieldType.Kind() == reflect.Func {
 			methodName := field.Tag.Get(MethodTagName)
-
 			inputTypes := []reflect.Type{}
 			for j := range fieldType.NumIn() {
 				inputTypes = append(inputTypes, fieldType.In(j))
 			}
 			outputType := fieldType.Out(0)
-
-			// outer: func(...args) -> <inner: (func() -> (bytes[], error))>
 			// inner: func() -> (bytes[], error)
-			funcInput := reflect.FuncOf([]reflect.Type{}, []reflect.Type{reflect.TypeOf([]byte{}), reflect.TypeOf((*error)(nil)).Elem()}, false)
+			funcInputRet := []reflect.Type{reflect.TypeFor[[]byte](), reflect.TypeFor[error]()}
+			funcInput := reflect.FuncOf([]reflect.Type{}, funcInputRet, false)
+			// outer: func(...args) -> inner: (func() -> (bytes[], error))
 			funcInputWrapper := reflect.FuncOf(inputTypes, []reflect.Type{funcInput}, false)
 
-			encoderLambdaLambda := reflect.MakeFunc(funcInputWrapper, func(argsOuter []reflect.Value) []reflect.Value {
-				encoderLambda := reflect.MakeFunc(funcInput, func(argsInner []reflect.Value) []reflect.Value {
+			encoderOuter := reflect.MakeFunc(funcInputWrapper, func(argsOuter []reflect.Value) []reflect.Value {
+				encoderInner := reflect.MakeFunc(funcInput, func(argsInner []reflect.Value) []reflect.Value {
 					callArgs := make([]any, len(argsOuter))
 					for i, a := range argsOuter {
 						callArgs[i] = a.Interface()
 					}
 					v0, v1 := encoder(methodName, callArgs...)
-
-					// guard
-					var val0 reflect.Value
-					if v0 == nil {
-						val0 = reflect.Zero(reflect.TypeOf([]byte{}))
-					} else {
-						val0 = reflect.ValueOf(v0)
+					ret := []reflect.Value{reflect.Zero(funcInputRet[0]), reflect.Zero(funcInputRet[1])}
+					if v0 != nil { // bytes[]
+						ret[0] = reflect.ValueOf(v0)
 					}
-					var val1 reflect.Value
-					if v1 == nil {
-						val1 = reflect.Zero(reflect.TypeOf((*error)(nil)).Elem())
-					} else {
-						val1 = reflect.ValueOf(v1)
+					if v1 != nil { // error
+						ret[1] = reflect.ValueOf(v1)
 					}
-
-					return []reflect.Value{val0, val1}
+					return ret
 				})
-				inner := encoderLambda.Interface().(func() ([]byte, error))
-				return []reflect.Value{reflect.ValueOf(inner)}
+				return []reflect.Value{encoderInner}
 			})
 
-			λ := reflect.MakeFunc(fieldType, func(args []reflect.Value) []reflect.Value {
-				innerResults := encoderLambdaLambda.Call(args)
+			// Initialize actual binding lambda fields
+			lambda := reflect.MakeFunc(fieldType, func(args []reflect.Value) []reflect.Value {
+				innerResults := encoderOuter.Call(args)
 				if len(innerResults) != 1 {
 					panic("expected one return value")
 				}
-				innerλ := innerResults[0].Interface().(func() ([]byte, error))
+				innerλ := innerResults[0]
 				wrap := reflect.New(outputType).Elem()
 				wrap.FieldByName("MethodName").Set(reflect.ValueOf(methodName))
-				wrap.FieldByName("EncodeInputLambda").Set(reflect.ValueOf(innerλ))
+				wrap.FieldByName("EncodeInputLambda").Set(innerλ)
 				wrap.FieldByName("BaseCallFactory").Set(reflect.ValueOf(factory))
 				return []reflect.Value{wrap}
 			})
-			v.FieldByName(field.Name).Set(λ)
+			v.FieldByName(field.Name).Set(lambda)
 		}
 	}
 }
@@ -212,7 +203,7 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	var zero ReturnType
 	retTyp := reflect.TypeOf(zero)
 
-	// Special handling for eth.ETH
+	// Special handling for op-service types
 	var abiTargetType reflect.Type
 	if retTyp == reflect.TypeOf(eth.ETH{}) {
 		abiTargetType = reflect.TypeOf(big.NewInt(0))
@@ -222,19 +213,19 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 
 	abiType, err := script.GoTypeToABIType(abiTargetType)
 	if err != nil {
-		return zero, fmt.Errorf("failed to convert Go type to ABI type: %w", err)
+		panic(err)
 	}
 
 	outputs := abi.Arguments{{Type: abiType}}
 	decoded, err := outputs.Unpack(data)
 	if err != nil {
-		return zero, fmt.Errorf("ABI unpack error: %w", err)
+		panic(err)
 	}
 
 	// TODO: handle multiple returns
 	val := decoded[0]
 
-	// Special handling for eth.ETH
+	// Special handling for op-service types
 	switch retTyp {
 	case reflect.TypeOf(eth.ETH{}):
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
@@ -252,35 +243,34 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 var _ txintent.CallView[any] = (*TypedCall[any])(nil)
 
 func encoder(name string, args ...any) ([]byte, error) {
-	inputs := []abi.Argument{}
-	args_translated := []any{}
-	for i, arg := range args {
-		var typ reflect.Type
-		// handle op service types
+	inputs := make([]abi.Argument, 0, len(args))
+	argsTranslated := make([]any, 0, len(args))
+	for _, arg := range args {
+		var (
+			goType reflect.Type
+			value  any
+		)
+		// Special handling for op-service types
 		switch v := arg.(type) {
 		case eth.ETH:
-			argsTyped := v.ToBig()
-			typ = reflect.TypeOf(argsTyped)
-			args_translated = append(args_translated, argsTyped)
+			value = v.ToBig()
+			goType = reflect.TypeOf(value)
 		default:
-			typ = reflect.TypeOf(arg)
-			args_translated = append(args_translated, arg)
+			value = v
+			goType = reflect.TypeOf(v)
 		}
-		abiTyp, err := script.GoTypeToABIType(typ)
+		abiType, err := script.GoTypeToABIType(goType)
 		if err != nil {
-			panic("go type to abi type")
+			panic(err)
 		}
-		input := abi.Argument{
-			Name: fmt.Sprintf("arg_%d", i),
-			Type: abiTyp,
-		}
-		inputs = append(inputs, input)
+		inputs = append(inputs, abi.Argument{Type: abiType})
+		argsTranslated = append(argsTranslated, value)
 	}
 
 	// Internally initialise sig and ID
 	// Use dummy vars but calldata does not care
 	method := abi.NewMethod(name, name, abi.Function, "payable", false, false, inputs, abi.Arguments{})
-	arguments, err := method.Inputs.Pack(args_translated...)
+	arguments, err := method.Inputs.Pack(argsTranslated...)
 	if err != nil {
 		panic(err)
 	}
