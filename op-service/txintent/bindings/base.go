@@ -290,6 +290,11 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	var zero ReturnType
 	retTyp := reflect.TypeOf(zero)
 
+	// nothing to decode since ReturnType was marked as any
+	if retTyp == nil {
+		return *new(ReturnType), nil
+	}
+
 	if retTyp.Kind() == reflect.Struct {
 		panic("multiple return type using struct is not supported yet")
 	}
