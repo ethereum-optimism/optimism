@@ -216,14 +216,7 @@ where
     type RpcBlock = alloy_rpc_types_eth::Block<op_alloy_consensus::OpTxEnvelope>;
 
     fn rpc_to_primitive_block(rpc_block: Self::RpcBlock) -> reth_node_api::BlockTy<Self> {
-        let alloy_rpc_types_eth::Block { header, transactions, .. } = rpc_block;
-        reth_optimism_primitives::OpBlock {
-            header: header.inner,
-            body: reth_optimism_primitives::OpBlockBody {
-                transactions: transactions.into_transactions().collect(),
-                ..Default::default()
-            },
-        }
+        rpc_block.into_consensus()
     }
 }
 
