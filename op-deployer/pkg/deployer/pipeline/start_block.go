@@ -20,6 +20,11 @@ func SetStartBlockLiveStrategy(ctx context.Context, env *Env, st *state.State, c
 		return fmt.Errorf("failed to get chain state: %w", err)
 	}
 
+	if thisChainState.StartBlock != nil {
+		lgr.Info("start block already set")
+		return nil
+	}
+
 	startHeader, err := env.L1Client.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get start block: %w", err)
