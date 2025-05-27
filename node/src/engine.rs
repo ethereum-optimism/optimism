@@ -20,7 +20,7 @@ use reth_optimism_consensus::isthmus;
 use reth_optimism_forks::{OpHardfork, OpHardforks};
 use reth_optimism_payload_builder::{OpExecutionPayloadValidator, OpPayloadTypes};
 use reth_optimism_primitives::{OpBlock, ADDRESS_L2_TO_L1_MESSAGE_PASSER};
-use reth_primitives_traits::{RecoveredBlock, SealedBlock, SignedTransaction};
+use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SignedTransaction};
 use reth_provider::StateProviderFactory;
 use reth_trie_common::{HashedPostState, KeyHasher};
 use std::{marker::PhantomData, sync::Arc};
@@ -29,16 +29,10 @@ use std::{marker::PhantomData, sync::Arc};
 #[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
 #[non_exhaustive]
 pub struct OpEngineTypes<T: PayloadTypes = OpPayloadTypes> {
-    _marker: std::marker::PhantomData<T>,
+    _marker: PhantomData<T>,
 }
 
-impl<
-        T: PayloadTypes<
-            ExecutionData = OpExecutionData,
-            BuiltPayload: BuiltPayload<Primitives: NodePrimitives<Block = OpBlock>>,
-        >,
-    > PayloadTypes for OpEngineTypes<T>
-{
+impl<T: PayloadTypes<ExecutionData = OpExecutionData>> PayloadTypes for OpEngineTypes<T> {
     type ExecutionData = T::ExecutionData;
     type BuiltPayload = T::BuiltPayload;
     type PayloadAttributes = T::PayloadAttributes;
@@ -49,7 +43,10 @@ impl<
             <<Self::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block,
         >,
     ) -> <T as PayloadTypes>::ExecutionData {
-        OpExecutionData::from_block_unchecked(block.hash(), &block.into_block())
+        OpExecutionData::from_block_unchecked(
+            block.hash(),
+            &block.into_block().into_ethereum_block(),
+        )
     }
 }
 
