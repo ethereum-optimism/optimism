@@ -3,6 +3,7 @@ package interop
 import (
 	"encoding/binary"
 	"fmt"
+	test2 "github.com/ethereum-optimism/optimism/op-program/client/l1/test"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -745,7 +746,18 @@ func verifyResult(t *testing.T, logger log.Logger, tasks *stubTasks, configSourc
 		Claim:          expectedClaim,
 		Configs:        configSource,
 	}
-	err := runInteropProgram(logger, bootInfo, nil, l2PreimageOracle, true, tasks)
+	l1Oracle := test2.NewStubOracle(t)
+	for _, chainID := range configSource.chainIDs {
+		rollupCfg, err := configSource.RollupConfig(chainID)
+		require.NoError(t, err)
+		// Assuming the anchor block of the L2 on the L1 is the same timestamp as the genesis block of L1.
+		l1Oracle.Blocks[rollupCfg.Genesis.L1.Hash] = &testutils.MockBlockInfo{
+			InfoHash: rollupCfg.Genesis.L1.Hash,
+			InfoNum:  rollupCfg.Genesis.L1.Number,
+			InfoTime: rollupCfg.Genesis.L2Time,
+		}
+	}
+	err := runInteropProgram(logger, bootInfo, l1Oracle, l2PreimageOracle, true, tasks)
 	require.NoError(t, err)
 }
 
