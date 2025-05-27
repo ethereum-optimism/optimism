@@ -149,7 +149,7 @@ func makeArgs(argCount int, getType func(i int) reflect.Type) (abi.Arguments, er
 	out := make(abi.Arguments, argCount)
 	for i := 0; i < argCount; i++ {
 		argType := getType(i)
-		abiTyp, err := goTypeToABIType(argType)
+		abiTyp, err := GoTypeToABIType(argType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to determine ABI type of input arg %d: %w", i, err)
 		}
@@ -343,8 +343,8 @@ func convertType(src, dest any) (out any, err error) {
 	return
 }
 
-// goTypeToABIType infers the geth ABI type definition from a Go reflect type definition.
-func goTypeToABIType(typ reflect.Type) (abi.Type, error) {
+// GoTypeToABIType infers the geth ABI type definition from a Go reflect type definition.
+func GoTypeToABIType(typ reflect.Type) (abi.Type, error) {
 	solType, internalType, err := goTypeToSolidityType(typ)
 	if err != nil {
 		return abi.Type{}, err
@@ -494,7 +494,7 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 			fieldDef.Name, m.abiSignature, m.goName, byte4Sig)
 	}
 	// Determine the type to ABI-encode the Go field value into
-	abiTyp, err := goTypeToABIType(fieldDef.Type)
+	abiTyp, err := GoTypeToABIType(fieldDef.Type)
 	if err != nil {
 		return fmt.Errorf("failed to determine ABI type of struct field of type %s: %w", fieldDef.Type, err)
 	}
