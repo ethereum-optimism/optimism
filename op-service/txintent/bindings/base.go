@@ -2,7 +2,6 @@ package bindings
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -224,18 +223,59 @@ type TypedCall[ReturnType any] struct {
 	Call
 }
 
+// OpServiceTypeToGoType converts op-service type to go type
+func OpServiceTypeToGoType(retTyp reflect.Type) reflect.Type {
+	switch retTyp {
+	case reflect.TypeOf(eth.ETH{}), reflect.TypeOf(eth.ChainID{}):
+		return reflect.TypeOf(big.NewInt(0))
+	default:
+		return retTyp
+	}
+}
+
+// OpServiceValueToABIValue converts op-service value to abi value
+func OpServiceValueToABIValue(arg any) any {
+	var value any
+	switch v := arg.(type) {
+	case eth.ETH:
+		value = v.ToBig()
+	case eth.ChainID:
+		value = v.ToBig()
+	default:
+		value = v
+	}
+	return value
+}
+
+// ABIValueToOpServiceValue converts abi value to op-service value
+func ABIValueToOpServiceValue[ReturnType any](retTyp reflect.Type, val any) ReturnType {
+	var zero ReturnType
+	switch retTyp {
+	case reflect.TypeOf(eth.ETH{}):
+		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
+		var concrete eth.ETH
+		if (*uint256.Int)(&concrete).SetFromBig(bigVal) {
+			return zero
+		}
+		return any(concrete).(ReturnType)
+	case reflect.TypeOf(eth.ChainID{}):
+		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
+		var concrete eth.ChainID
+		if (*uint256.Int)(&concrete).SetFromBig(bigVal) {
+			return zero
+		}
+		return any(concrete).(ReturnType)
+	default:
+		ptr := abi.ConvertType(val, new(ReturnType)).(*ReturnType)
+		return *ptr
+	}
+}
+
 func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	var zero ReturnType
 	retTyp := reflect.TypeOf(zero)
 
-	// Special handling for op-service types
-	var abiTargetType reflect.Type
-	if retTyp == reflect.TypeOf(eth.ETH{}) {
-		abiTargetType = reflect.TypeOf(big.NewInt(0))
-	} else {
-		abiTargetType = retTyp
-	}
-
+	abiTargetType := OpServiceTypeToGoType(retTyp)
 	abiType, err := script.GoTypeToABIType(abiTargetType)
 	if err != nil {
 		panic(err)
@@ -248,48 +288,24 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	}
 
 	// TODO: handle multiple returns
-	val := decoded[0]
-
-	// Special handling for op-service types
-	switch retTyp {
-	case reflect.TypeOf(eth.ETH{}):
-		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
-		var concrete eth.ETH
-		if (*uint256.Int)(&concrete).SetFromBig(bigVal) {
-			return zero, errors.New("result conversion failure: does not fit in uint256")
-		}
-		return any(concrete).(ReturnType), nil
-	default:
-		ptr := abi.ConvertType(val, new(ReturnType)).(*ReturnType)
-		return *ptr, nil
-	}
+	val := ABIValueToOpServiceValue[ReturnType](retTyp, decoded[0])
+	return val, nil
 }
 
 var _ txintent.CallView[any] = (*TypedCall[any])(nil)
 
 func encoder(name string, args ...any) ([]byte, error) {
-	inputs := make([]abi.Argument, 0, len(args))
-	argsTranslated := make([]any, 0, len(args))
-	for _, arg := range args {
-		var (
-			goType reflect.Type
-			value  any
-		)
-		// Special handling for op-service types
-		switch v := arg.(type) {
-		case eth.ETH:
-			value = v.ToBig()
-			goType = reflect.TypeOf(value)
-		default:
-			value = v
-			goType = reflect.TypeOf(v)
-		}
+	inputs := make([]abi.Argument, len(args))
+	argsTranslated := make([]any, len(args))
+	for i, arg := range args {
+		goType := OpServiceTypeToGoType(reflect.TypeOf(arg))
+		abiValue := OpServiceValueToABIValue(arg)
 		abiType, err := script.GoTypeToABIType(goType)
 		if err != nil {
 			panic(err)
 		}
-		inputs = append(inputs, abi.Argument{Type: abiType})
-		argsTranslated = append(argsTranslated, value)
+		inputs[i] = abi.Argument{Type: abiType}
+		argsTranslated[i] = abiValue
 	}
 
 	// Internally initialise sig and ID
