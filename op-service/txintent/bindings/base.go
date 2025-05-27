@@ -195,12 +195,12 @@ func InitImpl[T any](impl *T) {
 				if len(innerResults) != 1 {
 					panic("expected one return value")
 				}
-				innerλ := innerResults[0]
-				wrap := reflect.New(outputType).Elem()
-				wrap.FieldByName("MethodName").Set(reflect.ValueOf(methodName))
-				wrap.FieldByName("EncodeInputLambda").Set(innerλ)
-				wrap.FieldByName("BaseCallFactory").Set(baseCallFactory.Addr())
-				return []reflect.Value{wrap}
+				encoderLambda := innerResults[0]
+				typedCall := reflect.New(outputType).Elem()
+				typedCall.FieldByName("MethodName").Set(reflect.ValueOf(methodName))
+				typedCall.FieldByName("EncodeInputLambda").Set(encoderLambda)
+				typedCall.FieldByName("BaseCallFactory").Set(baseCallFactory.Addr())
+				return []reflect.Value{typedCall}
 			})
 			v.FieldByName(field.Name).Set(lambda)
 		}
