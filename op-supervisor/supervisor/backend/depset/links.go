@@ -40,12 +40,14 @@ func (lc *LinkCheckerImpl) CanExecute(execInChain eth.ChainID,
 	if !lc.cfg.IsInterop(execInChain, execInTimestamp) {
 		return false
 	}
+	// Note: this does not cover the genesis block of a chain, but that block is empty anyway.
 	if lc.cfg.IsInteropActivationBlock(execInChain, execInTimestamp) {
 		return false
 	}
 	if !lc.cfg.IsInterop(initChainID, initTimestamp) {
 		return false
 	}
+	// Note: this does not cover the genesis block of a chain, but that block is empty anyway.
 	if lc.cfg.IsInteropActivationBlock(initChainID, initTimestamp) {
 		return false
 	}

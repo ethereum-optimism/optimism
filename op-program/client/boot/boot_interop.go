@@ -31,7 +31,6 @@ type ConfigSource interface {
 	RollupConfig(chainID eth.ChainID) (*rollup.Config, error)
 	ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error)
 	DependencySet(chainID eth.ChainID) (depset.DependencySet, error)
-	FullConfigSet(chainID eth.ChainID) (depset.FullConfigSet, error)
 }
 
 type OracleConfigSource struct {
@@ -98,24 +97,6 @@ func (c *OracleConfigSource) DependencySet(chainID eth.ChainID) (depset.Dependen
 	}
 	c.depset = depSet
 	return c.depset, nil
-}
-
-func (c *OracleConfigSource) FullConfigSet(chainID eth.ChainID) (depset.FullConfigSet, error) {
-	depSet, err := c.DependencySet(chainID)
-	if err != nil {
-		return nil, err
-	}
-	confs := make(depset.StaticRollupConfigSet)
-	for _, chID := range depSet.Chains() {
-		rollupCfg, err := c.RollupConfig(chID)
-		if err != nil {
-			return nil, err
-		}
-		// TODO: we could load the L1 block header here?
-		l1Timestamp := rollupCfg.Genesis.L2Time
-		confs[chID] = depset.StaticRollupConfigFromRollupConfig(rollupCfg, l1Timestamp)
-	}
-	return depset.NewFullConfigSetMerged(confs, depSet)
 }
 
 func (c *OracleConfigSource) loadCustomConfigs() {

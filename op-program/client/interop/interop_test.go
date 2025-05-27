@@ -49,7 +49,7 @@ func setupTwoChains(opts ...func(*chainSetupOpts)) (*staticConfigSource, *eth.Su
 	}
 
 	rollupCfg1 := *chaincfg.OPSepolia()
-	chainCfg1 := chainconfig.OPSepoliaChainConfig()
+	chainCfg1 := *chainconfig.OPSepoliaChainConfig()
 
 	rollupCfg2 := *chaincfg.OPSepolia()
 	rollupCfg2.L2ChainID = new(big.Int).SetUint64(42)
@@ -80,17 +80,11 @@ func setupTwoChains(opts ...func(*chainSetupOpts)) (*staticConfigSource, *eth.Su
 			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {},
 		})
 	}
-	rollupCfgSet := depset.StaticRollupConfigSetFromRollupConfigMap(map[eth.ChainID]*rollup.Config{
-		eth.ChainIDFromBig(rollupCfg1.L2ChainID): &rollupCfg1,
-		eth.ChainIDFromBig(rollupCfg2.L2ChainID): &rollupCfg2,
-	}, depset.StaticTimestamp(agreedSuperRoot.Timestamp)) // TODO review from Seb/Mofi
-	fullCfg, _ := depset.NewFullConfigSetMerged(rollupCfgSet, ds)
 	configSource := &staticConfigSource{
-		rollupCfgs:    []*rollup.Config{&rollupCfg1, &rollupCfg2},
-		chainConfigs:  []*params.ChainConfig{chainCfg1, &chainCfg2},
-		depset:        ds,
-		fullConfigSet: fullCfg,
-		chainIDs:      []eth.ChainID{eth.ChainIDFromBig(rollupCfg1.L2ChainID), eth.ChainIDFromBig(rollupCfg2.L2ChainID)},
+		rollupCfgs:   []*rollup.Config{&rollupCfg1, &rollupCfg2},
+		chainConfigs: []*params.ChainConfig{&chainCfg1, &chainCfg2},
+		depset:       ds,
+		chainIDs:     []eth.ChainID{eth.ChainIDFromBig(rollupCfg1.L2ChainID), eth.ChainIDFromBig(rollupCfg2.L2ChainID)},
 	}
 	tasksStub := &stubTasks{
 		l2SafeHead: eth.L2BlockRef{Number: 918429823450218}, // Past the claimed block
@@ -828,11 +822,10 @@ func (t *stubTasks) ExpectBuildDepositOnlyBlock(
 }
 
 type staticConfigSource struct {
-	rollupCfgs    []*rollup.Config
-	chainConfigs  []*params.ChainConfig
-	depset        *depset.StaticConfigDependencySet
-	fullConfigSet depset.FullConfigSet
-	chainIDs      []eth.ChainID
+	rollupCfgs   []*rollup.Config
+	chainConfigs []*params.ChainConfig
+	depset       *depset.StaticConfigDependencySet
+	chainIDs     []eth.ChainID
 }
 
 func (s *staticConfigSource) RollupConfig(chainID eth.ChainID) (*rollup.Config, error) {
@@ -855,8 +848,4 @@ func (s *staticConfigSource) ChainConfig(chainID eth.ChainID) (*params.ChainConf
 
 func (s *staticConfigSource) DependencySet(chainID eth.ChainID) (depset.DependencySet, error) {
 	return s.depset, nil
-}
-
-func (s *staticConfigSource) FullConfigSet(chainID eth.ChainID) (depset.FullConfigSet, error) {
-	return s.fullConfigSet, nil
 }

@@ -155,7 +155,7 @@ func singleRoundConsolidation(
 	if err != nil {
 		return fmt.Errorf("failed to create consolidate check deps: %w", err)
 	}
-	fullConfig, err := bootInfo.Configs.FullConfigSet(superRoot.Chains[0].ChainID)
+	fullConfig, err := getFullConfig(bootInfo.Configs, l1PreimageOracle, depSet)
 	if err != nil {
 		return fmt.Errorf("failed to get full config set: %w", err)
 	}
