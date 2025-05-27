@@ -60,10 +60,7 @@ _check_mise:
             else
                 echo "Warning: mise doctor found unexpected issues:"
                 echo "$output"
-                if [ "$RUN_AUTOFIX" != "true" ]; then
-                    echo "Please fix these issues manually or run with AUTOFIX=true"
-                    exit 1
-                fi
+                exit 1
             fi
         fi
     fi
