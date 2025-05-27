@@ -44,6 +44,11 @@ func SetStartBlockLiveStrategy(ctx context.Context, env *Env, st *state.State, c
 		return fmt.Errorf("failed to get chain state: %w", err)
 	}
 
+	if thisChainState.StartBlock != nil {
+		lgr.Info("start block already set")
+		return nil
+	}
+
 	headerBlockRef, err := blockRefFromRpc(ctx, env.L1Client.Client(), "latest")
 	if err != nil {
 		return fmt.Errorf("failed to get L1 block header: %w", err)
