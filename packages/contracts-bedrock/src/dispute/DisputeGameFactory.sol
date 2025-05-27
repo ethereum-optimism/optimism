@@ -160,6 +160,19 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         // Get the hash of the parent block.
         bytes32 parentHash = blockhash(block.number - 1);
 
+        // Ensure extraData is exactly 32 bytes for consistent CWIA layout
+        bytes memory paddedExtraData;
+        if (_extraData.length == 32) {
+            paddedExtraData = _extraData;
+        } else if (_extraData.length < 32) {
+            paddedExtraData = abi.encodePacked(_extraData, new bytes(32 - _extraData.length));
+        } else {
+            paddedExtraData = new bytes(32);
+            for (uint256 i = 0; i < 32; i++) {
+                paddedExtraData[i] = _extraData[i];
+            }
+        }
+
         // Clone the implementation contract and initialize it with the given parameters.
         //
         // CWIA Calldata Layout:
@@ -169,9 +182,10 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         // │ [0, 20)      │ Game creator address               │
         // │ [20, 52)     │ Root claim                         │
         // │ [52, 84)     │ Parent block hash at creation time │
-        // │ [84, 84 + n) │ Extra data (opaque)                │
+        // │ [84, 116)    │ Extra data (32 bytes, padded)      │
+        // │ [116, ..)    │ Game-specific constructor args     │
         // └──────────────┴────────────────────────────────────┘
-        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData)));
+        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, paddedExtraData, gameArgs[_gameType])));
         proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.

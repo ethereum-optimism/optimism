@@ -37,9 +37,16 @@ contract PermissionedDisputeGame is FaultDisputeGame {
         return "1.7.0";
     }
 
+    /// @param _params Parameters for creating a new FaultDisputeGame.
     /// @param _proposer Address that is allowed to create instances of this contract.
     /// @param _challenger Address that is allowed to challenge instances of this contract.
-    constructor(address _proposer, address _challenger) FaultDisputeGame() {
+    constructor(
+        GameConstructorParams memory _params,
+        address _proposer,
+        address _challenger
+    )
+        FaultDisputeGame(_params)
+    {
         PROPOSER = _proposer;
         CHALLENGER = _challenger;
     }

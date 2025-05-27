@@ -28,14 +28,11 @@ interface IFaultDisputeGame is IDisputeGame {
 
     struct GameConstructorParams {
         GameType gameType;
-        Claim absolutePrestate;
         uint256 maxGameDepth;
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        IBigStepper vm;
         IDelayedWETH weth;
-        IAnchorStateRegistry anchorStateRegistry;
         uint256 l2ChainId;
     }
 
@@ -137,5 +134,8 @@ interface IFaultDisputeGame is IDisputeGame {
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
     function weth() external view returns (IDelayedWETH weth_);
 
-    function __constructor__() external;
+    function __constructor__(
+        GameConstructorParams memory _params
+    )
+        external;
 }

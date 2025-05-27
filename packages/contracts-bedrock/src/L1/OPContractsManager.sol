@@ -177,7 +177,7 @@ abstract contract OPContractsManagerBase {
         virtual
         returns (bytes memory)
     {
-        bytes memory dataWithSelector = abi.encodeCall(IFaultDisputeGame.__constructor__, ());
+        bytes memory dataWithSelector = abi.encodeCall(IFaultDisputeGame.__constructor__, (_params));
         return Bytes.slice(dataWithSelector, 4);
     }
 
@@ -192,7 +192,7 @@ abstract contract OPContractsManagerBase {
         returns (bytes memory)
     {
         bytes memory dataWithSelector =
-            abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_proposer, _challenger));
+            abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
         return Bytes.slice(dataWithSelector, 4);
     }
 
@@ -258,46 +258,22 @@ abstract contract OPContractsManagerBase {
         return IDisputeGameFactory(_systemConfig.disputeGameFactory());
     }
 
-    /// @notice Retrieves the AnchorStateRegistry address for a given SystemConfig
-    function getAnchorStateRegistry(ISystemConfig _systemConfig) internal view returns (IAnchorStateRegistry) {
-        return IAnchorStateRegistry(IOptimismPortal(payable(_systemConfig.optimismPortal())).anchorStateRegistry());
-    }
-
     /// @notice Retrieves the constructor params for a given game.
     function getGameConstructorParams(IFaultDisputeGame _disputeGame)
         internal
         view
         returns (IFaultDisputeGame.GameConstructorParams memory)
     {
-        // Grab the game type first, it'll determine if we need to pull the L2 chain ID from the
-        // contract or if we just return zero (Super games).
-        GameType gameType = _disputeGame.gameType();
-
-        // If the game type is a Super game, then we don't need to pull the L2 chain ID from the
-        // contract.
-        uint256 l2ChainId;
-        if (
-            gameType.raw() == GameTypes.SUPER_CANNON.raw()
-                || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-        ) {
-            l2ChainId = 0;
-        } else {
-            l2ChainId = getL2ChainId(_disputeGame);
-        }
-
-        // Return the constructor params.
-        return IFaultDisputeGame.GameConstructorParams({
-            gameType: gameType,
-            absolutePrestate: _disputeGame.absolutePrestate(),
+        IFaultDisputeGame.GameConstructorParams memory params = IFaultDisputeGame.GameConstructorParams({
+            gameType: _disputeGame.gameType(),
             maxGameDepth: _disputeGame.maxGameDepth(),
             splitDepth: _disputeGame.splitDepth(),
             clockExtension: _disputeGame.clockExtension(),
             maxClockDuration: _disputeGame.maxClockDuration(),
-            vm: _disputeGame.vm(),
-            weth: getWETH(_disputeGame),
-            anchorStateRegistry: getAnchorStateRegistry(_disputeGame),
-            l2ChainId: l2ChainId
+            weth: getWETH(_disputeGame), /// TODO(steven): Fix this (feels like circular dependency)
+            l2ChainId: getL2ChainId(_disputeGame)
         });
+        return params;
     }
 
     /// @notice Retrieves the DelayedWETH address for a given game
@@ -308,17 +284,10 @@ abstract contract OPContractsManagerBase {
     /// @notice Sets a game implementation on the dispute game factory
     function setDGFImplementation(IDisputeGameFactory _dgf, GameType _gameType, IDisputeGame _newGame) internal {
         _dgf.setImplementation(_gameType, _newGame, "");
-        /// TODO: snevins
     }
 }
 
 contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
-    /// @notice Thrown when an unsupported game type is provided to the addGameType function.
-    error OPContractsManagerGameTypeAdder_UnsupportedGameType();
-
-    /// @notice Thrown when a mix of legacy and super games are found in updatePrestate.
-    error OPContractsManagerGameTypeAdder_MixedGameTypes();
-
     /// @notice Emitted when a new game type is added to a chain
     /// @param l2ChainId Chain ID of the chain
     /// @param gameType Type of the game being
@@ -332,55 +301,54 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
     /// @param _contractsContainer The blueprint contract addresses and implementation contract addresses
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
-    /// @notice Deploys a new dispute game and installs it into the DisputeGameFactory. Inputted
-    ///         game configs must be added in ascending GameType order.
-    /// @param _gameConfigs Game configs to add.
-    /// @return Array of results for the operations performed.
+    /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
+    /// must be added in ascending GameType order.
     function addGameType(OPContractsManager.AddGameInput[] memory _gameConfigs)
         public
         virtual
         returns (OPContractsManager.AddGameOutput[] memory)
     {
-        // Ensure we have at least one game config to add.
         if (_gameConfigs.length == 0) revert OPContractsManager.InvalidGameConfigs();
 
-        // We'll have one output per game config.
         OPContractsManager.AddGameOutput[] memory outputs = new OPContractsManager.AddGameOutput[](_gameConfigs.length);
+        OPContractsManager.Blueprints memory bps = getBlueprints();
 
-        // Store last game config as an int256 so that we can ensure that the same game config is
-        // not added twice. Using int256 generates cheaper, simpler bytecode.
+        // Store last game config as an int256 so that we can ensure that the same game config is not added twice.
+        // Using int256 generates cheaper, simpler bytecode.
         int256 lastGameConfig = -1;
 
-        // Loop through each game config and add the game type.
         for (uint256 i = 0; i < _gameConfigs.length; i++) {
             OPContractsManager.AddGameInput memory gameConfig = _gameConfigs[i];
 
-            // This conversion is safe because the GameType is a uint32, which will always fit in
-            // an int256.
+            // This conversion is safe because the GameType is a uint32, which will always fit in an int256.
             int256 gameTypeInt = int256(uint256(gameConfig.disputeGameType.raw()));
 
             // Ensure that the game configs are added in ascending order, and not duplicated.
             if (lastGameConfig >= gameTypeInt) revert OPContractsManager.InvalidGameConfigs();
             lastGameConfig = gameTypeInt;
 
-            // Grab the L2 chain ID from the SystemConfig.
-            uint256 l2ChainId = gameConfig.systemConfig.l2ChainId();
+            // Grab the permissioned and fault dispute games from the SystemConfig.
+            // We keep the FDG type as it reduces casting below.
+            IFaultDisputeGame pdg = IFaultDisputeGame(
+                address(
+                    getGameImplementation(getDisputeGameFactory(gameConfig.systemConfig), GameTypes.PERMISSIONED_CANNON)
+                )
+            );
 
-            // Deploy a new DelayedWETH proxy for this game if one hasn't already been specified.
-            // Leaving gameConfig.delayedWETH as the zero address will cause a new DelayedWETH to
-            // be deployed for this game.
+            // Pull out the chain ID.
+            uint256 l2ChainId = getL2ChainId(pdg);
+
+            // Deploy a new DelayedWETH proxy for this game if one hasn't already been specified. Leaving
+            /// gameConfig.delayedWETH as the zero address will cause a new DelayedWETH to be deployed for this game.
             if (address(gameConfig.delayedWETH) == address(0)) {
-                // Deploy the DelayedWETH proxy. We use the chain ID and the game type in the
-                // contract name to ensure that the contract is unique across chains.
+                string memory contractName = string.concat(
+                    "DelayedWETH-",
+                    // This is a safe cast because GameType is a uint256 under the hood and no operation has been done
+                    // on it at this point
+                    Strings.toString(uint256(gameTypeInt))
+                );
                 outputs[i].delayedWETH = IDelayedWETH(
-                    payable(
-                        deployProxy(
-                            l2ChainId,
-                            gameConfig.proxyAdmin,
-                            gameConfig.saltMixer,
-                            string.concat("DelayedWETH-", Strings.toString(uint256(gameTypeInt)))
-                        )
-                    )
+                    payable(deployProxy(l2ChainId, gameConfig.proxyAdmin, gameConfig.saltMixer, contractName))
                 );
 
                 // Initialize the proxy.
@@ -394,192 +362,162 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 outputs[i].delayedWETH = gameConfig.delayedWETH;
             }
 
-            // Determine the contract name and blueprints for the game type.
-            string memory gameContractName;
-            address blueprint1;
-            address blueprint2;
-            uint256 gameL2ChainId;
+            // The FDG is only used for the event below, and only if it is being replaced,
+            // so we declare it here, but only assign it below if needed.
+            IFaultDisputeGame fdg;
 
-            // Separate context to avoid stack too deep.
-            {
-                // Grab the blueprints once since we'll need it multiple times below.
-                OPContractsManager.Blueprints memory bps = getBlueprints();
-
-                // Determine the contract name and blueprints for the game type.
-                if (gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()) {
-                    gameContractName = "FaultDisputeGame";
-                    blueprint1 = bps.permissionlessDisputeGame1;
-                    blueprint2 = bps.permissionlessDisputeGame2;
-                    gameL2ChainId = l2ChainId;
-                } else if (gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
-                    gameContractName = "PermissionedDisputeGame";
-                    blueprint1 = bps.permissionedDisputeGame1;
-                    blueprint2 = bps.permissionedDisputeGame2;
-                    gameL2ChainId = l2ChainId;
-                } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON.raw()) {
-                    gameContractName = "SuperFaultDisputeGame";
-                    blueprint1 = bps.superPermissionlessDisputeGame1;
-                    blueprint2 = bps.superPermissionlessDisputeGame2;
-                    gameL2ChainId = 0;
-                } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
-                    gameContractName = "SuperPermissionedDisputeGame";
-                    blueprint1 = bps.superPermissionedDisputeGame1;
-                    blueprint2 = bps.superPermissionedDisputeGame2;
-                    gameL2ChainId = 0;
-                } else {
-                    revert OPContractsManagerGameTypeAdder_UnsupportedGameType();
-                }
-            }
-
-            // Grab the DisputeGameFactory and AnchorStateRegistry for the chain.
-            IDisputeGameFactory dgf = getDisputeGameFactory(gameConfig.systemConfig);
-
-            // Grab the existing game implementation from the DisputeGameFactory.
-            IFaultDisputeGame existingGame =
-                IFaultDisputeGame(address(getGameImplementation(dgf, gameConfig.disputeGameType)));
-
-            // Encode the constructor data for the game type.
-            bytes memory constructorData;
+            // The below sections are functionally the same. Both deploy a new dispute game. The dispute game type is
+            // either permissioned or permissionless depending on game config.
             if (gameConfig.permissioned) {
-                constructorData = encodePermissionedFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams(
-                        gameConfig.disputeGameType,
-                        gameConfig.disputeAbsolutePrestate,
-                        gameConfig.disputeMaxGameDepth,
-                        gameConfig.disputeSplitDepth,
-                        gameConfig.disputeClockExtension,
-                        gameConfig.disputeMaxClockDuration,
-                        gameConfig.vm,
-                        outputs[i].delayedWETH,
-                        getAnchorStateRegistry(gameConfig.systemConfig),
-                        gameL2ChainId
-                    ),
-                    getProposer(IPermissionedDisputeGame(address(existingGame))),
-                    getChallenger(IPermissionedDisputeGame(address(existingGame)))
+                outputs[i].faultDisputeGame = IFaultDisputeGame(
+                    Blueprint.deployFrom(
+                        bps.permissionedDisputeGame1,
+                        bps.permissionedDisputeGame2,
+                        computeSalt(l2ChainId, gameConfig.saltMixer, "PermissionedDisputeGame"),
+                        encodePermissionedFDGConstructor(
+                            IFaultDisputeGame.GameConstructorParams(
+                                gameConfig.disputeGameType,
+                                gameConfig.disputeMaxGameDepth,
+                                gameConfig.disputeSplitDepth,
+                                gameConfig.disputeClockExtension,
+                                gameConfig.disputeMaxClockDuration,
+                                outputs[i].delayedWETH,
+                                l2ChainId
+                            ),
+                            getProposer(IPermissionedDisputeGame(address(pdg))),
+                            getChallenger(IPermissionedDisputeGame(address(pdg)))
+                        )
+                    )
                 );
             } else {
-                constructorData = encodePermissionlessFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams(
-                        gameConfig.disputeGameType,
-                        gameConfig.disputeAbsolutePrestate,
-                        gameConfig.disputeMaxGameDepth,
-                        gameConfig.disputeSplitDepth,
-                        gameConfig.disputeClockExtension,
-                        gameConfig.disputeMaxClockDuration,
-                        gameConfig.vm,
-                        outputs[i].delayedWETH,
-                        getAnchorStateRegistry(gameConfig.systemConfig),
-                        gameL2ChainId
+                fdg = IFaultDisputeGame(
+                    address(getGameImplementation(getDisputeGameFactory(gameConfig.systemConfig), GameTypes.CANNON))
+                );
+                outputs[i].faultDisputeGame = IFaultDisputeGame(
+                    Blueprint.deployFrom(
+                        bps.permissionlessDisputeGame1,
+                        bps.permissionlessDisputeGame2,
+                        computeSalt(l2ChainId, gameConfig.saltMixer, "PermissionlessDisputeGame"),
+                        encodePermissionlessFDGConstructor(
+                            IFaultDisputeGame.GameConstructorParams(
+                                gameConfig.disputeGameType,
+                                gameConfig.disputeMaxGameDepth,
+                                gameConfig.disputeSplitDepth,
+                                gameConfig.disputeClockExtension,
+                                gameConfig.disputeMaxClockDuration,
+                                outputs[i].delayedWETH,
+                                l2ChainId
+                            )
+                        )
                     )
                 );
             }
 
-            // Deploy the new game type.
-            outputs[i].faultDisputeGame = IFaultDisputeGame(
-                Blueprint.deployFrom(
-                    blueprint1,
-                    blueprint2,
-                    computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
-                    constructorData
-                )
-            );
-
-            // As a last step, register the new game type with the DisputeGameFactory. If the game
-            // type already exists, then its implementation will be overwritten.
+            // As a last step, register the new game type with the DisputeGameFactory. If the game type already exists,
+            // then its implementation will be overwritten.
+            IDisputeGameFactory dgf = getDisputeGameFactory(gameConfig.systemConfig);
             setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame)));
             dgf.setInitBond(gameConfig.disputeGameType, gameConfig.initialBond);
 
-            // Emit event for the newly added game type with the new and old implementations.
-            emit GameTypeAdded(
-                l2ChainId, gameConfig.disputeGameType, outputs[i].faultDisputeGame, IDisputeGame(address(existingGame))
-            );
+            if (gameConfig.permissioned) {
+                // Emit event for the newly added game type with the old permissioned dispute game
+                emit GameTypeAdded(
+                    l2ChainId, gameConfig.disputeGameType, outputs[i].faultDisputeGame, IDisputeGame(address(pdg))
+                );
+            } else {
+                // Emit event for the newly added game type with the old fault dispute game
+                emit GameTypeAdded(
+                    l2ChainId, gameConfig.disputeGameType, outputs[i].faultDisputeGame, IDisputeGame(address(fdg))
+                );
+            }
         }
 
         return outputs;
     }
 
-    /// @notice Updates the prestate hash for a given game type while keeping all other game
-    ///         parameters exactly the same. Currently requires deploying a new implementation
-    ///         as there is no way to update the prestate on an existing implementation.
-    /// @param _prestateUpdateInputs The new prestate hash to use.
+    /// @notice Updates the prestate hash for a new game type while keeping all other parameters the same
+    /// @param _prestateUpdateInputs The new prestate hash to use
     function updatePrestate(OPContractsManager.OpChainConfig[] memory _prestateUpdateInputs) public {
         // Loop through each chain and prestate hash
         for (uint256 i = 0; i < _prestateUpdateInputs.length; i++) {
-            // Ensure that the prestate is not the zero hash.
             if (Claim.unwrap(_prestateUpdateInputs[i].absolutePrestate) == bytes32(0)) {
                 revert OPContractsManager.PrestateRequired();
             }
 
-            // Grab the DisputeGameFactory.
+            // Get the DisputeGameFactory and existing game implementations
             IDisputeGameFactory dgf =
                 IDisputeGameFactory(_prestateUpdateInputs[i].systemConfigProxy.disputeGameFactory());
+            IFaultDisputeGame fdg = IFaultDisputeGame(address(getGameImplementation(dgf, GameTypes.CANNON)));
+            IPermissionedDisputeGame pdg =
+                IPermissionedDisputeGame(address(getGameImplementation(dgf, GameTypes.PERMISSIONED_CANNON)));
 
-            // Create an array of all of the potential game types to update.
-            GameType[] memory gameTypes = new GameType[](4);
-            gameTypes[0] = GameTypes.CANNON;
-            gameTypes[1] = GameTypes.PERMISSIONED_CANNON;
-            gameTypes[2] = GameTypes.SUPER_CANNON;
-            gameTypes[3] = GameTypes.SUPER_PERMISSIONED_CANNON;
+            // All chains must have a permissioned game, but not all chains must have a fault dispute game.
+            // Whether a chain has a fault dispute game determines how many AddGameInput objects are needed.
+            bool hasFDG = address(fdg) != address(0);
 
-            // Track if we have a legacy game, super game, or both. We will revert if this function
-            // is ever called with a mix of legacy and super games. Should never happen in
-            // production if you follow the standard upgrade process, but you never know.
-            bool hasLegacyGame = false;
-            bool hasSuperGame = false;
+            OPContractsManager.AddGameInput[] memory inputs = new OPContractsManager.AddGameInput[](hasFDG ? 2 : 1);
+            OPContractsManager.AddGameInput memory pdgInput;
+            OPContractsManager.AddGameInput memory fdgInput;
 
-            // Iterate over each game type and update the prestate.
-            for (uint256 j = 0; j < gameTypes.length; j++) {
-                GameType gameType = gameTypes[j];
+            // Get the existing game parameters and init bond for the permissioned game
+            IFaultDisputeGame.GameConstructorParams memory pdgParams =
+                getGameConstructorParams(IFaultDisputeGame(address(pdg)));
+            uint256 initBond = dgf.initBonds(GameTypes.PERMISSIONED_CANNON);
 
-                // Get the existing game implementation.
-                IFaultDisputeGame existingGame = IFaultDisputeGame(address(getGameImplementation(dgf, gameType)));
+            string memory saltMixer = reusableSaltMixer(_prestateUpdateInputs[i]);
+            // Create game input with updated prestate but same other params
+            pdgInput = OPContractsManager.AddGameInput({
+                disputeAbsolutePrestate: _prestateUpdateInputs[i].absolutePrestate,
+                saltMixer: saltMixer,
+                systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
+                proxyAdmin: _prestateUpdateInputs[i].proxyAdmin,
+                delayedWETH: IDelayedWETH(payable(address(pdgParams.weth))),
+                disputeGameType: pdgParams.gameType,
+                disputeMaxGameDepth: pdgParams.maxGameDepth,
+                disputeSplitDepth: pdgParams.splitDepth,
+                disputeClockExtension: pdgParams.clockExtension,
+                disputeMaxClockDuration: pdgParams.maxClockDuration,
+                initialBond: initBond,
+                vm: IBigStepper(address(420)),
+                /// TODO(steven): fix
+                permissioned: true
+            });
 
-                // If no implementation exists, skip.
-                if (address(existingGame) == address(0)) {
-                    continue;
-                }
+            // If a fault dispute game exists, create a new game with the same parameters but updated prestate.
+            if (hasFDG) {
+                // Get the existing game parameters and init bond for the fault dispute game
+                IFaultDisputeGame.GameConstructorParams memory fdgParams =
+                    getGameConstructorParams(IFaultDisputeGame(address(fdg)));
+                initBond = dgf.initBonds(GameTypes.CANNON);
 
-                // Track the game types that we've seen so far.
-                if (
-                    gameType.raw() == GameTypes.SUPER_CANNON.raw()
-                        || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-                ) {
-                    hasSuperGame = true;
-                } else {
-                    hasLegacyGame = true;
-                }
-
-                // If we have a mix of legacy and super games, revert.
-                if (hasLegacyGame && hasSuperGame) {
-                    revert OPContractsManagerGameTypeAdder_MixedGameTypes();
-                }
-
-                // Grab the existing game constructor params and init bond.
-                IFaultDisputeGame.GameConstructorParams memory gameParams = getGameConstructorParams(existingGame);
-
-                // Create a new game input with the updated prestate.
-                OPContractsManager.AddGameInput memory input = OPContractsManager.AddGameInput({
+                // Create game input with updated prestate but same other params
+                fdgInput = OPContractsManager.AddGameInput({
                     disputeAbsolutePrestate: _prestateUpdateInputs[i].absolutePrestate,
-                    saltMixer: reusableSaltMixer(_prestateUpdateInputs[i]),
+                    saltMixer: saltMixer,
                     systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
                     proxyAdmin: _prestateUpdateInputs[i].proxyAdmin,
-                    delayedWETH: IDelayedWETH(payable(address(gameParams.weth))),
-                    disputeGameType: gameParams.gameType,
-                    disputeMaxGameDepth: gameParams.maxGameDepth,
-                    disputeSplitDepth: gameParams.splitDepth,
-                    disputeClockExtension: gameParams.clockExtension,
-                    disputeMaxClockDuration: gameParams.maxClockDuration,
-                    initialBond: dgf.initBonds(gameType),
-                    vm: gameParams.vm,
-                    permissioned: gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
-                        || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+                    delayedWETH: IDelayedWETH(payable(address(fdgParams.weth))),
+                    disputeGameType: fdgParams.gameType,
+                    disputeMaxGameDepth: fdgParams.maxGameDepth,
+                    disputeSplitDepth: fdgParams.splitDepth,
+                    disputeClockExtension: fdgParams.clockExtension,
+                    disputeMaxClockDuration: fdgParams.maxClockDuration,
+                    initialBond: initBond,
+                    vm: IBigStepper(address(420)),
+                    /// TODO(steven): fix
+                    permissioned: false
                 });
-
-                // Add the new game type with updated prestate
-                OPContractsManager.AddGameInput[] memory inputs = new OPContractsManager.AddGameInput[](1);
-                inputs[0] = input;
-                addGameType(inputs);
             }
+
+            // Game inputs must be ordered with increasing game type values. So FDG is first if it exists.
+            if (hasFDG) {
+                inputs[0] = fdgInput;
+                inputs[1] = pdgInput;
+            } else {
+                inputs[0] = pdgInput;
+            }
+            // Add the new game type with updated prestate
+            addGameType(inputs);
         }
     }
 }
@@ -597,8 +535,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
-    /// @param _superchainConfig The SuperchainConfig contract to upgrade
-    /// @param _superchainProxyAdmin The ProxyAdmin contract for the SuperchainConfig
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
     function upgrade(
@@ -630,9 +566,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // Use the SystemConfig to grab the DisputeGameFactory address.
             IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfigs[i].systemConfigProxy.disputeGameFactory());
-
-            // Need to upgrade the DisputeGameFactory implementation, no internal upgrade call.
-            upgradeTo(_opChainConfigs[i].proxyAdmin, address(dgf), impls.disputeGameFactoryImpl);
 
             // All chains have the PermissionedDisputeGame, grab that.
             IPermissionedDisputeGame permissionedDisputeGame =
@@ -674,7 +607,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "AnchorStateRegistry-U16"
+                        _contractName: "AnchorStateRegistry-SOT"
                     })
                 );
 
@@ -716,13 +649,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "ETHLockbox-U16"
+                        _contractName: "ETHLockbox"
                     })
                 );
 
                 // Upgrade the OptimismPortal contract first so that the SystemConfig will have
                 // the SuperchainConfig reference required in the ETHLockbox.
-                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox);
+                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox, _opChainConfigs[i].systemConfigProxy);
 
                 // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);
@@ -894,19 +827,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // Modify the params with the new vm values.
         params.weth = _newDelayedWeth;
-        params.anchorStateRegistry = _newAnchorStateRegistryProxy;
-        params.vm = IBigStepper(impls.mipsImpl);
-
-        // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
-        // that already exists on the current dispute game.
-        if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
-            params.absolutePrestate = _opChainConfig.absolutePrestate;
-        }
-
-        // As a sanity check, if the prestate is zero here, revert.
-        if (params.absolutePrestate.raw() == bytes32(0)) {
-            revert OPContractsManager.PrestateNotSet();
-        }
 
         IDisputeGame newGame;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
@@ -1053,15 +973,12 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 computeSalt(_input.l2ChainId, _input.saltMixer, "PermissionedDisputeGame"),
                 encodePermissionedFDGConstructor(
                     IFaultDisputeGame.GameConstructorParams({
-                        gameType: GameTypes.PERMISSIONED_CANNON,
-                        absolutePrestate: _input.disputeAbsolutePrestate,
+                        gameType: _input.disputeGameType,
                         maxGameDepth: _input.disputeMaxGameDepth,
                         splitDepth: _input.disputeSplitDepth,
                         clockExtension: _input.disputeClockExtension,
                         maxClockDuration: _input.disputeMaxClockDuration,
-                        vm: IBigStepper(implementation.mipsImpl),
                         weth: IDelayedWETH(payable(address(output.delayedWETHPermissionedGameProxy))),
-                        anchorStateRegistry: IAnchorStateRegistry(address(output.anchorStateRegistryProxy)),
                         l2ChainId: _input.l2ChainId
                     }),
                     _input.roles.proposer,
@@ -1398,9 +1315,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
     /// @notice Migrates one or more OP Stack chains to use the Super Root dispute games and shared
     ///         dispute game contracts.
-    /// @dev WARNING: This is a one-way operation. You cannot easily undo this operation without a
-    ///      smart contract upgrade. Do not call this function unless you are 100% confident that
-    ///      you know what you're doing and that you are prepared to fully execute this migration.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public virtual {
         // Check that all of the configs have the same proxy admin owner and prestate.
@@ -1494,7 +1408,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
 
-        // We can use portals[0].systemConfig() as they are members of the same superchain cluster (shared lockbox)
+        // TODO: Explain why portals[0].systemConfig() is used here.
         // Initialize the new AnchorStateRegistry.
         upgradeToAndCall(
             _input.opChainConfigs[0].proxyAdmin,
@@ -1514,15 +1428,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // Migrate the existing ETHLockbox to the new ETHLockbox.
             existingLockbox.migrateLiquidity(newEthLockbox);
-
-            // Before migrating the portal, clear out any implementations that might exist in the
-            // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
-            IDisputeGameFactory oldDisputeGameFactory =
-                IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
-            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)));
 
             // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
             portals[i].migrateToSuperRoots(newEthLockbox, newAnchorStateRegistry);
@@ -1963,8 +1868,7 @@ contract OPContractsManager is ISemver {
         _performDelegateCall(address(opcmGameTypeAdder), data);
     }
 
-    /// @notice Migrates the Optimism contracts to the latest version.
-    /// @param _input Input parameters for the migration.
+    /// @notice Migrates the Optimism contracts to the latest version. This is a stub for now.
     function migrate(OPContractsManagerInteropMigrator.MigrateInput calldata _input) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
