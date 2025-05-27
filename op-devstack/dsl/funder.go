@@ -10,7 +10,7 @@ type Funder struct {
 }
 
 func NewFunder(w *HDWallet, f *Faucet, el ELNode) *Funder {
-	f.t.Require().Equal(f.inner.ID().ChainID, el.ChainID(), "faucet and EL must be on same chain")
+	f.t.Require().Equal(f.inner.ID().ChainID(), el.ChainID(), "faucet and EL must be on same chain")
 	return &Funder{
 		commonImpl: commonFromT(w.t),
 		wallet:     w,

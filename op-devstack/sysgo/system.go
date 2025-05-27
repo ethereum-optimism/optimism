@@ -24,13 +24,13 @@ type DefaultMinimalSystemIDs struct {
 func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs {
 	ids := DefaultMinimalSystemIDs{
 		L1:            stack.L1NetworkID(l1ID),
-		L1EL:          stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
-		L1CL:          stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
+		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
 		L2:            stack.L2NetworkID(l2ID),
-		L2CL:          stack.L2CLNodeID{Key: "sequencer", ChainID: l2ID},
-		L2EL:          stack.L2ELNodeID{Key: "sequencer", ChainID: l2ID},
-		L2Batcher:     stack.L2BatcherID{Key: "main", ChainID: l2ID},
-		L2Proposer:    stack.L2ProposerID{Key: "main", ChainID: l2ID},
+		L2CL:          stack.NewL2CLNodeID("sequencer", l2ID),
+		L2EL:          stack.NewL2ELNodeID("sequencer", l2ID),
+		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
+		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
 		TestSequencer: "test-sequencer",
 	}
 	return ids
@@ -108,22 +108,22 @@ type DefaultInteropSystemIDs struct {
 func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSystemIDs {
 	ids := DefaultInteropSystemIDs{
 		L1:            stack.L1NetworkID(l1ID),
-		L1EL:          stack.L1ELNodeID{Key: "l1", ChainID: l1ID},
-		L1CL:          stack.L1CLNodeID{Key: "l1", ChainID: l1ID},
+		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
 		Superchain:    "main", // TODO(#15244): hardcoded to match the deployer default ID
 		Cluster:       stack.ClusterID("main"),
 		Supervisor:    "1-primary", // prefix with number for ordering of supervisors
 		TestSequencer: "dev",
 		L2A:           stack.L2NetworkID(l2AID),
-		L2ACL:         stack.L2CLNodeID{Key: "sequencer", ChainID: l2AID},
-		L2AEL:         stack.L2ELNodeID{Key: "sequencer", ChainID: l2AID},
+		L2ACL:         stack.NewL2CLNodeID("sequencer", l2AID),
+		L2AEL:         stack.NewL2ELNodeID("sequencer", l2AID),
 		L2B:           stack.L2NetworkID(l2BID),
-		L2BCL:         stack.L2CLNodeID{Key: "sequencer", ChainID: l2BID},
-		L2BEL:         stack.L2ELNodeID{Key: "sequencer", ChainID: l2BID},
-		L2ABatcher:    stack.L2BatcherID{Key: "main", ChainID: l2AID},
-		L2BBatcher:    stack.L2BatcherID{Key: "main", ChainID: l2BID},
-		L2AProposer:   stack.L2ProposerID{Key: "main", ChainID: l2AID},
-		L2BProposer:   stack.L2ProposerID{Key: "main", ChainID: l2BID},
+		L2BCL:         stack.NewL2CLNodeID("sequencer", l2BID),
+		L2BEL:         stack.NewL2ELNodeID("sequencer", l2BID),
+		L2ABatcher:    stack.NewL2BatcherID("main", l2AID),
+		L2BBatcher:    stack.NewL2BatcherID("main", l2BID),
+		L2AProposer:   stack.NewL2ProposerID("main", l2AID),
+		L2BProposer:   stack.NewL2ProposerID("main", l2BID),
 		L2ChallengerA: "chainA",
 		L2ChallengerB: "chainB",
 	}
@@ -207,8 +207,8 @@ func RedundantInteropSystem(dest *RedundantInteropSystemIDs) stack.Option[*Orche
 	l2BID := eth.ChainIDFromUInt64(902)
 	ids := RedundantInteropSystemIDs{
 		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
-		L2A2CL:                  stack.L2CLNodeID{Key: "verifier", ChainID: l2AID},
-		L2A2EL:                  stack.L2ELNodeID{Key: "verifier", ChainID: l2AID},
+		L2A2CL:                  stack.NewL2CLNodeID("verifier", l2AID),
+		L2A2EL:                  stack.NewL2ELNodeID("verifier", l2AID),
 	}
 
 	// start with default interop system
@@ -250,12 +250,12 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 	ids := MultiSupervisorInteropSystemIDs{
 		RedundantInteropSystemIDs: RedundantInteropSystemIDs{
 			DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
-			L2A2CL:                  stack.L2CLNodeID{Key: "verifier", ChainID: l2AID},
-			L2A2EL:                  stack.L2ELNodeID{Key: "verifier", ChainID: l2AID},
+			L2A2CL:                  stack.NewL2CLNodeID("verifier", l2AID),
+			L2A2EL:                  stack.NewL2ELNodeID("verifier", l2AID),
 		},
 		SupervisorSecondary: "2-secondary", // prefix with number for ordering of supervisors
-		L2B2CL:              stack.L2CLNodeID{Key: "verifier", ChainID: l2BID},
-		L2B2EL:              stack.L2ELNodeID{Key: "verifier", ChainID: l2BID},
+		L2B2CL:              stack.NewL2CLNodeID("verifier", l2BID),
+		L2B2EL:              stack.NewL2ELNodeID("verifier", l2BID),
 	}
 
 	// start with default interop system

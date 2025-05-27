@@ -30,11 +30,19 @@ func LogKeyIndexFromContext(ctx context.Context) []contextLogAttr {
 
 // RegisterLogAttrOnContext configures the context so that if a contextHandler
 // is in the log handler chain it will add an attr with key `name` and
-// value of `ctx.Value(key)` to all log records.
+// value of `ctx.Value(key).(slog.LogValuer).LogValue()` to all log records.
 func RegisterLogAttrOnContext(ctx context.Context, name string, key any) context.Context {
 	prevIndex := LogKeyIndexFromContext(ctx)
-	// prevIndex is possibly nil, we want to force copy it
-	nextIndex := append(append([]contextLogAttr{}, prevIndex...), contextLogAttr{name: name, key: key})
+	// prevIndex is possibly nil, but this should not break the append() call.
+	// Independently, we need to force copy the prevIndex slice to avoid mutating the slice stored in the parent context.
+	// Filter out any previous contextLogAttrs with the same name to prevent duplicates.
+	var filteredIndex []contextLogAttr
+	for _, attr := range prevIndex {
+		if attr.name != name {
+			filteredIndex = append(filteredIndex, attr)
+		}
+	}
+	nextIndex := append(filteredIndex, contextLogAttr{name: name, key: key})
 	return context.WithValue(ctx, contextLogAttrIndexCtxKey, nextIndex)
 }
 

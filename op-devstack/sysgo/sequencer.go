@@ -71,9 +71,7 @@ func (s *TestSequencer) hydrate(sys stack.ExtensibleSystem) {
 
 func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithKind(ctx, stack.TestSequencerKind)
-		p := orch.P().WithCtx(ctx, "service", "op-test-sequencer", "id", testSequencerID)
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), testSequencerID))
 		require := p.Require()
 
 		logger := p.Logger()
@@ -92,11 +90,11 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 		signerID := seqtypes.SignerID("test-local-signer")
 		publisherID := seqtypes.PublisherID("test-standard-publisher")
 
-		p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID.ToBig()))
+		p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
 		require.NoError(err, "need p2p key for sequencer")
 		raw := hexutil.Bytes(crypto.FromECDSA(p2pKey))
 
-		l2SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2CLID.ChainID))
+		l2SequencerID := seqtypes.SequencerID(fmt.Sprintf("test-seq-%s", l2CLID.ChainID()))
 
 		v := &config.Ensemble{
 			Endpoints: nil,
@@ -119,7 +117,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 				"test-local-signer": {
 					LocalKey: &localkey.Config{
 						RawKey:  &raw,
-						ChainID: l2CLID.ChainID,
+						ChainID: l2CLID.ChainID(),
 					},
 				},
 			},
@@ -144,7 +142,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 			Sequencers: map[seqtypes.SequencerID]*config.SequencerEntry{
 				l2SequencerID: {
 					Full: &fullseq.Config{
-						ChainID: l2CLID.ChainID,
+						ChainID: l2CLID.ChainID(),
 
 						Builder:   builderID,
 						Signer:    signerID,
@@ -192,14 +190,14 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 			MockRun:       false,
 		}
 
-		sq, err := sequencer.FromConfig(ctx, cfg, logger)
+		sq, err := sequencer.FromConfig(p.Ctx(), cfg, logger)
 		require.NoError(err)
 
-		err = sq.Start(ctx)
+		err = sq.Start(p.Ctx())
 		require.NoError(err)
 
 		p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(ctx)
+			ctx, cancel := context.WithCancel(p.Ctx())
 			cancel()
 			logger.Info("Closing sequencer")
 			closeErr := sq.Stop(ctx)
@@ -211,7 +209,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 			userRPC:   sq.RPC(),
 			jwtSecret: jwtSecret,
 			l2sequencers: map[eth.ChainID]seqtypes.SequencerID{
-				l2CLID.ChainID: l2SequencerID,
+				l2CLID.ChainID(): l2SequencerID,
 			},
 		}
 		logger.Info("Sequencer User RPC", "http_endpoint", testSequencerNode.userRPC)

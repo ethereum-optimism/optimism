@@ -63,7 +63,7 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 		InteropEndpoint:  n.interopEndpoint,
 		InteropJwtSecret: n.interopJwtSecret,
 	})
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
+	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
 	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
 }
@@ -125,14 +125,11 @@ func (n *L2CLNode) Stop() {
 
 func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithChainID(ctx, l2CLID.ChainID)
-		ctx = stack.ContextWithKind(ctx, stack.L2CLNodeKind)
-		p := orch.P().WithCtx(ctx, "service", "op-node", "id", l2CLID)
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
 		require := p.Require()
 
-		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID)
+		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID())
 		require.True(ok, "l2 network required")
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
@@ -178,7 +175,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 
 			cliCtx := cli.NewContext(&cli.App{}, fs, nil)
 			if isSequencer {
-				p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID.ToBig()))
+				p2pKey, err := orch.keys.Secret(devkeys.SequencerP2PRole.Key(l2CLID.ChainID().ToBig()))
 				require.NoError(err, "need p2p key for sequencer")
 				p2pKeyHex := hex.EncodeToString(crypto.FromECDSA(p2pKey))
 				require.NoError(fs.Set(opNodeFlags.SequencerP2PKeyName, p2pKeyHex))

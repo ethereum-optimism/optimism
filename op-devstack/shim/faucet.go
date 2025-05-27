@@ -25,7 +25,7 @@ type presetFaucet struct {
 var _ stack.Faucet = (*presetFaucet)(nil)
 
 func NewFaucet(cfg FaucetConfig) stack.Faucet {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithKind(cfg.T.Ctx(), stack.FaucetKind), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &presetFaucet{
 		id:           cfg.ID,
 		commonImpl:   newCommon(cfg.CommonConfig),

@@ -116,7 +116,7 @@ func (cl *L2CLNode) HeadBlockRef(lvl types.SafetyLevel) eth.L2BlockRef {
 }
 
 func (cl *L2CLNode) ChainID() eth.ChainID {
-	return cl.inner.ID().ChainID
+	return cl.inner.ID().ChainID()
 }
 
 // Advanced returns a lambda that checks the L2CL chain head with given safety level advanced more than delta block number

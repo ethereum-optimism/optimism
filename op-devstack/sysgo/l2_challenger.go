@@ -39,14 +39,12 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
 ) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithKind(ctx, stack.L2ChallengerKind)
-		p := orch.P().WithCtx(ctx, "service", "op-challenger", "id", challengerID)
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), challengerID))
 
 		require := p.Require()
 		require.False(orch.challengers.Has(challengerID), "challenger must not already exist")
 
-		challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(l1ELID.ChainID.ToBig()))
+		challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(l1ELID.ChainID().ToBig()))
 		require.NoError(err)
 
 		logger := p.Logger()
@@ -64,7 +62,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 		var interopScheduled bool
 
 		for _, l2ELID := range l2ELIDs {
-			chainID := l2ELID.ChainID
+			chainID := l2ELID.ChainID()
 			l2Net, ok := orch.l2Nets.Get(chainID)
 			require.Truef(ok, "l2Net %s not found", chainID)
 			factory := l2Net.deployment.DisputeGameFactoryProxyAddr()
@@ -126,12 +124,12 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 			require.NoError(err, "Failed to create pre-interop challenger config")
 		}
 
-		svc, err := opchallenger.Main(ctx, logger, cfg, metrics.NoopMetrics)
+		svc, err := opchallenger.Main(p.Ctx(), logger, cfg, metrics.NoopMetrics)
 		require.NoError(err)
 
-		require.NoError(svc.Start(ctx))
+		require.NoError(svc.Start(p.Ctx()))
 		p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(ctx)
+			ctx, cancel := context.WithCancel(p.Ctx())
 			cancel() // force-quit
 			logger.Info("Closing challenger")
 			_ = svc.Stop(ctx)

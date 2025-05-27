@@ -24,7 +24,7 @@ type rpcSupervisor struct {
 var _ stack.Supervisor = (*rpcSupervisor)(nil)
 
 func NewSupervisor(cfg SupervisorConfig) stack.Supervisor {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithKind(cfg.T.Ctx(), stack.SupervisorKind), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &rpcSupervisor{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,

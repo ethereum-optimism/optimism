@@ -91,20 +91,20 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
 // Composable with other lambdas to wait in parallel
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFunc {
 	return func() error {
-		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ID().ChainID, "target", target)
+		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ID().ChainID(), "target", target)
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
 				if err != nil {
 					if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
-						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID, "error", err)
+						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID(), "error", err)
 						return err
 					}
 					return err
 				}
 
 				if target.Hash == reorged.Hash { // want not equal
-					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID, "ref", reorged)
+					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID(), "ref", reorged)
 					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
 				}
 
@@ -112,8 +112,8 @@ func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFun
 					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
 				}
 
-				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID, "pre_blockref", target)
-				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID, "post_blockref", reorged)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID(), "pre_blockref", target)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID(), "post_blockref", reorged)
 
 				return nil
 			})

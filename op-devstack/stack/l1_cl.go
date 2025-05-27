@@ -1,16 +1,44 @@
 package stack
 
 import (
+	"log/slog"
+
 	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // L1CLNodeID identifies a L1CLNode by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L1CLNodeID idWithChain
 
+var _ IDWithChain = (*L1CLNodeID)(nil)
+
 const L1CLNodeKind Kind = "L1CLNode"
+
+func NewL1CLNodeID(key string, chainID eth.ChainID) L1CLNodeID {
+	return L1CLNodeID{
+		key:     key,
+		chainID: chainID,
+	}
+}
 
 func (id L1CLNodeID) String() string {
 	return idWithChain(id).string(L1CLNodeKind)
+}
+
+func (id L1CLNodeID) Kind() Kind {
+	return L1CLNodeKind
+}
+
+func (id L1CLNodeID) ChainID() eth.ChainID {
+	return id.chainID
+}
+
+func (id L1CLNodeID) Key() string {
+	return id.key
+}
+
+func (id L1CLNodeID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id L1CLNodeID) MarshalText() ([]byte, error) {
