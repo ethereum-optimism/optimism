@@ -2,8 +2,6 @@ package sysext
 
 import (
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -31,9 +29,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 
 		// TODO(#16127): This is a hack to force direct connection to the L1 node.
 		// Only enable this for kurtosis devnet.
-		if strings.HasPrefix(os.Getenv("DEVNET_ENV_URL"), "kt://") {
-			elService.Endpoints[RPCProtocol].ReverseProxyHeader = map[string][]string{}
-		}
+		elService.Endpoints[RPCProtocol].ReverseProxyHeader = map[string][]string{}
 		// TODO(#16127): Remove this once we have a proper reverse proxy.
 
 		require.True(ok, "need L1 EL service %d", idx)
