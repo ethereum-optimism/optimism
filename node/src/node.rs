@@ -409,6 +409,7 @@ where
     type Validator = OpEngineValidator<
         N::Provider,
         <<N::Types as NodeTypes>::Primitives as NodePrimitives>::SignedTx,
+        <N::Types as NodeTypes>::ChainSpec,
     >;
 
     async fn engine_validator(&self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::Validator> {
@@ -957,6 +958,7 @@ where
     type Validator = OpEngineValidator<
         Node::Provider,
         <<Node::Types as NodeTypes>::Primitives as NodePrimitives>::SignedTx,
+        <Node::Types as NodeTypes>::ChainSpec,
     >;
 
     async fn build(self, ctx: &AddOnsContext<'_, Node>) -> eyre::Result<Self::Validator> {
