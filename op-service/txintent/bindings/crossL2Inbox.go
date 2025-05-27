@@ -22,7 +22,7 @@ func (f *CrossL2InboxFactory) WithDefaultAddr() {
 type CrossL2Inbox struct {
 	CrossL2InboxFactory
 
-	ValidateMessage func(identifer supTypes.Identifier, msgHash eth.Bytes32) TypedCall[any] `sol:"validateMessage"`
+	ValidateMessage func(identifier supTypes.Identifier, msgHash eth.Bytes32) TypedCall[any] `sol:"validateMessage"`
 }
 
 func NewCrossL2Inbox(f *CrossL2InboxFactory) *CrossL2Inbox {
