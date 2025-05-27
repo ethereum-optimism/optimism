@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// field lambdas corresponding to solidity functions must be tagged with sol
+// tag value is used for initializing solidity function selector
 const MethodTagName string = "sol"
 
 // BaseCall contains fields to populate fields of txplan
@@ -98,6 +100,8 @@ func (b *BaseCallFactory) ApplyFactoryOptions(opts ...CallFactoryOption) {
 	}
 }
 
+// CheckImpl validates that the given binding struct has correctly defined function fields
+// Each function field must have a `sol` tag (MethodTagName) and the struct must embed BaseCallFactory
 func CheckImpl(v reflect.Value) reflect.Value {
 	t := v.Type()
 	if t.Kind() == reflect.Ptr {
@@ -127,6 +131,7 @@ func CheckImpl(v reflect.Value) reflect.Value {
 	return baseCallFactory
 }
 
+// findBaseCallFactory recursively searches the struct for an embedded BaseCallFactory and returns its value
 func findBaseCallFactory(v reflect.Value) reflect.Value {
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
@@ -146,6 +151,8 @@ func findBaseCallFactory(v reflect.Value) reflect.Value {
 	return reflect.Value{}
 }
 
+// InitImpl initializes function fields (lambdas) in the given struct by assigning concrete implementations
+// The struct must be a pointer, and its fields are expected to follow a specific pattern for reflection-based setup
 func InitImpl[T any](impl *T) {
 	v := reflect.ValueOf(impl).Elem()
 	t := v.Type()
@@ -169,13 +176,15 @@ func InitImpl[T any](impl *T) {
 			// outer: func(...args) -> inner: (func() -> (bytes[], error))
 			funcInputWrapper := reflect.FuncOf(inputTypes, []reflect.Type{funcInput}, false)
 
+			// encoderOuter is a higher order function which returns encoderInner
+			// encoderInner is a closure, binded with solidity method arguments and lazily evaluated
 			encoderOuter := reflect.MakeFunc(funcInputWrapper, func(argsOuter []reflect.Value) []reflect.Value {
 				encoderInner := reflect.MakeFunc(funcInput, func(argsInner []reflect.Value) []reflect.Value {
 					callArgs := make([]any, len(argsOuter))
 					for i, a := range argsOuter {
 						callArgs[i] = a.Interface()
 					}
-					v0, v1 := encoder(methodName, callArgs...)
+					v0, v1 := ABIEncoder(methodName, callArgs...)
 					ret := []reflect.Value{reflect.Zero(funcInputRet[0]), reflect.Zero(funcInputRet[1])}
 					if v0 != nil { // bytes[]
 						ret[0] = reflect.ValueOf(v0)
@@ -206,6 +215,7 @@ func InitImpl[T any](impl *T) {
 	}
 }
 
+// Call implements txintent Call interface
 type Call struct {
 	*BaseCallFactory
 
@@ -219,9 +229,12 @@ func (c *Call) EncodeInput() ([]byte, error) {
 
 var _ txintent.Call = (*Call)(nil)
 
+// TypedCall implements txintent CallView interface
 type TypedCall[ReturnType any] struct {
 	Call
 }
+
+var _ txintent.CallView[any] = (*TypedCall[any])(nil)
 
 // OpServiceTypeToGoType converts op-service type to go type
 func OpServiceTypeToGoType(retTyp reflect.Type) reflect.Type {
@@ -295,9 +308,7 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	return val, nil
 }
 
-var _ txintent.CallView[any] = (*TypedCall[any])(nil)
-
-func encoder(name string, args ...any) ([]byte, error) {
+func ABIEncoder(name string, args ...any) ([]byte, error) {
 	inputs := make([]abi.Argument, len(args))
 	argsTranslated := make([]any, len(args))
 	for i, arg := range args {
