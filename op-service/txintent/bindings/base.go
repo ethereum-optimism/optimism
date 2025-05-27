@@ -261,11 +261,11 @@ func CustomValueToABIValue(arg any) any {
 		value = v.ToBig()
 	case suptypes.Identifier:
 		identifier := script.ABIIdentifier{
-			v.Origin,
-			big.NewInt(int64(v.BlockNumber)),
-			big.NewInt(int64(v.LogIndex)),
-			big.NewInt(int64(v.Timestamp)),
-			v.ChainID.ToBig(),
+			Origin:      v.Origin,
+			BlockNumber: big.NewInt(int64(v.BlockNumber)),
+			LogIndex:    big.NewInt(int64(v.LogIndex)),
+			Timestamp:   big.NewInt(int64(v.Timestamp)),
+			ChainId:     v.ChainID.ToBig(),
 		}
 		value = identifier
 	default:
