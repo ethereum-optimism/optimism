@@ -29,9 +29,8 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 	for idx, node := range env.Env.L1.Nodes {
 		elService, ok := node.Services[ELServiceName]
 
-		// TODO: This is a hack to force direct connection to the L1 node.
-		// We should remove this once we have a proper reverse proxy.
-		// Only enable this for kurtosis devnet
+		// TODO: This is a hack to force direct connection to the L1 node. Tracked in #16127.
+		// Only enable this for kurtosis devnet.
 		if strings.HasPrefix(os.Getenv("DEVNET_ENV_URL"), "kt://") {
 			elService.Endpoints[RPCProtocol].ReverseProxyHeader = map[string][]string{}
 		}
