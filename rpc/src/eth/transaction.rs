@@ -9,7 +9,7 @@ use op_alloy_consensus::{
 };
 use op_alloy_rpc_types::{OpTransactionRequest, Transaction};
 use reth_node_api::FullNodeComponents;
-use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
+use reth_optimism_primitives::{DepositReceipt, OpTransactionSigned};
 use reth_rpc_eth_api::{
     helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking},
     EthApiTypes, FromEthApiError, FullEthApiTypes, RpcNodeCore, RpcNodeCoreExt, TransactionCompat,
@@ -88,7 +88,8 @@ where
 
 impl<N> TransactionCompat<OpTransactionSigned> for OpEthApi<N>
 where
-    N: FullNodeComponents<Provider: ReceiptProvider<Receipt = OpReceipt>>,
+    N: FullNodeComponents,
+    N::Provider: ReceiptProvider<Receipt: DepositReceipt>,
 {
     type Transaction = Transaction;
     type Error = OpEthApiError;
@@ -110,16 +111,19 @@ where
                 .receipt_by_hash(tx.tx_hash())
                 .map_err(Self::Error::from_eth_err)?
                 .inspect(|receipt| {
-                    if let OpReceipt::Deposit(receipt) = receipt {
+                    if let Some(receipt) = receipt.as_deposit_receipt() {
                         deposit_receipt_version = receipt.deposit_receipt_version;
                         deposit_nonce = receipt.deposit_nonce;
                     }
                 });
         }
-        let deposit_meta = OpDepositInfo { deposit_nonce, deposit_receipt_version };
-        let op_tx_info = OpTransactionInfo::new(tx_info, deposit_meta);
 
-        Ok(Transaction::from_transaction(tx, op_tx_info))
+        let tx_info = OpTransactionInfo::new(
+            tx_info,
+            OpDepositInfo { deposit_nonce, deposit_receipt_version },
+        );
+
+        Ok(Transaction::from_transaction(tx, tx_info))
     }
 
     fn build_simulate_v1_transaction(

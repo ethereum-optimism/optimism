@@ -381,12 +381,22 @@ impl reth_primitives_traits::Receipt for OpReceipt {}
 
 /// Trait for deposit receipt.
 pub trait DepositReceipt: reth_primitives_traits::Receipt {
-    /// Returns deposit receipt if it is a deposit transaction.
+    /// Converts a `Receipt` into a mutable Optimism deposit receipt.
     fn as_deposit_receipt_mut(&mut self) -> Option<&mut OpDepositReceipt>;
+
+    /// Extracts an Optimism deposit receipt from `Receipt`.
+    fn as_deposit_receipt(&self) -> Option<&OpDepositReceipt>;
 }
 
 impl DepositReceipt for OpReceipt {
     fn as_deposit_receipt_mut(&mut self) -> Option<&mut OpDepositReceipt> {
+        match self {
+            Self::Deposit(receipt) => Some(receipt),
+            _ => None,
+        }
+    }
+
+    fn as_deposit_receipt(&self) -> Option<&OpDepositReceipt> {
         match self {
             Self::Deposit(receipt) => Some(receipt),
             _ => None,
