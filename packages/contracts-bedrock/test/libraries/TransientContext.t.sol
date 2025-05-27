@@ -8,12 +8,16 @@ import { Test } from "forge-std/Test.sol";
 import { TransientContext } from "src/libraries/TransientContext.sol";
 import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
-/// @title TransientContextTest
-/// @notice Tests for the TransientContext library.
-contract TransientContextTest is Test {
+/// @title TransientContext_TestInit
+/// @notice Reusable test initialization for `TransientContext` tests.
+contract TransientContext_TestInit is Test {
     /// @notice Slot for call depth.
     bytes32 internal callDepthSlot = bytes32(uint256(keccak256("transient.calldepth")) - 1);
+}
 
+/// @title TransientContext_CallDepth_Test
+/// @notice Tests the `callDepth` function of the `TransientContext` library.
+contract TransientContext_CallDepth_Test is TransientContext_TestInit {
     /// @notice Tests that `callDepth()` outputs the corrects call depth.
     /// @param _callDepth Call depth to test.
     function testFuzz_callDepth_succeeds(uint256 _callDepth) public {
@@ -22,7 +26,11 @@ contract TransientContextTest is Test {
         }
         assertEq(TransientContext.callDepth(), _callDepth);
     }
+}
 
+/// @title TransientContext_Increment_Test
+/// @notice Tests the `increment` function of the `TransientContext` library.
+contract TransientContext_Increment_Test is TransientContext_TestInit {
     /// @notice Tests that `increment()` increments the call depth.
     /// @param _startingCallDepth Starting call depth.
     function testFuzz_increment_succeeds(uint256 _startingCallDepth) public {
@@ -35,7 +43,11 @@ contract TransientContextTest is Test {
         TransientContext.increment();
         assertEq(TransientContext.callDepth(), _startingCallDepth + 1);
     }
+}
 
+/// @title TransientContext_Decrement_Test
+/// @notice Tests the `decrement` function of the `TransientContext` library.
+contract TransientContext_Decrement_Test is TransientContext_TestInit {
     /// @notice Tests that `decrement()` decrements the call depth.
     /// @param _startingCallDepth Starting call depth.
     function testFuzz_decrement_succeeds(uint256 _startingCallDepth) public {
@@ -48,7 +60,11 @@ contract TransientContextTest is Test {
         TransientContext.decrement();
         assertEq(TransientContext.callDepth(), _startingCallDepth - 1);
     }
+}
 
+/// @title TransientContext_Get_Test
+/// @notice Tests the `get` function of the `TransientContext` library.
+contract TransientContext_Get_Test is TransientContext_TestInit {
     /// @notice Tests that `get()` returns the correct value.
     /// @param _slot  Slot to test.
     /// @param _value Value to test.
@@ -62,7 +78,11 @@ contract TransientContextTest is Test {
 
         assertEq(TransientContext.get(_slot), _value);
     }
+}
 
+/// @title TransientContext_Set_Test
+/// @notice Tests the `set` function of the `TransientContext` library.
+contract TransientContext_Set_Test is TransientContext_TestInit {
     /// @notice Tests that `set()` sets the correct value.
     /// @param _slot  Slot to test.
     /// @param _value Value to test.
@@ -75,54 +95,11 @@ contract TransientContextTest is Test {
         }
         assertEq(tValue, _value);
     }
-
-    /// @notice Tests that `set()` and `get()` work together.
-    /// @param _slot  Slot to test.
-    /// @param _value Value to test.
-    function testFuzz_setGet_succeeds(bytes32 _slot, uint256 _value) public {
-        testFuzz_set_succeeds(_slot, _value);
-        assertEq(TransientContext.get(_slot), _value);
-    }
-
-    /// @notice Tests that `set()` and `get()` work together at the same depth.
-    /// @param _slot    Slot to test.
-    /// @param _value1  Value to write to slot at call depth 0.
-    /// @param _value2  Value to write to slot at call depth 1.
-    function testFuzz_setGet_twiceSameDepth_succeeds(bytes32 _slot, uint256 _value1, uint256 _value2) public {
-        assertEq(TransientContext.callDepth(), 0);
-        testFuzz_set_succeeds(_slot, _value1);
-        assertEq(TransientContext.get(_slot), _value1);
-
-        assertEq(TransientContext.callDepth(), 0);
-        testFuzz_set_succeeds(_slot, _value2);
-        assertEq(TransientContext.get(_slot), _value2);
-    }
-
-    /// @notice Tests that `set()` and `get()` work together at different depths.
-    /// @param _slot    Slot to test.
-    /// @param _value1  Value to write to slot at call depth 0.
-    /// @param _value2  Value to write to slot at call depth 1.
-    function testFuzz_setGet_twiceDifferentDepth_succeeds(bytes32 _slot, uint256 _value1, uint256 _value2) public {
-        assertEq(TransientContext.callDepth(), 0);
-        testFuzz_set_succeeds(_slot, _value1);
-        assertEq(TransientContext.get(_slot), _value1);
-
-        TransientContext.increment();
-
-        assertEq(TransientContext.callDepth(), 1);
-        testFuzz_set_succeeds(_slot, _value2);
-        assertEq(TransientContext.get(_slot), _value2);
-
-        TransientContext.decrement();
-
-        assertEq(TransientContext.callDepth(), 0);
-        assertEq(TransientContext.get(_slot), _value1);
-    }
 }
 
-/// @title TransientReentrancyAwareTest
-/// @notice Tests for TransientReentrancyAware.
-contract TransientReentrancyAwareTest is TransientContextTest, TransientReentrancyAware {
+/// @title TransientContext_ReentrantAware_Test
+/// @notice Tests the `reentrantAware` modifier of the `TransientContext` library.
+contract TransientContext_ReentrantAware_Test is TransientContext_TestInit, TransientReentrancyAware {
     /// @notice Reentrant-aware mock function to set a value in transient storage.
     /// @param _slot  Slot to set.
     /// @param _value Value to set.
@@ -130,7 +107,8 @@ contract TransientReentrancyAwareTest is TransientContextTest, TransientReentran
         TransientContext.set(_slot, _value);
     }
 
-    /// @notice Reentrant-aware mock function to set a value in transient storage at multiple depths.
+    /// @notice Reentrant-aware mock function to set a value in transient storage at multiple
+    ///         depths.
     /// @param _slot   Slot to set.
     /// @param _value1 Value to set at call depth 1.
     /// @param _value2 Value to set at call depth 2.
@@ -189,5 +167,53 @@ contract TransientReentrancyAwareTest is TransientContextTest, TransientReentran
         TransientContext.increment();
         assertEq(TransientContext.callDepth(), _callDepth + 2);
         assertEq(TransientContext.get(_slot), _value2);
+    }
+}
+
+/// @title TransientContext_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `TransientContext`
+///         contract or are testing multiple functions at once.
+contract TransientContext_Unclassified_Test is TransientContext_Set_Test {
+    /// @notice Tests that `set()` and `get()` work together.
+    /// @param _slot  Slot to test.
+    /// @param _value Value to test.
+    function testFuzz_setGet_succeeds(bytes32 _slot, uint256 _value) public {
+        testFuzz_set_succeeds(_slot, _value);
+        assertEq(TransientContext.get(_slot), _value);
+    }
+
+    /// @notice Tests that `set()` and `get()` work together at the same depth.
+    /// @param _slot    Slot to test.
+    /// @param _value1  Value to write to slot at call depth 0.
+    /// @param _value2  Value to write to slot at call depth 1.
+    function testFuzz_setGet_twiceSameDepth_succeeds(bytes32 _slot, uint256 _value1, uint256 _value2) public {
+        assertEq(TransientContext.callDepth(), 0);
+        testFuzz_set_succeeds(_slot, _value1);
+        assertEq(TransientContext.get(_slot), _value1);
+
+        assertEq(TransientContext.callDepth(), 0);
+        testFuzz_set_succeeds(_slot, _value2);
+        assertEq(TransientContext.get(_slot), _value2);
+    }
+
+    /// @notice Tests that `set()` and `get()` work together at different depths.
+    /// @param _slot    Slot to test.
+    /// @param _value1  Value to write to slot at call depth 0.
+    /// @param _value2  Value to write to slot at call depth 1.
+    function testFuzz_setGet_twiceDifferentDepth_succeeds(bytes32 _slot, uint256 _value1, uint256 _value2) public {
+        assertEq(TransientContext.callDepth(), 0);
+        testFuzz_set_succeeds(_slot, _value1);
+        assertEq(TransientContext.get(_slot), _value1);
+
+        TransientContext.increment();
+
+        assertEq(TransientContext.callDepth(), 1);
+        testFuzz_set_succeeds(_slot, _value2);
+        assertEq(TransientContext.get(_slot), _value2);
+
+        TransientContext.decrement();
+
+        assertEq(TransientContext.callDepth(), 0);
+        assertEq(TransientContext.get(_slot), _value1);
     }
 }
