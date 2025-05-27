@@ -43,6 +43,24 @@ impl OpExecutionPayloadEnvelope {
             }
         }
     }
+
+    pub fn tx_count(&self) -> usize {
+        match self {
+            OpExecutionPayloadEnvelope::V3(payload) => payload
+                .execution_payload
+                .payload_inner
+                .payload_inner
+                .transactions
+                .len(),
+            OpExecutionPayloadEnvelope::V4(payload) => payload
+                .execution_payload
+                .payload_inner
+                .payload_inner
+                .payload_inner
+                .transactions
+                .len(),
+        }
+    }
 }
 
 impl From<OpExecutionPayloadEnvelope> for ExecutionPayload {

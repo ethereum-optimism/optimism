@@ -184,6 +184,17 @@ impl RollupBoostServer {
             self.probes.set_health(Health::Healthy);
 
             if let Ok(Some(builder_payload)) = builder_payload {
+                // Record the delta (gas and txn) between the builder and l2 payload
+                let span = tracing::Span::current();
+                span.record(
+                    "gas_delta",
+                    (builder_payload.gas_used() - l2_payload.gas_used()).to_string(),
+                );
+                span.record(
+                    "tx_count_delta",
+                    (builder_payload.tx_count() - l2_payload.tx_count()).to_string(),
+                );
+
                 // If execution mode is set to DryRun, fallback to the l2_payload,
                 // otherwise prefer the builder payload
                 if self.execution_mode().is_dry_run() {
@@ -388,7 +399,9 @@ impl EngineApiServer for RollupBoostServer {
         fields(
             otel.kind = ?SpanKind::Server,
             %payload_id,
-            payload_source
+            payload_source,
+            gas_delta,
+            tx_count_delta,
         )
     )]
     async fn get_payload_v3(
@@ -436,7 +449,9 @@ impl EngineApiServer for RollupBoostServer {
         fields(
             otel.kind = ?SpanKind::Server,
             %payload_id,
-            payload_source
+            payload_source,
+            gas_delta,
+            tx_count_delta,
         )
     )]
     async fn get_payload_v4(

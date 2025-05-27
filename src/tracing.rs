@@ -58,6 +58,34 @@ impl SpanProcessor for MetricsSpanProcessor {
             ])
             .collect::<Vec<_>>();
 
+        // 0 = no difference in gas build via builder vs l2
+        // > 0 = gas used by builder block is greater than l2 block
+        // < 0 = gas used by l2 block is greater than builder block
+        let gas_delta = span
+            .attributes
+            .iter()
+            .find(|attr| attr.key.as_str() == "gas_delta")
+            .map(|attr| attr.value.as_str().to_string());
+
+        if let Some(gas_delta) = gas_delta {
+            histogram!("block_building_gas_delta", &labels)
+                .record(gas_delta.parse::<u64>().unwrap_or_default() as f64);
+        }
+
+        // 0 = no difference in tx count build via builder vs l2
+        // > 0 = num txs in builder block is greater than l2 block
+        // < 0 = num txs in l2 block is greater than builder block
+        let tx_count_delta = span
+            .attributes
+            .iter()
+            .find(|attr| attr.key.as_str() == "tx_count_delta")
+            .map(|attr| attr.value.as_str().to_string());
+
+        if let Some(tx_count_delta) = tx_count_delta {
+            histogram!("block_building_tx_count_delta", &labels)
+                .record(tx_count_delta.parse::<u64>().unwrap_or_default() as f64);
+        }
+
         histogram!(format!("{}_duration", span.name), &labels).record(duration);
     }
 
