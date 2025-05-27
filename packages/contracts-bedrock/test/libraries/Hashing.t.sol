@@ -18,6 +18,42 @@ contract Hashing_Harness {
     }
 }
 
+/// @title Hashing_hashDepositTransaction_Test
+/// @notice Tests the `hashDepositTransaction` function of the `Hashing` library.
+contract Hashing_hashDepositTransaction_Test is CommonTest {
+    /// @notice Tests that hashDepositTransaction returns the correct hash in a simple case.
+    function testDiff_hashDepositTransaction_succeeds(
+        address _from,
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gas,
+        bytes memory _data,
+        uint64 _logIndex
+    )
+        external
+    {
+        assertEq(
+            Hashing.hashDepositTransaction(
+                Types.UserDepositTransaction(
+                    _from,
+                    _to,
+                    false, // isCreate
+                    _value,
+                    _mint,
+                    _gas,
+                    _data,
+                    bytes32(uint256(0)),
+                    _logIndex
+                )
+            ),
+            ffi.hashDepositTransaction(_from, _to, _mint, _value, _gas, _data, _logIndex)
+        );
+    }
+}
+
+/// @title Hashing_hashDepositSource_Test
+/// @notice Tests the `hashDepositSource` function of the `Hashing` library.
 contract Hashing_hashDepositSource_Test is CommonTest {
     /// @notice Tests that hashDepositSource returns the correct hash in a simple case.
     function test_hashDepositSource_succeeds() external pure {
@@ -28,6 +64,8 @@ contract Hashing_hashDepositSource_Test is CommonTest {
     }
 }
 
+/// @title Hashing_hashCrossDomainMessage_Test
+/// @notice Tests the `hashCrossDomainMessage` function of the `Hashing` library.
 contract Hashing_hashCrossDomainMessage_Test is CommonTest {
     /// @notice Tests that hashCrossDomainMessage returns the correct hash in a simple case.
     function testDiff_hashCrossDomainMessage_succeeds(
@@ -68,6 +106,8 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
     }
 }
 
+/// @title Hashing_hashWithdrawal_Test
+/// @notice Tests the `hashWithdrawal` function of the `Hashing` library.
 contract Hashing_hashWithdrawal_Test is CommonTest {
     /// @notice Tests that hashWithdrawal returns the correct hash in a simple case.
     function testDiff_hashWithdrawal_succeeds(
@@ -87,6 +127,8 @@ contract Hashing_hashWithdrawal_Test is CommonTest {
     }
 }
 
+/// @title Hashing_hashOutputRootProof_Test
+/// @notice Tests the `hashOutputRootProof` function of the `Hashing` library.
 contract Hashing_hashOutputRootProof_Test is CommonTest {
     /// @notice Tests that hashOutputRootProof returns the correct hash in a simple case.
     function testDiff_hashOutputRootProof_succeeds(
@@ -111,38 +153,8 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
     }
 }
 
-contract Hashing_hashDepositTransaction_Test is CommonTest {
-    /// @notice Tests that hashDepositTransaction returns the correct hash in a simple case.
-    function testDiff_hashDepositTransaction_succeeds(
-        address _from,
-        address _to,
-        uint256 _mint,
-        uint256 _value,
-        uint64 _gas,
-        bytes memory _data,
-        uint64 _logIndex
-    )
-        external
-    {
-        assertEq(
-            Hashing.hashDepositTransaction(
-                Types.UserDepositTransaction(
-                    _from,
-                    _to,
-                    false, // isCreate
-                    _value,
-                    _mint,
-                    _gas,
-                    _data,
-                    bytes32(uint256(0)),
-                    _logIndex
-                )
-            ),
-            ffi.hashDepositTransaction(_from, _to, _mint, _value, _gas, _data, _logIndex)
-        );
-    }
-}
-
+/// @title Hashing_hashSuperRootProof_Test
+/// @notice Tests the `hashSuperRootProof` function of the `Hashing` library.
 contract Hashing_hashSuperRootProof_Test is CommonTest {
     Hashing_Harness internal harness;
 
