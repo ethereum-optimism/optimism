@@ -40,7 +40,6 @@ func fullConfigSet(t *testing.T, size int) depset.FullConfigSetMerged {
 	for i := 0; i < size; i++ {
 		chainID := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
 		staticDepSet[chainID] = &depset.StaticConfigDependency{
-			ChainIndex:     testChainIDOffset + types.ChainIndex(i),
 			ActivationTime: 42,
 			HistoryMinTime: 100,
 		}

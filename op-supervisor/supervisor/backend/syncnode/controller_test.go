@@ -194,12 +194,10 @@ func sampleDepSet(t *testing.T) depset.DependencySet {
 	depSet, err := depset.NewStaticConfigDependencySet(
 		map[eth.ChainID]*depset.StaticConfigDependency{
 			eth.ChainIDFromUInt64(900): {
-				ChainIndex:     900,
 				ActivationTime: 42,
 				HistoryMinTime: 100,
 			},
 			eth.ChainIDFromUInt64(901): {
-				ChainIndex:     901,
 				ActivationTime: 30,
 				HistoryMinTime: 20,
 			},

@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -251,7 +250,6 @@ func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *dep
 	depSetCfg := make(map[eth.ChainID]*depset.StaticConfigDependency)
 	for _, out := range recipe.L2s {
 		depSetCfg[eth.ChainIDFromUInt64(out.ChainID)] = &depset.StaticConfigDependency{
-			ChainIndex:     types.ChainIndex(out.ChainID),
 			ActivationTime: 0,
 			HistoryMinTime: 0,
 		}

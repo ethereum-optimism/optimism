@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
@@ -258,14 +257,13 @@ func (wb *worldBuilder) buildDepSet() {
 
 	// Deployer uses a different type than the dependency-set itself, so we have to convert
 	depSetContents := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for chainIndex, ch := range wb.output.Chains {
+	for _, ch := range wb.output.Chains {
 		id := eth.ChainIDFromBytes32(ch.ID)
 		interopTime := wb.outL2Genesis[id].Config.InteropTime
 		if interopTime == nil {
 			continue
 		}
 		depSetContents[id] = &depset.StaticConfigDependency{
-			ChainIndex:     supervisortypes.ChainIndex(chainIndex),
 			ActivationTime: *interopTime,
 			HistoryMinTime: *interopTime,
 		}

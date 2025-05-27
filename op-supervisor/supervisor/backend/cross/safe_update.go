@@ -98,7 +98,7 @@ func scopedCrossSafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossSafeDe
 	if err := HazardSafeFrontierChecks(d, candidate.Source.ID(), hazards); err != nil {
 		return candidate, fmt.Errorf("failed to verify block %s in cross-safe frontier: %w", candidate.Derived, err)
 	}
-	if err := HazardCycleChecks(d.DependencySet(), d, candidate.Derived.Time, hazards); err != nil {
+	if err := HazardCycleChecks(d, candidate.Derived.Time, hazards); err != nil {
 		return candidate, fmt.Errorf("failed to verify block %s in cross-safe check for cycle hazards: %w", candidate, err)
 	}
 

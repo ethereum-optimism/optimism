@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -12,22 +11,9 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-var errDuplicateChainIndex = errors.New("duplicate chain index")
-var errUsingReservedChainIndex = errors.New("using reserved chain index")
-
-// NotFoundChainIndex is a reserved chain index signifying that a network is not in the dependency set.
-// We are persisting these invalid, but not malformed, executing messages in our internal database, and
-// we need a mapping between all ChainIDs <> ChainIndexs. However ChainID is 32 bytes, and ChainIndex
-// is 4 bytes, so we need a reserved chain index for unknown chains.
-const NotFoundChainIndex = types.ChainIndex(0xFFFF_FFFF)
-
 type StaticConfigDependency struct {
-	// ChainIndex is the unique short identifier of this chain.
-	ChainIndex types.ChainIndex `json:"chainIndex" toml:"chain_index"`
-
 	// ActivationTime is when the chain becomes part of the dependency set.
 	// This is the minimum timestamp of the inclusion of an executing message.
 	ActivationTime uint64 `json:"activationTime" toml:"activation_time"`
@@ -43,8 +29,6 @@ type StaticConfigDependency struct {
 type StaticConfigDependencySet struct {
 	// dependency info per chain
 	dependencies map[eth.ChainID]*StaticConfigDependency
-	// cached mapping of chain index to chain ID
-	indexToID map[types.ChainIndex]eth.ChainID
 	// cached list of chain IDs, sorted by ID value
 	chainIDs []eth.ChainID
 	// overrideMessageExpiryWindow is the message expiry window to use for this dependency set
@@ -158,16 +142,8 @@ func (ds *StaticConfigDependencySet) UnmarshalTOML(v interface{}) error {
 
 // hydrate sets all the cached values, based on the dependencies attribute
 func (ds *StaticConfigDependencySet) hydrate() error {
-	ds.indexToID = make(map[types.ChainIndex]eth.ChainID)
 	ds.chainIDs = make([]eth.ChainID, 0, len(ds.dependencies))
-	for id, dep := range ds.dependencies {
-		if dep.ChainIndex.IsTopBitSet() {
-			return fmt.Errorf("%w: chain %s cannot have the top bit set, and this subset is reserved for internal use: %d", errUsingReservedChainIndex, id, dep.ChainIndex)
-		}
-		if existing, ok := ds.indexToID[dep.ChainIndex]; ok {
-			return fmt.Errorf("%w: chain %s cannot have the same index (%d) as chain %s", errDuplicateChainIndex, id, dep.ChainIndex, existing)
-		}
-		ds.indexToID[dep.ChainIndex] = id
+	for id := range ds.dependencies {
 		ds.chainIDs = append(ds.chainIDs, id)
 	}
 	sort.Slice(ds.chainIDs, func(i, j int) bool {
@@ -209,25 +185,6 @@ func (ds *StaticConfigDependencySet) HasChain(chainID eth.ChainID) bool {
 	return ok
 }
 
-func (ds *StaticConfigDependencySet) ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error) {
-	dep, ok := ds.dependencies[id]
-	if !ok {
-		return 0, fmt.Errorf("failed to translate chain ID %s to chain index: %w", id, types.ErrUnknownChain)
-	}
-	return dep.ChainIndex, nil
-}
-
-func (ds *StaticConfigDependencySet) ChainIDFromIndex(index types.ChainIndex) (eth.ChainID, error) {
-	id, ok := ds.indexToID[index]
-	if !ok {
-		if index.IsTopBitSet() {
-			return eth.ChainID{}, fmt.Errorf("provided index has its top bit set, and this subset is reserved for internal use: %w", types.ErrUnknownChain)
-		}
-		return eth.ChainID{}, fmt.Errorf("failed to translate chain index %s to chain ID: %w", index, types.ErrUnknownChain)
-	}
-	return id, nil
-}
-
 func (ds *StaticConfigDependencySet) MessageExpiryWindow() uint64 {
 	if ds.overrideMessageExpiryWindow == 0 {
 		return params.MessageExpiryTimeSecondsInterop
@@ -240,7 +197,6 @@ func (ds *StaticConfigDependencySet) Dependencies() map[eth.ChainID]*StaticConfi
 	copied := make(map[eth.ChainID]*StaticConfigDependency, len(ds.dependencies))
 	for chainId, dep := range ds.dependencies {
 		copied[chainId] = &StaticConfigDependency{
-			ChainIndex:     dep.ChainIndex,
 			ActivationTime: dep.ActivationTime,
 			HistoryMinTime: dep.HistoryMinTime,
 		}

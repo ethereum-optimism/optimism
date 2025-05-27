@@ -6,15 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -25,32 +25,6 @@ var (
 )
 
 var ExecutingMessageEventTopic = crypto.Keccak256Hash([]byte("ExecutingMessage(bytes32,(address,uint256,uint256,uint256,uint256))"))
-
-// ChainIndex represents the lifetime of a chain in a dependency set.
-// Warning: JSON-encoded as string, in base-10.
-type ChainIndex uint32
-
-func (ci ChainIndex) String() string {
-	return strconv.FormatUint(uint64(ci), 10)
-}
-
-func (ci ChainIndex) MarshalText() ([]byte, error) {
-	return []byte(ci.String()), nil
-}
-
-func (ci *ChainIndex) UnmarshalText(data []byte) error {
-	v, err := strconv.ParseUint(string(data), 10, 32)
-	if err != nil {
-		return err
-	}
-	*ci = ChainIndex(v)
-	return nil
-}
-
-// IsTopBitSet returns true if the top bit is set. Used to check for reserved values, such as NotFoundChainIndex.
-func (ci ChainIndex) IsTopBitSet() bool {
-	return ci&(1<<31) != 0
-}
 
 type Revision uint64
 
@@ -105,16 +79,16 @@ type ContainsQuery struct {
 }
 
 type ExecutingMessage struct {
-	Chain     ChainIndex // same as ChainID for now, but will be indirect, i.e. translated to full ID, later
+	ChainID   eth.ChainID
 	BlockNum  uint64
 	LogIdx    uint32
 	Timestamp uint64
-	Hash      common.Hash // LogHash (hash of msgHash and origin address)
+	Checksum  MessageChecksum
 }
 
 func (s *ExecutingMessage) String() string {
-	return fmt.Sprintf("ExecMsg(chainIndex: %s, block: %d, log: %d, time: %d, logHash: %s)",
-		s.Chain, s.BlockNum, s.LogIdx, s.Timestamp, s.Hash)
+	return fmt.Sprintf("ExecMsg(chain: %s, block: %d, log: %d, time: %d, checksum: %s)",
+		s.ChainID, s.BlockNum, s.LogIdx, s.Timestamp, s.Checksum)
 }
 
 type Message struct {

@@ -23,12 +23,12 @@ import (
 var ErrInvalidBlockReplacement = errors.New("invalid block replacement error")
 
 // ReceiptsToExecutingMessages returns the executing messages in the receipts indexed by their position in the log.
-func ReceiptsToExecutingMessages(depset depset.ChainIndexFromID, receipts ethtypes.Receipts) (map[uint32]*supervisortypes.ExecutingMessage, uint32, error) {
+func ReceiptsToExecutingMessages(receipts ethtypes.Receipts) (map[uint32]*supervisortypes.ExecutingMessage, uint32, error) {
 	execMsgs := make(map[uint32]*supervisortypes.ExecutingMessage)
 	var curr uint32
 	for _, rcpt := range receipts {
 		for _, l := range rcpt.Logs {
-			execMsg, err := processors.DecodeExecutingMessageLog(l, depset)
+			execMsg, err := processors.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -223,7 +223,7 @@ func checkHazards(logger log.Logger, deps ConsolidateCheckDeps, candidate superv
 	if err != nil {
 		return err
 	}
-	if err := cross.HazardCycleChecks(deps.DependencySet(), deps, candidate.Timestamp, hazards); err != nil {
+	if err := cross.HazardCycleChecks(deps, candidate.Timestamp, hazards); err != nil {
 		return err
 	}
 	return nil
@@ -363,7 +363,7 @@ func (d *consolidateCheckDeps) OpenBlock(
 	}
 
 	_, receipts := d.oracle.ReceiptsByBlockHash(block.Hash(), chainID)
-	execMsgs, logCount, err = ReceiptsToExecutingMessages(d.depset, receipts)
+	execMsgs, logCount, err = ReceiptsToExecutingMessages(receipts)
 	if err != nil {
 		return eth.BlockRef{}, 0, nil, err
 	}

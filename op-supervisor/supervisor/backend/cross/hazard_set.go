@@ -24,7 +24,7 @@ type HazardDeps interface {
 
 // HazardSet tracks blocks that must be checked before a candidate can be promoted
 type HazardSet struct {
-	entries map[types.ChainIndex]types.BlockSeal
+	entries map[eth.ChainID]types.BlockSeal
 }
 
 // NewHazardSet creates a new HazardSet with the given dependencies and initial block
@@ -33,7 +33,7 @@ func NewHazardSet(deps HazardDeps, logger log.Logger, chainID eth.ChainID, block
 		return nil, errHazardSetNilDeps
 	}
 	h := &HazardSet{
-		entries: make(map[types.ChainIndex]types.BlockSeal),
+		entries: make(map[eth.ChainID]types.BlockSeal),
 	}
 	logger.Debug("Building new HazardSet", "chainID", chainID, "block", block)
 	if err := h.build(deps, logger, chainID, block); err != nil {
@@ -43,7 +43,7 @@ func NewHazardSet(deps HazardDeps, logger log.Logger, chainID eth.ChainID, block
 	return h, nil
 }
 
-func NewHazardSetFromEntries(entries map[types.ChainIndex]types.BlockSeal) *HazardSet {
+func NewHazardSetFromEntries(entries map[eth.ChainID]types.BlockSeal) *HazardSet {
 	return &HazardSet{entries: entries}
 }
 
@@ -98,10 +98,10 @@ func (h *HazardSet) checkMessageWithOlderTimestamp(deps HazardDeps, msg *types.E
 // to ensure the local block we depend on is becoming cross-safe also.
 // Also returns a boolean indicating if the message already exists in the hazard set.
 func (h *HazardSet) checkMessageWithCurrentTimestamp(msg *types.ExecutingMessage, initChainID eth.ChainID, includedIn types.BlockSeal) (bool, error) {
-	existing, ok := h.entries[msg.Chain]
+	existing, ok := h.entries[msg.ChainID]
 	if ok {
 		if existing.ID() != includedIn.ID() {
-			return true, fmt.Errorf("found dependency on %s (chain %d), but already depend on %s: %w", includedIn, initChainID, existing, types.ErrConflict)
+			return true, fmt.Errorf("found dependency on %s (chain %s), but already depend on %s: %w", includedIn, initChainID, existing, types.ErrConflict)
 		}
 	}
 	return ok, nil
@@ -150,12 +150,9 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 			logger.Debug("Processing message", "chainID", destChainID, "block", candidate, "msg", msg)
 
 			// Get the source chain, ensure it's allowed to initiate messages, and contains the initiating message.
-			srcChainID, err := depSet.ChainIDFromIndex(msg.Chain)
-			if err != nil {
-				if errors.Is(err, types.ErrUnknownChain) {
-					err = fmt.Errorf("msg %s may not execute from unknown chain %s: %w", msg, msg.Chain, types.ErrConflict)
-				}
-				return err
+			srcChainID := msg.ChainID
+			if !depSet.HasChain(srcChainID) {
+				return fmt.Errorf("msg %s may not execute from unknown chain %s: %w", msg, srcChainID, types.ErrConflict)
 			}
 			if err := h.checkChainCanInitiate(depSet, srcChainID, msg); err != nil {
 				return err
@@ -164,13 +161,12 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 			if err := h.checkMessageForExpiry(deps, msg, srcChainID, candidate.Timestamp); err != nil {
 				return err
 			}
-			q := types.ChecksumArgs{
-				BlockNumber: msg.BlockNum,
-				LogIndex:    msg.LogIdx,
-				Timestamp:   msg.Timestamp,
-				ChainID:     srcChainID,
-				LogHash:     msg.Hash,
-			}.Query()
+			q := types.ContainsQuery{
+				Timestamp: msg.Timestamp,
+				BlockNum:  msg.BlockNum,
+				LogIdx:    msg.LogIdx,
+				Checksum:  msg.Checksum,
+			}
 			includedIn, err := deps.Contains(srcChainID, q)
 			if err != nil {
 				return fmt.Errorf("executing msg %s failed inclusion check: %w", msg, err)
@@ -188,7 +184,7 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 
 				if !exists {
 					logger.Debug("Adding block to the hazard set", "chainID", srcChainID, "block", includedIn)
-					h.entries[msg.Chain] = includedIn
+					h.entries[msg.ChainID] = includedIn
 					stack = append(stack, potentialHazard{
 						chainID: srcChainID,
 						block:   includedIn,
@@ -202,7 +198,7 @@ func (h *HazardSet) build(deps HazardDeps, logger log.Logger, chainID eth.ChainI
 	return nil
 }
 
-func (h *HazardSet) Entries() map[types.ChainIndex]types.BlockSeal {
+func (h *HazardSet) Entries() map[eth.ChainID]types.BlockSeal {
 	if h == nil {
 		return nil
 	}

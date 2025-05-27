@@ -580,11 +580,11 @@ func TestAddLog(t *testing.T) {
 
 func TestAddDependentLog(t *testing.T) {
 	execMsg := types.ExecutingMessage{
-		Chain:     3,
+		ChainID:   eth.ChainIDFromUInt64(3),
 		BlockNum:  42894,
 		LogIdx:    42,
 		Timestamp: 8742482,
-		Hash:      createHash(8844),
+		Checksum:  types.MessageChecksum(createHash(123456)),
 	}
 	t.Run("FirstEntry", func(t *testing.T) {
 		runDBTest(t,
@@ -624,12 +624,46 @@ func TestAddDependentLog(t *testing.T) {
 			})
 	})
 
-	t.Run("AvoidCheckpointOverlapWithExecutingCheck", func(t *testing.T) {
+	t.Run("AvoidCheckpointOverlapWithExecChecksum", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
 				require.NoError(t, db.lastEntryContext.forceBlock(bl15, 5000))
-				// we add 256 - 2 (start) - 2 (init msg, exec link) = 252 entries
+				// we add 256 - 2 (start) - 3 (init msg, execChainID, execPosition) = 251 entries
+				for i := uint32(0); i < 251; i++ {
+					require.NoError(t, db.AddLog(createHash(9), bl15, i, nil))
+				}
+				// add an executing message
+				err := db.AddLog(createHash(1), bl15, 251, &execMsg)
+				require.NoError(t, err)
+				// 0,1: start
+				// 2..251+2: initiating logs without exec message
+				// 253 = inferred padding - 4 entries for exec msg would overlap with checkpoint
+				// 254 = inferred padding
+				// 255 = inferred padding
+				// 256 = search checkpoint - what would be the exec checksum without padding
+				// 257 = canonical hash
+				// 258 = initiating message
+				// 259 = executing message chainID
+				// 260 = executing message position
+				// 261 = executing message checksum
+				require.Equal(t, int64(262), m.entryCount)
+				db.debugTip()
+				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
+				require.NoError(t, db.SealBlock(bl15.Hash, bl16, 5001))
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				requireContains(t, db, 16, 250, 5001, createHash(9))
+				requireContains(t, db, 16, 251, 5001, createHash(1), execMsg)
+			})
+	})
+
+	t.Run("AvoidCheckpointOverlapWithExecPosition", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
+				require.NoError(t, db.lastEntryContext.forceBlock(bl15, 5000))
+				// we add 256 - 2 (start) - 2 (init msg, execPosition) = 252 entries
 				for i := uint32(0); i < 252; i++ {
 					require.NoError(t, db.AddLog(createHash(9), bl15, i, nil))
 				}
@@ -638,15 +672,16 @@ func TestAddDependentLog(t *testing.T) {
 				require.NoError(t, err)
 				// 0,1: start
 				// 2..252+2: initiating logs without exec message
-				// 254 = inferred padding - 3 entries for exec msg would overlap with checkpoint
+				// 254 = inferred padding - 4 entries for exec msg would overlap with checkpoint
 				// 255 = inferred padding
-				// 256 = search checkpoint - what would be the exec check without padding
+				// 256 = search checkpoint - what would be the exec position without padding
 				// 257 = canonical hash
 				// 258 = initiating message
-				// 259 = executing message link
-				// 260 = executing message check
-				require.Equal(t, int64(261), m.entryCount)
+				// 259 = executing message chainID
+				// 260 = executing message position
+				// 261 = executing message checksum
 				db.debugTip()
+				require.Equal(t, int64(262), m.entryCount)
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
 				require.NoError(t, db.SealBlock(bl15.Hash, bl16, 5001))
 			},
@@ -656,7 +691,7 @@ func TestAddDependentLog(t *testing.T) {
 			})
 	})
 
-	t.Run("AvoidCheckpointOverlapWithExecutingLink", func(t *testing.T) {
+	t.Run("AvoidCheckpointOverlapWithExecChainID", func(t *testing.T) {
 		runDBTest(t,
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl15 := eth.BlockID{Hash: createHash(15), Number: 15}
@@ -670,14 +705,15 @@ func TestAddDependentLog(t *testing.T) {
 				require.NoError(t, err)
 				// 0,1: start
 				// 2..253+2: initiating logs without exec message
-				// 255 = inferred padding - 3 entries for exec msg would overlap with checkpoint
-				// 256 = search checkpoint - what would be the exec link without padding
+				// 255 = inferred padding - 4 entries for exec msg would overlap with checkpoint
+				// 256 = search checkpoint - what would be the exec chainID without padding
 				// 257 = canonical hash
 				// 258 = initiating message
-				// 259 = executing message link
-				// 260 = executing message check
+				// 259 = executing message chainID
+				// 260 = executing message position
+				// 261 = executing message checksum
 				db.debugTip()
-				require.Equal(t, int64(261), m.entryCount)
+				require.Equal(t, int64(262), m.entryCount)
 				bl16 := eth.BlockID{Hash: createHash(16), Number: 16}
 				require.NoError(t, db.SealBlock(bl15.Hash, bl16, 5001))
 			},
@@ -774,25 +810,25 @@ func TestContainsOutOfRangeLogIndex(t *testing.T) {
 
 func TestExecutes(t *testing.T) {
 	execMsg1 := types.ExecutingMessage{
-		Chain:     33,
+		ChainID:   eth.ChainIDFromUInt64(33),
 		BlockNum:  22,
 		LogIdx:    99,
 		Timestamp: 948294,
-		Hash:      createHash(332299),
+		Checksum:  types.MessageChecksum(createHash(332299)),
 	}
 	execMsg2 := types.ExecutingMessage{
-		Chain:     44,
+		ChainID:   eth.ChainIDFromUInt64(44),
 		BlockNum:  55,
 		LogIdx:    66,
 		Timestamp: 77777,
-		Hash:      createHash(445566),
+		Checksum:  types.MessageChecksum(createHash(445566)),
 	}
 	execMsg3 := types.ExecutingMessage{
-		Chain:     77,
+		ChainID:   eth.ChainIDFromUInt64(77),
 		BlockNum:  88,
 		LogIdx:    89,
 		Timestamp: 6578567,
-		Hash:      createHash(778889),
+		Checksum:  types.MessageChecksum(createHash(778889)),
 	}
 	t50, t51, t52, t53, t54 := uint64(500), uint64(5001), uint64(5002), uint64(5003), uint64(5004)
 	runDBTest(t,
@@ -991,15 +1027,17 @@ func TestRecoverOnCreate(t *testing.T) {
 		requireContains(t, db, 4, 0, 104, createHash(1))
 	})
 
-	t.Run("NoTruncateWhenLastEntryIsExecutingCheckSealed", func(t *testing.T) {
+	t.Run("NoTruncateWhenLastEntryIsExecChecksumSealed", func(t *testing.T) {
 		execMsg := types.ExecutingMessage{
-			Chain:     4,
+			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  10,
 			LogIdx:    4,
 			Timestamp: 1288,
-			Hash:      createHash(4),
+			Checksum:  types.MessageChecksum(createHash(4)),
 		}
-		linkEvt, err := newExecutingLink(execMsg)
+		execChainIDEvt, err := newExecChainID(execMsg)
+		require.NoError(t, err)
+		execPosEvt, err := newExecPosition(execMsg)
 		require.NoError(t, err)
 		store := storeWithEvents(
 			newSearchCheckpoint(0, 0, 100).encode(),
@@ -1009,14 +1047,15 @@ func TestRecoverOnCreate(t *testing.T) {
 			newSearchCheckpoint(2, 0, 102).encode(),
 			newCanonicalHash(createHash(302)).encode(),
 			newInitiatingEvent(createHash(1111), true).encode(),
-			linkEvt.encode(),
-			newExecutingCheck(execMsg.Hash).encode(),
+			execChainIDEvt.encode(),
+			execPosEvt.encode(),
+			newExecChecksum(execMsg.Checksum).encode(),
 			newSearchCheckpoint(3, 0, 103).encode(),
 			newCanonicalHash(createHash(303)).encode(),
 		)
 		db, m, err := createDb(t, store)
 		require.NoError(t, err)
-		require.EqualValues(t, int64(3*2+5), m.entryCount)
+		require.EqualValues(t, int64(3*2+6), m.entryCount)
 		requireContains(t, db, 3, 0, 103, createHash(1111), execMsg)
 	})
 
@@ -1071,21 +1110,45 @@ func TestRecoverOnCreate(t *testing.T) {
 		require.EqualValues(t, int64(5), m.entryCount)
 	})
 
-	t.Run("TruncateWhenLastEntryInitEventWithExecLink", func(t *testing.T) {
+	t.Run("TruncateWhenLastEntryInitEventWithExecChainID", func(t *testing.T) {
 		execMsg := types.ExecutingMessage{
-			Chain:     4,
+			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  10,
 			LogIdx:    4,
 			Timestamp: 1288,
-			Hash:      createHash(4),
+			Checksum:  types.MessageChecksum(createHash(4)),
 		}
-		linkEvt, err := newExecutingLink(execMsg)
+		execChainIDEvt, err := newExecChainID(execMsg)
 		require.NoError(t, err)
 		store := storeWithEvents(
 			newSearchCheckpoint(3, 0, 100).encode(),
 			newCanonicalHash(createHash(344)).encode(),
 			newInitiatingEvent(createHash(1), true).encode(),
-			linkEvt.encode(),
+			execChainIDEvt.encode(),
+		)
+		_, m, err := createDb(t, store)
+		require.NoError(t, err)
+		require.EqualValues(t, int64(2), m.entryCount)
+	})
+
+	t.Run("TruncateWhenLastEntryInitEventWithExecPosition", func(t *testing.T) {
+		execMsg := types.ExecutingMessage{
+			ChainID:   eth.ChainIDFromUInt64(4),
+			BlockNum:  10,
+			LogIdx:    4,
+			Timestamp: 1288,
+			Checksum:  types.MessageChecksum(createHash(4)),
+		}
+		execChainIDEvt, err := newExecChainID(execMsg)
+		require.NoError(t, err)
+		execPosEvt, err := newExecPosition(execMsg)
+		require.NoError(t, err)
+		store := storeWithEvents(
+			newSearchCheckpoint(3, 0, 100).encode(),
+			newCanonicalHash(createHash(344)).encode(),
+			newInitiatingEvent(createHash(1), true).encode(),
+			execChainIDEvt.encode(),
+			execPosEvt.encode(),
 		)
 		_, m, err := createDb(t, store)
 		require.NoError(t, err)

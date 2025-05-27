@@ -45,14 +45,6 @@ func TestDependencySet(t *testing.T) {
 		_, err := toml.Decode(string(bad), &ds)
 		require.Error(t, err)
 	})
-
-	t.Run("duplicate index", func(t *testing.T) {
-		_, err := NewStaticConfigDependencySet(map[eth.ChainID]*StaticConfigDependency{
-			eth.ChainIDFromUInt64(900): {ChainIndex: 1},
-			eth.ChainIDFromUInt64(901): {ChainIndex: 1}, // duplicate
-		})
-		require.ErrorIs(t, err, errDuplicateChainIndex)
-	})
 }
 
 func testDependencySetSerialization(
@@ -66,12 +58,10 @@ func testDependencySetSerialization(
 	depSet, err := NewStaticConfigDependencySet(
 		map[eth.ChainID]*StaticConfigDependency{
 			eth.ChainIDFromUInt64(900): {
-				ChainIndex:     900,
 				ActivationTime: 42,
 				HistoryMinTime: 100,
 			},
 			eth.ChainIDFromUInt64(901): {
-				ChainIndex:     901,
 				ActivationTime: 30,
 				HistoryMinTime: 20,
 			},
@@ -134,16 +124,6 @@ func testDependencySetSerialization(
 
 		require.Equal(t, uint64(15), result.MessageExpiryWindow())
 		testChainCapabilities(t, result)
-	})
-
-	t.Run("chain index round trip", func(t *testing.T) {
-		id900 := eth.ChainIDFromUInt64(900)
-		idx, _ := depSet.ChainIndexFromID(id900)
-		idBack, _ := depSet.ChainIDFromIndex(idx)
-		require.Equal(t, id900, idBack)
-
-		_, err := depSet.ChainIndexFromID(eth.ChainIDFromUInt64(999))
-		require.ErrorContains(t, err, "unknown chain")
 	})
 
 	t.Run("HasChain", func(t *testing.T) {

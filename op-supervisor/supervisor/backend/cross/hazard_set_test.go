@@ -22,7 +22,7 @@ func TestHazardSet_Build(t *testing.T) {
 			blocks: []blockDef{
 				makeBlock(0, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{},
+			expected: map[eth.ChainID]types.BlockSeal{},
 		},
 		{
 			name: "Single Dependency",
@@ -30,8 +30,8 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 100, 1, 1)),
 				makeBlock(1, 100, 1), // Referenced block from chain 1
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 			},
 		},
 		{
@@ -40,8 +40,8 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(0, 100, 1, makeMessage(1, 100, 1, 1), makeMessage(1, 100, 1, 2)),
 				makeBlock(1, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
 			},
 		},
 		{
@@ -51,9 +51,9 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1),
 				makeBlock(2, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
-				2: makeBlockSeal(1, 100, 2),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
+				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 			},
 		},
 		{
@@ -72,9 +72,9 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1),
 				makeBlock(2, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
-				2: makeBlockSeal(1, 100, 2),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
+				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 			},
 		},
 		{
@@ -84,9 +84,9 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(1, 100, 1, makeMessage(2, 100, 1, 1)),
 				makeBlock(2, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
-				2: makeBlockSeal(1, 100, 2),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
+				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
 			},
 		},
 		{
@@ -144,10 +144,10 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(2, 100, 1, makeMessage(3, 100, 1, 1)),
 				makeBlock(3, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
-				2: makeBlockSeal(1, 100, 2),
-				3: makeBlockSeal(1, 100, 3),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
+				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
+				eth.ChainIDFromUInt64(3): makeBlockSeal(1, 100, 3),
 			},
 		},
 		{
@@ -166,11 +166,11 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(3, 100, 1),
 				makeBlock(4, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
-				2: makeBlockSeal(1, 100, 2),
-				3: makeBlockSeal(1, 100, 3),
-				4: makeBlockSeal(1, 100, 4),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
+				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
+				eth.ChainIDFromUInt64(3): makeBlockSeal(1, 100, 3),
+				eth.ChainIDFromUInt64(4): makeBlockSeal(1, 100, 4),
 			},
 		},
 		{
@@ -182,10 +182,10 @@ func TestHazardSet_Build(t *testing.T) {
 				makeBlock(2, 100, 1, makeMessage(3, 100, 1, 1)),
 				makeBlock(3, 100, 1),
 			},
-			expected: map[types.ChainIndex]types.BlockSeal{
-				1: makeBlockSeal(1, 100, 1),
-				2: makeBlockSeal(1, 100, 2),
-				3: makeBlockSeal(1, 100, 3),
+			expected: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): makeBlockSeal(1, 100, 1),
+				eth.ChainIDFromUInt64(2): makeBlockSeal(1, 100, 2),
+				eth.ChainIDFromUInt64(3): makeBlockSeal(1, 100, 3),
 			},
 		},
 	}
@@ -209,7 +209,7 @@ func TestHazardSet_Build(t *testing.T) {
 				Timestamp: firstBlock.timestamp,
 				Hash:      firstBlock.hash,
 			}
-			chainID := eth.ChainIDFromUInt64(uint64(firstBlock.chain))
+			chainID := firstBlock.chain
 
 			hs, err := NewHazardSet(deps, logger, chainID, seal)
 			if tc.expectErr != nil {
@@ -225,9 +225,8 @@ func TestHazardSet_Build(t *testing.T) {
 }
 
 func TestHazardSet_CrossValidBlocks(t *testing.T) {
-	require := require.New(t)
 	logger := newTestLogger(t)
-	depSet := &hazardMockDependencySet{}
+	depSet := &mockDependencySet{}
 
 	// Helper function to create block hash
 	makeBlockHash := func(chainID eth.ChainID, num uint64) common.Hash {
@@ -245,7 +244,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 		num       uint64
 		timestamp uint64
 		msgs      []struct {
-			Chain     types.ChainIndex
+			Chain     uint8
 			BlockNum  uint64
 			LogIndex  uint32
 			Timestamp uint64
@@ -256,23 +255,17 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 	makeBlockMap := func(blocks []testBlockDef) map[blockKey]blockDef {
 		blockMap := make(map[blockKey]blockDef)
 		for _, block := range blocks {
-			// Extract chain index from chain ID
-			chainIndex, err := depSet.ChainIndexFromID(block.chain)
-			if err != nil {
-				// Use a fallback if error
-				chainIndex = types.ChainIndex(block.chain[0])
-			}
-
 			key := blockKey{
-				chain:  chainIndex,
+				chain:  block.chain,
 				number: block.num,
 			}
 
 			// Convert messages to the expected format
 			messages := make([]*types.ExecutingMessage, 0, len(block.msgs))
 			for _, msg := range block.msgs {
+				chainID := eth.ChainIDFromUInt64(uint64(msg.Chain))
 				messages = append(messages, &types.ExecutingMessage{
-					Chain:     msg.Chain,
+					ChainID:   chainID,
 					BlockNum:  msg.BlockNum,
 					LogIdx:    msg.LogIndex,
 					Timestamp: msg.Timestamp,
@@ -286,7 +279,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 			}
 
 			blockMap[key] = blockDef{
-				chain:     chainIndex,
+				chain:     block.chain,
 				number:    block.num,
 				timestamp: timestamp,
 				hash:      makeBlockHash(block.chain, block.num),
@@ -301,7 +294,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 		name            string
 		blocks          []testBlockDef
 		verifyBlockFn   func(chainID eth.ChainID, block eth.BlockID) error
-		expectedHazards map[types.ChainIndex]types.BlockSeal
+		expectedHazards map[eth.ChainID]types.BlockSeal
 		expectedErr     error
 	}{
 		{
@@ -312,7 +305,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       10,
 					timestamp: 100,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -331,8 +324,8 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[types.ChainIndex]types.BlockSeal{
-				1: {
+			expectedHazards: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
 					Timestamp: 100,
@@ -350,7 +343,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       10,
 					timestamp: 100,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -369,8 +362,8 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[types.ChainIndex]types.BlockSeal{
-				1: {
+			expectedHazards: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
 					Timestamp: 100,
@@ -389,7 +382,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       10,
 					timestamp: 100,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -419,13 +412,13 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[types.ChainIndex]types.BlockSeal{
-				1: {
+			expectedHazards: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
 					Timestamp: 100,
 				},
-				2: {
+				eth.ChainIDFromUInt64(2): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(2), 5),
 					Number:    5,
 					Timestamp: 100,
@@ -444,7 +437,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       10,
 					timestamp: 200,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -463,7 +456,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedErr: fmt.Errorf("failed to build hazard set: msg ExecMsg(chainIndex: 1, block: 5, log: 1, time: 100, logHash: 0x0000000000000000000000000000000000000000000000000000000000000000) included in non-cross-safe block BlockSeal(hash:0x0000000000000005000000000000000100000000000000000000000000000000, number:5, time:100): block 0x0000000000000005000000000000000100000000000000000000000000000000:5 (chain 1) is not cross-valid: verification database error"),
+			expectedErr: fmt.Errorf("failed to build hazard set: msg ExecMsg(chain: 1, block: 5, log: 1, time: 100, checksum: 0x0000000000000000000000000000000000000000000000000000000000000000) included in non-cross-safe block BlockSeal(hash:0x0000000000000005000000000000000100000000000000000000000000000000, number:5, time:100): block 0x0000000000000005000000000000000100000000000000000000000000000000:5 (chain 1) is not cross-valid: verification database error"),
 			verifyBlockFn: func(chainID eth.ChainID, block eth.BlockID) error {
 				return fmt.Errorf("verification database error")
 			},
@@ -476,7 +469,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       10,
 					timestamp: 100,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -494,7 +487,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       5,
 					timestamp: 100,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -513,13 +506,13 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedHazards: map[types.ChainIndex]types.BlockSeal{
-				1: {
+			expectedHazards: map[eth.ChainID]types.BlockSeal{
+				eth.ChainIDFromUInt64(1): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(1), 5),
 					Number:    5,
 					Timestamp: 100,
 				},
-				2: {
+				eth.ChainIDFromUInt64(2): {
 					Hash:      makeBlockHash(eth.ChainIDFromUInt64(2), 5),
 					Number:    5,
 					Timestamp: 100,
@@ -538,7 +531,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       10,
 					timestamp: 100,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -556,7 +549,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					num:       5,
 					timestamp: 100,
 					msgs: []struct {
-						Chain     types.ChainIndex
+						Chain     uint8
 						BlockNum  uint64
 						LogIndex  uint32
 						Timestamp uint64
@@ -582,6 +575,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 
 	for _, tc := range vectors {
 		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
 			// Create dependency mock
 			mockDeps := &mockHazardDeps{
 				logger:        logger,
@@ -602,6 +596,8 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 			hs, err := NewHazardSet(mockDeps, logger, firstBlock.chain, candidateSeal)
 			if tc.expectedErr != nil {
 				require.Error(err)
+				t.Logf("GOT: %s\n", err.Error())
+				t.Logf("EXPECTED: %s\n", tc.expectedErr.Error())
 				require.Contains(err.Error(), tc.expectedErr.Error())
 				return
 			}
@@ -628,10 +624,8 @@ func (m *mockHazardDeps) Contains(chain eth.ChainID, query types.ContainsQuery) 
 	if m.containsFn != nil {
 		return m.containsFn(chain, query)
 	}
-	// Look up the block in our test data
-	chainIndex, err := m.ChainIndexFromID(chain)
-	if err != nil {
-		return types.BlockSeal{}, err
+	if !m.deps.HasChain(chain) {
+		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 
 	// Validate timestamp is greater than 0
@@ -640,7 +634,7 @@ func (m *mockHazardDeps) Contains(chain eth.ChainID, query types.ContainsQuery) 
 	}
 
 	key := blockKey{
-		chain:  chainIndex,
+		chain:  chain,
 		number: query.BlockNum,
 	}
 	if block, ok := m.blockMap[key]; ok {
@@ -663,8 +657,7 @@ func (m *mockHazardDeps) IsCrossValidBlock(chainID eth.ChainID, block eth.BlockI
 		if err != nil {
 			// Format a clear error message that includes both the block and chain information
 			// This ensures errors are properly identified and propagated
-			chainIdx, _ := m.deps.ChainIndexFromID(chainID)
-			return fmt.Errorf("block %s (chain %d) is not cross-valid: %w", block, chainIdx, err)
+			return fmt.Errorf("block %s (chain %s) is not cross-valid: %w", block, chainID, err)
 		}
 		return nil
 	}
@@ -676,13 +669,11 @@ func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref et
 	if m.openBlockFn != nil {
 		return m.openBlockFn(chainID, blockNum)
 	}
-	// Look up the block in our test data
-	chainIndex, err := m.ChainIndexFromID(chainID)
-	if err != nil {
-		return eth.BlockRef{}, 0, nil, fmt.Errorf("failed to get chain index: %w", err)
+	if !m.deps.HasChain(chainID) {
+		return eth.BlockRef{}, 0, nil, fmt.Errorf("unsupported chain: %s: %w", chainID, err)
 	}
 	key := blockKey{
-		chain:  chainIndex,
+		chain:  chainID,
 		number: blockNum,
 	}
 	if block, ok := m.blockMap[key]; ok {
@@ -705,45 +696,43 @@ func (m *mockHazardDeps) DependencySet() depset.DependencySet {
 	return m.deps
 }
 
-func (m *mockHazardDeps) ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error) {
-	return m.deps.ChainIndexFromID(id)
-}
-
 func (m *mockHazardDeps) Logger() log.Logger {
 	return m.logger
 }
 
-func makeBlock(chain types.ChainIndex, timestamp, number uint64, messages ...*types.ExecutingMessage) blockDef {
+func makeBlock(chainTestAlias uint8, timestamp, number uint64, messages ...*types.ExecutingMessage) blockDef {
+	chainID := eth.ChainIDFromUInt64(uint64(chainTestAlias))
 	return blockDef{
 		number:    number,
 		timestamp: timestamp,
-		chain:     chain,
-		hash:      common.Hash{byte(chain), byte(number)}, // Deterministic hash based on chain and number
+		chain:     chainID,
+		hash:      common.Hash{byte(chainTestAlias), byte(number)}, // Deterministic hash based on chain and number
 		messages:  messages,
 	}
 }
 
-func makeMessage(chain types.ChainIndex, timestamp, blockNum uint64, logIdx uint32) *types.ExecutingMessage {
+func makeMessage(chainTestAlias uint8, timestamp, blockNum uint64, logIdx uint32) *types.ExecutingMessage {
+	chainID := eth.ChainIDFromUInt64(uint64(chainTestAlias))
 	return &types.ExecutingMessage{
-		Chain:     chain,
+		ChainID:   chainID,
 		BlockNum:  blockNum,
 		Timestamp: timestamp,
 		LogIdx:    logIdx,
 	}
 }
 
-func makeBlockSeal(number, timestamp uint64, chain types.ChainIndex) types.BlockSeal {
+func makeBlockSeal(number, timestamp uint64, chainTestAlias uint8) types.BlockSeal {
 	return types.BlockSeal{
 		Number:    number,
 		Timestamp: timestamp,
-		Hash:      common.Hash{byte(chain), byte(number)}, // Match block hash generation
+		Hash:      common.Hash{byte(chainTestAlias), byte(number)}, // Match block hash generation
 	}
 }
 
 type testVector struct {
 	name          string
 	blocks        []blockDef
-	expected      map[types.ChainIndex]types.BlockSeal
+	expected      map[eth.ChainID]types.BlockSeal
 	expectErr     error
 	verifyBlockFn func(chainID eth.ChainID, block eth.BlockID) error
 }
@@ -752,7 +741,7 @@ type blockDef struct {
 	number    uint64
 	timestamp uint64
 	hash      common.Hash
-	chain     types.ChainIndex
+	chain     eth.ChainID
 	messages  []*types.ExecutingMessage
 }
 
@@ -771,7 +760,7 @@ func newMockHazardDeps(t *testing.T, tc testVector) *mockHazardDeps {
 
 	mock := &mockHazardDeps{
 		logger:   newTestLogger(t),
-		deps:     &hazardMockDependencySet{},
+		deps:     &mockDependencySet{},
 		blockMap: blockMap,
 	}
 
@@ -783,22 +772,8 @@ func newMockHazardDeps(t *testing.T, tc testVector) *mockHazardDeps {
 	return mock
 }
 
-// hazardMockDependencySet wraps mockDependencySet and makes it easier to test
-// with 0 chainIndex values.
-type hazardMockDependencySet struct {
-	mockDependencySet
-}
-
-func (m hazardMockDependencySet) ChainIDFromIndex(idx types.ChainIndex) (eth.ChainID, error) {
-	return eth.ChainIDFromUInt64(uint64(idx)), nil
-}
-
-func (m hazardMockDependencySet) ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error) {
-	return types.ChainIndex(id[0]), nil
-}
-
 type blockKey struct {
-	chain  types.ChainIndex
+	chain  eth.ChainID
 	number uint64
 }
 

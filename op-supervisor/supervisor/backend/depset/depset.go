@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type DependencySetSource interface {
@@ -34,21 +33,6 @@ type DependencySet interface {
 	// See CanExecuteAt and CanInitiateAt to check if a chain may message at a given time.
 	HasChain(chainID eth.ChainID) bool
 
-	ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error)
-
 	// MessageExpiryWindow returns the message expiry window to use for this dependency set.
 	MessageExpiryWindow() uint64
-
-	ChainIndexFromID
-	ChainIDFromIndex
-}
-
-type ChainIndexFromID interface {
-	// ChainIndexFromID converts a ChainID to a ChainIndex.
-	ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error)
-}
-
-type ChainIDFromIndex interface {
-	// ChainIDFromIndex converts a ChainIndex to a ChainID.
-	ChainIDFromIndex(index types.ChainIndex) (eth.ChainID, error)
 }

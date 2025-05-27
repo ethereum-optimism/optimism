@@ -14,29 +14,15 @@ import (
 func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	t.Run("empty hazards", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
-		hazards := map[types.ChainIndex]types.BlockSeal{}
+		hazards := map[eth.ChainID]types.BlockSeal{}
 		// when there are no hazards,
 		// no work is done, and no error is returned
 		err := HazardUnsafeFrontierChecks(ufcd, NewHazardSetFromEntries(hazards))
 		require.NoError(t, err)
 	})
-	t.Run("unknown chain", func(t *testing.T) {
-		ufcd := &mockUnsafeFrontierCheckDeps{
-			deps: mockDependencySet{
-				chainIDFromIndexfn: func() (eth.ChainID, error) {
-					return eth.ChainID{}, types.ErrUnknownChain
-				},
-			},
-		}
-		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 0}}
-		// when there is one hazard, and ChainIDFromIndex returns ErrUnknownChain,
-		// an error is returned as a ErrConflict
-		err := HazardUnsafeFrontierChecks(ufcd, NewHazardSetFromEntries(hazards))
-		require.ErrorIs(t, err, types.ErrConflict)
-	})
 	t.Run("is cross unsafe", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
-		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 0}}
+		hazards := map[eth.ChainID]types.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 0}}
 		ufcd.isCrossUnsafe = nil
 		// when there is one hazard, and IsCrossUnsafe returns nil (no error)
 		// no error is returned
@@ -45,7 +31,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	})
 	t.Run("errFuture: is not local unsafe", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
-		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 0}}
+		hazards := map[eth.ChainID]types.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 0}}
 		ufcd.isCrossUnsafe = types.ErrFuture
 		ufcd.isLocalUnsafe = errors.New("some error")
 		// when there is one hazard, and IsCrossUnsafe returns an ErrFuture,
@@ -56,7 +42,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	})
 	t.Run("errFuture: genesis block", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
-		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 0}}
+		hazards := map[eth.ChainID]types.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 0}}
 		ufcd.isCrossUnsafe = types.ErrFuture
 		// when there is one hazard, and IsCrossUnsafe returns an ErrFuture,
 		// BUT the hazard's block number is 0,
@@ -66,7 +52,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	})
 	t.Run("errFuture: error getting parent block", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
-		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 3}}
+		hazards := map[eth.ChainID]types.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 3}}
 		ufcd.isCrossUnsafe = types.ErrFuture
 		ufcd.findBlockIDFn = func() (parent eth.BlockID, err error) {
 			return eth.BlockID{}, errors.New("some error")
@@ -79,7 +65,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	})
 	t.Run("errFuture: parent block is not cross unsafe", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
-		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 3}}
+		hazards := map[eth.ChainID]types.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 3}}
 		ufcd.isCrossUnsafe = types.ErrFuture
 		ufcd.findBlockIDFn = func() (parent eth.BlockID, err error) {
 			// when getting the parent block, prep isCrossSafe to be err
@@ -94,7 +80,7 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 	})
 	t.Run("IsCrossUnsafe Error", func(t *testing.T) {
 		ufcd := &mockUnsafeFrontierCheckDeps{}
-		hazards := map[types.ChainIndex]types.BlockSeal{types.ChainIndex(0): {Number: 3, Hash: common.BytesToHash([]byte{0x02})}}
+		hazards := map[eth.ChainID]types.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 3, Hash: common.BytesToHash([]byte{0x02})}}
 		ufcd.isCrossUnsafe = errors.New("some error")
 		// when there is one hazard, and IsCrossUnsafe returns an error,
 		// the error from IsCrossUnsafe is (wrapped and) returned
