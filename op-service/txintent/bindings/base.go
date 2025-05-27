@@ -275,6 +275,10 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	var zero ReturnType
 	retTyp := reflect.TypeOf(zero)
 
+	if retTyp.Kind() == reflect.Struct {
+		panic("multiple return type using struct is not supported yet")
+	}
+
 	abiTargetType := OpServiceTypeToGoType(retTyp)
 	abiType, err := script.GoTypeToABIType(abiTargetType)
 	if err != nil {
@@ -287,7 +291,6 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 		panic(err)
 	}
 
-	// TODO: handle multiple returns
 	val := ABIValueToOpServiceValue[ReturnType](retTyp, decoded[0])
 	return val, nil
 }
