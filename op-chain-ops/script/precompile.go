@@ -345,6 +345,16 @@ func convertType(src, dest any) (out any, err error) {
 
 // GoTypeToABIType infers the geth ABI type definition from a Go reflect type definition.
 func GoTypeToABIType(typ reflect.Type) (abi.Type, error) {
+	// temporal hardcode for tuple types
+	if typ == reflect.TypeFor[ABIIdentifier]() {
+		return abi.NewType("tuple", "", []abi.ArgumentMarshaling{
+			{Name: "Origin", Type: "address"},
+			{Name: "BlockNumber", Type: "uint256"},
+			{Name: "LogIndex", Type: "uint256"},
+			{Name: "Timestamp", Type: "uint256"},
+			{Name: "ChainId", Type: "uint256"},
+		})
+	}
 	solType, internalType, err := goTypeToSolidityType(typ)
 	if err != nil {
 		return abi.Type{}, err
@@ -359,6 +369,14 @@ type ABIInt256 big.Int
 var abiInt256Type = typeFor[ABIInt256]()
 
 var abiUint256Type = typeFor[uint256.Int]()
+
+type ABIIdentifier struct {
+	Origin      common.Address
+	BlockNumber *big.Int
+	LogIndex    *big.Int
+	Timestamp   *big.Int
+	ChainId     *big.Int
+}
 
 // goTypeToSolidityType converts a Go type to the solidity ABI type definition.
 // The "internalType" is a quirk of the Geth ABI utils, for nested structures.

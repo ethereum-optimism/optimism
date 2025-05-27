@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // function fields(lambdas) corresponding to solidity functions must be tagged with sol
@@ -242,6 +244,8 @@ func OpServiceTypeToGoType(retTyp reflect.Type) reflect.Type {
 	switch retTyp {
 	case reflect.TypeOf(eth.ETH{}), reflect.TypeOf(eth.ChainID{}):
 		return reflect.TypeOf(big.NewInt(0))
+	case reflect.TypeOf(suptypes.Identifier{}):
+		return reflect.TypeOf(script.ABIIdentifier{})
 	default:
 		return retTyp
 	}
@@ -255,6 +259,15 @@ func OpServiceValueToABIValue(arg any) any {
 		value = v.ToBig()
 	case eth.ChainID:
 		value = v.ToBig()
+	case suptypes.Identifier:
+		identifier := script.ABIIdentifier{
+			v.Origin,
+			big.NewInt(int64(v.BlockNumber)),
+			big.NewInt(int64(v.LogIndex)),
+			big.NewInt(int64(v.Timestamp)),
+			v.ChainID.ToBig(),
+		}
+		value = identifier
 	default:
 		value = v
 	}
