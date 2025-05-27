@@ -48,13 +48,17 @@ func setupTwoChains(opts ...func(*chainSetupOpts)) (*staticConfigSource, *eth.Su
 		opt(chainSetupOpts)
 	}
 
-	rollupCfg1 := chaincfg.OPSepolia()
+	rollupCfg1 := *chaincfg.OPSepolia()
 	chainCfg1 := chainconfig.OPSepoliaChainConfig()
 
 	rollupCfg2 := *chaincfg.OPSepolia()
 	rollupCfg2.L2ChainID = new(big.Int).SetUint64(42)
 	chainCfg2 := *chainconfig.OPSepoliaChainConfig()
 	chainCfg2.ChainID = rollupCfg2.L2ChainID
+
+	// activate interop at genesis for both
+	rollupCfg1.InteropTime = new(uint64)
+	rollupCfg2.InteropTime = new(uint64)
 
 	agreedSuperRoot := &eth.SuperV1{
 		Timestamp: rollupCfg1.Genesis.L2Time + 1234,
@@ -67,20 +71,26 @@ func setupTwoChains(opts ...func(*chainSetupOpts)) (*staticConfigSource, *eth.Su
 	var ds *depset.StaticConfigDependencySet
 	if chainSetupOpts.expiryWindow > 0 {
 		ds, _ = depset.NewStaticConfigDependencySetWithMessageExpiryOverride(map[eth.ChainID]*depset.StaticConfigDependency{
-			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {ActivationTime: 0, HistoryMinTime: 0},
-			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {ActivationTime: 0, HistoryMinTime: 0},
+			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {},
+			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {},
 		}, chainSetupOpts.expiryWindow)
 	} else {
 		ds, _ = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {ActivationTime: 0, HistoryMinTime: 0},
-			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {ActivationTime: 0, HistoryMinTime: 0},
+			eth.ChainIDFromBig(rollupCfg1.L2ChainID): {},
+			eth.ChainIDFromBig(rollupCfg2.L2ChainID): {},
 		})
 	}
+	rollupCfgSet := depset.StaticRollupConfigSetFromRollupConfigMap(map[eth.ChainID]*rollup.Config{
+		eth.ChainIDFromBig(rollupCfg1.L2ChainID): &rollupCfg1,
+		eth.ChainIDFromBig(rollupCfg2.L2ChainID): &rollupCfg2,
+	}, depset.StaticTimestamp(agreedSuperRoot.Timestamp)) // TODO review from Seb/Mofi
+	fullCfg, _ := depset.NewFullConfigSetMerged(rollupCfgSet, ds)
 	configSource := &staticConfigSource{
-		rollupCfgs:   []*rollup.Config{rollupCfg1, &rollupCfg2},
-		chainConfigs: []*params.ChainConfig{chainCfg1, &chainCfg2},
-		depset:       ds,
-		chainIDs:     []eth.ChainID{eth.ChainIDFromBig(rollupCfg1.L2ChainID), eth.ChainIDFromBig(rollupCfg2.L2ChainID)},
+		rollupCfgs:    []*rollup.Config{&rollupCfg1, &rollupCfg2},
+		chainConfigs:  []*params.ChainConfig{chainCfg1, &chainCfg2},
+		depset:        ds,
+		fullConfigSet: fullCfg,
+		chainIDs:      []eth.ChainID{eth.ChainIDFromBig(rollupCfg1.L2ChainID), eth.ChainIDFromBig(rollupCfg2.L2ChainID)},
 	}
 	tasksStub := &stubTasks{
 		l2SafeHead: eth.L2BlockRef{Number: 918429823450218}, // Past the claimed block
@@ -695,13 +705,17 @@ func TestHazardSet_ExpiredMessageShortCircuitsInclusionCheck(t *testing.T) {
 			On("Contains", mock.Anything, mock.Anything).Return(supervisortypes.BlockSeal{}, supervisortypes.ErrConflict).
 			Maybe()
 
+		linker := depset.LinkCheckFn(func(execInChain eth.ChainID, execInTimestamp uint64, initChainID eth.ChainID, initTimestamp uint64) bool {
+			window := configSource.depset.MessageExpiryWindow()
+			return initTimestamp+window >= execInTimestamp
+		})
 		deps := &cross.UnsafeHazardDeps{UnsafeStartDeps: mockConsolidateDeps}
 		candidate := supervisortypes.BlockSeal{
 			Hash:      block2A.Hash(),
 			Number:    block2A.NumberU64(),
 			Timestamp: block2A.Time(),
 		}
-		_, err = cross.NewHazardSet(deps, logger, eth.ChainIDFromBig(configA.L2ChainID), candidate)
+		_, err = cross.NewHazardSet(deps, linker, logger, eth.ChainIDFromBig(configA.L2ChainID), candidate)
 		require.ErrorIs(t, err, supervisortypes.ErrConflict)
 
 		if expectInclusionCheck {
@@ -814,10 +828,11 @@ func (t *stubTasks) ExpectBuildDepositOnlyBlock(
 }
 
 type staticConfigSource struct {
-	rollupCfgs   []*rollup.Config
-	chainConfigs []*params.ChainConfig
-	depset       *depset.StaticConfigDependencySet
-	chainIDs     []eth.ChainID
+	rollupCfgs    []*rollup.Config
+	chainConfigs  []*params.ChainConfig
+	depset        *depset.StaticConfigDependencySet
+	fullConfigSet depset.FullConfigSet
+	chainIDs      []eth.ChainID
 }
 
 func (s *staticConfigSource) RollupConfig(chainID eth.ChainID) (*rollup.Config, error) {
@@ -840,4 +855,8 @@ func (s *staticConfigSource) ChainConfig(chainID eth.ChainID) (*params.ChainConf
 
 func (s *staticConfigSource) DependencySet(chainID eth.ChainID) (depset.DependencySet, error) {
 	return s.depset, nil
+}
+
+func (s *staticConfigSource) FullConfigSet(chainID eth.ChainID) (depset.FullConfigSet, error) {
+	return s.fullConfigSet, nil
 }

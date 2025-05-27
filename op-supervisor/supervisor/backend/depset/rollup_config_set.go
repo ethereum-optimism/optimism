@@ -28,6 +28,10 @@ type RollupConfigSet interface {
 	// guarantee of existence isn't provided by the caller context.
 	Genesis(chainID eth.ChainID) Genesis
 
+	ActivationConfig
+}
+
+type ActivationConfig interface {
 	// IsInterop returns true if the Interop hardfork is active for the given chain at the given timestamp.
 	// It panics if the chain is not part of the rollup config set.
 	// Use HasChain first to check if the chain is part of the rollup config set if

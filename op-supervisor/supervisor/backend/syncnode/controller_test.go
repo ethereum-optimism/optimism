@@ -193,14 +193,8 @@ var _ backend = (*mockBackend)(nil)
 func sampleDepSet(t *testing.T) depset.DependencySet {
 	depSet, err := depset.NewStaticConfigDependencySet(
 		map[eth.ChainID]*depset.StaticConfigDependency{
-			eth.ChainIDFromUInt64(900): {
-				ActivationTime: 42,
-				HistoryMinTime: 100,
-			},
-			eth.ChainIDFromUInt64(901): {
-				ActivationTime: 30,
-				HistoryMinTime: 20,
-			},
+			eth.ChainIDFromUInt64(900): {},
+			eth.ChainIDFromUInt64(901): {},
 		})
 	require.NoError(t, err)
 	return depSet

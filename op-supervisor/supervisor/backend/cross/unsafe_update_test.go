@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,10 +20,9 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
 			return types.BlockSeal{}, errors.New("some error")
 		}
-		usd.deps = mockDependencySet{}
 		// when an error is returned by CrossUnsafe,
 		// the error is returned
-		err := CrossUnsafeUpdate(logger, chainID, usd)
+		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 	})
 	t.Run("CrossUnsafe returns ErrFuture", func(t *testing.T) {
@@ -34,10 +32,9 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		usd.crossUnsafeFn = func(chainID eth.ChainID) (types.BlockSeal, error) {
 			return types.BlockSeal{}, types.ErrFuture
 		}
-		usd.deps = mockDependencySet{}
 		// when a ErrFuture is returned by CrossUnsafe,
 		// no error is returned
-		err := CrossUnsafeUpdate(logger, chainID, usd)
+		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.NoError(t, err)
 	})
 	t.Run("OpenBlock returns error", func(t *testing.T) {
@@ -47,10 +44,9 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
 			return eth.BlockRef{}, 0, nil, errors.New("some error")
 		}
-		usd.deps = mockDependencySet{}
 		// when an error is returned by OpenBlock,
 		// the error is returned
-		err := CrossUnsafeUpdate(logger, chainID, usd)
+		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 	})
 	t.Run("opened block parent hash does not match", func(t *testing.T) {
@@ -65,10 +61,9 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		usd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
 			return bl, 0, nil, nil
 		}
-		usd.deps = mockDependencySet{}
 		// when the parent hash of the opened block does not match the cross-unsafe block,
 		// an ErrConflict is returned
-		err := CrossUnsafeUpdate(logger, chainID, usd)
+		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.ErrorIs(t, err, types.ErrConflict)
 	})
 	t.Run("CrossUnsafeHazards returns error", func(t *testing.T) {
@@ -84,14 +79,13 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 			// include one executing message to trigger the CanExecuteAt check
 			return bl, 0, map[uint32]*types.ExecutingMessage{1: {}}, nil
 		}
-		usd.deps = mockDependencySet{}
-		// make CrossSafeHazards return an error by setting CanExecuteAtfn to return an error
-		usd.deps.canExecuteAtfn = func() (bool, error) {
-			return false, errors.New("some error")
+		// make CrossSafeHazards return an error by setting Contains to return an error
+		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
+			return types.BlockSeal{}, errors.New("some error")
 		}
 		// when CrossSafeHazards returns an error,
 		// the error is returned
-		err := CrossUnsafeUpdate(logger, chainID, usd)
+		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 	})
 	t.Run("HazardCycleChecks returns error", func(t *testing.T) {
@@ -111,10 +105,9 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
 			return types.BlockSeal{Number: 1, Timestamp: 1}, nil
 		}
-		usd.deps = mockDependencySet{}
 
 		// HazardCycleChecks returns an error with appropriate wrapping
-		err := CrossUnsafeUpdate(logger, chainID, usd)
+		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.ErrorContains(t, err, "cycle detected")
 		require.ErrorContains(t, err, "failed to verify block")
 	})
@@ -140,7 +133,6 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		usd.checkFn = func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
 			return crossUnsafe, nil
 		}
-		usd.deps = mockDependencySet{}
 		var updatingChainID eth.ChainID
 		var updatingBlock types.BlockSeal
 		usd.updateCrossUnsafeFn = func(chain eth.ChainID, crossUnsafe types.BlockSeal) error {
@@ -150,7 +142,7 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 		}
 		// when there are no errors, the cross-unsafe block is updated
 		// the updated block is the block opened in OpenBlock
-		err := CrossUnsafeUpdate(logger, chainID, usd)
+		err := CrossUnsafeUpdate(logger, chainID, usd, linkerAny{})
 		require.NoError(t, err)
 		require.Equal(t, chainID, updatingChainID)
 		require.Equal(t, types.BlockSealFromRef(bl), updatingBlock)
@@ -158,7 +150,6 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 }
 
 type mockCrossUnsafeDeps struct {
-	deps                mockDependencySet
 	messageExpiryWindow uint64
 	crossUnsafeFn       func(chainID eth.ChainID) (types.BlockSeal, error)
 	openBlockFn         func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
@@ -171,10 +162,6 @@ func (m *mockCrossUnsafeDeps) CrossUnsafe(chainID eth.ChainID) (derived types.Bl
 		return m.crossUnsafeFn(chainID)
 	}
 	return types.BlockSeal{}, nil
-}
-
-func (m *mockCrossUnsafeDeps) DependencySet() depset.DependencySet {
-	return m.deps
 }
 
 func (m *mockCrossUnsafeDeps) MessageExpiryWindow() uint64 {

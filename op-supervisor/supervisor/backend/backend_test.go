@@ -39,10 +39,7 @@ func fullConfigSet(t *testing.T, size int) depset.FullConfigSetMerged {
 	zero := uint64(0)
 	for i := 0; i < size; i++ {
 		chainID := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
-		staticDepSet[chainID] = &depset.StaticConfigDependency{
-			ActivationTime: 42,
-			HistoryMinTime: 100,
-		}
+		staticDepSet[chainID] = &depset.StaticConfigDependency{}
 		staticRollupCfgSet[chainID] = &depset.StaticRollupConfig{
 			InteropTime: &zero,
 			BlockTime:   2,

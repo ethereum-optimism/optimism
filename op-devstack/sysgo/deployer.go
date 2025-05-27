@@ -263,10 +263,7 @@ func (wb *worldBuilder) buildDepSet() {
 		if interopTime == nil {
 			continue
 		}
-		depSetContents[id] = &depset.StaticConfigDependency{
-			ActivationTime: *interopTime,
-			HistoryMinTime: *interopTime,
-		}
+		depSetContents[id] = &depset.StaticConfigDependency{}
 	}
 	if len(depSetContents) == 0 {
 		return // no dependency set output if no chain had interop active

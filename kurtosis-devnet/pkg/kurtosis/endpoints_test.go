@@ -195,14 +195,8 @@ func createTestServiceMap() inspect.ServiceMap {
 func createTestDepSets(t *testing.T) map[string]descriptors.DepSet {
 	// Create the dependency set for the superchain
 	depSetData := map[eth.ChainID]*depset.StaticConfigDependency{
-		eth.ChainIDFromUInt64(2151908): {
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		},
-		eth.ChainIDFromUInt64(2151909): {
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		},
+		eth.ChainIDFromUInt64(2151908): {},
+		eth.ChainIDFromUInt64(2151909): {},
 	}
 
 	depSet, err := depset.NewStaticConfigDependencySet(depSetData)

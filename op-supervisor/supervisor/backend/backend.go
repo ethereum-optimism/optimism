@@ -223,14 +223,15 @@ func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Conf
 		}
 	}
 
+	linker := depset.LinkerFromConfig(su.cfgSet)
 	// initialize all cross-unsafe processors
 	for _, chainID := range chains {
-		worker := cross.NewCrossUnsafeWorker(su.logger, chainID, su.chainDBs)
+		worker := cross.NewCrossUnsafeWorker(su.logger, chainID, su.chainDBs, linker)
 		su.eventSys.Register(fmt.Sprintf("cross-unsafe-%s", chainID), worker)
 	}
 	// initialize all cross-safe processors
 	for _, chainID := range chains {
-		worker := cross.NewCrossSafeWorker(su.logger, chainID, su.chainDBs)
+		worker := cross.NewCrossSafeWorker(su.logger, chainID, su.chainDBs, linker)
 		su.eventSys.Register(fmt.Sprintf("cross-safe-%s", chainID), worker)
 	}
 	// For each chain initialize a chain processor service,

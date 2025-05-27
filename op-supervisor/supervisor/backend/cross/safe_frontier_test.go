@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 func TestHazardSafeFrontierChecks(t *testing.T) {
@@ -127,7 +127,6 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 }
 
 type mockSafeFrontierCheckDeps struct {
-	deps                 mockDependencySet
 	candidateCrossSafeFn func() (candidate types.DerivedBlockRefPair, err error)
 	crossSourceFn        func() (source types.BlockSeal, err error)
 }
@@ -144,47 +143,4 @@ func (m *mockSafeFrontierCheckDeps) CrossDerivedToSource(chainID eth.ChainID, de
 		return m.crossSourceFn()
 	}
 	return types.BlockSeal{}, nil
-}
-
-func (m *mockSafeFrontierCheckDeps) DependencySet() depset.DependencySet {
-	return m.deps
-}
-
-type mockDependencySet struct {
-	hasChainFn          func(eth.ChainID) bool
-	canExecuteAtfn      func() (bool, error)
-	canInitiateAtfn     func() (bool, error)
-	messageExpiryWindow uint64
-}
-
-func (m mockDependencySet) CanExecuteAt(chain eth.ChainID, timestamp uint64) (bool, error) {
-	if m.canExecuteAtfn != nil {
-		return m.canExecuteAtfn()
-	}
-	return true, nil
-}
-
-func (m mockDependencySet) CanInitiateAt(chain eth.ChainID, timestamp uint64) (bool, error) {
-	if m.canInitiateAtfn != nil {
-		return m.canInitiateAtfn()
-	}
-	return true, nil
-}
-
-func (m mockDependencySet) Chains() []eth.ChainID {
-	return nil
-}
-
-func (m mockDependencySet) HasChain(chain eth.ChainID) bool {
-	if m.hasChainFn != nil {
-		return m.hasChainFn(chain)
-	}
-	return true
-}
-
-func (m mockDependencySet) MessageExpiryWindow() uint64 {
-	if m.messageExpiryWindow == 0 {
-		return 100
-	}
-	return m.messageExpiryWindow
 }

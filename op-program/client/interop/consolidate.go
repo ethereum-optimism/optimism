@@ -147,15 +147,19 @@ func singleRoundConsolidation(
 	tasks taskExecutor,
 ) error {
 	// The depset is the same for all chains. So it suffices to use any chain ID
-	depset, err := bootInfo.Configs.DependencySet(superRoot.Chains[0].ChainID)
+	depSet, err := bootInfo.Configs.DependencySet(superRoot.Chains[0].ChainID)
 	if err != nil {
 		return fmt.Errorf("failed to get dependency set: %w", err)
 	}
-	deps, err := newConsolidateCheckDeps(depset, bootInfo.Configs, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle, consolidateState)
+	deps, err := newConsolidateCheckDeps(depSet, bootInfo.Configs, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle, consolidateState)
 	if err != nil {
 		return fmt.Errorf("failed to create consolidate check deps: %w", err)
 	}
-
+	fullConfig, err := bootInfo.Configs.FullConfigSet(superRoot.Chains[0].ChainID)
+	if err != nil {
+		return fmt.Errorf("failed to get full config set: %w", err)
+	}
+	linker := depset.LinkerFromConfig(fullConfig)
 	for i, chain := range superRoot.Chains {
 		// Do not check chains that have been replaced with a deposits-only block.
 		// They are already cross-safe because deposits-only blocks cannot contain executing messages.
@@ -171,7 +175,7 @@ func singleRoundConsolidation(
 			Number:    optimisticBlock.NumberU64(),
 			Timestamp: optimisticBlock.Time(),
 		}
-		if err := checkHazards(logger, deps, candidate, chain.ChainID); err != nil {
+		if err := checkHazards(logger, deps, linker, candidate, chain.ChainID); err != nil {
 			if !isInvalidMessageError(err) {
 				return err
 			}
@@ -218,8 +222,8 @@ type ConsolidateCheckDeps interface {
 	cross.UnsafeStartDeps
 }
 
-func checkHazards(logger log.Logger, deps ConsolidateCheckDeps, candidate supervisortypes.BlockSeal, chainID eth.ChainID) error {
-	hazards, err := cross.CrossUnsafeHazards(deps, logger, chainID, candidate)
+func checkHazards(logger log.Logger, deps ConsolidateCheckDeps, linker depset.LinkChecker, candidate supervisortypes.BlockSeal, chainID eth.ChainID) error {
+	hazards, err := cross.CrossUnsafeHazards(deps, linker, logger, chainID, candidate)
 	if err != nil {
 		return err
 	}
@@ -369,10 +373,6 @@ func (d *consolidateCheckDeps) OpenBlock(
 	}
 	d.consolidateState.setCachedExecMsgs(block.Hash(), execMsgs, logCount)
 	return ref, logCount, execMsgs, nil
-}
-
-func (d *consolidateCheckDeps) DependencySet() depset.DependencySet {
-	return d.depset
 }
 
 func (d *consolidateCheckDeps) CanonBlockByNumber(oracle l2.Oracle, blockNum uint64, chainID eth.ChainID) (*ethtypes.Block, error) {

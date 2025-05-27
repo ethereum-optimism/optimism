@@ -95,8 +95,8 @@ func TestInteropBootstrap_ChainConfigCustom(t *testing.T) {
 	mockOracle := newMockInteropBootstrapOracle(expected, true)
 	mockOracle.chainCfgs = []*params.ChainConfig{config1, config2}
 	mockOracle.depset, _ = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		eth.ChainIDFromBig(config1.ChainID): {ActivationTime: 0, HistoryMinTime: 0},
-		eth.ChainIDFromBig(config2.ChainID): {ActivationTime: 0, HistoryMinTime: 0},
+		eth.ChainIDFromBig(config1.ChainID): {},
+		eth.ChainIDFromBig(config2.ChainID): {},
 	})
 	actual := BootstrapInterop(mockOracle)
 
@@ -121,8 +121,8 @@ func TestInteropBootstrap_DependencySetCustom(t *testing.T) {
 	mockOracle := newMockInteropBootstrapOracle(expected, true)
 	var err error
 	mockOracle.depset, err = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		eth.ChainIDFromBig(config1.ChainID): {ActivationTime: 0, HistoryMinTime: 0},
-		eth.ChainIDFromBig(config2.ChainID): {ActivationTime: 0, HistoryMinTime: 0},
+		eth.ChainIDFromBig(config1.ChainID): {},
+		eth.ChainIDFromBig(config2.ChainID): {},
 	})
 	require.NoError(t, err)
 	actual := BootstrapInterop(mockOracle)

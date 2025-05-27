@@ -15,6 +15,22 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+type linkerAny struct{}
+
+func (l linkerAny) CanExecute(execInChain eth.ChainID, execInTimestamp uint64, initChainID eth.ChainID, initTimestamp uint64) bool {
+	return true
+}
+
+var _ depset.LinkChecker = linkerAny{}
+
+type linkerNone struct{}
+
+func (l linkerNone) CanExecute(execInChain eth.ChainID, execInTimestamp uint64, initChainID eth.ChainID, initTimestamp uint64) bool {
+	return false
+}
+
+var _ depset.LinkChecker = linkerNone{}
+
 func TestHazardSet_Build(t *testing.T) {
 	vectors := []testVector{
 		{
@@ -210,8 +226,8 @@ func TestHazardSet_Build(t *testing.T) {
 				Hash:      firstBlock.hash,
 			}
 			chainID := firstBlock.chain
-
-			hs, err := NewHazardSet(deps, logger, chainID, seal)
+			linker := linkerAny{}
+			hs, err := NewHazardSet(deps, linker, logger, chainID, seal)
 			if tc.expectErr != nil {
 				t.Log("error creating hazard set", "block", firstBlock, "error", err)
 				require.Error(t, err, "expected error %s, got %v", tc.expectErr, err)
@@ -226,7 +242,6 @@ func TestHazardSet_Build(t *testing.T) {
 
 func TestHazardSet_CrossValidBlocks(t *testing.T) {
 	logger := newTestLogger(t)
-	depSet := &mockDependencySet{}
 
 	// Helper function to create block hash
 	makeBlockHash := func(chainID eth.ChainID, num uint64) common.Hash {
@@ -456,7 +471,7 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 					timestamp: 100,
 				},
 			},
-			expectedErr: fmt.Errorf("failed to build hazard set: msg ExecMsg(chain: 1, block: 5, log: 1, time: 100, checksum: 0x0000000000000000000000000000000000000000000000000000000000000000) included in non-cross-safe block BlockSeal(hash:0x0000000000000005000000000000000100000000000000000000000000000000, number:5, time:100): block 0x0000000000000005000000000000000100000000000000000000000000000000:5 (chain 1) is not cross-valid: verification database error"),
+			expectedErr: fmt.Errorf("is not cross-valid: verification database error"),
 			verifyBlockFn: func(chainID eth.ChainID, block eth.BlockID) error {
 				return fmt.Errorf("verification database error")
 			},
@@ -579,7 +594,6 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 			// Create dependency mock
 			mockDeps := &mockHazardDeps{
 				logger:        logger,
-				deps:          depSet,
 				blockMap:      makeBlockMap(tc.blocks),
 				verifyBlockFn: tc.verifyBlockFn,
 			}
@@ -591,9 +605,10 @@ func TestHazardSet_CrossValidBlocks(t *testing.T) {
 				Number:    firstBlock.num,
 				Timestamp: firstBlock.timestamp,
 			}
+			linker := linkerAny{}
 
 			// Create the HazardSet - this should recursively build the entire set
-			hs, err := NewHazardSet(mockDeps, logger, firstBlock.chain, candidateSeal)
+			hs, err := NewHazardSet(mockDeps, linker, logger, firstBlock.chain, candidateSeal)
 			if tc.expectedErr != nil {
 				require.Error(err)
 				t.Logf("GOT: %s\n", err.Error())
@@ -616,16 +631,12 @@ type mockHazardDeps struct {
 	containsFn    func(chain eth.ChainID, query types.ContainsQuery) (types.BlockSeal, error)
 	verifyBlockFn func(chainID eth.ChainID, block eth.BlockID) error
 	openBlockFn   func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
-	deps          depset.DependencySet
 	blockMap      map[blockKey]blockDef
 }
 
 func (m *mockHazardDeps) Contains(chain eth.ChainID, query types.ContainsQuery) (types.BlockSeal, error) {
 	if m.containsFn != nil {
 		return m.containsFn(chain, query)
-	}
-	if !m.deps.HasChain(chain) {
-		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 
 	// Validate timestamp is greater than 0
@@ -669,9 +680,6 @@ func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref et
 	if m.openBlockFn != nil {
 		return m.openBlockFn(chainID, blockNum)
 	}
-	if !m.deps.HasChain(chainID) {
-		return eth.BlockRef{}, 0, nil, fmt.Errorf("unsupported chain: %s: %w", chainID, err)
-	}
 	key := blockKey{
 		chain:  chainID,
 		number: blockNum,
@@ -690,10 +698,6 @@ func (m *mockHazardDeps) OpenBlock(chainID eth.ChainID, blockNum uint64) (ref et
 		}, uint32(len(block.messages)), msgMap, nil
 	}
 	return eth.BlockRef{}, 0, nil, types.ErrFuture
-}
-
-func (m *mockHazardDeps) DependencySet() depset.DependencySet {
-	return m.deps
 }
 
 func (m *mockHazardDeps) Logger() log.Logger {
@@ -760,7 +764,6 @@ func newMockHazardDeps(t *testing.T, tc testVector) *mockHazardDeps {
 
 	mock := &mockHazardDeps{
 		logger:   newTestLogger(t),
-		deps:     &mockDependencySet{},
 		blockMap: blockMap,
 	}
 

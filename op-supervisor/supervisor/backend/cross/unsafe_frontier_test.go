@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -90,14 +89,9 @@ func TestHazardUnsafeFrontierChecks(t *testing.T) {
 }
 
 type mockUnsafeFrontierCheckDeps struct {
-	deps          mockDependencySet
 	findBlockIDFn func() (parent eth.BlockID, err error)
 	isCrossUnsafe error
 	isLocalUnsafe error
-}
-
-func (m *mockUnsafeFrontierCheckDeps) DependencySet() depset.DependencySet {
-	return m.deps
 }
 
 func (m *mockUnsafeFrontierCheckDeps) FindBlockID(chainID eth.ChainID, num uint64) (parent eth.BlockID, err error) {

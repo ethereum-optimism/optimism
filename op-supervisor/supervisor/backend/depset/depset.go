@@ -13,19 +13,6 @@ type DependencySetSource interface {
 // DependencySet is an initialized dependency set, ready to answer queries
 // of what is and what is not part of the dependency set.
 type DependencySet interface {
-
-	// CanExecuteAt determines if an executing message is valid at all.
-	// I.e. if the chain may be executing messages at the given timestamp.
-	// This may return an error if the query temporarily cannot be answered.
-	// E.g. if the DependencySet is syncing new changes.
-	CanExecuteAt(chainID eth.ChainID, execTimestamp uint64) (bool, error)
-
-	// CanInitiateAt determines if an initiating message is valid to pull in.
-	// I.e. if the message of the given chain is readable or not.
-	// This may return an error if the query temporarily cannot be answered.
-	// E.g. if the DependencySet is syncing new changes.
-	CanInitiateAt(chainID eth.ChainID, initTimestamp uint64) (bool, error)
-
 	// Chains returns the list of chains that are part of the dependency set.
 	Chains() []eth.ChainID
 

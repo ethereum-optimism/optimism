@@ -14,14 +14,6 @@ import (
 )
 
 type StaticConfigDependency struct {
-	// ActivationTime is when the chain becomes part of the dependency set.
-	// This is the minimum timestamp of the inclusion of an executing message.
-	ActivationTime uint64 `json:"activationTime" toml:"activation_time"`
-
-	// HistoryMinTime is what the lower bound of data is to store.
-	// This is the minimum timestamp of an initiating message to be accessible to others.
-	// This is set to 0 when all data since genesis is executable.
-	HistoryMinTime uint64 `json:"historyMinTime" toml:"history_min_time"`
 }
 
 // StaticConfigDependencySet statically declares a DependencySet.
@@ -160,22 +152,6 @@ func (ds *StaticConfigDependencySet) LoadDependencySet(ctx context.Context) (Dep
 	return ds, nil
 }
 
-func (ds *StaticConfigDependencySet) CanExecuteAt(chainID eth.ChainID, execTimestamp uint64) (bool, error) {
-	dep, ok := ds.dependencies[chainID]
-	if !ok {
-		return false, nil
-	}
-	return execTimestamp >= dep.ActivationTime, nil
-}
-
-func (ds *StaticConfigDependencySet) CanInitiateAt(chainID eth.ChainID, initTimestamp uint64) (bool, error) {
-	dep, ok := ds.dependencies[chainID]
-	if !ok {
-		return false, nil
-	}
-	return initTimestamp >= dep.HistoryMinTime, nil
-}
-
 func (ds *StaticConfigDependencySet) Chains() []eth.ChainID {
 	return slices.Clone(ds.chainIDs)
 }
@@ -195,11 +171,8 @@ func (ds *StaticConfigDependencySet) MessageExpiryWindow() uint64 {
 // Dependencies returns a deep copy of the dependencies map
 func (ds *StaticConfigDependencySet) Dependencies() map[eth.ChainID]*StaticConfigDependency {
 	copied := make(map[eth.ChainID]*StaticConfigDependency, len(ds.dependencies))
-	for chainId, dep := range ds.dependencies {
-		copied[chainId] = &StaticConfigDependency{
-			ActivationTime: dep.ActivationTime,
-			HistoryMinTime: dep.HistoryMinTime,
-		}
+	for chainId := range ds.dependencies {
+		copied[chainId] = &StaticConfigDependency{}
 	}
 	return copied
 }

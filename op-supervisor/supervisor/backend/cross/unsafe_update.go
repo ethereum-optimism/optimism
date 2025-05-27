@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -23,7 +24,7 @@ type CrossUnsafeDeps interface {
 	UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.BlockSeal) error
 }
 
-func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps) error {
+func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps, linker depset.LinkChecker) error {
 	var candidate types.BlockSeal
 
 	// fetch cross-head to determine next cross-unsafe candidate
@@ -48,7 +49,7 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 		candidate = types.BlockSealFromRef(bl)
 	}
 
-	hazards, err := CrossUnsafeHazards(d, logger, chainID, candidate)
+	hazards, err := CrossUnsafeHazards(d, linker, logger, chainID, candidate)
 	if err != nil {
 		return fmt.Errorf("failed to check for cross-chain hazards: %w", err)
 	}
@@ -71,12 +72,13 @@ type CrossUnsafeWorker struct {
 	logger  log.Logger
 	chainID eth.ChainID
 	d       CrossUnsafeDeps
+	linker  depset.LinkChecker
 }
 
 func (c *CrossUnsafeWorker) OnEvent(ev event.Event) bool {
 	switch ev.(type) {
 	case superevents.UpdateCrossUnsafeRequestEvent:
-		if err := CrossUnsafeUpdate(c.logger, c.chainID, c.d); err != nil {
+		if err := CrossUnsafeUpdate(c.logger, c.chainID, c.d, c.linker); err != nil {
 			if errors.Is(err, types.ErrFuture) {
 				c.logger.Debug("Worker awaits additional blocks", "err", err)
 			} else {
@@ -91,11 +93,12 @@ func (c *CrossUnsafeWorker) OnEvent(ev event.Event) bool {
 
 var _ event.Deriver = (*CrossUnsafeWorker)(nil)
 
-func NewCrossUnsafeWorker(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps) *CrossUnsafeWorker {
+func NewCrossUnsafeWorker(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps, linker depset.LinkChecker) *CrossUnsafeWorker {
 	logger = logger.New("chain", chainID, "worker", "cross-unsafe")
 	return &CrossUnsafeWorker{
 		logger:  logger,
 		chainID: chainID,
 		d:       d,
+		linker:  linker,
 	}
 }

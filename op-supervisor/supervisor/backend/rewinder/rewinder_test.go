@@ -1426,10 +1426,7 @@ func setupTestChains(t *testing.T, chainIDs ...eth.ChainID) *testSetup {
 	// Create dependency set for all chains
 	deps := make(map[eth.ChainID]*depset.StaticConfigDependency)
 	for _, chainID := range chainIDs {
-		deps[chainID] = &depset.StaticConfigDependency{
-			ActivationTime: 42,
-			HistoryMinTime: 100,
-		}
+		deps[chainID] = &depset.StaticConfigDependency{}
 	}
 	depSet, err := depset.NewStaticConfigDependencySet(deps)
 	require.NoError(t, err)

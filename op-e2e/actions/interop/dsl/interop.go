@@ -249,10 +249,7 @@ func (sa *SupervisorActor) Rewind(chain eth.ChainID, block eth.BlockID) error {
 func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *depset.StaticConfigDependencySet {
 	depSetCfg := make(map[eth.ChainID]*depset.StaticConfigDependency)
 	for _, out := range recipe.L2s {
-		depSetCfg[eth.ChainIDFromUInt64(out.ChainID)] = &depset.StaticConfigDependency{
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
+		depSetCfg[eth.ChainIDFromUInt64(out.ChainID)] = &depset.StaticConfigDependency{}
 	}
 	depSet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(depSetCfg, recipe.ExpiryTime)
 	require.NoError(t, err)
