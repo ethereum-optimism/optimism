@@ -27,7 +27,6 @@ type WETH struct {
 
 func NewWETH(f *WETHCallFactory) *WETH {
 	weth := WETH{WETHCallFactory: *f}
-	CheckImpl(weth)
-	InitImpl(&weth, &f.BaseCallFactory)
+	InitImpl(&weth)
 	return &weth
 }

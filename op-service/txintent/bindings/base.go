@@ -99,10 +99,13 @@ func (b *BaseCallFactory) ApplyFactoryOptions(opts ...CallFactoryOption) {
 	}
 }
 
-func CheckImpl(parent any) {
-	t := reflect.TypeOf(parent)
+func CheckImpl(v reflect.Value) reflect.Value {
+	t := v.Type()
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		panic("expected struct")
 	}
 	for i := range t.NumField() {
 		field := t.Field(i)
@@ -118,17 +121,39 @@ func CheckImpl(parent any) {
 			panic("all methods must have single return type")
 		}
 	}
+	baseCallFactory := findBaseCallFactory(v)
+	if !baseCallFactory.IsValid() {
+		panic("BaseCallFactory not found in embedded fields")
+	}
+	return baseCallFactory
 }
 
-func InitImpl[T any](impl *T, factory *BaseCallFactory) {
+func findBaseCallFactory(v reflect.Value) reflect.Value {
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		t := field.Type()
+		if t == reflect.TypeOf(BaseCallFactory{}) {
+			return field
+		}
+		if t.Kind() == reflect.Struct {
+			if found := findBaseCallFactory(field); found.IsValid() {
+				return found
+			}
+		}
+	}
+	return reflect.Value{}
+}
+
+func InitImpl[T any](impl *T) {
 	v := reflect.ValueOf(impl).Elem()
 	t := v.Type()
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	if t.Kind() != reflect.Struct {
-		panic("expected struct")
-	}
+	baseCallFactory := CheckImpl(v)
 	for i := range v.NumField() {
 		field := t.Field(i)
 		fieldType := field.Type
@@ -174,7 +199,7 @@ func InitImpl[T any](impl *T, factory *BaseCallFactory) {
 				wrap := reflect.New(outputType).Elem()
 				wrap.FieldByName("MethodName").Set(reflect.ValueOf(methodName))
 				wrap.FieldByName("EncodeInputLambda").Set(innerλ)
-				wrap.FieldByName("BaseCallFactory").Set(reflect.ValueOf(factory))
+				wrap.FieldByName("BaseCallFactory").Set(baseCallFactory.Addr())
 				return []reflect.Value{wrap}
 			})
 			v.FieldByName(field.Name).Set(lambda)
