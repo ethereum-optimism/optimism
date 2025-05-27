@@ -2275,7 +2275,7 @@ workflows:
           devnet: simple
           gate: base
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2286,7 +2286,7 @@ workflows:
           devnet: isthmus
           gate: isthmus
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2297,7 +2297,7 @@ workflows:
           devnet: interop
           gate: interop
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2308,13 +2308,36 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
+      # KURTOSIS (Simple)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-simple
+          devnet: simple
+          gate: base
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # KURTOSIS (Isthmus)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-isthmus
+          devnet: isthmus
+          gate: isthmus
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # KURTOSIS (Interop)
       - op-acceptance-tests:
           # Acceptance Testing params
           name: kurtosis-interop
           devnet: interop
           gate: interop
           # CircleCI params
-          no_output_timeout: 10m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
