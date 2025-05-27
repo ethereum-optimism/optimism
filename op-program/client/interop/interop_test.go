@@ -3,7 +3,6 @@ package interop
 import (
 	"encoding/binary"
 	"fmt"
-	test2 "github.com/ethereum-optimism/optimism/op-program/client/l1/test"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
+	test2 "github.com/ethereum-optimism/optimism/op-program/client/l1/test"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/test"
 	"github.com/ethereum-optimism/optimism/op-program/client/tasks"
