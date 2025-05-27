@@ -284,6 +284,7 @@ func ABIValueToOpServiceValue[ReturnType any](retTyp reflect.Type, val any) Retu
 	}
 }
 
+// DecodeOutput unwraps ReturnType from TypedCall and abi decodes byte string
 func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	var zero ReturnType
 	retTyp := reflect.TypeOf(zero)
@@ -308,6 +309,7 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	return val, nil
 }
 
+// ABIEncoder abi encodes arguments with function name
 func ABIEncoder(name string, args ...any) ([]byte, error) {
 	inputs := make([]abi.Argument, len(args))
 	argsTranslated := make([]any, len(args))
