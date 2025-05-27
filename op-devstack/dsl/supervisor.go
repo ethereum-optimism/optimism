@@ -84,7 +84,7 @@ func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
-	syncStatus, err := retry.Do[eth.SupervisorSyncStatus](ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
+	syncStatus, err := retry.Do(ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
 		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)
 		if errors.Is(err, status.ErrStatusTrackerNotReady) {
 			s.log.Debug("Sync status not ready from supervisor")
@@ -131,8 +131,8 @@ func (s *Supervisor) L2HeadBlockID(chainID eth.ChainID, lvl types.SafetyLevel) e
 	return blockID
 }
 
-// AdvancedL2Head checks the supervisor view of L2CL chain head with given safety level advanced more than delta block number
-func (s *Supervisor) AdvancedL2Head(chainID eth.ChainID, delta uint64, lvl types.SafetyLevel, attempts int) {
+// WaitForL2HeadToAdvance checks the supervisor view of L2CL chain head with given safety level advanced more than delta block number
+func (s *Supervisor) WaitForL2HeadToAdvance(chainID eth.ChainID, delta uint64, lvl types.SafetyLevel, attempts int) {
 	chInitial := s.L2HeadBlockID(chainID, lvl)
 	target := chInitial.Number + delta
 	err := retry.Do0(s.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
@@ -149,13 +149,37 @@ func (s *Supervisor) AdvancedL2Head(chainID eth.ChainID, delta uint64, lvl types
 	s.require.NoError(err)
 }
 
-func (s *Supervisor) AdvancedUnsafeHead(chainID eth.ChainID, delta uint64) {
+func (s *Supervisor) WaitForL2HeadToAdvanceTo(chainID eth.ChainID, lvl types.SafetyLevel, blockID eth.BlockID) {
+	ctx, cancel := context.WithCancelCause(s.ctx)
+	defer cancel(nil)
+	err := retry.Do0(ctx, 120, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() error {
+		chStatus := s.L2HeadBlockID(chainID, lvl)
+		s.log.Info("Supervisor view",
+			"chain", chainID, "label", lvl, "current", chStatus.Number, "target", blockID.Number)
+		if chStatus.Number < blockID.Number {
+			return fmt.Errorf("expected %s head to advance to blockID: %v", lvl, blockID)
+		} else if chStatus == blockID {
+			return nil // success
+		} else if chStatus.Number == blockID.Number && chStatus.Hash != blockID.Hash {
+			err := fmt.Errorf("supervisor %s head with blockID %v for chainID %s does not match target blockID: %v", lvl, chStatus, chainID, blockID)
+			cancel(err)
+			return err
+		} else { // if chStatus.Number > blockID.Number
+			err := fmt.Errorf("supervisor %s head with blockID %v for chainID %s already advanced past target blockID: %v", lvl, chStatus, chainID, blockID)
+			cancel(err)
+			return err
+		}
+	})
+	s.require.NoError(err)
+}
+
+func (s *Supervisor) WaitForUnsafeHeadToAdvance(chainID eth.ChainID, delta uint64) {
 	attempts := int(delta + 3) // intentionally allow few more attempts for avoid flaking
-	s.AdvancedL2Head(chainID, delta, types.LocalUnsafe, attempts)
+	s.WaitForL2HeadToAdvance(chainID, delta, types.LocalUnsafe, attempts)
 }
 
 func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, delta uint64, attempts int) {
-	s.AdvancedL2Head(chainID, delta, types.CrossSafe, attempts)
+	s.WaitForL2HeadToAdvance(chainID, delta, types.CrossSafe, attempts)
 }
 
 func (s *Supervisor) Start() {

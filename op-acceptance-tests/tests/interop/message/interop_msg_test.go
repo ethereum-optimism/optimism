@@ -32,7 +32,7 @@ func TestInitExecMsg(gt *testing.T) {
 	// Trigger random init message at chain A
 	initIntent, _ := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
 	// Make sure supervisor indexes block which includes init message
-	sys.Supervisor.AdvancedUnsafeHead(alice.ChainID(), 2)
+	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 	// Single event in tx so index is 0
 	bob.SendExecMessage(initIntent, 0)
 }
@@ -78,7 +78,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	block, err := clientA.BlockRefByNumber(t.Ctx(), receipt.BlockNumber.Uint64())
 	require.NoError(err)
 
-	sys.Supervisor.AdvancedUnsafeHead(alice.ChainID(), 2)
+	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
 
 	// Manually build identifier, message, accesslist for executing message
 	// Single event in tx so index is 0

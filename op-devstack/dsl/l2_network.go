@@ -10,7 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // L2Network wraps a stack.L2Network interface for DSL operations
@@ -155,40 +157,23 @@ func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) et
 }
 
 // AwaitActivation awaits the fork activation time, and returns the activation block
-func (n *L2Network) AwaitActivation(t devtest.T, forkTimestamp *uint64) eth.BlockRef {
+func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.BlockID {
 	require := t.Require()
 
-	t.Gate().NotNil(forkTimestamp, "Must have fork configured")
-	t.Gate().Greater(*forkTimestamp, uint64(0), "Must not start fork at genesis")
-
-	upgradeTime := time.Unix(int64(*forkTimestamp), 0)
-
-	if deadline, hasDeadline := t.Deadline(); hasDeadline {
-		t.Gate().True(upgradeTime.Before(deadline), "test must not time out before upgrade happens")
-	}
-
-	activationBlockNum, err := n.Escape().RollupConfig().TargetBlockNumber(*forkTimestamp)
-	require.NoError(err)
-
-	now := time.Now()
-	fromNow := upgradeTime.Sub(now)
-	if fromNow > 0 {
-		t.Logger().Info("Awaiting upgrade", "fromNow", fromNow,
-			"upgradeTime", upgradeTime,
-			"timestamp", *forkTimestamp,
-			"activationBlock", activationBlockNum)
-
-		select {
-		case <-time.After(fromNow):
-		case <-t.Ctx().Done():
-			t.Require().FailNow("failed to await fork within test time")
-		}
-	}
-
 	el := n.Escape().L2ELNode(match.FirstL2EL)
-	activationBlock, err := el.EthClient().BlockRefByNumber(t.Ctx(), activationBlockNum)
-	require.NoError(err)
 
-	t.Logger().Info("Activation block", "block", activationBlock)
-	return activationBlock
+	unsafeHead, err := retry.Do(t.Ctx(), 120, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() (eth.BlockRef, error) {
+		unsafeHead, err := el.EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
+		if err != nil {
+			return eth.BlockRef{}, err
+		}
+		if !n.inner.RollupConfig().IsActivationBlockForFork(unsafeHead.Time, forkName) {
+			return eth.BlockRef{}, fmt.Errorf("not %s activation block", forkName)
+		}
+		return unsafeHead, nil // success
+	})
+	require.NoError(err)
+	t.Logger().Info("Activation block", "block", unsafeHead.ID())
+
+	return unsafeHead.ID()
 }
