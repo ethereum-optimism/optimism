@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// field lambdas corresponding to solidity functions must be tagged with sol
+// function fields(lambdas) corresponding to solidity functions must be tagged with sol
 // tag value is used for initializing solidity function selector
 const MethodTagName string = "sol"
 
@@ -152,7 +152,7 @@ func findBaseCallFactory(v reflect.Value) reflect.Value {
 }
 
 // InitImpl initializes function fields (lambdas) in the given struct by assigning concrete implementations
-// The struct must be a pointer, and its fields are expected to follow a specific pattern for reflection-based setup
+// The input struct must be a pointer, and its fields are expected to follow a specific pattern for reflection-based setup
 func InitImpl[T any](impl *T) {
 	v := reflect.ValueOf(impl).Elem()
 	t := v.Type()
@@ -163,6 +163,7 @@ func InitImpl[T any](impl *T) {
 	for i := range v.NumField() {
 		field := t.Field(i)
 		fieldType := field.Type
+		// Only care about function fields
 		if fieldType.Kind() == reflect.Func {
 			methodName := field.Tag.Get(MethodTagName)
 			inputTypes := []reflect.Type{}
@@ -173,7 +174,7 @@ func InitImpl[T any](impl *T) {
 			// inner: func() -> (bytes[], error)
 			funcInputRet := []reflect.Type{reflect.TypeFor[[]byte](), reflect.TypeFor[error]()}
 			funcInput := reflect.FuncOf([]reflect.Type{}, funcInputRet, false)
-			// outer: func(...args) -> inner: (func() -> (bytes[], error))
+			// outer: func(args...) -> inner: (func() -> (bytes[], error))
 			funcInputWrapper := reflect.FuncOf(inputTypes, []reflect.Type{funcInput}, false)
 
 			// encoderOuter is a higher order function which returns encoderInner
@@ -197,7 +198,7 @@ func InitImpl[T any](impl *T) {
 				return []reflect.Value{encoderInner}
 			})
 
-			// Initialize actual binding lambda fields
+			// Initialize actual binding function fields
 			lambda := reflect.MakeFunc(fieldType, func(args []reflect.Value) []reflect.Value {
 				innerResults := encoderOuter.Call(args)
 				if len(innerResults) != 1 {
