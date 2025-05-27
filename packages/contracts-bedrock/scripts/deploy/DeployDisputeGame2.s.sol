@@ -59,14 +59,11 @@ contract DeployDisputeGame2 is Script {
         // Shove the arguments into a struct to avoid stack-too-deep errors.
         IFaultDisputeGame.GameConstructorParams memory args = IFaultDisputeGame.GameConstructorParams({
             gameType: GameType.wrap(uint32(_input.gameType)),
-            absolutePrestate: Claim.wrap(_input.absolutePrestate),
             maxGameDepth: _input.maxGameDepth,
             splitDepth: _input.splitDepth,
             clockExtension: Duration.wrap(uint64(_input.clockExtension)),
             maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration)),
-            vm: _input.vm,
             weth: _input.delayedWethProxy,
-            anchorStateRegistry: _input.anchorStateRegistryProxy,
             l2ChainId: _input.l2ChainId
         });
 
@@ -78,7 +75,7 @@ contract DeployDisputeGame2 is Script {
             impl = IPermissionedDisputeGame(
                 DeployUtils.createDeterministic({
                     _name: "FaultDisputeGame",
-                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, ())),
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (args))),
                     _salt: DeployUtils.DEFAULT_SALT
                 })
             );
@@ -87,7 +84,7 @@ contract DeployDisputeGame2 is Script {
                 DeployUtils.createDeterministic({
                     _name: "PermissionedDisputeGame",
                     _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_input.proposer, _input.challenger))
+                        abi.encodeCall(IPermissionedDisputeGame.__constructor__, (args, _input.proposer, _input.challenger))
                     ),
                     _salt: DeployUtils.DEFAULT_SALT
                 })

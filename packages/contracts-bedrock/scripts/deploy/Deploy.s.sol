@@ -358,6 +358,9 @@ contract Deploy is Deployer {
         // Fault Proof contracts
         artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
         artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
+        artifacts.save("PermissionlessDelayedWETHProxy", address(deployOutput.delayedWETHPermissionlessGameProxy));
+        console.log("HERE");
+        console.log(address(deployOutput.delayedWETHPermissionlessGameProxy));
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
         artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
@@ -656,14 +659,11 @@ contract Deploy is Deployer {
             _factory: factory,
             _params: IFaultDisputeGame.GameConstructorParams({
                 gameType: GameTypes.CANNON,
-                absolutePrestate: loadMipsAbsolutePrestate(),
                 maxGameDepth: cfg.faultGameMaxDepth(),
                 splitDepth: cfg.faultGameSplitDepth(),
                 clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
                 maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
                 weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
                 l2ChainId: cfg.l2ChainID()
             })
         });
@@ -680,15 +680,12 @@ contract Deploy is Deployer {
             _factory: factory,
             _params: IFaultDisputeGame.GameConstructorParams({
                 gameType: GameTypes.ALPHABET,
-                absolutePrestate: outputAbsolutePrestate,
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
                 maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
                 splitDepth: cfg.faultGameSplitDepth(),
                 clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
                 maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
                 weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
                 l2ChainId: cfg.l2ChainID()
             })
         });
@@ -704,14 +701,11 @@ contract Deploy is Deployer {
             _factory: factory,
             _params: IFaultDisputeGame.GameConstructorParams({
                 gameType: GameType.wrap(4),
-                absolutePrestate: loadInteropDevnetAbsolutePrestate(),
                 maxGameDepth: cfg.faultGameMaxDepth(),
                 splitDepth: cfg.faultGameSplitDepth(),
                 clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
                 maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
                 weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
                 l2ChainId: 0 // Unused Param on SuperDisputeGame
              })
         });
@@ -727,14 +721,11 @@ contract Deploy is Deployer {
             _factory: factory,
             _params: IFaultDisputeGame.GameConstructorParams({
                 gameType: GameType.wrap(4),
-                absolutePrestate: loadInteropDevnetAbsolutePrestate(),
                 maxGameDepth: cfg.faultGameMaxDepth(),
                 splitDepth: cfg.faultGameSplitDepth(),
                 clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
                 maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
                 weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
                 l2ChainId: 0 // Unused Param on SuperDisputeGame
              })
         });
@@ -762,15 +753,12 @@ contract Deploy is Deployer {
             _factory: factory,
             _params: IFaultDisputeGame.GameConstructorParams({
                 gameType: GameTypes.FAST,
-                absolutePrestate: outputAbsolutePrestate,
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
                 maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
                 splitDepth: cfg.faultGameSplitDepth(),
                 clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
                 maxClockDuration: Duration.wrap(0), // Resolvable immediately
-                vm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, fastOracle)),
                 weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
                 l2ChainId: cfg.l2ChainID()
             })
         });
@@ -805,7 +793,7 @@ contract Deploy is Deployer {
                         _salt: _implSalt(),
                         _name: "SuperFaultDisputeGame",
                         _nick: string.concat("SuperFaultDisputeGame_", vm.toString(rawGameType)),
-                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, ()))
+                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (_params)))
                     })
                 ),
                 "" // TODO: fix
@@ -822,7 +810,7 @@ contract Deploy is Deployer {
                         _args: DeployUtils.encodeConstructor(
                             abi.encodeCall(
                                 IPermissionedDisputeGame.__constructor__,
-                                (cfg.l2OutputOracleProposer(), cfg.l2OutputOracleChallenger())
+                                (_params, cfg.l2OutputOracleProposer(), cfg.l2OutputOracleChallenger())
                             )
                         )
                     })
@@ -838,7 +826,7 @@ contract Deploy is Deployer {
                         _salt: _implSalt(),
                         _name: "FaultDisputeGame",
                         _nick: string.concat("FaultDisputeGame_", vm.toString(rawGameType)),
-                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, ()))
+                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (_params)))
                     })
                 ),
                 ""
