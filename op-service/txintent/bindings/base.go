@@ -239,8 +239,8 @@ type TypedCall[ReturnType any] struct {
 
 var _ txintent.CallView[any] = (*TypedCall[any])(nil)
 
-// OpServiceTypeToGoType converts op-service type to go type
-func OpServiceTypeToGoType(retTyp reflect.Type) reflect.Type {
+// CustomTypeToGoType converts custom type to go type
+func CustomTypeToGoType(retTyp reflect.Type) reflect.Type {
 	switch retTyp {
 	case reflect.TypeOf(eth.ETH{}), reflect.TypeOf(eth.ChainID{}):
 		return reflect.TypeOf(big.NewInt(0))
@@ -251,8 +251,8 @@ func OpServiceTypeToGoType(retTyp reflect.Type) reflect.Type {
 	}
 }
 
-// OpServiceValueToABIValue converts op-service value to abi value
-func OpServiceValueToABIValue(arg any) any {
+// CustomValueToABIValue converts custom value to abi value
+func CustomValueToABIValue(arg any) any {
 	var value any
 	switch v := arg.(type) {
 	case eth.ETH:
@@ -274,8 +274,8 @@ func OpServiceValueToABIValue(arg any) any {
 	return value
 }
 
-// ABIValueToOpServiceValue converts abi value to op-service value
-func ABIValueToOpServiceValue[ReturnType any](retTyp reflect.Type, val any) ReturnType {
+// ABIValueToCustomValue converts abi value to custom value
+func ABIValueToCustomValue[ReturnType any](retTyp reflect.Type, val any) ReturnType {
 	var zero ReturnType
 	switch retTyp {
 	case reflect.TypeOf(eth.ETH{}):
@@ -312,7 +312,7 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 		panic("multiple return type using struct is not supported yet")
 	}
 
-	abiTargetType := OpServiceTypeToGoType(retTyp)
+	abiTargetType := CustomTypeToGoType(retTyp)
 	abiType, err := script.GoTypeToABIType(abiTargetType)
 	if err != nil {
 		panic(err)
@@ -324,7 +324,7 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 		panic(err)
 	}
 
-	val := ABIValueToOpServiceValue[ReturnType](retTyp, decoded[0])
+	val := ABIValueToCustomValue[ReturnType](retTyp, decoded[0])
 	return val, nil
 }
 
@@ -333,8 +333,8 @@ func ABIEncoder(name string, args ...any) ([]byte, error) {
 	inputs := make([]abi.Argument, len(args))
 	argsTranslated := make([]any, len(args))
 	for i, arg := range args {
-		goType := OpServiceTypeToGoType(reflect.TypeOf(arg))
-		abiValue := OpServiceValueToABIValue(arg)
+		goType := CustomTypeToGoType(reflect.TypeOf(arg))
+		abiValue := CustomValueToABIValue(arg)
 		abiType, err := script.GoTypeToABIType(goType)
 		if err != nil {
 			panic(err)
