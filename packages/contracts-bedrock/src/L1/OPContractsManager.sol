@@ -1378,6 +1378,16 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
     ///         being migrated does not match the AnchorStateRegistry of the first provided chain.
     error OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch();
 
+    /// @notice Thrown when the SuperchainConfig of one or more of the provided OP Stack chains
+    ///         being migrated does not match the SuperchainConfig of the first provided chain.
+    ///         Different than the other similar error, this error specifically checks for the
+    ///         result of the migration, not the input.
+    error OPContractsManagerInteropMigrator_SuperchainConfigOutputMismatch();
+
+    /// @notice Thrown when the Guardian of one or more of the provided OP Stack chains
+    ///         being migrated does not match the Guardian of the first provided chain.
+    error OPContractsManagerInteropMigrator_GuardianMismatch();
+
     /// @notice Parameters for creating the new Super Root dispute games that must be provided by
     ///         the caller. Other parameters are selected automatically.
     struct GameParameters {
@@ -1499,8 +1509,12 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
         }
 
-        // We can use portals[0].systemConfig() as they are members of the same superchain cluster (shared lockbox)
-        // Initialize the new AnchorStateRegistry.
+        // WARNING: Note that the AnchorStateRegistry is shared between all chains in the cluster
+        // but currently needs access to a specific SystemConfig address for the sake of the pause
+        // mechanism. Since all SystemConfig addresses will point to the same SuperchainConfig
+        // address, it's technically safe to use the SystemConfig address of the first provided
+        // chain. In the future, it would likely be better to have the AnchorStateRegistry be fed
+        // the SuperchainConfig and ETHLockbox addresses directly.
         upgradeToAndCall(
             _input.opChainConfigs[0].proxyAdmin,
             address(newAnchorStateRegistry),
@@ -1643,7 +1657,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
         }
 
-        // Safety assertions, check that all systems use the same contracts.
+        // Safety assertions. We want to perform some checks at the end of the migration to ensure
+        // that the various operations had the intended effect. Lots of different ways to do
+        // something like this, but adding assertions here is simple and effective.
         for (uint256 i = 0; i < portals.length; i++) {
             // Check that the ETHLockbox is the same.
             if (portals[i].ethLockbox() != newEthLockbox) {
@@ -1658,6 +1674,16 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Check that the AnchorStateRegistry is the same.
             if (portals[i].anchorStateRegistry() != newAnchorStateRegistry) {
                 revert OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch();
+            }
+
+            // Check that the SuperchainConfig is the same.
+            if (portals[i].systemConfig().superchainConfig() != portals[0].systemConfig().superchainConfig()) {
+                revert OPContractsManagerInteropMigrator_SuperchainConfigOutputMismatch();
+            }
+
+            // Check that the Guardian is the same.
+            if (portals[i].guardian() != portals[0].guardian()) {
+                revert OPContractsManagerInteropMigrator_GuardianMismatch();
             }
         }
     }

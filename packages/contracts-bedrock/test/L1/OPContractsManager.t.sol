@@ -1872,6 +1872,28 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         );
     }
 
+    /// @notice Tests that the migration function reverts when the Guardian is mismatched at the
+    ///         end of the migration operation.
+    function test_migrate_mismatchedGuardian_reverts() public {
+        IOPContractsManagerInteropMigrator.MigrateInput memory input = _getDefaultInput();
+
+        // Mock out the Guardian for the first chain to return a bad Guardian address.
+        IOptimismPortal2 portal = IOptimismPortal2(payable(input.opChainConfigs[0].systemConfigProxy.optimismPortal()));
+        vm.mockCall(address(portal), abi.encodeCall(IOptimismPortal2.guardian, ()), abi.encode(address(1234)));
+
+        // Mock out the SuperchainConfig to return some other Guardian address.
+        vm.mockCall(
+            address(portal.systemConfig().superchainConfig()),
+            abi.encodeCall(ISuperchainConfig.guardian, ()),
+            abi.encode(address(5678))
+        );
+
+        // Execute the migration.
+        _doMigration(
+            input, OPContractsManagerInteropMigrator.OPContractsManagerInteropMigrator_GuardianMismatch.selector
+        );
+    }
+
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are
     ///         mismatched.
     function test_migrate_mismatchedProxyAdminOwners_reverts() public {

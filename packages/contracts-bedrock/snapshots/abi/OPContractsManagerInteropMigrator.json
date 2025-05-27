@@ -374,12 +374,22 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerInteropMigrator_GuardianMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "OPContractsManagerInteropMigrator_SuperchainConfigMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OPContractsManagerInteropMigrator_SuperchainConfigOutputMismatch",
     "type": "error"
   },
   {

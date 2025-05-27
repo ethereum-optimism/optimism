@@ -94,6 +94,8 @@ interface IOPContractsManagerInteropMigrator {
     error OPContractsManagerInteropMigrator_ETHLockboxMismatch();
     error OPContractsManagerInteropMigrator_DisputeGameFactoryMismatch();
     error OPContractsManagerInteropMigrator_AnchorStateRegistryMismatch();
+    error OPContractsManagerInteropMigrator_GuardianMismatch();
+    error OPContractsManagerInteropMigrator_SuperchainConfigOutputMismatch();
 
     struct GameParameters {
         address proposer;
