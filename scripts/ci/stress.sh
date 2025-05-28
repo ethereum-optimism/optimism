@@ -19,10 +19,6 @@ install() {
     fi
 }
 
-install_contender() {
-    cargo install --git https://github.com/flashbots/contender --bin contender --force
-}
-
 run() {
     # Note we use `rollup-boost` in combination with `op-geth-builder` as the JSON RPC servers to assert transaction relaying functionality
     # as well as inclusion of transactions that have only been sent to the builder (verifying the builder's payloads are being included in the canonical chain)
@@ -50,15 +46,12 @@ run() {
         echo "✅ Prefunded address has balance"
     fi
 
-    # Download the scenario for contender
-    wget https://raw.githubusercontent.com/flashbots/contender/refs/heads/main/scenarios/stress.toml -O "/tmp/scenario.toml"
-
     # Deploy the contract with contender, this should be enough to check that the
     # builder is working as expected
-    contender setup -p $PREFUNDED_PRIV_KEY "/tmp/scenario.toml" -r $ROLLUP_BOOST_SOCKET --optimism
+    docker run --rm --network host -v /tmp/.contender:/root/.contender flashbots/contender:latest setup -p $PREFUNDED_PRIV_KEY scenario:stress.toml -r $ROLLUP_BOOST_SOCKET --optimism
 
-    # Run the scenario on the builder
-    contender spam --tps 50 -p $PREFUNDED_PRIV_KEY -r $OP_RETH_BUILDER_SOCKET --optimism fill-block
+    # Run the fill-block scenario on the builder
+    docker run --rm --network host -v /tmp/.contender:/root/.contender flashbots/contender:latest spam --tps 50 --min-balance 0.2eth -p $PREFUNDED_PRIV_KEY -r $OP_RETH_BUILDER_SOCKET --optimism fill-block
 }
 
 clean() {
@@ -72,9 +65,6 @@ case "$1" in
     "install")
         install
         ;;
-    "install-contender")
-        install_contender
-        ;;
     "run")
         run
         ;;
@@ -82,10 +72,9 @@ case "$1" in
         clean
         ;;
     *)
-        echo "Usage: $0 {install|install-contender|deploy|run|clean}"
+        echo "Usage: $0 {install|deploy|run|clean}"
         echo "Commands:"
         echo "  install - Install Kurtosis CLI"
-        echo "  install-contender - Install Contender"
         echo "  deploy  - Deploy the Optimism package"
         echo "  run     - Run the Optimism package"
         echo "  clean   - Clean up the Kurtosis environment"

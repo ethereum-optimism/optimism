@@ -210,7 +210,7 @@ To stop the devnet run:
 just devnet-down
 ```
 
-To run a stress test against the devnet with [contender](https://github.com/flashbots/contender) first make sure you have contender installed.
+To run a stress test against the devnet with [contender](https://github.com/flashbots/contender) first make sure you have docker installed.
 
 Then run the following command:
 

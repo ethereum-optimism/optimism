@@ -36,12 +36,6 @@ jobs:
       - name: Install Just
         uses: taiki-e/install-action@just
 
-      - name: Install Contender
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libsqlite3-dev libfontconfig1-dev libfontconfig
-          ./scripts/ci/stress.sh install-contender
-
       - name: Setup Kurtosis
         shell: bash
         run: |
@@ -107,7 +101,6 @@ jobs:
 
       - name: Stress Tests
         run: |
-          rm -rf ~/.contender/contender.db
           just stress-test
     
       - name: Devnet Down
