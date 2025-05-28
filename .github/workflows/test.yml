@@ -19,5 +19,9 @@ jobs:
           toolchain: stable
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
+
+      - name: Build the binary
+        run: cargo build
+
       - name: Run nextest
         run: cargo nextest run --workspace

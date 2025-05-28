@@ -1,71 +1,14 @@
-[package]
-name = "rollup-boost"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "3"
 
-[dependencies]
-op-alloy-rpc-types-engine = "0.12.0"
-alloy-rpc-types-engine = "0.13.0"
-alloy-rpc-types-eth = "0.13.0"
-alloy-primitives = { version = "0.8.10", features = ["rand"] }
-tokio = { version = "1", features = ["full"] }
+members = ["crates/rollup-boost", "crates/websocket-proxy"]
+
+[workspace.dependencies]
 tracing = "0.1.4"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter", "json"] }
-serde = { version = "1", features = ["derive"] }
-thiserror = "2.0.12"
 clap = { version = "4", features = ["derive", "env"] }
-jsonrpsee = { version = "0.24", features = ["server", "http-client", "macros"] }
-moka = { version = "0.12.10", features = ["future"] }
-http = "1.1.0"
-dotenvy = "0.15.7"
-tower = { version = "0.4.13", features = ["timeout"] }
-tower-http = { version = "0.5.2", features = [
-  "decompression-full",
-  "sensitive-headers",
-] }
-http-body-util = "0.1.2"
-hyper = { version = "1.4.1", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
-hyper-rustls = { version = "0.27.0", features = ["ring"] }
-rustls = { version = "0.23.23", features = ["ring"] }
-serde_json = "1.0.96"
-opentelemetry = { version = "0.28.0", features = ["trace"] }
-opentelemetry-otlp = { version = "0.28.0", features = [
-  "http-proto",
-  "http-json",
-  "reqwest-client",
-  "trace",
-  "grpc-tonic",
-] }
-opentelemetry_sdk = { version = "0.28.0", features = ["rt-tokio"] }
-tracing-opentelemetry = "0.29.0"
 futures = "0.3.31"
+thiserror = "2.0.11"
+serde_json = "1.0.96"
 metrics = "0.24.0"
-metrics-exporter-prometheus = "0.16.0"
-metrics-util = "0.19.0"
-eyre = "0.6.12"
-paste = "1.0.15"
-parking_lot = "0.12.3"
-
-[dev-dependencies]
-rand = "0.9.0"
-time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
-op-alloy-consensus = "0.12.0"
-alloy-eips = { version = "0.13.0", features = ["serde"] }
-alloy-consensus = { version = "0.13.0", features = ["serde"] }
-anyhow = "1.0"
-testcontainers = { version = "0.23.3" }
-assert_cmd = "2.0.10"
-predicates = "3.1.2"
-tokio-util = { version = "0.7.13" }
-bytes = "1.2"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", version = "1.3.7", rev = "v1.3.7" }
-ctor = "0.4.1"
-reqwest = "0.12.15"
-
-[[bin]]
-name = "rollup-boost"
-path = "src/bin/main.rs"
-
-[lib]
-path = "src/lib.rs"
+tokio = { version = "1", features = ["full"] }

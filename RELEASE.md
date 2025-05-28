@@ -21,7 +21,7 @@ make test
 git status # should show no changes
 
 # Start rollup-boost with the example .env config
-cargo run --
+cargo run --bin rollup-boost --
 
 # Call the health endpoint
 curl localhost:8081/healthz

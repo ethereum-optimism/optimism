@@ -27,6 +27,9 @@ pub use probe::*;
 mod health;
 pub use health::*;
 
+#[cfg(test)]
+pub mod tests;
+
 mod payload;
 pub use payload::*;
 

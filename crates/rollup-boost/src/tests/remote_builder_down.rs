@@ -1,10 +1,8 @@
-mod common;
-
 use std::time::Duration;
 
 use testcontainers::core::client::docker_client_instance;
 
-use crate::common::RollupBoostTestHarnessBuilder;
+use super::common::RollupBoostTestHarnessBuilder;
 
 #[tokio::test]
 async fn remote_builder_down() -> eyre::Result<()> {

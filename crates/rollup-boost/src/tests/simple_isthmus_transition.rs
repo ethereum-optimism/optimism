@@ -1,6 +1,4 @@
-use common::RollupBoostTestHarnessBuilder;
-
-mod common;
+use super::common::RollupBoostTestHarnessBuilder;
 
 #[tokio::test]
 async fn test_integration_simple_isthmus_transition() -> eyre::Result<()> {

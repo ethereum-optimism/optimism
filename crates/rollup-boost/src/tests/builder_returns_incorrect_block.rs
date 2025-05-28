@@ -1,13 +1,11 @@
 use std::{pin::Pin, sync::Arc};
 
+use super::common::{RollupBoostTestHarnessBuilder, proxy::BuilderProxyHandler};
 use alloy_primitives::B256;
-use common::{RollupBoostTestHarnessBuilder, proxy::BuilderProxyHandler};
 use futures::FutureExt as _;
 use serde_json::Value;
 
 use op_alloy_rpc_types_engine::OpExecutionPayloadEnvelopeV3;
-
-mod common;
 
 struct Handler;
 

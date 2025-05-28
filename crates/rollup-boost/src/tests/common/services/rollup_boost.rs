@@ -1,15 +1,18 @@
-use std::time::Duration;
+use std::{fs::File, time::Duration};
 
+use crate::Args;
 use clap::Parser;
-use rollup_boost::Args;
 use tokio::task::JoinHandle;
+use tracing::subscriber::DefaultGuard;
+use tracing_subscriber::fmt;
 
-use crate::common::{TEST_DATA, get_available_port};
+use crate::tests::common::{TEST_DATA, get_available_port};
 
 #[derive(Debug)]
 pub struct RollupBoost {
     args: Args,
     pub _handle: JoinHandle<eyre::Result<()>>,
+    pub _tracing_guard: DefaultGuard,
 }
 
 impl RollupBoost {
@@ -42,8 +45,6 @@ impl Default for RollupBoostConfig {
             &format!("--l2-jwt-path={}/jwt_secret.hex", *TEST_DATA),
             &format!("--builder-jwt-path={}/jwt_secret.hex", *TEST_DATA),
             "--log-level=trace",
-            "--tracing",
-            "--metrics",
         ]);
 
         args.rpc_port = get_available_port();
@@ -57,6 +58,19 @@ impl Default for RollupBoostConfig {
 impl RollupBoostConfig {
     pub async fn start(self) -> RollupBoost {
         let args = self.args.clone();
+
+        // Create a custom log subscriber only for this task
+        let log_file = args.log_file.as_ref().unwrap();
+        let file = File::create(log_file).unwrap();
+
+        let subscriber = fmt::Subscriber::builder()
+            .with_writer(file)
+            .with_max_level(tracing::Level::DEBUG)
+            .with_ansi(false)
+            .finish();
+
+        let guard = tracing::subscriber::set_default(subscriber);
+
         let _handle = tokio::spawn(async move {
             let res = args.clone().run().await;
             if let Err(e) = &res {
@@ -71,6 +85,7 @@ impl RollupBoostConfig {
         RollupBoost {
             args: self.args,
             _handle,
+            _tracing_guard: guard,
         }
     }
 }

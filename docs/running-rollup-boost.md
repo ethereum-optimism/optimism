@@ -11,7 +11,7 @@ To run rollup boost with a regular sequencer setup, change the `--l2` flag in th
 To configure rollup-boost, set the l2 url to the url of the proposer auth rpc endpoint and the builder url to the builder auth rpc endpoint.
 
 ```bash
-cargo run -- --l2-url http://localhost:8551 --builder-url http://localhost:8546
+cargo run --bin rollup-boost -- --l2-url http://localhost:8551 --builder-url http://localhost:8546
 ```
 
 To set up a builder, you can use [`op-rbuilder`](https://github.com/flashbots/op-rbuilder) with an op-node instance and have rollup-boost point to the builder auth rpc endpoint. It is recommended that boost sync is enabled on rollup-boost to sync the builder with the proposer op-node to remove the p2p networking overhead. In testing, this reduces latency significantly from around 200-300 milliseconds to just 3-4 milliseconds in local environments.
@@ -32,11 +32,8 @@ While this does not ensure high availability for the builder, the chain will hav
 
 `rollup-boost` supports the standard array of kubernetes probes:
 
-- `/healthz` Returns various status codes to communicate `rollup-boost` health
-    - 200 OK - The builder is producing blocks
-    - 206 Partial Content - The l2 is producing blocks, but the builder is not
-    - 503 Service Unavailable - Neither the l2 or the builder is producing blocks
-`op-conductor` should eventually be able to use this signal to switch to a different sequencer in an HA sequencer setup. In a future upgrade to `op-conductor`, A sequencer leader with a healthy (200 OK) EL (`rollup-boost` in our case) could be selected preferentially over one with an unhealthy (206 or 503) EL. If no ELs are healthy, then we can fallback to an EL which is responding with `206 Partial Content`. 
+- `/healthz` Returns various status codes to communicate `rollup-boost` health - 200 OK - The builder is producing blocks - 206 Partial Content - The l2 is producing blocks, but the builder is not - 503 Service Unavailable - Neither the l2 or the builder is producing blocks
+  `op-conductor` should eventually be able to use this signal to switch to a different sequencer in an HA sequencer setup. In a future upgrade to `op-conductor`, A sequencer leader with a healthy (200 OK) EL (`rollup-boost` in our case) could be selected preferentially over one with an unhealthy (206 or 503) EL. If no ELs are healthy, then we can fallback to an EL which is responding with `206 Partial Content`.
 
 - `/readyz` Used by kubernetes to determine if the service is ready to accept traffic. Should always respond with `200 OK`
 
@@ -58,7 +55,7 @@ To enable metrics, you can set the `--metrics` flag. This will start a metrics s
 curl http://localhost:9090/metrics
 ```
 
-All spans create duration histogram metrics with the name "{span_name}_duration". Currently, this list includes:
+All spans create duration histogram metrics with the name "{span_name}\_duration". Currently, this list includes:
 
 - fork_choice_updated_v3_duration
 - get_payload_v3_duration
@@ -84,4 +81,4 @@ It is also possible that either the builder or the proposer execution engine are
 
 Alternatively, the builder may be syncing with the chain and not have a block to respond with. You can see in the logs the builder is syncing by checking whether the payload_status of builder calls is `SYNCING`.
 
-This is expected if the builder is still syncing with the chain. Chain liveness will not be affected as rollup-boost will use the local payload. Contact the builder operator if the sync status persists as the builder op-node may be offline or not peered correctly with the network. 
+This is expected if the builder is still syncing with the chain. Chain liveness will not be affected as rollup-boost will use the local payload. Contact the builder operator if the sync status persists as the builder op-node may be offline or not peered correctly with the network.
