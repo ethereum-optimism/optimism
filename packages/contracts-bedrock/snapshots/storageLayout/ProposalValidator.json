@@ -50,16 +50,23 @@
   },
   {
     "bytes": "32",
-    "label": "_proposalRequiredApprovals",
+    "label": "votingCycles",
     "offset": 0,
     "slot": "103",
+    "type": "mapping(uint256 => struct ProposalValidator.VotingCycleData)"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalRequiredApprovals",
+    "offset": 0,
+    "slot": "104",
     "type": "mapping(enum ProposalValidator.ProposalType => uint256)"
   },
   {
     "bytes": "32",
     "label": "_proposals",
     "offset": 0,
-    "slot": "104",
+    "slot": "105",
     "type": "mapping(bytes32 => struct ProposalValidator.ProposalData)"
   }
 ]
