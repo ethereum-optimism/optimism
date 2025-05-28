@@ -25,13 +25,7 @@ interface IProposalValidator is ISemver {
         mapping(address => bool) delegateApprovals;
         uint256 remainingApprovalsRequired;
     }
-
-    struct ImmutableProposalTypeData {
-        address[] targets;
-        uint256[] values;
-        string[] signatures;
-    }
-
+    
     enum ProposalType {
         ProtocolOrGovernorUpgrade,
         MaintenanceUpgrade,
@@ -65,8 +59,6 @@ interface IProposalValidator is ISemver {
 
     event MinimumVotingPowerSet(uint256 newMinimumVotingPower);
 
-    event VotingCycleBlockSet(uint256 newVotingCycleBlock);
-
     event DistributionThresholdSet(uint256 newDistributionThreshold);
 
     event ProposalApprovalThresholdSet(ProposalType proposalType, uint256 newApprovalThreshold);
@@ -94,8 +86,6 @@ interface IProposalValidator is ISemver {
     
     function setMinimumVotingPower(uint256 _minimumVotingPower) external;
 
-    function setVotingCycleBlock(uint256 _votingCycleBlock) external;
-
     function setDistributionThreshold(uint256 _distributionThreshold) external;
 
     function setProposalRequiredApprovals(ProposalType _proposalType, uint256 _requiredApprovals) external;
@@ -107,8 +97,6 @@ interface IProposalValidator is ISemver {
     function transferOwnership(address newOwner) external;
 
     function minimumVotingPower() external view returns (uint256);
-
-    function votingCycleBlock() external view returns (uint256);
 
     function distributionThreshold() external view returns (uint256);
 
@@ -125,11 +113,9 @@ interface IProposalValidator is ISemver {
     function initialize(
         address _owner,
         uint256 _minimumVotingPower,
-        uint256 _votingCycleBlock,
         uint256 _distributionThreshold,
         IProposalValidator.ProposalType[] memory _proposalTypes,
-        uint256[] memory _requiredApprovals,
-        IProposalValidator.ImmutableProposalTypeData[] memory _immutableProposalTypeDatas
+        uint256[] memory _requiredApprovals
     ) external;
 
     function __constructor__(
