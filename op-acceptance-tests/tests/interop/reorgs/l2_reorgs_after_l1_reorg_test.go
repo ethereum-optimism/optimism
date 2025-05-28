@@ -34,16 +34,18 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 		testL2ReorgAfterL1Reorg(gt, 3, pre, post)
 	})
 
-	gt.Run("local-safe and cross-safe reorgs", func(gt *testing.T) {
-		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
+	gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
+		var crossSafeRef, crossUnsafeRef, localSafeRef, unsafeRef eth.BlockID
 		pre := func(t devtest.T, sys *presets.SimpleInterop) {
 			ss := sys.Supervisor.FetchSyncStatus()
+			crossUnsafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossUnsafe
 			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
 			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
 			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
 		}
 		post := func(t devtest.T, sys *presets.SimpleInterop) {
 			require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
+			require.False(t, sys.L2ELA.IsCanonical(crossUnsafeRef), "Previous cross-unsafe block should have been reorged")
 			require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
 			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
 		}
@@ -81,7 +83,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	var divergence eth.L1BlockRef
 	{
 		tip := sys.L1EL.BlockRefByLabel(eth.Unsafe)
-		require.Greater(t, tip.Number, uint64(n), "n is larger than L1 tip")
+		require.Greater(t, tip.Number, uint64(n), "n is larger than L1 tip, cannot reorg out block number `tip-n`")
 
 		divergence = sys.L1EL.BlockRefByNumber(tip.Number - uint64(n))
 	}
@@ -119,7 +121,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 		sys.L1Network.PrintChain()
 
 		return block.Hash() == unsafe.L1Origin.Hash
-	}, 120*time.Second, 15*time.Second, "L1 block origin hash should match hash of block on L1 at that number. If not, it means there was a reorg, and L2 blocks L1Origin field is referencing a reorged block.")
+	}, 120*time.Second, 7*time.Second, "L1 block origin hash should match hash of block on L1 at that number. If not, it means there was a reorg, and L2 blocks L1Origin field is referencing a reorged block.")
 
 	// confirm all L1Origin fields point to canonical blocks
 	{
