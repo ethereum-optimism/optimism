@@ -139,9 +139,4 @@ where
         let signature = Signature::new(Default::default(), Default::default(), false);
         Ok(tx.into_signed(signature).into())
     }
-
-    fn otterscan_api_truncate_input(tx: &mut Self::Transaction) {
-        let input = tx.inner.inner.inner_mut().input_mut();
-        *input = input.slice(..4);
-    }
 }
