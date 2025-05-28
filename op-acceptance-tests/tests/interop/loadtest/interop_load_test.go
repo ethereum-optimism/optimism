@@ -71,7 +71,7 @@ func SpamInteropTxs(t devtest.T, numInitTxs uint64, source *L2, dest *L2, superv
 	var relayWg sync.WaitGroup
 	defer relayWg.Wait()
 	msgsCh := make(chan []types.Message, 100)
-	defer close(msgsCh)
+	defer close(msgsCh) // Must be defer'd after the relayWg.Wait() above.
 
 	// Spam executing messages.
 	relayWg.Add(1)
