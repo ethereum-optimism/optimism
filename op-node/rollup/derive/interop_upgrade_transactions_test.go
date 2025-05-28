@@ -38,7 +38,31 @@ func TestInteropSourcesMatchSpec(t *testing.T) {
 func TestInteropNetworkTransactions(t *testing.T) {
 	upgradeTxns, err := InteropNetworkUpgradeTransactions()
 	require.NoError(t, err)
-	require.Len(t, upgradeTxns, 4)
+	require.Len(t, upgradeTxns, 2)
+
+	// 1. Deploy L2ToL2CrossDomainMessenger
+	sender3, tx3 := toDepositTxn(t, upgradeTxns[0])
+	require.Equal(t, l2ToL2MessengerDeployerAddress, sender3, "sender mismatch tx 3")
+	require.Equal(t, deployL2ToL2MessengerSource.SourceHash(), tx3.SourceHash(), "source hash mismatch tx 3")
+	require.Nil(t, tx3.To(), "to mismatch tx 3")
+	require.Equal(t, uint64(1100000), tx3.Gas(), "gas mismatch tx 3")
+	require.Equal(t, l2ToL2MessengerDeploymentBytecode, tx3.Data(), "data mismatch tx 3")
+
+	// 2. Update L2ToL2CrossDomainMessenger Proxy
+	sender4, tx4 := toDepositTxn(t, upgradeTxns[1])
+	require.Equal(t, common.Address{}, sender4, "sender mismatch tx 4")
+	require.Equal(t, updateL2ToL2MessengerProxySource.SourceHash(), tx4.SourceHash(), "source hash mismatch tx 4")
+	require.NotNil(t, tx4.To(), "to mismatch tx 4")
+	require.Equal(t, predeploys.L2toL2CrossDomainMessengerAddr, *tx4.To(), "to mismatch tx 4")
+	require.Equal(t, uint64(50_000), tx4.Gas(), "gas mismatch tx 4")
+	expectedData, _ := hex.DecodeString("3659cfe60000000000000000000000000d0edd0ebd0e94d218670a8de867eb5c4d37cadd")
+	require.Equal(t, expectedData, tx4.Data(), "data mismatch tx 4")
+}
+
+func TestInteropActivateCrossL2InboxTransactions(t *testing.T) {
+	upgradeTxns, err := InteropActivateCrossL2InboxTransactions()
+	require.NoError(t, err)
+	require.Len(t, upgradeTxns, 2)
 
 	// 1. Deploy CrossL2Inbox
 	sender1, tx1 := toDepositTxn(t, upgradeTxns[0])
@@ -57,22 +81,4 @@ func TestInteropNetworkTransactions(t *testing.T) {
 	require.Equal(t, uint64(50_000), tx2.Gas(), "gas mismatch tx 2")
 	expectedData, _ := hex.DecodeString("3659cfe6000000000000000000000000691300f512e48b463c2617b34eef1a9f82ee7dbf")
 	require.Equal(t, expectedData, tx2.Data(), "data mismatch tx 2")
-
-	// 3. Deploy L2ToL2CrossDomainMessenger
-	sender3, tx3 := toDepositTxn(t, upgradeTxns[2])
-	require.Equal(t, l2ToL2MessengerDeployerAddress, sender3, "sender mismatch tx 3")
-	require.Equal(t, deployL2ToL2MessengerSource.SourceHash(), tx3.SourceHash(), "source hash mismatch tx 3")
-	require.Nil(t, tx3.To(), "to mismatch tx 3")
-	require.Equal(t, uint64(1100000), tx3.Gas(), "gas mismatch tx 3")
-	require.Equal(t, l2ToL2MessengerDeploymentBytecode, tx3.Data(), "data mismatch tx 3")
-
-	// 4. Update L2ToL2CrossDomainMessenger Proxy
-	sender4, tx4 := toDepositTxn(t, upgradeTxns[3])
-	require.Equal(t, common.Address{}, sender4, "sender mismatch tx 4")
-	require.Equal(t, updateL2ToL2MessengerProxySource.SourceHash(), tx4.SourceHash(), "source hash mismatch tx 4")
-	require.NotNil(t, tx4.To(), "to mismatch tx 4")
-	require.Equal(t, predeploys.L2toL2CrossDomainMessengerAddr, *tx4.To(), "to mismatch tx 4")
-	require.Equal(t, uint64(50_000), tx4.Gas(), "gas mismatch tx 4")
-	expectedData, _ = hex.DecodeString("3659cfe60000000000000000000000000d0edd0ebd0e94d218670a8de867eb5c4d37cadd")
-	require.Equal(t, expectedData, tx4.Data(), "data mismatch tx 4")
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/tasks"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -37,6 +38,7 @@ type taskExecutor interface {
 	RunDerivation(
 		logger log.Logger,
 		rollupCfg *rollup.Config,
+		depSet depset.DependencySet,
 		l2ChainConfig *params.ChainConfig,
 		l1Head common.Hash,
 		agreedOutputRoot eth.Bytes32,
@@ -153,6 +155,10 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 	if err != nil {
 		return types.OptimisticBlock{}, fmt.Errorf("no chain config available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
 	}
+	depSet, err := bootInfo.Configs.DependencySet(chainAgreedPrestate.ChainID)
+	if err != nil {
+		return types.OptimisticBlock{}, fmt.Errorf("no dependency set available for chain ID %v: %w", chainAgreedPrestate.ChainID, err)
+	}
 	claimedBlockNumber, err := rollupCfg.TargetBlockNumber(superRoot.Timestamp + 1)
 	if err != nil {
 		return types.OptimisticBlock{}, err
@@ -160,6 +166,7 @@ func deriveOptimisticBlock(logger log.Logger, bootInfo *boot.BootInfoInterop, l1
 	derivationResult, err := tasks.RunDerivation(
 		logger,
 		rollupCfg,
+		depSet,
 		l2ChainConfig,
 		bootInfo.L1Head,
 		chainAgreedPrestate.Output,
@@ -187,6 +194,7 @@ type interopTaskExecutor struct {
 func (t *interopTaskExecutor) RunDerivation(
 	logger log.Logger,
 	rollupCfg *rollup.Config,
+	depSet depset.DependencySet,
 	l2ChainConfig *params.ChainConfig,
 	l1Head common.Hash,
 	agreedOutputRoot eth.Bytes32,
@@ -197,6 +205,7 @@ func (t *interopTaskExecutor) RunDerivation(
 	return tasks.RunDerivation(
 		logger,
 		rollupCfg,
+		depSet,
 		l2ChainConfig,
 		l1Head,
 		common.Hash(agreedOutputRoot),

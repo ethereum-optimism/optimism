@@ -28,6 +28,7 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -107,10 +108,10 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 // newL2 creates a new L2, starting with the L2Output from the world configuration
 // and iterating through the resources needed for the L2.
 // it returns a l2Set with the resources for the L2
-func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
+func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output, depSet depset.DependencySet) l2Net {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, "sequencer", l2Out)
-	opNode := s.newNodeForL2(id, "sequencer", l2Out, operatorKeys, l2Geth, true)
+	opNode := s.newNodeForL2(id, "sequencer", l2Out, depSet, operatorKeys, l2Geth, true)
 	proposer := s.newProposerForL2(id, operatorKeys)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
@@ -129,7 +130,7 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Net {
 func (s *interopE2ESystem) AddNode(id string, name string) {
 	l2 := s.l2s[id]
 	l2Geth := s.newGethForL2(id, name, l2.l2Out)
-	opNode := s.newNodeForL2(id, name, l2.l2Out, l2.operatorKeys, l2Geth, false)
+	opNode := s.newNodeForL2(id, name, l2.l2Out, s.DependencySet(), l2.operatorKeys, l2Geth, false)
 	l2.nodes[name] = &l2Node{name: name, opNode: opNode, l2Geth: l2Geth}
 
 	endpoint, secret := l2.nodes[name].opNode.InteropRPC()
@@ -142,6 +143,7 @@ func (s *interopE2ESystem) newNodeForL2(
 	id string,
 	name string,
 	l2Out *interopgen.L2Output,
+	depSet depset.DependencySet,
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
 	l2Geth *geth.GethInstance,
 	isSequencer bool,
@@ -165,7 +167,8 @@ func (s *interopE2ESystem) newNodeForL2(
 		Driver: driver.Config{
 			SequencerEnabled: isSequencer,
 		},
-		Rollup: *l2Out.RollupCfg,
+		Rollup:        *l2Out.RollupCfg,
+		DependencySet: depSet,
 		P2PSigner: &p2p.PreparedSigner{
 			Signer: opsigner.NewLocalSigner(&p2pKey)},
 		RPC: node.RPCConfig{

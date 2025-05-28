@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -144,6 +145,11 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 		l2EL, ok := orch.l2ELs.Get(l2ELID)
 		require.True(ok, "l2 EL node required")
 
+		var depSet depset.DependencySet
+		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID); ok {
+			depSet = cluster.DepSet()
+		}
+
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
 		logger := p.Logger()
@@ -211,8 +217,9 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			Driver: driver.Config{
 				SequencerEnabled: isSequencer,
 			},
-			Rollup:    *l2Net.rollupCfg,
-			P2PSigner: p2pSignerSetup, // nil when not sequencer
+			Rollup:        *l2Net.rollupCfg,
+			DependencySet: depSet,
+			P2PSigner:     p2pSignerSetup, // nil when not sequencer
 			RPC: node.RPCConfig{
 				ListenAddr: "127.0.0.1",
 				// When L2CL starts, store its RPC port here
