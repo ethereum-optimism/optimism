@@ -66,7 +66,6 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IBigStepper, IPreimageOracle } from "interfaces/dispute/IBigStepper.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import {console2 as console} from "forge-std/console2.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
@@ -339,8 +338,7 @@ contract FaultDisputeGame is Clone, ISemver {
 
         // Deposit the bond.
         refundModeCredit[gameCreator()] += msg.value;
-        console.log(address(WETH));
-        // WETH.deposit{ value: msg.value }(); /// TODO(steven): need to address circular dependency
+        WETH.deposit{ value: msg.value }();
 
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
@@ -890,6 +888,10 @@ contract FaultDisputeGame is Clone, ISemver {
         registry_ = IAnchorStateRegistry(_getArgAddress(168));
     }
 
+    function weth() public view returns (IDelayedWETH) {
+        return WETH;
+    }
+
     /// @notice A compliant implementation of this interface should return the components of the
     ///         game UUID's preimage provided in the cwia payload. The preimage of the UUID is
     ///         constructed as `keccak256(gameType . rootClaim . extraData)` where `.` denotes
@@ -901,6 +903,42 @@ contract FaultDisputeGame is Clone, ISemver {
         gameType_ = GAME_TYPE;
         rootClaim_ = rootClaim();
         extraData_ = extraData();
+    }
+
+    /// @notice Getter for the game type.
+    /// @return gameType_ The game type.
+    function gameType() external view returns (GameType gameType_) {
+        gameType_ = GAME_TYPE;
+    }
+
+    /// @notice Getter for the max game depth.
+    /// @return maxGameDepth_ The max game depth.
+    function maxGameDepth() external view returns (uint256 maxGameDepth_) {
+        maxGameDepth_ = MAX_GAME_DEPTH;
+    }
+
+    /// @notice Getter for the split depth.
+    /// @return splitDepth_ The split depth.
+    function splitDepth() external view returns (uint256 splitDepth_) {
+        splitDepth_ = SPLIT_DEPTH;
+    }
+
+    /// @notice Getter for the clock extension.
+    /// @return clockExtension_ The clock extension.
+    function clockExtension() external view returns (Duration clockExtension_) {
+        clockExtension_ = CLOCK_EXTENSION;
+    }
+
+    /// @notice Getter for the max clock duration.
+    /// @return maxClockDuration_ The max clock duration.
+    function maxClockDuration() external view returns (Duration maxClockDuration_) {
+        maxClockDuration_ = MAX_CLOCK_DURATION;
+    }
+
+    /// @notice Getter for the L2 chain ID.
+    /// @return l2ChainId_ The L2 chain ID.
+    function l2ChainId() external view returns (uint256 l2ChainId_) {
+        l2ChainId_ = L2_CHAIN_ID;
     }
 
     ////////////////////////////////////////////////////////////////
