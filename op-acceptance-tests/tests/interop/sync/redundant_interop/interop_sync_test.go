@@ -75,3 +75,46 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	block := sys.L2ELA2.BlockRefByNumber(unsafeA2.Number)
 	require.Equal(unsafeA2.Hash, block.Hash)
 }
+
+// TestUnsafeChainUnknownToL2CL tests the below scenario:
+// supervisor unsafe ahead of L2CL unsafe, aka L2CL processes new blocks first.
+func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
+	t := devtest.SerialT(gt)
+
+	// Sequencer and verifier are connected via P2P, which makes their unsafe heads in sync.
+	// Both L2CLs are in managed mode, digesting L1 blocks from the supervisor and reporting unsafe and safe blocks back to the supervisor.
+	sys := presets.NewRedundantInterop(t)
+	logger := sys.Log.With("Test", "TestUnsafeChainUnknownToL2CL")
+
+	logger.Info("Make sure sequencer and verifier unsafe head advances")
+	dsl.CheckAll(t,
+		sys.L2CLA.Advanced(types.LocalUnsafe, 5, 30),
+		sys.L2CLA2.Advanced(types.LocalUnsafe, 5, 30),
+	)
+
+	logger.Info("Disconnect p2p between L2CLs")
+	sys.L2CLA.DisconnectPeer(sys.L2CLA2)
+	sys.L2CLA2.DisconnectPeer(sys.L2CLA)
+
+	// verifier lost its P2P connection with sequencer, and will advance its unsafe head by reading L1 but not by P2P
+	logger.Info("make sure verifier advances safe head by reading L1")
+	dsl.CheckAll(t, sys.L2CLA2.Advanced(types.CrossSafe, 5, 30))
+
+	// The verifier will not receive unsafe heads via P2P, and can only update unsafe heads matching with safe heads by reading L1 batches.
+	// The verifier safe head will lag behind or match the sequencer because both components share the same L1 view
+	logger.Info("verifier heads will lag compared from sequencer heads and supervisor view")
+	dsl.CheckAll(t,
+		sys.L2CLA2.Lagged(sys.L2CLA, types.LocalUnsafe, 10, false),
+		sys.L2CLA2.Lagged(sys.L2CLA, types.CrossSafe, 10, true),
+	)
+
+	logger.Info("explicit reconnection of L2CL P2P between sequencer and verifier")
+	sys.L2CLA.ConnectPeer(sys.L2CLA2)
+	sys.L2CLA2.ConnectPeer(sys.L2CLA)
+
+	// The sequencer will broadcast all unknown unsafe blocks to the verifier.
+	// The verifier will quickly catch up with the sequencer unsafe head as well as the supervisor.
+	// The verifier will process previously unknown unsafe blocks and advance its unsafe head.
+	logger.Info("verifier catches up sequencer unsafe chain with was unknown for verifier")
+	dsl.CheckAll(t, sys.L2CLA2.Matched(sys.L2CLA, types.LocalUnsafe, 5))
+}
