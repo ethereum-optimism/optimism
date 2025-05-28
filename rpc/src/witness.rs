@@ -66,10 +66,9 @@ where
     Pool: TransactionPool<
             Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
         > + 'static,
-    Provider: BlockReaderIdExt
-        + NodePrimitivesProvider<
-            Primitives: OpPayloadPrimitives + NodePrimitives<BlockHeader = Provider::Header>,
-        > + StateProviderFactory
+    Provider: BlockReaderIdExt<Header = <Provider::Primitives as NodePrimitives>::BlockHeader>
+        + NodePrimitivesProvider<Primitives: OpPayloadPrimitives>
+        + StateProviderFactory
         + ChainSpecProvider<ChainSpec = OpChainSpec>
         + Clone
         + 'static,
