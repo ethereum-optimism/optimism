@@ -10,6 +10,8 @@ import { DisputeMonitorHelper } from "src/periphery/monitoring/DisputeMonitorHel
 import { GameTypes, Claim, VMStatuses } from "src/dispute/lib/Types.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
+/// @title DisputeMonitorHelper_TestInit
+/// @notice Reusable test initialization for `DisputeMonitorHelper` tests.
 contract DisputeMonitorHelper_TestInit is DisputeGameFactory_Init {
     DisputeMonitorHelper helper;
 
@@ -51,7 +53,9 @@ contract DisputeMonitorHelper_TestInit is DisputeGameFactory_Init {
     }
 }
 
-contract DisputeMonitorHelper_isGameRegistered_Test is DisputeMonitorHelper_TestInit {
+/// @title DisputeMonitorHelper_IsGameRegistered_Test
+/// @notice Tests the `isGameRegistered` function of the `DisputeMonitorHelper` contract.
+contract DisputeMonitorHelper_IsGameRegistered_Test is DisputeMonitorHelper_TestInit {
     /// @notice Test that a game created through the factory is registered.
     function test_isGameRegistered_validGame_succeeds() external {
         // Create a game through the factory
@@ -84,144 +88,9 @@ contract DisputeMonitorHelper_isGameRegistered_Test is DisputeMonitorHelper_Test
     }
 }
 
-contract DisputeMonitorHelper_search_Test is DisputeMonitorHelper_TestInit {
-    /// @notice Fuzz test for searching with random timestamps and directions.
-    /// @param _numGames Number of games to generate for the test.
-    /// @param _searchOlderThan Search direction.
-    function testFuzz_search_succeeds(uint8 _numGames, bool _searchOlderThan) external {
-        // Convert into search direction.
-        DisputeMonitorHelper.SearchDirection direction = _searchOlderThan
-            ? DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
-            : DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ;
-
-        // Create an array to store game timestamps and indices.
-        uint256[] memory gameTimestamps = new uint256[](_numGames);
-        uint256[] memory gameIndices = new uint256[](_numGames);
-
-        // Start with a base timestamp.
-        uint256 currentTimestamp = 1000;
-
-        // Create games with increasing timestamps.
-        for (uint256 i = 0; i < _numGames; i++) {
-            // Generate a random timestamp increase (between 0 and 1000). Games can have the same
-            // exact timestamp. If this happens, we expect the earliest index in the NEWER_THAN
-            // case or the latest index in the OLDER_THAN case.
-            uint256 timestampIncrease = vm.randomUint(0, 1000);
-            currentTimestamp += timestampIncrease;
-
-            // Store the timestamp.
-            gameTimestamps[i] = currentTimestamp;
-
-            // Create the game and store its index.
-            gameIndices[i] = createGameWithTimestamp(currentTimestamp, bytes32(i + 1));
-        }
-
-        // Verify the game count.
-        assertEq(disputeGameFactory.gameCount(), _numGames, "wrong number of created games");
-
-        // If we have no games, expect the NoGames error no matter the timestamp.
-        if (_numGames == 0) {
-            uint256 foundIndex =
-                helper.search(disputeGameFactory, vm.randomUint(0, block.timestamp + 1000000), direction);
-            assertEq(foundIndex, type(uint256).max, "found index should be max");
-        } else {
-            // Do 10 random tests inside the range we just created.
-            for (uint256 i = 0; i < 10; i++) {
-                // Pick a random timestamp that might be outside of the bounds of the available
-                // timestamps. We'll use cases that fall outside of the available bounds to make sure
-                // that errors are working as expected.
-                uint256 rangeStart = gameTimestamps[0];
-                uint256 rangeEnd = gameTimestamps[gameTimestamps.length - 1];
-                uint256 randomTimestamp = vm.randomUint(rangeStart - 500, rangeEnd + 500);
-
-                // Different assertions for different cases.
-                if (
-                    (direction == DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ && randomTimestamp < rangeStart)
-                        || (
-                            direction == DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ && randomTimestamp > rangeEnd
-                        )
-                ) {
-                    // If we fall outside of the range, expect the max index representing that no
-                    // valid game was found.
-                    uint256 foundIndex = helper.search(disputeGameFactory, randomTimestamp, direction);
-                    assertEq(foundIndex, type(uint256).max, "found index should be max");
-                } else {
-                    // Otherwise, we expect a valid index. Manual linear search to figure out what
-                    // the right answer should be.
-                    uint256 targetIndex;
-                    for (uint256 j = 0; j < _numGames; j++) {
-                        if (direction == DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ) {
-                            if (gameTimestamps[j] <= randomTimestamp) {
-                                // Need to find newer indices for the OLDER_THAN_OR_EQ case.
-                                targetIndex = j;
-                            }
-                        } else {
-                            if (gameTimestamps[j] >= randomTimestamp) {
-                                // Only find the first index for the NEWER_THAN_OR_EQ case.
-                                targetIndex = j;
-                                break;
-                            }
-                        }
-                    }
-
-                    // Perform the search with our function.
-                    uint256 foundIndex = helper.search(disputeGameFactory, randomTimestamp, direction);
-
-                    // Indices should match.
-                    assertEq(foundIndex, targetIndex, "found incorrect index");
-                }
-            }
-        }
-    }
-
-    /// @notice Test that searching for a game with no games returns the max index.
-    /// @param _timestamp The timestamp to search for.
-    /// @param _searchOlderThan Whether to search for an older or newer game.
-    function testFuzz_search_noGames_succeeds(uint256 _timestamp, bool _searchOlderThan) external view {
-        // Convert into search direction.
-        DisputeMonitorHelper.SearchDirection direction = _searchOlderThan
-            ? DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
-            : DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ;
-
-        // Search for a game with no games.
-        uint256 foundIndex = helper.search(disputeGameFactory, _timestamp, direction);
-
-        // Should return the max index.
-        assertEq(foundIndex, type(uint256).max, "found index should be max");
-    }
-
-    /// @notice Test that searching for a game older than all games returns the max index.
-    function test_search_olderThanEverything_succeeds() external {
-        // Select a target timestamp.
-        uint256 targetTimestamp = vm.randomUint(1, 100);
-
-        // Create one game.
-        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
-
-        // Search by providing a timestamp that is before all games.
-        uint256 foundIndex = helper.search(
-            disputeGameFactory, targetTimestamp - 1, DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
-        );
-        assertEq(foundIndex, type(uint256).max, "found index should be max");
-    }
-
-    /// @notice Test that searching for a game newer than all games returns the max index.
-    function test_search_newerThanEverything_succeeds() external {
-        // Select a target timestamp.
-        uint256 targetTimestamp = vm.randomUint(1, 100);
-
-        // Create one game.
-        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
-
-        // Search by providing a timestamp that is after all games.
-        uint256 foundIndex = helper.search(
-            disputeGameFactory, targetTimestamp + 1, DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
-        );
-        assertEq(foundIndex, type(uint256).max, "found index should be max");
-    }
-}
-
-contract DisputeMonitorHelper_getUnresolvedGames_Test is DisputeMonitorHelper_TestInit {
+/// @title DisputeMonitorHelper_GetUnresolvedGames_Test
+/// @notice Tests the `getUnresolvedGames` function of the `DisputeMonitorHelper` contract.
+contract DisputeMonitorHelper_GetUnresolvedGames_Test is DisputeMonitorHelper_TestInit {
     /// @notice Fuzz test for searching for unresolved games.
     /// @param _numGames Number of games to create.
     /// @param _resolvedPercent Percentage of games to mark as resolved.
@@ -425,5 +294,144 @@ contract DisputeMonitorHelper_toRpcHexString_Test is DisputeMonitorHelper_TestIn
         uint256 value = 136210625;
         string memory hexString = helper.toRpcHexString(value);
         assertEq(hexString, "0x81e68c1");
+    }
+}
+
+/// @title DisputeMonitorHelper_Search_Test
+/// @notice Tests the `search` function of the `DisputeMonitorHelper` contract.
+contract DisputeMonitorHelper_Search_Test is DisputeMonitorHelper_TestInit {
+    /// @notice Fuzz test for searching with random timestamps and directions.
+    /// @param _numGames Number of games to generate for the test.
+    /// @param _searchOlderThan Search direction.
+    function testFuzz_search_succeeds(uint8 _numGames, bool _searchOlderThan) external {
+        // Convert into search direction.
+        DisputeMonitorHelper.SearchDirection direction = _searchOlderThan
+            ? DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
+            : DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ;
+
+        // Create an array to store game timestamps and indices.
+        uint256[] memory gameTimestamps = new uint256[](_numGames);
+        uint256[] memory gameIndices = new uint256[](_numGames);
+
+        // Start with a base timestamp.
+        uint256 currentTimestamp = 1000;
+
+        // Create games with increasing timestamps.
+        for (uint256 i = 0; i < _numGames; i++) {
+            // Generate a random timestamp increase (between 0 and 1000). Games can have the same
+            // exact timestamp. If this happens, we expect the earliest index in the NEWER_THAN
+            // case or the latest index in the OLDER_THAN case.
+            uint256 timestampIncrease = vm.randomUint(0, 1000);
+            currentTimestamp += timestampIncrease;
+
+            // Store the timestamp.
+            gameTimestamps[i] = currentTimestamp;
+
+            // Create the game and store its index.
+            gameIndices[i] = createGameWithTimestamp(currentTimestamp, bytes32(i + 1));
+        }
+
+        // Verify the game count.
+        assertEq(disputeGameFactory.gameCount(), _numGames, "wrong number of created games");
+
+        // If we have no games, expect the NoGames error no matter the timestamp.
+        if (_numGames == 0) {
+            uint256 foundIndex =
+                helper.search(disputeGameFactory, vm.randomUint(0, block.timestamp + 1000000), direction);
+            assertEq(foundIndex, type(uint256).max, "found index should be max");
+        } else {
+            // Do 10 random tests inside the range we just created.
+            for (uint256 i = 0; i < 10; i++) {
+                // Pick a random timestamp that might be outside of the bounds of the available
+                // timestamps. We'll use cases that fall outside of the available bounds to make
+                // sure that errors are working as expected.
+                uint256 rangeStart = gameTimestamps[0];
+                uint256 rangeEnd = gameTimestamps[gameTimestamps.length - 1];
+                uint256 randomTimestamp = vm.randomUint(rangeStart - 500, rangeEnd + 500);
+
+                // Different assertions for different cases.
+                if (
+                    (direction == DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ && randomTimestamp < rangeStart)
+                        || (
+                            direction == DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ && randomTimestamp > rangeEnd
+                        )
+                ) {
+                    // If we fall outside of the range, expect the max index representing that no
+                    // valid game was found.
+                    uint256 foundIndex = helper.search(disputeGameFactory, randomTimestamp, direction);
+                    assertEq(foundIndex, type(uint256).max, "found index should be max");
+                } else {
+                    // Otherwise, we expect a valid index. Manual linear search to figure out what
+                    // the right answer should be.
+                    uint256 targetIndex;
+                    for (uint256 j = 0; j < _numGames; j++) {
+                        if (direction == DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ) {
+                            if (gameTimestamps[j] <= randomTimestamp) {
+                                // Need to find newer indices for the OLDER_THAN_OR_EQ case.
+                                targetIndex = j;
+                            }
+                        } else {
+                            if (gameTimestamps[j] >= randomTimestamp) {
+                                // Only find the first index for the NEWER_THAN_OR_EQ case.
+                                targetIndex = j;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Perform the search with our function.
+                    uint256 foundIndex = helper.search(disputeGameFactory, randomTimestamp, direction);
+
+                    // Indices should match.
+                    assertEq(foundIndex, targetIndex, "found incorrect index");
+                }
+            }
+        }
+    }
+
+    /// @notice Test that searching for a game with no games returns the max index.
+    /// @param _timestamp The timestamp to search for.
+    /// @param _searchOlderThan Whether to search for an older or newer game.
+    function testFuzz_search_noGames_succeeds(uint256 _timestamp, bool _searchOlderThan) external view {
+        // Convert into search direction.
+        DisputeMonitorHelper.SearchDirection direction = _searchOlderThan
+            ? DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
+            : DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ;
+
+        // Search for a game with no games.
+        uint256 foundIndex = helper.search(disputeGameFactory, _timestamp, direction);
+
+        // Should return the max index.
+        assertEq(foundIndex, type(uint256).max, "found index should be max");
+    }
+
+    /// @notice Test that searching for a game older than all games returns the max index.
+    function test_search_olderThanEverything_succeeds() external {
+        // Select a target timestamp.
+        uint256 targetTimestamp = vm.randomUint(1, 100);
+
+        // Create one game.
+        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
+
+        // Search by providing a timestamp that is before all games.
+        uint256 foundIndex = helper.search(
+            disputeGameFactory, targetTimestamp - 1, DisputeMonitorHelper.SearchDirection.OLDER_THAN_OR_EQ
+        );
+        assertEq(foundIndex, type(uint256).max, "found index should be max");
+    }
+
+    /// @notice Test that searching for a game newer than all games returns the max index.
+    function test_search_newerThanEverything_succeeds() external {
+        // Select a target timestamp.
+        uint256 targetTimestamp = vm.randomUint(1, 100);
+
+        // Create one game.
+        createGameWithTimestamp(targetTimestamp, bytes32(uint256(1)));
+
+        // Search by providing a timestamp that is after all games.
+        uint256 foundIndex = helper.search(
+            disputeGameFactory, targetTimestamp + 1, DisputeMonitorHelper.SearchDirection.NEWER_THAN_OR_EQ
+        );
+        assertEq(foundIndex, type(uint256).max, "found index should be max");
     }
 }
