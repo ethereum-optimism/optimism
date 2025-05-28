@@ -96,6 +96,9 @@ func SpamInteropTxs(t devtest.T, numInitTxs uint64, source *L2, dest *L2, superv
 					relayer.Relay(t, msgs)
 				}()
 			}
+			if len(msgs) >= cap(msgs)/2 {
+				t.Logger().Warn("Messages buffer is at least half full", "len", len(msgs), "cap", cap(msgs))
+			}
 		}
 	}()
 
