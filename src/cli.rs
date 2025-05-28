@@ -1,9 +1,10 @@
-use std::{net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use alloy_rpc_types_engine::JwtSecret;
 use clap::{Parser, Subcommand};
 use eyre::bail;
 use jsonrpsee::{RpcModule, server::Server};
+use parking_lot::Mutex;
 use tokio::signal::unix::{SignalKind, signal as unix_signal};
 use tracing::{Level, info};
 
@@ -159,12 +160,13 @@ impl Args {
 
         let (probe_layer, probes) = ProbeLayer::new();
 
+        let execution_mode = Arc::new(Mutex::new(self.execution_mode));
         let rollup_boost = RollupBoostServer::new(
             l2_client,
             builder_client,
-            self.execution_mode,
+            execution_mode.clone(),
             self.block_selection_policy,
-            probes,
+            probes.clone(),
             self.health_check_interval,
             self.max_unsafe_interval,
         );
@@ -185,6 +187,8 @@ impl Args {
                     l2_auth_jwt,
                     builder_args.builder_url,
                     builder_auth_jwt,
+                    probes,
+                    execution_mode,
                 ));
 
         let server = Server::builder()

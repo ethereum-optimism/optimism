@@ -1,5 +1,5 @@
 use common::RollupBoostTestHarnessBuilder;
-use common::proxy::ProxyHandler;
+use common::proxy::BuilderProxyHandler;
 use futures::FutureExt;
 use serde_json::Value;
 use std::pin::Pin;
@@ -13,7 +13,7 @@ struct DelayHandler {
     delay: Arc<Mutex<Duration>>,
 }
 
-impl ProxyHandler for DelayHandler {
+impl BuilderProxyHandler for DelayHandler {
     fn handle(
         &self,
         _method: String,

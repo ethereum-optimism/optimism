@@ -7,10 +7,13 @@ use std::{
 use futures::FutureExt as _;
 use jsonrpsee::{
     core::BoxError,
-    http_client::{HttpBody, HttpRequest, HttpResponse},
+    http_client::{HttpRequest, HttpResponse},
+    server::HttpBody,
 };
 use parking_lot::Mutex;
 use tower::{Layer, Service};
+
+use crate::{Request, Response};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum Health {
@@ -25,7 +28,7 @@ pub enum Health {
     ServiceUnavailable,
 }
 
-impl From<Health> for HttpResponse<HttpBody> {
+impl From<Health> for Response {
     fn from(health: Health) -> Self {
         match health {
             Health::Healthy => ok(),
@@ -85,14 +88,14 @@ pub struct ProbeService<S> {
     probes: Arc<Probes>,
 }
 
-impl<S> Service<HttpRequest<HttpBody>> for ProbeService<S>
+impl<S> Service<Request> for ProbeService<S>
 where
-    S: Service<HttpRequest<HttpBody>, Response = HttpResponse> + Send + Sync + Clone + 'static,
+    S: Service<Request, Response = Response> + Send + Sync + Clone + 'static,
     S::Response: 'static,
     S::Error: Into<BoxError> + 'static,
     S::Future: Send + 'static,
 {
-    type Response = S::Response;
+    type Response = Response;
     type Error = BoxError;
     type Future =
         Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
@@ -101,7 +104,7 @@ where
         self.inner.poll_ready(cx).map_err(Into::into)
     }
 
-    fn call(&mut self, request: HttpRequest<HttpBody>) -> Self::Future {
+    fn call(&mut self, request: HttpRequest) -> Self::Future {
         // See https://github.com/tower-rs/tower/blob/abb375d08cf0ba34c1fe76f66f1aba3dc4341013/tower-service/src/lib.rs#L276
         // for an explanation of this pattern
         let mut service = self.clone();
@@ -123,21 +126,21 @@ where
     }
 }
 
-fn ok() -> HttpResponse<HttpBody> {
+fn ok() -> Response {
     HttpResponse::builder()
         .status(200)
         .body(HttpBody::from("OK"))
         .expect("Failed to create OK reponse")
 }
 
-fn partial_content() -> HttpResponse<HttpBody> {
+fn partial_content() -> Response {
     HttpResponse::builder()
         .status(206)
         .body(HttpBody::from("Partial Content"))
         .expect("Failed to create partial content response")
 }
 
-fn service_unavailable() -> HttpResponse<HttpBody> {
+fn service_unavailable() -> Response {
     HttpResponse::builder()
         .status(503)
         .body(HttpBody::from("Service Unavailable"))

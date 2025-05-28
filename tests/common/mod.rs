@@ -16,7 +16,7 @@ use jsonrpsee::proc_macros::rpc;
 use op_alloy_consensus::TxDeposit;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use parking_lot::Mutex;
-use proxy::{ProxyHandler, start_proxy_server};
+use proxy::{BuilderProxyHandler, start_proxy_server};
 use rollup_boost::DebugClient;
 use rollup_boost::EngineApiClient;
 use rollup_boost::{AuthLayer, AuthService};
@@ -151,6 +151,13 @@ impl EngineApi {
         )
         .await?)
     }
+
+    pub async fn set_max_da_size(&self, max_da_size: u64, max_da_gas: u64) -> eyre::Result<bool> {
+        Ok(
+            MinerApiClient::set_max_da_size(&self.engine_api_client, max_da_size, max_da_gas)
+                .await?,
+        )
+    }
 }
 
 #[rpc(client, namespace = "eth")]
@@ -161,6 +168,12 @@ pub trait BlockApi {
         block_number: BlockNumberOrTag,
         include_txs: bool,
     ) -> RpcResult<Option<alloy_rpc_types_eth::Block>>;
+}
+
+#[rpc(client, namespace = "miner")]
+pub trait MinerApi {
+    #[method(name = "setMaxDASize")]
+    async fn set_max_da_size(&self, max_da_size: u64, max_da_gas: u64) -> RpcResult<bool>;
 }
 
 #[derive(Clone)]
@@ -212,7 +225,7 @@ pub struct RollupBoostTestHarness {
 
 pub struct RollupBoostTestHarnessBuilder {
     test_name: String,
-    proxy_handler: Option<Arc<dyn ProxyHandler>>,
+    proxy_handler: Option<Arc<dyn BuilderProxyHandler>>,
     isthmus_block: Option<u64>,
     block_time: u64,
 }
@@ -269,7 +282,7 @@ impl RollupBoostTestHarnessBuilder {
         })
     }
 
-    pub fn proxy_handler(mut self, proxy_handler: Arc<dyn ProxyHandler>) -> Self {
+    pub fn proxy_handler(mut self, proxy_handler: Arc<dyn BuilderProxyHandler>) -> Self {
         self.proxy_handler = Some(proxy_handler);
         self
     }
@@ -371,6 +384,10 @@ impl RollupBoostTestHarness {
             SimpleBlockGenerator::new(validator, engine_api, self.genesis.clone());
         block_creator.init().await?;
         Ok(block_creator)
+    }
+
+    pub fn engine_api(&self) -> eyre::Result<EngineApi> {
+        EngineApi::new(&self.rollup_boost.rpc_endpoint(), JWT_SECRET)
     }
 
     pub async fn debug_client(&self) -> DebugClient {

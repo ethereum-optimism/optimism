@@ -38,7 +38,7 @@ pub struct JsonRpcError {
     data: Option<Value>,
 }
 
-pub trait ProxyHandler: Send + Sync + 'static {
+pub trait BuilderProxyHandler: Send + Sync + 'static {
     fn handle(
         &self,
         method: String,
@@ -51,7 +51,7 @@ pub trait ProxyHandler: Send + Sync + 'static {
 #[derive(Clone)]
 struct ProxyConfig {
     target_addr: SocketAddr,
-    handler: Arc<dyn ProxyHandler>,
+    handler: Arc<dyn BuilderProxyHandler>,
 }
 
 async fn proxy(
@@ -116,7 +116,7 @@ async fn proxy(
 }
 
 pub async fn start_proxy_server(
-    handler: Arc<dyn ProxyHandler>,
+    handler: Arc<dyn BuilderProxyHandler>,
     listen_port: u16,
     target_port: u16,
 ) -> eyre::Result<()> {

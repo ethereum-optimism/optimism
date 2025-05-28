@@ -10,15 +10,20 @@ use crate::{
     },
     probe::{Health, Probes},
 };
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::{B256, Bytes, bytes};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, PayloadId,
     PayloadStatus,
 };
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
+use http_body_util::{BodyExt, Full};
 use jsonrpsee::RpcModule;
+use jsonrpsee::core::BoxError;
 use jsonrpsee::core::{RegisterMethodError, RpcResult, async_trait};
 use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::server::HttpBody;
+use jsonrpsee::server::HttpRequest;
+use jsonrpsee::server::HttpResponse;
 use jsonrpsee::types::ErrorObject;
 use jsonrpsee::types::error::INVALID_REQUEST_CODE;
 use metrics::counter;
@@ -30,15 +35,19 @@ use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::task::JoinHandle;
 use tracing::{info, instrument};
 
+pub type Request = HttpRequest;
+pub type Response = HttpResponse;
+pub type BufferedRequest = http::Request<Full<bytes::Bytes>>;
+pub type BufferedResponse = http::Response<Full<bytes::Bytes>>;
+
+#[derive(Clone)]
 pub struct RollupBoostServer {
     pub l2_client: Arc<RpcClient>,
     pub builder_client: Arc<RpcClient>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
     block_selection_policy: Option<BlockSelectionPolicy>,
-    health_handle: JoinHandle<()>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
     probes: Arc<Probes>,
 }
@@ -47,13 +56,13 @@ impl RollupBoostServer {
     pub fn new(
         l2_client: RpcClient,
         builder_client: RpcClient,
-        initial_execution_mode: ExecutionMode,
+        initial_execution_mode: Arc<Mutex<ExecutionMode>>,
         block_selection_policy: Option<BlockSelectionPolicy>,
         probes: Arc<Probes>,
         health_check_interval: u64,
         max_unsafe_interval: u64,
     ) -> Self {
-        let health_handle = HealthHandle {
+        HealthHandle {
             probes: probes.clone(),
             builder_client: Arc::new(builder_client.clone()),
             health_check_interval: Duration::from_secs(health_check_interval),
@@ -66,9 +75,8 @@ impl RollupBoostServer {
             builder_client: Arc::new(builder_client),
             block_selection_policy,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
-            execution_mode: Arc::new(Mutex::new(initial_execution_mode)),
+            execution_mode: initial_execution_mode,
             probes,
-            health_handle,
         }
     }
 
@@ -80,10 +88,6 @@ impl RollupBoostServer {
 
     pub fn execution_mode(&self) -> ExecutionMode {
         *self.execution_mode.lock()
-    }
-
-    pub fn health_handle(&self) -> &JoinHandle<()> {
-        &self.health_handle
     }
 
     async fn new_payload(&self, new_payload: NewPayload) -> RpcResult<PayloadStatus> {
@@ -500,6 +504,17 @@ impl EngineApiServer for RollupBoostServer {
     }
 }
 
+pub async fn into_buffered_request(req: HttpRequest) -> Result<BufferedRequest, BoxError> {
+    let (parts, body) = req.into_parts();
+    let bytes = body.collect().await?.to_bytes();
+    let full = Full::<bytes::Bytes>::from(bytes.clone());
+    Ok(http::Request::from_parts(parts, full))
+}
+
+pub fn from_buffered_request(req: BufferedRequest) -> HttpRequest {
+    req.map(HttpBody::new)
+}
+
 #[cfg(test)]
 #[allow(clippy::complexity)]
 mod tests {
@@ -617,13 +632,14 @@ mod tests {
             .unwrap();
 
             let (probe_layer, probes) = ProbeLayer::new();
+            let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));
 
             let rollup_boost = RollupBoostServer::new(
                 l2_client,
                 builder_client,
-                ExecutionMode::Enabled,
+                execution_mode.clone(),
                 None,
-                probes,
+                probes.clone(),
                 60,
                 5,
             );
@@ -638,6 +654,8 @@ mod tests {
                         jwt_secret,
                         builder_auth_rpc,
                         jwt_secret,
+                        probes,
+                        execution_mode.clone(),
                     ));
 
             let server = Server::builder()

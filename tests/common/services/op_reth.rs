@@ -136,6 +136,7 @@ impl Image for OpRethImage {
             "--addr=0.0.0.0".to_string(),
             "--http".to_string(),
             "--http.addr=0.0.0.0".to_string(),
+            "--http.api=eth,net,web3,debug,miner".to_string(),
             "--authrpc.port=8551".to_string(),
             "--authrpc.addr=0.0.0.0".to_string(),
             "--authrpc.jwtsecret=/jwt_secret.hex".to_string(),

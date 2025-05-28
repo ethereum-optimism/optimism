@@ -1,7 +1,7 @@
 use std::{pin::Pin, sync::Arc};
 
 use alloy_primitives::B256;
-use common::{RollupBoostTestHarnessBuilder, proxy::ProxyHandler};
+use common::{RollupBoostTestHarnessBuilder, proxy::BuilderProxyHandler};
 use futures::FutureExt as _;
 use serde_json::Value;
 
@@ -11,7 +11,7 @@ mod common;
 
 struct Handler;
 
-impl ProxyHandler for Handler {
+impl BuilderProxyHandler for Handler {
     fn handle(
         &self,
         method: String,

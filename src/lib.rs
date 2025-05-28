@@ -1,3 +1,5 @@
+#![allow(clippy::complexity)]
+
 mod client;
 pub use client::{auth::*, http::*, rpc::*};
 
@@ -30,3 +32,5 @@ pub use payload::*;
 
 mod selection;
 pub use selection::*;
+
+mod consistent_request;

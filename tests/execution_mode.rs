@@ -1,4 +1,4 @@
-use common::proxy::ProxyHandler;
+use common::proxy::BuilderProxyHandler;
 use futures::FutureExt as _;
 use rollup_boost::ExecutionMode;
 use serde_json::Value;
@@ -14,7 +14,7 @@ struct CounterHandler {
     counter: Arc<Mutex<u32>>,
 }
 
-impl ProxyHandler for CounterHandler {
+impl BuilderProxyHandler for CounterHandler {
     fn handle(
         &self,
         _method: String,
