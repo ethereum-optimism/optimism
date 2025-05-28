@@ -14,7 +14,7 @@ type assume[I comparable, E stack.Identifiable[I]] struct {
 
 func (a *assume[I, E]) Match(elems []E) []E {
 	elems = a.inner.Match(elems)
-	a.t.Gate().NotEmpty(elems, "must match something to continue, but matched nothing with %s", a.inner)
+	a.t.Require().NotEmpty(elems, "must match something to continue, but matched nothing with %s", a.inner)
 	return elems
 }
 

@@ -1,4 +1,7 @@
 optimism_package:
+  faucet:
+    enabled: true
+    image: {{ localDockerImage "op-faucet" }}
   chains:
     - participants:
       - el_type: op-geth

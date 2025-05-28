@@ -57,6 +57,8 @@ _check_mise:
             # Check if there are any problems beyond just version updates
             if echo "$output" | grep -q "1 problem found:" && echo "$output" | grep -q "new mise version.*available"; then
                 echo "Note: Only mise version update available"
+            elif echo "$output" | grep -q "No problems found"; then
+                echo "Note: No problems found"
             else
                 echo "Warning: mise doctor found unexpected issues:"
                 echo "$output"
