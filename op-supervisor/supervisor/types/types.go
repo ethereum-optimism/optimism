@@ -550,6 +550,15 @@ type Access struct {
 	Checksum    MessageChecksum
 }
 
+func (acc Access) Query() ContainsQuery {
+	return ContainsQuery{
+		Timestamp: acc.Timestamp,
+		BlockNum:  acc.BlockNumber,
+		LogIdx:    acc.LogIndex,
+		Checksum:  acc.Checksum,
+	}
+}
+
 // lookupEntry encodes a lookup entry for an access-list
 func (acc Access) lookupEntry() common.Hash {
 	var out common.Hash

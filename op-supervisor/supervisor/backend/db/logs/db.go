@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -580,7 +581,7 @@ func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32
 
 // Rewind the database to remove any blocks after headBlockNum
 // The block at newHead.Number itself is not removed.
-func (db *DB) Rewind(newHead eth.BlockID) error {
+func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	// Even if the last fully-processed block matches headBlockNum,
@@ -594,6 +595,15 @@ func (db *DB) Rewind(newHead eth.BlockID) error {
 	} else if hash != newHead.Hash {
 		return fmt.Errorf("cannot rewind to %s, have %s: %w", newHead, eth.BlockID{Hash: hash, Number: num}, types.ErrConflict)
 	}
+	t, ok := iter.SealedTimestamp()
+	if !ok {
+		panic("expected timestamp in block seal")
+	}
+	release, err := inv.TryInvalidate(reads.DerivedInvalidation{Timestamp: t})
+	if err != nil {
+		return err
+	}
+	defer release()
 	// Truncate to contain idx entries. The Truncate func keeps the given index as last index.
 	if err := db.store.Truncate(iter.NextIndex() - 1); err != nil {
 		return fmt.Errorf("failed to truncate to block %s: %w", newHead, err)

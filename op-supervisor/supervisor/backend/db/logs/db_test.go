@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -1160,11 +1161,13 @@ func TestRewind(t *testing.T) {
 	t.Run("WhenEmpty", func(t *testing.T) {
 		runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				require.ErrorIs(t, db.Rewind(createID(100)), types.ErrFuture)
-				require.ErrorIs(t, db.Rewind(createID(100)), types.ErrFuture)
+				inv := &reads.TestInvalidator{}
+				require.ErrorIs(t, db.Rewind(inv, createID(100)), types.ErrFuture)
+				require.False(t, inv.Invalidated)
+				require.ErrorIs(t, db.Rewind(inv, createID(100)), types.ErrFuture)
 				// Genesis is a block to, not present in an empty DB
-				require.ErrorIs(t, db.Rewind(createID(0)), types.ErrFuture)
-				require.ErrorIs(t, db.Rewind(createID(0)), types.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(0)), types.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(0)), types.ErrFuture)
 			})
 	})
 
@@ -1183,8 +1186,10 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.SealBlock(bl51.Hash, bl52, t52))
 				require.NoError(t, db.AddLog(createHash(4), bl52, 0, nil))
 				// cannot rewind to a block that is not sealed yet
-				require.ErrorIs(t, db.Rewind(createID(53)), types.ErrFuture)
-				require.ErrorIs(t, db.Rewind(createID(53)), types.ErrFuture)
+				inv := &reads.TestInvalidator{}
+				require.ErrorIs(t, db.Rewind(inv, createID(53)), types.ErrFuture)
+				require.ErrorIs(t, db.Rewind(inv, createID(53)), types.ErrFuture)
+				require.False(t, inv.Invalidated)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				requireContains(t, db, 51, 0, t51, createHash(1))
@@ -1204,8 +1209,10 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.AddLog(createHash(1), bl50, 0, nil))
 				require.NoError(t, db.AddLog(createHash(2), bl50, 1, nil))
 				// cannot go back to an unknown block
-				require.ErrorIs(t, db.Rewind(createID(25)), types.ErrSkipped)
-				require.ErrorIs(t, db.Rewind(createID(25)), types.ErrSkipped)
+				inv := &reads.TestInvalidator{}
+				require.ErrorIs(t, db.Rewind(inv, createID(25)), types.ErrSkipped)
+				require.ErrorIs(t, db.Rewind(inv, createID(25)), types.ErrSkipped)
+				require.False(t, inv.Invalidated)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				// block 51 is not sealed yet
@@ -1228,7 +1235,10 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.AddLog(createHash(2), bl51, 1, nil))
 				bl52 := eth.BlockID{Hash: createHash(52), Number: 52}
 				require.NoError(t, db.SealBlock(bl51.Hash, bl52, t52))
-				require.NoError(t, db.Rewind(createID(51)))
+				inv := &reads.TestInvalidator{}
+				require.NoError(t, db.Rewind(inv, bl51))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, t51, inv.InvalidatedDerivedTimestamp)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				requireContains(t, db, 51, 0, t51, createHash(1))
@@ -1258,7 +1268,10 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.AddLog(createHash(2), bl51, 1, nil))
 				bl52 := eth.BlockID{Hash: createHash(52), Number: 52}
 				require.NoError(t, db.SealBlock(bl51.Hash, bl52, t52))
-				require.NoError(t, db.Rewind(createID(51)))
+				inv := &reads.TestInvalidator{}
+				require.NoError(t, db.Rewind(inv, createID(51)))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, t51, inv.InvalidatedDerivedTimestamp)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				require.EqualValues(t, searchCheckpointFrequency+2+2, m.entryCount, "Should have deleted second checkpoint")
@@ -1286,7 +1299,10 @@ func TestRewind(t *testing.T) {
 						require.NoError(t, db.AddLog(createHash(2), bl, 1, nil))
 					}
 				}
-				require.NoError(t, db.Rewind(createID(15)))
+				inv := &reads.TestInvalidator{}
+				require.NoError(t, db.Rewind(inv, createID(15)))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, tOffset(15), inv.InvalidatedDerivedTimestamp)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				requireContains(t, db, 15, 0, tOffset(15), createHash(1))
@@ -1308,8 +1324,11 @@ func TestRewind(t *testing.T) {
 						require.NoError(t, db.AddLog(createHash(2), bl, 1, nil))
 					}
 				}
+				inv := &reads.TestInvalidator{}
 				// We ended at 30, and sealed it, nothing left to prune
-				require.NoError(t, db.Rewind(createID(30)))
+				require.NoError(t, db.Rewind(inv, createID(30)))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, tOffset(30), inv.InvalidatedDerivedTimestamp)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				requireContains(t, db, 20, 0, tOffset(20), createHash(1))
@@ -1332,7 +1351,10 @@ func TestRewind(t *testing.T) {
 						require.NoError(t, db.AddLog(createHash(2), bl, 1, nil))
 					}
 				}
-				require.NoError(t, db.Rewind(createID(16)))
+				inv := &reads.TestInvalidator{}
+				require.NoError(t, db.Rewind(inv, createID(16)))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, tOffset(16), inv.InvalidatedDerivedTimestamp)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				bl29 := eth.BlockID{Hash: createHash(29), Number: 29}

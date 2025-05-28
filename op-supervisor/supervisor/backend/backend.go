@@ -534,7 +534,8 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 	su.logger.Debug("Checking access-list",
 		"minSafety", minSafety, "length", len(inboxEntries))
 
-	// TODO(#14800): acquire a rewind-read-lock, so we can ensure the safety of all entries is consistent
+	h := su.chainDBs.AcquireHandle()
+	defer h.Release()
 
 	entries := inboxEntries
 	for len(entries) > 0 {
@@ -546,6 +547,9 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 			return fmt.Errorf("failed to read data: %w", err)
 		}
 		entries = remaining
+
+		// Register as a dependency
+		h.DependOnDerivedTime(acc.Timestamp)
 
 		// Check if message passes time checks
 		if err := executingDescriptor.AccessCheck(su.cfgSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
@@ -559,19 +563,17 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 			return types.ErrConflict
 		}
 
+		// Optional & additional, not part of the check-accesslist result. So not protected by the same read-handle.
 		if su.rpcVerificationWarnings {
 			go su.asyncVerifyAccessWithRPC(ctx, acc, msgBlockFromDB)
 		}
 
-		// TODO(#14800) add msgBlockFromDB to rewind lock
-
-		// TODO(#14800): this can be deferred to only check the latest block of all access entries
 		if err := su.checkSafety(acc.ChainID, msgBlockFromDB, minSafety); err != nil {
 			su.logger.Debug("Access-list safety check failed", "err", err)
 			return types.ErrConflict
 		}
 	}
-	return nil
+	return h.Err()
 }
 
 func (su *SupervisorBackend) CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error) {
@@ -632,6 +634,8 @@ func (su *SupervisorBackend) FindSealedBlock(ctx context.Context, chainID eth.Ch
 func (su *SupervisorBackend) AllSafeDerivedAt(ctx context.Context, source eth.BlockID) (map[eth.ChainID]eth.BlockID, error) {
 	chains := su.cfgSet.Chains()
 	ret := map[eth.ChainID]eth.BlockID{}
+
+	// Note: no need to reorg/rewind lock: everything is derived from the same L1 block
 	for _, chainID := range chains {
 		derived, err := su.LocalSafeDerivedAt(ctx, chainID, source)
 		if err != nil {
@@ -694,6 +698,10 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 	chainInfos := make([]eth.ChainRootInfo, len(chains))
 	superRootChains := make([]eth.ChainIDAndOutput, len(chains))
 
+	h := su.chainDBs.AcquireHandle()
+	defer h.Release()
+	h.DependOnDerivedTime(uint64(timestamp))
+
 	var crossSafeSource eth.BlockID
 
 	for i, chainID := range chains {
@@ -730,9 +738,13 @@ func (su *SupervisorBackend) SuperRootAtTimestamp(ctx context.Context, timestamp
 			}
 			return eth.SuperRootResponse{}, fmt.Errorf("cross-derived-to-source failed for chain %s: %w", chainID, err)
 		}
+		h.DependOnSourceBlock(source.Number)
 		if crossSafeSource.Number == 0 || crossSafeSource.Number < source.Number {
 			crossSafeSource = source.ID()
 		}
+	}
+	if !h.IsValid() {
+		return eth.SuperRootResponse{}, h.Err()
 	}
 	super := eth.SuperV1{
 		Timestamp: uint64(timestamp),

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -150,11 +151,19 @@ func TestCrossUnsafeUpdate(t *testing.T) {
 }
 
 type mockCrossUnsafeDeps struct {
+	acquireHandleFn     func() reads.Handle
 	messageExpiryWindow uint64
 	crossUnsafeFn       func(chainID eth.ChainID) (types.BlockSeal, error)
 	openBlockFn         func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
 	updateCrossUnsafeFn func(chain eth.ChainID, crossUnsafe types.BlockSeal) error
 	checkFn             func(chainID eth.ChainID, blockNum uint64, timestamp uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error)
+}
+
+func (m *mockCrossUnsafeDeps) AcquireHandle() reads.Handle {
+	if m.acquireHandleFn != nil {
+		return m.acquireHandleFn()
+	}
+	return reads.NoopHandle{}
 }
 
 func (m *mockCrossUnsafeDeps) CrossUnsafe(chainID eth.ChainID) (derived types.BlockSeal, err error) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -235,7 +236,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when CandidateCrossSafe returns an error,
 		// the error is returned
-		candidate, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		candidate, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 		require.Equal(t, eth.BlockRef{}, candidate.Source)
 	})
@@ -248,7 +249,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when OpenBlock returns an error,
 		// the error is returned
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 		require.Equal(t, eth.BlockRef{}, pair.Source)
 	})
@@ -269,7 +270,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when OpenBlock and CandidateCrossSafe return different blocks,
 		// an ErrConflict is returned
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.ErrorIs(t, err, types.ErrConflict)
 		require.Equal(t, eth.BlockRef{}, pair.Source)
 	})
@@ -295,7 +296,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when CrossSafeHazards returns an error,
 		// the error is returned
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 		require.ErrorContains(t, err, "dependencies of cross-safe candidate")
 		require.Equal(t, eth.BlockRef{}, pair.Source)
@@ -325,7 +326,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when CrossSafeHazards returns an error,
 		// the error is returned
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 		require.ErrorContains(t, err, "failed to build hazard set")
 		require.Equal(t, eth.BlockRef{}, pair.Source)
@@ -353,7 +354,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 
 		// HazardCycleChecks returns an error with appropriate wrapping
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.ErrorContains(t, err, "cycle detected")
 		require.ErrorContains(t, err, "failed to verify block")
 		require.Equal(t, eth.BlockRef{Number: 2}, pair.Source)
@@ -383,7 +384,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when UpdateCrossSafe returns an error,
 		// the error is returned
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 		require.ErrorContains(t, err, "failed to update")
 		require.Equal(t, eth.BlockRef{Number: 2}, pair.Source)
@@ -410,7 +411,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		}
 		// when OpenBlock and CandidateCrossSafe return different blocks,
 		// an ErrConflict is returned
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerNone{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerNone{})
 		require.ErrorIs(t, err, types.ErrConflict)
 		require.Equal(t, eth.BlockRef{}, pair.Source)
 	})
@@ -446,7 +447,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 		csd.checkFn = func(chainID eth.ChainID, blockNum uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
 			return types.BlockSeal{Number: 1, Timestamp: 1}, nil
 		}
-		pair, err := scopedCrossSafeUpdate(logger, chainID, csd, linkerAny{})
+		pair, err := scopedCrossSafeUpdate(reads.NoopHandle{}, logger, chainID, csd, linkerAny{})
 		require.Equal(t, chainID, updatingChain)
 		require.Equal(t, candidateScope, updatingCandidateScope)
 		require.Equal(t, candidate, updatingCandidate)
@@ -456,6 +457,7 @@ func TestScopedCrossSafeUpdate(t *testing.T) {
 }
 
 type mockCrossSafeDeps struct {
+	acquireHandleFn        func() reads.Handle
 	crossSafeFn            func(chainID eth.ChainID) (pair types.DerivedBlockSealPair, err error)
 	crossDerivedToSourceFn func(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
 	candidateCrossSafeFn   func() (candidate types.DerivedBlockRefPair, err error)
@@ -465,6 +467,13 @@ type mockCrossSafeDeps struct {
 	previousDerivedFn      func(chain eth.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error)
 	checkFn                func(chainID eth.ChainID, blockNum uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error)
 	invalidateLocalSafeFn  func(chainID eth.ChainID, candidate types.DerivedBlockRefPair) error
+}
+
+func (m *mockCrossSafeDeps) AcquireHandle() reads.Handle {
+	if m.acquireHandleFn != nil {
+		return m.acquireHandleFn()
+	}
+	return reads.NoopHandle{}
 }
 
 var _ CrossSafeDeps = (*mockCrossSafeDeps)(nil)

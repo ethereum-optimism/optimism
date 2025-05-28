@@ -15,11 +15,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
-
-var errRewindFailed = errors.New("rewind failed")
 
 type LogStorage interface {
 	io.Closer
@@ -29,7 +28,7 @@ type LogStorage interface {
 
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 
-	Rewind(newHead eth.BlockID) error
+	Rewind(inv reads.Invalidator, newHead eth.BlockID) error
 
 	LatestSealedBlock() (id eth.BlockID, ok bool)
 
@@ -87,12 +86,12 @@ type DerivationStorage interface {
 	// AddDerived adds a derived block to the database. The first entry to be added may
 	// have zero parent hashes.
 	AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error
-	ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, err error)
+	ReplaceInvalidatedBlock(inv reads.Invalidator, replacementDerived eth.BlockRef, invalidated common.Hash) (out types.DerivedBlockRefPair, err error)
 
 	// rewinding
-	RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error
-	RewindToScope(scope eth.BlockID) error
-	RewindToFirstDerived(v eth.BlockID, revision types.Revision) error
+	RewindAndInvalidate(inv reads.Invalidator, invalidated types.DerivedBlockRefPair) error
+	RewindToScope(inv reads.Invalidator, scope eth.BlockID) error
+	RewindToFirstDerived(inv reads.Invalidator, v eth.BlockID, revision types.Revision) error
 }
 
 var _ DerivationStorage = (*fromda.DB)(nil)
@@ -129,7 +128,9 @@ type ChainsDB struct {
 	// an error until it has this L1 finality to work with.
 	finalizedL1 locks.RWValue[eth.L1BlockRef]
 
-	readRegistries locks.RWMap[eth.ChainID, *ReadRegistry]
+	// readRegistry tracks what is actively being read,
+	// so we can invalidate reads that are affected by rewinds/reorgs.
+	readRegistry *reads.Registry
 
 	// depSet is the dependency set, used to determine what may be tracked,
 	// what is missing, and to provide it to DB users.
@@ -151,9 +152,10 @@ func NewChainsDB(l log.Logger, depSet depset.DependencySet, m Metrics) *ChainsDB
 	}
 
 	return &ChainsDB{
-		logger: l,
-		depSet: depSet,
-		m:      m,
+		logger:       l,
+		depSet:       depSet,
+		m:            m,
+		readRegistry: reads.NewRegistry(l),
 	}
 }
 
@@ -223,8 +225,8 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 			return true
 		}
 		db.logger.Info("Resuming, starting from last sealed block", "chain", chain, "head", head)
-		if err := logStore.Rewind(head); err != nil {
-			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", errRewindFailed, chain, head)
+		if err := logStore.Rewind(db.readRegistry, head); err != nil {
+			result = fmt.Errorf("%w: failed to rewind chain %s to sealed block %d", types.ErrRewindFailed, chain, head)
 			return false
 		}
 		return true
@@ -247,12 +249,8 @@ func (db *ChainsDB) Close() error {
 	return combined
 }
 
-func (db *ChainsDB) AcquireReadHandle(chainID eth.ChainID, blockNum uint64) (*ReadHandle, error) {
-	registry, ok := db.readRegistries.Get(chainID)
-	if !ok {
-		registry = NewReadRegistry(db.logger)
-		db.readRegistries.Set(chainID, registry)
-	}
+var _ reads.Acquirer = (*ChainsDB)(nil)
 
-	return registry.AcquireHandle(blockNum), nil
+func (db *ChainsDB) AcquireHandle() reads.Handle {
+	return db.readRegistry.AcquireHandle()
 }
