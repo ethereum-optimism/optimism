@@ -131,6 +131,26 @@
       },
       {
         "internalType": "uint256",
+        "name": "_cycleNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_startBlock",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_duration",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_votingCycleDistributionLimit",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "_distributionThreshold",
         "type": "uint256"
       },
@@ -211,6 +231,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "name": "proposalRequiredApprovals",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
@@ -256,7 +295,35 @@
         "type": "uint256"
       }
     ],
-    "name": "setProposalRequiredApprovals",
+    "name": "setProposalTypeApprovalThreshold",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_cycleNumber",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_startBlock",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_duration",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_votingCycleDistributionLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "setVotingCycleData",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -337,6 +404,35 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "votingCycles",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "startingBlock",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "duration",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "votingCycleDistributionLimit",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -392,25 +488,6 @@
       }
     ],
     "name": "OwnershipTransferred",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "enum ProposalValidator.ProposalType",
-        "name": "proposalType",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newApprovalThreshold",
-        "type": "uint256"
-      }
-    ],
-    "name": "ProposalApprovalThresholdSet",
     "type": "event"
   },
   {
@@ -507,6 +584,56 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "proposalType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newApprovalThreshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProposalTypeApprovalThresholdSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cycleNumber",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "startBlock",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "duration",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "votingCycleDistributionLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "VotingCycleDataSet",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "ProposalValidator_InsufficientApprovals",
     "type": "error"
@@ -534,6 +661,11 @@
   {
     "inputs": [],
     "name": "ProposalValidator_ProposalDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_VotingCycleAlreadySet",
     "type": "error"
   },
   {
