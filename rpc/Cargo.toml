@@ -75,6 +75,10 @@ thiserror.workspace = true
 tracing.workspace = true
 derive_more = { workspace = true, features = ["constructor"] }
 
+# metrics
+reth-metrics.workspace = true
+metrics.workspace = true
+
 [dev-dependencies]
 reth-optimism-chainspec.workspace = true
 
