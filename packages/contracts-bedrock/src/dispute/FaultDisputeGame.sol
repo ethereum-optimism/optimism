@@ -57,7 +57,7 @@ import {
     InvalidBondDistributionMode,
     GameNotResolved,
     ReservedGameType,
-    GamePaused
+    BadExtraData
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -283,20 +283,17 @@ contract FaultDisputeGame is Clone, ISemver {
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // output proposal to be created.
         //
-        // Expected length: 0x7A
-        // - 0x04 selector
-        // - 0x14 creator address
-        // - 0x20 root claim
-        // - 0x20 l1 head
-        // - 0x20 extraData
-        // - 0x02 CWIA bytes
-        // assembly {
-        //     if iszero(eq(calldatasize(), 0x7A)) {
-        //         // Store the selector for `BadExtraData()` & revert
-        //         mstore(0x00, 0x9824bdab)
-        //         revert(0x1C, 0x04)
-        //     }
-        // }
+        // Expected length: 194 bytes
+        // - 4 bytes: selector
+        // - 2 bytes: CWIA length prefix
+        // - 20 bytes: creator address
+        // - 32 bytes: root claim
+        // - 32 bytes: l1 head
+        // - 32 bytes: extraData
+        // - 32 bytes: absolutePrestate
+        // - 20 bytes: vm address
+        // - 20 bytes: anchorStateRegistry address
+        if (msg.data.length != 194) revert BadExtraData();
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.

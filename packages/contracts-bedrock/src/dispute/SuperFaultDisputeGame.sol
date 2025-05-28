@@ -302,15 +302,18 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // output proposal to be created.
         //
-        // Expected length: 0x7A
+        // Expected length: 0xC2 (194 bytes)
         // - 0x04 selector
+        // - 0x02 CWIA length prefix
         // - 0x14 creator address
         // - 0x20 root claim
         // - 0x20 l1 head
         // - 0x20 extraData
-        // - 0x02 CWIA bytes
+        // - 0x20 absolutePrestate (from CWIA gameArgs)
+        // - 0x14 vm address (from CWIA gameArgs)
+        // - 0x14 anchorStateRegistry address (from CWIA gameArgs)
         assembly {
-            if iszero(eq(calldatasize(), 0x7A)) {
+            if iszero(eq(calldatasize(), 0xC2)) {
                 // Store the selector for `BadExtraData()` & revert
                 mstore(0x00, 0x9824bdab)
                 revert(0x1C, 0x04)
