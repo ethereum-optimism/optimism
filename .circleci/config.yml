@@ -1050,9 +1050,10 @@ jobs:
         description: Environment overrides
         type: string
         default: ""
-      packages:
-        description: List of packages to test
+      rule:
+        description: Rule to run the tests
         type: string
+        default: "go-tests-ci"
     machine: true
     resource_class: <<parameters.resource_class>>
     steps:
@@ -1060,50 +1061,12 @@ jobs:
       - attach_workspace:
           at: "."
       - run:
-          name: build op-program-client
-          command: make op-program-client
-          working_directory: op-program
-      - run:
-          name: build op-program-host
-          command: make op-program-host
-          working_directory: op-program
-      - run:
-          name: build cannon
-          command: make cannon
-      - run:
-          name: run tests
+          name: Run all Go tests via Makefile
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
-            mkdir -p ./tmp/test-results && mkdir -p ./tmp/testlogs
-            cd op-e2e && make pre-test && cd ..
-
-            packages=(
-              <<parameters.packages>>
-            )
-            formatted_packages=""
-            for package in "${packages[@]}"; do
-              formatted_packages="$formatted_packages ./$package/..."
-            done
-
-            export ENABLE_KURTOSIS=true
-            export OP_E2E_CANNON_ENABLED="false"
-            export OP_E2E_SKIP_SLOW_TEST=true
-            export OP_E2E_USE_HTTP=true
-            export ENABLE_ANVIL=true
-            export SEPOLIA_RPC_URL="https://ci-sepolia-l1-archive.optimism.io"
-            export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io"
-            export PARALLEL=$(nproc)
-            export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
-
             <<parameters.environment_overrides>>
-
-            gotestsum --format=testname \
-              --junitfile=./tmp/test-results/results.xml \
-              --jsonfile=./tmp/testlogs/log.json \
-              --rerun-fails=3 \
-              --rerun-fails-max-failures=50 \
-              --packages="$formatted_packages" \
-              -- -parallel=$PARALLEL -coverprofile=coverage.out -timeout=<<parameters.test_timeout>>
+            export TEST_TIMEOUT=<<parameters.test_timeout>>
+            make <<parameters.rule>>
       - codecov/upload:
           disable_search: true
           files: ./coverage.out
@@ -1333,6 +1296,8 @@ jobs:
           paths:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
+            - "op-program/bin/op-program"
+            - "op-program/bin/op-program-client"
             - "cannon/bin"
 
   cannon-prestate:
@@ -1848,37 +1813,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - go-tests:
-          environment_overrides: |
-            export PARALLEL=24
-          packages: |
-            op-alt-da
-            op-batcher
-            op-chain-ops
-            op-node
-            op-proposer
-            op-challenger
-            op-faucet
-            op-dispute-mon
-            op-conductor
-            op-program
-            op-service
-            op-supervisor
-            op-test-sequencer
-            op-deployer
-            op-fetcher
-            op-validator
-            op-e2e/system
-            op-e2e/e2eutils
-            op-e2e/opgeth
-            op-e2e/interop
-            op-e2e/actions
-            op-e2e/faultproofs
-            packages/contracts-bedrock/scripts/checks
-            op-dripper
-            devnet-sdk
-            op-acceptance-tests
-            kurtosis-devnet
-            op-devstack
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
@@ -2123,16 +2057,12 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - go-tests:
           name: op-e2e-cannon-tests
+          rule: go-tests-fraud-proofs-ci
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 60m
           test_timeout: 90m
           resource_class: ethereum-optimism/latitude-fps-1
-          environment_overrides: |
-            export OP_E2E_CANNON_ENABLED="true"
-            export PARALLEL=24
-          packages: |
-            op-e2e/faultproofs
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
