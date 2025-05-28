@@ -63,13 +63,6 @@ func (ev PromoteUnsafeEvent) String() string {
 	return "promote-unsafe"
 }
 
-// RequestCrossUnsafeEvent signals that a CrossUnsafeUpdateEvent is needed.
-type RequestCrossUnsafeEvent struct{}
-
-func (ev RequestCrossUnsafeEvent) String() string {
-	return "request-cross-unsafe"
-}
-
 // UnsafeUpdateEvent signals that the given block is now considered safe.
 // This is pre-forkchoice update; the change may not be reflected yet in the EL.
 type UnsafeUpdateEvent struct {
@@ -476,11 +469,6 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		d.ec.SetCrossUnsafeHead(x.Ref)
 		d.emitter.Emit(CrossUnsafeUpdateEvent{
 			CrossUnsafe: x.Ref,
-			LocalUnsafe: d.ec.UnsafeL2Head(),
-		})
-	case RequestCrossUnsafeEvent:
-		d.emitter.Emit(CrossUnsafeUpdateEvent{
-			CrossUnsafe: d.ec.CrossUnsafeL2Head(),
 			LocalUnsafe: d.ec.UnsafeL2Head(),
 		})
 	case RequestCrossSafeEvent:
