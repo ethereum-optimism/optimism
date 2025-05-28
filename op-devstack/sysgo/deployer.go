@@ -135,9 +135,6 @@ type worldBuilder struct {
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
 
-	// outDepset is nil if none of the chains has a scheduled interop activation time
-	outDepset *depset.StaticConfigDependencySet
-
 	outFullCfgSet depset.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
@@ -251,28 +248,6 @@ func (wb *worldBuilder) buildL2Genesis() {
 	}
 }
 
-func (wb *worldBuilder) buildDepSet() {
-	// Note: deployer has a dep set of itself, but it only supports the at-genesis case
-	// So we work around it, and build our own here for now.
-
-	// Deployer uses a different type than the dependency-set itself, so we have to convert
-	depSetContents := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for _, ch := range wb.output.Chains {
-		id := eth.ChainIDFromBytes32(ch.ID)
-		interopTime := wb.outL2Genesis[id].Config.InteropTime
-		if interopTime == nil {
-			continue
-		}
-		depSetContents[id] = &depset.StaticConfigDependency{}
-	}
-	if len(depSetContents) == 0 {
-		return // no dependency set output if no chain had interop active
-	}
-	staticDepSet, err := depset.NewStaticConfigDependencySet(depSetContents)
-	wb.require.NoError(err)
-	wb.outDepset = staticDepSet
-}
-
 func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	wb.outL2Deployment = make(map[eth.ChainID]*L2Deployment)
 	for _, ch := range wb.output.Chains {
@@ -291,13 +266,13 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 func (wb *worldBuilder) buildFullConfigSet() {
 	// If no chain has interop active, the dep set will be nil here,
 	// so we should skip building the full config set.
-	if wb.outDepset == nil {
+	if wb.output.InteropDepSet == nil {
 		return
 	}
 
 	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
 		depset.StaticTimestamp(wb.outL1Genesis.Timestamp))
-	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.outDepset)
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
 	wb.require.NoError(err)
 	wb.outFullCfgSet = fullCfgSet
 }
@@ -337,7 +312,6 @@ func (wb *worldBuilder) Build() {
 	wb.buildL1Genesis()
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
-	wb.buildDepSet()
 	wb.buildFullConfigSet()
 }
 
