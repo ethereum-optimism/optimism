@@ -133,11 +133,12 @@ func (cl *L2CLNode) AdvancedFn(lvl types.SafetyLevel, delta uint64, attempts int
 func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
-		cl.log.Info("expecting chain not to advance", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
+		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
+		logger.Info("expecting chain not to advance")
 		for range attempts {
 			time.Sleep(2 * time.Second)
 			head := cl.HeadBlockRef(lvl)
-			cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number, "current", head.Number)
+			logger.Info("Chain sync status", "current", head.Number)
 			if head.Hash == initial.Hash {
 				continue
 			}
@@ -151,15 +152,16 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
 	return func() error {
-		cl.log.Info("expecting chain to reach", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
+		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
+		logger.Info("expecting chain to reach")
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				head := cl.HeadBlockRef(lvl)
 				if head.Number >= target {
-					cl.log.Info("chain advanced", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
+					logger.Info("chain advanced", "target", target)
 					return nil
 				}
-				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target, "current", head.Number)
+				logger.Info("Chain sync status", "current", head.Number)
 				return fmt.Errorf("expected head to advance: %s", lvl)
 			})
 	}
@@ -173,7 +175,6 @@ func (cl *L2CLNode) ReachedRefFn(lvl types.SafetyLevel, target eth.BlockID, atte
 		if err != nil {
 			return err
 		}
-
 		ethclient := cl.inner.ELs()[0].EthClient()
 		result, err := ethclient.BlockRefByNumber(cl.ctx, target.Number)
 		if err != nil {
@@ -193,16 +194,17 @@ func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int
 		initial := cl.HeadBlockRef(lvl)
 		cl.require.GreaterOrEqual(initial.Number, delta, "cannot rewind before genesis")
 		target := initial.Number - delta
-		cl.log.Info("expecting chain to rewind", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target, "delta", delta)
+		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl)
+		logger.Info("expecting chain to rewind", "target", target, "delta", delta)
 		// check rewind more aggressively, in shorter interval
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 500 * time.Millisecond},
 			func() error {
 				head := cl.HeadBlockRef(lvl)
 				if head.Number <= target {
-					cl.log.Info("chain rewinded", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
+					logger.Info("chain rewinded", "target", target)
 					return nil
 				}
-				cl.log.Info("Chain sync status", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target, "current", head.Number)
+				logger.Info("Chain sync status", "target", target, "current", head.Number)
 				return fmt.Errorf("expected head to rewind: %s", lvl)
 			})
 	}
@@ -228,6 +230,62 @@ func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) 
 	cl.require.NoError(cl.RewindedFn(lvl, delta, attempts)())
 }
 
+// Matched returns a lambda that checks the L2CL chain head with given safety level matched with the reference L2CL chain
+// Composable with other lambdas to wait in parallel
+func (cl *L2CLNode) Matched(refNode *L2CLNode, lvl types.SafetyLevel, attempts int) CheckFunc {
+	return func() error {
+		base := cl.HeadBlockRef(lvl)
+		ref := refNode.HeadBlockRef(lvl)
+		logger := cl.log.With("id", cl.inner.ID(), "ref_id", refNode.inner.ID(), "chain", cl.ChainID(), "label", lvl)
+		logger.Info("Expecting chain to match with reference", "base", base.Number, "ref", ref.Number)
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				base = cl.HeadBlockRef(lvl)
+				ref = refNode.HeadBlockRef(lvl)
+				if ref.Hash == base.Hash && ref.Number == base.Number {
+					logger.Info("Chain matched", "ref", ref.Number)
+					return nil
+				}
+				logger.Info("Chain sync status", "base", base.Number, "ref", ref.Number)
+				return fmt.Errorf("expected head to match: %s", lvl)
+			})
+	}
+}
+
+// Lagged returns a lambda that checks the L2CL chain head with given safety level is lagged with the reference L2CL chain
+// Composable with other lambdas to wait in parallel
+func (cl *L2CLNode) Lagged(refNode *L2CLNode, lvl types.SafetyLevel, attempts int, allowMatch bool) CheckFunc {
+	return func() error {
+		base := cl.HeadBlockRef(lvl)
+		ref := refNode.HeadBlockRef(lvl)
+		logger := cl.log.With("id", cl.inner.ID(), "ref_id", refNode.inner.ID(), "chain", cl.ChainID(), "label", lvl)
+		logger.Info("Expecting chain to lag with reference", "base", base.Number, "ref", ref.Number)
+		err := retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
+			func() error {
+				base = cl.HeadBlockRef(lvl)
+				ref = refNode.HeadBlockRef(lvl)
+				cmp := base.Number > ref.Number
+				msg := "Base chain surpassed"
+				if !allowMatch {
+					cmp = base.Number >= ref.Number
+					msg += " or caught up"
+				}
+				if cmp {
+					logger.Info(msg, "base", base.Number, "ref", ref.Number)
+					return nil
+				}
+				logger.Info("Chain sync status", "base", base.Number, "ref", ref.Number)
+				return fmt.Errorf("chain is lagging as expected: %s", lvl)
+			})
+		// invert the error to check base chain was always lagging
+		if err != nil {
+			logger.Info("Chain lagged as expected")
+			return nil
+		}
+		return fmt.Errorf("expected head to lag: %s", lvl)
+	}
+}
+
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
 	peerInfo, err := cl.inner.P2PAPI().Self(cl.ctx)
 	cl.require.NoError(err, "failed to get peer info")
@@ -243,5 +301,12 @@ func (cl *L2CLNode) Peers() *apis.PeerDump {
 func (cl *L2CLNode) DisconnectPeer(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
 	err := cl.inner.P2PAPI().DisconnectPeer(cl.ctx, peerInfo.PeerID)
+	cl.require.NoError(err, "failed to disconnect peer")
+}
+
+func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
+	peerInfo := peer.PeerInfo()
+	cl.require.NotZero(len(peerInfo.Addresses), "failed to get peer address")
+	err := cl.inner.P2PAPI().ConnectPeer(cl.ctx, peerInfo.Addresses[0])
 	cl.require.NoError(err, "failed to disconnect peer")
 }
