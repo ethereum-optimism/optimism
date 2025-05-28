@@ -131,11 +131,6 @@
       },
       {
         "internalType": "uint256",
-        "name": "_votingCycleBlock",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
         "name": "_distributionThreshold",
         "type": "uint256"
       },
@@ -148,28 +143,6 @@
         "internalType": "uint256[]",
         "name": "_requiredApprovals",
         "type": "uint256[]"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address[]",
-            "name": "targets",
-            "type": "address[]"
-          },
-          {
-            "internalType": "uint256[]",
-            "name": "values",
-            "type": "uint256[]"
-          },
-          {
-            "internalType": "string[]",
-            "name": "signatures",
-            "type": "string[]"
-          }
-        ],
-        "internalType": "struct ProposalValidator.ImmutableProposalTypeData[]",
-        "name": "_immutableProposalTypeDatas",
-        "type": "tuple[]"
       }
     ],
     "name": "initialize",
@@ -291,19 +264,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_votingCycleBlock",
-        "type": "uint256"
-      }
-    ],
-    "name": "setVotingCycleBlock",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address[]",
         "name": "_targets",
         "type": "address[]"
@@ -374,19 +334,6 @@
       }
     ],
     "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "votingCycleBlock",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -557,19 +504,6 @@
       }
     ],
     "name": "ProposalSubmitted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newVotingCycleBlock",
-        "type": "uint256"
-      }
-    ],
-    "name": "VotingCycleBlockSet",
     "type": "event"
   },
   {
