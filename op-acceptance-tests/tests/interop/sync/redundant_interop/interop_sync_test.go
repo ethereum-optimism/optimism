@@ -106,6 +106,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	dsl.CheckAll(t,
 		sys.L2CLA2.Lagged(sys.L2CLA, types.LocalUnsafe, 10, false),
 		sys.L2CLA2.Lagged(sys.L2CLA, types.CrossSafe, 10, true),
+		// TODO: compare with supervisor
 	)
 
 	logger.Info("explicit reconnection of L2CL P2P between sequencer and verifier")
