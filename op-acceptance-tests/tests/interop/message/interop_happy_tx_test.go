@@ -25,12 +25,7 @@ func TestInteropHappyTx(gt *testing.T) {
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
 	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
 
-	sys.L1Network.WaitForBlock()
-	sys.L2ChainA.WaitForBlock()
-
 	eventLoggerAddress := alice.DeployEventLogger()
-
-	sys.L1Network.WaitForBlock()
 
 	// wait for chain B to catch up to chain A if necessary
 	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
