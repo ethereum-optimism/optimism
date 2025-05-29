@@ -275,7 +275,9 @@ func (cl *L2CLNode) DisconnectPeer(peer *L2CLNode) {
 func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
 	cl.require.NotZero(len(peerInfo.Addresses), "failed to get peer address")
-	err := retry.Do0(cl.ctx, 6, retry.Exponential(), func() error {
+	// graceful backoff for p2p connection, to avoid dial backoff or connection refused error
+	strategy := &retry.ExponentialStrategy{Min: 10 * time.Second, Max: 30 * time.Second, MaxJitter: 250 * time.Millisecond}
+	err := retry.Do0(cl.ctx, 5, strategy, func() error {
 		return cl.inner.P2PAPI().ConnectPeer(cl.ctx, peerInfo.Addresses[0])
 	})
 	cl.require.NoError(err, "failed to connect peer")
