@@ -33,7 +33,12 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 /// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
 /// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
 /// before and after an upgrade.
-contract StandardValidator {
+contract StandardValidator is ISemver {
+
+    /// @notice The semantic version of the StandardValidator contract.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
 
